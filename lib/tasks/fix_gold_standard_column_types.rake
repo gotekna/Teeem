@@ -4,10 +4,10 @@ namespace :gold_standard do
     puts "🔧 Fixing Gold Standard table column types..."
     puts ""
 
-    # Find the Gold Standard table
-    table = Table.find_by(name: 'Gold Standard Items') || Table.first
+    # Find the Gold Standard Reference table (ID 166)
+    table = Table.find_by(id: 166) || Table.find_by(name: 'Gold Standard Reference')
     unless table
-      puts "❌ Gold Standard table not found!"
+      puts "❌ Gold Standard Reference table not found!"
       exit 1
     end
 

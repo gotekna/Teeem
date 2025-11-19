@@ -85,32 +85,12 @@ class Api::V1::ColumnTypesController < ApplicationController
       return
     end
 
-    # Prepare update parameters
+    # Only allow updating the display name
+    # All other metadata (validation rules, examples, usage) is auto-generated from column_type
     update_params = {}
 
-    # Allow updating the display name
     if params[:displayName].present?
       update_params[:name] = params[:displayName]
-    end
-
-    # Store metadata (validationRules, example, usedFor) in settings JSON field
-    settings = column.settings || {}
-
-    if params[:validationRules].present?
-      settings['validation_rules'] = params[:validationRules]
-    end
-
-    if params[:example].present?
-      settings['example'] = params[:example]
-    end
-
-    if params[:usedFor].present?
-      settings['used_for'] = params[:usedFor]
-    end
-
-    # Only update settings if we have changes
-    if settings != column.settings
-      update_params[:settings] = settings
     end
 
     # Update the column
