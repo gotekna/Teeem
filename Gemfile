@@ -63,6 +63,10 @@ gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
 # AI integration for plan analysis
 gem "anthropic", "~> 0.1.0"  # Claude API for AI-powered plan review
 
+# Error tracking and monitoring
+gem "sentry-ruby", "~> 5.22"
+gem "sentry-rails", "~> 5.22"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: [ :mri, :windows ], require: "debug/prelude"
