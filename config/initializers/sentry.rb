@@ -16,7 +16,7 @@ Sentry.init do |config|
 
   # Filter out sensitive parameters
   config.send_default_pii = false
-  config.sanitize_fields = Rails.application.config.filter_parameters.map(&:to_s)
+  # Sentry automatically filters Rails.application.config.filter_parameters
 
   # Set the environment
   config.environment = Rails.env
