@@ -180,6 +180,9 @@ Rails.application.routes.draw do
       # Gold Standard Items (Demo/Reference Price Book)
       resources :gold_standard_items, only: [:index, :create, :update, :destroy]
 
+      # Column Types - Single Source of Truth from Gold Standard Reference Table
+      resources :column_types, only: [:index, :show, :update]
+
       # Suppliers management
       resources :suppliers do
         collection do
