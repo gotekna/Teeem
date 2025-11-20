@@ -20,6 +20,7 @@ module Api
             priority: agent.priority,
             last_run_at: agent.last_run_at,
             last_status: agent.last_status,
+            total_runs: agent.total_runs || 0,
             success_rate: calculate_success_rate(agent)
           }
         }
