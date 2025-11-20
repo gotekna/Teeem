@@ -576,4 +576,183 @@ namespace :trapid do
     puts '  2. Commit to git: git add TRAPID_DOCS/TRAPID_TEACHER.md'
     puts '  3. Git commit message: "docs: Update Teacher from database export"'
   end
+
+  desc 'Export Teacher database to per-chapter files in TEACHER/ directory'
+  task export_teacher_split: :environment do
+    puts '🔧 Exporting Teacher database to per-chapter markdown files...'
+
+    # Ensure TEACHER directory exists
+    teacher_dir = Rails.root.join('..', 'TRAPID_DOCS', 'TEACHER')
+    FileUtils.mkdir_p(teacher_dir)
+
+    # Get all chapters (only from Teacher entries)
+    chapters = Trinity.teacher_entries
+                      .select(:chapter_number, :chapter_name)
+                      .distinct
+                      .order(:chapter_number)
+
+    generated_files = []
+
+    # Generate a file for each chapter
+    chapters.each do |chapter|
+      content = []
+
+      # Chapter-specific header
+      chapter_name_slug = chapter.chapter_name.upcase.gsub(/[^A-Z0-9]+/, '_')
+      content << "# TRAPID TEACHER - Chapter #{chapter.chapter_number}: #{chapter.chapter_name}"
+      content << ''
+      content << "**Last Updated:** #{Time.current.strftime('%Y-%m-%d %H:%M %Z')}"
+      content << '**Authority Level:** Reference (HOW to implement Bible rules)'
+      content << '**Audience:** Claude Code + Human Developers'
+      content << ''
+      content << '---'
+      content << ''
+      content << '## 📚 Navigation'
+      content << ''
+      content << '**Other Teacher Chapters:**'
+      content << '- [Main Teacher Index](../TRAPID_TEACHER.md)'
+
+      # Add links to adjacent chapters
+      if chapter.chapter_number > 0
+        prev_chapter = chapters.find { |c| c.chapter_number == chapter.chapter_number - 1 }
+        if prev_chapter
+          prev_slug = prev_chapter.chapter_name.upcase.gsub(/[^A-Z0-9]+/, '_')
+          content << "- [← Previous: Chapter #{prev_chapter.chapter_number} - #{prev_chapter.chapter_name}](CHAPTER_#{prev_chapter.chapter_number.to_s.rjust(2, '0')}_#{prev_slug}.md)"
+        end
+      end
+
+      next_chapter = chapters.find { |c| c.chapter_number == chapter.chapter_number + 1 }
+      if next_chapter
+        next_slug = next_chapter.chapter_name.upcase.gsub(/[^A-Z0-9]+/, '_')
+        content << "- [Next: Chapter #{next_chapter.chapter_number} - #{next_chapter.chapter_name} →](CHAPTER_#{next_chapter.chapter_number.to_s.rjust(2, '0')}_#{next_slug}.md)"
+      end
+
+      content << ''
+      content << '**Related Documentation:**'
+      content << '- 📖 [TRAPID Bible (Rules)](../TRAPID_BIBLE.md)'
+      content << '- 📕 [TRAPID Lexicon (Bug History)](../TRAPID_LEXICON.md)'
+      content << '- 📘 [User Manual](../TRAPID_USER_MANUAL.md)'
+      content << ''
+      content << '---'
+      content << ''
+      content << "## Chapter #{chapter.chapter_number}: #{chapter.chapter_name}"
+      content << ''
+
+      # Get Teacher entries for this chapter
+      entries = Trinity.teacher_entries
+                       .where(chapter_number: chapter.chapter_number)
+                       .order(:section_number, :created_at)
+
+      if entries.empty?
+        content << '*No teaching patterns available for this chapter yet.*'
+        content << ''
+      else
+        entries.each do |entry|
+          # Section header
+          section_prefix = entry.section_number.present? ? "§#{entry.section_number}: " : ""
+          content << "## #{section_prefix}#{entry.title}"
+          content << ''
+
+          # Type and difficulty badges
+          badges = []
+          badges << "#{entry.type_emoji} #{entry.entry_type.titleize}"
+          badges << "#{entry.difficulty_emoji} #{entry.difficulty&.capitalize}" if entry.difficulty.present?
+          content << badges.join(' | ')
+          content << ''
+
+          # Related rules
+          if entry.related_rules.present?
+            content << "**📖 Related Bible Rules:** #{entry.related_rules}"
+            content << ''
+          end
+
+          # Summary
+          if entry.summary.present?
+            content << '### Quick Summary'
+            content << entry.summary
+            content << ''
+          end
+
+          # Step-by-step guide (using details field)
+          if entry.details.present?
+            content << '### Step-by-Step Guide'
+            content << entry.details
+            content << ''
+          end
+
+          # Code example
+          if entry.code_example.present?
+            content << '### Code Example'
+            content << '```jsx'
+            content << entry.code_example
+            content << '```'
+            content << ''
+          end
+
+          # Common mistakes
+          if entry.common_mistakes.present?
+            content << '### ⚠️ Common Mistakes'
+            content << entry.common_mistakes
+            content << ''
+          end
+
+          # Testing strategy
+          if entry.testing_strategy.present?
+            content << '### 🧪 Testing Strategy'
+            content << entry.testing_strategy
+            content << ''
+          end
+
+          # Additional universal fields
+          if entry.description.present?
+            content << '### Description'
+            content << entry.description
+            content << ''
+          end
+
+          if entry.examples.present?
+            content << '### Examples'
+            content << entry.examples
+            content << ''
+          end
+
+          if entry.recommendations.present?
+            content << '### Recommendations'
+            content << entry.recommendations
+            content << ''
+          end
+
+          content << ''
+        end
+      end
+
+      # Footer
+      content << ''
+      content << '---'
+      content << ''
+      content << "**Last Generated:** #{Time.current.strftime('%Y-%m-%d %H:%M %Z')}"
+      content << '**Generated By:** `rake trapid:export_teacher_split`'
+      content << '**Maintained By:** Development Team via Database UI'
+
+      # Write chapter file
+      chapter_filename = "CHAPTER_#{chapter.chapter_number.to_s.rjust(2, '0')}_#{chapter_name_slug}.md"
+      file_path = teacher_dir.join(chapter_filename)
+      File.write(file_path, content.join("\n"))
+      generated_files << chapter_filename
+
+      puts "  ✅ Chapter #{chapter.chapter_number}: #{chapter.chapter_name} (#{entries.count} entries)"
+    end
+
+    puts ''
+    puts "✅ Exported #{chapters.count} chapters to separate files"
+    puts "📁 Directory: #{teacher_dir}"
+    puts ''
+    puts 'Generated files:'
+    generated_files.each { |f| puts "  - #{f}" }
+    puts ''
+    puts '💡 Next steps:'
+    puts '  1. Review the generated files in TRAPID_DOCS/TEACHER/'
+    puts '  2. Commit to git: git add TRAPID_DOCS/TEACHER/'
+    puts '  3. Git commit message: "docs: Split Teacher into per-chapter files for token efficiency"'
+  end
 end
