@@ -115,37 +115,53 @@ class WhsActionItem < ApplicationRecord
   private
 
   def create_project_task_if_needed
-    # TODO: Create linked ProjectTask when action item is created
-    # This will be implemented in Phase 5 (integrations)
     return if project_task.present?
     return unless assigned_to_user.present?
 
     # Create task in project task system
-    # project = find_related_project
-    # if project
-    #   task = project.project_tasks.create!(
-    #     name: title,
-    #     description: description,
-    #     task_type: 'whs_action',
-    #     category: 'safety',
-    #     status: status_for_project_task,
-    #     assigned_to: assigned_to_user,
-    #     planned_end_date: due_date,
-    #     duration_days: 1
-    #   )
-    #   update_column(:project_task_id, task.id)
-    # end
+    project = find_related_project
+    if project
+      task = project.project_tasks.create!(
+        name: title,
+        description: description,
+        task_type: 'whs_action',
+        category: 'safety',
+        status: status_for_project_task,
+        assigned_to: assigned_to_user,
+        planned_end_date: due_date,
+        duration_days: 1
+      )
+      update_column(:project_task_id, task.id)
+    end
+  rescue => e
+    Rails.logger.error("Failed to create project task for WHS action item #{id}: #{e.message}")
+    # Don't fail the action item creation if task creation fails
   end
 
   def sync_with_project_task
     return unless project_task.present?
     return unless saved_change_to_status? || saved_change_to_due_date?
 
-    # TODO: Sync status and dates with linked ProjectTask
-    # project_task.update(
-    #   status: status_for_project_task,
-    #   planned_end_date: due_date
-    # )
+    project_task.update(
+      status: status_for_project_task,
+      planned_end_date: due_date
+    )
+  rescue => e
+    Rails.logger.error("Failed to sync project task for WHS action item #{id}: #{e.message}")
+  end
+
+  def find_related_project
+    # Find the project (construction) related to this action item
+    case actionable_type
+    when 'WhsInspection'
+      actionable.construction
+    when 'WhsIncident'
+      actionable.construction
+    when 'WhsSwmsHazard'
+      actionable.whs_swms.construction
+    else
+      nil
+    end
   end
 
   def set_completion_timestamp

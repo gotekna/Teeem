@@ -197,8 +197,31 @@ class WhsSwms < ApplicationRecord
     # Otherwise, set to pending and create approval task
     update_column(:status, 'pending_approval') if status == 'draft'
 
-    # TODO: Create ProjectTask for WPHS Appointees to approve
-    # This will be implemented when we integrate with the task system
+    # Create approval task for WPHS Appointees
+    create_swms_approval_task
+  end
+
+  def create_swms_approval_task
+    return unless construction.present?
+
+    # Find WPHS Appointees
+    wphs_appointee = User.where(wphs_appointee: true).first
+    return unless wphs_appointee.present?
+
+    construction.project_tasks.create!(
+      name: "Approve SWMS: #{title}",
+      description: "Review and approve SWMS #{swms_number}",
+      task_type: 'whs_approval',
+      category: 'safety',
+      status: 'not_started',
+      assigned_to: wphs_appointee,
+      planned_end_date: CompanySetting.today + 2.days,
+      duration_days: 1,
+      tags: ['whs', 'swms', 'approval']
+    )
+  rescue => e
+    Rails.logger.error("Failed to create approval task for SWMS #{id}: #{e.message}")
+    # Don't fail SWMS creation if task creation fails
   end
 
   def must_have_construction_or_be_company_wide

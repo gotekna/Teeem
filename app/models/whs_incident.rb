@@ -156,10 +156,31 @@ class WhsIncident < ApplicationRecord
   end
 
   def create_investigation_task
-    # TODO: Create ProjectTask for WPHS Appointee to investigate
-    # Priority based on severity:
-    # - Critical: Immediate
-    # - High: High
-    # - Medium/Low: Medium
+    return unless construction.present?
+
+    # Map severity to priority
+    task_priority = case severity_level
+    when 'critical' then 'critical'
+    when 'high' then 'high'
+    else 'medium'
+    end
+
+    # Find WPHS Appointees
+    wphs_appointee = User.where(wphs_appointee: true).first
+
+    construction.project_tasks.create!(
+      name: "Investigate Incident #{incident_number}",
+      description: "Investigate incident: #{what_happened}",
+      task_type: 'whs_investigation',
+      category: 'safety',
+      status: 'not_started',
+      assigned_to: wphs_appointee,
+      planned_end_date: CompanySetting.today + 3.days,
+      duration_days: 3,
+      tags: ['whs', 'incident', severity_level]
+    )
+  rescue => e
+    Rails.logger.error("Failed to create investigation task for incident #{id}: #{e.message}")
+    # Don't fail incident creation if task creation fails
   end
 end
