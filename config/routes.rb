@@ -13,6 +13,9 @@ Rails.application.routes.draw do
   # API routes
   namespace :api do
     namespace :v1 do
+      # Feature Trackers
+      resources :feature_trackers, only: [:index, :create, :update, :destroy]
+
       # Authentication routes
       post 'auth/signup', to: 'authentication#signup'
       post 'auth/login', to: 'authentication#login'
