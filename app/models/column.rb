@@ -56,7 +56,8 @@ class Column < ApplicationRecord
     'multiple_lookups' => :text,  # stored as JSON array
     'gps_coordinates' => :string,  # stored as "lat,lng"
     'color_picker' => :string,  # stored as hex color #RRGGBB
-    'file_upload' => :text  # stored as file path or URL
+    'file_upload' => :text,  # stored as file path or URL
+    'action_buttons' => :string  # stored as JSON configuration
   }.freeze
 
   def db_type
