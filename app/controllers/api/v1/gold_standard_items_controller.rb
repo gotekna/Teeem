@@ -37,9 +37,21 @@ class Api::V1::GoldStandardItemsController < ApplicationController
 
   def item_params
     params.require(:gold_standard_item).permit(
+      # Existing columns
       :section, :email, :phone, :mobile, :title, :category_type, :is_active,
       :discount, :component, :status, :price, :quantity, :whole_number, :unit,
-      :severity, :content, :category, :document_link, :updated_at, :created_at
+      :severity, :content, :category, :document_link, :updated_at, :created_at,
+      :action_buttons,
+      # New columns added for complete 22 column type coverage
+      :item_code,           # single_line_text
+      :notes,               # multiple_lines_text
+      :start_date,          # date
+      :location_coords,     # gps_coordinates
+      :color_code,          # color_picker
+      :file_attachment,     # file_upload
+      :multi_tags,          # multiple_lookups
+      :assigned_user_id,    # user
+      :total_cost           # computed
     )
   end
 end

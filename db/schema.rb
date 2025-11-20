@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_20_014220) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_20_221852) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -767,6 +767,34 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_20_014220) do
     t.index ["name"], name: "index_external_integrations_on_name", unique: true
   end
 
+  create_table "feature_trackers", force: :cascade do |t|
+    t.string "chapter", null: false
+    t.string "feature_name", null: false
+    t.text "detail_point_1"
+    t.text "detail_point_2"
+    t.text "detail_point_3"
+    t.boolean "system_complete", default: false, null: false
+    t.boolean "dev_checked", default: false, null: false
+    t.boolean "tester_checked", default: false, null: false
+    t.boolean "user_checked", default: false, null: false
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "ui_checked", default: false, null: false
+    t.integer "dev_progress", default: 0, null: false
+    t.boolean "buildertrend_has"
+    t.boolean "buildexact_has"
+    t.boolean "jacks_has", default: false, null: false
+    t.boolean "wunderbuilt_has", default: false, null: false
+    t.boolean "databuild_has", default: false, null: false
+    t.boolean "simpro_has", default: false, null: false
+    t.boolean "smarterbuild_has", default: false, null: false
+    t.boolean "clickhome_has", default: false, null: false
+    t.boolean "trapid_has", default: false, null: false
+    t.index ["chapter"], name: "index_feature_trackers_on_chapter"
+    t.index ["sort_order"], name: "index_feature_trackers_on_sort_order"
+  end
+
   create_table "financial_transactions", force: :cascade do |t|
     t.string "transaction_type", null: false
     t.decimal "amount", precision: 10, scale: 2, null: false
@@ -841,6 +869,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_20_014220) do
     t.string "mobile"
     t.string "category_type"
     t.string "document_link"
+    t.string "action_buttons"
+    t.string "item_code"
+    t.text "notes"
+    t.date "start_date"
+    t.string "location_coords"
+    t.string "color_code"
+    t.string "file_attachment"
+    t.text "multi_tags"
+    t.integer "assigned_user_id"
+    t.decimal "total_cost", precision: 10, scale: 2
   end
 
   create_table "grok_plans", force: :cascade do |t|

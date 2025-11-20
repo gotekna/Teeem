@@ -4,7 +4,7 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types
   # Returns all column type definitions from the Gold Standard Reference table
   def index
-    gold_standard_table = Table.find_by(id: 166) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
 
     unless gold_standard_table
       render json: {
@@ -35,7 +35,7 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types/:column_type
   # Returns specific column type definition
   def show
-    gold_standard_table = Table.find_by(id: 166) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
 
     unless gold_standard_table
       render json: {
@@ -64,7 +64,7 @@ class Api::V1::ColumnTypesController < ApplicationController
   # PATCH /api/v1/column_types/:column_type
   # Updates metadata for a specific column type in the Gold Standard table
   def update
-    gold_standard_table = Table.find_by(id: 166) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
 
     unless gold_standard_table
       render json: {
@@ -157,6 +157,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => 'Special',
       'color_picker' => 'Special',
       'file_upload' => 'Special',
+      'action_buttons' => 'Special',
       'boolean' => 'Selection',
       'choice' => 'Selection',
       'lookup' => 'Relationships',
@@ -186,10 +187,6 @@ class Api::V1::ColumnTypesController < ApplicationController
 
   # Get validation rules for a column type
   def get_validation_rules(column)
-    # Check settings first
-    return column.settings['validation_rules'] if column.settings&.dig('validation_rules').present?
-
-    # Fall back to defaults
     rules = {
       'single_line_text' => 'Optional text field, max 255 characters, alphanumeric',
       'multiple_lines_text' => 'Long text field, unlimited length, supports line breaks',
@@ -206,6 +203,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => 'GPS format: latitude, longitude',
       'color_picker' => 'Hex color code: #RRGGBB',
       'file_upload' => 'File path or URL to uploaded file',
+      'action_buttons' => 'Optional field, stores action configuration as JSON string',
       'boolean' => 'True/False, Yes/No, 1/0',
       'choice' => 'Single selection from predefined list',
       'lookup' => 'Reference to another table record',
@@ -219,10 +217,6 @@ class Api::V1::ColumnTypesController < ApplicationController
 
   # Get example value for a column type
   def get_example(column)
-    # Check settings first
-    return column.settings['example'] if column.settings&.dig('example').present?
-
-    # Fall back to defaults
     examples = {
       'single_line_text' => 'CONC-001, STL-042A',
       'multiple_lines_text' => 'This is a longer description\nwith multiple lines',
@@ -239,6 +233,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => '-33.8688, 151.2093',
       'color_picker' => '#3498DB',
       'file_upload' => '/uploads/document.pdf',
+      'action_buttons' => '{"buttons": [{"label": "View", "action": "view"}, {"label": "Edit", "action": "edit"}]}',
       'boolean' => 'true, false',
       'choice' => 'Active, Pending, Complete',
       'lookup' => 'Customer: ABC Corp',
@@ -252,10 +247,6 @@ class Api::V1::ColumnTypesController < ApplicationController
 
   # Get usage description for a column type
   def get_used_for(column)
-    # Check settings first
-    return column.settings['used_for'] if column.settings&.dig('used_for').present?
-
-    # Fall back to defaults
     descriptions = {
       'single_line_text' => 'Unique identifier code for inventory',
       'multiple_lines_text' => 'Detailed notes, descriptions, comments',
@@ -272,6 +263,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => 'Location data, addresses with coordinates',
       'color_picker' => 'Status colors, category colors',
       'file_upload' => 'Attachments, documents, images',
+      'action_buttons' => 'Row-level actions like View, Edit, Download, Approve, Process',
       'boolean' => 'Yes/No flags, active/inactive status',
       'choice' => 'Status, priority, category selection',
       'lookup' => 'Link to related record in another table',
