@@ -274,3 +274,172 @@ docs: Update [Bible|Teacher|Lexicon] from database export
 2. Identify the relevant chapter number
 3. Read ONLY that specific chapter file
 4. Save 98% of your tokens
+
+---
+
+## 🐛 Token-Efficient Debugging Workflow
+
+**CRITICAL:** Raw log files are extremely verbose and waste tokens. ALWAYS use this hierarchy:
+
+### Debugging Priority (Most → Least Token-Efficient)
+
+#### **1. Sentry API (BEST - ~200-500 tokens per error)**
+```bash
+# Query recent issues
+GET https://sentry.io/api/0/projects/{org}/{project}/issues/
+
+# Get specific issue details with full context
+GET https://sentry.io/api/0/issues/{issue_id}/
+```
+
+**Why Sentry First:**
+- Structured JSON data
+- Full error context (user, environment, breadcrumbs)
+- Stack trace already parsed
+- Error grouping and frequency
+- Session replay available (frontend)
+
+**When to use:**
+- Investigating production errors
+- Understanding error patterns
+- Getting user context
+- Checking error frequency
+
+#### **2. Frontend Console Capture (~100-300 tokens)**
+**Location:** `/Users/jakebaird/trapid/frontend/src/utils/consoleCapture.js`
+
+**Features:**
+- Already capturing last 1,000 log entries in memory
+- Timestamp + type + message format
+- Clipboard export functionality
+- Active in dev/staging only
+
+**How to use:**
+```javascript
+// In browser DevTools console:
+window.exportLogs() // Copies logs to clipboard
+
+// Filter to errors only:
+window.consoleHistory.filter(entry => entry.type === 'error')
+```
+
+**When to use:**
+- Frontend debugging in dev/staging
+- User-reported bugs with console export
+- React component errors
+- API call failures
+
+#### **3. Intelligent Log Sampling (~100-300 tokens)**
+**NEVER read entire log files.** Use these patterns:
+
+**Backend Error Investigation:**
+```bash
+# Tail last 50 lines around error
+tail -n 50 backend/log/development.log
+
+# Grep for specific error pattern
+grep -A 10 -B 5 "ERROR_PATTERN" backend/log/development.log | tail -n 50
+
+# Find errors only (exclude SQL noise)
+grep "ERROR" backend/log/development.log | grep -v "SELECT\|INSERT\|UPDATE" | tail -n 20
+```
+
+**When to use:**
+- Local development errors
+- Errors not yet in Sentry
+- Database migration issues
+- Debugging specific request flow
+
+### ❌ What NOT to Do
+
+**NEVER:**
+- Read entire log files (1.6MB = ~40,000 tokens wasted)
+- Include SQL queries in log context
+- Read middleware stack traces
+- Parse Rails framework internals
+- Read duplicate logs (root + backend have same content)
+
+**ALWAYS:**
+- Check Sentry first
+- Use grep with line limits
+- Filter out framework noise
+- Focus on application code stack traces only
+
+### 🔍 Error Investigation Workflow
+
+**Step 1: Identify Error Source**
+- Frontend error? → Check console capture or Sentry frontend project
+- Backend error? → Check Sentry backend project first
+- Local development? → Use intelligent log sampling
+
+**Step 2: Gather Minimal Context**
+- Error message (what went wrong)
+- Stack trace (first 3-5 lines from app code only)
+- Request context (endpoint, user_id, params)
+- Reproduction steps
+
+**Step 3: Search Lexicon**
+```bash
+# Check if this error has history
+GET /api/v1/trinity?category=lexicon&search=error_keywords
+```
+
+**Step 4: Fix & Document**
+- Implement fix
+- Add to Lexicon if new bug pattern
+- Update related Bible rules if needed
+
+### 📊 Token Savings Examples
+
+**Scenario: Investigating 500 error on /api/v1/constructions**
+
+**❌ Old Way (WRONG):**
+- Read entire development.log (40,000 tokens)
+- Parse SQL queries (5,000 tokens)
+- Read middleware traces (2,000 tokens)
+- **Total: ~47,000 tokens wasted**
+
+**✅ New Way (CORRECT):**
+- Query Sentry API for recent 500 errors (200 tokens)
+- Get structured error with context (300 tokens)
+- Search Lexicon for similar bugs (100 tokens)
+- **Total: ~600 tokens (99% savings)**
+
+### 🎓 Best Practices for Developers
+
+**When Reporting Bugs:**
+1. Export console logs (frontend) or copy Sentry URL
+2. Provide reproduction steps
+3. Include error message (not full stack trace)
+4. Note user impact and frequency
+
+**When Debugging:**
+1. Reproduce error locally if possible
+2. Check Sentry for production occurrence
+3. Use browser DevTools (frontend) or `grep` (backend)
+4. Focus on first error in chain (not cascading errors)
+
+**When Logging:**
+1. Use structured formats (see ErrorLogger utility)
+2. Include minimal context (user_id, endpoint, action)
+3. Filter sensitive data (passwords, tokens, API keys)
+4. Categorize errors (validation, not_found, server_error, external_api)
+
+### 🛠️ Available Debugging Tools
+
+**Frontend:**
+- Console capture system (built-in)
+- React Error Boundaries
+- Sentry session replay
+- Browser DevTools
+
+**Backend:**
+- Sentry error tracking
+- Rails logs (use intelligently)
+- ApplicationController error handlers
+- Database query logs (development only)
+
+**Both:**
+- Sentry breadcrumbs (user actions leading to error)
+- Environment context (dev/staging/production)
+- Request IDs for tracing across systems
