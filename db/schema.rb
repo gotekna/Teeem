@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_19_164013) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_20_003025) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2021,14 +2021,327 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_19_164013) do
     t.string "uid"
     t.text "oauth_token"
     t.datetime "oauth_expires_at"
+    t.boolean "wphs_appointee", default: false, null: false
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["role"], name: "index_users_on_role"
+    t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
   create_table "versions", force: :cascade do |t|
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "whs_action_items", force: :cascade do |t|
+    t.string "actionable_type", null: false
+    t.bigint "actionable_id", null: false
+    t.bigint "assigned_to_user_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "project_task_id"
+    t.string "title", null: false
+    t.text "description"
+    t.string "action_type", null: false
+    t.string "priority", default: "medium", null: false
+    t.string "status", default: "open", null: false
+    t.date "due_date"
+    t.datetime "completed_at"
+    t.text "completion_notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["actionable_type", "actionable_id"], name: "index_whs_action_items_on_actionable"
+    t.index ["assigned_to_user_id"], name: "index_whs_action_items_on_assigned_to_user_id"
+    t.index ["created_by_id"], name: "index_whs_action_items_on_created_by_id"
+    t.index ["due_date"], name: "index_whs_action_items_on_due_date"
+    t.index ["priority"], name: "index_whs_action_items_on_priority"
+    t.index ["project_task_id"], name: "index_whs_action_items_on_project_task_id"
+    t.index ["status"], name: "index_whs_action_items_on_status"
+  end
+
+  create_table "whs_incidents", force: :cascade do |t|
+    t.bigint "construction_id"
+    t.bigint "reported_by_user_id", null: false
+    t.bigint "investigated_by_user_id"
+    t.string "incident_number", null: false
+    t.datetime "incident_date", null: false
+    t.datetime "report_date", null: false
+    t.string "location_description"
+    t.string "status", default: "reported", null: false
+    t.string "incident_category", null: false
+    t.string "incident_type"
+    t.string "severity_level", null: false
+    t.text "what_happened", null: false
+    t.string "activity_being_performed"
+    t.string "equipment_involved"
+    t.string "weather_conditions"
+    t.string "time_of_day"
+    t.string "lighting_conditions"
+    t.jsonb "contributing_factors", default: []
+    t.string "injured_person_name"
+    t.string "injured_person_company"
+    t.string "injured_person_role"
+    t.string "injury_type"
+    t.string "body_part_affected"
+    t.boolean "first_aid_given", default: false
+    t.boolean "medical_treatment_required", default: false
+    t.string "hospital_attended"
+    t.integer "time_lost_hours"
+    t.date "likely_return_date"
+    t.jsonb "witnesses", default: []
+    t.text "immediate_actions_taken"
+    t.date "investigation_date"
+    t.text "immediate_cause"
+    t.text "underlying_causes"
+    t.text "recommendations"
+    t.jsonb "photo_urls", default: []
+    t.jsonb "evidence_urls", default: []
+    t.boolean "workcov_notification_required", default: false
+    t.boolean "notifiable_incident", default: false
+    t.date "workcov_notification_date"
+    t.string "workcov_reference_number"
+    t.datetime "closed_at"
+    t.text "closure_notes"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["construction_id", "status"], name: "index_whs_incidents_on_construction_id_and_status"
+    t.index ["construction_id"], name: "index_whs_incidents_on_construction_id"
+    t.index ["incident_category"], name: "index_whs_incidents_on_incident_category"
+    t.index ["incident_date"], name: "index_whs_incidents_on_incident_date"
+    t.index ["incident_number"], name: "index_whs_incidents_on_incident_number", unique: true
+    t.index ["investigated_by_user_id"], name: "index_whs_incidents_on_investigated_by_user_id"
+    t.index ["reported_by_user_id"], name: "index_whs_incidents_on_reported_by_user_id"
+    t.index ["severity_level"], name: "index_whs_incidents_on_severity_level"
+    t.index ["status"], name: "index_whs_incidents_on_status"
+    t.index ["workcov_notification_required"], name: "index_whs_incidents_on_workcov_notification_required"
+  end
+
+  create_table "whs_induction_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "induction_type", null: false
+    t.text "description"
+    t.boolean "active", default: true
+    t.decimal "version", precision: 3, scale: 1, default: "1.0"
+    t.jsonb "content_sections", default: []
+    t.integer "expiry_months"
+    t.boolean "requires_renewal", default: false
+    t.boolean "has_quiz", default: false
+    t.integer "min_passing_score"
+    t.text "acknowledgment_statement"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_whs_induction_templates_on_active"
+    t.index ["induction_type"], name: "index_whs_induction_templates_on_induction_type"
+    t.index ["name"], name: "index_whs_induction_templates_on_name"
+  end
+
+  create_table "whs_inductions", force: :cascade do |t|
+    t.bigint "whs_induction_template_id", null: false
+    t.bigint "construction_id"
+    t.bigint "user_id"
+    t.bigint "conducted_by_user_id", null: false
+    t.string "certificate_number", null: false
+    t.string "induction_type", null: false
+    t.string "status", default: "valid", null: false
+    t.string "worker_name", null: false
+    t.string "worker_company"
+    t.string "worker_contact"
+    t.datetime "completion_date", null: false
+    t.date "expiry_date"
+    t.integer "quiz_score"
+    t.boolean "passed", default: true
+    t.text "worker_signature"
+    t.text "supervisor_signature"
+    t.text "acknowledgment_statement"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["certificate_number"], name: "index_whs_inductions_on_certificate_number", unique: true
+    t.index ["conducted_by_user_id"], name: "index_whs_inductions_on_conducted_by_user_id"
+    t.index ["construction_id"], name: "index_whs_inductions_on_construction_id"
+    t.index ["expiry_date"], name: "index_whs_inductions_on_expiry_date"
+    t.index ["status"], name: "index_whs_inductions_on_status"
+    t.index ["user_id"], name: "index_whs_inductions_on_user_id"
+    t.index ["worker_name", "induction_type"], name: "index_whs_inductions_on_worker_name_and_induction_type"
+  end
+
+  create_table "whs_inspection_items", force: :cascade do |t|
+    t.bigint "whs_inspection_id", null: false
+    t.string "item_description", null: false
+    t.string "category"
+    t.string "result"
+    t.boolean "photo_required", default: false
+    t.boolean "notes_required", default: false
+    t.integer "weight", default: 1
+    t.integer "position", default: 0
+    t.text "notes"
+    t.jsonb "photo_urls", default: []
+    t.boolean "action_required", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action_required"], name: "index_whs_inspection_items_on_action_required"
+    t.index ["result"], name: "index_whs_inspection_items_on_result"
+    t.index ["whs_inspection_id"], name: "index_whs_inspection_items_on_whs_inspection_id"
+  end
+
+  create_table "whs_inspection_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "inspection_type"
+    t.string "category"
+    t.text "description"
+    t.integer "pass_threshold_percentage", default: 80
+    t.boolean "active", default: true
+    t.jsonb "checklist_items", default: []
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_whs_inspection_templates_on_active"
+    t.index ["inspection_type"], name: "index_whs_inspection_templates_on_inspection_type"
+    t.index ["name"], name: "index_whs_inspection_templates_on_name"
+  end
+
+  create_table "whs_inspections", force: :cascade do |t|
+    t.bigint "construction_id"
+    t.bigint "whs_inspection_template_id"
+    t.bigint "inspector_user_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "meeting_id"
+    t.string "inspection_number", null: false
+    t.string "inspection_type", null: false
+    t.string "status", default: "scheduled", null: false
+    t.string "title"
+    t.text "description"
+    t.date "scheduled_date"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.string "weather_conditions"
+    t.text "site_conditions"
+    t.integer "total_items", default: 0
+    t.integer "pass_count", default: 0
+    t.integer "fail_count", default: 0
+    t.integer "na_count", default: 0
+    t.decimal "compliance_score", precision: 5, scale: 2
+    t.boolean "overall_pass", default: false
+    t.boolean "critical_issues_found", default: false
+    t.text "inspector_signature"
+    t.text "overall_notes"
+    t.boolean "follow_up_required", default: false
+    t.date "follow_up_date"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["construction_id", "status"], name: "index_whs_inspections_on_construction_id_and_status"
+    t.index ["construction_id"], name: "index_whs_inspections_on_construction_id"
+    t.index ["created_by_id"], name: "index_whs_inspections_on_created_by_id"
+    t.index ["critical_issues_found"], name: "index_whs_inspections_on_critical_issues_found"
+    t.index ["inspection_number"], name: "index_whs_inspections_on_inspection_number", unique: true
+    t.index ["inspection_type"], name: "index_whs_inspections_on_inspection_type"
+    t.index ["inspector_user_id"], name: "index_whs_inspections_on_inspector_user_id"
+    t.index ["meeting_id"], name: "index_whs_inspections_on_meeting_id"
+    t.index ["scheduled_date"], name: "index_whs_inspections_on_scheduled_date"
+    t.index ["status"], name: "index_whs_inspections_on_status"
+  end
+
+  create_table "whs_settings", force: :cascade do |t|
+    t.string "setting_key", null: false
+    t.text "setting_value"
+    t.string "setting_type", default: "string"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["setting_key"], name: "index_whs_settings_on_setting_key", unique: true
+  end
+
+  create_table "whs_swms", force: :cascade do |t|
+    t.bigint "construction_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "approved_by_id"
+    t.bigint "superseded_by_id"
+    t.string "swms_number", null: false
+    t.string "title", null: false
+    t.decimal "version", precision: 3, scale: 1, default: "1.0", null: false
+    t.string "status", default: "draft", null: false
+    t.boolean "company_wide", default: false, null: false
+    t.text "activity_description"
+    t.string "location_area"
+    t.string "high_risk_type"
+    t.date "start_date"
+    t.integer "expected_duration_days"
+    t.integer "workers_involved"
+    t.string "supervisor_responsible"
+    t.text "emergency_procedures"
+    t.text "emergency_contact_numbers"
+    t.string "first_aid_location"
+    t.string "fire_extinguisher_location"
+    t.string "emergency_assembly_point"
+    t.text "evacuation_procedures"
+    t.text "legislative_references"
+    t.jsonb "ppe_requirements", default: {}
+    t.jsonb "required_qualifications", default: []
+    t.datetime "approved_at"
+    t.datetime "superseded_at"
+    t.string "rejection_reason"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_whs_swms_on_approved_by_id"
+    t.index ["company_wide"], name: "index_whs_swms_on_company_wide"
+    t.index ["construction_id", "status"], name: "index_whs_swms_on_construction_id_and_status"
+    t.index ["construction_id"], name: "index_whs_swms_on_construction_id"
+    t.index ["created_by_id"], name: "index_whs_swms_on_created_by_id"
+    t.index ["high_risk_type"], name: "index_whs_swms_on_high_risk_type"
+    t.index ["status"], name: "index_whs_swms_on_status"
+    t.index ["superseded_by_id"], name: "index_whs_swms_on_superseded_by_id"
+    t.index ["swms_number"], name: "index_whs_swms_on_swms_number", unique: true
+  end
+
+  create_table "whs_swms_acknowledgments", force: :cascade do |t|
+    t.bigint "whs_swms_id", null: false
+    t.bigint "user_id"
+    t.string "worker_name", null: false
+    t.string "worker_company"
+    t.string "worker_role"
+    t.text "signature_data"
+    t.datetime "acknowledged_at", null: false
+    t.string "ip_address"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_at"], name: "index_whs_swms_acknowledgments_on_acknowledged_at"
+    t.index ["user_id"], name: "index_whs_swms_acknowledgments_on_user_id"
+    t.index ["whs_swms_id"], name: "index_whs_swms_acknowledgments_on_whs_swms_id"
+  end
+
+  create_table "whs_swms_controls", force: :cascade do |t|
+    t.bigint "whs_swms_hazard_id", null: false
+    t.text "control_description", null: false
+    t.string "control_type", null: false
+    t.string "responsibility"
+    t.integer "residual_likelihood"
+    t.integer "residual_consequence"
+    t.integer "residual_risk_score"
+    t.string "residual_risk_level"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["control_type"], name: "index_whs_swms_controls_on_control_type"
+    t.index ["whs_swms_hazard_id"], name: "index_whs_swms_controls_on_whs_swms_hazard_id"
+  end
+
+  create_table "whs_swms_hazards", force: :cascade do |t|
+    t.bigint "whs_swms_id", null: false
+    t.text "hazard_description", null: false
+    t.integer "likelihood", null: false
+    t.integer "consequence", null: false
+    t.integer "risk_score", null: false
+    t.string "risk_level"
+    t.text "affected_persons"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["risk_level"], name: "index_whs_swms_hazards_on_risk_level"
+    t.index ["whs_swms_id"], name: "index_whs_swms_hazards_on_whs_swms_id"
   end
 
   create_table "workflow_definitions", force: :cascade do |t|
@@ -2226,6 +2539,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_19_164013) do
   add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
   add_foreign_key "task_updates", "project_tasks"
   add_foreign_key "task_updates", "users"
+  add_foreign_key "whs_action_items", "project_tasks"
+  add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
+  add_foreign_key "whs_action_items", "users", column: "created_by_id"
+  add_foreign_key "whs_incidents", "constructions"
+  add_foreign_key "whs_incidents", "users", column: "investigated_by_user_id"
+  add_foreign_key "whs_incidents", "users", column: "reported_by_user_id"
+  add_foreign_key "whs_inductions", "constructions"
+  add_foreign_key "whs_inductions", "users"
+  add_foreign_key "whs_inductions", "users", column: "conducted_by_user_id"
+  add_foreign_key "whs_inspection_items", "whs_inspections"
+  add_foreign_key "whs_inspections", "constructions"
+  add_foreign_key "whs_inspections", "meetings"
+  add_foreign_key "whs_inspections", "users", column: "created_by_id"
+  add_foreign_key "whs_inspections", "users", column: "inspector_user_id"
+  add_foreign_key "whs_swms", "constructions"
+  add_foreign_key "whs_swms", "users", column: "approved_by_id"
+  add_foreign_key "whs_swms", "users", column: "created_by_id"
+  add_foreign_key "whs_swms", "whs_swms", column: "superseded_by_id"
+  add_foreign_key "whs_swms_acknowledgments", "users"
+  add_foreign_key "whs_swms_acknowledgments", "whs_swms", column: "whs_swms_id"
+  add_foreign_key "whs_swms_controls", "whs_swms_hazards"
+  add_foreign_key "whs_swms_hazards", "whs_swms", column: "whs_swms_id"
   add_foreign_key "workflow_instances", "workflow_definitions"
   add_foreign_key "workflow_steps", "workflow_instances"
 end
