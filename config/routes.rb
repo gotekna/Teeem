@@ -639,6 +639,148 @@ Rails.application.routes.draw do
         end
       end
 
+      # Financial Tracking & Reporting
+      resources :financial_transactions do
+        member do
+          post :post # Post a draft transaction
+        end
+        collection do
+          get :summary
+          get :categories
+        end
+      end
+
+      # Financial Reports
+      get 'financial_reports/balance_sheet', to: 'financial_reports#balance_sheet'
+      get 'financial_reports/profit_loss', to: 'financial_reports#profit_loss'
+      get 'financial_reports/job_profitability', to: 'financial_reports#job_profitability'
+      get 'financial_reports/account_balances', to: 'financial_reports#account_balances'
+      get 'financial_reports/trial_balance', to: 'financial_reports#trial_balance'
+
+      # Financial Exports
+      get 'financial_exports/transactions', to: 'financial_exports#transactions'
+      get 'financial_exports/balance_sheet', to: 'financial_exports#balance_sheet'
+      get 'financial_exports/profit_loss', to: 'financial_exports#profit_loss'
+      get 'financial_exports/job_profitability', to: 'financial_exports#job_profitability'
+      get 'financial_exports/chart_of_accounts', to: 'financial_exports#chart_of_accounts'
+      get 'financial_exports/accountant_package', to: 'financial_exports#accountant_package'
+
+      # Chart of Accounts
+      resources :chart_of_accounts, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          get :balance
+        end
+        collection do
+          get :kinds
+        end
+      end
+
+      # Pay Now Requests (admin/supervisor interface)
+      resources :pay_now_requests, only: [:index, :show] do
+        member do
+          post :approve
+          post :reject
+        end
+        collection do
+          get :dashboard_stats
+          get :pending_approval
+        end
+      end
+
+      # Pay Now Weekly Limits (builder settings)
+      resources :pay_now_weekly_limits, only: [] do
+        collection do
+          get :current
+          post :set_limit
+          get :history
+          get :usage_report
+        end
+      end
+
+      # Subcontractor Portal routes (for external subcontractor access)
+      namespace :portal do
+        # Portal authentication
+        post 'auth/login', to: 'authentication#login'
+        post 'auth/signup', to: 'authentication#signup'
+        post 'auth/forgot_password', to: 'authentication#forgot_password'
+        post 'auth/reset_password', to: 'authentication#reset_password'
+        get 'auth/me', to: 'authentication#me'
+
+        # Quote requests (subcontractor view)
+        resources :quote_requests, only: [:index, :show] do
+          member do
+            post :reject
+          end
+        end
+
+        # Quote responses (submit and manage quotes)
+        resources :quote_responses, only: [:create, :update, :show]
+
+        # Jobs tracking
+        resources :jobs, only: [:index, :show] do
+          member do
+            post :mark_arrival
+            post :mark_complete
+            post :upload_photos
+            post :report_issue
+          end
+        end
+
+        # Invoices
+        resources :invoices, only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :retry_sync
+          end
+          collection do
+            get :stats
+          end
+        end
+
+        # Accounting integrations
+        resources :accounting_integrations, only: [:index, :show, :destroy] do
+          collection do
+            get :oauth_url
+            post :oauth_callback
+          end
+          member do
+            post :refresh
+            get :test_connection
+          end
+        end
+
+        # Kudos system
+        resources :kudos, only: [:index] do
+          collection do
+            get :leaderboard
+            get :events
+            get :trends
+            post :recalculate
+          end
+        end
+
+        # Pay Now requests (supplier early payment)
+        resources :pay_now_requests, only: [:index, :show, :create, :destroy] do
+          member do
+            post :upload_documents
+          end
+          collection do
+            get :eligible_purchase_orders
+          end
+        end
+      end
+
+      # Quote Requests (internal builder interface)
+      resources :quote_requests do
+        member do
+          post :accept_quote
+          post :close
+          post :convert_to_po
+        end
+        collection do
+          get :stats
+        end
+      end
+
       # External integrations (API endpoints for third-party systems)
       namespace :external do
         post 'unreal_estimates', to: 'unreal_estimates#create'
