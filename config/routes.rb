@@ -579,6 +579,66 @@ Rails.application.routes.draw do
         end
       end
 
+      # WHS (Workplace Health & Safety) Module
+      # SWMS (Safe Work Method Statements)
+      resources :whs_swms, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :submit_for_approval
+          post :approve
+          post :reject
+          post :supersede
+          post :acknowledge
+        end
+      end
+
+      # WHS Inspections
+      resources :whs_inspections, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :start
+          post :complete
+        end
+      end
+
+      # WHS Inspection Templates
+      resources :whs_inspection_templates, only: [:index, :show, :create, :update, :destroy]
+
+      # WHS Incidents
+      resources :whs_incidents, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :investigate
+          post :close
+          post :notify_workcov
+        end
+      end
+
+      # WHS Inductions
+      resources :whs_inductions, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :complete
+          post :mark_expired
+        end
+      end
+
+      # WHS Induction Templates
+      resources :whs_induction_templates, only: [:index, :show, :create, :update, :destroy]
+
+      # WHS Action Items
+      resources :whs_action_items, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :start
+          post :complete
+          post :cancel
+        end
+      end
+
+      # WHS Settings
+      resources :whs_settings, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          get 'key/:key', action: :show_by_key
+          patch 'key/:key', action: :update_by_key
+        end
+      end
+
       # External integrations (API endpoints for third-party systems)
       namespace :external do
         post 'unreal_estimates', to: 'unreal_estimates#create'
