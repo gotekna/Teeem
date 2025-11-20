@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_20_221852) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_20_234045) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -791,6 +791,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_20_221852) do
     t.boolean "smarterbuild_has", default: false, null: false
     t.boolean "clickhome_has", default: false, null: false
     t.boolean "trapid_has", default: false, null: false
+    t.boolean "clickup_has"
     t.index ["chapter"], name: "index_feature_trackers_on_chapter"
     t.index ["sort_order"], name: "index_feature_trackers_on_sort_order"
   end

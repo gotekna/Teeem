@@ -103,7 +103,8 @@ class Api::V1::FeatureTrackersController < ApplicationController
       :databuild_has,
       :simpro_has,
       :smarterbuild_has,
-      :clickhome_has
+      :clickhome_has,
+      :clickup_has
     )
   end
 end
