@@ -4,6 +4,7 @@ class AgentDefinition < ApplicationRecord
   # Associations
   belongs_to :created_by, class_name: 'User', optional: true
   belongs_to :updated_by, class_name: 'User', optional: true
+  belongs_to :last_run_by, class_name: 'User', optional: true
 
   # Validations
   validates :agent_id, presence: true, uniqueness: true
@@ -21,26 +22,34 @@ class AgentDefinition < ApplicationRecord
   AGENT_TYPES = %w[development diagnostic deployment planning].freeze
 
   # Record a successful run
-  def record_success(message, details = {})
+  # @param message [String] Success message
+  # @param details [Hash] Additional run details
+  # @param user [User, nil] User who ran the agent
+  def record_success(message, details = {}, user: nil)
     update!(
       total_runs: total_runs + 1,
       successful_runs: successful_runs + 1,
       last_run_at: Time.current,
       last_status: 'success',
       last_message: message,
-      last_run_details: details
+      last_run_details: details,
+      last_run_by_id: user&.id
     )
   end
 
   # Record a failed run
-  def record_failure(message, details = {})
+  # @param message [String] Failure message
+  # @param details [Hash] Additional run details
+  # @param user [User, nil] User who ran the agent
+  def record_failure(message, details = {}, user: nil)
     update!(
       total_runs: total_runs + 1,
       failed_runs: failed_runs + 1,
       last_run_at: Time.current,
       last_status: 'failure',
       last_message: message,
-      last_run_details: details
+      last_run_details: details,
+      last_run_by_id: user&.id
     )
   end
 

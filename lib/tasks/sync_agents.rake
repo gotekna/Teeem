@@ -66,6 +66,13 @@ namespace :trapid do
 
           is_new = agent.new_record?
 
+          # Get system user for tracking (Claude Code sync)
+          # Try to find a system/admin user, or use the first user as fallback
+          system_user = User.find_by(email: 'system@trapid.com') ||
+                        User.find_by(email: 'admin@trapid.com') ||
+                        User.find_by(role: 'admin') ||
+                        User.first
+
           # Update attributes
           agent.assign_attributes(
             name: name,
@@ -80,8 +87,12 @@ namespace :trapid do
             example_invocations: example_invocations,
             important_notes: important_notes,
             active: true,
-            priority: priority
+            priority: priority,
+            updated_by_id: system_user&.id
           )
+
+          # Set created_by only for new records
+          agent.created_by_id = system_user&.id if is_new
 
           if agent.save
             if is_new

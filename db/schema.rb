@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_21_213716) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_21_215052) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -109,10 +109,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_21_213716) do
     t.datetime "updated_at", null: false
     t.bigint "created_by_id"
     t.bigint "updated_by_id"
+    t.bigint "last_run_by_id"
     t.index ["active"], name: "index_agent_definitions_on_active"
     t.index ["agent_id"], name: "index_agent_definitions_on_agent_id", unique: true
     t.index ["agent_type"], name: "index_agent_definitions_on_agent_type"
     t.index ["created_by_id"], name: "index_agent_definitions_on_created_by_id"
+    t.index ["last_run_by_id"], name: "index_agent_definitions_on_last_run_by_id"
     t.index ["updated_by_id"], name: "index_agent_definitions_on_updated_by_id"
   end
 
@@ -3071,6 +3073,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_21_213716) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "agent_definitions", "users", column: "created_by_id"
+  add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
   add_foreign_key "asset_insurance", "assets"
   add_foreign_key "asset_service_history", "assets"

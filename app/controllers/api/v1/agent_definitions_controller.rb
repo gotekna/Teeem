@@ -8,22 +8,36 @@ module Api
       # GET /api/v1/agent_definitions
       # Returns list of all agents
       def index
-        agents = AgentDefinition.active.by_priority
+        agents = AgentDefinition.active.by_priority.includes(:created_by, :updated_by, :last_run_by)
 
         render json: {
           success: true,
-          data: agents.as_json(methods: [:status_emoji, :success_rate])
+          data: agents.as_json(
+            methods: [:status_emoji, :success_rate],
+            include: {
+              created_by: { only: [:id, :name, :email] },
+              updated_by: { only: [:id, :name, :email] },
+              last_run_by: { only: [:id, :name, :email] }
+            }
+          )
         }
       end
 
       # GET /api/v1/agent_definitions/:id
       # Returns single agent with full details
       def show
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.includes(:created_by, :updated_by, :last_run_by).find_by!(agent_id: params[:id])
 
         render json: {
           success: true,
-          data: agent.as_json(methods: [:status_emoji, :success_rate])
+          data: agent.as_json(
+            methods: [:status_emoji, :success_rate],
+            include: {
+              created_by: { only: [:id, :name, :email] },
+              updated_by: { only: [:id, :name, :email] },
+              last_run_by: { only: [:id, :name, :email] }
+            }
+          )
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: 'Agent not found' }, status: :not_found
@@ -38,12 +52,19 @@ module Api
         details = params[:details] || {}
 
         if status == 'success'
-          agent.record_success(message, details)
+          agent.record_success(message, details, user: current_user)
         else
-          agent.record_failure(message, details)
+          agent.record_failure(message, details, user: current_user)
         end
 
-        render json: { success: true, data: agent }
+        render json: {
+          success: true,
+          data: agent.as_json(
+            include: {
+              last_run_by: { only: [:id, :name, :email] }
+            }
+          )
+        }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: 'Agent not found' }, status: :not_found
       end
