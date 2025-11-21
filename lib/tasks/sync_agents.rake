@@ -187,7 +187,7 @@ namespace :trapid do
         return match[1].strip if match
       end
 
-      fallback.to_s[0..500] # Use first 500 chars of description
+      fallback.to_s[0..1000] # Use first 1000 chars of description
     end
 
     def extract_purpose_from_content(content)
