@@ -187,7 +187,13 @@ namespace :trapid do
     end
 
     def extract_focus_from_content(content, fallback)
-      # Look for focus/specialty
+      # If description has box characters (from YAML frontmatter), use it as focus
+      # This is the new standard format with Unicode box characters
+      if fallback.to_s.include?("\u2554") || fallback.to_s.include?("╔")
+        return fallback.to_s[0..1000]
+      end
+
+      # Look for focus/specialty in markdown body (legacy format)
       patterns = [
         /\*\*Focus:\*\*\s*(.+?)(?:\n|\z)/,
         /\*\*Specialty:\*\*\s*(.+?)(?:\n|\z)/,
