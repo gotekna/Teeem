@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_21_101807) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_21_134607) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -867,7 +867,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_21_101807) do
     t.string "single_line_text", limit: 255
     t.text "multiple_lines_text"
     t.string "url", limit: 500
-    t.integer "number"
+    t.decimal "number", precision: 10, scale: 2
     t.decimal "currency", precision: 10, scale: 2
     t.decimal "percentage", precision: 5, scale: 2
     t.date "date"
