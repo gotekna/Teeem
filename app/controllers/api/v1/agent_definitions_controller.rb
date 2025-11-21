@@ -3,7 +3,7 @@
 module Api
   module V1
     class AgentDefinitionsController < ApplicationController
-      skip_before_action :authorize_request, only: [:index, :show]
+      skip_before_action :authorize_request, only: [:index, :show, :record_run]
 
       # GET /api/v1/agent_definitions
       # Returns list of all agents
@@ -45,16 +45,24 @@ module Api
 
       # POST /api/v1/agent_definitions/:id/record_run
       # Records a run result
+      # Accepts user_email param for CLI runs (looks up user by email)
       def record_run
         agent = AgentDefinition.find_by!(agent_id: params[:id])
         status = params[:status] # 'success' or 'failure'
         message = params[:message]
         details = params[:details] || {}
 
+        # Determine the user who ran the agent
+        # Priority: 1) authenticated user, 2) user_email param, 3) nil
+        run_user = current_user
+        if run_user.nil? && params[:user_email].present?
+          run_user = User.find_by(email: params[:user_email])
+        end
+
         if status == 'success'
-          agent.record_success(message, details, user: current_user)
+          agent.record_success(message, details, user: run_user)
         else
-          agent.record_failure(message, details, user: current_user)
+          agent.record_failure(message, details, user: run_user)
         end
 
         render json: {
