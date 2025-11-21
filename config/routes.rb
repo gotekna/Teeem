@@ -464,6 +464,48 @@ Rails.application.routes.draw do
       resource :sm_settings, only: [:show, :update]
 
       # ============================================
+      # SM Gantt Phase 2 - Resource Allocation
+      # ============================================
+
+      # SM Resources (people, equipment, materials)
+      resources :sm_resources, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          get :availability
+        end
+      end
+
+      # SM Resource Allocations (nested under tasks)
+      resources :sm_tasks, only: [] do
+        resources :resource_allocations, controller: 'sm_resource_allocations', only: [:index, :create]
+        resources :time_entries, controller: 'sm_time_entries', only: [:index, :create]
+      end
+
+      # SM Resource Allocations (non-nested)
+      resources :sm_resource_allocations, only: [:show, :update, :destroy] do
+        member do
+          post :confirm
+          post :start
+          post :complete
+        end
+        collection do
+          get 'by_resource/:resource_id', action: :by_resource
+          get :gantt_data
+        end
+      end
+
+      # SM Time Entries (non-nested)
+      resources :sm_time_entries, only: [:show, :update, :destroy] do
+        member do
+          post :approve
+        end
+        collection do
+          post :bulk_approve
+          get 'by_resource/:resource_id', action: :by_resource
+          get :timesheet
+        end
+      end
+
+      # ============================================
       # End SM Gantt
       # ============================================
 
