@@ -418,6 +418,55 @@ Rails.application.routes.draw do
         end
       end
 
+      # ============================================
+      # SM Gantt (Schedule Master v2)
+      # ============================================
+
+      # SM Tasks (nested under constructions)
+      resources :constructions, only: [] do
+        resources :sm_tasks, only: [:index, :create] do
+          collection do
+            get :gantt_data
+            post :copy_from_template
+          end
+        end
+      end
+
+      # SM Tasks (non-nested routes)
+      resources :sm_tasks, only: [:show, :update, :destroy] do
+        member do
+          post :start
+          post :complete
+          post :hold
+          post :release_hold
+        end
+
+        # Dependencies (nested under sm_tasks)
+        resources :dependencies, controller: 'sm_dependencies', only: [:index, :create]
+      end
+
+      # SM Dependencies (non-nested routes)
+      resources :sm_dependencies, only: [:show, :update, :destroy] do
+        member do
+          post :restore
+        end
+      end
+
+      # SM Hold Reasons (admin)
+      resources :sm_hold_reasons, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :reorder
+          post :seed_defaults
+        end
+      end
+
+      # SM Settings (singleton - admin)
+      resource :sm_settings, only: [:show, :update]
+
+      # ============================================
+      # End SM Gantt
+      # ============================================
+
       # Public Holidays
       resources :public_holidays, only: [:index, :create, :destroy] do
         collection do
