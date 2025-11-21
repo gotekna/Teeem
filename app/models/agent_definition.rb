@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class AgentDefinition < ApplicationRecord
+  # Associations
+  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :updated_by, class_name: 'User', optional: true
+
   # Validations
   validates :agent_id, presence: true, uniqueness: true
   validates :name, presence: true

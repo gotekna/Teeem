@@ -6,8 +6,10 @@ module Api
       # GET /api/v1/agents
       # Returns all agent definitions with shortcuts and display info
       def index
-        agents = AgentDefinition.where(active: true).order(priority: :desc, name: :asc)
-        
+        agents = AgentDefinition.where(active: true)
+                               .includes(:created_by, :updated_by)
+                               .order(priority: :desc, name: :asc)
+
         render json: agents.map { |agent|
           {
             agent_id: agent.agent_id,
@@ -21,7 +23,11 @@ module Api
             last_run_at: agent.last_run_at,
             last_status: agent.last_status,
             total_runs: agent.total_runs || 0,
-            success_rate: calculate_success_rate(agent)
+            success_rate: calculate_success_rate(agent),
+            created_at: agent.created_at,
+            created_by: agent.created_by&.name || agent.created_by&.email,
+            updated_at: agent.updated_at,
+            updated_by: agent.updated_by&.name || agent.updated_by&.email
           }
         }
       end
