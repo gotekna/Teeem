@@ -25,9 +25,9 @@ module Api
             total_runs: agent.total_runs || 0,
             success_rate: calculate_success_rate(agent),
             created_at: agent.created_at,
-            created_by: agent.created_by&.name || agent.created_by&.email,
+            created_by: agent.created_by ? { name: agent.created_by.name, email: agent.created_by.email } : nil,
             updated_at: agent.updated_at,
-            updated_by: agent.updated_by&.name || agent.updated_by&.email
+            updated_by: agent.updated_by ? { name: agent.updated_by.name, email: agent.updated_by.email } : nil
           }
         }
       end
