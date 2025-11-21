@@ -69,6 +69,7 @@ namespace :trapid do
           # Get the actual git author who created/modified the file
           # This tracks the real developer who wrote the agent definition
           file_relative_path = ".claude/agents/#{File.basename(file_path)}"
+          project_root = Rails.root.join('..')
 
           # Map git emails to database emails (for developers with different git configs)
           email_aliases = {
@@ -76,12 +77,13 @@ namespace :trapid do
           }
 
           # Get the original creator (first commit author)
-          created_by_email = `git log --diff-filter=A --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+          # Must run git from project root since agent files are in ../.claude/agents/
+          created_by_email = `cd #{project_root} && git log --diff-filter=A --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
           created_by_email = email_aliases[created_by_email] || created_by_email
           created_by_user = User.find_by(email: created_by_email) if created_by_email.present?
 
           # Get the last modifier (most recent commit author)
-          updated_by_email = `git log -1 --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+          updated_by_email = `cd #{project_root} && git log -1 --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
           updated_by_email = email_aliases[updated_by_email] || updated_by_email
           updated_by_user = User.find_by(email: updated_by_email) if updated_by_email.present?
 
@@ -185,7 +187,7 @@ namespace :trapid do
         return match[1].strip if match
       end
 
-      fallback.to_s[0..200] # Use first 200 chars of description
+      fallback.to_s[0..500] # Use first 500 chars of description
     end
 
     def extract_purpose_from_content(content)
