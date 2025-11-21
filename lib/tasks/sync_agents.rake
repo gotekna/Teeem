@@ -66,12 +66,26 @@ namespace :trapid do
 
           is_new = agent.new_record?
 
-          # Get system user for tracking (Claude Code sync)
-          # Try to find a system/admin user, or use the first user as fallback
-          system_user = User.find_by(email: 'system@trapid.com') ||
-                        User.find_by(email: 'admin@trapid.com') ||
-                        User.find_by(role: 'admin') ||
-                        User.first
+          # Get the actual git author who created/modified the file
+          # This tracks the real developer who wrote the agent definition
+          file_relative_path = ".claude/agents/#{File.basename(file_path)}"
+
+          # Get the original creator (first commit author)
+          created_by_email = `git log --diff-filter=A --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+          created_by_user = User.find_by(email: created_by_email) if created_by_email.present?
+
+          # Get the last modifier (most recent commit author)
+          updated_by_email = `git log -1 --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+          updated_by_user = User.find_by(email: updated_by_email) if updated_by_email.present?
+
+          # Fallback to current git user or Robert
+          fallback_user = User.find_by(email: `git config user.email`.strip) rescue nil
+          fallback_user ||= User.find_by(email: 'robert@tekna.com.au') ||
+                            User.find_by(role: 'admin') ||
+                            User.first
+
+          created_by_user ||= fallback_user
+          updated_by_user ||= fallback_user
 
           # Update attributes
           agent.assign_attributes(
@@ -88,11 +102,12 @@ namespace :trapid do
             important_notes: important_notes,
             active: true,
             priority: priority,
-            updated_by_id: system_user&.id
+            updated_by_id: updated_by_user&.id
           )
 
-          # Set created_by only for new records
-          agent.created_by_id = system_user&.id if is_new
+          # Set created_by based on git history (first commit author)
+          # Only update if it's a new record OR if we found a valid git author
+          agent.created_by_id = created_by_user&.id if is_new || created_by_user
 
           if agent.save
             if is_new
