@@ -9,16 +9,16 @@ class FinancialTransaction < ApplicationRecord
   has_one_attached :receipt
 
   # Enums
-  enum transaction_type: {
+  enum :transaction_type, {
     income: 'income',
     expense: 'expense'
-  }, _prefix: :type
+  }, prefix: :type
 
-  enum status: {
+  enum :status, {
     draft: 'draft',
     posted: 'posted',
     synced: 'synced'
-  }, _prefix: true
+  }, prefix: true
 
   # Validations
   validates :transaction_type, presence: true

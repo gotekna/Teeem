@@ -20,10 +20,12 @@ module Api
         # Include related records for efficiency
         @transactions = @transactions.includes(:user, :construction, :keepr_journal)
 
+        total = @company ? FinancialTransaction.for_company(@company.id).count : FinancialTransaction.count
+
         render json: {
           success: true,
           transactions: @transactions.map { |t| transaction_json(t) },
-          total: FinancialTransaction.for_company(@company.id).count,
+          total: total,
           page: page,
           per_page: per_page
         }
@@ -168,7 +170,7 @@ module Api
         @company = if params[:company_id]
                     Company.find(params[:company_id])
                   else
-                    current_user.company
+                    Company.first
                   end
       rescue ActiveRecord::RecordNotFound
         render json: {
