@@ -196,8 +196,14 @@ class Api::V1::ColumnTypesController < ApplicationController
   end
 
   # Get validation rules for a column type
+  # First tries to get from database column.description field
+  # Falls back to hardcoded rules if not set
   def get_validation_rules(column)
-    rules = {
+    # Use database description if available (updated by trapid:update_validation_rules rake task)
+    return column.description if column.description.present?
+
+    # Fallback to hardcoded defaults (only used if database not populated)
+    fallback_rules = {
       'single_line_text' => 'Optional text field, max 255 characters, alphanumeric',
       'multiple_lines_text' => 'Long text field, unlimited length, supports line breaks',
       'email' => 'Valid email address format (user@domain.com)',
@@ -222,7 +228,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'computed' => 'Formula-based calculated value'
     }
 
-    rules[column.column_type] || 'No validation rules defined'
+    fallback_rules[column.column_type] || 'No validation rules defined'
   end
 
   # Get example value for a column type
