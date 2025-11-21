@@ -98,33 +98,8 @@ class Api::V1::GoldTableSyncController < ApplicationController
   def get_frontend_sql_type(column_type)
     return nil unless column_type
 
-    # Frontend types match the CSV gold standard exactly
-    # These are kept in sync with backend Column::COLUMN_SQL_TYPE_MAP
-    frontend_types = {
-      'single_line_text' => 'VARCHAR(255)',
-      'multiple_lines_text' => 'TEXT',
-      'email' => 'VARCHAR(255)',
-      'phone' => 'VARCHAR(20)',
-      'mobile' => 'VARCHAR(20)',
-      'url' => 'VARCHAR(500)',
-      'number' => 'NUMERIC(10,2)',
-      'whole_number' => 'INTEGER',
-      'currency' => 'NUMERIC(10,2)',
-      'percentage' => 'NUMERIC(5,2)',
-      'date' => 'DATE',
-      'date_and_time' => 'TIMESTAMP',
-      'gps_coordinates' => 'VARCHAR(100)',
-      'color_picker' => 'VARCHAR(7)',
-      'file_upload' => 'TEXT',
-      'action_buttons' => 'VARCHAR(255)',
-      'boolean' => 'BOOLEAN',
-      'choice' => 'VARCHAR(50)',
-      'lookup' => 'VARCHAR(255)',
-      'multiple_lookups' => 'TEXT',
-      'user' => 'INTEGER',
-      'computed' => 'VIRTUAL/COMPUTED'
-    }
-
-    frontend_types[column_type]
+    # Source of Truth: Column::COLUMN_SQL_TYPE_MAP (see Bible Rule #19.37)
+    # DO NOT hardcode a duplicate map here - read from the single source
+    Column::COLUMN_SQL_TYPE_MAP[column_type]
   end
 end
