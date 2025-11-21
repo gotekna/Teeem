@@ -76,11 +76,23 @@ namespace :trapid do
             'jakebaird@Jakes-Mac-mini.local' => 'jake@tekna.com.au'
           }
 
-          # Get the original creator (first commit author)
-          # Must run git from project root since agent files are in ../.claude/agents/
-          created_by_email = `cd #{project_root} && git log --diff-filter=A --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
-          created_by_email = email_aliases[created_by_email] || created_by_email
-          created_by_user = User.find_by(email: created_by_email) if created_by_email.present?
+          # Check for explicit author in frontmatter (overrides git history)
+          # Use this when git history doesn't reflect actual authorship
+          explicit_author = frontmatter["author"]
+          if explicit_author.present?
+            created_by_user = User.find_by("LOWER(name) LIKE ?", "%#{explicit_author.downcase}%") ||
+                             User.find_by("LOWER(email) LIKE ?", "%#{explicit_author.downcase}%")
+            puts "  📝 Explicit author: #{explicit_author} -> #{created_by_user&.name || 'NOT FOUND'}"
+          end
+
+          # Fallback to git history if no explicit author
+          unless created_by_user
+            # Get the original creator (first commit author)
+            # Must run git from project root since agent files are in ../.claude/agents/
+            created_by_email = `cd #{project_root} && git log --diff-filter=A --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+            created_by_email = email_aliases[created_by_email] || created_by_email
+            created_by_user = User.find_by(email: created_by_email) if created_by_email.present?
+          end
 
           # Get the last modifier (most recent commit author)
           updated_by_email = `cd #{project_root} && git log -1 --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
