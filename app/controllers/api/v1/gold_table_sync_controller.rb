@@ -107,7 +107,7 @@ class Api::V1::GoldTableSyncController < ApplicationController
       'phone' => 'VARCHAR(20)',
       'mobile' => 'VARCHAR(20)',
       'url' => 'VARCHAR(500)',
-      'number' => 'INTEGER',
+      'number' => 'NUMERIC(10,2)',
       'whole_number' => 'INTEGER',
       'currency' => 'NUMERIC(10,2)',
       'percentage' => 'NUMERIC(5,2)',
