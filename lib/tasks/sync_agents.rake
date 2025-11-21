@@ -70,12 +70,19 @@ namespace :trapid do
           # This tracks the real developer who wrote the agent definition
           file_relative_path = ".claude/agents/#{File.basename(file_path)}"
 
+          # Map git emails to database emails (for developers with different git configs)
+          email_aliases = {
+            'jakebaird@Jakes-Mac-mini.local' => 'jake@tekna.com.au'
+          }
+
           # Get the original creator (first commit author)
           created_by_email = `git log --diff-filter=A --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+          created_by_email = email_aliases[created_by_email] || created_by_email
           created_by_user = User.find_by(email: created_by_email) if created_by_email.present?
 
           # Get the last modifier (most recent commit author)
           updated_by_email = `git log -1 --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+          updated_by_email = email_aliases[updated_by_email] || updated_by_email
           updated_by_user = User.find_by(email: updated_by_email) if updated_by_email.present?
 
           # Fallback to current git user or Robert
