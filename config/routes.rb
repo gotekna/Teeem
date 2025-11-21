@@ -186,6 +186,9 @@ Rails.application.routes.draw do
       # Column Types - Single Source of Truth from Gold Standard Reference Table
       resources :column_types, only: [:index, :show, :update]
 
+      # Gold Table Sync Check - Compare column types across all sources
+      get 'gold_table_sync', to: 'gold_table_sync#index'
+
       # Suppliers management
       resources :suppliers do
         collection do

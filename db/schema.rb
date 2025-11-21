@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_20_234045) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_21_101807) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -859,27 +859,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_20_234045) do
   create_table "gold_standard_items", force: :cascade do |t|
     t.string "email"
     t.string "phone"
-    t.boolean "is_active"
-    t.decimal "discount"
-    t.decimal "price"
-    t.integer "quantity"
-    t.string "status"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "whole_number"
     t.string "mobile"
-    t.string "category_type"
-    t.string "document_link"
     t.string "action_buttons"
-    t.string "item_code"
-    t.text "notes"
-    t.date "start_date"
-    t.string "location_coords"
-    t.string "color_code"
-    t.string "file_attachment"
-    t.text "multi_tags"
-    t.integer "assigned_user_id"
-    t.decimal "total_cost", precision: 10, scale: 2
+    t.string "single_line_text", limit: 255
+    t.text "multiple_lines_text"
+    t.string "url", limit: 500
+    t.integer "number"
+    t.decimal "currency", precision: 10, scale: 2
+    t.decimal "percentage", precision: 5, scale: 2
+    t.date "date"
+    t.datetime "date_and_time", precision: nil
+    t.string "gps_coordinates", limit: 100
+    t.string "color_picker", limit: 7
+    t.text "file_upload"
+    t.boolean "boolean"
+    t.string "choice", limit: 50
+    t.string "lookup", limit: 255
+    t.text "multiple_lookups"
+    t.integer "user"
+    t.string "computed", limit: 255
   end
 
   create_table "grok_plans", force: :cascade do |t|

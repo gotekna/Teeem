@@ -15,9 +15,12 @@ class Api::V1::ColumnTypesController < ApplicationController
       return
     end
 
+    # Get sample data from gold_standard_items table (first row)
+    sample_data = get_sample_data
+
     # Get all columns from Gold Standard table and convert to type definitions
     column_types = gold_standard_table.columns.map do |column|
-      format_column_type(column)
+      format_column_type(column, sample_data)
     end
 
     # Sort by category and label
@@ -28,7 +31,8 @@ class Api::V1::ColumnTypesController < ApplicationController
       data: sorted_types,
       total: sorted_types.count,
       source: 'Gold Standard Reference Table',
-      table_id: gold_standard_table.id
+      table_id: gold_standard_table.id,
+      has_sample_data: sample_data.present?
     }
   end
 
@@ -111,8 +115,18 @@ class Api::V1::ColumnTypesController < ApplicationController
 
   private
 
+  # Get sample data from gold_standard_items table
+  def get_sample_data
+    # Query the gold_standard_items table directly
+    result = ActiveRecord::Base.connection.exec_query('SELECT * FROM gold_standard_items LIMIT 1')
+    result.first if result.any?
+  rescue StandardError => e
+    Rails.logger.error "Failed to fetch sample data: #{e.message}"
+    nil
+  end
+
   # Format a Gold Standard column into column type metadata
-  def format_column_type(column)
+  def format_column_type(column, sample_data = nil)
     # Map column_type to category
     category = categorize_column_type(column.column_type)
 
@@ -123,6 +137,12 @@ class Api::V1::ColumnTypesController < ApplicationController
     validation_rules = get_validation_rules(column)
     example = get_example(column)
     used_for = get_used_for(column)
+
+    # Get actual sample value from the table if available
+    sample_value = nil
+    if sample_data && column.column_type.present?
+      sample_value = sample_data[column.column_type]
+    end
 
     {
       value: column.column_type,
@@ -135,7 +155,8 @@ class Api::V1::ColumnTypesController < ApplicationController
       columnName: column.column_name,
       displayName: column.name,
       required: column.required || false,
-      columnId: column.id
+      columnId: column.id,
+      sampleValue: sample_value
     }
   end
 
@@ -169,20 +190,9 @@ class Api::V1::ColumnTypesController < ApplicationController
   end
 
   # Get SQL type from Column model mapping
+  # Uses Column::COLUMN_SQL_TYPE_MAP which is the single source of truth
   def get_sql_type(column_type)
-    db_type = Column::COLUMN_TYPE_MAP[column_type]
-
-    sql_types = {
-      string: 'VARCHAR(255)',
-      text: 'TEXT',
-      integer: 'INTEGER',
-      decimal: 'DECIMAL(10,2)',
-      boolean: 'BOOLEAN',
-      date: 'DATE',
-      datetime: 'TIMESTAMP'
-    }
-
-    sql_types[db_type] || 'UNKNOWN'
+    Column::COLUMN_SQL_TYPE_MAP[column_type] || 'UNKNOWN'
   end
 
   # Get validation rules for a column type
