@@ -61,12 +61,12 @@ namespace :trapid do
         validation_message: nil
       },
       'gps_coordinates' => {
-        description: "GPS coordinates field. No validation currently implemented.",
-        validation_message: nil
+        description: "GPS coordinates field. Click 📍 Pick button to open modal with interactive map picker, manual lat/lng entry, address search, and current location. Stores as 'lat, lng' format (e.g., -27.4705, 153.0260). Reuses LocationMapCard component.",
+        validation_message: "Must be valid latitude and longitude coordinates"
       },
       'color_picker' => {
-        description: "Color picker field for hex color codes (e.g., #FF5733). No validation currently implemented.",
-        validation_message: nil
+        description: "Color picker field for hex color codes. Click 🎨 Pick button to open modal with visual color wheel picker, manual hex entry with validation, quick color palette (16 colors), and live preview. Stores hex format (e.g., #FF5733).",
+        validation_message: "Must be a valid hex color code (e.g., #FF5733)"
       },
       'file_upload' => {
         description: "File upload field for document/image attachments. No validation currently implemented.",
