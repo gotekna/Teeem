@@ -210,6 +210,11 @@ module Api
         system_tables = Table.where(table_type: 'system').order(:name)
 
         tables = system_tables.map do |table|
+          # Get column count and record count from the actual database table
+          actual_table_name = get_actual_table_name(table.model_class)
+          columns_count = get_system_columns_count(actual_table_name)
+          record_count = get_system_record_count(actual_table_name)
+
           {
             table_id: table.id,
             legacy_id: table.slug, # Keep slug for backwards compatibility
@@ -222,6 +227,9 @@ module Api
             has_saved_views: table.has_saved_views,
             api_endpoint: table.api_endpoint,
             is_live: table.is_live,
+            columns_count: columns_count,
+            record_count: record_count,
+            database_table_name: actual_table_name,
             created_at: table.created_at,
             updated_at: table.updated_at
           }
@@ -393,6 +401,56 @@ module Api
         else
           'text'
         end
+      end
+
+      # Map model class name to actual database table name
+      def get_actual_table_name(model_class)
+        return nil unless model_class.present?
+
+        # Map of model class names to their database table names
+        table_mapping = {
+          'FinancialTransaction' => 'financial_transactions',
+          'GoldStandardItem' => 'gold_standard_items',
+          'TrinityEntry' => 'trinity_entries',
+          'Construction' => 'constructions',
+          'PricebookItem' => 'pricebook_items',
+          'WhsSwms' => 'whs_swms',
+          'WhsActionItem' => 'whs_action_items',
+          'WhsInduction' => 'whs_inductions',
+          'WhsInspection' => 'whs_inspections',
+          'WhsIncident' => 'whs_incidents',
+          'ContactRole' => 'contact_roles',
+          'User' => 'users',
+          'InspiringQuote' => 'inspiring_quotes',
+          'Contact' => 'contacts',
+          'Estimate' => 'estimates',
+          'PurchaseOrder' => 'purchase_orders',
+          'SmTask' => 'sm_tasks',
+          'SmResource' => 'sm_resources',
+          'SmTimeEntry' => 'sm_time_entries'
+        }
+
+        table_mapping[model_class] || model_class.underscore.pluralize
+      end
+
+      # Get column count for a system table
+      def get_system_columns_count(table_name)
+        return 0 unless table_name.present? && ActiveRecord::Base.connection.table_exists?(table_name)
+
+        ActiveRecord::Base.connection.columns(table_name).count
+      rescue => e
+        Rails.logger.error "Failed to get column count for #{table_name}: #{e.message}"
+        0
+      end
+
+      # Get record count for a system table
+      def get_system_record_count(table_name)
+        return 0 unless table_name.present? && ActiveRecord::Base.connection.table_exists?(table_name)
+
+        ActiveRecord::Base.connection.select_value("SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(table_name)}")
+      rescue => e
+        Rails.logger.error "Failed to get record count for #{table_name}: #{e.message}"
+        0
       end
     end
   end
