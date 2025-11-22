@@ -1,4 +1,4 @@
-class Api::V1::WhsInspectionsController < ApplicationController
+class Api::V1::WHSInspectionsController < ApplicationController
   before_action :set_whs_inspection, only: [:show, :update, :destroy, :start, :complete]
 
   # GET /api/v1/whs_inspections

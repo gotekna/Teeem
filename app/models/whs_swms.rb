@@ -1,14 +1,14 @@
-class WhsSwms < ApplicationRecord
+class WHSSWMS < ApplicationRecord
   # Associations (belongs_to first, then has_many)
   belongs_to :construction, optional: true  # Nullable for company-wide SWMS
   belongs_to :created_by, class_name: 'User'
   belongs_to :approved_by, class_name: 'User', optional: true
-  belongs_to :superseded_by, class_name: 'WhsSwms', optional: true
+  belongs_to :superseded_by, class_name: 'WHSSWMS', optional: true
 
   has_many :whs_swms_hazards, dependent: :destroy
   has_many :whs_swms_controls, through: :whs_swms_hazards
   has_many :whs_swms_acknowledgments, dependent: :destroy
-  has_many :whs_swms_that_supersede_this, class_name: 'WhsSwms', foreign_key: 'superseded_by_id'
+  has_many :whs_swms_that_supersede_this, class_name: 'WHSSWMS', foreign_key: 'superseded_by_id'
 
   # Constants (define BEFORE validations)
   STATUSES = %w[draft pending_approval approved rejected superseded].freeze
@@ -168,7 +168,7 @@ class WhsSwms < ApplicationRecord
     return if swms_number.present?
 
     date_str = CompanySetting.today.strftime('%Y%m%d')
-    last_swms = WhsSwms.where('swms_number LIKE ?', "SWMS-#{date_str}-%")
+    last_swms = WHSSWMS.where('swms_number LIKE ?', "SWMS-#{date_str}-%")
                         .order(:swms_number).last
 
     sequence = last_swms ? last_swms.swms_number.split('-').last.to_i + 1 : 1

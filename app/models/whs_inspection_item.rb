@@ -1,4 +1,4 @@
-class WhsInspectionItem < ApplicationRecord
+class WHSInspectionItem < ApplicationRecord
   # Associations
   belongs_to :whs_inspection
 

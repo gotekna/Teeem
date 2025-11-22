@@ -1,4 +1,4 @@
-class WhsInductionTemplate < ApplicationRecord
+class WHSInductionTemplate < ApplicationRecord
   # Associations
   has_many :whs_inductions
 

@@ -1,4 +1,4 @@
-class WhsActionItem < ApplicationRecord
+class WHSActionItem < ApplicationRecord
   # Polymorphic association - can belong to inspection, incident, or hazard
   belongs_to :actionable, polymorphic: true
   belongs_to :assigned_to_user, class_name: 'User', optional: true

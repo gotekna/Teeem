@@ -1,4 +1,4 @@
-class WhsIncident < ApplicationRecord
+class WHSIncident < ApplicationRecord
   # Associations
   belongs_to :construction, optional: true
   belongs_to :reported_by_user, class_name: 'User'

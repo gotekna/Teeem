@@ -1,4 +1,4 @@
-class WhsSwmsHazard < ApplicationRecord
+class WHSSWMSHazard < ApplicationRecord
   # Associations
   belongs_to :whs_swms
   has_many :whs_swms_controls, dependent: :destroy

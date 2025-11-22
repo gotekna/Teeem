@@ -1,4 +1,4 @@
-class WhsSwmsAcknowledgment < ApplicationRecord
+class WHSSWMSAcknowledgment < ApplicationRecord
   # Associations
   belongs_to :whs_swms
   belongs_to :user, optional: true

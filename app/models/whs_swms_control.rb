@@ -1,4 +1,4 @@
-class WhsSwmsControl < ApplicationRecord
+class WHSSWMSControl < ApplicationRecord
   # Associations
   belongs_to :whs_swms_hazard
 

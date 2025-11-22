@@ -1,4 +1,4 @@
-class Api::V1::WhsSwmsController < ApplicationController
+class Api::V1::WHSSWMSController < ApplicationController
   before_action :set_whs_swms, only: [:show, :update, :destroy, :submit_for_approval, :approve, :reject, :supersede, :acknowledge]
 
   # GET /api/v1/whs_swms

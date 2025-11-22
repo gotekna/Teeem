@@ -1,4 +1,4 @@
-class Api::V1::WhsInductionTemplatesController < ApplicationController
+class Api::V1::WHSInductionTemplatesController < ApplicationController
   before_action :set_whs_induction_template, only: [:show, :update, :destroy]
 
   # GET /api/v1/whs_induction_templates

@@ -1,4 +1,4 @@
-class Api::V1::WhsIncidentsController < ApplicationController
+class Api::V1::WHSIncidentsController < ApplicationController
   before_action :set_whs_incident, only: [:show, :update, :destroy, :investigate, :close, :notify_workcov]
 
   # GET /api/v1/whs_incidents

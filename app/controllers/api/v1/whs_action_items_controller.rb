@@ -1,4 +1,4 @@
-class Api::V1::WhsActionItemsController < ApplicationController
+class Api::V1::WHSActionItemsController < ApplicationController
   before_action :set_whs_action_item, only: [:show, :update, :destroy, :start, :complete, :cancel]
 
   # GET /api/v1/whs_action_items

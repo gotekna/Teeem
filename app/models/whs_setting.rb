@@ -1,4 +1,4 @@
-class WhsSetting < ApplicationRecord
+class WHSSetting < ApplicationRecord
   # Constants
   SETTING_TYPES = %w[string integer boolean json].freeze
 

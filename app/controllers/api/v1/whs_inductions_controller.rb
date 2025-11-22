@@ -1,4 +1,4 @@
-class Api::V1::WhsInductionsController < ApplicationController
+class Api::V1::WHSInductionsController < ApplicationController
   before_action :set_whs_induction, only: [:show, :update, :destroy, :complete, :mark_expired]
 
   # GET /api/v1/whs_inductions

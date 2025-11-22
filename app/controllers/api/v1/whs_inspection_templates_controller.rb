@@ -1,4 +1,4 @@
-class Api::V1::WhsInspectionTemplatesController < ApplicationController
+class Api::V1::WHSInspectionTemplatesController < ApplicationController
   before_action :set_whs_inspection_template, only: [:show, :update, :destroy]
 
   # GET /api/v1/whs_inspection_templates

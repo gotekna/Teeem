@@ -1,4 +1,4 @@
-class WhsInspectionTemplate < ApplicationRecord
+class WHSInspectionTemplate < ApplicationRecord
   # Associations
   has_many :whs_inspections
 

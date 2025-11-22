@@ -1,4 +1,4 @@
-class WhsInduction < ApplicationRecord
+class WHSInduction < ApplicationRecord
   # Associations
   belongs_to :whs_induction_template, foreign_key: :whs_induction_template_id
   belongs_to :construction, optional: true

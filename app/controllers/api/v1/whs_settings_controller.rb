@@ -1,4 +1,4 @@
-class Api::V1::WhsSettingsController < ApplicationController
+class Api::V1::WHSSettingsController < ApplicationController
   before_action :set_whs_setting, only: [:show, :update, :destroy]
 
   # GET /api/v1/whs_settings

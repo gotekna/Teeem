@@ -1,4 +1,4 @@
-class WhsInspection < ApplicationRecord
+class WHSInspection < ApplicationRecord
   # Associations
   belongs_to :construction, optional: true
   belongs_to :whs_inspection_template, optional: true
