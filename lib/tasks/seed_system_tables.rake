@@ -18,7 +18,7 @@ namespace :trapid do
         },
         {
           name: 'Gold Standard Reference',
-          slug: 'gold-standard-table',
+          slug: 'gold-standard-reference-1',  # Matches existing slug in production
           icon: '🏆',
           file_location: 'components/settings/GoldStandardTableTab.jsx',
           model_class: 'GoldStandardItem',
