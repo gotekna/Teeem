@@ -1,4 +1,4 @@
-class CreateWHSSwmsAcknowledgments < ActiveRecord::Migration[8.0]
+class CreateWHSSWMSAcknowledgments < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_swms_acknowledgments do |t|
       t.references :whs_swms, null: false, foreign_key: true
