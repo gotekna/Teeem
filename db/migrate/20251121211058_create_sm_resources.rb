@@ -16,7 +16,7 @@ class CreateSmResources < ActiveRecord::Migration[8.0]
       t.decimal :hourly_rate, precision: 10, scale: 2
 
       # For Equipment
-      t.references :asset, foreign_key: { on_delete: :nullify }
+      t.references :asset, foreign_key: false # Assets table may not exist yet
       t.decimal :daily_rate, precision: 10, scale: 2
 
       # For Materials
