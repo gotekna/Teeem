@@ -22,6 +22,9 @@ namespace :trapid do
     # Column definitions mapping contacts table to Gold Standard column types
     # Format: [column_name, display_name, column_type, position, options]
     columns_config = [
+      # Action buttons - first column for quick actions
+      ['actions', 'Actions', 'action_buttons', 0, {}],
+
       # Primary identifier
       ['full_name', 'Full Name', 'single_line_text', 1, { is_title: true, searchable: true }],
       ['first_name', 'First Name', 'single_line_text', 2, { searchable: true }],
