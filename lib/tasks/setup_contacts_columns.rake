@@ -57,9 +57,11 @@ namespace :trapid do
       # Choice/dropdown
       ['primary_contact_type', 'Contact Type', 'choice', 23, {}],
 
-      # Lookups
-      ['contact_region_id', 'Region', 'lookup', 24, { lookup_display_column: 'contact_region' }],
-      ['parent_id', 'Parent Contact', 'lookup', 25, { lookup_display_column: 'parent' }],
+      # Note: Lookup columns (contact_region_id, parent_id) require lookup_table_id
+      # They can be added later via the schema editor once target tables are identified
+      # For now, show the display fields as text
+      ['contact_region', 'Region', 'single_line_text', 24, {}],
+      ['parent', 'Parent Contact', 'single_line_text', 25, {}],
 
       # Date fields
       ['date_of_birth', 'Date of Birth', 'date', 26, {}],
