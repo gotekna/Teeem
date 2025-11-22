@@ -8,7 +8,7 @@ module Api
         # Sanitize and validate pagination parameters to prevent DoS
         page = [(params[:page] || 1).to_i, 1].max
         per_page = [(params[:per_page] || 50).to_i, 1].max
-        per_page = [per_page, 1000].min  # Cap at 1000 to prevent DoS
+        per_page = [per_page, 10000].min  # Cap at 10000 to prevent DoS
 
         search = params[:search]
         sort_by = params[:sort_by]
