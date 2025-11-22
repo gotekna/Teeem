@@ -92,7 +92,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
       content_sections: [
         :title, :content, :video_url,
         quiz_questions: [
-          :question, :question_type, answers: [], :correct_answer
+          :question, :question_type, :correct_answer, { answers: [] }
         ]
       ]
     )
