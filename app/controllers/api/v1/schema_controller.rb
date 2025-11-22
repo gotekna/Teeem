@@ -433,7 +433,8 @@ module Api
           'PurchaseOrder' => 'purchase_orders',
           'SmTask' => 'sm_tasks',
           'SmResource' => 'sm_resources',
-          'SmTimeEntry' => 'sm_time_entries'
+          'SmTimeEntry' => 'sm_time_entries',
+          'PriceHistory' => 'price_histories'
         }
 
         table_mapping[model_class] || model_class.underscore.pluralize

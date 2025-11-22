@@ -246,6 +246,17 @@ namespace :trapid do
           has_saved_views: true,
           api_endpoint: '/api/v1/sm_time_entries',
           database_table_name: 'sm_time_entries'
+        },
+        {
+          name: 'Price Histories',
+          slug: 'price-histories',
+          icon: '📈',
+          file_location: 'components/pricebook/PriceHistoryPanel.jsx',
+          model_class: 'PriceHistory',
+          description: 'Historical price records for pricebook items',
+          has_saved_views: false,
+          api_endpoint: '/api/v1/price_histories',
+          database_table_name: 'price_histories'
         }
       ]
 
