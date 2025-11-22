@@ -157,6 +157,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Price Book Categories (lookup table for pricebook items)
+      resources :pricebook_categories do
+        collection do
+          post :reorder
+          get :dropdown
+        end
+      end
+
       # Price Book management
       resources :pricebook, controller: 'pricebook_items', path: 'pricebook' do
         member do

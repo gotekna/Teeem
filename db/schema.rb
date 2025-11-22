@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_22_052613) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_22_214125) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1371,6 +1371,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_22_052613) do
     t.index ["supplier_id"], name: "index_price_histories_on_supplier_id"
   end
 
+  create_table "pricebook_categories", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
+    t.index ["name"], name: "index_pricebook_categories_on_name", unique: true
+    t.index ["position"], name: "index_pricebook_categories_on_position"
+  end
+
   create_table "pricebook_items", force: :cascade do |t|
     t.string "item_code", null: false
     t.string "item_name", null: false
@@ -1401,8 +1415,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_22_052613) do
     t.string "image_file_id"
     t.string "spec_file_id"
     t.string "qr_code_file_id"
+    t.integer "category_id"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebook_items_on_category"
+    t.index ["category_id"], name: "index_pricebook_items_on_category_id"
     t.index ["default_supplier_id"], name: "index_pricebook_items_on_default_supplier_id"
     t.index ["image_fetch_status"], name: "index_pricebook_items_on_image_fetch_status"
     t.index ["is_active"], name: "index_pricebook_items_on_is_active"
@@ -2588,132 +2604,40 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_22_052613) do
     t.index ["variable_name"], name: "index_unreal_variables_on_variable_name", unique: true
   end
 
-  create_table "user_import_1761885699_f0f78b8e7fc2f1fc_78992af1", force: :cascade do |t|
-    t.date "sys_type_id"
-    t.string "deleted"
-    t.string "parent_id"
-    t.string "parent"
-    t.string "parenttype"
-    t.string "drive_id"
-    t.date "folder_id"
-    t.string "code"
-    t.string "description"
-    t.string "unit"
-    t.decimal "range_id", precision: 15, scale: 2
-    t.string "range"
-    t.decimal "rangetype", precision: 15, scale: 2
-    t.date "colour_spec_id"
-    t.string "colour_spec"
-    t.date "colour_spectype"
-    t.decimal "tedmodel_id", precision: 15, scale: 2
-    t.string "tedmodel"
-    t.date "tedmodeltype"
-    t.decimal "price", precision: 15, scale: 2
-    t.string "default_supplier"
-    t.string "brand_linked"
-    t.string "budget_zone"
+  create_table "user_gold_standard_reference_1511df1e", force: :cascade do |t|
+    t.string "single_line_text"
+    t.text "multiple_lines_text"
+    t.string "email"
+    t.string "phone"
+    t.string "mobile"
+    t.string "url"
+    t.decimal "number", precision: 15, scale: 2
+    t.integer "whole_number"
+    t.decimal "currency", precision: 15, scale: 2
+    t.decimal "percentage", precision: 15, scale: 2
+    t.date "date"
+    t.datetime "date_and_time"
+    t.string "gps_coordinates"
+    t.string "color_picker"
+    t.text "file_upload"
+    t.string "action_buttons"
+    t.boolean "boolean"
+    t.string "choice"
+    t.integer "lookup"
+    t.text "multiple_lookups"
+    t.integer "user"
+    t.string "computed"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-  end
-
-  create_table "user_import_1761885699_f0f78b8e7fc2f1fc_e3560d09", force: :cascade do |t|
-    t.date "sys_type_id"
-    t.string "deleted"
-    t.string "parent_id"
-    t.string "parent"
-    t.string "parenttype"
-    t.string "drive_id"
-    t.date "folder_id"
-    t.string "code"
-    t.string "description"
-    t.string "unit"
-    t.decimal "range_id", precision: 15, scale: 2
-    t.string "range"
-    t.decimal "rangetype", precision: 15, scale: 2
-    t.date "colour_spec_id"
-    t.string "colour_spec"
-    t.date "colour_spectype"
-    t.decimal "tedmodel_id", precision: 15, scale: 2
-    t.string "tedmodel"
-    t.date "tedmodeltype"
-    t.decimal "price", precision: 15, scale: 2
-    t.string "default_supplier"
-    t.string "brand_linked"
-    t.string "budget_zone"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_import_1762054183_c576571c2be177ce_c59dc239", force: :cascade do |t|
-    t.date "sys_type_id"
-    t.string "deleted"
-    t.string "parent_id"
-    t.string "parent"
-    t.string "parenttype"
-    t.string "drive_id"
-    t.date "folder_id"
-    t.string "code"
-    t.string "description"
-    t.string "unit"
-    t.decimal "range_id", precision: 15, scale: 2
-    t.string "range"
-    t.decimal "rangetype", precision: 15, scale: 2
-    t.date "colour_spec_id"
-    t.string "colour_spec"
-    t.date "colour_spectype"
-    t.decimal "tedmodel_id", precision: 15, scale: 2
-    t.string "tedmodel"
-    t.date "tedmodeltype"
-    t.decimal "price", precision: 15, scale: 2
-    t.string "default_supplier"
-    t.string "brand_linked"
-    t.string "budget_zone"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_import_1762157582_8e8e2d2b69a47e74_4b7d5585", force: :cascade do |t|
-    t.string "item_code"
-    t.string "item_name"
-    t.string "category"
-    t.string "unit_of_measure"
-    t.decimal "current_price", precision: 15, scale: 2
-    t.string "supplier_name"
-    t.string "brand"
-    t.string "notes"
-    t.date "last_updated"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_import_1762215941_806ddfcf23a9a9f4_b7b8c8ac", force: :cascade do |t|
-    t.decimal "price", precision: 15, scale: 2
-    t.date "effective_date"
-    t.string "display_field"
-    t.string "pricebook_id"
-    t.string "pricebook"
-    t.string "pricebooktype"
-    t.boolean "default_supplier"
-    t.string "supplier_trade_id"
-    t.string "supplier_trade"
-    t.string "product_id"
-    t.string "contact_region"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_user_gold_standard_reference_1511df1e_on_created_at"
+    t.index ["lookup"], name: "index_user_gold_standard_reference_1511df1e_on_lookup"
+    t.index ["updated_at"], name: "index_user_gold_standard_reference_1511df1e_on_updated_at"
   end
 
   create_table "user_permissions", force: :cascade do |t|
     t.integer "user_id"
     t.integer "permission_id"
     t.boolean "granted"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_untitled_table_3b80ee42", force: :cascade do |t|
-    t.string "address"
-    t.decimal "contract_price", precision: 15, scale: 2
-    t.string "test_phone2"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
@@ -3229,6 +3153,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_22_052613) do
   add_foreign_key "price_histories", "pricebook_items"
   add_foreign_key "pricebook_items", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebook_items", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
+  add_foreign_key "pricebook_items", "pricebook_categories", column: "category_id", on_delete: :nullify
   add_foreign_key "project_task_checklist_items", "project_tasks"
   add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
   add_foreign_key "project_tasks", "projects"
