@@ -1,4 +1,4 @@
-class CreateWhsInspections < ActiveRecord::Migration[8.0]
+class CreateWHSInspections < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_inspections do |t|
       # References

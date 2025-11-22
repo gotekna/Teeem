@@ -1,4 +1,4 @@
-class CreateWhsSwms < ActiveRecord::Migration[8.0]
+class CreateWHSSwms < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_swms do |t|
       # References

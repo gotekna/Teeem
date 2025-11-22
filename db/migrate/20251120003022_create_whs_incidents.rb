@@ -1,4 +1,4 @@
-class CreateWhsIncidents < ActiveRecord::Migration[8.0]
+class CreateWHSIncidents < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_incidents do |t|
       # References

@@ -1,4 +1,4 @@
-class CreateWhsSettings < ActiveRecord::Migration[8.0]
+class CreateWHSSettings < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_settings do |t|
       t.string :setting_key, null: false

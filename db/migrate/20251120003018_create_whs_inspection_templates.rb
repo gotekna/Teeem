@@ -1,4 +1,4 @@
-class CreateWhsInspectionTemplates < ActiveRecord::Migration[8.0]
+class CreateWHSInspectionTemplates < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_inspection_templates do |t|
       # Template details

@@ -1,4 +1,4 @@
-class CreateWhsInductions < ActiveRecord::Migration[8.0]
+class CreateWHSInductions < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_inductions do |t|
       # References

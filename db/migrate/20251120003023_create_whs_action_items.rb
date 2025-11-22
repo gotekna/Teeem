@@ -1,4 +1,4 @@
-class CreateWhsActionItems < ActiveRecord::Migration[8.0]
+class CreateWHSActionItems < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_action_items do |t|
       # Polymorphic association - can belong to inspection, incident, or hazard

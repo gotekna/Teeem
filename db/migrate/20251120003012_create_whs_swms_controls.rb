@@ -1,4 +1,4 @@
-class CreateWhsSwmsControls < ActiveRecord::Migration[8.0]
+class CreateWHSSwmsControls < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_swms_controls do |t|
       t.references :whs_swms_hazard, null: false, foreign_key: true

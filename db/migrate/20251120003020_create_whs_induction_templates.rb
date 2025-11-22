@@ -1,4 +1,4 @@
-class CreateWhsInductionTemplates < ActiveRecord::Migration[8.0]
+class CreateWHSInductionTemplates < ActiveRecord::Migration[8.0]
   def change
     create_table :whs_induction_templates do |t|
       # Template details
