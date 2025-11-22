@@ -24,6 +24,8 @@ module Api
             last_status: agent.last_status,
             last_run_by_name: agent.last_run_by_name,
             last_run_details: agent.last_run_details,
+            last_run_tokens: agent.last_run_tokens,
+            total_tokens: agent.total_tokens,
             total_runs: agent.total_runs || 0,
             success_rate: calculate_success_rate(agent),
             created_at: agent.created_at,

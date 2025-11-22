@@ -25,8 +25,9 @@ class AgentDefinition < ApplicationRecord
   # @param message [String] Success message
   # @param details [Hash] Additional run details
   # @param user_name [String, nil] Name of user who ran the agent (from git config)
-  def record_success(message, details = {}, user_name: nil)
-    update!(
+  # @param tokens [Integer, nil] Tokens used in this run
+  def record_success(message, details = {}, user_name: nil, tokens: nil)
+    attrs = {
       total_runs: total_runs + 1,
       successful_runs: successful_runs + 1,
       last_run_at: Time.current,
@@ -34,15 +35,21 @@ class AgentDefinition < ApplicationRecord
       last_message: message,
       last_run_details: details,
       last_run_by_name: user_name
-    )
+    }
+    if tokens.present?
+      attrs[:last_run_tokens] = tokens
+      attrs[:total_tokens] = (total_tokens || 0) + tokens
+    end
+    update!(attrs)
   end
 
   # Record a failed run
   # @param message [String] Failure message
   # @param details [Hash] Additional run details
   # @param user_name [String, nil] Name of user who ran the agent (from git config)
-  def record_failure(message, details = {}, user_name: nil)
-    update!(
+  # @param tokens [Integer, nil] Tokens used in this run
+  def record_failure(message, details = {}, user_name: nil, tokens: nil)
+    attrs = {
       total_runs: total_runs + 1,
       failed_runs: failed_runs + 1,
       last_run_at: Time.current,
@@ -50,7 +57,12 @@ class AgentDefinition < ApplicationRecord
       last_message: message,
       last_run_details: details,
       last_run_by_name: user_name
-    )
+    }
+    if tokens.present?
+      attrs[:last_run_tokens] = tokens
+      attrs[:total_tokens] = (total_tokens || 0) + tokens
+    end
+    update!(attrs)
   end
 
   # Success rate

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_22_003255) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_22_031518) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -114,6 +114,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_22_003255) do
     t.string "created_by_name"
     t.string "updated_by_name"
     t.string "category"
+    t.integer "last_run_tokens"
+    t.integer "total_tokens"
     t.index ["active"], name: "index_agent_definitions_on_active"
     t.index ["agent_id"], name: "index_agent_definitions_on_agent_id", unique: true
     t.index ["agent_type"], name: "index_agent_definitions_on_agent_type"

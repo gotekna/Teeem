@@ -439,6 +439,10 @@ Rails.application.routes.draw do
           post :complete
           post :hold
           post :release_hold
+          # Cascade endpoints
+          post :cascade_preview
+          post :cascade_execute
+          post :move
         end
 
         # Dependencies (nested under sm_tasks)

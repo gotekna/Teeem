@@ -126,12 +126,17 @@ module Api
       end
 
       def hold_reason_params
-        params.require(:hold_reason).permit(
+        # Accept both :hold_reason and :sm_hold_reason keys
+        key = params.key?(:sm_hold_reason) ? :sm_hold_reason : :hold_reason
+        params.require(key).permit(
           :name,
           :description,
           :color,
           :icon,
-          :is_active
+          :is_active,
+          :sequence_order,
+          :requires_notes,
+          :auto_notify_days
         )
       end
 

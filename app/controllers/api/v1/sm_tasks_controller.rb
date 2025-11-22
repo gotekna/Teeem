@@ -265,6 +265,102 @@ module Api
         }
       end
 
+      # POST /api/v1/sm_tasks/:id/cascade_preview
+      # Preview cascade effects before moving a task
+      def cascade_preview
+        unless params[:new_start_date].present?
+          return render json: {
+            success: false,
+            error: 'new_start_date is required'
+          }, status: :unprocessable_entity
+        end
+
+        cascade_service = SmCascadeService.new(@task)
+        preview = cascade_service.preview(params[:new_start_date])
+
+        render json: {
+          success: true,
+          preview: preview
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/cascade_execute
+      # Execute cascade with user decisions
+      def cascade_execute
+        cascade_params = {
+          new_start_date: params[:new_start_date],
+          user_id: current_user&.id,
+          tasks_to_cascade: params[:tasks_to_cascade] || [],
+          tasks_to_break: params[:tasks_to_break] || [],
+          tasks_to_unlock: params[:tasks_to_unlock] || []
+        }
+
+        cascade_service = SmCascadeService.new(@task)
+        results = cascade_service.execute(cascade_params)
+
+        if results[:errors].empty?
+          render json: {
+            success: true,
+            message: "Cascade complete. Updated #{results[:updated_tasks].count} tasks.",
+            results: {
+              updated_count: results[:updated_tasks].count,
+              broken_dependencies_count: results[:broken_dependencies].count,
+              unlocked_count: results[:unlocked_tasks].count,
+              updated_task_ids: results[:updated_tasks].map(&:id)
+            }
+          }
+        else
+          render json: {
+            success: false,
+            errors: results[:errors]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/sm_tasks/:id/move
+      # Simple move that auto-cascades unlocked successors
+      def move
+        unless params[:new_start_date].present?
+          return render json: {
+            success: false,
+            error: 'new_start_date is required'
+          }, status: :unprocessable_entity
+        end
+
+        cascade_service = SmCascadeService.new(@task)
+        preview = cascade_service.preview(params[:new_start_date])
+
+        # If there are blocked successors, return preview for modal
+        if preview[:blocked_successors].any?
+          render json: {
+            success: false,
+            needs_confirmation: true,
+            preview: preview,
+            message: 'Cascade blocked by locked tasks. Please resolve conflicts.'
+          }, status: :conflict
+          return
+        end
+
+        # No conflicts - execute automatically
+        cascade_params = {
+          new_start_date: params[:new_start_date],
+          user_id: current_user&.id,
+          tasks_to_cascade: preview[:unlocked_successors].map { |s| s[:id] }
+        }
+
+        results = cascade_service.execute(cascade_params)
+
+        render json: {
+          success: true,
+          message: "Task moved. Cascaded #{results[:updated_tasks].count - 1} successor tasks.",
+          sm_task: task_to_json(@task.reload),
+          cascade_results: {
+            updated_count: results[:updated_tasks].count,
+            updated_task_ids: results[:updated_tasks].map(&:id)
+          }
+        }
+      end
+
       private
 
       def set_construction

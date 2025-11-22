@@ -46,23 +46,25 @@ module Api
       # POST /api/v1/agent_definitions/:id/record_run
       # Records a run result
       # Accepts user_name param for CLI runs (from git config user.name)
+      # Accepts tokens param for token usage tracking
       def record_run
         agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
         status = params[:status] # 'success' or 'failure'
         message = params[:message]
         details = params[:details] || {}
         user_name = params[:user_name]
+        tokens = params[:tokens].to_i if params[:tokens].present?
 
         if status == 'success'
-          agent.record_success(message, details, user_name: user_name)
+          agent.record_success(message, details, user_name: user_name, tokens: tokens)
         else
-          agent.record_failure(message, details, user_name: user_name)
+          agent.record_failure(message, details, user_name: user_name, tokens: tokens)
         end
 
         render json: {
           success: true,
           data: agent.as_json(
-            only: [:id, :agent_id, :name, :last_run_at, :last_status, :last_message, :last_run_by_name, :total_runs, :successful_runs, :failed_runs]
+            only: [:id, :agent_id, :name, :last_run_at, :last_status, :last_message, :last_run_by_name, :total_runs, :successful_runs, :failed_runs, :last_run_tokens, :total_tokens]
           )
         }
       rescue ActiveRecord::RecordNotFound
