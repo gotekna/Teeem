@@ -134,7 +134,13 @@ module Api
             rescue
               0
             end,
-            type: table.database_table_name.include?('_import_') ? 'import' : 'user',
+            type: if table.table_type == 'system'
+                    'system'
+                  elsif table.database_table_name.include?('_import_')
+                    'import'
+                  else
+                    'user'
+                  end,
             created_at: table.created_at,
             updated_at: table.updated_at
           }
