@@ -203,181 +203,35 @@ module Api
       end
 
       # GET /api/v1/schema/in_memory_tables
-      # Returns registry of in-memory tables that use TrapidTableView
+      # Returns registry of system tables (formerly "in-memory" tables)
+      # These are now properly registered in the tables table with numeric IDs
       def in_memory_tables
-        tables = [
+        # Get all system tables from the database
+        system_tables = Table.where(table_type: 'system').order(:name)
+
+        tables = system_tables.map do |table|
           {
-            table_id: 'financial-transactions',
-            name: 'Financial Transactions',
-            icon: '💰',
-            file: 'pages/FinancialPage.jsx',
-            columns_variable: 'TRANSACTION_COLUMNS',
-            model: 'FinancialTransaction',
-            description: 'Financial transactions ledger with double-entry accounting',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/financial_transactions'
-          },
-          {
-            table_id: 'gold-standard-table',
-            name: 'Gold Standard Reference',
-            icon: '🏆',
-            file: 'components/settings/GoldStandardTableTab.jsx',
-            columns_variable: 'COLUMNS',
-            model: 'GoldStandardItem',
-            description: 'Reference table for column types - single source of truth',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/gold_standard_items'
-          },
-          {
-            table_id: 'trinity-bible',
-            name: 'Trinity Bible',
-            icon: '📖',
-            file: 'pages/TrinityPage.jsx',
-            columns_variable: 'DEFAULT_TRINITY_COLUMNS',
-            model: 'TrinityEntry',
-            description: 'Rules and standards documentation (category: bible)',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/trinity?category=bible'
-          },
-          {
-            table_id: 'trinity-teacher',
-            name: 'Trinity Teacher',
-            icon: '🎓',
-            file: 'pages/TrinityPage.jsx',
-            columns_variable: 'DEFAULT_TRINITY_COLUMNS',
-            model: 'TrinityEntry',
-            description: 'How-to guides and implementation patterns (category: teacher)',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/trinity?category=teacher'
-          },
-          {
-            table_id: 'trinity-lexicon',
-            name: 'Trinity Lexicon',
-            icon: '📚',
-            file: 'pages/TrinityPage.jsx',
-            columns_variable: 'DEFAULT_TRINITY_COLUMNS',
-            model: 'TrinityEntry',
-            description: 'Bug history and architecture decisions (category: lexicon)',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/trinity?category=lexicon'
-          },
-          {
-            table_id: 'active-jobs',
-            name: 'Active Jobs',
-            icon: '🏗️',
-            file: 'pages/ActiveJobsPage.jsx',
-            columns_variable: 'JOB_COLUMNS',
-            model: 'Construction',
-            description: 'Construction jobs management',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/constructions'
-          },
-          {
-            table_id: 'pricebooks',
-            name: 'Price Books',
-            icon: '💵',
-            file: 'pages/PriceBooksTrinityView.jsx',
-            columns_variable: 'PRICEBOOK_COLUMNS',
-            model: 'PricebookItem',
-            description: 'Product pricing and supplier information',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/pricebook'
-          },
-          {
-            table_id: 'whs-swms',
-            name: 'WHS SWMS',
-            icon: '⚠️',
-            file: 'pages/WhsSwmsPage.jsx',
-            columns_variable: 'SWMS_COLUMNS',
-            model: 'WhsSwms',
-            description: 'Safe Work Method Statements',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/whs_swms'
-          },
-          {
-            table_id: 'whs-action-items',
-            name: 'WHS Action Items',
-            icon: '📋',
-            file: 'pages/WhsActionItemsPage.jsx',
-            columns_variable: 'ACTION_ITEM_COLUMNS',
-            model: 'WhsActionItem',
-            description: 'Workplace health and safety action tracking',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/whs_action_items'
-          },
-          {
-            table_id: 'whs-inductions',
-            name: 'WHS Inductions',
-            icon: '🎓',
-            file: 'pages/WhsInductionsPage.jsx',
-            columns_variable: 'INDUCTION_COLUMNS',
-            model: 'WhsInduction',
-            description: 'Worker induction records',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/whs_inductions'
-          },
-          {
-            table_id: 'whs-inspections',
-            name: 'WHS Inspections',
-            icon: '🔍',
-            file: 'pages/WhsInspectionsPage.jsx',
-            columns_variable: 'INSPECTION_COLUMNS',
-            model: 'WhsInspection',
-            description: 'Site inspection records',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/whs_inspections'
-          },
-          {
-            table_id: 'whs-incidents',
-            name: 'WHS Incidents',
-            icon: '🚨',
-            file: 'pages/WhsIncidentsPage.jsx',
-            columns_variable: 'INCIDENT_COLUMNS',
-            model: 'WhsIncident',
-            description: 'Workplace incident reports',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/whs_incidents'
-          },
-          {
-            table_id: 'contact-roles',
-            name: 'Contact Roles',
-            icon: '👥',
-            file: 'components/settings/ContactRolesManagement.jsx',
-            columns_variable: 'ROLE_COLUMNS',
-            model: 'ContactRole',
-            description: 'Contact role definitions',
-            has_saved_views: false,
-            api_endpoint: '/api/v1/contact_roles'
-          },
-          {
-            table_id: 'user-management',
-            name: 'User Management',
-            icon: '👤',
-            file: 'components/settings/UserManagementTab.jsx',
-            columns_variable: 'USER_COLUMNS',
-            model: 'User',
-            description: 'System user accounts',
-            has_saved_views: false,
-            api_endpoint: '/api/v1/users'
-          },
-          {
-            table_id: 'inspiring-quotes-test',
-            name: 'Inspiring Quotes (Test)',
-            icon: '✨',
-            file: 'pages/TableStandardTest.jsx',
-            columns_variable: 'QUOTE_COLUMNS',
-            model: 'TrinityEntry',
-            description: 'Test table for TrapidTableView standard',
-            has_saved_views: true,
-            api_endpoint: '/api/v1/inspiring_quotes'
+            table_id: table.id,
+            legacy_id: table.slug, # Keep slug for backwards compatibility
+            name: table.name,
+            slug: table.slug,
+            icon: table.icon,
+            file: table.file_location,
+            model: table.model_class,
+            description: table.description,
+            has_saved_views: table.has_saved_views,
+            api_endpoint: table.api_endpoint,
+            is_live: table.is_live,
+            created_at: table.created_at,
+            updated_at: table.updated_at
           }
-        ]
+        end
 
         render json: {
           success: true,
           tables: tables,
           count: tables.length,
-          note: 'In-memory tables use TrapidTableView for display but store data in separate Rails models. They use string tableIds for localStorage saved views.'
+          note: 'System tables now have proper numeric IDs in the tables registry. The legacy_id (slug) is preserved for backwards compatibility with existing saved views.'
         }
       end
 

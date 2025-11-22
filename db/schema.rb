@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_22_031518) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_22_052613) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2467,8 +2467,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_22_031518) do
     t.datetime "updated_at", null: false
     t.boolean "is_live", default: false, null: false
     t.string "slug"
+    t.string "table_type", default: "user"
+    t.string "model_class"
+    t.string "api_endpoint"
+    t.string "file_location"
+    t.boolean "has_saved_views", default: true
     t.index ["database_table_name"], name: "index_tables_on_database_table_name", unique: true
+    t.index ["model_class"], name: "index_tables_on_model_class"
     t.index ["slug"], name: "index_tables_on_slug", unique: true
+    t.index ["table_type"], name: "index_tables_on_table_type"
   end
 
   create_table "task_dependencies", force: :cascade do |t|
