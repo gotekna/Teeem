@@ -233,10 +233,9 @@ module Api
         }
 
         if include_columns
-          # For system tables, get columns from the model schema
-          if table.table_type == 'system'
-            json[:columns] = system_table_columns
-          else
+          # Use defined columns if they exist, otherwise auto-detect for system tables
+          if table.columns.any?
+            # Use explicitly defined columns from the columns table
             json[:columns] = table.columns.order(:position).map do |col|
               column_data = {
                 id: col.id,
@@ -284,6 +283,12 @@ module Api
 
               column_data
             end
+          elsif table.table_type == 'system'
+            # Fallback: auto-detect columns from model schema for system tables without defined columns
+            json[:columns] = system_table_columns
+          else
+            # No columns defined for non-system table
+            json[:columns] = []
           end
         end
 
