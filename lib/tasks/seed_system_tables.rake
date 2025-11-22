@@ -4,8 +4,10 @@ namespace :trapid do
     task seed_system: :environment do
       # System tables that were previously "in-memory" tables
       # These are Rails models that use TrapidTableView but weren't registered in the tables table
+      # IMPORTANT: IDs are FIXED to match production (199-221) for consistency across environments
       system_tables = [
         {
+          id: 199,  # Fixed ID - matches production
           name: 'Financial Transactions',
           slug: 'financial-transactions',
           icon: '💰',
@@ -16,18 +18,12 @@ namespace :trapid do
           api_endpoint: '/api/v1/financial_transactions',
           database_table_name: 'financial_transactions'
         },
+        # Note: Gold Standard Reference uses ID 1 (pre-existing user table converted to system)
+        # It's NOT in this seed list because it already exists with the correct ID
+        # The table was manually converted to system type
+        # Production slug: 'gold-standard-reference'
         {
-          name: 'Gold Standard Reference',
-          slug: 'gold-standard-reference-1',  # Matches existing slug in production
-          icon: '🏆',
-          file_location: 'components/settings/GoldStandardTableTab.jsx',
-          model_class: 'GoldStandardItem',
-          description: 'Reference table for column types - single source of truth',
-          has_saved_views: true,
-          api_endpoint: '/api/v1/gold_standard_items',
-          database_table_name: 'gold_standard_items'
-        },
-        {
+          id: 201,  # Fixed ID - matches production
           name: 'Trinity Bible',
           slug: 'trinity-bible',
           icon: '📖',
@@ -39,6 +35,7 @@ namespace :trapid do
           database_table_name: 'trinity_entries'
         },
         {
+          id: 202,  # Fixed ID - matches production
           name: 'Trinity Teacher',
           slug: 'trinity-teacher',
           icon: '🎓',
@@ -50,6 +47,7 @@ namespace :trapid do
           database_table_name: 'trinity_entries'
         },
         {
+          id: 203,  # Fixed ID - matches production
           name: 'Trinity Lexicon',
           slug: 'trinity-lexicon',
           icon: '📚',
@@ -61,6 +59,7 @@ namespace :trapid do
           database_table_name: 'trinity_entries'
         },
         {
+          id: 204,  # Fixed ID - matches production
           name: 'Active Jobs',
           slug: 'active-jobs',
           icon: '🏗️',
@@ -72,8 +71,9 @@ namespace :trapid do
           database_table_name: 'constructions'
         },
         {
+          id: 205,  # Fixed ID - matches production
           name: 'Price Books',
-          slug: 'pricebooks',
+          slug: 'price-books',  # Matches production (with hyphen)
           icon: '💵',
           file_location: 'pages/PriceBooksTrinityView.jsx',
           model_class: 'PricebookItem',
@@ -83,6 +83,7 @@ namespace :trapid do
           database_table_name: 'pricebook_items'
         },
         {
+          id: 206,  # Fixed ID - matches production
           name: 'WHS SWMS',
           slug: 'whs-swms',
           icon: '⚠️',
@@ -94,6 +95,7 @@ namespace :trapid do
           database_table_name: 'whs_swms'
         },
         {
+          id: 207,  # Fixed ID - matches production
           name: 'WHS Action Items',
           slug: 'whs-action-items',
           icon: '📋',
@@ -105,6 +107,7 @@ namespace :trapid do
           database_table_name: 'whs_action_items'
         },
         {
+          id: 208,  # Fixed ID - matches production
           name: 'WHS Inductions',
           slug: 'whs-inductions',
           icon: '🎓',
@@ -116,6 +119,7 @@ namespace :trapid do
           database_table_name: 'whs_inductions'
         },
         {
+          id: 209,  # Fixed ID - matches production
           name: 'WHS Inspections',
           slug: 'whs-inspections',
           icon: '🔍',
@@ -127,6 +131,7 @@ namespace :trapid do
           database_table_name: 'whs_inspections'
         },
         {
+          id: 210,  # Fixed ID - matches production
           name: 'WHS Incidents',
           slug: 'whs-incidents',
           icon: '🚨',
@@ -138,6 +143,7 @@ namespace :trapid do
           database_table_name: 'whs_incidents'
         },
         {
+          id: 211,  # Fixed ID - matches production
           name: 'Contact Roles',
           slug: 'contact-roles',
           icon: '👥',
@@ -149,6 +155,7 @@ namespace :trapid do
           database_table_name: 'contact_roles'
         },
         {
+          id: 212,  # Fixed ID - matches production
           name: 'User Management',
           slug: 'user-management',
           icon: '👤',
@@ -160,6 +167,7 @@ namespace :trapid do
           database_table_name: 'users'
         },
         {
+          id: 213,  # Fixed ID - matches production
           name: 'Inspiring Quotes (Test)',
           slug: 'inspiring-quotes-test',
           icon: '✨',
@@ -171,6 +179,7 @@ namespace :trapid do
           database_table_name: 'inspiring_quotes'
         },
         {
+          id: 214,  # Fixed ID - matches production
           name: 'Contacts',
           slug: 'contacts',
           icon: '📇',
@@ -182,6 +191,7 @@ namespace :trapid do
           database_table_name: 'contacts'
         },
         {
+          id: 215,  # Fixed ID - matches production
           name: 'Suppliers',
           slug: 'suppliers',
           icon: '🏭',
@@ -193,6 +203,7 @@ namespace :trapid do
           database_table_name: 'contacts'
         },
         {
+          id: 216,  # Fixed ID - matches production
           name: 'Estimates',
           slug: 'estimates',
           icon: '📊',
@@ -204,6 +215,7 @@ namespace :trapid do
           database_table_name: 'estimates'
         },
         {
+          id: 217,  # Fixed ID - matches production
           name: 'Purchase Orders',
           slug: 'purchase-orders',
           icon: '📦',
@@ -215,6 +227,7 @@ namespace :trapid do
           database_table_name: 'purchase_orders'
         },
         {
+          id: 218,  # Fixed ID - matches production
           name: 'SM Tasks',
           slug: 'sm-tasks',
           icon: '📋',
@@ -226,6 +239,7 @@ namespace :trapid do
           database_table_name: 'sm_tasks'
         },
         {
+          id: 219,  # Fixed ID - matches production
           name: 'SM Resources',
           slug: 'sm-resources',
           icon: '👷',
@@ -237,6 +251,7 @@ namespace :trapid do
           database_table_name: 'sm_resources'
         },
         {
+          id: 220,  # Fixed ID - matches production
           name: 'SM Time Entries',
           slug: 'sm-time-entries',
           icon: '⏱️',
@@ -248,6 +263,7 @@ namespace :trapid do
           database_table_name: 'sm_time_entries'
         },
         {
+          id: 221,  # Fixed ID - matches production
           name: 'Price Histories',
           slug: 'price-histories',
           icon: '📈',
@@ -260,18 +276,43 @@ namespace :trapid do
         }
       ]
 
-      puts "Seeding #{system_tables.count} system tables..."
+      puts "Seeding #{system_tables.count} system tables with FIXED IDs (199-221)..."
       created = 0
       updated = 0
       skipped = 0
+      id_fixed = 0
 
       system_tables.each do |table_data|
-        # Find or create by slug (slug is unique)
-        table = Table.find_by(slug: table_data[:slug])
+        fixed_id = table_data[:id]
+
+        # First check if there's a table with wrong ID but correct slug
+        existing_by_slug = Table.find_by(slug: table_data[:slug])
+        existing_by_id = Table.find_by(id: fixed_id)
+
+        if existing_by_slug && existing_by_slug.id != fixed_id
+          # Table exists with wrong ID - need to delete and recreate with correct ID
+          puts "  Fixing ID: #{table_data[:name]} (#{existing_by_slug.id} -> #{fixed_id})"
+          existing_by_slug.destroy!
+          existing_by_slug = nil
+          id_fixed += 1
+        end
+
+        if existing_by_id && existing_by_id.slug != table_data[:slug]
+          # Different table has our target ID - this shouldn't happen normally
+          puts "  WARNING: ID #{fixed_id} is taken by #{existing_by_id.name} (slug: #{existing_by_id.slug})"
+          puts "           Cannot create #{table_data[:name]} with this ID"
+          next
+        end
+
+        table = existing_by_slug || existing_by_id
 
         if table
           # Update existing table with system fields
-          if table.table_type != 'system'
+          updates_needed = table.table_type != 'system' ||
+                          table.model_class != table_data[:model_class] ||
+                          table.api_endpoint != table_data[:api_endpoint]
+
+          if updates_needed
             table.update!(
               table_type: 'system',
               model_class: table_data[:model_class],
@@ -285,16 +326,14 @@ namespace :trapid do
             puts "  Updated: #{table_data[:name]} (ID: #{table.id})"
           else
             skipped += 1
-            puts "  Skipped (already system): #{table_data[:name]} (ID: #{table.id})"
+            puts "  Skipped (already correct): #{table_data[:name]} (ID: #{table.id})"
           end
         else
-          # Create new system table
-          # For system tables that share the same underlying database table (e.g., trinity views),
-          # we use slug as a unique database_table_name identifier since they're virtual views
-          # Use "system_" prefix + slug to make it unique
+          # Create new system table with FIXED ID
           unique_db_name = "system_#{table_data[:slug].gsub('-', '_')}"
 
-          table = Table.create!(
+          # Use raw SQL to insert with specific ID
+          table = Table.new(
             name: table_data[:name],
             slug: table_data[:slug],
             database_table_name: unique_db_name,
@@ -307,14 +346,24 @@ namespace :trapid do
             has_saved_views: table_data[:has_saved_views],
             is_live: true
           )
+          table.id = fixed_id
+          table.save!
+
           created += 1
           puts "  Created: #{table_data[:name]} (ID: #{table.id})"
         end
       end
 
+      # Reset the sequence to be higher than our fixed IDs
+      max_id = Table.maximum(:id) || 221
+      new_sequence_value = [max_id + 1, 222].max
+      ActiveRecord::Base.connection.execute("SELECT setval('tables_id_seq', #{new_sequence_value}, false)")
+      puts "\n  Sequence reset to: #{new_sequence_value}"
+
       puts "\nSummary:"
       puts "  Created: #{created}"
       puts "  Updated: #{updated}"
+      puts "  ID Fixed: #{id_fixed}"
       puts "  Skipped: #{skipped}"
       puts "  Total: #{system_tables.count}"
     end
