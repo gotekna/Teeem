@@ -437,12 +437,17 @@ Rails.application.routes.draw do
         member do
           post :start
           post :complete
+          get :spawn_preview
           post :hold
           post :release_hold
           # Cascade endpoints
           post :cascade_preview
           post :cascade_execute
           post :move
+          # Working drawings AI
+          get :working_drawings
+          post 'working_drawings/process', to: 'sm_tasks#process_working_drawings'
+          patch 'working_drawings/pages/:page_id/override', to: 'sm_tasks#override_page_category'
         end
 
         # Dependencies (nested under sm_tasks)
@@ -492,8 +497,15 @@ Rails.application.routes.draw do
 
       # SM Resources (people, equipment, materials)
       resources :sm_resources, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          get :schedule           # Resource schedule in Gantt format
+          get :allocations        # Resource allocations list
+          post :allocate          # Allocate resource to task
+        end
         collection do
-          get :availability
+          get :availability       # Availability for a date
+          get :utilization        # Utilization report
+          delete 'allocations/:allocation_id', action: :remove_allocation
         end
       end
 
@@ -525,6 +537,27 @@ Rails.application.routes.draw do
           post :bulk_approve
           get 'by_resource/:resource_id', action: :by_resource
           get :timesheet
+          # SmTimesheetService endpoints
+          get 'resource_timesheet/:resource_id', action: :resource_timesheet
+          get 'task_timesheet/:task_id', action: :task_timesheet
+          get :pending_approvals
+          get 'weekly_summary/:resource_id', action: :weekly_summary
+          post :log_time
+          get :export_payroll
+        end
+      end
+
+      # SM Reports & Dashboard
+      resources :sm_reports, only: [] do
+        collection do
+          get :dashboard
+          get :utilization
+          get :costs
+          get :trends
+          get :forecast
+          get :export
+          get 'resource/:resource_id', action: :resource
+          get 'task/:task_id', action: :task
         end
       end
 
@@ -607,6 +640,7 @@ Rails.application.routes.draw do
       # Schema information
       get 'schema', to: 'schema#index'
       get 'schema/tables', to: 'schema#tables'
+      get 'schema/in_memory_tables', to: 'schema#in_memory_tables'
       get 'schema/system_table_columns/:table_name', to: 'schema#system_table_columns'
 
       # Table management
@@ -619,6 +653,10 @@ Rails.application.routes.draw do
           member do
             get :lookup_options
             get :lookup_search
+            get :choices
+            post :rename_choice
+            post :merge_choices
+            delete :delete_choice
           end
         end
 
