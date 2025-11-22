@@ -4,7 +4,11 @@ module Api
   module V1
     class SmTasksController < ApplicationController
       before_action :set_construction, only: [:index, :create, :gantt_data, :copy_from_template]
-      before_action :set_sm_task, only: [:show, :update, :destroy, :start, :complete, :hold, :release_hold]
+      before_action :set_sm_task, only: [
+        :show, :update, :destroy, :start, :complete, :spawn_preview,
+        :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
+        :working_drawings, :process_working_drawings, :override_page_category
+      ]
 
       # GET /api/v1/constructions/:construction_id/sm_tasks
       def index
@@ -173,20 +177,36 @@ module Api
 
       # POST /api/v1/sm_tasks/:id/complete
       def complete
-        passed = params[:passed]
+        passed = params[:passed].nil? ? nil : ActiveModel::Type::Boolean.new.cast(params[:passed])
 
-        if @task.complete!(passed: passed)
+        service = SmTaskCompletionService.new(@task, user: current_user)
+        result = service.complete(passed: passed)
+
+        if result[:success]
           render json: {
             success: true,
             message: 'Task completed',
-            sm_task: task_to_json(@task)
+            sm_task: task_to_json(result[:task]),
+            spawned_tasks: result[:spawned_tasks].map { |t| task_to_json(t) }
           }
         else
           render json: {
             success: false,
-            error: 'Task cannot be completed'
+            errors: result[:errors]
           }, status: :unprocessable_entity
         end
+      end
+
+      # GET /api/v1/sm_tasks/:id/spawn_preview
+      def spawn_preview
+        service = SmTaskCompletionService.new(@task)
+        spawns = service.preview_spawns
+
+        render json: {
+          success: true,
+          task_id: @task.id,
+          spawns: spawns
+        }
       end
 
       # POST /api/v1/sm_tasks/:id/hold
@@ -357,6 +377,89 @@ module Api
           cascade_results: {
             updated_count: results[:updated_tasks].count,
             updated_task_ids: results[:updated_tasks].map(&:id)
+          }
+        }
+      end
+
+      # GET /api/v1/sm_tasks/:id/working_drawings
+      # Get working drawings page categorization for a task
+      def working_drawings
+        summary = SmWorkingDrawingsService.summary_for_task(@task)
+
+        render json: {
+          success: true,
+          task_id: @task.id,
+          task_name: @task.name,
+          **summary
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/working_drawings/process
+      # Process a PDF and categorize pages using AI
+      def process_working_drawings
+        unless params[:file].present? || params[:url].present?
+          return render json: {
+            success: false,
+            error: 'Either file or url parameter is required'
+          }, status: :unprocessable_entity
+        end
+
+        service = SmWorkingDrawingsService.new(@task)
+
+        result = if params[:file].present?
+          service.process_pdf(
+            params[:file].read,
+            filename: params[:file].original_filename
+          )
+        else
+          service.process_from_url(params[:url])
+        end
+
+        if result[:success]
+          render json: result
+        else
+          render json: result, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/sm_tasks/:id/working_drawings/pages/:page_id/override
+      # Override AI category for a page
+      def override_page_category
+        page = @task.working_drawing_pages.find_by(id: params[:page_id])
+
+        unless page
+          return render json: {
+            success: false,
+            error: 'Page not found'
+          }, status: :not_found
+        end
+
+        unless params[:category].present?
+          return render json: {
+            success: false,
+            error: 'category parameter is required'
+          }, status: :unprocessable_entity
+        end
+
+        unless SmWorkingDrawingsService::CATEGORIES.include?(params[:category])
+          return render json: {
+            success: false,
+            error: "Invalid category. Valid categories: #{SmWorkingDrawingsService::CATEGORIES.join(', ')}"
+          }, status: :unprocessable_entity
+        end
+
+        page.override_category!(params[:category])
+
+        render json: {
+          success: true,
+          message: 'Category overridden',
+          page: {
+            id: page.id,
+            page_number: page.page_number,
+            original_category: page.category,
+            effective_category: page.effective_category,
+            ai_confidence: page.ai_confidence,
+            category_overridden: page.category_overridden?
           }
         }
       end

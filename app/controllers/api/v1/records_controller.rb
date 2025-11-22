@@ -19,7 +19,12 @@ module Api
 
         # Apply search filter
         if search.present?
-          searchable_columns = @table.columns.where(searchable: true).pluck(:column_name)
+          searchable_columns = if @table.table_type == 'system'
+            # For system tables, search text columns from the model
+            model.columns.select { |c| [:string, :text].include?(c.type) }.map(&:name)
+          else
+            @table.columns.where(searchable: true).pluck(:column_name)
+          end
           if searchable_columns.any?
             search_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(' OR ')
             query = query.where(search_conditions, search: "%#{search}%")
@@ -28,11 +33,16 @@ module Api
 
         # Apply sorting with SQL injection prevention
         if sort_by.present?
-          # Validate that the column exists and get the sanitized column name
-          column = @table.columns.find_by(column_name: sort_by)
-          if column
+          # For system tables, validate against model columns
+          valid_columns = if @table.table_type == 'system'
+            model.column_names
+          else
+            @table.columns.pluck(:column_name)
+          end
+
+          if valid_columns.include?(sort_by)
             # Use Arel to safely build the order clause
-            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(column.column_name)} #{sort_direction}"))
+            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
           else
             query = query.order(created_at: :desc)
           end
@@ -44,8 +54,8 @@ module Api
         total_count = query.count
         records = query.offset((page - 1) * per_page).limit(per_page)
 
-        # Build lookup cache to prevent N+1 queries
-        lookup_cache = build_lookup_cache(records)
+        # Build lookup cache to prevent N+1 queries (only for user tables with lookup columns)
+        lookup_cache = @table.table_type == 'system' ? {} : build_lookup_cache(records)
 
         render json: {
           success: true,
@@ -155,6 +165,15 @@ module Api
           created_at: record.created_at,
           updated_at: record.updated_at
         }
+
+        # For system tables, return all model attributes directly
+        if @table.table_type == 'system'
+          record.attributes.each do |key, value|
+            next if ['id', 'created_at', 'updated_at'].include?(key)
+            json[key] = value
+          end
+          return json
+        end
 
         # First pass: collect all base column values
         record_data = {}

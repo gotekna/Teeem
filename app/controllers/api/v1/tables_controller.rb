@@ -149,6 +149,53 @@ module Api
         render json: { error: 'Table not found' }, status: :not_found
       end
 
+      # Get columns for system tables from the model schema
+      def system_table_columns
+        return [] unless @table.table_type == 'system' && @table.model_class.present?
+
+        begin
+          model = @table.model_class.constantize
+          position = 0
+          model.columns.map do |col|
+            position += 1
+            {
+              id: "system_#{col.name}",
+              name: col.name.titleize,
+              column_name: col.name,
+              column_type: map_sql_type_to_column_type(col.type),
+              required: !col.null,
+              is_title: col.name == 'title' || col.name == 'name',
+              is_unique: false,
+              position: position
+            }
+          end
+        rescue NameError => e
+          Rails.logger.error "Failed to get columns for system table #{@table.slug}: #{e.message}"
+          []
+        end
+      end
+
+      def map_sql_type_to_column_type(sql_type)
+        case sql_type
+        when :string, :text
+          'text'
+        when :integer, :bigint
+          'number'
+        when :decimal, :float
+          'currency'
+        when :boolean
+          'boolean'
+        when :date
+          'date'
+        when :datetime, :timestamp
+          'datetime'
+        when :json, :jsonb
+          'json'
+        else
+          'text'
+        end
+      end
+
       def table_params
         params.require(:table).permit(
           :name,
@@ -163,6 +210,10 @@ module Api
       end
 
       def table_json(table, include_columns: false, include_record_count: false, referencing_map: nil)
+        # Temporarily set @table for system_table_columns helper
+        original_table = @table
+        @table = table
+
         json = {
           id: table.id,
           name: table.name,
@@ -175,57 +226,64 @@ module Api
           searchable: table.searchable,
           description: table.description,
           is_live: table.is_live,
+          table_type: table.table_type,
+          api_endpoint: table.api_endpoint,
           created_at: table.created_at,
           updated_at: table.updated_at
         }
 
         if include_columns
-          json[:columns] = table.columns.order(:position).map do |col|
-            column_data = {
-              id: col.id,
-              name: col.name,
-              column_name: col.column_name,
-              column_type: col.column_type,
-              max_length: col.max_length,
-              min_length: col.min_length,
-              default_value: col.default_value,
-              description: col.description,
-              searchable: col.searchable,
-              is_title: col.is_title,
-              is_unique: col.is_unique,
-              required: col.required,
-              min_value: col.min_value,
-              max_value: col.max_value,
-              validation_message: col.validation_message,
-              position: col.position,
-              lookup_table_id: col.lookup_table_id,
-              lookup_display_column: col.lookup_display_column,
-              is_multiple: col.is_multiple
-            }
+          # For system tables, get columns from the model schema
+          if table.table_type == 'system'
+            json[:columns] = system_table_columns
+          else
+            json[:columns] = table.columns.order(:position).map do |col|
+              column_data = {
+                id: col.id,
+                name: col.name,
+                column_name: col.column_name,
+                column_type: col.column_type,
+                max_length: col.max_length,
+                min_length: col.min_length,
+                default_value: col.default_value,
+                description: col.description,
+                searchable: col.searchable,
+                is_title: col.is_title,
+                is_unique: col.is_unique,
+                required: col.required,
+                min_value: col.min_value,
+                max_value: col.max_value,
+                validation_message: col.validation_message,
+                position: col.position,
+                lookup_table_id: col.lookup_table_id,
+                lookup_display_column: col.lookup_display_column,
+                is_multiple: col.is_multiple
+              }
 
-            # Add relationship information
-            if col.lookup_table_id.present?
-              column_data[:lookup_table_name] = col.lookup_table&.name
-            end
-
-            # Find columns that reference this table using preloaded data or query
-            referencing_columns = if referencing_map
-              referencing_map[table.id] || []
-            else
-              Column.where(lookup_table_id: table.id).includes(:table)
-            end
-
-            if referencing_columns.any?
-              column_data[:referenced_by] = referencing_columns.map do |ref_col|
-                {
-                  table_id: ref_col.table_id,
-                  table_name: ref_col.table.name,
-                  column_name: ref_col.name
-                }
+              # Add relationship information
+              if col.lookup_table_id.present?
+                column_data[:lookup_table_name] = col.lookup_table&.name
               end
-            end
 
-            column_data
+              # Find columns that reference this table using preloaded data or query
+              referencing_columns = if referencing_map
+                referencing_map[table.id] || []
+              else
+                Column.where(lookup_table_id: table.id).includes(:table)
+              end
+
+              if referencing_columns.any?
+                column_data[:referenced_by] = referencing_columns.map do |ref_col|
+                  {
+                    table_id: ref_col.table_id,
+                    table_name: ref_col.table.name,
+                    column_name: ref_col.name
+                  }
+                end
+              end
+
+              column_data
+            end
           end
         end
 
@@ -240,14 +298,27 @@ module Api
 
         # Always include columns info for list view
         unless include_columns
-          json[:columns] = table.columns.order(:position).map do |col|
-            {
-              id: col.id,
-              name: col.name,
-              column_type: col.column_type
-            }
+          if table.table_type == 'system'
+            json[:columns] = system_table_columns.map do |col|
+              {
+                id: col[:id],
+                name: col[:name],
+                column_type: col[:column_type]
+              }
+            end
+          else
+            json[:columns] = table.columns.order(:position).map do |col|
+              {
+                id: col.id,
+                name: col.name,
+                column_type: col.column_type
+              }
+            end
           end
         end
+
+        # Restore original @table
+        @table = original_table
 
         json
       end

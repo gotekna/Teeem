@@ -561,6 +561,129 @@ Rails.application.routes.draw do
         end
       end
 
+      # SM Field Operations (Mobile)
+      resources :sm_field, only: [] do
+        collection do
+          # Photos
+          post :upload_photo
+          delete 'photos/:id', action: :delete_photo
+
+          # GPS Check-ins
+          post :checkin
+          get :checkins
+          get 'site_status/:construction_id', action: :site_status
+
+          # Voice Notes
+          post :record_voice_note
+          post 'voice_notes/:id/transcribe', action: :transcribe_voice_note
+
+          # Offline Sync
+          post :sync
+        end
+      end
+
+      # Field endpoints nested under tasks
+      resources :sm_tasks, only: [] do
+        member do
+          get 'photos', to: 'sm_field#task_photos'
+          get 'voice_notes', to: 'sm_field#task_voice_notes'
+        end
+      end
+
+      # ============================================
+      # SM Gantt Phase 3 - Collaboration
+      # ============================================
+
+      # Activities (Activity Feed)
+      resources :sm_activities, only: [] do
+        collection do
+          get :feed
+          get :my_activity
+          get :summary
+        end
+      end
+
+      # Activities nested under constructions
+      resources :constructions, only: [] do
+        resources :sm_activities, only: [:index], controller: 'sm_activities'
+      end
+
+      # Activities nested under tasks
+      resources :sm_tasks, only: [] do
+        member do
+          get :activities, to: 'sm_activities#task_activities'
+        end
+        resources :comments, controller: 'sm_comments', only: [:index, :create]
+      end
+
+      # Comments (non-nested)
+      resources :sm_comments, only: [:show, :update, :destroy] do
+        member do
+          get :replies
+          post :reply
+        end
+        collection do
+          get :mentions
+          post 'mentions/:id/read', action: :mark_mention_read
+          post 'mentions/read_all', action: :mark_all_mentions_read
+        end
+      end
+
+      # ============================================
+      # SM Gantt - Advanced Analytics
+      # ============================================
+
+      resources :constructions, only: [] do
+        scope module: :sm do
+          # Analytics endpoints
+          resources :sm_analytics, only: [], controller: '/api/v1/sm_analytics' do
+            collection do
+              get :critical_path
+              get :delay_impact
+              get :evm
+              get :s_curve
+              get :baselines
+              post :baselines, action: :create_baseline
+              get 'baselines/:id/compare', action: :compare_baseline
+              get :variance
+              get :summary
+            end
+          end
+
+          # AI endpoints
+          resources :sm_ai, only: [], controller: '/api/v1/sm_ai' do
+            collection do
+              get :suggestions
+              get :predictions
+              get :resource_optimization
+              get :summary
+            end
+          end
+        end
+      end
+
+      # AI duration estimation (no construction required)
+      post 'sm_ai/estimate_duration', to: 'sm_ai#estimate_duration'
+
+      # ============================================
+      # SM Gantt - Integrations
+      # ============================================
+
+      resources :sm_integrations, only: [] do
+        collection do
+          # MS Project
+          post :import_ms_project
+          get :export_ms_project
+          # Calendar sync
+          post :sync_calendar
+          get :calendar_events
+          # Notifications
+          post :send_notification
+          get :notification_settings
+          patch :notification_settings, action: :update_notification_settings
+        end
+      end
+
       # ============================================
       # End SM Gantt
       # ============================================
@@ -881,6 +1004,20 @@ Rails.application.routes.draw do
             post :mark_complete
             post :upload_photos
             post :report_issue
+          end
+        end
+
+        # SM Gantt Tasks (supplier schedule view)
+        resources :sm_tasks, only: [:index, :show, :update] do
+          member do
+            post :add_comment
+            get :comments
+            get :photos
+            post :upload_photo
+          end
+          collection do
+            get :activities
+            get :schedule
           end
         end
 

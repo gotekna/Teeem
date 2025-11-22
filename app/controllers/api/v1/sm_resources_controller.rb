@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmResourcesController < ApplicationController
-      before_action :set_resource, only: [:show, :update, :destroy]
+      before_action :set_resource, only: [:show, :update, :destroy, :schedule, :allocations, :allocate]
 
       # GET /api/v1/sm_resources
       def index
@@ -130,6 +130,115 @@ module Api
         }, status: :unprocessable_entity
       end
 
+      # GET /api/v1/sm_resources/utilization
+      # Detailed utilization report using SmResourceService
+      def utilization
+        service = SmResourceService.new
+        start_date = parse_date(params[:start_date]) || Date.current.beginning_of_week
+        end_date = parse_date(params[:end_date]) || start_date + 4.weeks
+
+        report = service.utilization_report(
+          start_date: start_date,
+          end_date: end_date,
+          resource_ids: params[:resource_ids]
+        )
+
+        render json: {
+          success: true,
+          utilization: report,
+          period: { start_date: start_date, end_date: end_date }
+        }
+      end
+
+      # GET /api/v1/sm_resources/:id/schedule
+      # Resource schedule in Gantt format
+      def schedule
+        service = SmResourceService.new
+        start_date = parse_date(params[:start_date]) || Date.current.beginning_of_week
+        end_date = parse_date(params[:end_date]) || start_date + 4.weeks
+
+        schedule_data = service.resource_schedule(
+          resource_id: @resource.id,
+          start_date: start_date,
+          end_date: end_date
+        )
+
+        render json: { success: true }.merge(schedule_data)
+      end
+
+      # GET /api/v1/sm_resources/:id/allocations
+      def allocations
+        start_date = parse_date(params[:start_date])
+        end_date = parse_date(params[:end_date])
+
+        allocs = @resource.resource_allocations.includes(:task)
+        allocs = allocs.where(allocation_date: start_date..end_date) if start_date && end_date
+        allocs = allocs.order(:allocation_date)
+
+        render json: {
+          success: true,
+          resource_id: @resource.id,
+          allocations: allocs.map do |a|
+            {
+              id: a.id,
+              task_id: a.task_id,
+              task_name: a.task.name,
+              task_number: a.task.task_number,
+              allocation_date: a.allocation_date,
+              allocated_hours: a.allocated_hours.to_f,
+              status: a.status
+            }
+          end
+        }
+      end
+
+      # POST /api/v1/sm_resources/:id/allocate
+      def allocate
+        service = SmResourceService.new
+        task = SmTask.find(params[:task_id])
+
+        dates = if params[:dates].present?
+                  params[:dates].map { |d| Date.parse(d) }
+                else
+                  nil
+                end
+
+        result = service.allocate_to_task(
+          task: task,
+          resource: @resource,
+          hours_per_day: params[:hours_per_day].to_f,
+          dates: dates
+        )
+
+        if result[:success]
+          render json: {
+            success: true,
+            allocations: result[:allocations].map do |a|
+              {
+                id: a.id,
+                allocation_date: a.allocation_date,
+                allocated_hours: a.allocated_hours.to_f
+              }
+            end
+          }
+        else
+          render json: { success: false, errors: result[:errors] }, status: :unprocessable_entity
+        end
+      end
+
+      # DELETE /api/v1/sm_resources/allocations/:allocation_id
+      def remove_allocation
+        allocation = SmResourceAllocation.find(params[:allocation_id])
+        service = SmResourceService.new
+        result = service.remove_allocation(allocation)
+
+        if result[:success]
+          render json: { success: true }
+        else
+          render json: { success: false, errors: result[:errors] }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def set_resource
@@ -139,6 +248,12 @@ module Api
           success: false,
           error: 'Resource not found'
         }, status: :not_found
+      end
+
+      def parse_date(date_string)
+        Date.parse(date_string) if date_string.present?
+      rescue ArgumentError
+        nil
       end
 
       def resource_params

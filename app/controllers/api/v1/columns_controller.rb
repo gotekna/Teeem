@@ -267,6 +267,125 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/tables/:table_id/columns/:id/choices
+      # Returns all unique values for a choice/select column with usage counts
+      def choices
+        column = find_column_by_id_or_name(params[:id])
+
+        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
+          return render json: { error: 'Not a choice column' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        # Get distinct values with counts
+        choices_data = model
+          .group(column_name)
+          .count
+          .map { |value, count| { value: value.to_s, count: count } }
+          .reject { |c| c[:value].blank? }
+          .sort_by { |c| c[:value].downcase }
+
+        # Also include any predefined choices from column settings
+        predefined = column.settings&.dig('choices') || []
+        predefined.each do |choice|
+          unless choices_data.any? { |c| c[:value] == choice }
+            choices_data << { value: choice, count: 0 }
+          end
+        end
+
+        total_records = model.count
+
+        render json: {
+          success: true,
+          choices: choices_data,
+          total_records: total_records
+        }
+      rescue => e
+        Rails.logger.error "Error loading choices: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/rename_choice
+      # Renames a choice value across all records
+      def rename_choice
+        column = find_column_by_id_or_name(params[:id])
+        old_value = params[:old_value]
+        new_value = params[:new_value]
+
+        if old_value.blank? || new_value.blank?
+          return render json: { error: 'Both old_value and new_value are required' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        affected_rows = model.where(column_name => old_value).update_all(column_name => new_value)
+
+        render json: {
+          success: true,
+          affected_rows: affected_rows
+        }
+      rescue => e
+        Rails.logger.error "Error renaming choice: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/merge_choices
+      # Merges multiple choice values into one
+      def merge_choices
+        column = find_column_by_id_or_name(params[:id])
+        source_values = params[:source_values] || []
+        target_value = params[:target_value]
+
+        if source_values.empty? || target_value.blank?
+          return render json: { error: 'source_values and target_value are required' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        affected_rows = model.where(column_name => source_values).update_all(column_name => target_value)
+
+        render json: {
+          success: true,
+          affected_rows: affected_rows
+        }
+      rescue => e
+        Rails.logger.error "Error merging choices: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # DELETE /api/v1/tables/:table_id/columns/:id/delete_choice
+      # Deletes a choice by either clearing values or replacing with another value
+      def delete_choice
+        column = find_column_by_id_or_name(params[:id])
+        value = params[:value]
+        replacement_value = params[:replacement_value]
+
+        if value.blank?
+          return render json: { error: 'value is required' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        if replacement_value.present?
+          affected_rows = model.where(column_name => value).update_all(column_name => replacement_value)
+        else
+          affected_rows = model.where(column_name => value).update_all(column_name => nil)
+        end
+
+        render json: {
+          success: true,
+          affected_rows: affected_rows
+        }
+      rescue => e
+        Rails.logger.error "Error deleting choice: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
       private
 
       def set_table
@@ -279,6 +398,17 @@ module Api
         @column = @table.columns.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Column not found' }, status: :not_found
+      end
+
+      # Find column by numeric ID or by column_name string
+      def find_column_by_id_or_name(id_or_name)
+        if id_or_name.to_s.match?(/^\d+$/)
+          @table.columns.find(id_or_name)
+        else
+          @table.columns.find_by!(column_name: id_or_name)
+        end
+      rescue ActiveRecord::RecordNotFound
+        raise ActiveRecord::RecordNotFound, "Column not found: #{id_or_name}"
       end
 
       def column_params

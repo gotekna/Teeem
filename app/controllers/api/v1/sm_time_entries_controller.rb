@@ -227,7 +227,135 @@ module Api
         render json: { success: false, error: 'Invalid date format' }, status: :unprocessable_entity
       end
 
+      # GET /api/v1/sm_time_entries/resource_timesheet/:resource_id
+      # Uses SmTimesheetService for detailed timesheet view
+      def resource_timesheet
+        service = SmTimesheetService.new(user: current_user)
+        start_date = parse_date(params[:start_date]) || Date.current.beginning_of_week
+        end_date = parse_date(params[:end_date]) || start_date + 6.days
+
+        timesheet = service.timesheet_for_resource(
+          resource_id: params[:resource_id],
+          start_date: start_date,
+          end_date: end_date
+        )
+
+        render json: { success: true }.merge(timesheet)
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Resource not found' }, status: :not_found
+      end
+
+      # GET /api/v1/sm_time_entries/task_timesheet/:task_id
+      def task_timesheet
+        service = SmTimesheetService.new(user: current_user)
+        timesheet = service.timesheet_for_task(task_id: params[:task_id])
+
+        render json: { success: true }.merge(timesheet)
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Task not found' }, status: :not_found
+      end
+
+      # GET /api/v1/sm_time_entries/pending_approvals
+      def pending_approvals
+        service = SmTimesheetService.new(user: current_user)
+        entries = service.pending_approvals(limit: params[:limit]&.to_i || 50)
+
+        render json: {
+          success: true,
+          entries: entries,
+          count: entries.count
+        }
+      end
+
+      # GET /api/v1/sm_time_entries/weekly_summary/:resource_id
+      def weekly_summary
+        service = SmTimesheetService.new(user: current_user)
+        week_start = parse_date(params[:week_start]) || Date.current.beginning_of_week
+
+        summary = service.weekly_summary(
+          resource_id: params[:resource_id],
+          week_start: week_start
+        )
+
+        render json: {
+          success: true,
+          resource_id: params[:resource_id],
+          week_start: week_start,
+          days: summary
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Resource not found' }, status: :not_found
+      end
+
+      # POST /api/v1/sm_time_entries/log_time
+      # Quick time logging via SmTimesheetService
+      def log_time
+        service = SmTimesheetService.new(user: current_user)
+        task = SmTask.find(params[:task_id])
+        resource = SmResource.find(params[:resource_id])
+
+        result = service.log_time(
+          task: task,
+          resource: resource,
+          date: parse_date(params[:entry_date]) || Date.current,
+          hours: params[:hours].to_f,
+          entry_type: params[:entry_type] || 'regular',
+          description: params[:description],
+          start_time: params[:start_time],
+          end_time: params[:end_time],
+          break_minutes: params[:break_minutes]&.to_i || 0
+        )
+
+        if result[:success]
+          render json: {
+            success: true,
+            time_entry: time_entry_to_json(result[:time_entry])
+          }, status: :created
+        else
+          render json: { success: false, errors: result[:errors] }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: e.message }, status: :not_found
+      end
+
+      # GET /api/v1/sm_time_entries/export_payroll
+      def export_payroll
+        service = SmTimesheetService.new(user: current_user)
+        start_date = parse_date(params[:start_date])
+        end_date = parse_date(params[:end_date])
+
+        unless start_date && end_date
+          return render json: {
+            success: false,
+            error: 'start_date and end_date are required'
+          }, status: :unprocessable_entity
+        end
+
+        payroll_data = service.export_for_payroll(
+          start_date: start_date,
+          end_date: end_date,
+          resource_ids: params[:resource_ids]
+        )
+
+        render json: {
+          success: true,
+          period: { start_date: start_date, end_date: end_date },
+          payroll: payroll_data,
+          totals: {
+            total_regular_hours: payroll_data.sum { |r| r[:hours][:regular] },
+            total_overtime_hours: payroll_data.sum { |r| r[:hours][:overtime] },
+            total_cost: payroll_data.sum { |r| r[:cost][:total] }
+          }
+        }
+      end
+
       private
+
+      def parse_date(date_string)
+        Date.parse(date_string) if date_string.present?
+      rescue ArgumentError
+        nil
+      end
 
       def set_task
         @task = SmTask.find(params[:sm_task_id])

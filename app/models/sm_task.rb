@@ -56,6 +56,12 @@ class SmTask < ApplicationRecord
   has_many :resource_allocations, class_name: 'SmResourceAllocation', dependent: :destroy
   has_many :time_entries, class_name: 'SmTimeEntry', dependent: :destroy
 
+  # Phase 3: Field & Collaboration
+  has_many :task_photos, class_name: 'SmTaskPhoto', dependent: :destroy
+  has_many :voice_notes, class_name: 'SmVoiceNote', dependent: :destroy
+  has_many :comments, class_name: 'SmComment', dependent: :destroy
+  has_many :activities, class_name: 'SmActivity', dependent: :nullify
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   validates :task_number, presence: true, uniqueness: { scope: :construction_id }
