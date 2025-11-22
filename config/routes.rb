@@ -460,6 +460,25 @@ Rails.application.routes.draw do
         end
       end
 
+      # SM Templates (Schedule Master templates for SM Gantt)
+      resources :sm_templates, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :set_default
+        end
+        collection do
+          get :default
+        end
+        resources :rows, controller: 'sm_template_rows', only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :move
+          end
+          collection do
+            post :bulk_create
+            post :reorder
+          end
+        end
+      end
+
       # SM Settings (singleton - admin)
       resource :sm_settings, only: [:show, :update]
 

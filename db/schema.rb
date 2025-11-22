@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_21_215052) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_22_003255) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -110,6 +110,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_21_215052) do
     t.bigint "created_by_id"
     t.bigint "updated_by_id"
     t.bigint "last_run_by_id"
+    t.string "last_run_by_name"
+    t.string "created_by_name"
+    t.string "updated_by_name"
+    t.string "category"
     t.index ["active"], name: "index_agent_definitions_on_active"
     t.index ["agent_id"], name: "index_agent_definitions_on_agent_id", unique: true
     t.index ["agent_type"], name: "index_agent_definitions_on_agent_type"
@@ -2067,6 +2071,72 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_21_215052) do
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
   end
 
+  create_table "sm_template_rows", force: :cascade do |t|
+    t.bigint "sm_template_id", null: false
+    t.bigint "parent_row_id"
+    t.bigint "supplier_id"
+    t.integer "task_number", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.decimal "sequence_order", precision: 10, scale: 2, null: false
+    t.integer "duration_days", default: 1, null: false
+    t.integer "start_day_offset", default: 0
+    t.jsonb "predecessor_ids", default: []
+    t.string "trade"
+    t.string "stage"
+    t.string "assigned_role"
+    t.integer "documentation_category_ids", default: [], array: true
+    t.boolean "show_in_docs_tab", default: false
+    t.jsonb "linked_task_ids", default: []
+    t.boolean "spawn_photo_task", default: false
+    t.boolean "spawn_scan_task", default: false
+    t.jsonb "spawn_office_tasks", default: []
+    t.boolean "pass_fail_enabled", default: false
+    t.bigint "checklist_id"
+    t.integer "order_time_days"
+    t.integer "call_time_days"
+    t.boolean "require_photo", default: false
+    t.boolean "require_certificate", default: false
+    t.boolean "require_supervisor_check", default: false
+    t.boolean "po_required", default: false
+    t.boolean "critical_po", default: false
+    t.boolean "create_po_on_job_start", default: false
+    t.integer "cert_lag_days", default: 0
+    t.boolean "has_subtasks", default: false
+    t.integer "subtask_count"
+    t.string "subtask_names", default: [], array: true
+    t.integer "price_book_item_ids", default: [], array: true
+    t.string "tags", default: [], array: true
+    t.string "color"
+    t.boolean "is_active", default: true
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
+    t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
+    t.index ["parent_row_id"], name: "index_sm_template_rows_on_parent_row_id"
+    t.index ["sm_template_id", "sequence_order"], name: "index_sm_template_rows_on_sm_template_id_and_sequence_order"
+    t.index ["sm_template_id", "task_number"], name: "index_sm_template_rows_on_sm_template_id_and_task_number", unique: true
+    t.index ["sm_template_id"], name: "index_sm_template_rows_on_sm_template_id"
+    t.index ["stage"], name: "index_sm_template_rows_on_stage"
+    t.index ["supplier_id"], name: "index_sm_template_rows_on_supplier_id"
+    t.index ["trade"], name: "index_sm_template_rows_on_trade"
+  end
+
+  create_table "sm_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_sm_templates_on_is_active"
+    t.index ["is_default"], name: "index_sm_templates_on_is_default"
+  end
+
   create_table "sm_time_entries", force: :cascade do |t|
     t.bigint "task_id", null: false
     t.bigint "resource_id", null: false
@@ -3219,6 +3289,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_21_215052) do
   add_foreign_key "sm_tasks", "users", column: "hold_started_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "sm_template_rows", "contacts", column: "supplier_id"
+  add_foreign_key "sm_template_rows", "sm_template_rows", column: "parent_row_id"
+  add_foreign_key "sm_template_rows", "sm_templates"
+  add_foreign_key "sm_template_rows", "supervisor_checklist_templates", column: "checklist_id"
+  add_foreign_key "sm_template_rows", "users", column: "created_by_id"
+  add_foreign_key "sm_template_rows", "users", column: "updated_by_id"
+  add_foreign_key "sm_templates", "users", column: "created_by_id"
+  add_foreign_key "sm_templates", "users", column: "updated_by_id"
   add_foreign_key "sm_time_entries", "sm_resource_allocations", column: "allocation_id", on_delete: :nullify
   add_foreign_key "sm_time_entries", "sm_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "sm_time_entries", "sm_tasks", column: "task_id", on_delete: :cascade

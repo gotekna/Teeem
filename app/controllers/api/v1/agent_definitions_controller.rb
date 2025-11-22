@@ -26,7 +26,7 @@ module Api
       # GET /api/v1/agent_definitions/:id
       # Returns single agent with full details
       def show
-        agent = AgentDefinition.includes(:created_by, :updated_by, :last_run_by).find_by!(agent_id: params[:id])
+        agent = AgentDefinition.includes(:created_by, :updated_by, :last_run_by).find_by!(agent_id: params[:agent_id])
 
         render json: {
           success: true,
@@ -45,32 +45,24 @@ module Api
 
       # POST /api/v1/agent_definitions/:id/record_run
       # Records a run result
-      # Accepts user_email param for CLI runs (looks up user by email)
+      # Accepts user_name param for CLI runs (from git config user.name)
       def record_run
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
         status = params[:status] # 'success' or 'failure'
         message = params[:message]
         details = params[:details] || {}
-
-        # Determine the user who ran the agent
-        # Priority: 1) authenticated user, 2) user_email param, 3) nil
-        run_user = current_user
-        if run_user.nil? && params[:user_email].present?
-          run_user = User.find_by(email: params[:user_email])
-        end
+        user_name = params[:user_name]
 
         if status == 'success'
-          agent.record_success(message, details, user: run_user)
+          agent.record_success(message, details, user_name: user_name)
         else
-          agent.record_failure(message, details, user: run_user)
+          agent.record_failure(message, details, user_name: user_name)
         end
 
         render json: {
           success: true,
           data: agent.as_json(
-            include: {
-              last_run_by: { only: [:id, :name, :email] }
-            }
+            only: [:id, :agent_id, :name, :last_run_at, :last_status, :last_message, :last_run_by_name, :total_runs, :successful_runs, :failed_runs]
           )
         }
       rescue ActiveRecord::RecordNotFound
@@ -92,7 +84,7 @@ module Api
       # PATCH /api/v1/agent_definitions/:id (admin only)
       # Updates an agent
       def update
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
 
         if agent.update(agent_params)
           render json: { success: true, data: agent }
@@ -106,7 +98,7 @@ module Api
       # DELETE /api/v1/agent_definitions/:id (admin only)
       # Deactivates an agent
       def destroy
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
         agent.update!(active: false)
 
         render json: { success: true, message: 'Agent deactivated' }

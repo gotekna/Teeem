@@ -66,52 +66,44 @@ namespace :trapid do
 
           is_new = agent.new_record?
 
-          # Get the actual git author who created/modified the file
-          # This tracks the real developer who wrote the agent definition
+          # Get the git author names directly from git history
+          # No database lookup - just store the git user.name
           file_relative_path = ".claude/agents/#{File.basename(file_path)}"
           project_root = Rails.root.join('..')
 
-          # Map git emails to database emails (for developers with different git configs)
-          email_aliases = {
-            'jakebaird@Jakes-Mac-mini.local' => 'jake@tekna.com.au'
-          }
-
           # Check for explicit author in frontmatter (overrides git history)
-          # Use this when git history doesn't reflect actual authorship
           explicit_author = frontmatter["author"]
+          created_by_name = nil
+          updated_by_name = nil
+
           if explicit_author.present?
-            created_by_user = User.find_by("LOWER(name) LIKE ?", "%#{explicit_author.downcase}%") ||
-                             User.find_by("LOWER(email) LIKE ?", "%#{explicit_author.downcase}%")
-            puts "  📝 Explicit author: #{explicit_author} -> #{created_by_user&.name || 'NOT FOUND'}"
+            created_by_name = explicit_author
+            puts "  📝 Explicit author: #{explicit_author}"
+          else
+            # Get the original creator name from git history (first commit author)
+            created_by_name = `cd #{project_root} && git log --diff-filter=A --format='%an' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+            created_by_name = nil if created_by_name.blank?
           end
 
-          # Fallback to git history if no explicit author
-          unless created_by_user
-            # Get the original creator (first commit author)
-            # Must run git from project root since agent files are in ../.claude/agents/
-            created_by_email = `cd #{project_root} && git log --diff-filter=A --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
-            created_by_email = email_aliases[created_by_email] || created_by_email
-            created_by_user = User.find_by(email: created_by_email) if created_by_email.present?
-          end
+          # Get the last modifier name from git history
+          updated_by_name = `cd #{project_root} && git log -1 --format='%an' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
+          updated_by_name = nil if updated_by_name.blank?
 
-          # Get the last modifier (most recent commit author)
-          updated_by_email = `cd #{project_root} && git log -1 --format='%ae' -- '#{file_relative_path}' 2>/dev/null`.strip rescue nil
-          updated_by_email = email_aliases[updated_by_email] || updated_by_email
-          updated_by_user = User.find_by(email: updated_by_email) if updated_by_email.present?
+          # Fallback to current git user name
+          fallback_name = `git config user.name`.strip rescue nil
+          fallback_name = 'Unknown' if fallback_name.blank?
 
-          # Fallback to current git user or Robert
-          fallback_user = User.find_by(email: `git config user.email`.strip) rescue nil
-          fallback_user ||= User.find_by(email: 'robert@tekna.com.au') ||
-                            User.find_by(role: 'admin') ||
-                            User.first
+          created_by_name ||= fallback_name
+          updated_by_name ||= fallback_name
 
-          created_by_user ||= fallback_user
-          updated_by_user ||= fallback_user
+          # Get category from frontmatter or determine from agent_type
+          category = frontmatter["category"] || determine_category(agent_id, agent_type)
 
           # Update attributes
           agent.assign_attributes(
             name: name,
             agent_type: agent_type,
+            category: category,
             focus: focus,
             model: model,
             purpose: purpose,
@@ -123,12 +115,11 @@ namespace :trapid do
             important_notes: important_notes,
             active: true,
             priority: priority,
-            updated_by_id: updated_by_user&.id
+            updated_by_name: updated_by_name
           )
 
-          # Set created_by based on git history (first commit author)
-          # Only update if it's a new record OR if we found a valid git author
-          agent.created_by_id = created_by_user&.id if is_new || created_by_user
+          # Set created_by_name only when agent is first created
+          agent.created_by_name = created_by_name if is_new
 
           if agent.save
             if is_new
@@ -266,6 +257,32 @@ namespace :trapid do
       return "planning" if content.match?(/plan|collaborat/i)
 
       "development" # default
+    end
+
+    def determine_category(agent_id, agent_type)
+      # Map agents to categories
+      categories = {
+        # Validation (merged Quality + Data Integrity + Bug Hunting)
+        "code-guardian" => "validation",
+        "ui-compliance-auditor" => "validation",
+        "ui-table-auditor" => "validation",
+        "architecture-guardian" => "validation",
+        "gold-standard-sst" => "validation",
+        "ssot-agent" => "validation",
+        "trinity-sync-validator" => "validation",
+        "production-bug-hunter" => "validation",
+        "gantt-bug-hunter" => "validation",
+        # Deployment
+        "deploy-manager" => "deployment",
+        # Planning
+        "planning-collaborator" => "planning",
+        "product-owner-analyst" => "planning",
+        # Development
+        "trapid-table-architect" => "development",
+        "invoke-helper" => "development"
+      }
+
+      categories[agent_id] || agent_type
     end
 
     def determine_priority(agent_id, agent_type)

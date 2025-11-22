@@ -24,8 +24,8 @@ class AgentDefinition < ApplicationRecord
   # Record a successful run
   # @param message [String] Success message
   # @param details [Hash] Additional run details
-  # @param user [User, nil] User who ran the agent
-  def record_success(message, details = {}, user: nil)
+  # @param user_name [String, nil] Name of user who ran the agent (from git config)
+  def record_success(message, details = {}, user_name: nil)
     update!(
       total_runs: total_runs + 1,
       successful_runs: successful_runs + 1,
@@ -33,15 +33,15 @@ class AgentDefinition < ApplicationRecord
       last_status: 'success',
       last_message: message,
       last_run_details: details,
-      last_run_by_id: user&.id
+      last_run_by_name: user_name
     )
   end
 
   # Record a failed run
   # @param message [String] Failure message
   # @param details [Hash] Additional run details
-  # @param user [User, nil] User who ran the agent
-  def record_failure(message, details = {}, user: nil)
+  # @param user_name [String, nil] Name of user who ran the agent (from git config)
+  def record_failure(message, details = {}, user_name: nil)
     update!(
       total_runs: total_runs + 1,
       failed_runs: failed_runs + 1,
@@ -49,7 +49,7 @@ class AgentDefinition < ApplicationRecord
       last_status: 'failure',
       last_message: message,
       last_run_details: details,
-      last_run_by_id: user&.id
+      last_run_by_name: user_name
     )
   end
 
