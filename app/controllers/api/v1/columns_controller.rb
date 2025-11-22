@@ -45,28 +45,36 @@ module Api
 
       # PATCH/PUT /api/v1/tables/:table_id/columns/:id
       def update
+        # Track if structural changes are being made (require table rebuild)
+        structural_change = column_params[:column_name].present? && column_params[:column_name] != @column.column_name ||
+                           column_params[:column_type].present? && column_params[:column_type] != @column.column_type
+
         if @column.update(column_params)
-          # Rebuild the database table to reflect the changes
-          table_reloaded = Table.includes(:columns).find(@table.id)
-          builder = TableBuilder.new(table_reloaded)
-          result = builder.create_database_table
+          # Only rebuild database table if structural changes were made
+          # Display name changes don't require a rebuild
+          if structural_change
+            table_reloaded = Table.includes(:columns).find(@table.id)
+            builder = TableBuilder.new(table_reloaded)
+            result = builder.create_database_table
 
-          if result[:success]
-            # Reload the dynamic model to pick up changes
-            table_reloaded.reload_dynamic_model
-            # Reset the connection's schema cache for this table
-            ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(table_reloaded.database_table_name)
-
-            render json: {
-              success: true,
-              column: column_json(@column)
-            }
-          else
-            render json: {
-              success: false,
-              errors: result[:errors]
-            }, status: :unprocessable_entity
+            if result[:success]
+              # Reload the dynamic model to pick up changes
+              table_reloaded.reload_dynamic_model
+              # Reset the connection's schema cache for this table
+              ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(table_reloaded.database_table_name)
+            else
+              render json: {
+                success: false,
+                errors: result[:errors]
+              }, status: :unprocessable_entity
+              return
+            end
           end
+
+          render json: {
+            success: true,
+            column: column_json(@column.reload)
+          }
         else
           render json: {
             success: false,
@@ -454,8 +462,7 @@ module Api
           lookup_table_id: column.lookup_table_id,
           lookup_display_column: column.lookup_display_column,
           is_multiple: column.is_multiple,
-          has_cross_table_refs: column.has_cross_table_refs,
-          settings: column.settings
+          has_cross_table_refs: column.has_cross_table_refs
         }
       end
     end
