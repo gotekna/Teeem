@@ -111,12 +111,8 @@ class Column < ApplicationRecord
 
   def detect_cross_table_refs
     # Check if the formula contains cross-table references
-    formula_expression = settings&.dig('formula')
-    if formula_expression.present?
-      self.has_cross_table_refs = FormulaEvaluator.uses_cross_table_references?(formula_expression)
-    else
-      self.has_cross_table_refs = false
-    end
+    # Note: Formula storage not yet implemented, default to false
+    self.has_cross_table_refs = false
   end
 
   def lookup_configuration_valid

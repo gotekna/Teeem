@@ -295,14 +295,6 @@ module Api
           .reject { |c| c[:value].blank? }
           .sort_by { |c| c[:value].downcase }
 
-        # Also include any predefined choices from column settings
-        predefined = column.settings&.dig('choices') || []
-        predefined.each do |choice|
-          unless choices_data.any? { |c| c[:value] == choice }
-            choices_data << { value: choice, count: 0 }
-          end
-        end
-
         total_records = model.count
 
         render json: {
