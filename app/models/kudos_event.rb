@@ -5,7 +5,7 @@ class KudosEvent < ApplicationRecord
   belongs_to :purchase_order, optional: true
 
   # Enums
-  enum event_type: {
+  enum :event_type, {
     quote_submitted: 'quote_submitted',
     quote_accepted: 'quote_accepted',
     job_confirmed: 'job_confirmed',

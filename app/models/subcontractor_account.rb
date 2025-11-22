@@ -5,7 +5,7 @@ class SubcontractorAccount < ApplicationRecord
   has_many :kudos_events, dependent: :destroy
 
   # Enums
-  enum account_tier: { free: 'free', paid: 'paid' }
+  enum :account_tier, { free: 'free', paid: 'paid' }
 
   # Validations
   validates :portal_user_id, presence: true, uniqueness: true

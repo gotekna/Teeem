@@ -4,20 +4,20 @@ class AccountingIntegration < ApplicationRecord
   has_many :subcontractor_invoices, dependent: :nullify
   has_many :account_mappings, dependent: :destroy
 
-  # Enums
-  enum system_type: {
+  # Enums (Rails 8 syntax)
+  enum :system_type, {
     xero: 'xero',
     myob: 'myob',
     quickbooks: 'quickbooks',
     reckon: 'reckon'
   }
 
-  enum sync_status: {
+  enum :sync_status, {
     active: 'active',
     error: 'error',
     expired: 'expired',
     disconnected: 'disconnected'
-  }, _prefix: true
+  }, prefix: true
 
   # Validations
   validates :contact_id, presence: true

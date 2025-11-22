@@ -8,7 +8,7 @@ class QuoteRequest < ApplicationRecord
   has_many :contacts, through: :quote_request_contacts
 
   # Enums
-  enum status: {
+  enum :status, {
     draft: 'draft',
     sent: 'sent',
     quotes_received: 'quotes_received',

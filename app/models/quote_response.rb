@@ -6,14 +6,14 @@ class QuoteResponse < ApplicationRecord
   has_many :kudos_events, dependent: :destroy
   has_one :purchase_order, dependent: :nullify
 
-  # Enums
-  enum status: {
+  # Enums (prefixed to avoid conflict with ActiveRecord#invalid?)
+  enum :status, {
     pending: 'pending',
     submitted: 'submitted',
     accepted: 'accepted',
     rejected: 'rejected',
     invalid: 'invalid'
-  }
+  }, prefix: :status
 
   # Validations
   validates :quote_request_id, presence: true

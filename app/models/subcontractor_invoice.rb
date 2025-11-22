@@ -5,7 +5,7 @@ class SubcontractorInvoice < ApplicationRecord
   belongs_to :accounting_integration, optional: true
 
   # Enums
-  enum status: {
+  enum :status, {
     draft: 'draft',
     sent: 'sent',
     paid: 'paid',
