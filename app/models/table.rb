@@ -15,16 +15,37 @@ class Table < ApplicationRecord
   def dynamic_model
     return @dynamic_model if @dynamic_model
 
+    table_columns = columns.includes(:lookup_table) # Eager load for performance
+
+    # For system tables with a model_class defined, use the existing Rails model
+    if table_type == 'system' && model_class.present?
+      begin
+        @dynamic_model = model_class.constantize
+        return @dynamic_model
+      rescue NameError => e
+        Rails.logger.error "Failed to find model class #{model_class} for system table #{id}: #{e.message}"
+        # Fall through to dynamic model creation
+      end
+    end
+
     # Generate a valid class name from the table name
     # Classify will handle spaces and special characters
     class_name = name.gsub(/[^a-zA-Z0-9_]/, '').classify
     table_name = database_table_name
-    table_columns = columns.includes(:lookup_table) # Eager load for performance
 
-    # Check if class already exists
+    # Check if class already exists and is an ActiveRecord model
     begin
       if Object.const_defined?(class_name)
-        @dynamic_model = Object.const_get(class_name)
+        existing_class = Object.const_get(class_name)
+        # Only use existing class if it's an ActiveRecord model
+        if existing_class.respond_to?(:ancestors) && existing_class.ancestors.include?(ActiveRecord::Base)
+          @dynamic_model = existing_class
+        else
+          # Existing class is not an AR model (e.g., ActiveJob module), create a namespaced one
+          @dynamic_model = Object.const_set("#{class_name}Table", Class.new(ApplicationRecord) do
+            self.table_name = table_name
+          end)
+        end
       else
         # Create the dynamic model class
         @dynamic_model = Object.const_set(class_name, Class.new(ApplicationRecord) do
