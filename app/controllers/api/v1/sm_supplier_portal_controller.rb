@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmSupplierPortalController < ApplicationController
-      skip_before_action :authenticate_request, only: [:authenticate, :show, :tasks, :task_detail, :activities]
+      # Note: authenticate_request was removed - using authenticate_supplier! instead
       before_action :authenticate_supplier!, except: [:authenticate, :generate_access, :list_access, :revoke_access]
       before_action :set_access, only: [:show, :tasks, :task_detail, :activities, :update_task, :add_comment]
 
