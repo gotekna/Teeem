@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import TrapidTableView from '../components/documentation/TrapidTableView'
@@ -92,7 +92,11 @@ export default function TablePage({ embedded = false }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const PAGE_SIZE = 100 // Reduced from 500 for better performance with large tables
+  const scrollObserverRef = useRef(null)
+  const tableContainerRef = useRef(null)
 
   // Load table metadata
   useEffect(() => {
@@ -114,6 +118,43 @@ export default function TablePage({ embedded = false }) {
     }
   }, [table])
 
+  // Load more records when scrolling near bottom
+  const loadMoreRecords = useCallback(() => {
+    if (!loadingMore && !loading && hasMore) {
+      console.log('[Infinite Scroll] Loading more records, next page:', currentPage + 1)
+      loadRecords(currentPage + 1, true)
+    }
+  }, [loadingMore, loading, hasMore, currentPage])
+
+  // Set up IntersectionObserver for infinite scroll
+  useEffect(() => {
+    if (!tableContainerRef.current || loading || !hasMore) return
+
+    const options = {
+      root: null,
+      rootMargin: '200px', // Start loading 200px before reaching bottom
+      threshold: 0.1
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          loadMoreRecords()
+        }
+      })
+    }, options)
+
+    if (scrollObserverRef.current) {
+      observer.observe(scrollObserverRef.current)
+    }
+
+    return () => {
+      if (scrollObserverRef.current) {
+        observer.unobserve(scrollObserverRef.current)
+      }
+    }
+  }, [loadMoreRecords, loading, hasMore])
+
   const loadTable = async () => {
     try {
       const response = await api.get(`/api/v1/tables/${id}`)
@@ -124,19 +165,37 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
-  const loadRecords = async (page = 1) => {
+  const loadRecords = async (page = 1, append = false) => {
     try {
-      setLoading(true)
+      if (append) {
+        setLoadingMore(true)
+      } else {
+        setLoading(true)
+      }
+
       const response = await api.get(`/api/v1/tables/${id}/records?per_page=${PAGE_SIZE}&page=${page}`)
-      setRecords(response.records || [])
+
+      if (append) {
+        setRecords(prev => [...prev, ...(response.records || [])])
+      } else {
+        setRecords(response.records || [])
+      }
+
       setCurrentPage(page)
       setTotalPages(response.pagination?.total_pages || 1)
       setTotalCount(response.pagination?.total_count || 0)
-      setLoading(false)
+      setHasMore(page < (response.pagination?.total_pages || 1))
+
+      if (append) {
+        setLoadingMore(false)
+      } else {
+        setLoading(false)
+      }
     } catch (err) {
       setError('Failed to load records')
       console.error(err)
       setLoading(false)
+      setLoadingMore(false)
     }
   }
 
@@ -269,7 +328,7 @@ export default function TablePage({ embedded = false }) {
   }
 
   return (
-    <div className={`${embedded ? '' : '-mx-4 sm:-mx-6 lg:-mx-8 -my-4'} flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-900`}>
+    <div className={`${embedded ? '' : '-mx-4 sm:-mx-6 lg:-mx-8 -my-4'} flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-900`} ref={tableContainerRef}>
 
       {/* TrapidTableView - The Gold Standard */}
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -334,31 +393,33 @@ export default function TablePage({ embedded = false }) {
         )}
       </div>
 
-      {/* Pagination Controls */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()} records
-          </div>
+      {/* Infinite Scroll Status */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+        <div className="text-sm text-gray-600 dark:text-gray-400">
+          Showing {records.length.toLocaleString()} of {totalCount.toLocaleString()} records
+        </div>
+        {loadingMore && (
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => loadRecords(currentPage - 1)}
-              disabled={currentPage === 1 || loading}
-              className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => loadRecords(currentPage + 1)}
-              disabled={currentPage === totalPages || loading}
-              className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+            <span className="text-sm text-gray-500 dark:text-gray-400">Loading more...</span>
           </div>
+        )}
+        {!hasMore && records.length > 0 && (
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            All records loaded
+          </div>
+        )}
+      </div>
+
+      {/* Infinite Scroll Observer Element */}
+      {hasMore && !loading && (
+        <div
+          ref={scrollObserverRef}
+          className="h-20 flex items-center justify-center"
+        >
+          {loadingMore && (
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+          )}
         </div>
       )}
     </div>
