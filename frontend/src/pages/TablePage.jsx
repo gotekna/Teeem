@@ -97,6 +97,76 @@ export default function TablePage({ embedded = false }) {
   const PAGE_SIZE = 100 // Reduced from 500 for better performance with large tables
   const scrollObserverRef = useRef(null)
   const tableContainerRef = useRef(null)
+  const isLoadingRef = useRef(false) // Prevent infinite scroll loop
+  const hasAutoFocusedRef = useRef(false) // Track if we've auto-focused search
+
+  // Progressive loading for Table 205 (Price Books)
+  const [viewMode, setViewMode] = useState(id === '205' ? 'minimal' : 'full') // minimal | full
+  const [fullDataLoaded, setFullDataLoaded] = useState(false)
+  const [fullDataLoading, setFullDataLoading] = useState(false)
+  const [fullRecords, setFullRecords] = useState([])
+  const [minimalRecords, setMinimalRecords] = useState([])
+  const [showNotification, setShowNotification] = useState(false)
+
+  // Reset progressive loading state when table changes
+  useEffect(() => {
+    setViewMode(id === '205' ? 'minimal' : 'full')
+    setFullDataLoaded(false)
+    setFullDataLoading(false)
+    setFullRecords([])
+    setMinimalRecords([])
+    setShowNotification(false)
+  }, [id])
+
+  // Start background load AFTER minimal data is rendered (Table 205)
+  useEffect(() => {
+    if (id === '205' && minimalRecords.length > 0 && !loading && !fullDataLoading && !fullDataLoaded) {
+      console.log('[Progressive Loading] Minimal view rendered, starting background load...')
+      // Use setTimeout to ensure this happens after browser paint
+      setTimeout(() => {
+        loadFullDataInBackground()
+      }, 500) // 500ms delay to ensure user sees quick view first
+    }
+  }, [id, minimalRecords.length, loading, fullDataLoading, fullDataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-focus search bar for Table 205 after rendering (only once)
+  useEffect(() => {
+    if (id === '205' && !loading && records.length > 0 && !hasAutoFocusedRef.current) {
+      // Find and focus the search input after a short delay to ensure it's rendered
+      setTimeout(() => {
+        const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
+        if (searchInput) {
+          searchInput.focus()
+          hasAutoFocusedRef.current = true
+          console.log('[Progressive Loading] Search bar focused')
+        }
+      }, 100)
+    }
+  }, [id, loading, records.length])
+
+  // Reset auto-focus flag when table changes
+  useEffect(() => {
+    hasAutoFocusedRef.current = false
+  }, [id])
+
+  // Preserve search focus during background loading (Table 205)
+  useEffect(() => {
+    if (id === '205' && !loading && records.length > 0) {
+      // Continuously restore focus when state changes during background loading
+      const timer = setTimeout(() => {
+        const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
+        if (searchInput && document.activeElement !== searchInput) {
+          // Only restore if user hasn't explicitly clicked elsewhere
+          const activeTag = document.activeElement?.tagName
+          if (!activeTag || activeTag === 'BODY' || activeTag === 'HTML') {
+            searchInput.focus()
+            console.log('[Progressive Loading] Restored search focus')
+          }
+        }
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [id, loading, records.length, fullDataLoading, fullDataLoaded, showNotification])
 
   // Load table metadata
   useEffect(() => {
@@ -113,18 +183,51 @@ export default function TablePage({ embedded = false }) {
   // Convert columns when table data changes
   useEffect(() => {
     if (table && table.columns) {
-      const converted = convertColumnsToTrapidFormat(table.columns, table.slug)
+      const startTime = performance.now()
+      let converted = convertColumnsToTrapidFormat(table.columns, table.slug)
+
+      // For Table 205 in minimal mode, only show the minimal columns
+      if (id === '205' && viewMode === 'minimal') {
+        const minimalColumnKeys = ['select', 'actions', 'item_code', 'item_name', 'category']
+        converted = converted.filter(col => minimalColumnKeys.includes(col.key))
+        console.log('[Progressive Loading] Filtered to minimal columns:', {
+          originalCount: table.columns.length + 2, // +2 for select and actions
+          filteredCount: converted.length,
+          columns: converted.map(c => c.key)
+        })
+      }
+
+      const endTime = performance.now()
+
+      if (id === '205') {
+        console.log('[Progressive Loading] Column conversion:', {
+          columnCount: converted.length,
+          conversionTime: `${(endTime - startTime).toFixed(2)}ms`,
+          viewMode
+        })
+      }
+
       setTrapidColumns(converted)
     }
-  }, [table])
+  }, [table, id, viewMode])
 
   // Load more records when scrolling near bottom
   const loadMoreRecords = useCallback(() => {
     if (!loadingMore && !loading && hasMore) {
       console.log('[Infinite Scroll] Loading more records, next page:', currentPage + 1)
-      loadRecords(currentPage + 1, true)
+      loadRecords(currentPage + 1, true).finally(() => {
+        if (isLoadingRef.current) {
+          isLoadingRef.current = false
+        }
+      })
+    } else {
+      isLoadingRef.current = false
     }
   }, [loadingMore, loading, hasMore, currentPage])
+
+  // Store loadMoreRecords in a ref to avoid recreating observer
+  const loadMoreRecordsRef = useRef(loadMoreRecords)
+  loadMoreRecordsRef.current = loadMoreRecords
 
   // Set up IntersectionObserver for infinite scroll
   useEffect(() => {
@@ -138,8 +241,9 @@ export default function TablePage({ embedded = false }) {
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          loadMoreRecords()
+        if (entry.isIntersecting && !isLoadingRef.current && hasMore) {
+          isLoadingRef.current = true
+          loadMoreRecordsRef.current()
         }
       })
     }, options)
@@ -153,7 +257,7 @@ export default function TablePage({ embedded = false }) {
         observer.unobserve(scrollObserverRef.current)
       }
     }
-  }, [loadMoreRecords, loading, hasMore])
+  }, [loading, hasMore])
 
   const loadTable = async () => {
     try {
@@ -173,18 +277,74 @@ export default function TablePage({ embedded = false }) {
         setLoading(true)
       }
 
-      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${PAGE_SIZE}&page=${page}`)
+      // For Table 205 (Price Books) in minimal mode, load ALL items with minimal fields
+      const isMinimalLoad = id === '205' && viewMode === 'minimal' && !append
+      const perPage = isMinimalLoad ? 10000 : PAGE_SIZE // Load all items in minimal mode
+      const fieldsParam = isMinimalLoad ? '&fields=minimal' : ''
+
+      console.log('[Progressive Loading] loadRecords called:', {
+        id,
+        viewMode,
+        page,
+        append,
+        isMinimalLoad,
+        perPage,
+        fieldsParam
+      })
+
+      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}`)
+
+      const loadEndTime = performance.now()
+      console.log('[Progressive Loading] Response received:', {
+        recordCount: response.records?.length,
+        totalCount: response.pagination?.total_count,
+        totalPages: response.pagination?.total_pages,
+        currentPage: response.pagination?.page,
+        loadTime: `${(loadEndTime - performance.now() + 1000).toFixed(0)}ms` // Approximate
+      })
+
+      // Log sample record to see column structure
+      if (id === '205' && response.records?.length > 0 && isMinimalLoad) {
+        console.log('[Progressive Loading] Sample minimal record:', {
+          columns: Object.keys(response.records[0]),
+          firstRecord: response.records[0]
+        })
+      }
 
       if (append) {
-        setRecords(prev => [...prev, ...(response.records || [])])
+        // When appending, filter out duplicates by ID
+        setRecords(prev => {
+          const existingIds = new Set(prev.map(r => r.id))
+          const newRecords = (response.records || []).filter(r => !existingIds.has(r.id))
+          return [...prev, ...newRecords]
+        })
       } else {
+        // When not appending, just replace
         setRecords(response.records || [])
+
+        // Store minimal records for Table 205
+        if (isMinimalLoad) {
+          setMinimalRecords(response.records || [])
+          // Background load will start via useEffect after render completes
+        }
       }
+
+      console.log('[Progressive Loading] Records state updated:', {
+        append,
+        responseCount: response.records?.length,
+        totalInState: append ? 'appended' : response.records?.length
+      })
 
       setCurrentPage(page)
       setTotalPages(response.pagination?.total_pages || 1)
       setTotalCount(response.pagination?.total_count || 0)
-      setHasMore(page < (response.pagination?.total_pages || 1))
+
+      // For minimal mode, disable infinite scroll since we load everything at once
+      if (isMinimalLoad) {
+        setHasMore(false)
+      } else {
+        setHasMore(page < (response.pagination?.total_pages || 1))
+      }
 
       if (append) {
         setLoadingMore(false)
@@ -196,6 +356,58 @@ export default function TablePage({ embedded = false }) {
       console.error(err)
       setLoading(false)
       setLoadingMore(false)
+    }
+  }
+
+  // Background loader for full data (Table 205)
+  const loadFullDataInBackground = async () => {
+    if (id !== '205' || fullDataLoading || fullDataLoaded) return
+
+    setFullDataLoading(true)
+    console.log('[Progressive Loading] Starting background load of full data...')
+
+    try {
+      // Save current focused element before state updates
+      const activeElement = document.activeElement
+
+      // Load all items with full data (no fields=minimal param)
+      const response = await api.get(`/api/v1/tables/${id}/records?per_page=10000&page=1`)
+
+      setFullRecords(response.records || [])
+      setFullDataLoaded(true)
+      setShowNotification(true)
+      console.log('[Progressive Loading] Full data loaded! ', response.records?.length, 'items')
+
+      // Restore focus to search input if it was focused
+      setTimeout(() => {
+        if (activeElement && activeElement.tagName === 'INPUT' && activeElement.type === 'text') {
+          activeElement.focus()
+          console.log('[Progressive Loading] Restored focus to search input')
+        }
+      }, 50)
+    } catch (err) {
+      console.error('[Progressive Loading] Failed to load full data:', err)
+    } finally {
+      setFullDataLoading(false)
+    }
+  }
+
+  // Switch from minimal to full view
+  const switchToFullView = () => {
+    if (fullDataLoaded) {
+      setRecords(fullRecords)
+      setViewMode('full')
+      setShowNotification(false)
+      console.log('[Progressive Loading] Switched to full view')
+    }
+  }
+
+  // Switch from full to minimal view
+  const switchToMinimalView = () => {
+    if (minimalRecords.length > 0) {
+      setRecords(minimalRecords)
+      setViewMode('minimal')
+      console.log('[Progressive Loading] Switched to minimal view')
     }
   }
 
@@ -327,11 +539,75 @@ export default function TablePage({ embedded = false }) {
     )
   }
 
+  // Debug: Log records count before render
+  if (id === '205') {
+    console.log('[Progressive Loading] Render state:', {
+      recordsCount: records.length,
+      totalCount,
+      viewMode,
+      hasMore,
+      loading,
+      columnsCount: trapidColumns.length
+    })
+  }
+
   return (
     <div className={`${embedded ? '' : '-mx-4 sm:-mx-6 lg:-mx-8 -my-4'} flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-900`} ref={tableContainerRef}>
 
+      {/* Progressive Loading Notification Banner (Table 205) */}
+      {showNotification && fullDataLoaded && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-b border-green-200 dark:border-green-800 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">
+                  Full Price Book Loaded!
+                </h3>
+                <p className="text-sm text-green-700 dark:text-green-300 mt-0.5">
+                  All {totalCount.toLocaleString()} items with all columns are now available.
+                  Currently showing: <span className="font-medium">{viewMode === 'minimal' ? 'Quick View (3 columns)' : 'Full View (all columns)'}</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {viewMode === 'minimal' && (
+                <button
+                  onClick={switchToFullView}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors shadow-sm"
+                >
+                  View All Columns
+                </button>
+              )}
+              <button
+                onClick={() => setShowNotification(false)}
+                className="px-4 py-2 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors border border-gray-300 dark:border-gray-600"
+              >
+                {viewMode === 'minimal' ? 'Stay in Quick View' : 'Dismiss'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Background Loading Indicator (Table 205) */}
+      {id === '205' && fullDataLoading && !fullDataLoaded && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-6 py-3">
+          <div className="flex items-center gap-3">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 dark:border-blue-400"></div>
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              Loading full data in background... You can search and work with the current quick view now.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* TrapidTableView - The Gold Standard */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -381,13 +657,35 @@ export default function TablePage({ embedded = false }) {
             }}
             viewOnly={table.slug === 'pricebook-items' || table.database_table_name === 'pricebook_items'}
             customActions={
-              <button
-                onClick={handleAddNew}
-                className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
-              >
-                <PlusIcon className="h-5 w-5" />
-                Add Record
-              </button>
+              <div className="flex items-center gap-3">
+                {/* View Mode Switcher for Table 205 */}
+                {id === '205' && fullDataLoaded && (
+                  <button
+                    onClick={() => {
+                      if (viewMode === 'minimal') {
+                        switchToFullView()
+                      } else {
+                        switchToMinimalView()
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition-colors h-[42px] border border-gray-300 dark:border-gray-600"
+                    title={viewMode === 'minimal' ? 'Switch to full view with all columns' : 'Switch to quick view with 3 columns'}
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    {viewMode === 'minimal' ? 'Full View' : 'Quick View'}
+                  </button>
+                )}
+
+                <button
+                  onClick={handleAddNew}
+                  className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+                >
+                  <PlusIcon className="h-5 w-5" />
+                  Add Record
+                </button>
+              </div>
             }
           />
         )}

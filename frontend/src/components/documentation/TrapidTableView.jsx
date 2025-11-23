@@ -334,7 +334,8 @@ export default function TrapidTableView({
 
   // Display limit for rendering performance (too many DOM nodes = slow)
   // Data still loads in background, but we only render up to this limit
-  const MAX_RENDERED_ROWS = 500
+  // Increased to 10000 to support large tables like Price Books (5285 items)
+  const MAX_RENDERED_ROWS = 10000
 
   // Bulk action state - show delete only after edit clicked
   const [showDeleteButton, setShowDeleteButton] = useState(false)
@@ -501,7 +502,7 @@ export default function TrapidTableView({
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 })
 
   // Track previous tableId to detect changes
-  const prevTableIdRef = useRef(tableId)
+  const prevTableIdRef = useRef(null)
 
   // Load saved views from API when tableId changes
   useEffect(() => {
@@ -509,13 +510,14 @@ export default function TrapidTableView({
       if (!tableIdNumeric) return
 
       try {
-        console.log('[TrapidTableView] Loading saved views for table:', tableIdNumeric)
+        console.log('[Load Views] Loading saved views for table:', tableIdNumeric)
+        console.log('[Load Views] prevTableIdRef:', prevTableIdRef.current, 'current tableId:', tableId)
         const data = await api.get(`/api/v1/table_views`, {
           params: { table_id: tableIdNumeric }
         })
 
         if (data.success && data.views) {
-          console.log('[TrapidTableView] Loaded saved views:', data.views.length)
+          console.log('[Load Views] Loaded saved views:', data.views.length, 'views')
           // Convert API format to frontend format
           const converted = data.views.map(view => {
             const filters = view.filters || {}
@@ -531,7 +533,7 @@ export default function TrapidTableView({
               // Parse columns structure
               visibleColumns: columns.visible || {},
               columnOrder: columns.order || [],
-              sortColumns: view.sort_order || {},
+              sortColumns: Array.isArray(view.sort_order) ? view.sort_order : [],
               isDefault: view.is_default || false
             }
           })
@@ -544,9 +546,11 @@ export default function TrapidTableView({
     }
 
     if (prevTableIdRef.current !== tableId) {
-      console.log('[TrapidTableView] tableId changed:', { from: prevTableIdRef.current, to: tableId })
+      console.log('[Load Views] tableId changed:', { from: prevTableIdRef.current, to: tableId })
       loadSavedViews()
       prevTableIdRef.current = tableId
+    } else {
+      console.log('[Load Views] tableId unchanged, skipping load:', tableId)
     }
   }, [tableId, tableIdNumeric])
 
@@ -688,7 +692,41 @@ export default function TrapidTableView({
   const [columnWidths, setColumnWidths] = useState(initialTableState.columnWidths)
   const [columnOrder, setColumnOrder] = useState(initialTableState.columnOrder)
   const [visibleColumns, setVisibleColumns] = useState(initialTableState.visibleColumns)
-  const [defaultColumnsForNewViews, setDefaultColumnsForNewViews] = useState(initialTableState.visibleColumns)
+
+  // Initialize default columns for new views from localStorage (will be updated from DB when views load)
+  const getInitialDefaultColumns = () => {
+    try {
+      const stored = localStorage.getItem(`trapid-default-columns-${tableId}`)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        // Merge with current defaults to handle new columns
+        const defaultVisible = getDefaultVisibleColumns()
+        const merged = {}
+        Object.keys(defaultVisible).forEach(key => {
+          merged[key] = key in parsed ? parsed[key] : defaultVisible[key]
+        })
+        return merged
+      }
+    } catch (error) {
+      console.error('Error loading default columns:', error)
+    }
+    return initialTableState.visibleColumns
+  }
+  const [defaultColumnsForNewViews, setDefaultColumnsForNewViews] = useState(getInitialDefaultColumns())
+
+  // Load default column setup from database when saved views are loaded
+  useEffect(() => {
+    const setupView = savedFilters.find(v => v.name === '__default_setup__')
+    if (setupView && setupView.visibleColumns) {
+      // Merge with defaults to handle new columns
+      const defaultVisible = getDefaultVisibleColumns()
+      const merged = {}
+      Object.keys(defaultVisible).forEach(key => {
+        merged[key] = key in setupView.visibleColumns ? setupView.visibleColumns[key] : defaultVisible[key]
+      })
+      setDefaultColumnsForNewViews(merged)
+    }
+  }, [savedFilters])
 
   // Sync columnOrder and visibleColumns when COLUMNS change (e.g., new columns added from API)
   // This ensures new columns appear in the table instead of being hidden due to stale localStorage
@@ -768,14 +806,85 @@ export default function TrapidTableView({
     }
   }, [columnShowFilters, tableId])
 
-  // Save default columns to localStorage whenever they change (per table)
+  // Save default columns to database whenever they change (per table, per user)
   useEffect(() => {
-    try {
-      localStorage.setItem(`trapid-default-columns-${tableId}`, JSON.stringify(defaultColumnsForNewViews))
-    } catch (error) {
-      console.error('Error saving default columns to localStorage:', error)
+    const saveDefaultSetup = async () => {
+      if (!tableIdNumeric || !defaultColumnsForNewViews) return
+
+      try {
+        console.log('[Default Setup] Saving to database:', { defaultColumnsForNewViews, tableId: tableIdNumeric })
+
+        // Also save to localStorage as backup
+        localStorage.setItem(`trapid-default-columns-${tableId}`, JSON.stringify(defaultColumnsForNewViews))
+
+        // Check API directly for existing setup (don't rely on savedFilters which might not be loaded yet)
+        const existingViews = await api.get('/api/v1/table_views', {
+          params: { table_id: tableIdNumeric }
+        })
+
+        const existingSetup = existingViews.success && existingViews.views
+          ? existingViews.views.find(v => v.name === '__default_setup__')
+          : null
+
+        console.log('[Default Setup] Existing setup from API:', existingSetup?.id)
+
+        const setupData = {
+          name: '__default_setup__',
+          view_type: 'system',
+          filters: {},
+          columns: {
+            visible: defaultColumnsForNewViews,
+            order: []
+          },
+          sort_order: [],
+          is_default: false
+        }
+        console.log('[Default Setup] Setup data to save:', setupData)
+
+        if (existingSetup) {
+          // Update existing default setup
+          const response = await api.put(`/api/v1/table_views/${existingSetup.id}`, {
+            table_view: setupData
+          })
+          console.log('[Default Setup] Updated existing setup:', response)
+        } else {
+          // Create new default setup view
+          const response = await api.post('/api/v1/table_views', {
+            table_view: {
+              ...setupData,
+              table_id: tableIdNumeric
+            }
+          })
+          console.log('[Default Setup] Created new setup:', response)
+
+          if (response.success && response.view) {
+            // Add to savedFilters (but it won't show in the list due to name filter)
+            const filters = response.view.filters || {}
+            const columns = response.view.columns || {}
+
+            const newView = {
+              id: response.view.id,
+              name: response.view.name,
+              filters: filters.cascadeFilters || [],
+              filterGroups: filters.filterGroups || [],
+              interGroupLogic: filters.interGroupLogic || 'AND',
+              visibleColumns: columns.visible || {},
+              columnOrder: columns.order || [],
+              sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
+              isDefault: response.view.is_default || false
+            }
+            setSavedFilters([...savedFilters, newView])
+          }
+        }
+      } catch (error) {
+        console.error('Error saving default column setup to database:', error)
+      }
     }
-  }, [defaultColumnsForNewViews, tableId])
+
+    // Debounce the save to avoid too many API calls
+    const timer = setTimeout(saveDefaultSetup, 1000)
+    return () => clearTimeout(timer)
+  }, [defaultColumnsForNewViews, tableId, tableIdNumeric])
 
   // Save visibility column order to localStorage whenever it changes (per table)
   useEffect(() => {
@@ -1735,14 +1844,21 @@ export default function TrapidTableView({
 
       if (response.success && response.view) {
         // Convert API response to frontend format and add to savedFilters
+        const filters = response.view.filters || {}
+        const columns = response.view.columns || {}
+
         const newView = {
           id: response.view.id,
           name: response.view.name,
-          filters: response.view.filters || {},
-          columns: response.view.columns || [],
-          sortColumns: response.view.sort_order || {},
-          isDefault: response.view.is_default || false,
-          ...viewData // Include other frontend-specific fields
+          // Parse cascade filters structure
+          filters: filters.cascadeFilters || [],
+          filterGroups: filters.filterGroups || [],
+          interGroupLogic: filters.interGroupLogic || 'AND',
+          // Parse columns structure
+          visibleColumns: columns.visible || {},
+          columnOrder: columns.order || [],
+          sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
+          isDefault: response.view.is_default || false
         }
         setSavedFilters([...savedFilters, newView])
         return newView
@@ -1780,15 +1896,22 @@ export default function TrapidTableView({
 
       if (response.success && response.view) {
         // Update the view in savedFilters
+        const filters = response.view.filters || {}
+        const columns = response.view.columns || {}
+
         setSavedFilters(savedFilters.map(v =>
           v.id === viewId ? {
             id: response.view.id,
             name: response.view.name,
-            filters: response.view.filters || {},
-            columns: response.view.columns || [],
-            sortColumns: response.view.sort_order || {},
-            isDefault: response.view.is_default || false,
-            ...viewData // Include other frontend-specific fields
+            // Parse cascade filters structure
+            filters: filters.cascadeFilters || [],
+            filterGroups: filters.filterGroups || [],
+            interGroupLogic: filters.interGroupLogic || 'AND',
+            // Parse columns structure
+            visibleColumns: columns.visible || {},
+            columnOrder: columns.order || [],
+            sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
+            isDefault: response.view.is_default || false
           } : v
         ))
         return true
@@ -1807,10 +1930,15 @@ export default function TrapidTableView({
   // Helper function to delete a view via API
   const deleteView = async (viewId) => {
     try {
+      console.log('[Delete View] Deleting view:', viewId)
       const response = await api.delete(`/api/v1/table_views/${viewId}`)
+      console.log('[Delete View] API response:', response)
 
       if (response.success) {
+        console.log('[Delete View] Successfully deleted, updating state')
+        console.log('[Delete View] Before:', savedFilters.length, 'views')
         setSavedFilters(savedFilters.filter(v => v.id !== viewId))
+        console.log('[Delete View] After: should have', savedFilters.filter(v => v.id !== viewId).length, 'views')
         return true
       } else {
         console.error('Failed to delete view:', response.error)
@@ -5012,10 +5140,10 @@ export default function TrapidTableView({
                     {savedFilters.length > 0 ? (
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Your Saved Views ({savedFilters.length}):
+                          Your Saved Views ({savedFilters.filter(v => v.name !== '__default_setup__').length}):
                         </label>
                         <div className="space-y-1.5">
-                          {savedFilters.map((saved, index) => (
+                          {savedFilters.filter(v => v.name !== '__default_setup__').map((saved, index) => (
                             <div
                               key={saved.id}
                               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border ${
@@ -5176,8 +5304,14 @@ export default function TrapidTableView({
                                   </button>
                                   <button
                                     onClick={async () => {
-                                      if (activeViewId === saved.id) setActiveViewId(null)
+                                      console.log('[DELETE BUTTON] Clicked! View ID:', saved.id, 'Name:', saved.name)
+                                      if (activeViewId === saved.id) {
+                                        console.log('[DELETE BUTTON] Clearing active view')
+                                        setActiveViewId(null)
+                                      }
+                                      console.log('[DELETE BUTTON] Calling deleteView...')
                                       await deleteView(saved.id)
+                                      console.log('[DELETE BUTTON] deleteView completed')
                                     }}
                                     className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold"
                                     title="Delete view"

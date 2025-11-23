@@ -8,7 +8,16 @@ module Api
         # Sanitize and validate pagination parameters to prevent DoS
         page = [(params[:page] || 1).to_i, 1].max
         per_page = [(params[:per_page] || 50).to_i, 1].max
-        per_page = [per_page, 10000].min  # Cap at 10000 to prevent DoS
+
+        # Support minimal fields for fast initial loading
+        fields_mode = params[:fields] # 'minimal' or nil (full)
+
+        # For minimal mode, allow loading all records at once (it's lightweight)
+        if fields_mode == 'minimal'
+          per_page = [per_page, 20000].min  # Allow up to 20K items in minimal mode
+        else
+          per_page = [per_page, 10000].min  # Cap at 10000 to prevent DoS
+        end
 
         search = params[:search]
         sort_by = params[:sort_by]
@@ -50,8 +59,17 @@ module Api
           query = query.order(created_at: :desc)
         end
 
-        # Paginate
+        # Get count before applying select (to avoid COUNT() column issues)
         total_count = query.count
+
+        # For minimal mode, select only specific columns for faster queries
+        # IMPORTANT: Apply select AFTER count to avoid PostgreSQL COUNT() errors
+        if fields_mode == 'minimal' && @table.id == 205 # Price Books
+          # Include timestamps as they're always needed by record_to_json
+          query = query.select(:id, :item_code, :item_name, :category, :created_at, :updated_at)
+        end
+
+        # Paginate
         records = query.offset((page - 1) * per_page).limit(per_page)
 
         # Build lookup cache to prevent N+1 queries (only for user tables with lookup columns)
