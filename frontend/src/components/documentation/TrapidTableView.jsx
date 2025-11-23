@@ -456,16 +456,20 @@ export default function TrapidTableView({
   const [groupByColumn, setGroupByColumn] = useState(null) // Track which column to group by
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()) // Track which groups are collapsed
 
-  // Helper to close cascade popup and clear state
+  // Helper to close cascade popup (without clearing filters - they persist per table)
   const closeCascadePopup = () => {
     setShowCascadeDropdown(false)
+    setEditingViewId(null)
+    setCreatingNewView(false)
+  }
+
+  // Helper to clear all cascade filters (separate from closing popup)
+  const clearCascadeFilters = () => {
     setCascadeFilters([])
     setFilterGroups([{ id: 'default', logic: 'AND' }])
     setInterGroupLogic('OR')
     setSortColumns([])
     setGroupByColumn(null)
-    setEditingViewId(null)
-    setCreatingNewView(false)
     setNewViewName('')
     setActiveViewId(null)
   }
@@ -5068,10 +5072,7 @@ export default function TrapidTableView({
                             {(cascadeFilters.length > 0 || filterGroups.length > 1) && (
                               <button
                                 onClick={() => {
-                                  setCascadeFilters([])
-                                  setFilterGroups([{ id: 'default', logic: 'AND' }])
-                                  setInterGroupLogic('OR')
-                                  setGroupByColumn(null)
+                                  clearCascadeFilters()
                                   setVisibleColumns({ ...defaultColumnsForNewViews })
                                 }}
                                 className="ml-auto px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
