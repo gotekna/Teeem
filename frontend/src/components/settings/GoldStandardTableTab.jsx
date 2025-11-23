@@ -14,26 +14,28 @@ const buildGoldStandardColumns = () => {
 
   // Map each COLUMN_TYPE to its database column and configuration
   // After cleanup migration, columns are named after their types
+  // Column IDs are from the Gold Standard table (Table ID 1) columns table
   const typeToColumnMap = {
-    'single_line_text': { key: 'single_line_text', width: 150, filterable: true, filterType: 'text' },
-    'email': { key: 'email', width: 200, filterable: true, filterType: 'text' },
-    'phone': { key: 'phone', width: 150, filterable: true, filterType: 'text' },
-    'mobile': { key: 'mobile', width: 150, filterable: true, filterType: 'text' },
-    'url': { key: 'url', width: 180, sortable: false, filterable: false },
-    'date': { key: 'date', width: 140, filterable: false },
-    'gps_coordinates': { key: 'gps_coordinates', width: 280, sortable: false, filterable: false },
-    'color_picker': { key: 'color_picker', width: 320, sortable: false, filterable: false },
-    'file_upload': { key: 'file_upload', width: 300, sortable: false, filterable: false },
-    'action_buttons': { key: 'action_buttons', width: 180, sortable: false, filterable: false },
-    'lookup': { key: 'lookup', width: 150, filterable: true, filterType: 'dropdown' },
-    'boolean': { key: 'boolean', width: 100, filterable: true, filterType: 'boolean' },
-    'percentage': { key: 'percentage', width: 120, filterable: false },
-    'choice': { key: 'choice', width: 140, filterable: true, filterType: 'dropdown' },
-    'currency': { key: 'currency', width: 120, filterable: false, showSum: true, sumType: 'currency' },
-    'number': { key: 'number', width: 100, filterable: false, showSum: true, sumType: 'number' },
-    'whole_number': { key: 'whole_number', width: 120, filterable: false, showSum: true, sumType: 'number' },
+    'single_line_text': { key: 'single_line_text', id: 661, width: 150, filterable: true, filterType: 'text' },
+    'email': { key: 'email', id: 663, width: 200, filterable: true, filterType: 'text' },
+    'phone': { key: 'phone', id: 664, width: 150, filterable: true, filterType: 'text' },
+    'mobile': { key: 'mobile', id: 665, width: 150, filterable: true, filterType: 'text' },
+    'url': { key: 'url', id: 666, width: 180, sortable: false, filterable: false },
+    'date': { key: 'date', id: 671, width: 140, filterable: false },
+    'gps_coordinates': { key: 'gps_coordinates', id: 673, width: 280, sortable: false, filterable: false },
+    'color_picker': { key: 'color_picker', id: 674, width: 320, sortable: false, filterable: false },
+    'file_upload': { key: 'file_upload', id: 675, width: 300, sortable: false, filterable: false },
+    'action_buttons': { key: 'action_buttons', id: 676, width: 180, sortable: false, filterable: false },
+    'lookup': { key: 'lookup', id: 679, width: 150, filterable: true, filterType: 'dropdown' },
+    'boolean': { key: 'boolean', id: 677, width: 100, filterable: true, filterType: 'boolean' },
+    'percentage': { key: 'percentage', id: 670, width: 120, filterable: false },
+    'choice': { key: 'choice', id: 678, width: 140, filterable: true, filterType: 'dropdown' },
+    'currency': { key: 'currency', id: 669, width: 120, filterable: false, showSum: true, sumType: 'currency' },
+    'number': { key: 'number', id: 667, width: 100, filterable: false, showSum: true, sumType: 'number' },
+    'whole_number': { key: 'whole_number', id: 668, width: 120, filterable: false, showSum: true, sumType: 'number' },
     'computed': {
       key: 'computed',
+      id: 682,
       width: 140,
       filterable: false,
       showSum: true,
@@ -41,10 +43,10 @@ const buildGoldStandardColumns = () => {
       isComputed: true,
       computeFunction: (entry) => (entry.currency || 0) * (entry.number || 0)
     },
-    'date_and_time': { key: 'date_and_time', width: 180, filterable: false },
-    'multiple_lines_text': { key: 'multiple_lines_text', width: 300, sortable: false, filterable: true, filterType: 'text' },
-    'multiple_lookups': { key: 'multiple_lookups', width: 200, sortable: false, filterable: false },
-    'user': { key: 'user', width: 120, filterable: true, filterType: 'dropdown' }
+    'date_and_time': { key: 'date_and_time', id: 672, width: 180, filterable: false },
+    'multiple_lines_text': { key: 'multiple_lines_text', id: 662, width: 300, sortable: false, filterable: true, filterType: 'text' },
+    'multiple_lookups': { key: 'multiple_lookups', id: 680, width: 200, sortable: false, filterable: false },
+    'user': { key: 'user', id: 681, width: 120, filterable: true, filterType: 'dropdown' }
   }
 
   // Helper function to build a column from COLUMN_TYPES
@@ -54,6 +56,7 @@ const buildGoldStandardColumns = () => {
     if (!type || !config) return null
 
     return {
+      id: config.id,  // Database column ID for schema editor
       key: config.key,
       label: type.label,
       column_type: typeValue,  // IMPORTANT: Include column type for schema editor

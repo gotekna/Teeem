@@ -20,7 +20,9 @@
     <div id="root" class="h-full"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Register service worker for offline support
+      // TEMPORARILY DISABLED - Service worker registration
+      // Uncomment to re-enable offline support
+      /*
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
@@ -45,6 +47,7 @@
           }
         })
       }
+      */
     </script>
   </body>
 </html>

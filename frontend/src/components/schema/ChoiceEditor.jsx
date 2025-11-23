@@ -135,8 +135,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         handleCancelEdit();
 
         // Don't call onUpdate() here - renaming saves automatically, no need to close modal
-
-        alert(`Successfully renamed choice. ${response.affected_rows} row(s) updated.`);
+        // Success notification removed - changes save automatically
       }
     } catch (error) {
       console.error('Error renaming choice:', error);
@@ -181,10 +180,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
 
         // Don't call onUpdate() here - deleting saves automatically, no need to close modal
 
-        const action = deleteAction === 'replace'
-          ? `replaced with "${replacementValue}"`
-          : 'cleared';
-        alert(`Successfully deleted choice. ${response.affected_rows} row(s) ${action}.`);
+        // Success notification removed - changes save automatically
       }
     } catch (error) {
       console.error('Error deleting choice:', error);
@@ -229,8 +225,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         setShowMergeModal(false);
 
         // Don't call onUpdate() here - merging saves automatically, no need to close modal
-
-        alert(`Successfully merged choices. ${response.affected_rows} row(s) updated.`);
+        // Success notification removed - changes save automatically
       }
     } catch (error) {
       console.error('Error merging choices:', error);
@@ -275,9 +270,14 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     setOrderChanged(true); // Mark that order has changed
   };
 
-  const handleDragEnd = () => {
+  const handleDragEnd = async () => {
     setDraggedIndex(null);
     setDragOverIndex(null);
+
+    // Auto-save the order after drag ends
+    if (orderChanged) {
+      await handleSaveOrder();
+    }
   };
 
   const handleSaveOrder = async () => {
@@ -293,7 +293,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
 
       if (response.success) {
         setOrderChanged(false);
-        alert('Choice order saved successfully!');
+        // Success notification removed - auto-save is silent
       } else {
         alert('Failed to save order: ' + (response.error || 'Unknown error'));
       }
@@ -318,25 +318,9 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Total records: {totalRecords} | Unique values: {choices.length}
         </p>
-        {orderChanged ? (
-          <div className="flex items-center justify-between mt-2">
-            <p className="text-xs text-orange-600 dark:text-orange-400">
-              ⚠️ Choice order changed - click Save Order to persist
-            </p>
-            <button
-              onClick={handleSaveOrder}
-              disabled={savingOrder}
-              className="px-3 py-1.5 bg-green-500 text-white rounded text-sm hover:bg-green-600
-                       transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {savingOrder ? 'Saving...' : 'Save Order'}
-            </button>
-          </div>
-        ) : (
-          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-            💡 Drag choices to reorder the dropdown list
-          </p>
-        )}
+        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+          💡 Drag choices to reorder (saves automatically)
+        </p>
       </div>
 
       {/* Add New Choice */}

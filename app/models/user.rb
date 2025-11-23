@@ -6,6 +6,7 @@ class User < ApplicationRecord
   has_many :schedule_template_row_audits, dependent: :nullify
   has_many :user_permissions, dependent: :destroy
   has_many :permissions, through: :user_permissions
+  has_many :table_views, dependent: :destroy
 
   # Role constants
   ROLES = %w[user admin product_owner estimator supervisor builder].freeze

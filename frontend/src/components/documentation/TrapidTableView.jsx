@@ -6,6 +6,7 @@ import ColumnEditorModal from '../schema/ColumnEditorModal'
 import SavedViewsKanban from './SavedViewsKanban'
 import LocationMapCard from '../job-detail/LocationMapCard'
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, COLUMN_TYPES } from '../../constants/columnTypes'
+import { api } from '../../api'
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -260,26 +261,41 @@ export default function TrapidTableView({
   // Fetch choices for all choice columns
   useEffect(() => {
     const fetchColumnChoices = async () => {
-      if (!tableIdNumeric) return
+      if (!tableIdNumeric) {
+        console.log('⚠️ No tableIdNumeric, skipping choice fetch')
+        return
+      }
 
       // Find all choice columns
       const choiceColumns = columns.filter(col =>
         col.column_type === 'choice' || col.column_type === 'single_select' || col.column_type === 'dropdown'
       )
 
+      console.log('🔍 Fetching choices for', choiceColumns.length, 'choice columns:', choiceColumns.map(c => ({ key: c.key, id: c.id })))
+
       for (const column of choiceColumns) {
-        if (!column.id) continue
+        if (!column.id) {
+          console.log('⚠️ Skipping column without ID:', column.key)
+          continue
+        }
 
         try {
-          const response = await fetch(`/api/v1/tables/${tableIdNumeric}/columns/${column.id}/choices`)
-          if (response.ok) {
-            const data = await response.json()
-            if (data.success && data.choices) {
-              setColumnChoices(prev => ({
+          // Use api.get() to bypass Vite proxy cache issues
+          console.log('📡 Fetching choices from API for column:', column.id)
+          const data = await api.get(`/api/v1/tables/${tableIdNumeric}/columns/${column.id}/choices`, {
+            params: { _: Date.now() } // Cache buster
+          })
+          console.log('✅ Received choices for column', column.id, ':', data.choices?.map(c => c.value))
+          if (data.success && data.choices) {
+            const choiceValues = data.choices.map(c => c.value)
+            setColumnChoices(prev => {
+              const updated = {
                 ...prev,
-                [column.id]: data.choices.map(c => c.value)
-              }))
-            }
+                [column.id]: choiceValues
+              }
+              console.log('📦 Updated columnChoices:', updated)
+              return updated
+            })
           }
         } catch (error) {
           console.error(`❌ Failed to fetch choices for column ${column.id}:`, error)
@@ -405,18 +421,7 @@ export default function TrapidTableView({
   const [showCascadeDropdown, setShowCascadeDropdown] = useState(false)
 
   // Saved custom filters - load from localStorage on mount (per table)
-  const [savedFilters, setSavedFilters] = useState(() => {
-    try {
-      const key = `trapid-saved-filters-${tableId}`
-      const stored = localStorage.getItem(key)
-      const parsed = stored ? JSON.parse(stored) : []
-      console.log('[TrapidTableView] Initial savedFilters load:', { tableId, key, stored: !!stored, count: parsed.length })
-      return parsed
-    } catch (error) {
-      console.error('Error loading saved filters:', error)
-      return []
-    }
-  })
+  const [savedFilters, setSavedFilters] = useState([])
   const [filterName, setFilterName] = useState('') // Name for saving current filter combo
 
   // Feature flag: Use kanban-style saved views (default: true)
@@ -456,6 +461,9 @@ export default function TrapidTableView({
   const [groupByColumn, setGroupByColumn] = useState(null) // Track which column to group by
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()) // Track which groups are collapsed
 
+  // Determine if filter/column editing should be disabled (not creating new or editing existing)
+  const isViewEditingDisabled = !creatingNewView && editingViewId === null
+
   // Helper to close cascade popup (without clearing filters - they persist per table)
   const closeCascadePopup = () => {
     setShowCascadeDropdown(false)
@@ -493,36 +501,45 @@ export default function TrapidTableView({
   // Track previous tableId to detect changes
   const prevTableIdRef = useRef(tableId)
 
-  // Reload saved filters when tableId changes (e.g., after table slug loads)
+  // Load saved views from API when tableId changes
   useEffect(() => {
-    if (prevTableIdRef.current !== tableId) {
-      console.log('[TrapidTableView] tableId changed:', { from: prevTableIdRef.current, to: tableId })
+    const loadSavedViews = async () => {
+      if (!tableIdNumeric) return
+
       try {
-        const key = `trapid-saved-filters-${tableId}`
-        const stored = localStorage.getItem(key)
-        const filters = stored ? JSON.parse(stored) : []
-        console.log('[TrapidTableView] Reloading savedFilters for new tableId:', { key, count: filters.length })
-        setSavedFilters(filters)
+        console.log('[TrapidTableView] Loading saved views for table:', tableIdNumeric)
+        const data = await api.get(`/api/v1/table_views`, {
+          params: { table_id: tableIdNumeric }
+        })
+
+        if (data.success && data.views) {
+          console.log('[TrapidTableView] Loaded saved views:', data.views.length)
+          // Convert API format to frontend format
+          const converted = data.views.map(view => ({
+            id: view.id,
+            name: view.name,
+            filters: view.filters || {},
+            columns: view.columns || [],
+            sortColumns: view.sort_order || {},
+            isDefault: view.is_default || false
+          }))
+          setSavedFilters(converted)
+        }
       } catch (error) {
-        console.error('Error loading saved filters for new tableId:', error)
+        console.error('Error loading saved views:', error)
         setSavedFilters([])
       }
+    }
+
+    if (prevTableIdRef.current !== tableId) {
+      console.log('[TrapidTableView] tableId changed:', { from: prevTableIdRef.current, to: tableId })
+      loadSavedViews()
       prevTableIdRef.current = tableId
     }
-  }, [tableId])
+  }, [tableId, tableIdNumeric])
 
-  // Save filters to localStorage whenever they change (per table)
-  // Skip saving if we just loaded from a new tableId (to prevent overwriting)
-  useEffect(() => {
-    // Only save if tableId hasn't changed since last render
-    if (prevTableIdRef.current === tableId) {
-      try {
-        localStorage.setItem(`trapid-saved-filters-${tableId}`, JSON.stringify(savedFilters))
-      } catch (error) {
-        console.error('Error saving filters to localStorage:', error)
-      }
-    }
-  }, [savedFilters, tableId])
+  // Note: Saved views are now persisted via API calls when creating/updating/deleting
+  // No need for automatic localStorage sync
 
   // URL-based view selection - load view from URL on mount and when URL changes
   useEffect(() => {
@@ -1669,9 +1686,9 @@ export default function TrapidTableView({
     const columnDef = columns.find(c => c.key === columnKey)
     if (columnDef?.column_type === 'choice' && columnDef?.id) {
       const availableChoices = columnChoices[columnDef.id] || []
-      // Merge data values with available choices
-      const allValues = [...new Set([...dataValues, ...availableChoices])]
-      return allValues.sort()
+      // Use the order from API (columnChoices), not alphabetical sort
+      // This respects the saved choices_order from the database
+      return availableChoices
     }
 
     return dataValues.sort()
@@ -1680,6 +1697,105 @@ export default function TrapidTableView({
   const getColumnLabel = (key) => {
     const column = COLUMNS.find(c => c.key === key)
     return column ? column.label : key
+  }
+
+  // Helper function to save a new view via API
+  const saveNewView = async (viewData) => {
+    try {
+      const response = await api.post('/api/v1/table_views', {
+        table_view: {
+          table_id: tableIdNumeric,
+          name: viewData.name,
+          view_type: 'custom',
+          filters: viewData.filters || {},
+          columns: viewData.columns || [],
+          sort_order: viewData.sortColumns || {},
+          is_default: viewData.isDefault || false
+        }
+      })
+
+      if (response.success && response.view) {
+        // Convert API response to frontend format and add to savedFilters
+        const newView = {
+          id: response.view.id,
+          name: response.view.name,
+          filters: response.view.filters || {},
+          columns: response.view.columns || [],
+          sortColumns: response.view.sort_order || {},
+          isDefault: response.view.is_default || false,
+          ...viewData // Include other frontend-specific fields
+        }
+        setSavedFilters([...savedFilters, newView])
+        return newView
+      } else {
+        console.error('Failed to save view:', response.error)
+        alert('Failed to save view: ' + (response.error || 'Unknown error'))
+        return null
+      }
+    } catch (error) {
+      console.error('Error saving view:', error)
+      alert('Failed to save view: ' + (error.response?.data?.error || error.message))
+      return null
+    }
+  }
+
+  // Helper function to update an existing view via API
+  const updateView = async (viewId, viewData) => {
+    try {
+      const response = await api.put(`/api/v1/table_views/${viewId}`, {
+        table_view: {
+          name: viewData.name,
+          filters: viewData.filters || {},
+          columns: viewData.columns || [],
+          sort_order: viewData.sortColumns || {},
+          is_default: viewData.isDefault || false
+        }
+      })
+
+      if (response.success && response.view) {
+        // Update the view in savedFilters
+        setSavedFilters(savedFilters.map(v =>
+          v.id === viewId ? {
+            id: response.view.id,
+            name: response.view.name,
+            filters: response.view.filters || {},
+            columns: response.view.columns || [],
+            sortColumns: response.view.sort_order || {},
+            isDefault: response.view.is_default || false,
+            ...viewData // Include other frontend-specific fields
+          } : v
+        ))
+        return true
+      } else {
+        console.error('Failed to update view:', response.error)
+        alert('Failed to update view: ' + (response.error || 'Unknown error'))
+        return false
+      }
+    } catch (error) {
+      console.error('Error updating view:', error)
+      alert('Failed to update view: ' + (error.response?.data?.error || error.message))
+      return false
+    }
+  }
+
+  // Helper function to delete a view via API
+  const deleteView = async (viewId) => {
+    try {
+      const response = await api.delete(`/api/v1/table_views/${viewId}`)
+
+      if (response.success) {
+        setSavedFilters(savedFilters.filter(v => v.id !== viewId))
+        return true
+      } else {
+        console.error('Failed to delete view:', response.error)
+        alert('Failed to delete view: ' + (response.error || 'Unknown error'))
+        return false
+      }
+    } catch (error) {
+      console.error('Error deleting view:', error)
+      alert('Failed to delete view: ' + (error.response?.data?.error || error.message))
+      return false
+    }
   }
 
   // Auto-format function to fix phone and mobile numbers
@@ -2906,6 +3022,7 @@ export default function TrapidTableView({
           // Get available choices for this column
           const columnDef = columns.find(c => c.key === columnKey)
           const availableChoices = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+          console.log('🎯 [CASE CHOICE] Rendering dropdown for column', columnKey, 'columnDef.id:', columnDef?.id, 'with choices:', availableChoices)
 
           return (
             <select
@@ -3167,6 +3284,7 @@ export default function TrapidTableView({
           if (editingRowId === entry.id) {
             const columnDef = columns.find(c => c.key === columnKey)
             const availableChoices = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+            console.log('🎯 Rendering dropdown for column', columnKey, 'with choices:', availableChoices)
 
             return (
               <select
@@ -3877,7 +3995,6 @@ export default function TrapidTableView({
                     <thead>
                       <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                         <th className="text-left py-2 font-medium w-8"></th>
-                        <th className="text-left py-2 font-medium w-8"></th>
                         <th className="text-left py-2 font-medium">Column Name</th>
                         <th className="text-left py-2 font-medium w-32">SQL Type</th>
                         <th className="text-left py-2 font-medium w-28">Display Type</th>
@@ -3893,16 +4010,8 @@ export default function TrapidTableView({
                             key={column.key}
                             className="group hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                           >
-                            <td className="py-2 px-2 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>
-                              <input
-                                type="checkbox"
-                                checked={visibleColumns[column.key]}
-                                onChange={() => {}}
-                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
-                              />
-                            </td>
-                            <td className="py-2 text-base cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{getColumnTypeEmoji(colType)}</td>
-                            <td className="py-2 text-sm text-gray-700 dark:text-gray-200 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{column.label}</td>
+                            <td className="py-2 text-base">{getColumnTypeEmoji(colType)}</td>
+                            <td className="py-2 text-sm text-gray-700 dark:text-gray-200">{column.label}</td>
                             <td className="py-2 text-xs font-mono text-gray-400 dark:text-gray-500 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{getColumnTypeSqlType(colType)}</td>
                             <td className="py-2 text-xs text-gray-400 dark:text-gray-500 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{getColumnTypeLabel(colType)}</td>
                             <td className="py-2 px-1">
@@ -4339,21 +4448,20 @@ export default function TrapidTableView({
 
             return (
               <button
-                onClick={() => {
-                  setSavedFilters(savedFilters.map(v =>
-                    v.id === activeViewId
-                      ? {
-                          ...v,
-                          filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                          filterGroups: [...filterGroups],
-                          interGroupLogic,
-                          visibleColumns: { ...visibleColumns },
-                          columnOrder: visibilityColumnOrder,
-                          sortColumns: [...sortColumns],
-                          groupByColumn
-                        }
-                      : v
-                  ))
+                onClick={async () => {
+                  const activeView = savedFilters.find(v => v.id === activeViewId)
+                  if (activeView) {
+                    await updateView(activeViewId, {
+                      ...activeView,
+                      filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                      filterGroups: [...filterGroups],
+                      interGroupLogic,
+                      visibleColumns: { ...visibleColumns },
+                      columnOrder: visibilityColumnOrder,
+                      sortColumns: [...sortColumns],
+                      groupByColumn
+                    })
+                  }
                 }}
                 className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white text-sm font-bold rounded-lg shadow-lg transition-all transform hover:scale-105 flex items-center gap-2 whitespace-nowrap animate-pulse"
                 title="Save changes to this view"
@@ -4474,25 +4582,26 @@ export default function TrapidTableView({
                               }}
                             />
                             <button
-                              onClick={() => {
-                                // Save all changes: name, filters, groups, columns, sort, and groupBy
+                              onClick={async () => {
+                                // Save all changes via API: name, filters, groups, columns, sort, and groupBy
                                 const nameInput = document.getElementById('editViewNameInput')
                                 const newName = nameInput?.value?.trim() || savedFilters.find(v => v.id === editingViewId)?.name
-                                setSavedFilters(savedFilters.map(v =>
-                                  v.id === editingViewId
-                                    ? {
-                                        ...v,
-                                        name: newName,
-                                        filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                        filterGroups: [...filterGroups],
-                                        interGroupLogic,
-                                        visibleColumns: { ...visibleColumns },
-                                        columnOrder: visibilityColumnOrder,
-                                        sortColumns: [...sortColumns],
-                                        groupByColumn
-                                      }
-                                    : v
-                                ))
+                                const editedView = savedFilters.find(v => v.id === editingViewId)
+
+                                if (editedView) {
+                                  await updateView(editingViewId, {
+                                    ...editedView,
+                                    name: newName,
+                                    filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                                    filterGroups: [...filterGroups],
+                                    interGroupLogic,
+                                    visibleColumns: { ...visibleColumns },
+                                    columnOrder: visibilityColumnOrder,
+                                    sortColumns: [...sortColumns],
+                                    groupByColumn
+                                  })
+                                }
+
                                 setEditingViewId(null)
                                 setActiveViewId(null)
                                 setCascadeFilters([])
@@ -4504,25 +4613,26 @@ export default function TrapidTableView({
                               Save
                             </button>
                             <button
-                              onClick={() => {
-                                // Save all changes: name, filters, groups, columns, sort, and groupBy
+                              onClick={async () => {
+                                // Save all changes via API: name, filters, groups, columns, sort, and groupBy
                                 const nameInput = document.getElementById('editViewNameInput')
                                 const newName = nameInput?.value?.trim() || savedFilters.find(v => v.id === editingViewId)?.name
-                                setSavedFilters(savedFilters.map(v =>
-                                  v.id === editingViewId
-                                    ? {
-                                        ...v,
-                                        name: newName,
-                                        filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                        filterGroups: [...filterGroups],
-                                        interGroupLogic,
-                                        visibleColumns: { ...visibleColumns },
-                                        columnOrder: visibilityColumnOrder,
-                                        sortColumns: [...sortColumns],
-                                        groupByColumn
-                                      }
-                                    : v
-                                ))
+                                const editedView = savedFilters.find(v => v.id === editingViewId)
+
+                                if (editedView) {
+                                  await updateView(editingViewId, {
+                                    ...editedView,
+                                    name: newName,
+                                    filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                                    filterGroups: [...filterGroups],
+                                    interGroupLogic,
+                                    visibleColumns: { ...visibleColumns },
+                                    columnOrder: visibilityColumnOrder,
+                                    sortColumns: [...sortColumns],
+                                    groupByColumn
+                                  })
+                                }
+
                                 setEditingViewId(null)
                                 setActiveViewId(null)
                                 setCascadeFilters([])
@@ -4554,20 +4664,19 @@ export default function TrapidTableView({
                               onChange={(e) => setNewViewName(e.target.value.slice(0, 20))}
                               placeholder="Enter view name..."
                               className="flex-1 max-w-[200px] text-sm font-semibold px-2 py-1 border-0 rounded bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-                              onKeyDown={(e) => {
+                              onKeyDown={async (e) => {
                                 if (e.key === 'Escape') {
                                   setCreatingNewView(false)
                                   setNewViewName('')
                                 } else if (e.key === 'Enter' && newViewName.trim()) {
-                                  // Save the new view
+                                  // Save the new view via API
                                   const columnsToSave = {}
                                   COLUMNS.filter(col => col.key !== 'select').forEach(col => {
                                     columnsToSave[col.key] = visibleColumns[col.key] !== false
                                   })
                                   const orderToSave = columnOrder || COLUMNS.map(c => c.key)
-                                  const newViewId = Date.now()
-                                  setSavedFilters([...savedFilters, {
-                                    id: newViewId,
+
+                                  const newView = await saveNewView({
                                     name: newViewName.trim(),
                                     filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
                                     filterGroups: [...filterGroups],
@@ -4577,26 +4686,28 @@ export default function TrapidTableView({
                                     sortColumns: [...sortColumns],
                                     groupByColumn,
                                     isDefault: savedFilters.length === 0
-                                  }])
-                                  setActiveViewId(newViewId)
-                                  setCreatingNewView(false)
-                                  setNewViewName('')
+                                  })
+
+                                  if (newView) {
+                                    setActiveViewId(newView.id)
+                                    setCreatingNewView(false)
+                                    setNewViewName('')
+                                  }
                                 }
                               }}
                             />
                             <span className="text-[10px] opacity-60">{newViewName.length}/20</span>
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!newViewName.trim()) return
-                                // Save the new view
+                                // Save the new view via API
                                 const columnsToSave = {}
                                 COLUMNS.filter(col => col.key !== 'select').forEach(col => {
                                   columnsToSave[col.key] = visibleColumns[col.key] !== false
                                 })
                                 const orderToSave = columnOrder || COLUMNS.map(c => c.key)
-                                const newViewId = Date.now()
-                                setSavedFilters([...savedFilters, {
-                                  id: newViewId,
+
+                                const newView = await saveNewView({
                                   name: newViewName.trim(),
                                   filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
                                   filterGroups: [...filterGroups],
@@ -4606,10 +4717,13 @@ export default function TrapidTableView({
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
-                                }])
-                                setActiveViewId(newViewId)
-                                setCreatingNewView(false)
-                                setNewViewName('')
+                                })
+
+                                if (newView) {
+                                  setActiveViewId(newView.id)
+                                  setCreatingNewView(false)
+                                  setNewViewName('')
+                                }
                               }}
                               disabled={!newViewName.trim()}
                               className="text-xs px-3 py-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
@@ -4617,17 +4731,16 @@ export default function TrapidTableView({
                               Save
                             </button>
                             <button
-                              onClick={() => {
+                              onClick={async () => {
                                 if (!newViewName.trim()) return
-                                // Save the new view and close popup
+                                // Save the new view via API and close popup
                                 const columnsToSave = {}
                                 COLUMNS.filter(col => col.key !== 'select').forEach(col => {
                                   columnsToSave[col.key] = visibleColumns[col.key] !== false
                                 })
                                 const orderToSave = columnOrder || COLUMNS.map(c => c.key)
-                                const newViewId = Date.now()
-                                setSavedFilters([...savedFilters, {
-                                  id: newViewId,
+
+                                const newView = await saveNewView({
                                   name: newViewName.trim(),
                                   filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
                                   filterGroups: [...filterGroups],
@@ -4637,11 +4750,14 @@ export default function TrapidTableView({
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
-                                }])
-                                setActiveViewId(newViewId)
-                                setCreatingNewView(false)
-                                setNewViewName('')
-                                setShowCascadeDropdown(false) // Close the popup
+                                })
+
+                                if (newView) {
+                                  setActiveViewId(newView.id)
+                                  setCreatingNewView(false)
+                                  setNewViewName('')
+                                  setShowCascadeDropdown(false) // Close the popup
+                                }
                               }}
                               disabled={!newViewName.trim()}
                               className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
@@ -4755,18 +4871,18 @@ export default function TrapidTableView({
                       return (
                         <div className="pb-3 border-b border-gray-200 dark:border-gray-700">
                           <button
-                            onClick={() => {
-                              setSavedFilters(savedFilters.map(v =>
-                                v.id === activeViewId
-                                  ? {
-                                      ...v,
-                                      filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                      filterGroups: [...filterGroups],
-                                      interGroupLogic,
-                                      visibleColumns: { ...visibleColumns }
-                                    }
-                                  : v
-                              ))
+                            onClick={async () => {
+                              const activeView = savedFilters.find(v => v.id === activeViewId)
+                              if (activeView) {
+                                await updateView(activeViewId, {
+                                  ...activeView,
+                                  filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                                  filterGroups: [...filterGroups],
+                                  interGroupLogic,
+                                  visibleColumns: { ...visibleColumns }
+                                })
+                              }
+
                               // Clear active filters and view
                               setCascadeFilters([])
                               setFilterGroups([{ id: 'default', logic: 'AND' }])
@@ -4820,12 +4936,9 @@ export default function TrapidTableView({
                             <span>Set as default view</span>
                           </label>
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (!filterName.trim()) return
                               const isDefault = document.getElementById('cascade-saved-views-set-as-default-left').checked
-                              const updatedFilters = isDefault
-                                ? savedFilters.map(f => ({ ...f, isDefault: false }))
-                                : savedFilters
 
                               // Use defaultColumnsForNewViews for saved view columns
                               const columnsToSave = {}
@@ -4836,9 +4949,7 @@ export default function TrapidTableView({
                               // Save current column order (use visibility order or generate from current)
                               const orderToSave = visibilityColumnOrder || COLUMNS.filter(col => col.key !== 'select').sort((a, b) => a.label.localeCompare(b.label)).map(c => c.key)
 
-                              const newViewId = Date.now()
-                              setSavedFilters([...updatedFilters, {
-                                id: newViewId,
+                              const newView = await saveNewView({
                                 name: filterName.trim(),
                                 filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, value2: f.value2, operator: f.operator, label: f.label, groupId: f.groupId })),
                                 filterGroups: [...filterGroups],
@@ -4846,10 +4957,13 @@ export default function TrapidTableView({
                                 visibleColumns: columnsToSave,
                                 columnOrder: orderToSave,
                                 isDefault: isDefault
-                              }])
-                              setActiveViewId(newViewId)
-                              setFilterName('')
-                              document.getElementById('cascade-saved-views-set-as-default-left').checked = false
+                              })
+
+                              if (newView) {
+                                setActiveViewId(newView.id)
+                                setFilterName('')
+                                document.getElementById('cascade-saved-views-set-as-default-left').checked = false
+                              }
                             }}
                             disabled={!filterName.trim()}
                             className="w-full px-3 py-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 text-xs font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -4882,12 +4996,11 @@ export default function TrapidTableView({
                                     type="text"
                                     defaultValue={saved.name}
                                     maxLength={20}
-                                    onBlur={(e) => {
+                                    onBlur={async (e) => {
                                       const newName = e.target.value.trim()
-                                      if (newName) {
-                                        setSavedFilters(savedFilters.map(f =>
-                                          f.id === saved.id ? { ...f, name: newName } : f
-                                        ))
+                                      if (newName && newName !== saved.name) {
+                                        // Update view name via API
+                                        await updateView(saved.id, { ...saved, name: newName })
                                       }
                                       setEditingViewId(null)
                                     }}
@@ -4999,11 +5112,9 @@ export default function TrapidTableView({
                                     📝
                                   </button>
                                   <button
-                                    onClick={() => {
-                                      setSavedFilters(savedFilters.map(f => ({
-                                        ...f,
-                                        isDefault: f.id === saved.id ? true : false
-                                      })))
+                                    onClick={async () => {
+                                      // Set this view as default via API
+                                      await updateView(saved.id, { ...saved, isDefault: true })
                                     }}
                                     className={`text-xs ${saved.isDefault ? 'opacity-50' : 'hover:text-yellow-600'}`}
                                     title={saved.isDefault ? "Already default" : "Set as default"}
@@ -5012,9 +5123,9 @@ export default function TrapidTableView({
                                     ⭐
                                   </button>
                                   <button
-                                    onClick={() => {
+                                    onClick={async () => {
                                       if (activeViewId === saved.id) setActiveViewId(null)
-                                      setSavedFilters(savedFilters.filter(f => f.id !== saved.id))
+                                      await deleteView(saved.id)
                                     }}
                                     className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold"
                                     title="Delete view"
@@ -5038,7 +5149,17 @@ export default function TrapidTableView({
                     </div>
 
                     {/* COLUMN 2: Filter Builder */}
-                    <div className="flex flex-col h-full overflow-hidden">
+                    <div className="flex flex-col h-full overflow-hidden relative">
+                      {/* Disabled overlay */}
+                      {isViewEditingDisabled && (
+                        <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                          <div className="text-center px-4">
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                              Click "+ Create New" or edit an existing view to modify filters
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       {/* View Filter - Filter Builder UI */}
                       <div className="flex-1 overflow-y-auto cascade-popup-scroll">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -5470,7 +5591,17 @@ export default function TrapidTableView({
                     </div>
 
                     {/* COLUMN 3: Column Visibility - Combined with Default */}
-                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 h-full overflow-y-auto cascade-popup-scroll w-[300px] min-w-[240px]">
+                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 h-full overflow-y-auto cascade-popup-scroll w-[300px] min-w-[240px] relative">
+                      {/* Disabled overlay */}
+                      {isViewEditingDisabled && (
+                        <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
+                          <div className="text-center px-4">
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                              Click "+ Create New" or edit an existing view to modify columns
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       {/* Header with toggle buttons */}
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -5491,27 +5622,12 @@ export default function TrapidTableView({
                           >
                             👁 {COLUMNS.filter(col => col.key !== 'select').every(col => visibleColumns[col.key] !== false) ? 'Hide' : 'Show'}
                           </button>
-                          <button
-                            onClick={() => {
-                              const allDefault = COLUMNS.filter(col => col.key !== 'select').every(col => defaultColumnsForNewViews[col.key] !== false)
-                              const newDefaults = {}
-                              COLUMNS.filter(col => col.key !== 'select').forEach(col => {
-                                newDefaults[col.key] = !allDefault
-                              })
-                              setDefaultColumnsForNewViews(newDefaults)
-                            }}
-                            className="px-1.5 py-0.5 bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 text-purple-800 dark:text-purple-200 text-[9px] font-medium rounded transition-colors"
-                            title="Toggle all defaults"
-                          >
-                            ⭐ {COLUMNS.filter(col => col.key !== 'select').every(col => defaultColumnsForNewViews[col.key] !== false) ? 'Hide' : 'Show'}
-                          </button>
                         </div>
                       </div>
                       {/* Column header row */}
                       <div className="flex items-center gap-2 px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
                         <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
                         <span className="flex-1">Column</span>
-                        <span className="w-4 text-center text-purple-600" title="Default for new views">⭐</span>
                       </div>
                       {/* Combined column list */}
                       <div className="space-y-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1">
@@ -5603,30 +5719,11 @@ export default function TrapidTableView({
                             />
                             {/* Column name */}
                             <span className="flex-1 truncate font-medium">{column.label}</span>
-                            {/* Default checkbox (purple) - larger */}
-                            <input
-                              type="checkbox"
-                              checked={defaultColumnsForNewViews[column.key] !== false}
-                              onChange={(e) => {
-                                e.stopPropagation()
-                                setDefaultColumnsForNewViews({
-                                  ...defaultColumnsForNewViews,
-                                  [column.key]: e.target.checked
-                                })
-                                // Mirror to visible columns
-                                setVisibleColumns({
-                                  ...visibleColumns,
-                                  [column.key]: e.target.checked
-                                })
-                              }}
-                              className="rounded border-purple-400 w-4 h-4 text-purple-600 cursor-pointer flex-shrink-0"
-                              title="Include in new views (also updates visibility)"
-                            />
                           </div>
                         ))}
                       </div>
                       <div className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
-                        👁 visible now | ⭐ saved in new views
+                        👁 Click to show/hide columns
                       </div>
                     </div>
                   </div>
