@@ -4,6 +4,7 @@ import { COLUMN_TYPES, getColumnTypeEmoji } from '../../constants/columnTypes';
 import ChoiceEditor from './ChoiceEditor';
 import FormulaEditor from './FormulaEditor';
 import TypeConversionEditor from './TypeConversionEditor';
+import LookupEditor from './LookupEditor';
 
 /**
  * ColumnEditorModal - Modal for editing a single column's schema
@@ -78,6 +79,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
   const isChoiceColumn = ['choice', 'dropdown', 'select', 'single_select', 'multi_select'].includes(column.column_type?.toLowerCase());
   const isComputedColumn = column.column_type === 'computed' || column.formula;
+  const isLookupColumn = column.column_type === 'lookup' || column.column_type === 'link_to_another_record';
 
   const tabs = [
     { id: 'info', label: 'Column Info', icon: 'ℹ️' },
@@ -90,6 +92,10 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
   if (isComputedColumn) {
     tabs.push({ id: 'formula', label: 'Edit Formula', icon: '🔢' });
+  }
+
+  if (isLookupColumn) {
+    tabs.push({ id: 'lookup', label: 'Manage Lookup', icon: '🔗' });
   }
 
   const handleClose = () => {
@@ -483,14 +489,23 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
               }}
             />
           )}
+
+          {activeTab === 'lookup' && isLookupColumn && (
+            <LookupEditor
+              tableId={tableId}
+              column={column}
+              onUpdate={handleUpdate}
+              onClose={onClose}
+            />
+          )}
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
           <div className="flex justify-between items-center">
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              {/* Hide status message on choices tab since it auto-saves */}
-              {activeTab !== 'choices' && hasChanges() ? (
+              {/* Hide status message on choices and lookup tabs since they handle their own saving */}
+              {activeTab !== 'choices' && activeTab !== 'lookup' && hasChanges() ? (
                 <span className="text-orange-600 dark:text-orange-400 font-medium">
                   Unsaved changes
                 </span>
@@ -502,16 +517,19 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
               )}
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
-                         bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
-                         rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-              >
-                Close
-              </button>
-              {/* Hide Save button on choices tab since it auto-saves */}
-              {activeTab !== 'choices' && (
+              {/* Hide Close button on lookup tab since LookupEditor has its own save button that closes */}
+              {activeTab !== 'lookup' && (
+                <button
+                  onClick={handleClose}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
+                           bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                           rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              )}
+              {/* Hide Save button on choices and lookup tabs since they have their own save buttons */}
+              {activeTab !== 'choices' && activeTab !== 'lookup' && (
                 <button
                   onClick={handleSaveColumnInfo}
                   disabled={saving || !hasChanges()}
