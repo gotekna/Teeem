@@ -270,8 +270,8 @@ export default function PriceBooksPage() {
 
       // Build query params
       // Check if Status column is visible - if so, we need risk data
-      // Default to true if columnConfig not fully loaded yet
-      const needsRiskData = columnConfig?.status?.visible !== false
+      // Default to FALSE - only load expensive risk calculations when Status column is visible
+      const needsRiskData = columnConfig?.status?.visible === true
 
       const params = {
         page,

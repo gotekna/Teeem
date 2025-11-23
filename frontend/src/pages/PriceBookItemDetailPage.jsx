@@ -85,6 +85,12 @@ export default function PriceBookItemDetailPage() {
   }
 
   const loadTaxRates = async () => {
+    // Skip Xero API calls on localhost since it requires authentication
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (isLocalhost) {
+      return
+    }
+
     try {
       const response = await api.get('/api/v1/xero/tax_rates')
       if (response.success && response.tax_rates) {
