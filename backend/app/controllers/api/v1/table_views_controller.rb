@@ -86,9 +86,16 @@ module Api
           :name,
           :view_type,
           :is_default,
-          filters: {},
-          columns: [],
-          sort_order: {}
+          filters: [
+            :interGroupLogic,
+            cascadeFilters: [],
+            filterGroups: []
+          ],
+          columns: [
+            :order,
+            visible: {}
+          ],
+          sort_order: []
         )
       end
     end
