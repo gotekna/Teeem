@@ -18,7 +18,7 @@ export default function InspiringBanner() {
         setQuote(response.data)
       }
     } catch (error) {
-      console.error('Failed to load daily quote:', error)
+      console.error('Failed to load daily quote:', error?.message || error)
     } finally {
       setLoading(false)
     }

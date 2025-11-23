@@ -233,7 +233,7 @@ export default function AppLayout({ children }) {
         const response = await api.get('/api/v1/constructions?status=Active&per_page=20')
         setActiveJobs(response.constructions || [])
       } catch (err) {
-        console.error('Failed to load active jobs:', err)
+        console.error('Failed to load active jobs:', err?.message || err)
       }
     }
     loadActiveJobs()
