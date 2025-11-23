@@ -797,6 +797,9 @@ Rails.application.routes.draw do
         resources :records
       end
 
+      # Table views (user-specific saved views)
+      resources :table_views, only: [:index, :show, :create, :update, :destroy]
+
       # Estimates management (from Unreal Engine or other sources)
       resources :estimates, only: [:index, :show, :destroy] do
         member do
