@@ -460,15 +460,17 @@ export default function TrapidTableView({
   const [editingFilterValue, setEditingFilterValue] = useState('') // Track the temporary value while editing
   const [groupByColumn, setGroupByColumn] = useState(null) // Track which column to group by
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()) // Track which groups are collapsed
+  const [editingDefaultSetup, setEditingDefaultSetup] = useState(false) // Track if editing default column setup
 
   // Determine if filter/column editing should be disabled (not creating new or editing existing)
-  const isViewEditingDisabled = !creatingNewView && editingViewId === null
+  const isViewEditingDisabled = !creatingNewView && editingViewId === null && !editingDefaultSetup
 
   // Helper to close cascade popup (without clearing filters - they persist per table)
   const closeCascadePopup = () => {
     setShowCascadeDropdown(false)
     setEditingViewId(null)
     setCreatingNewView(false)
+    setEditingDefaultSetup(false)
   }
 
   // Helper to clear all cascade filters (separate from closing popup)
@@ -515,14 +517,24 @@ export default function TrapidTableView({
         if (data.success && data.views) {
           console.log('[TrapidTableView] Loaded saved views:', data.views.length)
           // Convert API format to frontend format
-          const converted = data.views.map(view => ({
-            id: view.id,
-            name: view.name,
-            filters: view.filters || {},
-            columns: view.columns || [],
-            sortColumns: view.sort_order || {},
-            isDefault: view.is_default || false
-          }))
+          const converted = data.views.map(view => {
+            const filters = view.filters || {}
+            const columns = view.columns || {}
+
+            return {
+              id: view.id,
+              name: view.name,
+              // Parse cascade filters structure
+              filters: filters.cascadeFilters || [],
+              filterGroups: filters.filterGroups || [],
+              interGroupLogic: filters.interGroupLogic || 'AND',
+              // Parse columns structure
+              visibleColumns: columns.visible || {},
+              columnOrder: columns.order || [],
+              sortColumns: view.sort_order || {},
+              isDefault: view.is_default || false
+            }
+          })
           setSavedFilters(converted)
         }
       } catch (error) {
@@ -1707,8 +1719,15 @@ export default function TrapidTableView({
           table_id: tableIdNumeric,
           name: viewData.name,
           view_type: 'custom',
-          filters: viewData.filters || {},
-          columns: viewData.columns || [],
+          filters: {
+            cascadeFilters: viewData.filters || [],
+            filterGroups: viewData.filterGroups || [],
+            interGroupLogic: viewData.interGroupLogic || 'AND'
+          },
+          columns: {
+            visible: viewData.visibleColumns || {},
+            order: viewData.columnOrder || []
+          },
           sort_order: viewData.sortColumns || {},
           is_default: viewData.isDefault || false
         }
@@ -1745,8 +1764,15 @@ export default function TrapidTableView({
       const response = await api.put(`/api/v1/table_views/${viewId}`, {
         table_view: {
           name: viewData.name,
-          filters: viewData.filters || {},
-          columns: viewData.columns || [],
+          filters: {
+            cascadeFilters: viewData.filters || [],
+            filterGroups: viewData.filterGroups || [],
+            interGroupLogic: viewData.interGroupLogic || 'AND'
+          },
+          columns: {
+            visible: viewData.visibleColumns || {},
+            order: viewData.columnOrder || []
+          },
           sort_order: viewData.sortColumns || {},
           is_default: viewData.isDefault || false
         }
@@ -4003,7 +4029,7 @@ export default function TrapidTableView({
                       </tr>
                     </thead>
                     <tbody>
-                      {COLUMNS.filter(col => col.key !== 'select').map((column) => {
+                      {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').map((column) => {
                         const colType = column.column_type || column.key
                         return (
                           <tr
@@ -4075,7 +4101,7 @@ export default function TrapidTableView({
                         {tableName && <span className="text-indigo-100">- {tableName}</span>}
                       </h2>
                       <p className="text-sm text-indigo-100 mt-1">
-                        {COLUMNS.filter(col => col.key !== 'select').length} columns • Schema definitions from COLUMN_TYPES (Single Source of Truth)
+                        {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').length} columns • Schema definitions from COLUMN_TYPES (Single Source of Truth)
                       </p>
                     </div>
                     <button
@@ -4090,7 +4116,7 @@ export default function TrapidTableView({
                 {/* Content - scrollable */}
                 <div className="flex-1 overflow-y-auto p-4">
                   <div className="space-y-4">
-                    {COLUMNS.filter(col => col.key !== 'select').map((column) => {
+                    {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').map((column) => {
                       const colType = column.column_type || column.key
                       const columnTypeDef = COLUMN_TYPES.find(t => t.value === colType) || {}
 
@@ -4787,6 +4813,14 @@ export default function TrapidTableView({
                                 setActiveViewId(null)
                                 setEditingViewId(null)
                                 setCreatingNewView(true)
+                                // Set columns to the default for new views
+                                setVisibleColumns(defaultColumnsForNewViews)
+
+                                // Set column order: checked columns first, then unchecked
+                                const allColumnKeys = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').map(col => col.key)
+                                const checkedCols = allColumnKeys.filter(key => defaultColumnsForNewViews[key] !== false)
+                                const uncheckedCols = allColumnKeys.filter(key => defaultColumnsForNewViews[key] === false)
+                                setColumnOrder(['select', ...checkedCols, ...uncheckedCols, 'actions'])
                               }}
                               className="text-xs px-3 py-1.5 bg-green-500 hover:bg-green-600 rounded transition-colors whitespace-nowrap font-medium flex items-center gap-1"
                             >
@@ -5021,9 +5055,18 @@ export default function TrapidTableView({
                                           id: Date.now() + Math.random(),
                                           column: f.column,
                                           value: f.value,
+                                          value2: f.value2,
                                           operator: f.operator || '=',
-                                          label: f.label
+                                          label: f.label,
+                                          groupId: f.groupId
                                         })))
+                                        // Restore filter groups and inter-group logic
+                                        if (saved.filterGroups) {
+                                          setFilterGroups(saved.filterGroups)
+                                        }
+                                        if (saved.interGroupLogic) {
+                                          setInterGroupLogic(saved.interGroupLogic)
+                                        }
                                         if (saved.visibleColumns) {
                                           setVisibleColumns(saved.visibleColumns)
                                         }
@@ -5085,9 +5128,18 @@ export default function TrapidTableView({
                                         id: Date.now() + Math.random(),
                                         column: f.column,
                                         value: f.value,
+                                        value2: f.value2,
                                         operator: f.operator || '=',
-                                        label: f.label
+                                        label: f.label,
+                                        groupId: f.groupId
                                       })))
+                                      // Restore filter groups and inter-group logic
+                                      if (saved.filterGroups) {
+                                        setFilterGroups(saved.filterGroups)
+                                      }
+                                      if (saved.interGroupLogic) {
+                                        setInterGroupLogic(saved.interGroupLogic)
+                                      }
                                       if (saved.visibleColumns) {
                                         setVisibleColumns(saved.visibleColumns)
                                       }
@@ -5596,8 +5648,20 @@ export default function TrapidTableView({
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
                           <div className="text-center px-4">
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
                               Click "+ Create New" or edit an existing view to modify columns
+                            </p>
+                            <button
+                              onClick={() => setEditingDefaultSetup(true)}
+                              className="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-medium rounded-lg shadow-md transition-colors flex items-center gap-2 mx-auto"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Edit Default Setup
+                            </button>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                              Set which columns appear by default in new views
                             </p>
                           </div>
                         </div>
@@ -5605,9 +5669,24 @@ export default function TrapidTableView({
                       {/* Header with toggle buttons */}
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                          Columns:
+                          {editingDefaultSetup ? (
+                            <span className="text-yellow-600 dark:text-yellow-400">Editing Default Setup</span>
+                          ) : (
+                            'Columns:'
+                          )}
                         </label>
                         <div className="flex gap-1">
+                          {editingDefaultSetup && (
+                            <button
+                              onClick={() => setEditingDefaultSetup(false)}
+                              className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-medium rounded transition-colors flex items-center gap-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Done
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               const allVisible = COLUMNS.filter(col => col.key !== 'select').every(col => visibleColumns[col.key] !== false)
@@ -5622,18 +5701,53 @@ export default function TrapidTableView({
                           >
                             👁 {COLUMNS.filter(col => col.key !== 'select').every(col => visibleColumns[col.key] !== false) ? 'Hide' : 'Show'}
                           </button>
+                          <button
+                            onClick={() => {
+                              const allDefault = COLUMNS.filter(col => col.key !== 'select').every(col => defaultColumnsForNewViews[col.key] !== false)
+                              const newDefaults = {}
+                              COLUMNS.filter(col => col.key !== 'select').forEach(col => {
+                                newDefaults[col.key] = !allDefault
+                              })
+                              setDefaultColumnsForNewViews({ ...defaultColumnsForNewViews, ...newDefaults })
+                            }}
+                            className="px-1.5 py-0.5 bg-yellow-100 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 text-[9px] font-medium rounded transition-colors"
+                            title="Toggle all defaults"
+                          >
+                            ⭐ {COLUMNS.filter(col => col.key !== 'select').every(col => defaultColumnsForNewViews[col.key] !== false) ? 'Clear' : 'Set All'}
+                          </button>
                         </div>
                       </div>
                       {/* Column header row */}
                       <div className="flex items-center gap-2 px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
                         <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
                         <span className="flex-1">Column</span>
+                        <span className="w-24 text-center text-yellow-600" title="Default Column Setup Only">Default Setup</span>
                       </div>
                       {/* Combined column list */}
                       <div className="space-y-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1">
                         {(() => {
-                          const filteredCols = COLUMNS.filter(col => col.key !== 'select')
-                          // Use custom order if set, otherwise alphabetical
+                          const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+
+                          // When editing default setup, sort by checked status (checked first)
+                          if (editingDefaultSetup) {
+                            const orderedCols = visibilityColumnOrder
+                              ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
+                              : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
+                            const orderedKeys = new Set(orderedCols.map(c => c.key))
+                            const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
+                            const allCols = [...orderedCols, ...newCols]
+
+                            // Sort: checked columns first, then unchecked
+                            return allCols.sort((a, b) => {
+                              const aChecked = defaultColumnsForNewViews[a.key] !== false
+                              const bChecked = defaultColumnsForNewViews[b.key] !== false
+                              if (aChecked && !bChecked) return -1
+                              if (!aChecked && bChecked) return 1
+                              return 0 // Maintain relative order within groups
+                            })
+                          }
+
+                          // Normal mode: use custom order if set, otherwise alphabetical
                           const orderedCols = visibilityColumnOrder
                             ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
                             : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
@@ -5655,21 +5769,44 @@ export default function TrapidTableView({
                             onDrop={(e) => {
                               e.preventDefault()
                               e.stopPropagation()
-                              console.log('[Drag] Drop event:', { draggedVisibilityColumn, targetColumn: column.key })
+                              console.log('[Drag] Drop event:', { draggedVisibilityColumn, targetColumn: column.key, editingDefaultSetup })
                               if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
-                                const filteredCols = COLUMNS.filter(col => col.key !== 'select')
-                                // Build the ACTUAL current order being displayed (must match render logic)
-                                const orderedCols = visibilityColumnOrder
-                                  ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
-                                  : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
-                                const orderedKeys = new Set(orderedCols.map(c => c.key))
-                                const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
-                                const fullOrderedCols = [...orderedCols, ...newCols]
-                                const currentOrder = fullOrderedCols.map(c => c.key)
+                                const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
 
+                                // Build the ACTUAL current order being displayed (must match render logic)
+                                let fullOrderedCols
+                                if (editingDefaultSetup) {
+                                  // When editing default setup, use the sorted order (checked first)
+                                  const orderedCols = visibilityColumnOrder
+                                    ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
+                                    : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
+                                  const orderedKeys = new Set(orderedCols.map(c => c.key))
+                                  const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
+                                  const allCols = [...orderedCols, ...newCols]
+
+                                  // Sort: checked columns first, then unchecked (matching display logic)
+                                  fullOrderedCols = allCols.sort((a, b) => {
+                                    const aChecked = defaultColumnsForNewViews[a.key] !== false
+                                    const bChecked = defaultColumnsForNewViews[b.key] !== false
+                                    if (aChecked && !bChecked) return -1
+                                    if (!aChecked && bChecked) return 1
+                                    return 0
+                                  })
+                                } else {
+                                  // Normal mode: use custom order if set, otherwise alphabetical
+                                  const orderedCols = visibilityColumnOrder
+                                    ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
+                                    : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
+                                  const orderedKeys = new Set(orderedCols.map(c => c.key))
+                                  const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
+                                  fullOrderedCols = [...orderedCols, ...newCols]
+                                }
+
+                                const currentOrder = fullOrderedCols.map(c => c.key)
                                 const draggedIndex = currentOrder.indexOf(draggedVisibilityColumn)
                                 const targetIndex = currentOrder.indexOf(column.key)
                                 console.log('[Drag] Reordering:', { draggedIndex, targetIndex, currentOrder: currentOrder.length, order: currentOrder })
+
                                 if (draggedIndex !== -1 && targetIndex !== -1) {
                                   currentOrder.splice(draggedIndex, 1)
                                   currentOrder.splice(targetIndex, 0, draggedVisibilityColumn)
@@ -5703,7 +5840,7 @@ export default function TrapidTableView({
                               onClick={(e) => e.stopPropagation()}
                               title="Drag to reorder columns"
                             >⠿</span>
-                            {/* Visible checkbox (blue) - larger */}
+                            {/* Visible checkbox (blue) - show/hide now */}
                             <input
                               type="checkbox"
                               checked={visibleColumns[column.key] !== false}
@@ -5719,11 +5856,35 @@ export default function TrapidTableView({
                             />
                             {/* Column name */}
                             <span className="flex-1 truncate font-medium">{column.label}</span>
+                            {/* Default checkbox (yellow) - default for new views */}
+                            <div className="w-24 flex justify-center">
+                              <input
+                                type="checkbox"
+                                checked={defaultColumnsForNewViews[column.key] !== false}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  setDefaultColumnsForNewViews({
+                                    ...defaultColumnsForNewViews,
+                                    [column.key]: e.target.checked
+                                  })
+                                }}
+                                className="rounded border-yellow-400 w-4 h-4 text-yellow-600 cursor-pointer flex-shrink-0"
+                                title="Include in new views by default"
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>
                       <div className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
-                        👁 Click to show/hide columns
+                        {editingDefaultSetup ? (
+                          <div className="bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded px-2 py-1">
+                            <span className="text-yellow-800 dark:text-yellow-300 font-medium">
+                              💡 Edit the Default Setup column (right side) to control which columns appear when creating new views
+                            </span>
+                          </div>
+                        ) : (
+                          '👁 Show/hide now • Default Setup: Columns selected by default when creating new views'
+                        )}
                       </div>
                     </div>
                   </div>
@@ -5762,7 +5923,7 @@ export default function TrapidTableView({
             ref={scrollContainerRef}
             className="trapid-table-scroll h-full overflow-y-scroll overflow-x-scroll border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
           >
-          <table className="border-collapse" style={{ tableLayout: 'fixed', minWidth: 'max-content' }}>
+          <table className="border-collapse" style={{ tableLayout: 'fixed', width: 'auto' }}>
             <thead className="sticky top-0 z-10 backdrop-blur-sm">
             <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800">
               {(() => {

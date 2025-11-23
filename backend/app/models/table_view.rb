@@ -18,8 +18,9 @@ class TableView < ApplicationRecord
   scope :for_table, ->(table_id) { where(table_id: table_id) }
   scope :defaults, -> { where(is_default: true) }
 
-  # Before saving, if this view is being set as default, unset all other defaults for this user/table
-  before_save :unset_other_defaults, if: :is_default?
+  # Before validating, if this view is being set as default, unset all other defaults for this user/table
+  # This must run before validation so the uniqueness check passes
+  before_validation :unset_other_defaults, if: :is_default?
 
   private
 
