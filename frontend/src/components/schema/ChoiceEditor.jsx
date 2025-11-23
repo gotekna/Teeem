@@ -16,6 +16,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
   const [choices, setChoices] = useState([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
   const [editingChoice, setEditingChoice] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [newChoice, setNewChoice] = useState('');
@@ -25,6 +26,8 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
   const [deleteAction, setDeleteAction] = useState('clear'); // 'clear' or 'replace'
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergeTarget, setMergeTarget] = useState('');
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   useEffect(() => {
     loadChoices();
@@ -35,11 +38,12 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
       setLoading(true);
       const response = await api.get(`/api/v1/tables/${tableId}/columns/${column.id}/choices`);
 
-      if (response?.data?.success) {
-        setChoices(response.data.choices || []);
-        setTotalRecords(response.data.total_records || 0);
-      } else if (response?.data?.error) {
-        alert('Failed to load choices: ' + response.data.error);
+      // api.get returns parsed JSON directly (not wrapped in .data like axios)
+      if (response?.success) {
+        setChoices(response.choices || []);
+        setTotalRecords(response.total_records || 0);
+      } else if (response?.error) {
+        alert('Failed to load choices: ' + response.error);
       } else {
         // Handle unexpected response format
         console.error('Unexpected response:', response);
@@ -55,8 +59,9 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     }
   };
 
-  const handleAddChoice = () => {
+  const handleAddChoice = async () => {
     if (!newChoice.trim()) return;
+    if (adding) return; // Prevent double-submission
 
     // Check if choice already exists
     if (choices.some(c => c.value === newChoice.trim())) {
@@ -64,12 +69,28 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
       return;
     }
 
-    // Add to local state (no backend call needed - just adding to available options)
-    setChoices([...choices, { value: newChoice.trim(), count: 0 }]);
-    setNewChoice('');
+    try {
+      setAdding(true);
 
-    if (onUpdate) {
-      onUpdate();
+      // Call backend API to persist the choice
+      const response = await api.post(`/api/v1/tables/${tableId}/columns/${column.id}/add_choice`, {
+        value: newChoice.trim()
+      });
+
+      if (response.success) {
+        // Reload choices from backend to get the updated list
+        await loadChoices();
+        setNewChoice('');
+        // Don't call onUpdate() here - adding a choice doesn't modify existing data
+      } else {
+        alert('Failed to add choice: ' + (response.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error adding choice:', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert('Failed to add choice: ' + errorMsg);
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -101,7 +122,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         new_value: editValue.trim()
       });
 
-      if (response.data.success) {
+      if (response.success) {
         // Update local state
         setChoices(choices.map(c =>
           c.value === oldValue
@@ -110,11 +131,9 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         ));
         handleCancelEdit();
 
-        if (onUpdate) {
-          onUpdate();
-        }
+        // Don't call onUpdate() here - renaming saves automatically, no need to close modal
 
-        alert(`Successfully renamed choice. ${response.data.affected_rows} row(s) updated.`);
+        alert(`Successfully renamed choice. ${response.affected_rows} row(s) updated.`);
       }
     } catch (error) {
       console.error('Error renaming choice:', error);
@@ -126,9 +145,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     if (choice.count === 0) {
       // No data to worry about, just remove from list
       setChoices(choices.filter(c => c.value !== choice.value));
-      if (onUpdate) {
-        onUpdate();
-      }
+      // Don't call onUpdate() here - deleting saves automatically, no need to close modal
       return;
     }
 
@@ -154,19 +171,17 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         params
       });
 
-      if (response.data.success) {
+      if (response.success) {
         // Update local state
         setChoices(choices.filter(c => c.value !== choice.value));
         setShowDeleteModal(null);
 
-        if (onUpdate) {
-          onUpdate();
-        }
+        // Don't call onUpdate() here - deleting saves automatically, no need to close modal
 
         const action = deleteAction === 'replace'
           ? `replaced with "${replacementValue}"`
           : 'cleared';
-        alert(`Successfully deleted choice. ${response.data.affected_rows} row(s) ${action}.`);
+        alert(`Successfully deleted choice. ${response.affected_rows} row(s) ${action}.`);
       }
     } catch (error) {
       console.error('Error deleting choice:', error);
@@ -204,22 +219,61 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         target_value: mergeTarget
       });
 
-      if (response.data.success) {
+      if (response.success) {
         // Reload choices to get updated counts
         await loadChoices();
         setSelectedChoices([]);
         setShowMergeModal(false);
 
-        if (onUpdate) {
-          onUpdate();
-        }
+        // Don't call onUpdate() here - merging saves automatically, no need to close modal
 
-        alert(`Successfully merged choices. ${response.data.affected_rows} row(s) updated.`);
+        alert(`Successfully merged choices. ${response.affected_rows} row(s) updated.`);
       }
     } catch (error) {
       console.error('Error merging choices:', error);
       alert('Failed to merge choices: ' + (error.response?.data?.error || error.message));
     }
+  };
+
+  // Drag and drop handlers (visual reordering only - doesn't affect data)
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e, dropIndex) => {
+    e.preventDefault();
+
+    if (draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    // Reorder choices array
+    const newChoices = [...choices];
+    const draggedItem = newChoices[draggedIndex];
+    newChoices.splice(draggedIndex, 1);
+    newChoices.splice(dropIndex, 0, draggedItem);
+
+    setChoices(newChoices);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   if (loading) {
@@ -235,6 +289,9 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Total records: {totalRecords} | Unique values: {choices.length}
         </p>
+        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+          💡 Drag choices to reorder (visual only - doesn't affect data)
+        </p>
       </div>
 
       {/* Add New Choice */}
@@ -243,18 +300,26 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
           type="text"
           value={newChoice}
           onChange={(e) => setNewChoice(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleAddChoice()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleAddChoice();
+            }
+          }}
           placeholder="Add new choice..."
+          disabled={adding}
           className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm
                    bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
-                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                   focus:outline-none focus:ring-2 focus:ring-blue-500
+                   disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
           onClick={handleAddChoice}
+          disabled={adding || !newChoice.trim()}
           className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600
-                   transition-colors font-medium"
+                   transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Add
+          {adding ? 'Adding...' : 'Add'}
         </button>
       </div>
 
@@ -278,18 +343,36 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
             No choices found. Add some choices or they will be auto-discovered from existing data.
           </div>
         ) : (
-          choices.map((choice) => (
+          choices.map((choice, index) => (
             <div
               key={choice.value}
-              className="flex items-center gap-3 p-3 bg-white dark:bg-gray-700 rounded-lg
-                       border border-gray-200 dark:border-gray-600 hover:border-blue-400
-                       dark:hover:border-blue-500 transition-colors"
+              draggable={true}
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragEnd={handleDragEnd}
+              className={`flex items-center gap-3 p-3 bg-white dark:bg-gray-700 rounded-lg
+                       border-2 transition-all cursor-move
+                       ${draggedIndex === index
+                         ? 'opacity-50 border-blue-400 dark:border-blue-500'
+                         : dragOverIndex === index
+                         ? 'border-green-400 dark:border-green-500 border-dashed'
+                         : 'border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500'
+                       }`}
             >
+              {/* Drag handle */}
+              <div className="text-gray-400 dark:text-gray-500 cursor-grab active:cursor-grabbing"
+                   title="Drag to reorder (visual only)">
+                ⋮⋮
+              </div>
+
               {/* Checkbox for merge selection */}
               <input
                 type="checkbox"
                 checked={selectedChoices.includes(choice.value)}
                 onChange={() => handleToggleSelect(choice.value)}
+                onClick={(e) => e.stopPropagation()}
                 className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
               />
 

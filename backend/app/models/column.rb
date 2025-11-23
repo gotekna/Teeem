@@ -2,6 +2,9 @@ class Column < ApplicationRecord
   belongs_to :table
   belongs_to :lookup_table, class_name: 'Table', optional: true, foreign_key: :lookup_table_id
 
+  # Serialize available_choices as JSON array
+  serialize :available_choices, coder: JSON, type: Array
+
   validates :name, presence: true
   validates :column_name, presence: true, uniqueness: { scope: :table_id }
   validates :column_type, presence: true, inclusion: {

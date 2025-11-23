@@ -287,13 +287,28 @@ module Api
         model = @table.dynamic_model
         column_name = column.column_name
 
-        # Get distinct values with counts
-        choices_data = model
+        # Get distinct values from actual data with counts
+        data_choices = model
           .group(column_name)
           .count
           .map { |value, count| { value: value.to_s, count: count } }
           .reject { |c| c[:value].blank? }
-          .sort_by { |c| c[:value].downcase }
+
+        # Get manually-added available choices (with 0 count if not used yet)
+        available_choices = column.available_choices || []
+        available_choice_values = available_choices.map(&:to_s)
+
+        # Merge: include all data choices + any available choices not yet used
+        all_choice_values = (data_choices.map { |c| c[:value] } + available_choice_values).uniq
+
+        # Build final choices list
+        choices_data = all_choice_values.map do |value|
+          existing = data_choices.find { |c| c[:value] == value }
+          {
+            value: value,
+            count: existing ? existing[:count] : 0
+          }
+        end.sort_by { |c| c[:value].downcase }
 
         total_records = model.count
 
@@ -304,6 +319,41 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error loading choices: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/add_choice
+      # Adds a new choice value (stored as metadata, no data modification)
+      def add_choice
+        column = find_column_by_id_or_name(params[:id])
+        new_value = params[:value]
+
+        if new_value.blank?
+          return render json: { error: 'value is required' }, status: :bad_request
+        end
+
+        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
+          return render json: { error: 'Not a choice column' }, status: :bad_request
+        end
+
+        # Initialize available_choices array if it doesn't exist
+        available_choices = column.available_choices || []
+
+        # Check if choice already exists
+        if available_choices.include?(new_value)
+          return render json: { error: 'Choice already exists' }, status: :bad_request
+        end
+
+        # Add the new choice
+        available_choices << new_value
+        column.update!(available_choices: available_choices)
+
+        render json: {
+          success: true,
+          choices: available_choices
+        }
+      rescue => e
+        Rails.logger.error "Error adding choice: #{e.message}"
         render json: { error: e.message }, status: :internal_server_error
       end
 

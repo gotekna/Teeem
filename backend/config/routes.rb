@@ -785,6 +785,7 @@ Rails.application.routes.draw do
             get :lookup_options
             get :lookup_search
             get :choices
+            post :add_choice
             post :rename_choice
             post :merge_choices
             delete :delete_choice
