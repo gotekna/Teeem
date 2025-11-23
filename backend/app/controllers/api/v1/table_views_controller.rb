@@ -1,7 +1,6 @@
 module Api
   module V1
     class TableViewsController < ApplicationController
-      before_action :authenticate_user!
       before_action :set_table_view, only: [:show, :update, :destroy]
 
       # GET /api/v1/table_views
