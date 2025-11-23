@@ -308,7 +308,18 @@ module Api
             value: value,
             count: existing ? existing[:count] : 0
           }
-        end.sort_by { |c| c[:value].downcase }
+        end
+
+        # Sort by saved order if it exists, otherwise alphabetically
+        choices_data = if column.choices_order.present?
+          # Sort by the saved order, putting unlisted items at the end alphabetically
+          choices_data.sort_by do |c|
+            index = column.choices_order.index(c[:value])
+            [index.nil? ? 1 : 0, index || 0, c[:value].downcase]
+          end
+        else
+          choices_data.sort_by { |c| c[:value].downcase }
+        end
 
         total_records = model.count
 
@@ -354,6 +365,32 @@ module Api
         }
       rescue => e
         Rails.logger.error "Error adding choice: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/reorder_choices
+      # Saves the display order for choice values (drag-and-drop persistence)
+      def reorder_choices
+        column = find_column_by_id_or_name(params[:id])
+        new_order = params[:order] || []
+
+        if new_order.empty?
+          return render json: { error: 'order array is required' }, status: :bad_request
+        end
+
+        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
+          return render json: { error: 'Not a choice column' }, status: :bad_request
+        end
+
+        # Save the order
+        column.update!(choices_order: new_order)
+
+        render json: {
+          success: true,
+          choices_order: new_order
+        }
+      rescue => e
+        Rails.logger.error "Error reordering choices: #{e.message}"
         render json: { error: e.message }, status: :internal_server_error
       end
 

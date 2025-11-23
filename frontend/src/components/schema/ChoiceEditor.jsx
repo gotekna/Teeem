@@ -10,7 +10,7 @@ import { api } from '../../api';
  * - Rename choices (updates all data)
  * - Delete choices (with replacement or clear option)
  * - Merge multiple choices into one
- * - Drag-and-drop reorder (visual only - doesn't affect data)
+ * - Drag-and-drop reorder with persistence (saves to database)
  */
 const ChoiceEditor = ({ tableId, column, onUpdate }) => {
   const [choices, setChoices] = useState([]);
@@ -28,6 +28,8 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
   const [mergeTarget, setMergeTarget] = useState('');
   const [draggedIndex, setDraggedIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [orderChanged, setOrderChanged] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
 
   useEffect(() => {
     loadChoices();
@@ -42,6 +44,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
       if (response?.success) {
         setChoices(response.choices || []);
         setTotalRecords(response.total_records || 0);
+        setOrderChanged(false); // Reset order changed flag when loading fresh data
       } else if (response?.error) {
         alert('Failed to load choices: ' + response.error);
       } else {
@@ -269,11 +272,37 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     setChoices(newChoices);
     setDraggedIndex(null);
     setDragOverIndex(null);
+    setOrderChanged(true); // Mark that order has changed
   };
 
   const handleDragEnd = () => {
     setDraggedIndex(null);
     setDragOverIndex(null);
+  };
+
+  const handleSaveOrder = async () => {
+    try {
+      setSavingOrder(true);
+
+      // Get the current order of choice values
+      const order = choices.map(c => c.value);
+
+      const response = await api.post(`/api/v1/tables/${tableId}/columns/${column.id}/reorder_choices`, {
+        order
+      });
+
+      if (response.success) {
+        setOrderChanged(false);
+        alert('Choice order saved successfully!');
+      } else {
+        alert('Failed to save order: ' + (response.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error saving choice order:', error);
+      alert('Failed to save order: ' + (error.response?.data?.error || error.message));
+    } finally {
+      setSavingOrder(false);
+    }
   };
 
   if (loading) {
@@ -289,9 +318,25 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Total records: {totalRecords} | Unique values: {choices.length}
         </p>
-        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-          💡 Drag choices to reorder (visual only - doesn't affect data)
-        </p>
+        {orderChanged ? (
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-orange-600 dark:text-orange-400">
+              ⚠️ Choice order changed - click Save Order to persist
+            </p>
+            <button
+              onClick={handleSaveOrder}
+              disabled={savingOrder}
+              className="px-3 py-1.5 bg-green-500 text-white rounded text-sm hover:bg-green-600
+                       transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingOrder ? 'Saving...' : 'Save Order'}
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+            💡 Drag choices to reorder the dropdown list
+          </p>
+        )}
       </div>
 
       {/* Add New Choice */}
