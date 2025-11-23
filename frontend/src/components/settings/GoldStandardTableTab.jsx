@@ -170,7 +170,7 @@ export default function GoldStandardTableTab() {
       console.log('Fetched items from API:', items.length)
       setData(items)
     } catch (err) {
-      console.error('Error fetching gold standard items:', err)
+      console.debug('Gold standard items unavailable:', err?.message || 'Unknown error')
       // Show empty table if API fails - no fallback to sample data
       setData([])
     } finally {
@@ -197,7 +197,7 @@ export default function GoldStandardTableTab() {
       })
       setColumnsWithIds(updatedColumns)
     } catch (err) {
-      console.error('Error fetching column IDs:', err)
+      console.debug('Column IDs unavailable:', err?.message || 'Unknown error')
       // Keep using static columns without IDs
     }
   }

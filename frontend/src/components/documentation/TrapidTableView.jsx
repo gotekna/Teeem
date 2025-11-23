@@ -248,10 +248,10 @@ export default function TrapidTableView({
           console.log('✅ Loaded users for dropdown:', usersData.length, 'users')
           setUsers(usersData)
         } else {
-          console.error('❌ Failed to fetch users, status:', response.status)
+          console.debug('Users unavailable, status:', response.status)
         }
       } catch (error) {
-        console.error('❌ Failed to fetch users:', error)
+        console.debug('Users unavailable:', error?.message || 'Unknown error')
       }
     }
     fetchUsers()

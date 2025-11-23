@@ -67,7 +67,7 @@ export default function CompanySettingsTab() {
       // Initialize timezone utilities with company settings
       setCompanySettings(loadedSettings)
     } catch (error) {
-      console.error('Failed to load company settings:', error)
+      console.debug('Company settings unavailable:', error?.message || 'Unknown error')
       setMessage({ type: 'error', text: 'Failed to load settings' })
     } finally {
       setLoading(false)
