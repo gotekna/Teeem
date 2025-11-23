@@ -50,7 +50,7 @@ export default function PriceBooksPage() {
   const [allSuppliers, setAllSuppliers] = useState([]) // Store all suppliers for filtering
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 1000,
+    limit: 200,
     total_count: 0,
     total_pages: 0
   })
@@ -87,10 +87,10 @@ export default function PriceBooksPage() {
   // Column configuration with defaults
   const defaultColumnConfig = {
     checkbox: { visible: true, width: 50, label: 'Select', resizable: false, order: 0 },
-    image: { visible: true, width: 60, label: 'Image', resizable: false, order: 1 },
+    image: { visible: false, width: 60, label: 'Image', resizable: false, order: 1 },
     itemCode: { visible: true, width: 200, label: 'Code', resizable: true, order: 2 },
     itemName: { visible: true, width: 250, label: 'Item Name', resizable: true, order: 3 },
-    status: { visible: true, width: 150, label: 'Status', resizable: true, order: 4 },
+    status: { visible: false, width: 150, label: 'Status', resizable: true, order: 4 },
     category: { visible: true, width: 200, label: 'Category', resizable: true, order: 5 },
     price: { visible: true, width: 150, label: 'Price', resizable: true, order: 6 },
     gstCode: { visible: true, width: 120, label: 'GST Code', resizable: true, order: 7 },
@@ -269,9 +269,14 @@ export default function PriceBooksPage() {
       }
 
       // Build query params
+      // Check if Status column is visible - if so, we need risk data
+      // Default to true if columnConfig not fully loaded yet
+      const needsRiskData = columnConfig?.status?.visible !== false
+
       const params = {
         page,
-        limit: 1000,
+        limit: 200,
+        include_risk: needsRiskData ? 'true' : 'false', // Only load risk data if Status column visible
         sort_by: sortBy,
         sort_direction: sortDirection,
       }
@@ -917,6 +922,12 @@ export default function PriceBooksPage() {
     }
     setColumnConfig(newConfig)
     localStorage.setItem('pricebookColumnConfig', JSON.stringify(newConfig))
+
+    // If showing Status column and we don't have risk data, reload with risk data
+    if (columnKey === 'status' && visible && items.length > 0 && !items[0].risk) {
+      console.log('Status column enabled - reloading with risk data...')
+      loadPriceBook(1)
+    }
   }
 
   const handleColumnWidthChange = (columnKey, width) => {

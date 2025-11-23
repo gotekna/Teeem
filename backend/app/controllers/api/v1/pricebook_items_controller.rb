@@ -5,7 +5,16 @@ module Api
 
       # GET /api/v1/pricebook
       def index
-        @items = PricebookItem.includes(:supplier, :default_supplier, :price_histories).active
+        # Optimize includes based on fields parameter
+        # Support: 'minimal', 'full', or comma-separated field names
+        # Also support ?include_risk=false to skip expensive risk calculations
+        include_risk_data = params[:include_risk] != 'false' && params[:fields] != 'minimal'
+
+        if include_risk_data
+          @items = PricebookItem.includes(:supplier, :default_supplier, :price_histories).active
+        else
+          @items = PricebookItem.includes(:supplier, :default_supplier).active
+        end
 
         # Filter by specific IDs if provided (for viewing selected items)
         if params[:ids].present?
@@ -126,7 +135,9 @@ module Api
         end
 
         render json: {
-          items: paginated_items.map { |item| item_with_risk_data(item) },
+          items: paginated_items.map { |item|
+            include_risk_data ? item_with_risk_data(item) : item_minimal_json(item)
+          },
           pagination: {
             page: page,
             limit: limit,
@@ -738,6 +749,29 @@ module Api
           :is_active,
           :needs_pricing_review
         )
+      end
+
+      # Minimal JSON for fast loading - skips expensive risk calculations
+      def item_minimal_json(item)
+        item_json = item.as_json(
+          only: [:id, :item_code, :item_name, :category, :current_price, :unit_of_measure,
+                 :brand, :notes, :gst_code, :is_active, :needs_pricing_review,
+                 :created_at, :updated_at, :image_url],
+          include: {
+            supplier: { only: [:id, :full_name] },
+            default_supplier: { only: [:id, :full_name] }
+          }
+        )
+
+        # Map full_name to name for backwards compatibility
+        if item_json['supplier']
+          item_json['supplier']['name'] = item_json['supplier']['full_name']
+        end
+        if item_json['default_supplier']
+          item_json['default_supplier']['name'] = item_json['default_supplier']['full_name']
+        end
+
+        item_json
       end
 
       def item_with_risk_data(item)

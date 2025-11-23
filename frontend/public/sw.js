@@ -1,6 +1,6 @@
 // Service Worker for Trapid Field - Offline Support
-// Last updated: 2025-11-23 20:13 - Console error cleanup
-const CACHE_VERSION = 'trapid-field-v5'
+// Last updated: 2025-11-23 - Clear cached column choices API errors
+const CACHE_VERSION = 'trapid-field-v8'
 const STATIC_CACHE = `${CACHE_VERSION}-static`
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`
 const API_CACHE = `${CACHE_VERSION}-api`
@@ -85,6 +85,12 @@ self.addEventListener('fetch', (event) => {
   // API requests - network first, cache fallback
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(networkFirstStrategy(request, API_CACHE))
+    return
+  }
+
+  // NEVER cache Vite dev source files (jsx, tsx, ts) - let Vite handle them
+  if (url.pathname.match(/\.(jsx|tsx|ts)$/) || url.pathname.includes('/src/pages/') || url.pathname.includes('/src/components/')) {
+    // Don't intercept - let request go through naturally to Vite dev server
     return
   }
 
