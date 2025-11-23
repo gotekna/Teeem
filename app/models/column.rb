@@ -5,6 +5,9 @@ class Column < ApplicationRecord
   # Serialize available_choices as JSON array
   serialize :available_choices, coder: JSON, type: Array
 
+  # Serialize choices_order as JSON array
+  serialize :choices_order, coder: JSON, type: Array
+
   validates :name, presence: true
   validates :column_name, presence: true, uniqueness: { scope: :table_id }
   validates :column_type, presence: true, inclusion: {
