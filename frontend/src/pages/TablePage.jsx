@@ -92,7 +92,7 @@ export default function TablePage({ embedded = false }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
-  const PAGE_SIZE = 500
+  const PAGE_SIZE = 100 // Reduced from 500 for better performance with large tables
 
   // Load table metadata
   useEffect(() => {
@@ -143,8 +143,16 @@ export default function TablePage({ embedded = false }) {
   // CRUD handlers for TrapidTableView
   const handleEdit = async (entry) => {
     try {
+      // Filter out UI-only columns (select, actions, etc.) before sending to backend
+      const { select, actions, ...recordData } = entry
+
+      // Also filter out any empty string values that were added by the UI
+      const cleanedData = Object.fromEntries(
+        Object.entries(recordData).filter(([_, v]) => v !== '')
+      )
+
       const response = await api.put(`/api/v1/tables/${id}/records/${entry.id}`, {
-        record: entry
+        record: cleanedData
       })
       if (response.success) {
         await loadRecords()

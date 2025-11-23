@@ -121,7 +121,8 @@ export default function TrapidTableView({
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Use custom columns if provided, otherwise use default Trinity columns
-  const COLUMNS = columns || DEFAULT_TRINITY_COLUMNS
+  // Memoize to prevent recreating on every render (performance optimization)
+  const COLUMNS = useMemo(() => columns || DEFAULT_TRINITY_COLUMNS, [columns])
 
   const DEFAULT_COLUMN_WIDTHS = COLUMNS.reduce((acc, col) => {
     acc[col.key] = col.width
@@ -777,9 +778,15 @@ export default function TrapidTableView({
       }
     })
 
-    setColumnOrder(orderedKeys)
-    console.log('[Visibility→Table] Synced column order:', orderedKeys)
-  }, [visibilityColumnOrder, COLUMNS])
+    // Only update if order has actually changed (prevent render loops)
+    setColumnOrder(prev => {
+      const changed = JSON.stringify(prev) !== JSON.stringify(orderedKeys)
+      if (changed) {
+        console.log('[Visibility→Table] Synced column order:', orderedKeys)
+      }
+      return changed ? orderedKeys : prev
+    })
+  }, [visibilityColumnOrder, tableId, COLUMNS])
 
   // Save cascade filters to localStorage whenever they change (per table)
   useEffect(() => {
