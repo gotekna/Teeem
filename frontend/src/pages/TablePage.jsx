@@ -87,21 +87,24 @@ export default function TablePage({ embedded = false }) {
   const [table, setTable] = useState(null)
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [trapidColumns, setTrapidColumns] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const PAGE_SIZE = 500
 
   // Load table metadata
   useEffect(() => {
     loadTable()
-  }, [id])
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load records after table is loaded
   useEffect(() => {
     if (table) {
       loadRecords()
     }
-  }, [table])
+  }, [table, id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Convert columns when table data changes
   useEffect(() => {
@@ -121,48 +124,19 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
-  const loadRecords = async () => {
+  const loadRecords = async (page = 1) => {
     try {
       setLoading(true)
-      // Load first page quickly (200 records)
-      const firstPage = await api.get(`/api/v1/tables/${id}/records?per_page=200&page=1`)
-      setRecords(firstPage.records || [])
+      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${PAGE_SIZE}&page=${page}`)
+      setRecords(response.records || [])
+      setCurrentPage(page)
+      setTotalPages(response.pagination?.total_pages || 1)
+      setTotalCount(response.pagination?.total_count || 0)
       setLoading(false)
-
-      // Check if there are more pages to load
-      const totalCount = firstPage.pagination?.total_count || 0
-      const totalPages = firstPage.pagination?.total_pages || 1
-
-      if (totalPages > 1) {
-        setLoadingMore(true)
-        // Load remaining pages in background
-        const remainingPages = []
-        for (let page = 2; page <= totalPages; page++) {
-          remainingPages.push(
-            api.get(`/api/v1/tables/${id}/records?per_page=200&page=${page}`)
-          )
-        }
-
-        // Load pages in parallel batches of 5
-        const batchSize = 5
-        let allRecords = [...(firstPage.records || [])]
-
-        for (let i = 0; i < remainingPages.length; i += batchSize) {
-          const batch = remainingPages.slice(i, i + batchSize)
-          const results = await Promise.all(batch)
-          results.forEach(result => {
-            allRecords = [...allRecords, ...(result.records || [])]
-          })
-          // Update records progressively
-          setRecords([...allRecords])
-        }
-        setLoadingMore(false)
-      }
     } catch (err) {
       setError('Failed to load records')
       console.error(err)
       setLoading(false)
-      setLoadingMore(false)
     }
   }
 
@@ -305,7 +279,6 @@ export default function TablePage({ embedded = false }) {
             tableName={table.name}
             entries={records}
             columns={trapidColumns}
-            loadingMore={loadingMore}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
@@ -352,6 +325,34 @@ export default function TablePage({ embedded = false }) {
           />
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {((currentPage - 1) * PAGE_SIZE) + 1} - {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount.toLocaleString()} records
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => loadRecords(currentPage - 1)}
+              disabled={currentPage === 1 || loading}
+              className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => loadRecords(currentPage + 1)}
+              disabled={currentPage === totalPages || loading}
+              className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

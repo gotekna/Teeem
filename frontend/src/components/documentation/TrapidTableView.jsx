@@ -234,6 +234,9 @@ export default function TrapidTableView({
   // Users list for user column dropdown
   const [users, setUsers] = useState([])
 
+  // Column choices for choice/dropdown columns - keyed by column ID
+  const [columnChoices, setColumnChoices] = useState({})
+
   // Fetch users from API
   useEffect(() => {
     const fetchUsers = async () => {
@@ -252,6 +255,39 @@ export default function TrapidTableView({
     }
     fetchUsers()
   }, [])
+
+  // Fetch choices for all choice columns
+  useEffect(() => {
+    const fetchColumnChoices = async () => {
+      if (!tableIdNumeric) return
+
+      // Find all choice columns
+      const choiceColumns = columns.filter(col =>
+        col.column_type === 'choice' || col.column_type === 'single_select' || col.column_type === 'dropdown'
+      )
+
+      for (const column of choiceColumns) {
+        if (!column.id) continue
+
+        try {
+          const response = await fetch(`/api/v1/tables/${tableIdNumeric}/columns/${column.id}/choices`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.success && data.choices) {
+              setColumnChoices(prev => ({
+                ...prev,
+                [column.id]: data.choices.map(c => c.value)
+              }))
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Failed to fetch choices for column ${column.id}:`, error)
+        }
+      }
+    }
+
+    fetchColumnChoices()
+  }, [tableIdNumeric, columns])
 
   // Get current user for audit trail
   const getCurrentUser = () => {
@@ -334,10 +370,37 @@ export default function TrapidTableView({
     return () => clearTimeout(timer)
   }, [columnFilterInputs])
 
-  // Cascade filters - Excel-style dropdown filters that can be applied in any order
-  const [cascadeFilters, setCascadeFilters] = useState([]) // Array of {id, column, value, label, groupId}
-  const [filterGroups, setFilterGroups] = useState([{ id: 'default', logic: 'AND' }]) // Array of {id, logic: 'AND'|'OR'}
-  const [interGroupLogic, setInterGroupLogic] = useState('OR') // Logic between groups: 'AND' or 'OR'
+  // Cascade filters - Excel-style dropdown filters that can be applied in any order (per table)
+  const [cascadeFilters, setCascadeFilters] = useState(() => {
+    try {
+      const key = `trapid-cascade-filters-${tableId}`
+      const stored = localStorage.getItem(key)
+      return stored ? JSON.parse(stored) : []
+    } catch (error) {
+      console.error('Error loading cascade filters:', error)
+      return []
+    }
+  })
+  const [filterGroups, setFilterGroups] = useState(() => {
+    try {
+      const key = `trapid-filter-groups-${tableId}`
+      const stored = localStorage.getItem(key)
+      return stored ? JSON.parse(stored) : [{ id: 'default', logic: 'AND' }]
+    } catch (error) {
+      console.error('Error loading filter groups:', error)
+      return [{ id: 'default', logic: 'AND' }]
+    }
+  })
+  const [interGroupLogic, setInterGroupLogic] = useState(() => {
+    try {
+      const key = `trapid-inter-group-logic-${tableId}`
+      const stored = localStorage.getItem(key)
+      return stored ? JSON.parse(stored) : 'OR'
+    } catch (error) {
+      console.error('Error loading inter-group logic:', error)
+      return 'OR'
+    }
+  })
   const [showCascadeDropdown, setShowCascadeDropdown] = useState(false)
 
   // Saved custom filters - load from localStorage on mount (per table)
@@ -690,6 +753,60 @@ export default function TrapidTableView({
       }
     }
   }, [visibilityColumnOrder, tableId])
+
+  // Sync visibility column order to table column order (dropdown controls table)
+  useEffect(() => {
+    // Build the full order: system columns (select, actions) + visibility order + any missing columns
+    const systemCols = ['select', 'actions']
+    const allColumnKeys = COLUMNS.map(c => c.key)
+    const orderedKeys = [...systemCols.filter(k => allColumnKeys.includes(k))]
+
+    if (visibilityColumnOrder && visibilityColumnOrder.length > 0) {
+      // Add columns from visibility order
+      visibilityColumnOrder.forEach(key => {
+        if (!orderedKeys.includes(key) && allColumnKeys.includes(key)) {
+          orderedKeys.push(key)
+        }
+      })
+    }
+
+    // Add any remaining columns not in visibility order
+    allColumnKeys.forEach(key => {
+      if (!orderedKeys.includes(key)) {
+        orderedKeys.push(key)
+      }
+    })
+
+    setColumnOrder(orderedKeys)
+    console.log('[Visibility→Table] Synced column order:', orderedKeys)
+  }, [visibilityColumnOrder, COLUMNS])
+
+  // Save cascade filters to localStorage whenever they change (per table)
+  useEffect(() => {
+    try {
+      localStorage.setItem(`trapid-cascade-filters-${tableId}`, JSON.stringify(cascadeFilters))
+    } catch (error) {
+      console.error('Error saving cascade filters to localStorage:', error)
+    }
+  }, [cascadeFilters, tableId])
+
+  // Save filter groups to localStorage whenever they change (per table)
+  useEffect(() => {
+    try {
+      localStorage.setItem(`trapid-filter-groups-${tableId}`, JSON.stringify(filterGroups))
+    } catch (error) {
+      console.error('Error saving filter groups to localStorage:', error)
+    }
+  }, [filterGroups, tableId])
+
+  // Save inter-group logic to localStorage whenever it changes (per table)
+  useEffect(() => {
+    try {
+      localStorage.setItem(`trapid-inter-group-logic-${tableId}`, JSON.stringify(interGroupLogic))
+    } catch (error) {
+      console.error('Error saving inter-group logic to localStorage:', error)
+    }
+  }, [interGroupLogic, tableId])
 
   // Save cascade popup size to localStorage
   useEffect(() => {
@@ -1160,8 +1277,21 @@ export default function TrapidTableView({
             result = result.filter(e => {
               const entryValue = e[key]
               if (entryValue === null || entryValue === undefined) return false
+
+              // Check if this is a choice column (exact match required)
+              const column = COLUMNS.find(c => c.key === key)
+              const isChoiceColumn = column?.column_type === 'choice' ||
+                                     column?.column_type === 'single_select' ||
+                                     column?.column_type === 'dropdown'
+
               if (typeof entryValue === 'string') {
-                return entryValue.toLowerCase().includes(value.toLowerCase())
+                // Choice columns: exact match (case-insensitive)
+                // Other columns: substring match (contains)
+                if (isChoiceColumn) {
+                  return entryValue.toLowerCase() === value.toLowerCase()
+                } else {
+                  return entryValue.toLowerCase().includes(value.toLowerCase())
+                }
               }
               return entryValue === value
             })
@@ -1521,8 +1651,19 @@ export default function TrapidTableView({
 
   // Get unique values for any column - generic helper
   const getUniqueValuesForColumn = (columnKey) => {
-    const values = [...new Set(entries.map(e => e[columnKey] || e.entry_type).filter(Boolean))]
-    return values.sort()
+    // Get values from data
+    const dataValues = [...new Set(entries.map(e => e[columnKey] || e.entry_type).filter(Boolean))]
+
+    // For choice columns, also include available choices (even if not used in data)
+    const columnDef = columns.find(c => c.key === columnKey)
+    if (columnDef?.column_type === 'choice' && columnDef?.id) {
+      const availableChoices = columnChoices[columnDef.id] || []
+      // Merge data values with available choices
+      const allValues = [...new Set([...dataValues, ...availableChoices])]
+      return allValues.sort()
+    }
+
+    return dataValues.sort()
   }
 
   const getColumnLabel = (key) => {
@@ -2751,6 +2892,10 @@ export default function TrapidTableView({
       case 'choice':
         // Choice/dropdown column with predefined options
         if (editingRowId === entry.id) {
+          // Get available choices for this column
+          const columnDef = columns.find(c => c.key === columnKey)
+          const availableChoices = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+
           return (
             <select
               value={editingData[columnKey] || ''}
@@ -2762,10 +2907,18 @@ export default function TrapidTableView({
               className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select...</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="pending">Pending</option>
-              <option value="archived">Archived</option>
+              {availableChoices.length > 0 ? (
+                availableChoices.map(choice => (
+                  <option key={choice} value={choice}>{choice}</option>
+                ))
+              ) : (
+                <>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="pending">Pending</option>
+                  <option value="archived">Archived</option>
+                </>
+              )}
             </select>
           )
         }
@@ -2999,7 +3152,30 @@ export default function TrapidTableView({
         }
 
         if (columnType === 'choice') {
-          // Render choice as badge
+          // Edit mode - show dropdown with available choices
+          if (editingRowId === entry.id) {
+            const columnDef = columns.find(c => c.key === columnKey)
+            const availableChoices = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+
+            return (
+              <select
+                value={editingData[columnKey] || ''}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setEditingData({ ...editingData, [columnKey]: value })
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select...</option>
+                {availableChoices.map(choice => (
+                  <option key={choice} value={choice}>{choice}</option>
+                ))}
+              </select>
+            )
+          }
+
+          // Display mode - render choice as badge
           if (entry[columnKey]) {
             return (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
@@ -3155,6 +3331,10 @@ export default function TrapidTableView({
     <>
       <style>{`
         /* Trapid table scrollbar styling - blue theme for both scrollbars */
+        .trapid-table-scroll {
+          scrollbar-width: auto;
+          scrollbar-color: #2563EB #E0E7FF;
+        }
         .trapid-table-scroll::-webkit-scrollbar {
           width: 12px;
           height: 12px;
@@ -3170,6 +3350,9 @@ export default function TrapidTableView({
         }
         .trapid-table-scroll::-webkit-scrollbar-thumb:hover {
           background: #1D4ED8;
+        }
+        .dark .trapid-table-scroll {
+          scrollbar-color: #1E40AF #1E293B;
         }
         .dark .trapid-table-scroll::-webkit-scrollbar-track {
           background: #1E293B;
@@ -4929,7 +5112,7 @@ export default function TrapidTableView({
                                           id: Date.now() + Math.random(),
                                           groupId: group.id,
                                           column: '',
-                                          operator: 'contains',
+                                          operator: '=', // Start with exact match, will be kept for choice columns
                                           value: '',
                                           label: ''
                                         }
@@ -4971,10 +5154,19 @@ export default function TrapidTableView({
                                             value={filter.column}
                                             onChange={(e) => {
                                               const newColumn = e.target.value
-                                              const columnLabel = COLUMNS.find(col => col.key === newColumn)?.label || newColumn
+                                              const columnDef = COLUMNS.find(col => col.key === newColumn)
+                                              const columnLabel = columnDef?.label || newColumn
+                                              const columnType = columnDef?.column_type
+
+                                              // For choice columns, always use exact match (=)
+                                              // For other columns, keep existing operator or default to 'contains'
+                                              const newOperator = (columnType === 'choice' || columnType === 'single_select' || columnType === 'dropdown')
+                                                ? '='
+                                                : (filter.operator || 'contains')
+
                                               setCascadeFilters(cascadeFilters.map(f =>
                                                 f.id === filter.id
-                                                  ? { ...f, column: newColumn, label: filter.value ? `${columnLabel}: ${filter.value}` : '' }
+                                                  ? { ...f, column: newColumn, operator: newOperator, label: filter.value ? `${columnLabel}: ${filter.value}` : '' }
                                                   : f
                                               ))
                                             }}
@@ -5328,15 +5520,7 @@ export default function TrapidTableView({
                         })().map((column) => (
                           <div
                             key={column.key}
-                            draggable
-                            onDragStart={(e) => {
-                              setDraggedVisibilityColumn(column.key)
-                              e.dataTransfer.effectAllowed = 'move'
-                            }}
-                            onDragEnd={() => {
-                              setDraggedVisibilityColumn(null)
-                              setDragOverVisibilityColumn(null)
-                            }}
+                            draggable="false"
                             onDragOver={(e) => {
                               e.preventDefault()
                               if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
@@ -5346,39 +5530,54 @@ export default function TrapidTableView({
                             onDragLeave={() => setDragOverVisibilityColumn(null)}
                             onDrop={(e) => {
                               e.preventDefault()
+                              e.stopPropagation()
+                              console.log('[Drag] Drop event:', { draggedVisibilityColumn, targetColumn: column.key })
                               if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
                                 const filteredCols = COLUMNS.filter(col => col.key !== 'select')
-                                const currentOrder = visibilityColumnOrder
-                                  ? [...visibilityColumnOrder]
-                                  : filteredCols.sort((a, b) => a.label.localeCompare(b.label)).map(c => c.key)
+                                // Build the ACTUAL current order being displayed (must match render logic)
+                                const orderedCols = visibilityColumnOrder
+                                  ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
+                                  : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
+                                const orderedKeys = new Set(orderedCols.map(c => c.key))
+                                const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
+                                const fullOrderedCols = [...orderedCols, ...newCols]
+                                const currentOrder = fullOrderedCols.map(c => c.key)
+
                                 const draggedIndex = currentOrder.indexOf(draggedVisibilityColumn)
                                 const targetIndex = currentOrder.indexOf(column.key)
+                                console.log('[Drag] Reordering:', { draggedIndex, targetIndex, currentOrder: currentOrder.length, order: currentOrder })
                                 if (draggedIndex !== -1 && targetIndex !== -1) {
                                   currentOrder.splice(draggedIndex, 1)
                                   currentOrder.splice(targetIndex, 0, draggedVisibilityColumn)
                                   setVisibilityColumnOrder(currentOrder)
+                                  console.log('[Drag] ✓ Order updated to:', currentOrder)
                                 }
                               }
-                              setDraggedVisibilityColumn(null)
-                              setDragOverVisibilityColumn(null)
                             }}
-                            className={`flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded cursor-pointer select-none transition-colors ${
+                            className={`flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded select-none transition-colors ${
                               visibleColumns[column.key] !== false
                                 ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 border border-green-300 dark:border-green-700'
                                 : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600'
                             } ${draggedVisibilityColumn === column.key ? 'opacity-50' : ''} ${dragOverVisibilityColumn === column.key ? 'border-t-2 border-blue-500' : ''}`}
-                            onClick={() => {
-                              // Toggle visibility on row click
-                              setVisibleColumns({
-                                ...visibleColumns,
-                                [column.key]: visibleColumns[column.key] === false ? true : false
-                              })
-                            }}
                           >
                             {/* Drag handle */}
                             <span
-                              className="text-gray-400 cursor-grab text-sm"
+                              draggable="true"
+                              onDragStart={(e) => {
+                                e.stopPropagation()
+                                setDraggedVisibilityColumn(column.key)
+                                e.dataTransfer.effectAllowed = 'move'
+                              }}
+                              onDragEnd={(e) => {
+                                // Use setTimeout to allow onDrop to fire first
+                                setTimeout(() => {
+                                  setDraggedVisibilityColumn(null)
+                                  setDragOverVisibilityColumn(null)
+                                }, 0)
+                              }}
+                              className="text-gray-400 cursor-grab active:cursor-grabbing text-sm hover:text-gray-600 dark:hover:text-gray-300"
                               onClick={(e) => e.stopPropagation()}
+                              title="Drag to reorder columns"
                             >⠿</span>
                             {/* Visible checkbox (blue) - larger */}
                             <input
@@ -5456,7 +5655,7 @@ export default function TrapidTableView({
           {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
           <div
             ref={scrollContainerRef}
-            className="trapid-table-scroll h-full overflow-y-auto overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
+            className="trapid-table-scroll h-full overflow-y-scroll overflow-x-scroll border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
           >
           <table className="border-collapse" style={{ tableLayout: 'fixed', minWidth: 'max-content' }}>
             <thead className="sticky top-0 z-10 backdrop-blur-sm">
