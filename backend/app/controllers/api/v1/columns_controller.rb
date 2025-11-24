@@ -10,17 +10,24 @@ module Api
         column.position = @table.columns.maximum(:position).to_i + 1
 
         if column.save
-          # Rebuild the database table with the new column
-          # Reload table with columns association
-          table_reloaded = Table.includes(:columns).find(@table.id)
-          builder = TableBuilder.new(table_reloaded)
-          result = builder.create_database_table
+          # Use add_column for existing tables (preserves data)
+          # Use create_database_table only for new tables
+          builder = TableBuilder.new(@table)
+
+          # Check if table exists in database
+          table_exists = ActiveRecord::Base.connection.table_exists?(@table.database_table_name)
+
+          result = if table_exists
+            # Add just the new column to existing table
+            builder.add_column(column)
+          else
+            # Create the entire table (for new tables only)
+            builder.create_database_table
+          end
 
           if result[:success]
-            # Reload the dynamic model to pick up new columns
-            table_reloaded.reload_dynamic_model
             # Reset the connection's schema cache for this table
-            ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(table_reloaded.database_table_name)
+            ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(@table.database_table_name)
 
             render json: {
               success: true,
