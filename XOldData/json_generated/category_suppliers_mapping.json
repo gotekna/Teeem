@@ -1,0 +1,1613 @@
+[
+  {
+    "category_name": "TURN KEY",
+    "total_items": 1464,
+    "total_suppliers": 1,
+    "top_supplier": "Lovering Installations QLD",
+    "top_supplier_count": 1464,
+    "suppliers": [
+      {
+        "supplier": "Lovering Installations QLD",
+        "item_count": 1464,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "PLUMBING FITOFF GEAR",
+    "total_items": 348,
+    "total_suppliers": 3,
+    "top_supplier": "Harvey Norman Commercial QLD",
+    "top_supplier_count": 320,
+    "suppliers": [
+      {
+        "supplier": "Harvey Norman Commercial QLD",
+        "item_count": 320,
+        "percentage": 92.0
+      },
+      {
+        "supplier": "Hafele",
+        "item_count": 27,
+        "percentage": 7.8
+      },
+      {
+        "supplier": "Aspect Joinery Pty Ltd",
+        "item_count": 1,
+        "percentage": 0.3
+      }
+    ]
+  },
+  {
+    "category_name": "INTERNAL DOORS",
+    "total_items": 214,
+    "total_suppliers": 1,
+    "top_supplier": "Pre Hung Doors (PHD)",
+    "top_supplier_count": 214,
+    "suppliers": [
+      {
+        "supplier": "Pre Hung Doors (PHD)",
+        "item_count": 214,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "STEEL MESH",
+    "total_items": 163,
+    "total_suppliers": 1,
+    "top_supplier": "Ausreo Pty Ltd",
+    "top_supplier_count": 163,
+    "suppliers": [
+      {
+        "supplier": "Ausreo Pty Ltd",
+        "item_count": 163,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "ENTRY DOORS",
+    "total_items": 152,
+    "total_suppliers": 1,
+    "top_supplier": "Pre Hung Doors (PHD)",
+    "top_supplier_count": 152,
+    "suppliers": [
+      {
+        "supplier": "Pre Hung Doors (PHD)",
+        "item_count": 152,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "PRIVATE CERTIFIER",
+    "total_items": 150,
+    "total_suppliers": 3,
+    "top_supplier": "Fluid Building Approvals",
+    "top_supplier_count": 139,
+    "suppliers": [
+      {
+        "supplier": "Fluid Building Approvals",
+        "item_count": 139,
+        "percentage": 92.7
+      },
+      {
+        "supplier": "GMA Certification Group",
+        "item_count": 10,
+        "percentage": 6.7
+      },
+      {
+        "supplier": "Accelerate Sustainability Assessments",
+        "item_count": 1,
+        "percentage": 0.7
+      }
+    ]
+  },
+  {
+    "category_name": "DOOR FURNITURE",
+    "total_items": 141,
+    "total_suppliers": 3,
+    "top_supplier": "Pre Hung Doors (PHD)",
+    "top_supplier_count": 124,
+    "suppliers": [
+      {
+        "supplier": "Pre Hung Doors (PHD)",
+        "item_count": 124,
+        "percentage": 87.9
+      },
+      {
+        "supplier": "Keeler Hardware",
+        "item_count": 10,
+        "percentage": 7.1
+      },
+      {
+        "supplier": "Queensland Gate Automation",
+        "item_count": 7,
+        "percentage": 5.0
+      }
+    ]
+  },
+  {
+    "category_name": "TIMBER FRAME",
+    "total_items": 124,
+    "total_suppliers": 2,
+    "top_supplier": "TIMBER FRAME",
+    "top_supplier_count": 122,
+    "suppliers": [
+      {
+        "supplier": "TIMBER FRAME",
+        "item_count": 122,
+        "percentage": 98.4
+      },
+      {
+        "supplier": "Bunnings",
+        "item_count": 2,
+        "percentage": 1.6
+      }
+    ]
+  },
+  {
+    "category_name": "EXTERNAL CLADDING",
+    "total_items": 124,
+    "total_suppliers": 2,
+    "top_supplier": "Bunnings",
+    "top_supplier_count": 122,
+    "suppliers": [
+      {
+        "supplier": "Bunnings",
+        "item_count": 122,
+        "percentage": 98.4
+      },
+      {
+        "supplier": "EXTERNAL CLADDING",
+        "item_count": 2,
+        "percentage": 1.6
+      }
+    ]
+  },
+  {
+    "category_name": "TILE",
+    "total_items": 112,
+    "total_suppliers": 2,
+    "top_supplier": "NATIONAL TILES CO PTY LTD",
+    "top_supplier_count": 105,
+    "suppliers": [
+      {
+        "supplier": "NATIONAL TILES CO PTY LTD",
+        "item_count": 105,
+        "percentage": 93.8
+      },
+      {
+        "supplier": "TILE",
+        "item_count": 7,
+        "percentage": 6.3
+      }
+    ]
+  },
+  {
+    "category_name": "QUICK SPEC",
+    "total_items": 111,
+    "total_suppliers": 1,
+    "top_supplier": "QUICK SPEC",
+    "top_supplier_count": 111,
+    "suppliers": [
+      {
+        "supplier": "QUICK SPEC",
+        "item_count": 111,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "BRICKS",
+    "total_items": 98,
+    "total_suppliers": 1,
+    "top_supplier": "Austral - Rochedale",
+    "top_supplier_count": 98,
+    "suppliers": [
+      {
+        "supplier": "Austral - Rochedale",
+        "item_count": 98,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "WET SEAL",
+    "total_items": 88,
+    "total_suppliers": 4,
+    "top_supplier": "Wayke Waterproofing. Ware",
+    "top_supplier_count": 84,
+    "suppliers": [
+      {
+        "supplier": "Wayke Waterproofing. Ware",
+        "item_count": 84,
+        "percentage": 95.5
+      },
+      {
+        "supplier": "A1 Builders Finals Services Group",
+        "item_count": 2,
+        "percentage": 2.3
+      },
+      {
+        "supplier": "Gold Coast Gappng",
+        "item_count": 1,
+        "percentage": 1.1
+      },
+      {
+        "supplier": "TWS TRADE",
+        "item_count": 1,
+        "percentage": 1.1
+      }
+    ]
+  },
+  {
+    "category_name": "PLUMBER",
+    "total_items": 84,
+    "total_suppliers": 2,
+    "top_supplier": "PLUMBER",
+    "top_supplier_count": 69,
+    "suppliers": [
+      {
+        "supplier": "PLUMBER",
+        "item_count": 69,
+        "percentage": 82.1
+      },
+      {
+        "supplier": "Spot On Plumbing and Drainage",
+        "item_count": 15,
+        "percentage": 17.9
+      }
+    ]
+  },
+  {
+    "category_name": "GARAGE DOORS",
+    "total_items": 84,
+    "total_suppliers": 1,
+    "top_supplier": "Sunstate Garage Doors (Travis Voigt TA)",
+    "top_supplier_count": 84,
+    "suppliers": [
+      {
+        "supplier": "Sunstate Garage Doors (Travis Voigt TA)",
+        "item_count": 84,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "APPLIANCES",
+    "total_items": 73,
+    "total_suppliers": 4,
+    "top_supplier": "Harvey Norman Commercial QLD",
+    "top_supplier_count": 33,
+    "suppliers": [
+      {
+        "supplier": "Harvey Norman Commercial QLD",
+        "item_count": 33,
+        "percentage": 45.2
+      },
+      {
+        "supplier": "APPLIANCES",
+        "item_count": 30,
+        "percentage": 41.1
+      },
+      {
+        "supplier": "Hafele",
+        "item_count": 9,
+        "percentage": 12.3
+      },
+      {
+        "supplier": "Bunnings",
+        "item_count": 1,
+        "percentage": 1.4
+      }
+    ]
+  },
+  {
+    "category_name": "CABINET MAKER",
+    "total_items": 72,
+    "total_suppliers": 5,
+    "top_supplier": "Aspect Joinery Pty Ltd",
+    "top_supplier_count": 38,
+    "suppliers": [
+      {
+        "supplier": "Aspect Joinery Pty Ltd",
+        "item_count": 38,
+        "percentage": 52.8
+      },
+      {
+        "supplier": "Tekna Kitchen Material",
+        "item_count": 14,
+        "percentage": 19.4
+      },
+      {
+        "supplier": "La Rocca QLD Marble and Granite Pty Ltd",
+        "item_count": 14,
+        "percentage": 19.4
+      },
+      {
+        "supplier": "Tekna Kitchen Labour",
+        "item_count": 5,
+        "percentage": 6.9
+      },
+      {
+        "supplier": "Tekna Admin",
+        "item_count": 1,
+        "percentage": 1.4
+      }
+    ]
+  },
+  {
+    "category_name": "CARPENTER",
+    "total_items": 71,
+    "total_suppliers": 4,
+    "top_supplier": "Tekna Carpentry",
+    "top_supplier_count": 68,
+    "suppliers": [
+      {
+        "supplier": "Tekna Carpentry",
+        "item_count": 68,
+        "percentage": 95.8
+      },
+      {
+        "supplier": "Tekna Finishing Touches",
+        "item_count": 1,
+        "percentage": 1.4
+      },
+      {
+        "supplier": "Tekna Admin",
+        "item_count": 1,
+        "percentage": 1.4
+      },
+      {
+        "supplier": "Bunnings",
+        "item_count": 1,
+        "percentage": 1.4
+      }
+    ]
+  },
+  {
+    "category_name": "MIRRORS",
+    "total_items": 67,
+    "total_suppliers": 1,
+    "top_supplier": "Civic Shower Screens & Wardrobes",
+    "top_supplier_count": 67,
+    "suppliers": [
+      {
+        "supplier": "Civic Shower Screens & Wardrobes",
+        "item_count": 67,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "FIX-OUT MATERIALS",
+    "total_items": 65,
+    "total_suppliers": 2,
+    "top_supplier": "Pre Hung Doors (PHD)",
+    "top_supplier_count": 64,
+    "suppliers": [
+      {
+        "supplier": "Pre Hung Doors (PHD)",
+        "item_count": 64,
+        "percentage": 98.5
+      },
+      {
+        "supplier": "Bunnings",
+        "item_count": 1,
+        "percentage": 1.5
+      }
+    ]
+  },
+  {
+    "category_name": "FENCING",
+    "total_items": 63,
+    "total_suppliers": 3,
+    "top_supplier": "FENCING",
+    "top_supplier_count": 51,
+    "suppliers": [
+      {
+        "supplier": "FENCING",
+        "item_count": 51,
+        "percentage": 81.0
+      },
+      {
+        "supplier": "Joii Landscaping",
+        "item_count": 9,
+        "percentage": 14.3
+      },
+      {
+        "supplier": "TEMPORARY FENCING",
+        "item_count": 3,
+        "percentage": 4.8
+      }
+    ]
+  },
+  {
+    "category_name": "SOFFIT",
+    "total_items": 58,
+    "total_suppliers": 3,
+    "top_supplier": "SOFFIT",
+    "top_supplier_count": 38,
+    "suppliers": [
+      {
+        "supplier": "SOFFIT",
+        "item_count": 38,
+        "percentage": 65.5
+      },
+      {
+        "supplier": "Bunnings",
+        "item_count": 19,
+        "percentage": 32.8
+      },
+      {
+        "supplier": "Pre Hung Doors (PHD)",
+        "item_count": 1,
+        "percentage": 1.7
+      }
+    ]
+  },
+  {
+    "category_name": "ROOF",
+    "total_items": 58,
+    "total_suppliers": 1,
+    "top_supplier": "Joii Roofing",
+    "top_supplier_count": 58,
+    "suppliers": [
+      {
+        "supplier": "Joii Roofing",
+        "item_count": 58,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "CONCRETOR",
+    "total_items": 55,
+    "total_suppliers": 2,
+    "top_supplier": "CONCRETOR",
+    "top_supplier_count": 49,
+    "suppliers": [
+      {
+        "supplier": "CONCRETOR",
+        "item_count": 49,
+        "percentage": 89.1
+      },
+      {
+        "supplier": "JND Concrete",
+        "item_count": 6,
+        "percentage": 10.9
+      }
+    ]
+  },
+  {
+    "category_name": "FLOOR COVERING",
+    "total_items": 52,
+    "total_suppliers": 2,
+    "top_supplier": "FLOOR COVERING",
+    "top_supplier_count": 47,
+    "suppliers": [
+      {
+        "supplier": "FLOOR COVERING",
+        "item_count": 47,
+        "percentage": 90.4
+      },
+      {
+        "supplier": "The One Group",
+        "item_count": 5,
+        "percentage": 9.6
+      }
+    ]
+  },
+  {
+    "category_name": "PAINTER",
+    "total_items": 51,
+    "total_suppliers": 2,
+    "top_supplier": "PAINTER",
+    "top_supplier_count": 46,
+    "suppliers": [
+      {
+        "supplier": "PAINTER",
+        "item_count": 46,
+        "percentage": 90.2
+      },
+      {
+        "supplier": "MI Painting and Decorating Services Marko Lvanovic",
+        "item_count": 5,
+        "percentage": 9.8
+      }
+    ]
+  },
+  {
+    "category_name": "SHOWER SCREENS",
+    "total_items": 49,
+    "total_suppliers": 1,
+    "top_supplier": "Civic Shower Screens & Wardrobes",
+    "top_supplier_count": 49,
+    "suppliers": [
+      {
+        "supplier": "Civic Shower Screens & Wardrobes",
+        "item_count": 49,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "HARDWARE",
+    "total_items": 48,
+    "total_suppliers": 3,
+    "top_supplier": "Finlaysons Timber & Hardware Pty Ltd",
+    "top_supplier_count": 27,
+    "suppliers": [
+      {
+        "supplier": "Finlaysons Timber & Hardware Pty Ltd",
+        "item_count": 27,
+        "percentage": 56.3
+      },
+      {
+        "supplier": "Bunnings",
+        "item_count": 20,
+        "percentage": 41.7
+      },
+      {
+        "supplier": "HARDWARE",
+        "item_count": 1,
+        "percentage": 2.1
+      }
+    ]
+  },
+  {
+    "category_name": "WARDROBE DOORS",
+    "total_items": 44,
+    "total_suppliers": 1,
+    "top_supplier": "Civic Shower Screens & Wardrobes",
+    "top_supplier_count": 44,
+    "suppliers": [
+      {
+        "supplier": "Civic Shower Screens & Wardrobes",
+        "item_count": 44,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "SCAFFOLD",
+    "total_items": 43,
+    "total_suppliers": 2,
+    "top_supplier": "SCAFFOLD",
+    "top_supplier_count": 42,
+    "suppliers": [
+      {
+        "supplier": "SCAFFOLD",
+        "item_count": 42,
+        "percentage": 97.7
+      },
+      {
+        "supplier": "Joii Roofing",
+        "item_count": 1,
+        "percentage": 2.3
+      }
+    ]
+  },
+  {
+    "category_name": "SURVEYOR",
+    "total_items": 43,
+    "total_suppliers": 1,
+    "top_supplier": "Survey Mark",
+    "top_supplier_count": 43,
+    "suppliers": [
+      {
+        "supplier": "Survey Mark",
+        "item_count": 43,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "DRIVEWAY",
+    "total_items": 43,
+    "total_suppliers": 3,
+    "top_supplier": "DRIVEWAY",
+    "top_supplier_count": 21,
+    "suppliers": [
+      {
+        "supplier": "DRIVEWAY",
+        "item_count": 21,
+        "percentage": 48.8
+      },
+      {
+        "supplier": "ReadyMix Concrete (Was Excel Concrete Pty Ltd)",
+        "item_count": 20,
+        "percentage": 46.5
+      },
+      {
+        "supplier": "Riki's Resealing",
+        "item_count": 2,
+        "percentage": 4.7
+      }
+    ]
+  },
+  {
+    "category_name": "LANDSCAPING",
+    "total_items": 40,
+    "total_suppliers": 3,
+    "top_supplier": "LANDSCAPING",
+    "top_supplier_count": 34,
+    "suppliers": [
+      {
+        "supplier": "LANDSCAPING",
+        "item_count": 34,
+        "percentage": 85.0
+      },
+      {
+        "supplier": "Joii Landscaping",
+        "item_count": 5,
+        "percentage": 12.5
+      },
+      {
+        "supplier": "Jopa Queensland",
+        "item_count": 1,
+        "percentage": 2.5
+      }
+    ]
+  },
+  {
+    "category_name": "SITE CLEAN",
+    "total_items": 40,
+    "total_suppliers": 3,
+    "top_supplier": "Tekna Site",
+    "top_supplier_count": 38,
+    "suppliers": [
+      {
+        "supplier": "Tekna Site",
+        "item_count": 38,
+        "percentage": 95.0
+      },
+      {
+        "supplier": "United Waste Services",
+        "item_count": 1,
+        "percentage": 2.5
+      },
+      {
+        "supplier": "LANDSCAPING",
+        "item_count": 1,
+        "percentage": 2.5
+      }
+    ]
+  },
+  {
+    "category_name": "OFFICE ADMIN",
+    "total_items": 37,
+    "total_suppliers": 10,
+    "top_supplier": "Tekna Admin",
+    "top_supplier_count": 23,
+    "suppliers": [
+      {
+        "supplier": "Tekna Admin",
+        "item_count": 23,
+        "percentage": 62.2
+      },
+      {
+        "supplier": "Australian Disability Homes",
+        "item_count": 6,
+        "percentage": 16.2
+      },
+      {
+        "supplier": "Origin Energy",
+        "item_count": 1,
+        "percentage": 2.7
+      },
+      {
+        "supplier": "Tekna   Admin",
+        "item_count": 1,
+        "percentage": 2.7
+      },
+      {
+        "supplier": "Tekna Franchise",
+        "item_count": 1,
+        "percentage": 2.7
+      },
+      {
+        "supplier": "Tekna Marketing",
+        "item_count": 1,
+        "percentage": 2.7
+      },
+      {
+        "supplier": "Tekna Coach",
+        "item_count": 1,
+        "percentage": 2.7
+      },
+      {
+        "supplier": "Tekna Sales",
+        "item_count": 1,
+        "percentage": 2.7
+      },
+      {
+        "supplier": "Tekna Supervisor",
+        "item_count": 1,
+        "percentage": 2.7
+      },
+      {
+        "supplier": "All Industry Safety QLD (AIS)",
+        "item_count": 1,
+        "percentage": 2.7
+      }
+    ]
+  },
+  {
+    "category_name": "ELECTRICAL",
+    "total_items": 35,
+    "total_suppliers": 3,
+    "top_supplier": "TL Electrical",
+    "top_supplier_count": 33,
+    "suppliers": [
+      {
+        "supplier": "TL Electrical",
+        "item_count": 33,
+        "percentage": 94.3
+      },
+      {
+        "supplier": "ELECTRICAL",
+        "item_count": 1,
+        "percentage": 2.9
+      },
+      {
+        "supplier": "Open Electrical",
+        "item_count": 1,
+        "percentage": 2.9
+      }
+    ]
+  },
+  {
+    "category_name": "TERMITE PROTECTION",
+    "total_items": 35,
+    "total_suppliers": 2,
+    "top_supplier": "TERMITE PROTECTION",
+    "top_supplier_count": 24,
+    "suppliers": [
+      {
+        "supplier": "TERMITE PROTECTION",
+        "item_count": 24,
+        "percentage": 68.6
+      },
+      {
+        "supplier": "Bittn Australia Pty Ltd",
+        "item_count": 11,
+        "percentage": 31.4
+      }
+    ]
+  },
+  {
+    "category_name": "AIR CONDITIONING",
+    "total_items": 34,
+    "total_suppliers": 2,
+    "top_supplier": "Star Airconditioning",
+    "top_supplier_count": 33,
+    "suppliers": [
+      {
+        "supplier": "Star Airconditioning",
+        "item_count": 33,
+        "percentage": 97.1
+      },
+      {
+        "supplier": "AIR CONDITIONING",
+        "item_count": 1,
+        "percentage": 2.9
+      }
+    ]
+  },
+  {
+    "category_name": "ENERGY RATING",
+    "total_items": 29,
+    "total_suppliers": 2,
+    "top_supplier": "Austral Insulation",
+    "top_supplier_count": 27,
+    "suppliers": [
+      {
+        "supplier": "Austral Insulation",
+        "item_count": 27,
+        "percentage": 93.1
+      },
+      {
+        "supplier": "Accelerate Sustainability Assessments",
+        "item_count": 2,
+        "percentage": 6.9
+      }
+    ]
+  },
+  {
+    "category_name": "BRICKLAYER",
+    "total_items": 28,
+    "total_suppliers": 1,
+    "top_supplier": "BRICKLAYER",
+    "top_supplier_count": 28,
+    "suppliers": [
+      {
+        "supplier": "BRICKLAYER",
+        "item_count": 28,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "STEEL",
+    "total_items": 27,
+    "total_suppliers": 1,
+    "top_supplier": "Harvey's Mechanical & Welding Services Pty Ltd",
+    "top_supplier_count": 27,
+    "suppliers": [
+      {
+        "supplier": "Harvey's Mechanical & Welding Services Pty Ltd",
+        "item_count": 27,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "BRICK HARDWARE",
+    "total_items": 26,
+    "total_suppliers": 1,
+    "top_supplier": "Bunnings",
+    "top_supplier_count": 26,
+    "suppliers": [
+      {
+        "supplier": "Bunnings",
+        "item_count": 26,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "SEARCHES",
+    "total_items": 25,
+    "total_suppliers": 1,
+    "top_supplier": "SEARCHES",
+    "top_supplier_count": 25,
+    "suppliers": [
+      {
+        "supplier": "SEARCHES",
+        "item_count": 25,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "TILER",
+    "total_items": 23,
+    "total_suppliers": 1,
+    "top_supplier": "Alex Wang Pty Ltd",
+    "top_supplier_count": 23,
+    "suppliers": [
+      {
+        "supplier": "Alex Wang Pty Ltd",
+        "item_count": 23,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "PLASTER BOARD",
+    "total_items": 23,
+    "total_suppliers": 2,
+    "top_supplier": "PLASTER BOARD",
+    "top_supplier_count": 22,
+    "suppliers": [
+      {
+        "supplier": "PLASTER BOARD",
+        "item_count": 22,
+        "percentage": 95.7
+      },
+      {
+        "supplier": "D.A.M Quality Plasterboard Finishes",
+        "item_count": 1,
+        "percentage": 4.3
+      }
+    ]
+  },
+  {
+    "category_name": "RETAINING WALL",
+    "total_items": 21,
+    "total_suppliers": 2,
+    "top_supplier": "RETAINING WALL",
+    "top_supplier_count": 17,
+    "suppliers": [
+      {
+        "supplier": "RETAINING WALL",
+        "item_count": 17,
+        "percentage": 81.0
+      },
+      {
+        "supplier": "Joii Landscaping",
+        "item_count": 4,
+        "percentage": 19.0
+      }
+    ]
+  },
+  {
+    "category_name": "ENGINEER",
+    "total_items": 19,
+    "total_suppliers": 3,
+    "top_supplier": "ENGINEER",
+    "top_supplier_count": 11,
+    "suppliers": [
+      {
+        "supplier": "ENGINEER",
+        "item_count": 11,
+        "percentage": 57.9
+      },
+      {
+        "supplier": "AW GEOTECHNICS",
+        "item_count": 7,
+        "percentage": 36.8
+      },
+      {
+        "supplier": "H Design Hydraulic Engineering Group Pty Ltd",
+        "item_count": 1,
+        "percentage": 5.3
+      }
+    ]
+  },
+  {
+    "category_name": "SITE WORKS",
+    "total_items": 18,
+    "total_suppliers": 2,
+    "top_supplier": "Tekna Site",
+    "top_supplier_count": 17,
+    "suppliers": [
+      {
+        "supplier": "Tekna Site",
+        "item_count": 17,
+        "percentage": 94.4
+      },
+      {
+        "supplier": "Wayke Waterproofing. Ware",
+        "item_count": 1,
+        "percentage": 5.6
+      }
+    ]
+  },
+  {
+    "category_name": "CONCRETE",
+    "total_items": 17,
+    "total_suppliers": 2,
+    "top_supplier": "ReadyMix Concrete (Was Excel Concrete Pty Ltd)",
+    "top_supplier_count": 16,
+    "suppliers": [
+      {
+        "supplier": "ReadyMix Concrete (Was Excel Concrete Pty Ltd)",
+        "item_count": 16,
+        "percentage": 94.1
+      },
+      {
+        "supplier": "JND Concrete",
+        "item_count": 1,
+        "percentage": 5.9
+      }
+    ]
+  },
+  {
+    "category_name": "WINDOWS",
+    "total_items": 17,
+    "total_suppliers": 3,
+    "top_supplier": "WINDOWS",
+    "top_supplier_count": 14,
+    "suppliers": [
+      {
+        "supplier": "WINDOWS",
+        "item_count": 14,
+        "percentage": 82.4
+      },
+      {
+        "supplier": "Southern Star Windows (QLD)",
+        "item_count": 2,
+        "percentage": 11.8
+      },
+      {
+        "supplier": "Unique Windows Services",
+        "item_count": 1,
+        "percentage": 5.9
+      }
+    ]
+  },
+  {
+    "category_name": "HOT WATER SYSTEMS",
+    "total_items": 17,
+    "total_suppliers": 1,
+    "top_supplier": "Chromagen Australia Pty Ltd",
+    "top_supplier_count": 17,
+    "suppliers": [
+      {
+        "supplier": "Chromagen Australia Pty Ltd",
+        "item_count": 17,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "MACHINERY",
+    "total_items": 16,
+    "total_suppliers": 2,
+    "top_supplier": "MACHINERY",
+    "top_supplier_count": 14,
+    "suppliers": [
+      {
+        "supplier": "MACHINERY",
+        "item_count": 14,
+        "percentage": 87.5
+      },
+      {
+        "supplier": "Tekna Site",
+        "item_count": 2,
+        "percentage": 12.5
+      }
+    ]
+  },
+  {
+    "category_name": "LETTERBOXES",
+    "total_items": 14,
+    "total_suppliers": 1,
+    "top_supplier": "Lovering Installations QLD",
+    "top_supplier_count": 14,
+    "suppliers": [
+      {
+        "supplier": "Lovering Installations QLD",
+        "item_count": 14,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "HOUSE CLEAN",
+    "total_items": 13,
+    "total_suppliers": 1,
+    "top_supplier": "A1 Builders Finals Services Group",
+    "top_supplier_count": 13,
+    "suppliers": [
+      {
+        "supplier": "A1 Builders Finals Services Group",
+        "item_count": 13,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "WC HIRE",
+    "total_items": 13,
+    "total_suppliers": 1,
+    "top_supplier": "Dinkum Dunnies",
+    "top_supplier_count": 13,
+    "suppliers": [
+      {
+        "supplier": "Dinkum Dunnies",
+        "item_count": 13,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "LEGAL",
+    "total_items": 13,
+    "total_suppliers": 1,
+    "top_supplier": "LEGAL",
+    "top_supplier_count": 13,
+    "suppliers": [
+      {
+        "supplier": "LEGAL",
+        "item_count": 13,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "CRANE",
+    "total_items": 12,
+    "total_suppliers": 1,
+    "top_supplier": "Cross Cranes",
+    "top_supplier_count": 12,
+    "suppliers": [
+      {
+        "supplier": "Cross Cranes",
+        "item_count": 12,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "SEDIMENT CONTROL",
+    "total_items": 10,
+    "total_suppliers": 2,
+    "top_supplier": "SEDIMENT CONTROL",
+    "top_supplier_count": 9,
+    "suppliers": [
+      {
+        "supplier": "SEDIMENT CONTROL",
+        "item_count": 9,
+        "percentage": 90.0
+      },
+      {
+        "supplier": "Sediment Erosion Control Services",
+        "item_count": 1,
+        "percentage": 10.0
+      }
+    ]
+  },
+  {
+    "category_name": "TEMPORARY POWER",
+    "total_items": 10,
+    "total_suppliers": 1,
+    "top_supplier": "TEMPORARY POWER",
+    "top_supplier_count": 10,
+    "suppliers": [
+      {
+        "supplier": "TEMPORARY POWER",
+        "item_count": 10,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "GAS",
+    "total_items": 10,
+    "total_suppliers": 1,
+    "top_supplier": "GAS",
+    "top_supplier_count": 10,
+    "suppliers": [
+      {
+        "supplier": "GAS",
+        "item_count": 10,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "RENDER",
+    "total_items": 9,
+    "total_suppliers": 1,
+    "top_supplier": "RENDER",
+    "top_supplier_count": 9,
+    "suppliers": [
+      {
+        "supplier": "RENDER",
+        "item_count": 9,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "CONCRETE PUMPING",
+    "total_items": 8,
+    "total_suppliers": 1,
+    "top_supplier": "CONCRETE PUMPING",
+    "top_supplier_count": 8,
+    "suppliers": [
+      {
+        "supplier": "CONCRETE PUMPING",
+        "item_count": 8,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "SALES",
+    "total_items": 6,
+    "total_suppliers": 3,
+    "top_supplier": "SALES",
+    "top_supplier_count": 3,
+    "suppliers": [
+      {
+        "supplier": "SALES",
+        "item_count": 3,
+        "percentage": 50.0
+      },
+      {
+        "supplier": "Tekna Sales",
+        "item_count": 2,
+        "percentage": 33.3
+      },
+      {
+        "supplier": "Tekna Homes",
+        "item_count": 1,
+        "percentage": 16.7
+      }
+    ]
+  },
+  {
+    "category_name": "SEWAGE SYSTEMS",
+    "total_items": 6,
+    "total_suppliers": 1,
+    "top_supplier": "SEWAGE SYSTEMS",
+    "top_supplier_count": 6,
+    "suppliers": [
+      {
+        "supplier": "SEWAGE SYSTEMS",
+        "item_count": 6,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "CLOTHES LINES",
+    "total_items": 6,
+    "total_suppliers": 2,
+    "top_supplier": "Lovering Installations QLD",
+    "top_supplier_count": 5,
+    "suppliers": [
+      {
+        "supplier": "Lovering Installations QLD",
+        "item_count": 5,
+        "percentage": 83.3
+      },
+      {
+        "supplier": "Joii Landscaping",
+        "item_count": 1,
+        "percentage": 16.7
+      }
+    ]
+  },
+  {
+    "category_name": "CONCRETE CUTTING",
+    "total_items": 5,
+    "total_suppliers": 1,
+    "top_supplier": "Logan Concrete Sawing and Drilling",
+    "top_supplier_count": 5,
+    "suppliers": [
+      {
+        "supplier": "Logan Concrete Sawing and Drilling",
+        "item_count": 5,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "PRELIM",
+    "total_items": 5,
+    "total_suppliers": 1,
+    "top_supplier": "PRELIM",
+    "top_supplier_count": 5,
+    "suppliers": [
+      {
+        "supplier": "PRELIM",
+        "item_count": 5,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "BALUSTRADING",
+    "total_items": 5,
+    "total_suppliers": 1,
+    "top_supplier": "BALUSTRADING",
+    "top_supplier_count": 5,
+    "suppliers": [
+      {
+        "supplier": "BALUSTRADING",
+        "item_count": 5,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "STAIRS",
+    "total_items": 4,
+    "total_suppliers": 2,
+    "top_supplier": "STAIRS",
+    "top_supplier_count": 3,
+    "suppliers": [
+      {
+        "supplier": "STAIRS",
+        "item_count": 3,
+        "percentage": 75.0
+      },
+      {
+        "supplier": "Queensland Stairs (RALSAD)",
+        "item_count": 1,
+        "percentage": 25.0
+      }
+    ]
+  },
+  {
+    "category_name": "PRIVACY SCREENS",
+    "total_items": 4,
+    "total_suppliers": 1,
+    "top_supplier": "PRIVACY SCREENS",
+    "top_supplier_count": 4,
+    "suppliers": [
+      {
+        "supplier": "PRIVACY SCREENS",
+        "item_count": 4,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "DATA COMMUNICATIONS",
+    "total_items": 3,
+    "total_suppliers": 2,
+    "top_supplier": "Stratus",
+    "top_supplier_count": 2,
+    "suppliers": [
+      {
+        "supplier": "Stratus",
+        "item_count": 2,
+        "percentage": 66.7
+      },
+      {
+        "supplier": "DATA COMMUNICATIONS",
+        "item_count": 1,
+        "percentage": 33.3
+      }
+    ]
+  },
+  {
+    "category_name": "HIRE",
+    "total_items": 3,
+    "total_suppliers": 1,
+    "top_supplier": "Dinkum Dunnies",
+    "top_supplier_count": 3,
+    "suppliers": [
+      {
+        "supplier": "Dinkum Dunnies",
+        "item_count": 3,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "ALARMS",
+    "total_items": 3,
+    "total_suppliers": 1,
+    "top_supplier": "ALARMS",
+    "top_supplier_count": 3,
+    "suppliers": [
+      {
+        "supplier": "ALARMS",
+        "item_count": 3,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "SKYLIGHTS",
+    "total_items": 3,
+    "total_suppliers": 1,
+    "top_supplier": "SKYLIGHTS",
+    "top_supplier_count": 3,
+    "suppliers": [
+      {
+        "supplier": "SKYLIGHTS",
+        "item_count": 3,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "INSURANCE",
+    "total_items": 3,
+    "total_suppliers": 3,
+    "top_supplier": "Tekna Insurance",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "Tekna Insurance",
+        "item_count": 1,
+        "percentage": 33.3
+      },
+      {
+        "supplier": "QBCC",
+        "item_count": 1,
+        "percentage": 33.3
+      },
+      {
+        "supplier": "INSURANCE",
+        "item_count": 1,
+        "percentage": 33.3
+      }
+    ]
+  },
+  {
+    "category_name": "DEMOLITION",
+    "total_items": 3,
+    "total_suppliers": 1,
+    "top_supplier": "DEMOLITION",
+    "top_supplier_count": 3,
+    "suppliers": [
+      {
+        "supplier": "DEMOLITION",
+        "item_count": 3,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "HOME AUTOMATION",
+    "total_items": 2,
+    "total_suppliers": 1,
+    "top_supplier": "HOME AUTOMATION",
+    "top_supplier_count": 2,
+    "suppliers": [
+      {
+        "supplier": "HOME AUTOMATION",
+        "item_count": 2,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "DRAFTING",
+    "total_items": 2,
+    "total_suppliers": 2,
+    "top_supplier": "DRAFTING",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "DRAFTING",
+        "item_count": 1,
+        "percentage": 50.0
+      },
+      {
+        "supplier": "Tekna T3D",
+        "item_count": 1,
+        "percentage": 50.0
+      }
+    ]
+  },
+  {
+    "category_name": "Fire System",
+    "total_items": 2,
+    "total_suppliers": 1,
+    "top_supplier": "AusCoast Fire",
+    "top_supplier_count": 2,
+    "suppliers": [
+      {
+        "supplier": "AusCoast Fire",
+        "item_count": 2,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "TRUSSES",
+    "total_items": 2,
+    "total_suppliers": 2,
+    "top_supplier": "Bunnings",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "Bunnings",
+        "item_count": 1,
+        "percentage": 50.0
+      },
+      {
+        "supplier": "TRUSSES",
+        "item_count": 1,
+        "percentage": 50.0
+      }
+    ]
+  },
+  {
+    "category_name": "POOL",
+    "total_items": 2,
+    "total_suppliers": 1,
+    "top_supplier": "POOL",
+    "top_supplier_count": 2,
+    "suppliers": [
+      {
+        "supplier": "POOL",
+        "item_count": 2,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "LAND",
+    "total_items": 2,
+    "total_suppliers": 1,
+    "top_supplier": "LAND",
+    "top_supplier_count": 2,
+    "suppliers": [
+      {
+        "supplier": "LAND",
+        "item_count": 2,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "TIMBER FLOORING",
+    "total_items": 1,
+    "total_suppliers": 1,
+    "top_supplier": "TIMBER FLOORING",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "TIMBER FLOORING",
+        "item_count": 1,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "WATER",
+    "total_items": 1,
+    "total_suppliers": 1,
+    "top_supplier": "WATER",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "WATER",
+        "item_count": 1,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "LIGHT FIT",
+    "total_items": 1,
+    "total_suppliers": 1,
+    "top_supplier": "TL Electrical",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "TL Electrical",
+        "item_count": 1,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "PATIO",
+    "total_items": 1,
+    "total_suppliers": 1,
+    "top_supplier": "PATIO",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "PATIO",
+        "item_count": 1,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "PLSL",
+    "total_items": 1,
+    "total_suppliers": 1,
+    "top_supplier": "PLSL",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "PLSL",
+        "item_count": 1,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "DECORATIVE MOULDINGS",
+    "total_items": 1,
+    "total_suppliers": 1,
+    "top_supplier": "DECORATIVE MOULDINGS",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "DECORATIVE MOULDINGS",
+        "item_count": 1,
+        "percentage": 100.0
+      }
+    ]
+  },
+  {
+    "category_name": "COLOUR CONSULTANT",
+    "total_items": 1,
+    "total_suppliers": 1,
+    "top_supplier": "COLOUR CONSULTANT",
+    "top_supplier_count": 1,
+    "suppliers": [
+      {
+        "supplier": "COLOUR CONSULTANT",
+        "item_count": 1,
+        "percentage": 100.0
+      }
+    ]
+  }
+]
