@@ -612,9 +612,9 @@ export default function TrapidTableView({
               setVisibleColumns(defaultView.visibleColumns)
             }
 
-            // Apply the view's column order
+            // Apply the view's column order (deduplicate to prevent duplicate key errors)
             if (defaultView.columnOrder && defaultView.columnOrder.length > 0) {
-              setColumnOrder(defaultView.columnOrder)
+              setColumnOrder([...new Set(defaultView.columnOrder)])
             }
 
             // Apply the view's sort columns
@@ -737,10 +737,11 @@ export default function TrapidTableView({
         if (view.visibleColumns) {
           setVisibleColumns(view.visibleColumns)
         }
-        // Load column order
+        // Load column order (deduplicate to prevent duplicate key errors)
         if (view.columnOrder) {
-          setVisibilityColumnOrder(view.columnOrder)
-          setColumnOrder(view.columnOrder)
+          const dedupedColumnOrder = [...new Set(view.columnOrder)]
+          setVisibilityColumnOrder(dedupedColumnOrder)
+          setColumnOrder(dedupedColumnOrder)
         }
         // Load sort columns (clear if view doesn't have any)
         setSortColumns(view.sortColumns || [])
@@ -794,10 +795,11 @@ export default function TrapidTableView({
       if (defaultView.visibleColumns) {
         setVisibleColumns(defaultView.visibleColumns)
       }
-      // Load column order
+      // Load column order (deduplicate to prevent duplicate key errors)
       if (defaultView.columnOrder) {
-        setVisibilityColumnOrder(defaultView.columnOrder)
-        setColumnOrder(defaultView.columnOrder)
+        const dedupedColumnOrder = [...new Set(defaultView.columnOrder)]
+        setVisibilityColumnOrder(dedupedColumnOrder)
+        setColumnOrder(dedupedColumnOrder)
       }
       // Load sort columns
       setSortColumns(defaultView.sortColumns || [])
@@ -4595,10 +4597,11 @@ export default function TrapidTableView({
                 if (view.visibleColumns) {
                   setVisibleColumns(view.visibleColumns)
                 }
-                // Restore column order for both visibility panel and table
+                // Restore column order for both visibility panel and table (deduplicate to prevent duplicate key errors)
                 if (view.columnOrder) {
-                  setVisibilityColumnOrder(view.columnOrder)
-                  setColumnOrder(view.columnOrder)
+                  const dedupedColumnOrder = [...new Set(view.columnOrder)]
+                  setVisibilityColumnOrder(dedupedColumnOrder)
+                  setColumnOrder(dedupedColumnOrder)
                 }
                 // Restore sort columns (clear if view doesn't have any)
                 setSortColumns(view.sortColumns || [])
@@ -4999,7 +5002,7 @@ export default function TrapidTableView({
                                   setInterGroupLogic(defaultView.interGroupLogic || 'OR')
                                   setSortColumns(defaultView.sortColumns || [])
                                   setVisibleColumns(defaultView.visibleColumns || {})
-                                  setColumnOrder(defaultView.columnOrder || COLUMNS.map(c => c.key))
+                                  setColumnOrder(defaultView.columnOrder ? [...new Set(defaultView.columnOrder)] : COLUMNS.map(c => c.key))
                                   setGroupByColumn(null)
                                 } else {
                                   // Fallback if Default view doesn't exist (shouldn't happen)
