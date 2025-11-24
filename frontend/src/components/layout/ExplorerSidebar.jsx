@@ -11,8 +11,28 @@ import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
   UserIcon,
+  DocumentTextIcon,
+  ClipboardDocumentListIcon,
+  CalendarDaysIcon,
+  CloudIcon,
+  FolderOpenIcon,
+  ChatBubbleLeftRightIcon,
+  UserGroupIcon,
+  Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
+
+// Job detail tabs for sub-navigation
+const jobTabs = [
+  { name: 'Overview', slug: 'overview', icon: BriefcaseIcon },
+  { name: 'Purchase Orders', slug: 'purchase-orders', icon: DocumentTextIcon },
+  { name: 'Estimates', slug: 'estimates', icon: ClipboardDocumentListIcon },
+  { name: 'Schedule Master', slug: 'schedule-master', icon: CalendarDaysIcon },
+  { name: 'Rain Log', slug: 'rain-log', icon: CloudIcon },
+  { name: 'Documents', slug: 'documents', icon: FolderOpenIcon },
+  { name: 'Coms', slug: 'coms', icon: ChatBubbleLeftRightIcon },
+  { name: 'Team', slug: 'team', icon: UserGroupIcon },
+]
 
 export default function ExplorerSidebar({ onUploadClick }) {
   const location = useLocation()
@@ -23,6 +43,10 @@ export default function ExplorerSidebar({ onUploadClick }) {
   const [jobsExpanded, setJobsExpanded] = useState(() => {
     const saved = localStorage.getItem('jobsExpanded')
     return saved === null ? true : saved === 'true'
+  })
+  const [expandedJobId, setExpandedJobId] = useState(() => {
+    const saved = localStorage.getItem('expandedJobId')
+    return saved ? parseInt(saved, 10) : null
   })
   const [priceBooksExpanded, setPriceBooksExpanded] = useState(() => {
     const saved = localStorage.getItem('priceBooksExpanded')
@@ -42,21 +66,36 @@ export default function ExplorerSidebar({ onUploadClick }) {
   const loadActiveJobs = async () => {
     try {
       setLoadingJobs(true)
-      const response = await api.get('/api/v1/tables')
-      // Find tables tagged as "Active Jobs" or with name containing "job"
-      const jobTables = (response.tables || []).filter(table =>
-        table.is_live && (
-          table.name.toLowerCase().includes('job') ||
-          table.name.toLowerCase().includes('construction')
-        )
-      )
-      setActiveJobs(jobTables)
+      // Load actual construction jobs with Active status
+      const response = await api.get('/api/v1/constructions?status=Active&per_page=50')
+      setActiveJobs(response.constructions || [])
     } catch (err) {
       console.error('Failed to load active jobs:', err)
     } finally {
       setLoadingJobs(false)
     }
   }
+
+  const toggleJobExpanded = (jobId) => {
+    const newId = expandedJobId === jobId ? null : jobId
+    setExpandedJobId(newId)
+    localStorage.setItem('expandedJobId', newId ? newId.toString() : '')
+  }
+
+  // Auto-expand job if we're on a job detail page
+  useEffect(() => {
+    const match = location.pathname.match(/^\/jobs\/(\d+)/)
+    if (match) {
+      const jobId = parseInt(match[1], 10)
+      setExpandedJobId(prevId => {
+        if (prevId !== jobId) {
+          localStorage.setItem('expandedJobId', jobId.toString())
+          return jobId
+        }
+        return prevId
+      })
+    }
+  }, [location.pathname])
 
   const loadPriceBooks = async () => {
     try {
@@ -256,23 +295,60 @@ export default function ExplorerSidebar({ onUploadClick }) {
                   ) : (
                     <div className="space-y-0.5">
                       {activeJobs.map((job) => (
-                        <Link
-                          key={job.id}
-                          to={`/tables/${job.id}`}
-                          className={`flex items-center gap-2 px-4 pl-12 py-2 text-sm transition-colors ${
-                            isActiveRoute(`/tables/${job.id}`)
-                              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400'
-                              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
-                          }`}
-                        >
-                          <span className="truncate">{job.name}</span>
-                        </Link>
+                        <div key={job.id}>
+                          {/* Job row with expand toggle */}
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => toggleJobExpanded(job.id)}
+                              className="p-1 ml-8 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                            >
+                              <ChevronRightIcon
+                                className={`h-3 w-3 text-gray-400 transition-transform ${
+                                  expandedJobId === job.id ? 'rotate-90' : ''
+                                }`}
+                              />
+                            </button>
+                            <Link
+                              to={`/jobs/${job.id}/overview`}
+                              className={`flex-1 flex items-center gap-2 px-2 py-1.5 text-sm transition-colors ${
+                                location.pathname.startsWith(`/jobs/${job.id}`)
+                                  ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400'
+                                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
+                              }`}
+                            >
+                              <span className="truncate">{job.title || `Job #${job.id}`}</span>
+                            </Link>
+                          </div>
+                          {/* Job tabs - shown when expanded */}
+                          {expandedJobId === job.id && (
+                            <div className="ml-12 space-y-0.5 py-1">
+                              {jobTabs.map((tab) => {
+                                const TabIcon = tab.icon
+                                const isActive = location.pathname === `/jobs/${job.id}/${tab.slug}`
+                                return (
+                                  <Link
+                                    key={tab.slug}
+                                    to={`/jobs/${job.id}/${tab.slug}`}
+                                    className={`flex items-center gap-2 px-3 py-1.5 text-xs rounded transition-colors ${
+                                      isActive
+                                        ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300'
+                                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300'
+                                    }`}
+                                  >
+                                    <TabIcon className="h-3.5 w-3.5" />
+                                    <span>{tab.name}</span>
+                                  </Link>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
 
                   <Link
-                    to="/dashboard?search=job"
+                    to="/active-jobs"
                     className="flex items-center gap-2 px-4 pl-12 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   >
                     <PlusIcon className="h-4 w-4" />

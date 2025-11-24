@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 const getAuthHeaders = () => {
   const headers = {
@@ -44,6 +44,45 @@ export const api = {
       error.data = errorData;
       throw error;
     }
+
+    // If onDownloadProgress callback is provided, use streaming to track progress
+    if (options.onDownloadProgress && response.body) {
+      const contentLength = response.headers.get('content-length');
+      const total = contentLength ? parseInt(contentLength, 10) : 0;
+      let loaded = 0;
+
+      const reader = response.body.getReader();
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        loaded += value.length;
+
+        // Call progress callback
+        if (options.onDownloadProgress) {
+          options.onDownloadProgress({
+            loaded,
+            total,
+            progress: total ? loaded / total : 0
+          });
+        }
+      }
+
+      // Combine chunks and parse JSON
+      const chunksAll = new Uint8Array(loaded);
+      let position = 0;
+      for (const chunk of chunks) {
+        chunksAll.set(chunk, position);
+        position += chunk.length;
+      }
+
+      const text = new TextDecoder('utf-8').decode(chunksAll);
+      return JSON.parse(text);
+    }
+
     return response.json();
   },
 

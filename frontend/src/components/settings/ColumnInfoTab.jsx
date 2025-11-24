@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { CheckCircleIcon, InformationCircleIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline'
+import { CheckCircleIcon, InformationCircleIcon, ArrowDownTrayIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { COLUMN_TYPES, getColumnTypeEmoji, clearColumnTypesCache } from '../../constants/columnTypes'
+import api from '../../api'
 
 // Fallback function - Convert COLUMN_TYPES to column info format
 // Used if API call fails
@@ -279,13 +280,7 @@ export default function ColumnInfoTab() {
     const fetchColumnTypes = async () => {
       try {
         setLoading(true)
-        const response = await fetch('/api/v1/column_types')
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status}`)
-        }
-
-        const data = await response.json()
+        const data = await api.get('/api/v1/column_types')
 
         if (data.success && data.data) {
           // Transform API response to column info format
@@ -296,7 +291,8 @@ export default function ColumnInfoTab() {
             icon: getColumnTypeEmoji(type.value),
             validationRules: type.validationRules || 'No validation rules defined',
             example: type.example || 'No example provided',
-            usedFor: type.usedFor || 'No usage description'
+            usedFor: type.usedFor || 'No usage description',
+            sampleValue: type.sampleValue
           }))
 
           // Add system columns (id, created_at, updated_at)
@@ -311,6 +307,15 @@ export default function ColumnInfoTab() {
               usedFor: 'Primary key for identifying records'
             },
             ...columnTypes,
+            {
+              columnName: 'created_at',
+              sqlType: 'TIMESTAMP',
+              displayType: 'Date & Time (Created)',
+              icon: getColumnTypeEmoji('date_and_time'),
+              validationRules: 'Auto-populated on creation, not editable',
+              example: '19/11/2024 14:30',
+              usedFor: 'Record creation timestamp'
+            },
             {
               columnName: 'updated_at',
               sqlType: 'TIMESTAMP',
@@ -343,9 +348,9 @@ export default function ColumnInfoTab() {
 
   // Handle starting to edit a cell
   const handleStartEdit = (rowIndex, field, currentValue) => {
-    // Don't allow editing system columns (id, updated_at) or read-only fields
+    // Don't allow editing system columns (id, created_at, updated_at) or read-only fields
     const column = columns[rowIndex]
-    if (column.columnName === 'id' || column.columnName === 'updated_at') {
+    if (column.columnName === 'id' || column.columnName === 'created_at' || column.columnName === 'updated_at') {
       return
     }
 
@@ -378,21 +383,9 @@ export default function ColumnInfoTab() {
       setColumns(updatedColumns)
 
       // Update via API
-      const response = await fetch(`/api/v1/column_types/${column.columnName}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          [field]: editValue
-        })
+      const data = await api.patch(`/api/v1/column_types/${column.columnName}`, {
+        [field]: editValue
       })
-
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`)
-      }
-
-      const data = await response.json()
 
       if (data.success) {
         console.log('✅ Saved to Gold Standard table:', data.message)
@@ -518,6 +511,17 @@ export default function ColumnInfoTab() {
           {/* Action Buttons */}
           <div className="flex gap-2">
             <button
+              onClick={() => {
+                clearColumnTypesCache()
+                window.location.reload()
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
+              title="Clear cache and refresh column data from database"
+            >
+              <ArrowPathIcon className="h-5 w-5" />
+              Refresh Data
+            </button>
+            <button
               onClick={exportToCSV}
               className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
             >
@@ -597,18 +601,17 @@ export default function ColumnInfoTab() {
                     Example
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Sample Data
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Used For
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {columns.map((column, index) => {
-                  // Check if this is a system-generated column
-                  const isSystemGenerated = ['date_and_time'].includes(column.columnName) ||
-                    (column.validationRules && (
-                      column.validationRules.includes('Auto-populated') ||
-                      column.validationRules.includes('Auto-updated')
-                    ))
+                  // Check if this is a system-generated column (id, created_at, updated_at)
+                  const isSystemGenerated = ['id', 'created_at', 'updated_at'].includes(column.columnName)
 
                   return (
                     <tr
@@ -685,6 +688,17 @@ export default function ColumnInfoTab() {
                       <code className="bg-gray-50 dark:bg-gray-800 px-2 py-1 rounded">
                         {column.example}
                       </code>
+                    </td>
+
+                    {/* Sample Data - From Gold Standard Table */}
+                    <td className="px-6 py-4 text-xs">
+                      {column.sampleValue !== null && column.sampleValue !== undefined ? (
+                        <code className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 px-2 py-1 rounded font-semibold">
+                          {String(column.sampleValue)}
+                        </code>
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-600 italic">No data</span>
+                      )}
                     </td>
 
                     {/* Used For - Auto-Generated (Read-Only) */}

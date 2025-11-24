@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { api } from '../../api';
 import {
   CheckCircleIcon,
   XCircleIcon,
@@ -10,70 +11,131 @@ import {
   Bars3Icon,
   ArrowPathIcon
 } from '@heroicons/react/24/outline';
+// Note: Agents are run via Claude Code CLI, not from this UI
 
 export default function AgentStatus() {
   const [agentData, setAgentData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [runningAgents, setRunningAgents] = useState(new Set());
-  const [currentUser, setCurrentUser] = useState(null);
+  const [selectedAgentDescription, setSelectedAgentDescription] = useState(null);
 
   // Table state - RULE #19 compliance
   const [globalSearch, setGlobalSearch] = useState('');
   const [columnFilters, setColumnFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-  const [columnWidths, setColumnWidths] = useState({
-    agent: 300,
-    description: 400,
-    status: 150,
-    lastRun: 150,
-    totalRuns: 120,
-    audit: 200,
-    actions: 100
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [columnWidths, setColumnWidths] = useState(() => {
+    const defaultWidths = {
+      agent: 180,
+      category: 100,
+      description: 200,
+      status: 75,
+      lastRun: 90,
+      totalRuns: 50,
+      tokens: 70,
+      createdBy: 90,
+      updatedBy: 90
+    };
+    const saved = localStorage.getItem('agentStatus_columnWidths');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Merge with defaults to ensure new columns have widths
+        return { ...defaultWidths, ...parsed };
+      } catch (e) {
+        console.error('Error parsing saved column widths:', e);
+      }
+    }
+    return defaultWidths;
   });
   const [resizingColumn, setResizingColumn] = useState(null);
   const [resizeStartX, setResizeStartX] = useState(0);
   const [resizeStartWidth, setResizeStartWidth] = useState(0);
-  const [visibleColumns, setVisibleColumns] = useState({
-    agent: true,
-    description: true,
-    status: true,
-    lastRun: true,
-    totalRuns: true,
-    audit: true,
-    actions: true
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    const defaultVisible = {
+      agent: true,
+      category: true,
+      description: true,
+      status: true,
+      lastRun: true,
+      totalRuns: true,
+      tokens: true,
+      createdBy: true,
+      updatedBy: true
+    };
+    const saved = localStorage.getItem('agentStatus_visibleColumns');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Merge with defaults to ensure new columns are visible
+        return { ...defaultVisible, ...parsed };
+      } catch (e) {
+        console.error('Error parsing saved visible columns:', e);
+      }
+    }
+    return defaultVisible;
   });
   const [showColumnPicker, setShowColumnPicker] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [columnOrder, setColumnOrder] = useState(['agent', 'description', 'status', 'lastRun', 'totalRuns', 'audit', 'actions']);
+  const [columnOrder, setColumnOrder] = useState(() => {
+    const defaultOrder = ['agent', 'category', 'description', 'status', 'lastRun', 'totalRuns', 'tokens', 'createdBy', 'updatedBy'];
+    const saved = localStorage.getItem('agentStatus_columnOrder');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Add any new columns that aren't in the saved order
+        const missingColumns = defaultOrder.filter(col => !parsed.includes(col));
+        if (missingColumns.length > 0) {
+          // Insert missing columns before the last two columns (createdBy, updatedBy)
+          const insertIndex = Math.max(0, parsed.length - 2);
+          return [...parsed.slice(0, insertIndex), ...missingColumns, ...parsed.slice(insertIndex)];
+        }
+        return parsed;
+      } catch (e) {
+        console.error('Error parsing saved column order:', e);
+      }
+    }
+    return defaultOrder;
+  });
   const [draggingColumn, setDraggingColumn] = useState(null);
 
   useEffect(() => {
-    loadCurrentUser();
     fetchAgentStatus();
   }, []);
 
+  // Persist table state to localStorage
+  useEffect(() => {
+    localStorage.setItem('agentStatus_columnWidths', JSON.stringify(columnWidths));
+  }, [columnWidths]);
+
+  useEffect(() => {
+    localStorage.setItem('agentStatus_visibleColumns', JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  useEffect(() => {
+    localStorage.setItem('agentStatus_columnOrder', JSON.stringify(columnOrder));
+  }, [columnOrder]);
+
   // Column resize handlers
   useEffect(() => {
+    if (!resizingColumn) return;
+
     const handleMouseMove = (e) => {
-      if (resizingColumn) {
-        const diff = e.clientX - resizeStartX;
-        const newWidth = Math.max(100, resizeStartWidth + diff);
-        setColumnWidths(prev => ({
-          ...prev,
-          [resizingColumn]: newWidth
-        }));
-      }
+      e.preventDefault();
+      const diff = e.clientX - resizeStartX;
+      const newWidth = Math.max(1, resizeStartWidth + diff);
+      setColumnWidths(prev => ({
+        ...prev,
+        [resizingColumn]: newWidth
+      }));
     };
 
     const handleMouseUp = () => {
       setResizingColumn(null);
     };
 
-    if (resizingColumn) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-    }
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
@@ -81,27 +143,11 @@ export default function AgentStatus() {
     };
   }, [resizingColumn, resizeStartX, resizeStartWidth]);
 
-  const loadCurrentUser = () => {
-    const user = localStorage.getItem('user');
-    if (user) {
-      try {
-        const userData = JSON.parse(user);
-        setCurrentUser(userData.email || userData.name || 'User');
-      } catch (e) {
-        setCurrentUser('User');
-      }
-    } else {
-      setCurrentUser('User');
-    }
-  };
-
   const fetchAgentStatus = async () => {
     try {
       setLoading(true);
       // RULE #1.13 - Single Source of Truth: Fetch all agent data from API
-      const response = await fetch('/api/v1/agents');
-      if (!response.ok) throw new Error('Failed to fetch agent status');
-      const data = await response.json();
+      const data = await api.get('/api/v1/agents');
       setAgentData(data);
     } catch (err) {
       setError(err.message);
@@ -120,12 +166,6 @@ export default function AgentStatus() {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const formatAuditInfo = (agentStats) => {
-    if (!agentStats.last_run) return 'Never run';
-    const date = formatDate(agentStats.last_run);
-    return `${date}\nby ${currentUser || 'System'}`;
   };
 
   // RULE #1.13 - Single Source of Truth: Data comes from API, not hardcoded
@@ -167,25 +207,6 @@ export default function AgentStatus() {
     );
   };
 
-  const handleRunAgent = async (agentName) => {
-    setRunningAgents(prev => new Set(prev).add(agentName));
-    try {
-      // Simulate agent run - replace with actual API call when backend is ready
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      console.log(`Running agent: ${agentName}`);
-      // Refresh agent status after run
-      await fetchAgentStatus();
-    } catch (err) {
-      console.error(`Error running agent ${agentName}:`, err);
-    } finally {
-      setRunningAgents(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(agentName);
-        return newSet;
-      });
-    }
-  };
-
   const handleSort = (key) => {
     setSortConfig(prev => ({
       key,
@@ -207,22 +228,39 @@ export default function AgentStatus() {
         name: agent.name,
         displayName: getAgentDisplayName(agent),
         icon: getAgentIcon(agent),
+        category: agent.category,
         description: getAgentDescription(agent),
         last_run: agent.last_run_at,
+        last_run_by_name: agent.last_run_by_name,
+        last_run_details: agent.last_run_details,
+        last_run_tokens: agent.last_run_tokens,
+        total_tokens: agent.total_tokens,
         status: agent.last_status,
         total_runs: agent.total_runs || 0,
-        success_rate: agent.success_rate || 0
+        success_rate: agent.success_rate || 0,
+        created_at: agent.created_at,
+        created_by_name: agent.created_by_name,
+        updated_at: agent.updated_at,
+        updated_by_name: agent.updated_by_name
       }))
     : [];
+
+  // Get unique categories for filter dropdown
+  const categories = [...new Set(agentsArray.map(a => a.category).filter(Boolean))].sort();
 
   // Filter and sort
   const filteredAgents = agentsArray
     .filter(agent => {
+      // Category filter
+      if (categoryFilter !== 'all' && agent.category !== categoryFilter) {
+        return false;
+      }
       if (globalSearch) {
         const search = globalSearch.toLowerCase();
         if (
           !agent.displayName?.toLowerCase().includes(search) &&
-          !agent.description?.toLowerCase().includes(search)
+          !agent.description?.toLowerCase().includes(search) &&
+          !agent.category?.toLowerCase().includes(search)
         ) {
           return false;
         }
@@ -245,14 +283,35 @@ export default function AgentStatus() {
       return sortConfig.direction === 'asc' ? comparison : -comparison;
     });
 
+  // Get token usage from last_run_tokens column (primary) or last_run_details (fallback)
+  const getTokenDisplay = (agent) => {
+    // Check new column first (preferred)
+    if (agent.last_run_tokens) {
+      const tokens = agent.last_run_tokens;
+      // Format as "8.5K" for thousands
+      const formatted = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}K` : String(tokens);
+      return formatted;
+    }
+    // Fallback to legacy details field
+    const details = agent.last_run_details;
+    if (details?.tokens_used) {
+      const tokens = details.tokens_used;
+      const formatted = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}K` : String(tokens);
+      return formatted;
+    }
+    return null;
+  };
+
   const columns = [
     { key: 'agent', label: 'Agent', sortable: true, searchable: true },
+    { key: 'category', label: 'Category', sortable: true, searchable: true },
     { key: 'description', label: 'Description', sortable: true, searchable: true },
     { key: 'status', label: 'Status', sortable: true, searchable: false },
     { key: 'lastRun', label: 'Last Run', sortable: true, searchable: false },
     { key: 'totalRuns', label: 'Total Runs', sortable: true, searchable: false },
-    { key: 'audit', label: 'Audit Info', sortable: false, searchable: false },
-    { key: 'actions', label: 'Actions', sortable: false, searchable: false }
+    { key: 'tokens', label: 'Tokens', sortable: true, searchable: false },
+    { key: 'createdBy', label: 'Created By', sortable: true, searchable: true },
+    { key: 'updatedBy', label: 'Updated', sortable: true, searchable: true }
   ];
 
   if (loading) {
@@ -279,9 +338,9 @@ export default function AgentStatus() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-10">
+    <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-6 px-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
           Claude Code Agents
         </h2>
@@ -291,7 +350,7 @@ export default function AgentStatus() {
       </div>
 
       {/* Table Toolbar - RULE #19.11A */}
-      <div className="mb-4 flex items-center justify-between gap-4" style={{ minHeight: '44px' }}>
+      <div className="mb-4 px-6 flex items-center justify-between gap-4" style={{ minHeight: '44px' }}>
         {/* LEFT SIDE: Global Search */}
         <div className="flex-1">
           <div className="relative">
@@ -369,9 +428,9 @@ export default function AgentStatus() {
       </div>
 
       {/* Table - RULE #19.2 Sticky Headers, #19.3 Inline Filters, #19.5B Resizable */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+      <div className={`bg-white dark:bg-gray-800 shadow overflow-hidden flex-1 flex flex-col ${resizingColumn ? 'select-none cursor-col-resize' : ''}`}>
+        <div className="overflow-auto flex-1">
+          <table className="w-full divide-y divide-gray-200 dark:divide-gray-700" style={{ tableLayout: 'fixed' }}>
             <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 sticky top-0 z-10">
               <tr>
                 {/* Row Selection - RULE #19.9 */}
@@ -395,8 +454,12 @@ export default function AgentStatus() {
                   .map(column => (
                   <th
                     key={column.key}
-                    draggable
+                    draggable={!resizingColumn}
                     onDragStart={(e) => {
+                      if (resizingColumn) {
+                        e.preventDefault();
+                        return;
+                      }
                       setDraggingColumn(column.key);
                       e.dataTransfer.effectAllowed = 'move';
                     }}
@@ -420,7 +483,7 @@ export default function AgentStatus() {
                     }}
                     onDragEnd={() => setDraggingColumn(null)}
                     style={{ width: columnWidths[column.key] }}
-                    className={`relative px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-move hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${draggingColumn === column.key ? 'opacity-50' : ''}`}
+                    className={`relative px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-move hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${draggingColumn === column.key ? 'opacity-50' : ''}`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -448,7 +511,7 @@ export default function AgentStatus() {
                             )}
                           </div>
                         </div>
-                        {column.searchable && (
+                        {column.searchable && column.key !== 'category' && (
                           <input
                             type="text"
                             placeholder="Filter..."
@@ -458,13 +521,32 @@ export default function AgentStatus() {
                             className="mt-1 w-full text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
                           />
                         )}
+                        {column.key === 'category' && (
+                          <select
+                            value={categoryFilter}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setCategoryFilter(e.target.value);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1 w-full text-xs px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+                          >
+                            <option value="all">All</option>
+                            {categories.map(cat => (
+                              <option key={cat} value={cat}>
+                                {cat.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                     </div>
                     {/* Resize handle */}
                     <div
-                      className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-indigo-400 dark:hover:bg-indigo-600 transition-colors z-20"
+                      className="absolute top-0 right-0 w-2 h-full cursor-col-resize bg-gray-300 dark:bg-gray-600 hover:bg-indigo-400 dark:hover:bg-indigo-500 transition-colors z-20"
                       onMouseDown={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         setResizingColumn(column.key);
                         setResizeStartX(e.clientX);
                         setResizeStartWidth(columnWidths[column.key]);
@@ -502,73 +584,119 @@ export default function AgentStatus() {
                     .map(key => {
                       if (key === 'agent') {
                         return (
-                          <td key="agent" className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">{agent.icon}</span>
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          <td key="agent" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.agent }}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xl flex-shrink-0">{agent.icon}</span>
+                              <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
                                 {agent.displayName}
                               </div>
                             </div>
                           </td>
                         );
+                      } else if (key === 'category') {
+                        const categoryColors = {
+                          'validation': 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+                          'deployment': 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+                          'planning': 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300',
+                          'development': 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                        };
+                        const colorClass = categoryColors[agent.category] || 'bg-gray-50 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300';
+                        return (
+                          <td key="category" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.category }}>
+                            {agent.category ? (
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colorClass}`}>
+                                {agent.category.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">-</span>
+                            )}
+                          </td>
+                        );
                       } else if (key === 'description') {
                         return (
-                          <td key="description" className="px-6 py-4">
-                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                          <td
+                            key="description"
+                            className="px-3 py-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 overflow-hidden"
+                            style={{ width: columnWidths.description }}
+                            onDoubleClick={() => setSelectedAgentDescription({
+                              name: agent.name || agent.agent_id,
+                              description: agent.description
+                            })}
+                            title="Double-click to view full description"
+                          >
+                            <div className="text-sm text-gray-600 dark:text-gray-400 truncate">
                               {agent.description}
                             </div>
                           </td>
                         );
                       } else if (key === 'status') {
                         return (
-                          <td key="status" className="px-6 py-4">
-                            {getStatusBadge(agent.last_status)}
+                          <td key="status" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.status }}>
+                            {getStatusBadge(agent.status)}
                           </td>
                         );
                       } else if (key === 'lastRun') {
                         return (
-                          <td key="lastRun" className="px-6 py-4">
-                            <div className="text-sm text-gray-900 dark:text-white">
-                              {agent.last_run ? formatDate(agent.last_run) : 'Never'}
-                            </div>
+                          <td key="lastRun" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.lastRun }}>
+                            {agent.last_run ? (
+                              <>
+                                <div className="text-xs text-gray-900 dark:text-white truncate">
+                                  {agent.last_run_by_name || '-'}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                  {formatDate(agent.last_run)}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-xs text-gray-400">-</span>
+                            )}
                           </td>
                         );
                       } else if (key === 'totalRuns') {
                         return (
-                          <td key="totalRuns" className="px-6 py-4">
+                          <td key="totalRuns" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.totalRuns }}>
                             <div className="text-sm text-gray-900 dark:text-white">
                               {agent.total_runs || 0}
                             </div>
                           </td>
                         );
-                      } else if (key === 'audit') {
+                      } else if (key === 'tokens') {
+                        const tokens = getTokenDisplay(agent);
                         return (
-                          <td key="audit" className="px-6 py-4">
-                            <div className="text-xs text-gray-600 dark:text-gray-400 whitespace-pre-line">
-                              {formatAuditInfo(agent)}
-                            </div>
+                          <td key="tokens" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.tokens }}>
+                            {tokens ? (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                {tokens}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">-</span>
+                            )}
                           </td>
                         );
-                      } else if (key === 'actions') {
+                      } else if (key === 'createdBy') {
                         return (
-                          <td key="actions" className="px-6 py-4">
-                            <button
-                              onClick={() => handleRunAgent(agent.id)}
-                              disabled={runningAgents.has(agent.id)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {runningAgents.has(agent.id) ? (
-                                <>
-                                  <ArrowPathIcon className="h-3 w-3 animate-spin" />
-                                  Running...
-                                </>
-                              ) : (
-                                <>
-                                  <PlayCircleIcon className="h-3 w-3" />
-                                  Run
-                                </>
-                              )}
-                            </button>
+                          <td key="createdBy" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.createdBy }}>
+                            <div className="text-xs text-gray-900 dark:text-white truncate">
+                              {agent.created_by_name || '-'}
+                            </div>
+                            {agent.created_at && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {formatDate(agent.created_at)}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      } else if (key === 'updatedBy') {
+                        return (
+                          <td key="updatedBy" className="px-3 py-2 overflow-hidden" style={{ width: columnWidths.updatedBy }}>
+                            <div className="text-xs text-gray-900 dark:text-white truncate">
+                              {agent.updated_by_name || '-'}
+                            </div>
+                            {agent.updated_at && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                {formatDate(agent.updated_at)}
+                              </div>
+                            )}
                           </td>
                         );
                       }
@@ -580,10 +708,48 @@ export default function AgentStatus() {
           </table>
         </div>
       </div>
-      <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">
+      <div className="mt-3 px-6 text-sm text-gray-600 dark:text-gray-400">
         Showing {filteredAgents.length} of {agentsArray.length} agents
         {(globalSearch || Object.keys(columnFilters).length > 0) && ' (filtered)'}
       </div>
+
+      {/* Description Modal */}
+      {selectedAgentDescription && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={() => setSelectedAgentDescription(null)}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-3xl w-full mx-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                {selectedAgentDescription.name}
+              </h3>
+              <button
+                onClick={() => setSelectedAgentDescription(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap font-mono">
+              {selectedAgentDescription.description}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setSelectedAgentDescription(null)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { PlusIcon, XMarkIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import TrapidTableView from '../documentation/TrapidTableView'
 import { COLUMN_TYPES } from '../../constants/columnTypes'
 
@@ -9,40 +9,44 @@ const buildGoldStandardColumns = () => {
   // Base columns that always appear
   const baseColumns = [
     { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Checkbox - select rows for bulk actions' },
-    { key: 'id', label: 'ID / Primary Key', resizable: true, sortable: true, filterable: false, width: 80, tooltip: 'Primary Key - Auto-increment ID' }
+    { key: 'id', label: 'ID / Primary Key', column_type: 'id', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 80, tooltip: 'Primary Key - Auto-increment ID' }
   ]
 
   // Map each COLUMN_TYPE to its database column and configuration
+  // After cleanup migration, columns are named after their types
+  // Column IDs are from the Gold Standard table (Table ID 1) columns table
   const typeToColumnMap = {
-    'single_line_text': { key: 'item_code', width: 150, filterable: true, filterType: 'text' },
-    'email': { key: 'email', width: 200, filterable: true, filterType: 'text' },
-    'phone': { key: 'phone', width: 150, filterable: true, filterType: 'text' },
-    'mobile': { key: 'mobile', width: 150, filterable: true, filterType: 'text' },
-    'url': { key: 'document_link', width: 180, sortable: false, filterable: false },
-    'date': { key: 'start_date', width: 140, filterable: false },
-    'gps_coordinates': { key: 'location_coords', width: 180, sortable: false, filterable: false },
-    'color_picker': { key: 'color_code', width: 130, sortable: false, filterable: false },
-    'file_upload': { key: 'file_attachment', width: 180, sortable: false, filterable: false },
-    'lookup': { key: 'category_type', width: 150, filterable: true, filterType: 'dropdown' },
-    'boolean': { key: 'is_active', width: 100, filterable: true, filterType: 'dropdown' },
-    'percentage': { key: 'discount', width: 120, filterable: false },
-    'choice': { key: 'status', width: 140, filterable: true, filterType: 'dropdown' },
-    'currency': { key: 'price', width: 120, filterable: false, showSum: true, sumType: 'currency' },
-    'number': { key: 'quantity', width: 100, filterable: false, showSum: true, sumType: 'number' },
-    'whole_number': { key: 'whole_number', width: 120, filterable: false, showSum: true, sumType: 'number' },
+    'single_line_text': { key: 'single_line_text', id: 661, width: 150, filterable: true, filterType: 'text' },
+    'email': { key: 'email', id: 663, width: 200, filterable: true, filterType: 'text' },
+    'phone': { key: 'phone', id: 664, width: 150, filterable: true, filterType: 'text' },
+    'mobile': { key: 'mobile', id: 665, width: 150, filterable: true, filterType: 'text' },
+    'url': { key: 'url', id: 666, width: 180, sortable: false, filterable: false },
+    'date': { key: 'date', id: 671, width: 140, filterable: false },
+    'gps_coordinates': { key: 'gps_coordinates', id: 673, width: 280, sortable: false, filterable: false },
+    'color_picker': { key: 'color_picker', id: 674, width: 320, sortable: false, filterable: false },
+    'file_upload': { key: 'file_upload', id: 675, width: 300, sortable: false, filterable: false },
+    'action_buttons': { key: 'action_buttons', id: 676, width: 180, sortable: false, filterable: false },
+    'lookup': { key: 'lookup', id: 679, width: 150, filterable: true, filterType: 'dropdown' },
+    'boolean': { key: 'boolean', id: 677, width: 100, filterable: true, filterType: 'boolean' },
+    'percentage': { key: 'percentage', id: 670, width: 120, filterable: false },
+    'choice': { key: 'choice', id: 678, width: 140, filterable: true, filterType: 'dropdown' },
+    'currency': { key: 'currency', id: 669, width: 120, filterable: false, showSum: true, sumType: 'currency' },
+    'number': { key: 'number', id: 667, width: 100, filterable: false, showSum: true, sumType: 'number' },
+    'whole_number': { key: 'whole_number', id: 668, width: 120, filterable: false, showSum: true, sumType: 'number' },
     'computed': {
-      key: 'total_cost',
+      key: 'computed',
+      id: 682,
       width: 140,
       filterable: false,
       showSum: true,
       sumType: 'currency',
       isComputed: true,
-      computeFunction: (entry) => (entry.price || 0) * (entry.quantity || 0)
+      computeFunction: (entry) => (entry.currency || 0) * (entry.number || 0)
     },
-    'date_and_time': { key: 'created_at', width: 180, filterable: false },
-    'multiple_lines_text': { key: 'notes', width: 300, sortable: false, filterable: true, filterType: 'text' },
-    'multiple_lookups': { key: 'multiple_category_ids', width: 200, sortable: false, filterable: false },
-    'user': { key: 'user_id', width: 120, filterable: true, filterType: 'dropdown' }
+    'date_and_time': { key: 'date_and_time', id: 672, width: 180, filterable: false },
+    'multiple_lines_text': { key: 'multiple_lines_text', id: 662, width: 300, sortable: false, filterable: true, filterType: 'text' },
+    'multiple_lookups': { key: 'multiple_lookups', id: 680, width: 200, sortable: false, filterable: false },
+    'user': { key: 'user', id: 681, width: 120, filterable: true, filterType: 'dropdown' }
   }
 
   // Helper function to build a column from COLUMN_TYPES
@@ -52,8 +56,10 @@ const buildGoldStandardColumns = () => {
     if (!type || !config) return null
 
     return {
+      id: config.id,  // Database column ID for schema editor
       key: config.key,
       label: type.label,
+      column_type: typeValue,  // IMPORTANT: Include column type for schema editor
       resizable: true,
       sortable: config.sortable !== false,
       filterable: config.filterable || false,
@@ -73,17 +79,31 @@ const buildGoldStandardColumns = () => {
     .map(type => buildColumn(type.value))
     .filter(col => col !== null)
 
-  // Add updated_at separately (second date_and_time instance)
-  const updatedAtType = COLUMN_TYPES.find(t => t.value === 'date_and_time')
-  if (updatedAtType) {
+  // Add system timestamp columns (created_at and updated_at)
+  const dateTimeType = COLUMN_TYPES.find(t => t.value === 'date_and_time')
+  if (dateTimeType) {
+    // Add created_at
     dynamicColumns.push({
-      key: 'updated_at',
-      label: 'Date & Time (Updated)',
+      key: 'created_at',
+      label: 'Date & Time (Created)',
+      column_type: 'date_and_time',
       resizable: true,
       sortable: true,
       filterable: false,
       width: 180,
-      tooltip: `${updatedAtType.sqlType} - When the record was last modified`
+      tooltip: `${dateTimeType.sqlType} - When the record was created`
+    })
+
+    // Add updated_at
+    dynamicColumns.push({
+      key: 'updated_at',
+      label: 'Date & Time (Updated)',
+      column_type: 'date_and_time',  // IMPORTANT: Include column type for schema editor
+      resizable: true,
+      sortable: true,
+      filterable: false,
+      width: 180,
+      tooltip: `${dateTimeType.sqlType} - When the record was last modified`
     })
   }
 
@@ -92,36 +112,54 @@ const buildGoldStandardColumns = () => {
 
 const GOLD_STANDARD_COLUMNS = buildGoldStandardColumns()
 
+// Helper to get current user ID (defined outside component)
+const getCurrentUserId = () => {
+  try {
+    const user = localStorage.getItem('user')
+    if (user) {
+      const userData = JSON.parse(user)
+      return userData.id || 1 // Default to 1 if no ID
+    }
+  } catch (e) {
+    console.error('Failed to parse user from localStorage:', e)
+  }
+  return 1 // Default user ID
+}
+
 export default function GoldStandardTableTab() {
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [showFeatures, setShowFeatures] = useState(false)
+  const [columnsWithIds, setColumnsWithIds] = useState(GOLD_STANDARD_COLUMNS)
+  // Removed: showFeatures state - "Features to Test" section deleted
+
   const [newItem, setNewItem] = useState({
-    item_code: '',
+    single_line_text: '',
     email: '',
     phone: '',
     mobile: '',
-    start_date: '',
-    location_coords: '',
-    color_code: '#000000',
-    file_attachment: '',
-    category_type: '',
-    is_active: true,
-    discount: 0,
-    status: 'active',
-    price: 0,
-    quantity: 0,
+    date: '',
+    gps_coordinates: '',
+    color_picker: '#000000',
+    file_upload: '',
+    action_buttons: '',
+    lookup: '',
+    boolean: true,
+    percentage: 0,
+    choice: 'active',
+    currency: 0,
+    number: 0,
     whole_number: 0,
-    notes: '',
-    document_link: '',
-    user_id: null,
-    multiple_category_ids: ''
+    multiple_lines_text: '',
+    url: '',
+    user: getCurrentUserId(),
+    multiple_lookups: ''
   })
 
-  // Fetch gold standard items from API
+  // Fetch gold standard items and columns from API
   useEffect(() => {
     fetchGoldStandardItems()
+    fetchColumnIds()
   }, [])
 
   const fetchGoldStandardItems = async () => {
@@ -135,7 +173,7 @@ export default function GoldStandardTableTab() {
       console.log('Fetched items from API:', items.length)
       setData(items)
     } catch (err) {
-      console.error('Error fetching gold standard items:', err)
+      console.debug('Gold standard items unavailable:', err?.message || 'Unknown error')
       // Show empty table if API fails - no fallback to sample data
       setData([])
     } finally {
@@ -143,17 +181,51 @@ export default function GoldStandardTableTab() {
     }
   }
 
+  // Fetch column IDs from API and merge with static config
+  const fetchColumnIds = async () => {
+    try {
+      const response = await fetch('/api/v1/tables/1')
+      if (!response.ok) return
+      const result = await response.json()
+      const dbColumns = result.table?.columns || []
+
+      // Merge database column IDs with static column config
+      const updatedColumns = GOLD_STANDARD_COLUMNS.map(col => {
+        // Find matching database column by column_name (key)
+        const dbCol = dbColumns.find(dc => dc.column_name === col.key)
+        if (dbCol) {
+          return { ...col, id: dbCol.id }
+        }
+        return col
+      })
+      setColumnsWithIds(updatedColumns)
+    } catch (err) {
+      console.debug('Column IDs unavailable:', err?.message || 'Unknown error')
+      // Keep using static columns without IDs
+    }
+  }
+
   const handleEdit = async (entry) => {
     try {
+      console.log('handleEdit called with entry:', entry)
+      const payload = { gold_standard_item: entry }
+      console.log('Sending PATCH request with payload:', payload)
+
       const response = await fetch(`/api/v1/gold_standard_items/${entry.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gold_standard_item: entry })
+        body: JSON.stringify(payload)
       })
 
-      if (!response.ok) throw new Error('Failed to update item')
+      console.log('Response status:', response.status)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Response error:', errorText)
+        throw new Error('Failed to update item')
+      }
 
       const updatedItem = await response.json()
+      console.log('Updated item received from API:', updatedItem)
       setData(prevData =>
         prevData.map(item => item.id === updatedItem.id ? updatedItem : item)
       )
@@ -184,25 +256,54 @@ export default function GoldStandardTableTab() {
     }
   }
 
+  // Bulk delete handler - no confirmation needed (TrapidTableView already confirmed)
+  const handleBulkDelete = async (entries) => {
+    try {
+      // Delete all entries in parallel
+      await Promise.all(
+        entries.map(entry =>
+          fetch(`/api/v1/gold_standard_items/${entry.id}`, {
+            method: 'DELETE'
+          })
+        )
+      )
+
+      // Remove deleted entries from state
+      const deletedIds = entries.map(e => e.id)
+      setData(prevData =>
+        prevData.filter(item => !deletedIds.includes(item.id))
+      )
+      console.log('Bulk deleted:', entries.length, 'items')
+    } catch (err) {
+      console.error('Error bulk deleting items:', err)
+      alert(`Failed to delete items: ${err.message}`)
+    }
+  }
+
   const handleAddNew = () => {
+    // Field names must match actual database columns (see Bible Rule #19.37)
+    // Source of Truth: Trinity T19.001-T19.021
     setNewItem({
-      item_code: '',
+      single_line_text: '',
       email: '',
       phone: '',
       mobile: '',
-      start_date: '',
-      location_coords: '',
-      color_code: '#000000',
-      file_attachment: '',
-      category_type: '',
-      is_active: true,
-      discount: 0,
-      status: 'active',
-      price: 0,
-      quantity: 0,
+      date: '',
+      gps_coordinates: '',
+      color_picker: '#000000',
+      file_upload: '',
+      action_buttons: '',
+      lookup: '',
+      boolean: true,
+      percentage: 0,
+      choice: 'active',
+      currency: 0,
+      number: 0,
       whole_number: 0,
-      notes: '',
-      document_link: ''
+      multiple_lines_text: '',
+      url: '',
+      user: getCurrentUserId(),
+      multiple_lookups: ''
     })
     setShowAddModal(true)
   }
@@ -255,8 +356,8 @@ export default function GoldStandardTableTab() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
+    <div className="flex flex-col h-full">
+      <div className="px-6 pt-6 pb-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
           Gold Standard - TrapidTableView Reference
         </h2>
@@ -264,49 +365,18 @@ export default function GoldStandardTableTab() {
           Live database table demonstrating all TrapidTableView column types and features.
           Use this as a reference standard for implementing tables throughout Trapid.
         </p>
-
-        <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg overflow-hidden">
-          <button
-            onClick={() => setShowFeatures(!showFeatures)}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 dark:hover:bg-blue-800/30 transition-colors"
-          >
-            <h3 className="font-semibold text-blue-900 dark:text-blue-200">
-              Features to Test
-            </h3>
-            {showFeatures ? (
-              <ChevronUpIcon className="h-5 w-5 text-blue-900 dark:text-blue-200" />
-            ) : (
-              <ChevronDownIcon className="h-5 w-5 text-blue-900 dark:text-blue-200" />
-            )}
-          </button>
-          {showFeatures && (
-            <div className="px-4 pb-4 pt-2 grid md:grid-cols-2 gap-2 text-sm text-blue-800 dark:text-blue-300">
-              <div>✓ Column Tooltips - Hover headers</div>
-              <div>✓ Column Resize - Drag borders</div>
-              <div>✓ Column Reorder - Drag headers</div>
-              <div>✓ Show/Hide - Three-dot menu (scrollable!)</div>
-              <div>✓ Filters - Click "Filters" button</div>
-              <div>✓ Supplier Multi-Select - Filter by multiple suppliers</div>
-              <div>✓ Category Dropdown - Single select filter</div>
-              <div>✓ Sorting - Click headers (3-state)</div>
-              <div>✓ Computed Column - Auto-calc (price × qty)</div>
-              <div>✓ Price Sum - See total in footer</div>
-              <div>✓ Bulk Actions - Select & delete rows</div>
-              <div>✓ Inline Edit - Toggle edit mode</div>
-              <div>✓ State Persistence - Reload page</div>
-            </div>
-          )}
-        </div>
       </div>
 
+      <div className="flex-1 min-h-0 px-6">
       <TrapidTableView
         tableId="gold-standard-table"
-        tableIdNumeric={166}
+        tableIdNumeric={1}
         tableName="Gold Standard Reference"
         entries={data}
-        columns={GOLD_STANDARD_COLUMNS}
+        columns={columnsWithIds}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
         enableImport={true}
         enableExport={true}
         enableSchemaEditor={true}
@@ -322,6 +392,7 @@ export default function GoldStandardTableTab() {
           </button>
         }
       />
+      </div>
 
       {/* Add New Item Modal */}
       {showAddModal && (
@@ -338,15 +409,15 @@ export default function GoldStandardTableTab() {
             </div>
 
             <div className="px-6 py-4 space-y-4">
-              {/* Single Line Text (Code) */}
+              {/* Single Line Text */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Code (Single Line Text)
+                  Single Line Text
                 </label>
                 <input
                   type="text"
-                  value={newItem.item_code}
-                  onChange={(e) => setNewItem({ ...newItem, item_code: e.target.value })}
+                  value={newItem.single_line_text}
+                  onChange={(e) => setNewItem({ ...newItem, single_line_text: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="e.g., CONC-001"
                 />
@@ -397,12 +468,12 @@ export default function GoldStandardTableTab() {
               {/* Date */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Start Date (Date only)
+                  Date
                 </label>
                 <input
                   type="date"
-                  value={newItem.start_date}
-                  onChange={(e) => setNewItem({ ...newItem, start_date: e.target.value })}
+                  value={newItem.date}
+                  onChange={(e) => setNewItem({ ...newItem, date: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 />
               </div>
@@ -410,12 +481,12 @@ export default function GoldStandardTableTab() {
               {/* GPS Coordinates */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  GPS Coordinates (Lat, Long)
+                  GPS Coordinates
                 </label>
                 <input
                   type="text"
-                  value={newItem.location_coords}
-                  onChange={(e) => setNewItem({ ...newItem, location_coords: e.target.value })}
+                  value={newItem.gps_coordinates}
+                  onChange={(e) => setNewItem({ ...newItem, gps_coordinates: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="-33.8688, 151.2093"
                 />
@@ -424,50 +495,50 @@ export default function GoldStandardTableTab() {
               {/* Color Picker */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Color Code
+                  Color Picker
                 </label>
                 <div className="flex items-center gap-3">
                   <input
                     type="color"
-                    value={newItem.color_code}
-                    onChange={(e) => setNewItem({ ...newItem, color_code: e.target.value })}
+                    value={newItem.color_picker}
+                    onChange={(e) => setNewItem({ ...newItem, color_picker: e.target.value })}
                     className="h-10 w-20 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
                   />
                   <input
                     type="text"
-                    value={newItem.color_code}
-                    onChange={(e) => setNewItem({ ...newItem, color_code: e.target.value })}
+                    value={newItem.color_picker}
+                    onChange={(e) => setNewItem({ ...newItem, color_picker: e.target.value })}
                     className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono"
                     placeholder="#000000"
                   />
                 </div>
               </div>
 
-              {/* File Attachment */}
+              {/* File Upload */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  File Attachment (Path/URL)
+                  File Upload
                 </label>
                 <input
                   type="text"
-                  value={newItem.file_attachment}
-                  onChange={(e) => setNewItem({ ...newItem, file_attachment: e.target.value })}
+                  value={newItem.file_upload}
+                  onChange={(e) => setNewItem({ ...newItem, file_upload: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="/uploads/document.pdf"
                 />
               </div>
 
-              {/* Category Dropdown */}
+              {/* Lookup */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Category (Lookup)
+                  Lookup
                 </label>
                 <select
-                  value={newItem.category_type}
-                  onChange={(e) => setNewItem({ ...newItem, category_type: e.target.value })}
+                  value={newItem.lookup}
+                  onChange={(e) => setNewItem({ ...newItem, lookup: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="">Select a category...</option>
+                  <option value="">Select...</option>
                   <option value="Concrete">Concrete</option>
                   <option value="Timber">Timber</option>
                   <option value="Steel">Steel</option>
@@ -482,14 +553,14 @@ export default function GoldStandardTableTab() {
                 </select>
               </div>
 
-              {/* Status with Badges */}
+              {/* Choice */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Status (Lookup with Badges)
+                  Choice
                 </label>
                 <select
-                  value={newItem.status}
-                  onChange={(e) => setNewItem({ ...newItem, status: e.target.value })}
+                  value={newItem.choice}
+                  onChange={(e) => setNewItem({ ...newItem, choice: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="active">Active</option>
@@ -501,24 +572,24 @@ export default function GoldStandardTableTab() {
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={newItem.is_active}
-                  onChange={(e) => setNewItem({ ...newItem, is_active: e.target.checked })}
+                  checked={newItem.boolean}
+                  onChange={(e) => setNewItem({ ...newItem, boolean: e.target.checked })}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                 />
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Is Active (Boolean)
+                  Boolean
                 </label>
               </div>
 
               {/* Percentage */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Discount (Percentage)
+                  Percentage
                 </label>
                 <input
                   type="number"
-                  value={newItem.discount}
-                  onChange={(e) => setNewItem({ ...newItem, discount: parseFloat(e.target.value) || 0 })}
+                  value={newItem.percentage}
+                  onChange={(e) => setNewItem({ ...newItem, percentage: parseFloat(e.target.value) || 0 })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="0"
                   min="0"
@@ -527,16 +598,16 @@ export default function GoldStandardTableTab() {
                 />
               </div>
 
-              {/* Price, Quantity, and Whole Number */}
+              {/* Currency, Number, and Whole Number */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Price (Currency - AUD)
+                    Currency
                   </label>
                   <input
                     type="number"
-                    value={newItem.price}
-                    onChange={(e) => setNewItem({ ...newItem, price: parseFloat(e.target.value) || 0 })}
+                    value={newItem.currency}
+                    onChange={(e) => setNewItem({ ...newItem, currency: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="0.00"
                     min="0"
@@ -545,16 +616,16 @@ export default function GoldStandardTableTab() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Quantity (Number)
+                    Number
                   </label>
                   <input
                     type="number"
-                    value={newItem.quantity}
-                    onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || 0 })}
+                    value={newItem.number}
+                    onChange={(e) => setNewItem({ ...newItem, number: parseFloat(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                     placeholder="0"
                     min="0"
-                    step="1"
+                    step="0.01"
                   />
                 </div>
                 <div>
@@ -573,28 +644,28 @@ export default function GoldStandardTableTab() {
                 </div>
               </div>
 
-              {/* Document Link */}
+              {/* URL */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Document Link (URL)
+                  URL
                 </label>
                 <input
                   type="url"
-                  value={newItem.document_link}
-                  onChange={(e) => setNewItem({ ...newItem, document_link: e.target.value })}
+                  value={newItem.url}
+                  onChange={(e) => setNewItem({ ...newItem, url: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                   placeholder="https://example.com/document.pdf"
                 />
               </div>
 
-              {/* Multi Line Text */}
+              {/* Multiple Lines Text */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notes/Description (Multi Line Text)
+                  Multiple Lines Text
                 </label>
                 <textarea
-                  value={newItem.notes}
-                  onChange={(e) => setNewItem({ ...newItem, notes: e.target.value })}
+                  value={newItem.multiple_lines_text}
+                  onChange={(e) => setNewItem({ ...newItem, multiple_lines_text: e.target.value })}
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none"
                   placeholder="Enter any notes or description..."

@@ -1,3 +1,22 @@
+---
+name: Trinity Sync Validator
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  DB vs Markdown Sync:       Entries matched         [PASS]║
+  ║  Chapter Counts:            All chapters present    [PASS]║
+  ║  Orphan Detection:          No orphaned entries     [PASS]║
+  ║  Export Tasks:              Verified functional     [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Trinity database & markdown sync validation       ║
+  ║  SSoT: Trinity database (markdown = backup)               ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~4,000                            ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: green
+type: diagnostic
+---
+
 # Trinity Sync Validator Agent
 
 **Agent ID:** trinity-sync-validator
@@ -283,37 +302,51 @@ Trinity.bible_entries.find_by
 - **RULE #21.1-21.9:** Agent System rules (must be preserved)
 - **RULE #1.6:** Documentation Authority Hierarchy
 
-## Output Format
+## Final Summary Output (REQUIRED)
 
+**After completing all checks, you MUST output a clear summary box like this:**
+
+### If ALL Checks Pass:
 ```
-================================================================================
-                    TRINITY SYNC VALIDATION REPORT
-================================================================================
+╔════════════════════════════════════════════════════════════════╗
+║           TRINITY SYNC VALIDATOR COMPLETE                      ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: ALL SYNCED                                            ║
+╠════════════════════════════════════════════════════════════════╣
+║  DB vs Markdown Sync:     Entries matched             [PASS]   ║
+║  Chapter Counts:          All chapters present        [PASS]   ║
+║  Orphan Detection:        No orphaned entries         [PASS]   ║
+║  Export Tasks:            Verified functional         [PASS]   ║
+╠════════════════════════════════════════════════════════════════╣
+║  Bible:   [X] entries, [Y] chapters                            ║
+║  Lexicon: [X] entries                                          ║
+║  Teacher: [X] entries                                          ║
+╠════════════════════════════════════════════════════════════════╣
+║  SSoT: Trinity database (markdown = backup)                    ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
+```
 
-Date: 2025-11-17 16:45:00
-Status: ✅ SYNCED | ❌ OUT OF SYNC
-
-DATABASE STATUS:
-- Bible: 206 entries, 21 chapters ✅
-- Lexicon: 89 entries ✅
-- Teacher: 191 entries ✅
-
-MARKDOWN STATUS:
-- TRAPID_BIBLE.md: 206 rules, Chapters 1-21 ✅
-- TRAPID_LEXICON.md: 89 entries ✅
-- TRAPID_TEACHER.md: 191 entries ✅
-
-VALIDATION CHECKS:
-✅ Chapter count matches (21 chapters)
-✅ All chapter names match
-✅ Entry counts within tolerance
-✅ RULE #1.7 exists in database
-✅ Export task includes Chapter 21
-✅ Import task uses Trinity model
-
-ISSUES FOUND: 0
-AUTO-FIXES APPLIED: 0
-
-RECOMMENDATION: System is in sync. No action needed.
-================================================================================
+### If Issues Found:
+```
+╔════════════════════════════════════════════════════════════════╗
+║           TRINITY SYNC VALIDATOR COMPLETE                      ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: OUT OF SYNC - ACTION REQUIRED                         ║
+╠════════════════════════════════════════════════════════════════╣
+║  DB vs Markdown Sync:     [X] mismatches              [FAIL]   ║
+║  Chapter Counts:          [status]                    [PASS/FAIL]
+║  Orphan Detection:        [X] orphaned                [PASS/FAIL]
+║  Export Tasks:            [status]                    [PASS/FAIL]
+╠════════════════════════════════════════════════════════════════╣
+║  ISSUES:                                                       ║
+║  - Missing Chapter [X] in [source]                             ║
+║  - Entry count mismatch: DB=[X], MD=[Y]                        ║
+║  - Orphaned entries in [source]                                ║
+╠════════════════════════════════════════════════════════════════╣
+║  FIX: Run `bin/rails trapid:export_bible` to sync              ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
 ```

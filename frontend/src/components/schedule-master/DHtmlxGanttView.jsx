@@ -5,6 +5,7 @@ import { XMarkIcon, PencilSquareIcon, AdjustmentsHorizontalIcon, TrashIcon, Info
 import { api } from '../../api'
 import TaskDependencyEditor from './TaskDependencyEditor'
 import CascadeDependenciesModal from './CascadeDependenciesModal'
+import CascadeKanbanModal from './CascadeKanbanModal'
 import { Menu } from '@headlessui/react'
 import { createDebouncedStorageSetter } from '../../utils/debounce'
 import { ganttDebug, bugHunter } from '../../utils/ganttDebugger'
@@ -95,6 +96,12 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
   const [predecessorDisplayMode, setPredecessorDisplayMode] = useState(() => {
     const saved = localStorage.getItem('dhtmlxGanttPredecessorDisplayMode')
     return saved || 'numbers' // 'numbers' or 'names'
+  })
+
+  // Feature flag: Use new kanban-style cascade modal (default: true)
+  const [useKanbanModal, setUseKanbanModal] = useState(() => {
+    const saved = localStorage.getItem('dhtmlxGanttUseKanbanModal')
+    return saved !== null ? JSON.parse(saved) : true
   })
 
   // Save predecessor display mode to localStorage whenever it changes (debounced)
@@ -4813,8 +4820,20 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         />
       )}
 
-      {/* Cascade Dependencies Modal */}
-      {cascadeModal && (
+      {/* Cascade Dependencies Modal - Kanban or Classic */}
+      {cascadeModal && useKanbanModal && (
+        <CascadeKanbanModal
+          isOpen={!!cascadeModal}
+          onClose={handleCascadeCancel}
+          movedTask={cascadeModal.movedTask}
+          unlockedSuccessors={cascadeModal.unlockedSuccessors}
+          blockedSuccessors={cascadeModal.blockedSuccessors}
+          onConfirm={handleCascadeConfirm}
+          onUpdateTask={onUpdateTask}
+        />
+      )}
+
+      {cascadeModal && !useKanbanModal && (
         <CascadeDependenciesModal
           isOpen={!!cascadeModal}
           onClose={handleCascadeCancel}

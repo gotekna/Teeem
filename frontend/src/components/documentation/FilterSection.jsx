@@ -3,16 +3,20 @@ import { api } from '../../api'
 
 export default function FilterSection({ filters, onFilterChange, stats }) {
   const [constants, setConstants] = useState(null)
+  const [loading, setLoading] = useState(true)
   const chapters = Array.from({ length: 21 }, (_, i) => i + 1) // Changed from 0-20 to 1-21 (no Chapter 0)
 
   // Fetch Trinity constants from API (RULE #1.13 - Single Source of Truth)
   useEffect(() => {
     const fetchConstants = async () => {
       try {
-        const response = await api.get('/trinity/constants')
+        setLoading(true)
+        const response = await api.get('/api/v1/trinity/constants')
         setConstants(response.data)
       } catch (error) {
         console.error('Failed to fetch Trinity constants:', error)
+      } finally {
+        setLoading(false)
       }
     }
     fetchConstants()
@@ -101,6 +105,25 @@ export default function FilterSection({ filters, onFilterChange, stats }) {
     </div>
   )
 
+  // Show loading skeleton while constants load
+  if (loading) {
+    return (
+      <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700 mt-4 pt-4">
+        <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+          Filters
+        </h2>
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map(i => (
+              <div key={i} className="h-6 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="px-4 pb-4 border-t border-gray-200 dark:border-gray-700 mt-4 pt-4">
       <h2 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
@@ -118,15 +141,20 @@ export default function FilterSection({ filters, onFilterChange, stats }) {
           className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
         >
           <option value="all">All Chapters ({stats?.total || 0})</option>
-          {chapters.map((num) => {
-            const chapterStats = stats?.by_chapter?.find(c => c.chapter_number === num)
-            const count = chapterStats?.bug_count || 0
-            return count > 0 ? (
-              <option key={num} value={num}>
-                Chapter {num} ({count})
-              </option>
-            ) : null
-          })}
+          {chapters
+            .filter(num => {
+              const chapterStats = stats?.by_chapter?.find(c => c.chapter_number === num)
+              return (chapterStats?.bug_count || 0) > 0
+            })
+            .map(num => {
+              const chapterStats = stats?.by_chapter?.find(c => c.chapter_number === num)
+              const count = chapterStats?.bug_count || 0
+              return (
+                <option key={num} value={num}>
+                  Chapter {num} ({count})
+                </option>
+              )
+            })}
         </select>
       </div>
 

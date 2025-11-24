@@ -267,6 +267,51 @@ docs: Update [Bible|Teacher|Lexicon] from database export
 
 ---
 
+## 🎯 Column Types Single Source of Truth
+
+**Trinity T19.001-T19.021 = Single Source of Truth for Column Types**
+
+See Bible Rule #19.37 for full details.
+
+**The Hierarchy:**
+```
+Trinity T19.001-T19.021 (SSoT - RULES)
+    │
+    │ Defines: SQL type, validation rules, examples, usage
+    │
+    ├──► columns table (Table ID 1) - IMPLEMENTATION
+    │    Must match Trinity rules
+    │
+    ├──► gold_standard_items - PROOF
+    │    Sample data demonstrating each type
+    │
+    └──► Frontend COLUMN_TYPES - CACHE/FALLBACK ONLY
+         Reads from API, never edited directly
+```
+
+**Maintenance Process:**
+1. Edit Trinity T19.xxx first (via Documentation page UI)
+2. Update columns table to match Trinity rules
+3. Run `gold-standard-sst` agent to verify sync
+4. Fix any drift reported by agent
+
+**API Access:**
+- `GET /api/v1/column_types` - reads from Gold Standard table
+- `GET /api/v1/trinity?category=teacher&chapter_number=19` - reads Trinity entries
+- `GET /api/v1/gold_table_sync` - checks sync status
+
+**NEVER:**
+- ❌ Hardcode column types in frontend/backend code
+- ❌ Edit `frontend/src/constants/columnTypes.js` as source (cache only)
+- ❌ Skip Trinity when adding new column types
+
+**ALWAYS:**
+- ✅ Edit Trinity first (T19.xxx entries)
+- ✅ Run agent to verify sync
+- ✅ Frontend reads via API with cache expiry
+
+---
+
 ## Summary: The Golden Rule
 
 **🔴 BEFORE reading ANY documentation file:**

@@ -17,7 +17,8 @@ import {
   ArrowsRightLeftIcon,
   TrashIcon,
   Bars3Icon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  TableCellsIcon
 } from '@heroicons/react/24/outline'
 import ColumnVisibilityModal from '../components/modals/ColumnVisibilityModal'
 import MergeContactsModal from '../components/contacts/MergeContactsModal'
@@ -34,7 +35,7 @@ export default function ContactsPage() {
   const [showColumnModal, setShowColumnModal] = useState(false)
 
   // Map tab names to indices
-  const tabs = ['contacts', 'suppliers']
+  const tabs = ['contacts', 'suppliers', 'raw']
 
   // Get initial tab index from URL query parameter
   const getInitialTabIndex = () => {
@@ -914,7 +915,7 @@ export default function ContactsPage() {
       {/* Tabs */}
       <div className="px-4 sm:px-6 lg:px-8 flex-1 overflow-hidden flex flex-col">
         <TabGroup selectedIndex={activeTab} onChange={handleTabChange} className="flex-1 overflow-hidden flex flex-col">
-          <TabList className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-4 max-w-md">
+          <TabList className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-4 max-w-xl">
           <Tab
             className={({ selected }) =>
               `w-full rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all
@@ -938,6 +939,19 @@ export default function ContactsPage() {
             }
           >
             Suppliers ({suppliers.length})
+          </Tab>
+          <Tab
+            className={({ selected }) =>
+              `w-full rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all flex items-center justify-center gap-1
+              ${
+                selected
+                  ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+              }`
+            }
+          >
+            <TableCellsIcon className="h-4 w-4" />
+            Raw Table
           </Tab>
         </TabList>
 
@@ -1623,6 +1637,34 @@ export default function ContactsPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </TabPanel>
+
+          {/* Raw Table Tab */}
+          <TabPanel className="flex-1 overflow-hidden flex flex-col min-h-0">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4 shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">Raw Database View</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    View all 63 columns from the contacts database table. Table ID: 188
+                  </p>
+                </div>
+                <Link
+                  to="/tables/contacts"
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg"
+                >
+                  <TableCellsIcon className="h-4 w-4" />
+                  Open Full Table View
+                </Link>
+              </div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+              <iframe
+                src="/embed/tables/contacts"
+                className="w-full h-full border-0"
+                title="Raw Contacts Table"
+              />
             </div>
           </TabPanel>
         </TabPanels>

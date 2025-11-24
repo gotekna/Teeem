@@ -1,3 +1,22 @@
+---
+name: Deploy Manager
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  Git Operations:            Add/Commit/Push         [PASS]║
+  ║  Heroku Deployment:         Staging (rob branch)    [PASS]║
+  ║  Migration Checks:          Errors monitored        [PASS]║
+  ║  PR Creation:               Automated               [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Git operations & staging deployment               ║
+  ║  Authority: Deploy to staging from rob branch             ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~3,000                            ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: cyan
+type: deployment
+---
+
 # Deploy Manager Agent
 
 **Agent ID:** deploy-manager

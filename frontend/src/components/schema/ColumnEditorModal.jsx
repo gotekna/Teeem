@@ -4,7 +4,7 @@ import { COLUMN_TYPES, getColumnTypeEmoji } from '../../constants/columnTypes';
 import ChoiceEditor from './ChoiceEditor';
 import FormulaEditor from './FormulaEditor';
 import TypeConversionEditor from './TypeConversionEditor';
-import RenameEditor from './RenameEditor';
+import LookupEditor from './LookupEditor';
 
 /**
  * ColumnEditorModal - Modal for editing a single column's schema
@@ -17,7 +17,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   const [editedColumn, setEditedColumn] = useState({
     name: column?.name || '',
     column_name: column?.column_name || '',
-    data_type: column?.data_type || column?.column_type || 'string'
+    data_type: column?.column_type || column?.data_type || 'single_line_text'
   });
   const [saving, setSaving] = useState(false);
 
@@ -70,19 +70,19 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
       setEditedColumn({
         name: column.name || '',
         column_name: column.column_name || '',
-        data_type: column.data_type || column.column_type || 'string'
+        data_type: column.column_type || column.data_type || 'single_line_text'
       });
     }
   }, [column]);
 
   if (!isOpen || !column) return null;
 
-  const isChoiceColumn = ['choice', 'dropdown', 'select'].includes(column.column_type?.toLowerCase());
+  const isChoiceColumn = ['choice', 'dropdown', 'select', 'single_select', 'multi_select'].includes(column.column_type?.toLowerCase());
   const isComputedColumn = column.column_type === 'computed' || column.formula;
+  const isLookupColumn = column.column_type === 'lookup' || column.column_type === 'link_to_another_record';
 
   const tabs = [
     { id: 'info', label: 'Column Info', icon: 'ℹ️' },
-    { id: 'rename', label: 'Rename', icon: '✏️' },
     { id: 'type', label: 'Change Type', icon: '🔄' },
   ];
 
@@ -92,6 +92,10 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
   if (isComputedColumn) {
     tabs.push({ id: 'formula', label: 'Edit Formula', icon: '🔢' });
+  }
+
+  if (isLookupColumn) {
+    tabs.push({ id: 'lookup', label: 'Manage Lookup', icon: '🔗' });
   }
 
   const handleClose = () => {
@@ -117,25 +121,12 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
         return;
       }
 
-      // Validate database column name format
-      const dbNameRegex = /^[a-z][a-z0-9_]*$/;
-      if (!dbNameRegex.test(editedColumn.column_name)) {
-        alert('Database column name must be lowercase, start with a letter, and contain only letters, numbers, and underscores');
-        setSaving(false);
-        return;
-      }
-
-      // Warn if changing database column name or type
-      const dbNameChanged = editedColumn.column_name !== column.column_name;
+      // Warn if changing column type (database column name changes are not allowed)
       const typeChanged = editedColumn.data_type !== (column.data_type || column.column_type);
 
-      if (dbNameChanged || typeChanged) {
-        const changes = [];
-        if (dbNameChanged) changes.push(`database column name from "${column.column_name}" to "${editedColumn.column_name}"`);
-        if (typeChanged) changes.push(`type from "${column.column_type}" to "${editedColumn.data_type}"`);
-
+      if (typeChanged) {
         const confirmed = window.confirm(
-          `⚠️ Warning: You are changing the ${changes.join(' and ')}.\n\n` +
+          `⚠️ Warning: You are changing the type from "${column.column_type}" to "${editedColumn.data_type}".\n\n` +
           'This will rebuild the database table and may result in data loss if the types are incompatible.\n\n' +
           'Are you sure you want to continue?'
         );
@@ -146,23 +137,24 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
         }
       }
 
-      const response = await api.patch(
+      const result = await api.patch(
         `/api/v1/tables/${tableId}/columns/${column.id}`,
         {
           column: {
             name: editedColumn.name,
-            column_name: editedColumn.column_name,
+            // column_name is NEVER sent - database column names cannot be changed after creation
             column_type: editedColumn.data_type
           }
         }
       );
 
-      if (response.data.success) {
+      // api.patch returns the data directly, not wrapped in response.data
+      if (result.success) {
         alert('✅ Column updated successfully!');
         handleUpdate();
         handleClose();
       } else {
-        alert('❌ Failed to update column: ' + (response.data.errors?.join(', ') || 'Unknown error'));
+        alert('❌ Failed to update column: ' + (result.errors?.join(', ') || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error updating column:', error);
@@ -187,23 +179,21 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   };
 
   const hasChanges = () => {
-    return editedColumn.name !== column.name ||
-           editedColumn.column_name !== column.column_name ||
-           editedColumn.data_type !== (column.data_type || column.column_type);
+    return editedColumn.name !== column.name;
   };
 
   // Check if this is a system-generated column
   const isSystemGenerated = ['id', 'created_at', 'updated_at'].includes(column.column_name);
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-auto"
          onClick={(e) => {
            if (e.target === e.currentTarget) {
              handleClose();
            }
          }}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh]
-                    flex flex-col overflow-hidden"
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh]
+                    flex flex-col overflow-hidden mx-auto"
            onClick={(e) => e.stopPropagation()}>
         {/* Header - Red for system-generated, Purple for user columns */}
         <div className={`px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r
@@ -241,13 +231,13 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50
-                      px-6 overflow-x-auto">
+                      px-6 overflow-x-auto shrink-0">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
-                       border-b-2 ${
+              className={`px-4 py-4 text-sm font-medium whitespace-nowrap transition-colors
+                       border-b-2 -mb-px ${
                 activeTab === tab.id
                   ? 'border-purple-500 text-purple-600 dark:text-purple-400'
                   : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
@@ -306,22 +296,9 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
                     value={editedColumn.name}
                     onChange={(e) => {
                       const newName = e.target.value;
-                      const updates = { name: newName };
-
-                      // Auto-copy to column_name unless it contains "ratetime"
-                      if (!column.column_name?.includes('ratetime')) {
-                        // Convert to snake_case
-                        const snakeCaseName = newName
-                          .toLowerCase()
-                          .replace(/[^\w\s]/g, '') // Remove special chars
-                          .replace(/\s+/g, '_')     // Replace spaces with underscores
-                          .replace(/_+/g, '_')      // Remove duplicate underscores
-                          .replace(/^_|_$/g, '');   // Remove leading/trailing underscores
-
-                        updates.column_name = snakeCaseName;
-                      }
-
-                      setEditedColumn({ ...editedColumn, ...updates });
+                      // Only update display name - database column_name is NEVER changed after creation
+                      // Use functional form to avoid stale closure issues
+                      setEditedColumn(prev => ({ ...prev, name: newName }));
                     }}
                     className="w-full px-4 py-3 bg-white dark:bg-gray-700 rounded-lg border-2 border-gray-300
                              dark:border-gray-600 text-base text-gray-900 dark:text-gray-100
@@ -333,27 +310,22 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
                   </p>
                 </div>
 
-                {/* Database Column Name */}
+                {/* Database Column Name - Read Only - Use column prop directly to prevent any accidental modification */}
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                     Column Name (Database)
                   </label>
-                  <input
-                    type="text"
-                    value={editedColumn.column_name}
-                    onChange={(e) => setEditedColumn({ ...editedColumn, column_name: e.target.value })}
-                    className="w-full px-4 py-3 bg-white dark:bg-gray-700 rounded-lg border-2 border-green-300
-                             dark:border-green-600 text-base font-mono text-gray-900 dark:text-gray-100
-                             focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    placeholder="column_name"
-                  />
+                  <div className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-600 rounded-lg border-2 border-gray-300
+                               dark:border-gray-500 text-base font-mono text-gray-700 dark:text-gray-300">
+                    {column.column_name}
+                  </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    The actual database column name (snake_case recommended)
+                    Database column name cannot be changed after creation
                   </p>
                 </div>
               </div>
 
-              {/* SECTION 2: Column Type */}
+              {/* SECTION 2: Column Type - Read Only */}
               <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-700">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="text-3xl">🎯</div>
@@ -365,37 +337,16 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                    Select Type
+                    Current Type
                   </label>
-                  <select
-                    value={editedColumn.data_type}
-                    onChange={(e) => {
-                      const newType = e.target.value
-                      setEditedColumn({
-                        ...editedColumn,
-                        data_type: newType
-                      })
-                    }}
-                    className="w-full px-4 py-3 bg-white dark:bg-gray-700 rounded-lg border-2 border-purple-300
-                             dark:border-purple-600 text-base text-gray-900 dark:text-gray-100 font-medium
-                             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  >
-                    {/* Dynamically build options from COLUMN_TYPES (single source of truth) */}
-                    {['Text', 'Numbers', 'Date & Time', 'Special', 'Selection', 'Relationships', 'Computed'].map(category => {
-                      const typesInCategory = COLUMN_TYPES.filter(t => t.category === category)
-                      if (typesInCategory.length === 0) return null
-
-                      return (
-                        <optgroup key={category} label={category}>
-                          {typesInCategory.map(type => (
-                            <option key={type.value} value={type.value}>
-                              {getColumnTypeEmoji(type.value)} {type.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )
-                    })}
-                  </select>
+                  <div className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-600 rounded-lg border-2 border-gray-300
+                               dark:border-gray-500 text-base font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                    <span>{getColumnTypeEmoji(editedColumn.data_type)}</span>
+                    <span>{getColumnMetadata(editedColumn.data_type).label}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Use the "Change Type" tab to convert column type (requires data migration)
+                  </p>
                 </div>
               </div>
 
@@ -511,14 +462,6 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
             </div>
           )}
 
-          {activeTab === 'rename' && (
-            <RenameEditor
-              tableId={tableId}
-              column={column}
-              onUpdate={handleUpdate}
-            />
-          )}
-
           {activeTab === 'type' && (
             <TypeConversionEditor
               tableId={tableId}
@@ -546,19 +489,59 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
               }}
             />
           )}
+
+          {activeTab === 'lookup' && isLookupColumn && (
+            <LookupEditor
+              tableId={tableId}
+              column={column}
+              onUpdate={handleUpdate}
+              onClose={onClose}
+            />
+          )}
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={handleClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
-                       bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
-                       rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-            >
-              Close
-            </button>
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              {/* Hide status message on choices and lookup tabs since they handle their own saving */}
+              {activeTab !== 'choices' && activeTab !== 'lookup' && hasChanges() ? (
+                <span className="text-orange-600 dark:text-orange-400 font-medium">
+                  Unsaved changes
+                </span>
+              ) : null}
+              {activeTab === 'choices' && (
+                <span className="text-gray-500 dark:text-gray-400 text-xs">
+                  All changes are saved automatically
+                </span>
+              )}
+            </div>
+            <div className="flex gap-3">
+              {/* Hide Close button on lookup tab since LookupEditor has its own save button that closes */}
+              {activeTab !== 'lookup' && (
+                <button
+                  onClick={handleClose}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
+                           bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                           rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              )}
+              {/* Hide Save button on choices and lookup tabs since they have their own save buttons */}
+              {activeTab !== 'choices' && activeTab !== 'lookup' && (
+                <button
+                  onClick={handleSaveColumnInfo}
+                  disabled={saving || !hasChanges()}
+                  className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors
+                           ${hasChanges()
+                             ? 'bg-green-600 hover:bg-green-700'
+                             : 'bg-gray-400 cursor-not-allowed'}`}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

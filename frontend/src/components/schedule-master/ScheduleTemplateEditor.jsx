@@ -2442,6 +2442,7 @@ export default function ScheduleTemplateEditor() {
                       canMoveDown={rowIndex < rows.length - 1}
                       isSelected={selectedRows.has(row.id)}
                       onSelectRow={handleSelectRow}
+                      isApplyingCascadeRef={isApplyingCascadeRef}
                     />
                   )
                 })
@@ -2575,7 +2576,7 @@ export default function ScheduleTemplateEditor() {
 function ScheduleTemplateRow({
   row, index, suppliers, columnConfig, getSortedColumns, allRows,
   onUpdate, onDelete, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
-  isSelected, onSelectRow
+  isSelected, onSelectRow, isApplyingCascadeRef
 }) {
   const [localName, setLocalName] = useState(row.name)
   const [localDuration, setLocalDuration] = useState(row.duration || 0)
@@ -2634,6 +2635,12 @@ function ScheduleTemplateRow({
       return
     }
 
+    // CRITICAL: Skip updates during backend cascade application to prevent infinite loops
+    if (isApplyingCascadeRef?.current) {
+      console.log(`⏸️ ScheduleTemplateRow[${row.id}]: Skipping auto-update - applying backend cascade`)
+      return
+    }
+
     if (calculatedStartDate !== row.start_date) {
       // Debounce the update to avoid excessive API calls
       const timer = setTimeout(() => {
@@ -2641,7 +2648,7 @@ function ScheduleTemplateRow({
       }, 100)
       return () => clearTimeout(timer)
     }
-  }, [calculatedStartDate, row.start_date, row.manually_positioned, onUpdate])
+  }, [calculatedStartDate, row.start_date, row.manually_positioned, onUpdate, isApplyingCascadeRef])
 
   // Cleanup timeout on unmount
   useEffect(() => {

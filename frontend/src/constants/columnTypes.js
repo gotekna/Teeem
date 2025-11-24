@@ -13,12 +13,39 @@ import {
   CalculatorIcon,
   RectangleStackIcon,
   ArrowsRightLeftIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/react/24/outline'
+import api from '../api'
 
 /**
- * Complete list of all column types supported by the application.
- * Used for column creation and display.
- * Includes SQL types, validation rules, examples, and usage information from Gold Standard.
+ * ============================================================================
+ * CACHE/FALLBACK ONLY - DO NOT EDIT AS SOURCE OF TRUTH
+ * ============================================================================
+ *
+ * SINGLE SOURCE OF TRUTH: Trinity T19.001-T19.021 (see Bible Rule #19.37)
+ *
+ * The Hierarchy:
+ *   Trinity T19.001-T19.021 (SSoT - RULES)
+ *       │
+ *       ├──► columns table (Table ID 1) - IMPLEMENTATION
+ *       ├──► gold_standard_items - PROOF (sample data)
+ *       └──► THIS FILE - CACHE/FALLBACK ONLY
+ *
+ * Maintenance Process:
+ *   1. Edit Trinity T19.xxx first (via Documentation page UI)
+ *   2. Update columns table to match
+ *   3. Run gold-standard-sst agent to verify sync
+ *   4. This file auto-syncs via API fetch
+ *
+ * API Access:
+ *   - GET /api/v1/column_types (reads from Gold Standard table)
+ *   - GET /api/v1/trinity?category=teacher&chapter_number=19 (reads Trinity)
+ *
+ * NEVER edit this file as the source - it's for offline/fallback only.
+ * Always use getColumnTypesWithCache() which fetches from API first.
+ *
+ * See: SINGLE_SOURCE_OF_TRUTH.md for full documentation.
+ * ============================================================================
  */
 export const COLUMN_TYPES = [
   // Text Fields
@@ -193,6 +220,17 @@ export const COLUMN_TYPES = [
     example: '/uploads/doc.pdf, https://example.com/file.png',
     usedFor: 'File references, document links, image paths'
   },
+  {
+    value: 'action_buttons',
+    label: 'Action Buttons',
+    icon: WrenchScrewdriverIcon,
+    category: 'Special',
+    description: 'Interactive buttons for row-level actions',
+    sqlType: 'VARCHAR(255)',
+    validationRules: 'Optional field, stores action configuration as JSON string',
+    example: '{"buttons": [{"label": "View", "action": "view"}, {"label": "Edit", "action": "edit"}]}',
+    usedFor: 'Row-level actions like View, Edit, Download, Approve, Process'
+  },
 
   // Selection & Boolean
   {
@@ -288,6 +326,16 @@ export const getColumnTypeLabel = (value) => {
 }
 
 /**
+ * Get the SQL type for a column type value
+ * @param {string} value - The column type value (e.g., 'single_line_text')
+ * @returns {string} The SQL type (e.g., 'VARCHAR(255)')
+ */
+export const getColumnTypeSqlType = (value) => {
+  const type = COLUMN_TYPES.find(t => t.value === value)
+  return type?.sqlType || 'VARCHAR(255)'
+}
+
+/**
  * Get the icon component for a column type value
  * @param {string} value - The column type value
  * @returns {Component} The icon component
@@ -337,6 +385,7 @@ export const getColumnTypeEmoji = (columnType) => {
     'gps_coordinates': '📍',
     'color_picker': '🎨',
     'file_upload': '📎',
+    'action_buttons': '⚡',
     'boolean': '☑️',
     'choice': '📋',
     'lookup': '🔗',
@@ -362,13 +411,7 @@ const CACHE_TTL = 3600000 // 1 hour in milliseconds
  */
 export const fetchColumnTypesFromAPI = async () => {
   try {
-    const response = await fetch('/api/v1/column_types')
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`)
-    }
-
-    const data = await response.json()
+    const data = await api.get('/api/v1/column_types')
 
     if (data.success && data.data) {
       return data.data

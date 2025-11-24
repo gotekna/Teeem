@@ -122,6 +122,8 @@ function calculateLayout(tables, relationships) {
       id: `table-${table.id}`,
       type: 'tableNode',
       position: { x: currentX, y: currentY },
+      width: nodeWidth,
+      height: nodeHeight,
       data: {
         ...table,
         label: table.name,
@@ -148,6 +150,8 @@ function calculateLayout(tables, relationships) {
       id: `table-${table.id}`,
       type: 'tableNode',
       position: { x: currentX, y: currentY },
+      width: nodeWidth,
+      height: nodeHeight,
       data: {
         ...table,
         label: table.name,
@@ -160,7 +164,7 @@ function calculateLayout(tables, relationships) {
   // Create edges for relationships
   relationships.forEach((rel) => {
     edges.push({
-      id: rel.id,
+      id: `edge-${rel.id}`,
       source: `table-${rel.from_table_id}`,
       target: `table-${rel.to_table_id}`,
       type: 'smoothstep',

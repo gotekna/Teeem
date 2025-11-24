@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import axios from 'axios'
 import packageJson from '../../../package.json'
 import BackButton from '../common/BackButton'
 import FloatingHelpButton from '../FloatingHelpButton'
 import InspiringBanner from '../InspiringBanner'
+import { api } from '../../api'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   Dialog,
   DialogBackdrop,
@@ -31,7 +33,6 @@ import {
   BookOpenIcon,
   UserGroupIcon,
   UsersIcon,
-  UserIcon,
   PlusIcon,
   EnvelopeIcon,
   DocumentTextIcon,
@@ -44,18 +45,37 @@ import {
   ShieldCheckIcon,
   CalendarIcon,
   BuildingOfficeIcon,
+  ClipboardDocumentListIcon,
+  CalendarDaysIcon,
+  FolderOpenIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
+
+// Job detail tabs for sidebar sub-navigation
+const jobTabs = [
+  { name: 'Overview', slug: 'overview', icon: BriefcaseIcon },
+  { name: 'Purchase Orders', slug: 'purchase-orders', icon: DocumentTextIcon },
+  { name: 'Estimates', slug: 'estimates', icon: ClipboardDocumentListIcon },
+  { name: 'Schedule Master', slug: 'schedule-master', icon: CalendarDaysIcon },
+  { name: 'Rain Log', slug: 'rain-log', icon: CloudIcon },
+  { name: 'Documents', slug: 'documents', icon: FolderOpenIcon },
+  { name: 'Coms', slug: 'coms', icon: ChatBubbleLeftRightIcon },
+  { name: 'Team', slug: 'team', icon: UserGroupIcon },
+]
 
 // Main navigation items
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Active Jobs', href: '/active-jobs', icon: BriefcaseIcon },
-  { name: 'Sam', href: '/sam', icon: UserIcon },
+  { name: 'Active Jobs', href: '/tables/active-jobs', icon: BriefcaseIcon },
   { name: 'Meetings', href: '/meetings', icon: CalendarIcon },
+  { name: 'WHS', href: '/whs', icon: ShieldCheckIcon },
+  { name: 'Financial', href: '/financial', icon: BanknotesIcon },
   { name: 'Xest', href: '/xest', icon: BeakerIcon },
-  { name: 'Price Books', href: '/price-books', icon: BookOpenIcon },
-  { name: 'Contacts', href: '/contacts', icon: UsersIcon },
+  { name: 'Price Books', href: '/tables/205', icon: BookOpenIcon },
+  { name: 'Contacts', href: '/tables/214', icon: UsersIcon },
+  { name: 'Suppliers', href: '/tables/215', icon: UserGroupIcon },
+  { name: 'Purchase Orders', href: '/tables/217', icon: DocumentTextIcon },
   { name: 'Accounts', href: '/accounts', icon: BanknotesIcon },
   { name: 'Corporate', href: '/corporate/companies', icon: BuildingOfficeIcon },
   { name: 'Documents', href: '/documents', icon: DocumentTextIcon },
@@ -66,6 +86,8 @@ const navigation = [
   { name: 'System Admin', href: '/admin/system', icon: BeakerIcon },
   { name: 'Trinity', href: '/trinity', icon: BookOpenIcon },
   { name: 'DHTMLX Gantt', href: '/admin/system?tab=schedule-master&openGantt=dhtmlx', icon: ChartBarIcon },
+  { name: 'SM Gantt', href: '/jobs/20/sm-gantt', icon: ChartBarIcon },
+  { name: 'SM Setup', href: '/admin/sm-setup', icon: Cog6ToothIcon },
 ]
 
 // Bottom navigation items
@@ -75,14 +97,123 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
 }
 
+// Helper to get a normalized route key for localStorage
+const getRouteKey = (pathname) => {
+  // Normalize paths like /jobs/123 to /jobs
+  if (pathname.startsWith('/jobs/')) return '/jobs'
+  if (pathname === '/tables/214' || pathname.startsWith('/contacts/')) return '/tables/214'
+  if (pathname.startsWith('/tables/')) return '/tables'
+  if (pathname.startsWith('/accounts/')) return '/accounts'
+  if (pathname.startsWith('/corporate/')) return '/corporate'
+  return pathname
+}
+
+// Default sidebar state for routes (collapsed = true means sidebar is closed by default)
+const defaultSidebarState = {
+  '/active-jobs': true,   // Collapsed
+  '/jobs': true,          // Collapsed
+  '/settings': true,      // Collapsed
+  '/dashboard': false,    // Expanded
+}
+
 export default function AppLayout({ children }) {
   const location = useLocation()
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    location.pathname === '/active-jobs' || location.pathname.startsWith('/jobs/') || location.pathname === '/settings'
-  )
+  const [activeJobs, setActiveJobs] = useState([])
+  const [jobSearchQuery, setJobSearchQuery] = useState('')
+  const [activeJobsExpanded, setActiveJobsExpanded] = useState(() => {
+    const saved = localStorage.getItem('activeJobsExpanded')
+    return saved === null ? true : saved === 'true'
+  })
+  const [expandedJobId, setExpandedJobId] = useState(() => {
+    const saved = localStorage.getItem('expandedJobId')
+    return saved ? parseInt(saved, 10) : null
+  })
+  const [jobViewMode, setJobViewMode] = useState(() => {
+    const saved = localStorage.getItem('jobViewMode')
+    return saved || 'list' // 'list' or 'stage'
+  })
+  const [expandedStages, setExpandedStages] = useState(() => {
+    const saved = localStorage.getItem('expandedStages')
+    return saved ? JSON.parse(saved) : { 'Construction': true }
+  })
+
+  // Resizable sidebar state (per-route)
+  const getSidebarWidthForRoute = (pathname) => {
+    const routeKey = getRouteKey(pathname)
+    const saved = localStorage.getItem(`sidebarWidth:${routeKey}`)
+    return saved ? parseInt(saved, 10) : 288 // Default 288px (w-72)
+  }
+
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    return getSidebarWidthForRoute(location.pathname)
+  })
+  const [isResizing, setIsResizing] = useState(false)
+  const sidebarRef = useRef(null)
+  const minSidebarWidth = 200
+  const maxSidebarWidth = 500
+
+  // Update sidebar width when route changes
+  useEffect(() => {
+    const newWidth = getSidebarWidthForRoute(location.pathname)
+    setSidebarWidth(newWidth)
+  }, [location.pathname])
+
+  // Handle sidebar resize
+  const startResizing = useCallback((e) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false)
+  }, [])
+
+  const resize = useCallback((e) => {
+    if (isResizing) {
+      const newWidth = e.clientX
+      if (newWidth >= minSidebarWidth && newWidth <= maxSidebarWidth) {
+        setSidebarWidth(newWidth)
+        // Save per-route
+        const routeKey = getRouteKey(location.pathname)
+        localStorage.setItem(`sidebarWidth:${routeKey}`, newWidth.toString())
+      }
+    }
+  }, [isResizing, location.pathname])
+
+  // Attach mouse event listeners for resizing
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize)
+      window.addEventListener('mouseup', stopResizing)
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize)
+      window.removeEventListener('mouseup', stopResizing)
+    }
+  }, [isResizing, resize, stopResizing])
+
+  // Get sidebar preference for current route
+  const getSidebarPreference = (pathname) => {
+    const routeKey = getRouteKey(pathname)
+    const storageKey = `sidebarCollapsed:${routeKey}`
+    const saved = localStorage.getItem(storageKey)
+
+    if (saved !== null) {
+      return saved === 'true'
+    }
+
+    // Use default for this route, or false (expanded) if no default
+    return defaultSidebarState[routeKey] ?? false
+  }
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    return getSidebarPreference(location.pathname)
+  })
   const [backendVersion, setBackendVersion] = useState('loading...')
   const [unreadCount, setUnreadCount] = useState(0)
+  const [priceBooksPreloadStatus, setPriceBooksPreloadStatus] = useState('idle') // 'idle', 'loading', 'complete'
   const frontendVersion = packageJson.version
 
   useEffect(() => {
@@ -98,11 +229,119 @@ export default function AppLayout({ children }) {
     fetchVersion()
   }, [])
 
+  // Load active jobs for sidebar
+  useEffect(() => {
+    const loadActiveJobs = async () => {
+      try {
+        const response = await api.get('/api/v1/constructions?status=Active&per_page=20')
+        setActiveJobs(response.constructions || [])
+      } catch (err) {
+        // Silently fail - sidebar will just show empty, user can still navigate
+        console.debug('Active jobs unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadActiveJobs()
+  }, [])
+
+  // Preload Price Books (Table 205) if user has enabled it
+  useEffect(() => {
+    if (user?.preload_price_books) {
+      console.log('[Preload] User has preload_price_books enabled, starting background load...')
+      setPriceBooksPreloadStatus('loading')
+
+      // Wait 3 seconds after app loads to not interfere with initial render
+      const timer = setTimeout(async () => {
+        try {
+          const startTime = Date.now()
+          console.log('[Preload] Starting table 205 (Price Books) background load...')
+
+          const response = await api.get('/api/v1/tables/205/records', {
+            params: {
+              per_page: 10000,
+              page: 1
+            }
+          })
+
+          const loadTime = Date.now() - startTime
+          console.log(`[Preload] ✅ Table 205 preloaded in ${loadTime}ms:`, {
+            recordCount: response.records?.length,
+            totalCount: response.pagination?.total_count
+          })
+
+          // Store in sessionStorage for TablePage to use
+          sessionStorage.setItem('preloaded_table_205', JSON.stringify({
+            data: response,
+            timestamp: Date.now()
+          }))
+
+          setPriceBooksPreloadStatus('complete')
+        } catch (error) {
+          console.error('[Preload] Failed to preload table 205:', error)
+          setPriceBooksPreloadStatus('idle')
+        }
+      }, 3000) // 3 second delay
+
+      return () => clearTimeout(timer)
+    }
+  }, [user])
+
+  // Auto-expand job if we're on a job detail page
+  useEffect(() => {
+    const match = location.pathname.match(/^\/jobs\/(\d+)/)
+    if (match) {
+      const jobId = parseInt(match[1], 10)
+      setExpandedJobId(prevId => {
+        if (prevId !== jobId) {
+          localStorage.setItem('expandedJobId', jobId.toString())
+          return jobId
+        }
+        return prevId
+      })
+      // Also expand the Active Jobs section
+      if (!activeJobsExpanded) {
+        setActiveJobsExpanded(true)
+        localStorage.setItem('activeJobsExpanded', 'true')
+      }
+    }
+  }, [location.pathname, activeJobsExpanded])
+
+  const toggleActiveJobsExpanded = () => {
+    const newValue = !activeJobsExpanded
+    setActiveJobsExpanded(newValue)
+    localStorage.setItem('activeJobsExpanded', String(newValue))
+  }
+
+  const toggleJobExpanded = (jobId) => {
+    const newId = expandedJobId === jobId ? null : jobId
+    setExpandedJobId(newId)
+    localStorage.setItem('expandedJobId', newId ? newId.toString() : '')
+  }
+
+  const toggleJobViewMode = () => {
+    const newMode = jobViewMode === 'list' ? 'stage' : 'list'
+    setJobViewMode(newMode)
+    localStorage.setItem('jobViewMode', newMode)
+  }
+
+  const toggleStageExpanded = (stage) => {
+    const newStages = { ...expandedStages, [stage]: !expandedStages[stage] }
+    setExpandedStages(newStages)
+    localStorage.setItem('expandedStages', JSON.stringify(newStages))
+  }
+
+  // Group jobs by stage for stage view
+  const jobsByStage = activeJobs.reduce((acc, job) => {
+    const stage = job.stage || 'Unknown'
+    if (!acc[stage]) acc[stage] = []
+    acc[stage].push(job)
+    return acc
+  }, {})
+
   // Poll for unread messages count
   useEffect(() => {
     const fetchUnreadCount = async () => {
       try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/v1/chat_messages/unread_count`, {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/chat_messages/unread_count`, {
           withCredentials: true
         })
         setUnreadCount(response.data.count || 0)
@@ -117,12 +356,19 @@ export default function AppLayout({ children }) {
     return () => clearInterval(interval)
   }, [])
 
-  // Auto-collapse sidebar when navigating to Active Jobs, Job Detail pages, or Settings
+  // Update sidebar state when route changes
   useEffect(() => {
-    if (location.pathname === '/active-jobs' || location.pathname.startsWith('/jobs/') || location.pathname === '/settings') {
-      setSidebarCollapsed(true)
-    }
+    const newPreference = getSidebarPreference(location.pathname)
+    setSidebarCollapsed(newPreference)
   }, [location.pathname])
+
+  // Save sidebar preference to localStorage when toggled (per-route)
+  const handleSidebarToggle = () => {
+    const newValue = !sidebarCollapsed
+    setSidebarCollapsed(newValue)
+    const routeKey = getRouteKey(location.pathname)
+    localStorage.setItem(`sidebarCollapsed:${routeKey}`, String(newValue))
+  }
 
   const isCurrentPath = (href) => {
     if (href === '/dashboard') {
@@ -196,7 +442,19 @@ export default function AppLayout({ children }) {
                                   'size-6 shrink-0',
                                 )}
                               />
-                              {item.name}
+                              <span className="flex items-center gap-2 flex-1">
+                                {item.name}
+                                {item.name === 'Price Books' && priceBooksPreloadStatus === 'loading' && (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-normal">
+                                    Loading...
+                                  </span>
+                                )}
+                                {item.name === 'Price Books' && priceBooksPreloadStatus === 'complete' && (
+                                  <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded font-normal">
+                                    ✓ Ready
+                                  </span>
+                                )}
+                              </span>
                             </Link>
                           </li>
                         )
@@ -251,11 +509,24 @@ export default function AppLayout({ children }) {
       </Dialog>
 
       {/* Static sidebar for desktop */}
-      <div className={classNames(
-        "hidden bg-gray-900 lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-all duration-300",
-        sidebarCollapsed ? "lg:w-16" : "lg:w-72"
-      )}>
+      <div
+        ref={sidebarRef}
+        className={classNames(
+          "hidden bg-gray-900 lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col",
+          sidebarCollapsed ? "lg:w-16 transition-all duration-300" : "",
+          isResizing ? "select-none" : ""
+        )}
+        style={sidebarCollapsed ? undefined : { width: sidebarWidth }}
+      >
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white pb-6 dark:border-white/10 dark:bg-black/10">
+          {/* Resize handle - only show when not collapsed */}
+          {!sidebarCollapsed && (
+            <div
+              className="absolute right-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-indigo-400 active:bg-indigo-500 transition-colors z-50"
+              onMouseDown={startResizing}
+              title="Drag to resize sidebar"
+            />
+          )}
           <div className={classNames(
             "flex h-16 shrink-0 items-center relative",
             sidebarCollapsed ? "justify-center px-2" : "px-6"
@@ -283,7 +554,7 @@ export default function AppLayout({ children }) {
               />
             )}
             <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onClick={handleSidebarToggle}
               className={classNames(
                 "absolute p-1 rounded hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200",
                 sidebarCollapsed ? "-right-3 top-1/2 -translate-y-1/2" : "right-2 top-1/2 -translate-y-1/2"
@@ -303,6 +574,238 @@ export default function AppLayout({ children }) {
                 <ul role="list" className="-mx-2 space-y-1">
                   {navigation.map((item) => {
                     const current = isCurrentPath(item.href)
+
+                    // Special handling for Active Jobs - make it expandable
+                    if (item.name === 'Active Jobs') {
+                      return (
+                        <li key={item.name}>
+                          {/* Active Jobs header with expand toggle */}
+                          <div className="flex items-center">
+                            <Link
+                              to={item.href}
+                              title={sidebarCollapsed ? item.name : undefined}
+                              className={classNames(
+                                current
+                                  ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold flex-1',
+                                sidebarCollapsed && 'justify-center'
+                              )}
+                            >
+                              <item.icon
+                                aria-hidden="true"
+                                className={classNames(
+                                  current
+                                    ? 'text-indigo-600 dark:text-white'
+                                    : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                  'size-6 shrink-0',
+                                )}
+                              />
+                              {!sidebarCollapsed && item.name}
+                            </Link>
+                            {!sidebarCollapsed && activeJobs.length > 0 && (
+                              <button
+                                onClick={toggleActiveJobsExpanded}
+                                className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                              >
+                                <ChevronRightIcon
+                                  className={classNames(
+                                    'h-4 w-4 text-gray-400 transition-transform',
+                                    activeJobsExpanded && 'rotate-90'
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Expandable job list */}
+                          {!sidebarCollapsed && activeJobsExpanded && activeJobs.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {/* Search and view toggle */}
+                              <li className="px-2 pb-1 flex gap-1">
+                                <div className="relative flex-1">
+                                  <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search jobs..."
+                                    value={jobSearchQuery}
+                                    onChange={(e) => setJobSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  />
+                                </div>
+                                <button
+                                  onClick={toggleJobViewMode}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors',
+                                    jobViewMode === 'stage'
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={jobViewMode === 'stage' ? 'View as list' : 'View by stage'}
+                                >
+                                  {jobViewMode === 'stage' ? '📋' : '📊'}
+                                </button>
+                              </li>
+
+                              {/* List View */}
+                              {jobViewMode === 'list' && activeJobs
+                                .filter(job => {
+                                  if (!jobSearchQuery) return true
+                                  const query = jobSearchQuery.toLowerCase()
+                                  return (job.title || '').toLowerCase().includes(query) ||
+                                         String(job.id).includes(query)
+                                })
+                                .slice(0, 10)
+                                .map((job) => (
+                                <li key={job.id}>
+                                  {/* Job row with expand toggle */}
+                                  <div className="flex items-center pl-4">
+                                    <button
+                                      onClick={() => toggleJobExpanded(job.id)}
+                                      className="p-0.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                                    >
+                                      <ChevronRightIcon
+                                        className={classNames(
+                                          'h-3 w-3 text-gray-400 transition-transform',
+                                          expandedJobId === job.id && 'rotate-90'
+                                        )}
+                                      />
+                                    </button>
+                                    <Link
+                                      to={`/jobs/${job.id}/overview`}
+                                      className={classNames(
+                                        location.pathname.startsWith(`/jobs/${job.id}`)
+                                          ? 'text-indigo-600 dark:text-indigo-400'
+                                          : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                        'flex-1 px-2 py-1 text-xs truncate rounded hover:bg-gray-50 dark:hover:bg-white/5'
+                                      )}
+                                      title={job.title}
+                                    >
+                                      {job.title || `Job #${job.id}`}
+                                    </Link>
+                                  </div>
+
+                                  {/* Job tabs - shown when expanded */}
+                                  {expandedJobId === job.id && (
+                                    <ul className="ml-8 mt-0.5 space-y-0.5 pb-1">
+                                      {jobTabs.map((tab) => {
+                                        const TabIcon = tab.icon
+                                        const isActive = location.pathname === `/jobs/${job.id}/${tab.slug}`
+                                        return (
+                                          <li key={tab.slug}>
+                                            <Link
+                                              to={`/jobs/${job.id}/${tab.slug}`}
+                                              className={classNames(
+                                                isActive
+                                                  ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                                  : 'text-gray-500 hover:text-indigo-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:text-white dark:hover:bg-white/5',
+                                                'flex items-center gap-2 px-2 py-1 text-xs rounded'
+                                              )}
+                                            >
+                                              <TabIcon className="h-3.5 w-3.5" />
+                                              {tab.name}
+                                            </Link>
+                                          </li>
+                                        )
+                                      })}
+                                    </ul>
+                                  )}
+                                </li>
+                              ))}
+
+                              {/* Stage View */}
+                              {jobViewMode === 'stage' && Object.entries(jobsByStage)
+                                .sort(([a], [b]) => {
+                                  // Sort stages: Construction first, then alphabetically
+                                  if (a === 'Construction') return -1
+                                  if (b === 'Construction') return 1
+                                  return a.localeCompare(b)
+                                })
+                                .map(([stage, jobs]) => {
+                                  const filteredJobs = jobs.filter(job => {
+                                    if (!jobSearchQuery) return true
+                                    const query = jobSearchQuery.toLowerCase()
+                                    return (job.title || '').toLowerCase().includes(query) ||
+                                           String(job.id).includes(query)
+                                  })
+                                  if (filteredJobs.length === 0) return null
+
+                                  return (
+                                    <li key={stage}>
+                                      {/* Stage header */}
+                                      <button
+                                        onClick={() => toggleStageExpanded(stage)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            expandedStages[stage] && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          {stage}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredJobs.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Jobs under this stage */}
+                                      {expandedStages[stage] && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredJobs.slice(0, 10).map((job) => (
+                                            <li key={job.id}>
+                                              <Link
+                                                to={`/jobs/${job.id}/overview`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/jobs/${job.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'block px-2 py-1 text-xs truncate rounded hover:bg-gray-50 dark:hover:bg-white/5'
+                                                )}
+                                                title={job.title}
+                                              >
+                                                {job.title || `Job #${job.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+
+                              {/* More link for list view */}
+                              {jobViewMode === 'list' && (() => {
+                                const filteredJobs = activeJobs.filter(job => {
+                                  if (!jobSearchQuery) return true
+                                  const query = jobSearchQuery.toLowerCase()
+                                  return (job.title || '').toLowerCase().includes(query) ||
+                                         String(job.id).includes(query)
+                                })
+                                const remaining = filteredJobs.length - 10
+                                if (remaining > 0) {
+                                  return (
+                                    <li className="pl-6">
+                                      <Link
+                                        to="/tables/active-jobs"
+                                        className="text-xs text-gray-500 hover:text-indigo-600 dark:text-gray-400"
+                                      >
+                                        +{remaining} more...
+                                      </Link>
+                                    </li>
+                                  )
+                                }
+                                return null
+                              })()}
+                            </ul>
+                          )}
+                        </li>
+                      )
+                    }
+
+                    // Regular navigation item
                     return (
                       <li key={item.name}>
                         <Link
@@ -325,7 +828,21 @@ export default function AppLayout({ children }) {
                               'size-6 shrink-0',
                             )}
                           />
-                          {!sidebarCollapsed && item.name}
+                          {!sidebarCollapsed && (
+                            <span className="flex items-center gap-2 flex-1">
+                              {item.name}
+                              {item.name === 'Price Books' && priceBooksPreloadStatus === 'loading' && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-normal">
+                                  Loading...
+                                </span>
+                              )}
+                              {item.name === 'Price Books' && priceBooksPreloadStatus === 'complete' && (
+                                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded font-normal">
+                                  ✓ Ready
+                                </span>
+                              )}
+                            </span>
+                          )}
                         </Link>
                       </li>
                     )
@@ -381,12 +898,15 @@ export default function AppLayout({ children }) {
       </div>
 
       {/* Main content area */}
-      <div className={classNames(
-        "transition-all duration-300",
-        sidebarCollapsed ? "lg:pl-16" : "lg:pl-72"
-      )}>
+      <div
+        className={classNames(
+          "h-screen flex flex-col",
+          sidebarCollapsed ? "lg:pl-16 transition-all duration-300" : ""
+        )}
+        style={sidebarCollapsed ? undefined : { paddingLeft: sidebarWidth }}
+      >
         {/* Top bar - always visible with help button */}
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
+        <div className="z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -513,10 +1033,10 @@ export default function AppLayout({ children }) {
 
         {/* Main content */}
         <main className={classNames(
-          "py-4",
+          "py-4 flex-1 flex flex-col min-h-0",
           sidebarCollapsed ? "lg:pt-4" : ""
         )}>
-          <div className="px-4 sm:px-6 lg:px-8">
+          <div className="px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0">
             {children}
           </div>
         </main>

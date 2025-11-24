@@ -23,7 +23,6 @@ export default function AgentShortcutsTab() {
   const [exportStatus, setExportStatus] = useState(null)
   const [isEditingCommands, setIsEditingCommands] = useState(false)
   const [isEditingSlang, setIsEditingSlang] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
   const [agents, setAgents] = useState([])
   const [agentsLoading, setAgentsLoading] = useState(true)
 
@@ -109,14 +108,13 @@ export default function AgentShortcutsTab() {
   }))
 
   useEffect(() => {
-    loadCurrentUser()
     loadData()
     loadAgents()
   }, [])
 
   const loadAgents = async () => {
     try {
-      const response = await api.get('/trinity?category=bible&chapter=21')
+      const response = await api.get('/api/v1/trinity?category=bible&chapter=21')
       if (response.data.success) {
         setAgents(response.data.data)
       }
@@ -213,24 +211,25 @@ export default function AgentShortcutsTab() {
     }
   }, [resizingColumnSlang, resizeStartXSlang, resizeStartWidthSlang])
 
-  const loadCurrentUser = () => {
+  // Helper to get current user from localStorage (used for audit trail)
+  const getCurrentUserFromStorage = () => {
     const user = localStorage.getItem('user')
     if (user) {
       try {
         const userData = JSON.parse(user)
-        setCurrentUser(userData.email || userData.name || 'User')
+        return userData.email || userData.name || 'User'
       } catch (e) {
-        setCurrentUser('User')
+        return 'User'
       }
-    } else {
-      setCurrentUser('User')
     }
+    return 'User'
   }
+
 
   const loadData = async () => {
     try {
       // Fetch agent shortcuts from API (RULE #1.13 - Single Source of Truth)
-      const agentResponse = await api.get('/agents/shortcuts')
+      const agentResponse = await api.get('/api/v1/agents/shortcuts')
       const agentShortcuts = agentResponse.data || []
 
       // Merge with non-agent commands from localStorage or defaults
@@ -271,7 +270,7 @@ export default function AgentShortcutsTab() {
         ...c,
         [field]: value,
         lastUpdated: new Date().toISOString(),
-        updatedBy: currentUser || 'User'
+        updatedBy: getCurrentUserFromStorage()
       } : c
     )
     setCommands(updated)
@@ -284,7 +283,7 @@ export default function AgentShortcutsTab() {
       command: '',
       shortcut: '',
       lastUpdated: new Date().toISOString(),
-      updatedBy: currentUser || 'User'
+      updatedBy: getCurrentUserFromStorage()
     }
     const updated = [...commands, newCommand]
     setCommands(updated)
@@ -319,7 +318,7 @@ export default function AgentShortcutsTab() {
         ...s,
         [field]: value,
         lastUpdated: new Date().toISOString(),
-        updatedBy: currentUser || 'User'
+        updatedBy: getCurrentUserFromStorage()
       } : s
     )
     setSlang(updated)
@@ -332,7 +331,7 @@ export default function AgentShortcutsTab() {
       shortcut: '',
       meaning: '',
       lastUpdated: new Date().toISOString(),
-      updatedBy: currentUser || 'User'
+      updatedBy: getCurrentUserFromStorage()
     }
     const updated = [...slang, newSlang]
     setSlang(updated)

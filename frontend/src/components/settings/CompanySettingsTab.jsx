@@ -1,5 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
+import { Link } from 'react-router-dom'
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 import PublicHolidaysPage from '../../pages/PublicHolidaysPage'
 import { setCompanySettings } from '../../utils/timezoneUtils'
@@ -65,7 +67,7 @@ export default function CompanySettingsTab() {
       // Initialize timezone utilities with company settings
       setCompanySettings(loadedSettings)
     } catch (error) {
-      console.error('Failed to load company settings:', error)
+      console.debug('Company settings unavailable:', error?.message || 'Unknown error')
       setMessage({ type: 'error', text: 'Failed to load settings' })
     } finally {
       setLoading(false)
@@ -110,7 +112,16 @@ export default function CompanySettingsTab() {
   return (
     <div>
       <div className="max-w-4xl">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-6">Company Settings</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Company Settings</h2>
+          <Link
+            to="/corporate"
+            className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            Go to Corporate Dashboard
+            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+          </Link>
+        </div>
 
         <TabGroup>
           <TabList className="flex space-x-1 rounded-xl bg-indigo-900/20 p-1 mb-6 overflow-x-auto">

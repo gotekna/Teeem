@@ -1,3 +1,22 @@
+---
+name: Production Bug Hunter
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  Heroku Log Analysis:       Errors detected         [PASS]║
+  ║  Bug Reproduction:          Local repro verified    [PASS]║
+  ║  Stack Trace Analysis:      Root cause identified   [PASS]║
+  ║  Fix Implementation:        Coordinated with agents [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Production bug diagnosis & resolution             ║
+  ║  Systems: All production systems                          ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~5,500                            ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: red
+type: diagnostic
+---
+
 # Production Bug Hunter Agent
 
 **Agent ID:** production-bug-hunter
@@ -105,3 +124,52 @@ See Trinity Chapter 9 RULE #9.1 for full workflow. Never read markdown files - u
 ## Last Run
 
 *Run history will be tracked automatically*
+
+## Final Summary Output (REQUIRED)
+
+**After completing all checks, you MUST output a clear summary box like this:**
+
+### If ALL Checks Pass:
+```
+╔════════════════════════════════════════════════════════════════╗
+║           PRODUCTION BUG HUNTER DIAGNOSTIC COMPLETE            ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: NO ISSUES FOUND                                       ║
+╠════════════════════════════════════════════════════════════════╣
+║  Heroku Log Analysis:     No errors detected          [PASS]   ║
+║  Bug Reproduction:        N/A                         [PASS]   ║
+║  Stack Trace Analysis:    Clean                       [PASS]   ║
+║  Fix Implementation:      N/A                         [PASS]   ║
+╠════════════════════════════════════════════════════════════════╣
+║  Focus: Production bug diagnosis & resolution                  ║
+║  Systems: All production systems                               ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+### If Issues Found:
+```
+╔════════════════════════════════════════════════════════════════╗
+║           PRODUCTION BUG HUNTER DIAGNOSTIC COMPLETE            ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: BUG IDENTIFIED - ACTION REQUIRED                      ║
+╠════════════════════════════════════════════════════════════════╣
+║  Heroku Log Analysis:     [X] errors detected         [FAIL]   ║
+║  Bug Reproduction:        [status]                    [PASS/FAIL]
+║  Stack Trace Analysis:    Root cause identified       [PASS]   ║
+║  Fix Implementation:      Pending                     [WARN]   ║
+╠════════════════════════════════════════════════════════════════╣
+║  ROOT CAUSE: [Brief description]                               ║
+║  AFFECTED: [Component/System]                                  ║
+║  SEVERITY: [Critical/High/Medium/Low]                          ║
+╠════════════════════════════════════════════════════════════════╣
+║  ISSUES:                                                       ║
+║  - [Error type] at [location]                                  ║
+║  - [Stack trace summary]                                       ║
+╠════════════════════════════════════════════════════════════════╣
+║  FIX: See detailed findings above                              ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
+```

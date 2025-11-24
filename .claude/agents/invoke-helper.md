@@ -1,3 +1,23 @@
+---
+name: Agent Invocation Helper
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  Pattern Recognition:     User input mapped         [PASS]║
+  ║  Agent Routing:           Correct agent selected    [PASS]║
+  ║  Task Invocation:         Proper subagent launch    [PASS]║
+  ║  All Agents Command:      Parallel execution        [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Agent invocation routing based on user input     ║
+  ║  Usage: Maps natural language to agent definitions       ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~2,000                           ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: gray
+type: development
+author: Jake
+---
+
 # Agent Invocation Helper
 
 This document guides Claude Code on how to invoke agents based on user input.
@@ -31,11 +51,10 @@ When a user request matches one of the patterns above:
    - What the user wants
    - The agent's specialized role
    - Expected deliverables
-5. **Update run history** in `.claude/agents/run-history.json`:
-   - Increment `total_runs`
-   - Set `last_run` to current timestamp
-   - Set `last_status` to "success" or "failed"
-   - Add run entry to `runs` array
+5. **Update run history** in database using `AgentDefinition` model:
+   - Call `agent.record_success(message, details)` for successful runs
+   - Call `agent.record_failure(message, details)` for failed runs
+   - Run history is automatically tracked and visible in UI
 
 ## Example Invocation
 
@@ -69,42 +88,45 @@ TASKS:
 
 Follow the deployment protocol in your agent definition exactly.`
 }
-// 4. After agent completes, update run-history.json
+// 4. After agent completes, record run in database
 ```
 
 ## Run History Update
 
-After each agent run, update `.claude/agents/run-history.json`:
+After each agent run, record it in the database:
 
-```json
-{
-  "agents": {
-    "deploy-manager": {
-      "total_runs": 1,
-      "successful_runs": 1,
-      "failed_runs": 0,
-      "last_run": "2025-11-16T10:30:00Z",
-      "last_status": "success",
-      "last_message": "Successfully deployed to staging",
-      "runs": [
-        {
-          "timestamp": "2025-11-16T10:30:00Z",
-          "status": "success",
-          "message": "Successfully deployed to staging",
-          "duration_seconds": 45
-        }
-      ]
-    }
+```ruby
+# In Rails backend
+agent = AgentDefinition.find_by(agent_id: 'deploy-manager')
+
+# For successful run
+agent.record_success(
+  'Successfully deployed to staging',
+  {
+    branch: 'rob',
+    commit: 'abc123',
+    heroku_release: 'v392'
   }
-}
+)
+
+# For failed run
+agent.record_failure(
+  'Deployment failed: migration error',
+  {
+    error: 'PG::Error',
+    details: 'Column does not exist'
+  }
+)
 ```
+
+This automatically updates all tracking fields in the `agent_definitions` table and is visible in the UI at: **http://localhost:5173/admin/system?tab=developer-tools**
 
 ## Run All Agents
 
 When user requests "run all agents", "/ag", "allagent", or "all agents":
 
-1. Launch all 8 agents **in parallel** using a single message with 8 Task tool calls
+1. Launch all 13 agents **in parallel** using a single message with multiple Task tool calls
 2. Give each agent a health check task appropriate to their specialty
 3. Wait for all agents to complete
-4. Update run history for all agents
+4. Record run results in database for each agent (success/failure)
 5. Report aggregated results

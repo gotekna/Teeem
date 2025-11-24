@@ -1,3 +1,23 @@
+---
+name: UI/UX Compliance Auditor
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  Chapter 19 Compliance:     UI/UX standards         [PASS]║
+  ║  Chapter 20 Compliance:     Agent best practices    [PASS]║
+  ║  Component Standards:       Verified                [PASS]║
+  ║  Accessibility:             WCAG guidelines         [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Frontend code compliance auditing                 ║
+  ║  Bible Rule: Chapter 19 & 20                              ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~5,000                            ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: orange
+type: diagnostic
+author: Jake
+---
+
 # UI/UX Compliance Auditor Agent
 
 **Agent ID:** ui-compliance-auditor
@@ -304,3 +324,55 @@ END
 ## Last Updated
 
 [Auto-generated timestamp will be added]
+
+## Final Summary Output (REQUIRED)
+
+**After completing all checks, you MUST output a clear summary box like this:**
+
+### If ALL Checks Pass:
+```
+╔════════════════════════════════════════════════════════════════╗
+║           UI/UX COMPLIANCE AUDITOR COMPLETE                    ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: ALL COMPONENTS COMPLIANT                              ║
+╠════════════════════════════════════════════════════════════════╣
+║  Chapter 19 Compliance:   UI/UX standards             [PASS]   ║
+║  Chapter 20 Compliance:   Agent best practices        [PASS]   ║
+║  Component Standards:     Verified                    [PASS]   ║
+║  Accessibility:           WCAG guidelines             [PASS]   ║
+╠════════════════════════════════════════════════════════════════╣
+║  Components Scanned:      [X]                                  ║
+║  Fully Compliant:         [Y] ([Z]%)                           ║
+║  Violations Found:        0                                    ║
+╠════════════════════════════════════════════════════════════════╣
+║  Bible Rule: Chapter 19 & 20                                   ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+### If Issues Found:
+```
+╔════════════════════════════════════════════════════════════════╗
+║           UI/UX COMPLIANCE AUDITOR COMPLETE                    ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: VIOLATIONS FOUND - ACTION REQUIRED                    ║
+╠════════════════════════════════════════════════════════════════╣
+║  Chapter 19 Compliance:   [X] violations              [WARN]   ║
+║  Chapter 20 Compliance:   [X] violations              [WARN]   ║
+║  Component Standards:     [status]                    [PASS/FAIL]
+║  Accessibility:           [status]                    [PASS/FAIL]
+╠════════════════════════════════════════════════════════════════╣
+║  CRITICAL: [X] issues                                          ║
+║  MEDIUM:   [X] issues                                          ║
+║  LOW:      [X] issues                                          ║
+╠════════════════════════════════════════════════════════════════╣
+║  VIOLATIONS:                                                   ║
+║  - [Component.jsx:line] RULE #19.X description                 ║
+║  - [Component.jsx:line] RULE #20.X description                 ║
+╠════════════════════════════════════════════════════════════════╣
+║  FIX: See detailed findings above                              ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
+```

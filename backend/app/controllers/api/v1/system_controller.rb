@@ -9,7 +9,8 @@ module Api
           database: check_database,
           redis: check_redis,
           storage: check_storage,
-          memory: check_memory
+          memory: check_memory,
+          claude: check_claude
         }
       end
 
@@ -89,6 +90,32 @@ module Api
           used_mb: get_memory_usage,
           rss_mb: get_rss_memory
         }
+      end
+
+      def check_claude
+        api_key = ENV['ANTHROPIC_API_KEY']
+        if api_key.blank?
+          return { status: 'not_configured', message: 'ANTHROPIC_API_KEY not set' }
+        end
+
+        # Quick connectivity test
+        begin
+          require 'anthropic'
+          client = Anthropic::Client.new(access_token: api_key)
+          # Make a minimal test call
+          response = client.messages(
+            parameters: {
+              model: 'claude-3-haiku-20240307',
+              max_tokens: 5,
+              messages: [{ role: 'user', content: 'Hi' }]
+            }
+          )
+          { status: 'connected', key_present: true, test_successful: true }
+        rescue Anthropic::Error => e
+          { status: 'error', key_present: true, message: e.message }
+        rescue => e
+          { status: 'error', key_present: true, message: e.class.to_s + ': ' + e.message }
+        end
       end
 
       def get_memory_usage

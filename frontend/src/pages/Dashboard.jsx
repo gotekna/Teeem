@@ -11,6 +11,7 @@ import {
   ArrowUpTrayIcon,
   BookOpenIcon
 } from '@heroicons/react/24/outline'
+import FeaturesTrackingTable from '../components/dashboard/FeaturesTrackingTable'
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -166,7 +167,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Main Content */}
+      {/* Main Content - Top Section with max-width */}
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header */}
         <div className="mb-4 sm:mb-6 lg:mb-8">
@@ -242,6 +243,23 @@ export default function Dashboard() {
             </Link>
           </div>
         </div>
+      </div>
+
+      {/* Features Tracking Section - Full Width */}
+      <div className="mb-8 px-3 sm:px-4 lg:px-8">
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            Trapid Features Tracking
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Track the completion status of all Trapid features grouped by chapters
+          </p>
+        </div>
+        <FeaturesTrackingTable />
+      </div>
+
+      {/* Tables Section - Back to max-width */}
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 pb-4 sm:pb-6 lg:pb-8">
 
       {searchQuery && (
         <div className="mb-3 sm:mb-4 text-xs sm:text-sm text-gray-600 dark:text-gray-400">

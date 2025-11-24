@@ -1,3 +1,22 @@
+---
+name: Planning Collaborator
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  Architecture Design:       System design           [PASS]║
+  ║  Feature Planning:          Implementation steps    [PASS]║
+  ║  Tech Documentation:        Created                 [PASS]║
+  ║  Database Schemas:          Designed                [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Feature planning & architecture design            ║
+  ║  Mode: Collaborative brainstorming                        ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~4,000                            ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: blue
+type: planning
+---
+
 # Planning Collaborator Agent
 
 **Agent ID:** planning-collaborator

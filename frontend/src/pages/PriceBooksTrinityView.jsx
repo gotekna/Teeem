@@ -7,11 +7,12 @@ import TrapidTableView from '../components/documentation/TrapidTableView'
 // Define price book-specific columns
 const PRICEBOOK_COLUMNS = [
   { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
+  { key: 'actions', label: 'Actions', column_type: 'action_buttons', resizable: true, sortable: false, filterable: false, width: 100 },
   { key: 'section', label: 'Code', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 150, tooltip: 'Item code' },
   { key: 'title', label: 'Item Name', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 300 },
   { key: 'type', label: 'Category', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 180 },
   { key: 'component', label: 'Supplier', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 200 },
-  { key: 'price', label: 'Price', resizable: true, sortable: true, filterable: false, width: 120, showSum: true, sumType: 'currency', tooltip: 'Current price in AUD' },
+  { key: 'price', label: 'Price', column_type: 'currency', resizable: true, sortable: true, filterable: false, width: 120, showSum: true, sumType: 'currency', tooltip: 'Current price in AUD' },
   { key: 'unit', label: 'Unit', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
   { key: 'status', label: 'Status', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
   { key: 'severity', label: 'Risk', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120, tooltip: 'Price risk level' },
@@ -30,10 +31,11 @@ export default function PriceBooksTrinityView() {
   const loadPriceBookItems = async () => {
     setLoading(true)
     try {
+      // Load all items - API supports large limits
       const response = await api.get('/api/v1/pricebook', {
         params: {
           page: 1,
-          limit: 1000,
+          limit: 20000,  // Increased to load all ~14500 items
         }
       })
 
@@ -41,7 +43,7 @@ export default function PriceBooksTrinityView() {
 
       // API returns { items: [...], pagination: {...} }
       const itemsData = response.items || []
-      console.log('Price book items loaded:', itemsData.length, itemsData.slice(0, 2))
+      console.log('Price book items loaded:', itemsData.length, 'of', response.pagination?.total_count || 'unknown')
       setItems(itemsData)
     } catch (error) {
       console.error('Failed to load price book items:', error)
@@ -57,8 +59,10 @@ export default function PriceBooksTrinityView() {
     chapter_number: 0,
     chapter_name: 'Price Book',
     section_number: item.item_code || '',
+    section: item.item_code || '',  // Alias for 'section' column key (Code)
     title: item.item_name || '',
     entry_type: item.category || '',
+    type: item.category || '',  // Add 'type' field to match column key for Category grouping
     content: item.notes || '',
     description: item.notes || '',
     component: item.supplier?.name || item.default_supplier?.name || '',
@@ -137,6 +141,9 @@ export default function PriceBooksTrinityView() {
   return (
     <div className="h-full bg-gray-50 dark:bg-gray-900">
       <TrapidTableView
+        tableId="pricebook-trinity"
+        tableIdNumeric={205}
+        tableName="Price Book Items"
         category="pricebook"
         entries={trinityEntries}
         columns={PRICEBOOK_COLUMNS}
@@ -144,8 +151,15 @@ export default function PriceBooksTrinityView() {
         onDelete={handleDelete}
         enableImport={true}
         enableExport={true}
+        enableSchemaEditor={true}
         onImport={handleImport}
         onExport={handleExport}
+        onRowDoubleClick={(entry) => {
+          navigate(`/price-books/${entry.id}`)
+        }}
+        onView={(entry) => {
+          navigate(`/price-books/${entry.id}`)
+        }}
         customActions={
           <button
             onClick={handleAddNew}

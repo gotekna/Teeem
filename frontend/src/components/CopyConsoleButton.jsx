@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { ClipboardDocumentIcon, CheckIcon, ExclamationTriangleIcon, CodeBracketIcon } from '@heroicons/react/24/outline'
 import consoleCapture from '../utils/consoleCapture'
 
@@ -7,23 +7,37 @@ export default function CopyConsoleButton() {
   const [errorCount, setErrorCount] = useState(0)
   const [copiedButton, setCopiedButton] = useState(null) // Track which button was clicked
   const [isVisible, setIsVisible] = useState(true)
+  const isMountedRef = useRef(true)
 
   useEffect(() => {
-    // Subscribe to log updates
+    isMountedRef.current = true
+
+    // Subscribe to log updates - use queueMicrotask to defer state updates
+    // This prevents "Cannot update a component while rendering a different component" error
+    // which happens when console.log is called during another component's render
     const unsubscribe = consoleCapture.subscribe((logs) => {
+      queueMicrotask(() => {
+        if (!isMountedRef.current) return
+        setLogCount(logs.length)
+        // Count errors and warnings
+        const errors = logs.filter(log => log.type === 'error' || log.type === 'warn').length
+        setErrorCount(errors)
+      })
+    })
+
+    // Initialize counts - also deferred to avoid render-phase state updates
+    queueMicrotask(() => {
+      if (!isMountedRef.current) return
+      const logs = consoleCapture.getLogs()
       setLogCount(logs.length)
-      // Count errors and warnings
       const errors = logs.filter(log => log.type === 'error' || log.type === 'warn').length
       setErrorCount(errors)
     })
 
-    // Initialize counts
-    const logs = consoleCapture.getLogs()
-    setLogCount(logs.length)
-    const errors = logs.filter(log => log.type === 'error' || log.type === 'warn').length
-    setErrorCount(errors)
-
-    return unsubscribe
+    return () => {
+      isMountedRef.current = false
+      unsubscribe()
+    }
   }, [])
 
   const handleCopy = async () => {
@@ -108,26 +122,31 @@ export default function CopyConsoleButton() {
       if (!clipboardSuccess) {
         console.warn('All clipboard methods failed, downloading instead')
 
-        // Create JPEG blob for download (smaller file size)
-        const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.5)
-        const jpegResponse = await fetch(jpegDataUrl)
-        const jpegBlob = await jpegResponse.blob()
+        try {
+          // Create JPEG blob for download (smaller file size)
+          const jpegDataUrl = canvas.toDataURL('image/jpeg', 0.5)
+          const jpegResponse = await fetch(jpegDataUrl)
+          const jpegBlob = await jpegResponse.blob()
 
-        const sizeKB = jpegBlob.size / 1024
+          const sizeKB = jpegBlob.size / 1024
 
-        const url = URL.createObjectURL(jpegBlob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `screenshot-${Date.now()}.jpg`
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
+          const url = URL.createObjectURL(jpegBlob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `screenshot-${Date.now()}.jpg`
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
 
-        setCopiedButton('screenshot')
-        setTimeout(() => setCopiedButton(null), 2000)
-        console.log('📸 Screenshot downloaded!')
-        alert(`⚠️ Clipboard blocked by browser - screenshot saved to Downloads folder (${sizeKB.toFixed(0)}KB)\n\nTo enable clipboard: Check browser permissions for this site.`)
+          setCopiedButton('screenshot')
+          setTimeout(() => setCopiedButton(null), 2000)
+          console.log('📸 Screenshot downloaded!')
+          alert(`⚠️ Clipboard blocked by browser - screenshot saved to Downloads folder (${sizeKB.toFixed(0)}KB)\n\nTo enable clipboard: Check browser permissions for this site.`)
+        } catch (downloadErr) {
+          console.error('Download fallback failed:', downloadErr)
+          alert('Screenshot failed. Both clipboard and download methods failed.')
+        }
       }
     } catch (err) {
       console.error('Screenshot failed:', err)
@@ -631,7 +650,13 @@ ${html}
       // ═══════════════════════════════════════════════════════════════════
       // ENHANCED: Current User & Role (if available)
       // ═══════════════════════════════════════════════════════════════════
-      const currentUser = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null
+      let currentUser = null
+      try {
+        const userStr = localStorage.getItem('user')
+        if (userStr) currentUser = JSON.parse(userStr)
+      } catch (e) {
+        console.warn('Failed to parse user from localStorage:', e)
+      }
       const userRole = currentUser?.role || 'Unknown'
       const userId = currentUser?.id || 'Unknown'
 

@@ -45,6 +45,12 @@ const PublicHolidaysPage = lazy(() => import('./pages/PublicHolidaysPage'))
 
 // Heavy components: Lazy load with priority (biggest bundle impact)
 const MasterSchedulePage = lazy(() => import('./pages/MasterSchedulePage')) // 3,952 lines Gantt!
+const SmGanttPage = lazy(() => import('./pages/SmGanttPage')) // SM Gantt v2 (new system)
+const SmSetupPage = lazy(() => import('./pages/SmSetupPage')) // SM Gantt setup/admin
+const SmResourcesPage = lazy(() => import('./pages/SmResourcesPage')) // SM Gantt Phase 2 - Resources
+const SmDashboardPage = lazy(() => import('./pages/SmDashboardPage')) // SM Gantt Phase 2 - Dashboard
+const SmFieldPage = lazy(() => import('./pages/SmFieldPage')) // SM Gantt Phase 3 - Mobile Field
+const SmAnalyticsPage = lazy(() => import('./pages/SmAnalyticsPage')) // SM Gantt Analytics & AI
 const PDFMeasurementTestPage = lazy(() => import('./pages/PDFMeasurementTestPage')) // PDF library
 const DocumentsPage = lazy(() => import('./pages/DocumentsPage')) // PDF library
 const TrinityPage = lazy(() => import('./pages/TrinityPage')) // Trinity documentation viewer
@@ -58,12 +64,36 @@ const SamPage = lazy(() => import('./pages/SamPage')) // Sam page
 
 // Corporate pages
 const CorporateDashboardPage = lazy(() => import('./pages/CorporateDashboardPage'))
+
+// Portal pages (subcontractor portal)
+const PortalLayout = lazy(() => import('./pages/portal/PortalLayout'))
+const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'))
+const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'))
+const PortalQuotes = lazy(() => import('./pages/portal/PortalQuotes'))
+const PortalJobs = lazy(() => import('./pages/portal/PortalJobs'))
+const PortalSchedule = lazy(() => import('./pages/portal/PortalSchedule'))
+const PortalInvoices = lazy(() => import('./pages/portal/PortalInvoices'))
+const PortalKudos = lazy(() => import('./pages/portal/PortalKudos'))
+const PortalSettings = lazy(() => import('./pages/portal/PortalSettings'))
+const PortalPayNow = lazy(() => import('./pages/portal/PortalPayNow'))
+
+// WHS (Workplace Health & Safety) pages
+const WhsDashboardPage = lazy(() => import('./pages/WhsDashboardPage'))
+const WhsSwmsPage = lazy(() => import('./pages/WhsSwmsPage'))
+const WhsInspectionsPage = lazy(() => import('./pages/WhsInspectionsPage'))
+const WhsIncidentsPage = lazy(() => import('./pages/WhsIncidentsPage'))
+const WhsInductionsPage = lazy(() => import('./pages/WhsInductionsPage'))
+const WhsActionItemsPage = lazy(() => import('./pages/WhsActionItemsPage'))
 const CompaniesPage = lazy(() => import('./pages/CompaniesPage'))
 const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage'))
 const DirectorsRegistryPage = lazy(() => import('./pages/DirectorsRegistryPage'))
 const AssetsPage = lazy(() => import('./pages/AssetsPage'))
 const AssetDetailPage = lazy(() => import('./pages/AssetDetailPage'))
 const XeroDashboardPage = lazy(() => import('./pages/XeroDashboardPage'))
+
+// Financial pages
+const FinancialPage = lazy(() => import('./pages/FinancialPage'))
+const FinancialReportsPage = lazy(() => import('./pages/FinancialReportsPage'))
 
 // Designer pages (admin tools)
 const DesignerHome = lazy(() => import('./pages/designer/DesignerHome'))
@@ -123,10 +153,32 @@ function App() {
         <Route path="/pdf-measure-test" element={<AppLayout><PDFMeasurementTestPage /></AppLayout>} />
         <Route path="/jobs/:id/setup" element={<AppLayout><JobSetupPage /></AppLayout>} />
         <Route path="/jobs/:id/schedule" element={<AppLayout><MasterSchedulePage /></AppLayout>} />
+        <Route path="/jobs/:id/sm-gantt" element={<AppLayout><SmGanttPage /></AppLayout>} />
+        <Route path="/jobs/:id/resources" element={<AppLayout><SmResourcesPage /></AppLayout>} />
+        <Route path="/admin/sm-setup" element={<AppLayout><SmSetupPage /></AppLayout>} />
+        <Route path="/admin/resources" element={<AppLayout><SmResourcesPage /></AppLayout>} />
+        <Route path="/admin/sm-dashboard" element={<AppLayout><SmDashboardPage /></AppLayout>} />
+        <Route path="/jobs/:id/sm-dashboard" element={<AppLayout><SmDashboardPage /></AppLayout>} />
+        <Route path="/jobs/:id/sm-analytics" element={<AppLayout><SmAnalyticsPage /></AppLayout>} />
+        <Route path="/jobs/:constructionId/field" element={<SmFieldPage />} />
         <Route path="/jobs/:id/:tab" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/jobs/:id" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/meetings" element={<AppLayout><MeetingsPage /></AppLayout>} />
         <Route path="/meeting-types" element={<AppLayout><MeetingTypesPage /></AppLayout>} />
+
+        {/* WHS (Workplace Health & Safety) Routes */}
+        <Route path="/whs" element={<AppLayout><WhsDashboardPage /></AppLayout>} />
+        <Route path="/whs/dashboard" element={<Navigate to="/whs" replace />} />
+        <Route path="/whs/swms" element={<AppLayout><WhsSwmsPage /></AppLayout>} />
+        <Route path="/whs/inspections" element={<AppLayout><WhsInspectionsPage /></AppLayout>} />
+        <Route path="/whs/incidents" element={<AppLayout><WhsIncidentsPage /></AppLayout>} />
+        <Route path="/whs/inductions" element={<AppLayout><WhsInductionsPage /></AppLayout>} />
+        <Route path="/whs/action-items" element={<AppLayout><WhsActionItemsPage /></AppLayout>} />
+
+        {/* Financial Routes */}
+        <Route path="/financial" element={<AppLayout><FinancialPage /></AppLayout>} />
+        <Route path="/financial/transactions" element={<Navigate to="/financial" replace />} />
+        <Route path="/financial/reports" element={<AppLayout><FinancialReportsPage /></AppLayout>} />
         <Route path="/sam" element={<AppLayout><SamPage /></AppLayout>} />
         <Route path="/price-books" element={<AppLayout><PriceBooksPageWithTabs /></AppLayout>} />
         <Route path="/price-books/:id" element={<AppLayout><PriceBookItemDetailPage /></AppLayout>} />
@@ -146,6 +198,7 @@ function App() {
         <Route path="/purchase-orders/:id" element={<AppLayout><PurchaseOrderDetailPage /></AppLayout>} />
         <Route path="/import" element={<AppLayout><ImportPage /></AppLayout>} />
         <Route path="/tables/:id" element={<AppLayout><TablePage /></AppLayout>} />
+        <Route path="/embed/tables/:id" element={<TablePage embedded />} />
         <Route path="/tables/:tableId/columns" element={<ColumnEditorPage />} />
         <Route path="/designer" element={<AppLayout><DesignerHome /></AppLayout>} />
         <Route path="/designer/tables/new" element={<AppLayout><TableBuilder /></AppLayout>} />
@@ -184,6 +237,19 @@ function App() {
         <Route path="/corporate/assets/:id" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/assets/:id/edit" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/xero" element={<AppLayout><XeroDashboardPage /></AppLayout>} />
+
+        {/* Portal routes (subcontractor portal) */}
+        <Route path="/portal/login" element={<PortalLogin />} />
+        <Route path="/portal" element={<PortalLayout />}>
+          <Route path="dashboard" element={<PortalDashboard />} />
+          <Route path="quotes" element={<PortalQuotes />} />
+          <Route path="jobs" element={<PortalJobs />} />
+          <Route path="schedule" element={<PortalSchedule />} />
+          <Route path="invoices" element={<PortalInvoices />} />
+          <Route path="kudos" element={<PortalKudos />} />
+          <Route path="settings" element={<PortalSettings />} />
+          <Route path="pay-now" element={<PortalPayNow />} />
+        </Route>
           </Routes>
         </Suspense>
       </BrowserRouter>

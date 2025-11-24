@@ -1,117 +1,98 @@
-import { useState, useEffect, useMemo } from 'react'
-import { useLocation } from 'react-router-dom'
-import { PlayIcon, EyeIcon, ClockIcon } from '@heroicons/react/24/outline'
-import toast, { Toaster } from 'react-hot-toast'
+import { useState, useEffect } from 'react'
+import { ArrowPathIcon, BeakerIcon, PlayIcon, EyeIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
-import GanttTestStatusModal from '../schedule-master/GanttTestStatusModal'
+
+// Define available tests
+const AVAILABLE_TESTS = [
+  {
+    id: 'cascade-basic',
+    name: 'Basic Cascade Test',
+    type: 'Cascade',
+    rules: 'Moves a task and verifies dependent tasks update correctly',
+    canRunVisual: true
+  },
+  {
+    id: 'cascade-complex',
+    name: 'Complex Cascade Test',
+    type: 'Cascade',
+    rules: 'Tests multiple dependency chains and cross-dependencies',
+    canRunVisual: true
+  },
+  {
+    id: 'dependency-fs',
+    name: 'Finish-to-Start Dependencies',
+    type: 'Dependencies',
+    rules: 'Verifies FS relationships with various lag values',
+    canRunVisual: false
+  },
+  {
+    id: 'dependency-ss',
+    name: 'Start-to-Start Dependencies',
+    type: 'Dependencies',
+    rules: 'Verifies SS relationships with various lag values',
+    canRunVisual: false
+  },
+  {
+    id: 'dependency-ff',
+    name: 'Finish-to-Finish Dependencies',
+    type: 'Dependencies',
+    rules: 'Verifies FF relationships with various lag values',
+    canRunVisual: false
+  },
+  {
+    id: 'dependency-sf',
+    name: 'Start-to-Finish Dependencies',
+    type: 'Dependencies',
+    rules: 'Verifies SF relationships with various lag values',
+    canRunVisual: false
+  },
+  {
+    id: 'lag-positive',
+    name: 'Positive Lag Calculations',
+    type: 'Lag',
+    rules: 'Tests tasks with positive lag values (delays)',
+    canRunVisual: false
+  },
+  {
+    id: 'lag-negative',
+    name: 'Negative Lag Calculations',
+    type: 'Lag',
+    rules: 'Tests tasks with negative lag values (overlaps)',
+    canRunVisual: false
+  },
+  {
+    id: 'flashing-prevention',
+    name: 'No Screen Flashing',
+    type: 'Performance',
+    rules: 'Ensures Gantt reloads ≤1 time during updates',
+    canRunVisual: true
+  }
+]
 
 export default function BugHunterTests() {
-  const location = useLocation()
-  const [tests, setTests] = useState([])
   const [selectedTests, setSelectedTests] = useState([])
   const [runningTests, setRunningTests] = useState(new Set())
+  const [visualTestResult, setVisualTestResult] = useState(null)
   const [testResults, setTestResults] = useState({})
   const [testHistory, setTestHistory] = useState([])
-  const [showHistory, setShowHistory] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [scheduleTemplates, setScheduleTemplates] = useState([])
-  const [selectedTemplates, setSelectedTemplates] = useState({}) // testId -> templateId mapping
-  const [searchQuery, setSearchQuery] = useState('')
-  const [showTestStatusModal, setShowTestStatusModal] = useState(false)
-  const [visualTestId, setVisualTestId] = useState(null)
+  const [isResettingData, setIsResettingData] = useState(false)
+  const [isRunning, setIsRunning] = useState(false)
+  const [testSteps, setTestSteps] = useState([])
+  const [currentStep, setCurrentStep] = useState('')
 
-  // Load tests and history on mount
+  // Load test history on mount
   useEffect(() => {
-    const loadAndShowResults = async () => {
-      await loadTests()
-      await loadTestHistory()
-      await loadScheduleTemplates()
-
-      // Check if we're returning from a visual test with results
-      const params = new URLSearchParams(location.search)
-      const testResult = params.get('testResult')
-      const testId = params.get('testId')
-
-      if (testResult && testId) {
-        console.log('🧪 Visual test completed!')
-        console.log('🧪 Result:', testResult, 'Test ID:', testId)
-
-        // Show a success/failure alert
-        const passed = testResult === 'pass'
-        const icon = passed ? '✅' : '❌'
-        const message = passed
-          ? `Visual Test PASSED! Check the test history below for details.`
-          : `Visual Test FAILED. Check the test history below for details.`
-
-        if (passed) {
-          toast.success(message, { duration: 5000, icon: icon })
-        } else {
-          toast.error(message, { duration: 5000, icon: icon })
-        }
-
-        // Reload test history to show the latest result
-        await loadTestHistory()
-
-        // Clean up URL parameters
-        params.delete('testResult')
-        params.delete('testId')
-        const newSearch = params.toString()
-        window.history.replaceState({}, '', `${location.pathname}${newSearch ? '?' + newSearch : ''}`)
-      }
-    }
-
-    loadAndShowResults()
+    loadTestHistory()
   }, [])
-
-  const loadTests = async () => {
-    try {
-      console.log('BugHunter: Loading tests from API...')
-      const response = await api.get('/api/v1/bug_hunter_tests')
-      console.log('BugHunter: API response:', response)
-      console.log('BugHunter: Setting tests:', response.data || response)
-      setTests(response.data || response || [])
-    } catch (error) {
-      console.error('BugHunter: Failed to load tests:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const loadTestHistory = async () => {
     try {
       const response = await api.get('/api/v1/bug_hunter_tests/history')
-      const history = response.data || response || []
-      setTestHistory(history)
-      return history
+      setTestHistory(response.data || [])
     } catch (error) {
       console.error('Failed to load test history:', error)
-      return []
     }
   }
-
-  const loadScheduleTemplates = async () => {
-    try {
-      const response = await api.get('/api/v1/schedule_templates')
-      const templates = response.data || response || []
-      setScheduleTemplates(templates)
-    } catch (error) {
-      console.error('Failed to load schedule templates:', error)
-    }
-  }
-
-  // Set default templates when both tests and templates are loaded
-  useEffect(() => {
-    if (tests.length > 0 && scheduleTemplates.length > 0 && Object.keys(selectedTemplates).length === 0) {
-      const defaultTemplate = scheduleTemplates.find(t => t.is_default) || scheduleTemplates[0]
-      if (defaultTemplate) {
-        const defaults = {}
-        tests.filter(t => t.can_run_visual || t.needs_template).forEach(test => {
-          defaults[test.id] = defaultTemplate.id.toString()
-        })
-        setSelectedTemplates(defaults)
-      }
-    }
-  }, [tests, scheduleTemplates, selectedTemplates])
 
   const cleanupOldData = async () => {
     try {
@@ -144,45 +125,30 @@ export default function BugHunterTests() {
   }
 
   const toggleAllTests = () => {
-    if (selectedTests.length === tests.length) {
+    if (selectedTests.length === AVAILABLE_TESTS.length) {
       setSelectedTests([])
     } else {
-      setSelectedTests(tests.map(t => t.id))
+      setSelectedTests(AVAILABLE_TESTS.map(t => t.id))
     }
   }
 
   const runTest = async (testId, visual = false) => {
     await checkAndCleanup()
 
-    if (visual) {
-      // Check if template is selected
-      const templateId = selectedTemplates[testId]
-      if (!templateId) {
-        toast.error('Please select a Schedule Template first before running the visual test.', {
-          duration: 4000
-        })
-        return
-      }
-
-      // FIRST: Navigate to Schedule Master to show the Gantt chart
-      console.log('🧪 Opening Schedule Master Gantt view for visual test...')
-      window.location.href = `/admin/system?tab=schedule-master&subtab=setup&template=${templateId}&runVisualTest=${testId}`
-      return
-    }
-
     setRunningTests(prev => new Set([...prev, testId]))
+    setTestSteps(prev => ({ ...prev, [testId]: [] }))
 
     try {
       let result
 
-      // Run test via API, passing template ID
-      const templateId = selectedTemplates[testId]
-      const response = await api.post(`/api/v1/bug_hunter_tests/${testId}/run`, {
-        template_id: templateId
-      })
-      result = response.data || response
+      if (visual && window.runGanttAutomatedTest) {
+        result = await window.runGanttAutomatedTest({ silent: false })
+      } else {
+        // Run regular test via API
+        const response = await api.post(`/api/v1/bug_hunter_tests/${testId}/run`)
+        result = response.data
+      }
 
-      // Update local test results
       setTestResults(prev => ({
         ...prev,
         [testId]: {
@@ -193,40 +159,21 @@ export default function BugHunterTests() {
         }
       }))
 
-      // Reload test history to show in table
-      await loadTestHistory()
-
-      // Show toast notification with result
-      const testName = tests.find(t => t.id === testId)?.name || testId
-      if (result.passed) {
-        toast.success(`✓ ${testName}: ${result.message}`, {
-          duration: 4000
-        })
-      } else {
-        toast.error(`✗ ${testName}: ${result.message}`, {
-          duration: 6000
-        })
+      if (result.steps) {
+        setTestSteps(prev => ({ ...prev, [testId]: result.steps }))
       }
 
-    } catch (error) {
-      const testName = tests.find(t => t.id === testId)?.name || testId
-      const errorMessage = error.response?.data?.message || error.message || 'Unknown error'
+      await loadTestHistory()
 
+    } catch (error) {
       setTestResults(prev => ({
         ...prev,
         [testId]: {
           status: 'error',
-          message: errorMessage,
+          message: error.message,
           timestamp: new Date().toISOString()
         }
       }))
-
-      // Still reload history even on error
-      await loadTestHistory()
-
-      toast.error(`Error running ${testName}: ${errorMessage}`, {
-        duration: 6000
-      })
     } finally {
       setRunningTests(prev => {
         const newSet = new Set(prev)
@@ -242,43 +189,11 @@ export default function BugHunterTests() {
     }
   }
 
-  const handleTestModalClose = async () => {
-    setShowTestStatusModal(false)
-    setVisualTestId(null)
-    // Reload test history to show the latest results
-    await loadTestHistory()
-  }
-
-  const handleTemplateChange = (testId, templateId) => {
-    setSelectedTemplates(prev => ({
-      ...prev,
-      [testId]: templateId
-    }))
-  }
-
   const getLastRun = (testId) => {
     const history = testHistory.filter(h => h.test_id === testId)
     if (history.length === 0) return null
     return history[0]
   }
-
-  const getTestHistory = useMemo(() => {
-    return (testId) => {
-      const history = testHistory.filter(h => h.test_id === testId).slice(0, 10)
-      console.log('getTestHistory for', testId, '- Found', history.length, 'runs:', history)
-      return history
-    }
-  }, [testHistory])
-
-  const filteredTests = tests.filter(test => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      test.name.toLowerCase().includes(query) ||
-      test.type.toLowerCase().includes(query) ||
-      test.rules.toLowerCase().includes(query)
-    )
-  })
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Never'
@@ -290,392 +205,301 @@ export default function BugHunterTests() {
     if (diffMins < 1) return 'Just now'
     if (diffMins < 60) return `${diffMins}m ago`
     if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    return date.toLocaleDateString()
   }
 
-  if (loading) {
-    return (
-      <div className="px-4 sm:px-6 lg:px-8 py-10">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent align-[-0.125em] motion-reduce:animate-[spin_1.5s_linear_infinite]" />
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading tests...</p>
-        </div>
-      </div>
-    )
+  const resetTaskData = async () => {
+    setIsResettingData(true)
+    setTestSteps([])
+
+    try {
+      const templatesResponse = await api.get('/api/v1/schedule_templates')
+      const templates = templatesResponse.data || templatesResponse
+
+      if (!templates || templates.length === 0) {
+        setTestSteps(['❌ No schedule templates found'])
+        setTimeout(() => {
+          setTestSteps([])
+          setIsResettingData(false)
+        }, 3000)
+        return
+      }
+
+      const template = templates[0]
+      setTestSteps([`📋 Found template: ${template.name} (ID: ${template.id})`])
+
+      const rowsResponse = await api.get(`/api/v1/schedule_templates/${template.id}/rows`)
+      const rows = rowsResponse.data || rowsResponse
+
+      setTestSteps(prev => [...prev, `📋 Found ${rows.length} tasks`])
+
+      let resetCount = 0
+      for (const row of rows) {
+        try {
+          await api.patch(`/api/v1/schedule_templates/${template.id}/rows/${row.id}`, {
+            schedule_template_row: {
+              manually_positioned: false
+            }
+          })
+          resetCount++
+          setTestSteps(prev => [...prev, `  ✅ Reset task ${row.id} - ${row.name}`])
+        } catch (error) {
+          setTestSteps(prev => [...prev, `  ❌ Failed to reset task ${row.id}: ${error.message}`])
+        }
+      }
+
+      setTestSteps(prev => [...prev, `✅ Reset complete - ${resetCount}/${rows.length} tasks`])
+
+      setTimeout(() => {
+        setTestSteps([])
+        setIsResettingData(false)
+      }, 5000)
+
+    } catch (error) {
+      setTestSteps(prev => [...prev, `❌ Reset failed: ${error.message}`])
+      setTimeout(() => {
+        setTestSteps([])
+        setIsResettingData(false)
+      }, 5000)
+    }
+  }
+
+  const runVisualTest = async () => {
+    setIsRunning(true)
+    setVisualTestResult(null)
+    setTestSteps([])
+    setCurrentStep('Initializing...')
+
+    try {
+      if (!window.runGanttAutomatedTest) {
+        setTestSteps([
+          '❌ Gantt test API not available',
+          'ℹ️ Open Schedule Master → Gantt view first',
+          'ℹ️ API is exposed when Gantt Test Status modal is open'
+        ])
+        setVisualTestResult({
+          status: 'error',
+          message: 'Test API not available - open Gantt view first'
+        })
+        setIsRunning(false)
+        return
+      }
+
+      setTestSteps(['✅ Gantt test API found'])
+      setCurrentStep('Running test...')
+
+      const result = await window.runGanttAutomatedTest({ silent: false })
+
+      if (result.steps) {
+        setTestSteps(result.steps)
+      }
+
+      setVisualTestResult({
+        status: result.status,
+        passed: result.passed,
+        message: result.passed
+          ? `✅ PASSED - Completed in ${result.testDuration}s`
+          : `❌ FAILED - Ran for ${result.testDuration}s`,
+        metrics: result.metrics,
+        taskName: result.taskName,
+        taskId: result.taskId,
+        testDuration: result.testDuration
+      })
+
+      setCurrentStep(result.passed ? '✅ Passed!' : '❌ Failed')
+
+    } catch (error) {
+      setTestSteps(prev => [...prev, `❌ ERROR: ${error.message}`])
+      setVisualTestResult({
+        status: 'error',
+        message: `Error: ${error.message}`
+      })
+      setCurrentStep('❌ Error')
+    } finally {
+      setIsRunning(false)
+    }
   }
 
   return (
-    <>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          className: 'dark:bg-gray-800 dark:text-white',
-          success: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#10b981',
-              secondary: '#fff',
-            },
-          },
-          error: {
-            duration: 5000,
-            iconTheme: {
-              primary: '#ef4444',
-              secondary: '#fff',
-            },
-          },
-        }}
-      />
-      <div className="px-4 sm:px-6 lg:px-8 py-10">
-        <div className="max-w-full">
-          <div className="sm:flex sm:items-center mb-6">
-            <div className="sm:flex-auto">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">Bug Hunter Tests</h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Automated tests for Gantt schedule cascading, dependencies, and performance
+    <div className="px-4 sm:px-6 lg:px-8 py-10">
+      <div className="max-w-7xl">
+        <div className="mb-8">
+          <h2 className="text-base/7 font-semibold text-gray-900 dark:text-white">Bug Hunter Visual Tests</h2>
+          <p className="mt-1 text-sm/6 text-gray-500 dark:text-gray-400">
+            Automated tests with step-by-step visualization.
+          </p>
+        </div>
+
+        <div className="rounded-lg bg-white dark:bg-gray-800 shadow-sm ring-1 ring-gray-900/5 dark:ring-white/10 p-6">
+          <div className="flex items-center justify-between mb-6 gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Test Suite</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                Run automated cascade tests
               </p>
             </div>
-          <div className="mt-4 sm:ml-16 sm:mt-0 sm:flex-none flex gap-2">
-            <button
-              onClick={async () => {
-                await loadTestHistory()
-                toast.success('Test history refreshed', { duration: 2000 })
-              }}
-              className="inline-flex items-center gap-2 rounded-md bg-gray-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-500"
-            >
-              <ClockIcon className="h-4 w-4" />
-              Refresh
-            </button>
-            <button
-              onClick={runSelectedTests}
-              disabled={selectedTests.length === 0 || runningTests.size > 0}
-              className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <PlayIcon className="h-4 w-4" />
-              Run Selected ({selectedTests.length})
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={resetTaskData}
+                disabled={isResettingData || isRunning}
+                className="inline-flex items-center gap-2 rounded-md bg-gray-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isResettingData ? (
+                  <>
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <ArrowPathIcon className="h-4 w-4" />
+                    Reset Data
+                  </>
+                )}
+              </button>
+              <button
+                onClick={runVisualTest}
+                disabled={isRunning || isResettingData}
+                className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isRunning ? (
+                  <>
+                    <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                    Testing...
+                  </>
+                ) : (
+                  <>
+                    <BeakerIcon className="h-4 w-4" />
+                    Run Test
+                  </>
+                )}
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Search Bar */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search tests by name, type, or rules..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 px-4 py-2 text-sm focus:ring-indigo-500 focus:border-indigo-500"
-          />
-        </div>
+          {isRunning && currentStep && (
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-center gap-3">
+                <ArrowPathIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 animate-spin" />
+                <span className="text-sm font-medium text-blue-900 dark:text-blue-100">{currentStep}</span>
+              </div>
+            </div>
+          )}
 
-        <div className="rounded-lg bg-white dark:bg-gray-800 shadow-sm ring-1 ring-gray-900/5 dark:ring-white/10 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th scope="col" className="w-12 px-3 py-3.5 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedTests.length === filteredTests.length && filteredTests.length > 0}
-                    onChange={toggleAllTests}
-                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
-                  />
-                </th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                  Test Name
-                </th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                  Type
-                </th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                  Rules
-                </th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                  Schedule Template
-                </th>
-                <th scope="col" className="px-3 py-3.5 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                  Visual
-                </th>
-                <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                  Last Run
-                </th>
-                <th scope="col" className="px-3 py-3.5 text-right text-sm font-semibold text-gray-900 dark:text-white">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredTests.map((test) => {
-                const isRunning = runningTests.has(test.id)
-                const result = testResults[test.id]
-                const lastRun = getLastRun(test.id)
-                const status = result?.status || lastRun?.status
-
-                // Determine row background color
-                let rowClass = ''
-                if (status === 'pass') {
-                  rowClass = 'bg-green-50 dark:bg-green-900/20'
-                } else if (status === 'fail' || status === 'error') {
-                  rowClass = 'bg-red-50 dark:bg-red-900/20'
-                }
-
-                return (
-                  <tr key={test.id} className={rowClass}>
-                    <td className="px-3 py-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedTests.includes(test.id)}
-                        onChange={() => toggleTestSelection(test.id)}
-                        disabled={isRunning}
-                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 disabled:opacity-50"
-                      />
-                    </td>
-                    <td className="px-3 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                      {test.name}
-                    </td>
-                    <td className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      <span className="inline-flex items-center rounded-md bg-gray-100 dark:bg-gray-700 px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-300">
-                        {test.type}
-                      </span>
-                    </td>
-                    <td className="px-3 py-4 text-sm text-gray-600 dark:text-gray-300 max-w-md">
-                      {test.rules}
-                    </td>
-                    <td className="px-3 py-4 text-sm">
-                      {(test.can_run_visual || test.needs_template) ? (
-                        <select
-                          value={selectedTemplates[test.id] || ''}
-                          onChange={(e) => handleTemplateChange(test.id, e.target.value)}
-                          disabled={isRunning}
-                          className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm py-1.5 px-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-50"
-                        >
-                          <option value="">Select template...</option>
-                          {scheduleTemplates.map(template => (
-                            <option key={template.id} value={template.id.toString()}>
-                              {template.name} {template.is_default ? '(Default)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-gray-400 text-xs">N/A</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-4 text-sm text-center">
-                      {test.can_run_visual ? (
-                        <button
-                          onClick={() => runTest(test.id, true)}
-                          disabled={isRunning}
-                          className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Run with visual feedback (will open Gantt automatically)"
-                        >
-                          <EyeIcon className="h-5 w-5" />
-                        </button>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-4 text-sm text-gray-600 dark:text-gray-300">
-                      <div className="flex items-center justify-between gap-2">
-                        {result || lastRun ? (
-                          <div className="flex items-center gap-2">
-                            {status === 'pass' ? (
-                              <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
-                            ) : status === 'fail' || status === 'error' ? (
-                              <span className="text-red-600 dark:text-red-400 font-bold">✗</span>
-                            ) : null}
-                            <span className="text-xs">
-                              {formatDate((result || lastRun).timestamp || (result || lastRun).created_at)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs">Never run</span>
-                        )}
-                        <button
-                          onClick={() => {
-                            console.log('Clock clicked for test:', test.id, 'Current showHistory:', showHistory)
-                            // Toggle history display
-                            setShowHistory(showHistory === test.id ? null : test.id)
-                          }}
-                          className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 cursor-pointer"
-                          title="View audit history"
-                        >
-                          <ClockIcon className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-4 text-right text-sm">
-                      <button
-                        onClick={() => runTest(test.id, false)}
-                        disabled={isRunning}
-                        className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isRunning ? (
-                          <>
-                            <div className="animate-spin h-3 w-3 border-2 border-white border-t-transparent rounded-full" />
-                            Running...
-                          </>
-                        ) : (
-                          <>
-                            <PlayIcon className="h-3 w-3" />
-                            Run
-                          </>
-                        )}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* History Modal Popup */}
-        {showHistory && (
-          <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div className="flex min-h-screen items-end justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-              {/* Background overlay */}
-              <div
-                className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75 transition-opacity"
-                aria-hidden="true"
-                onClick={() => setShowHistory(null)}
-              ></div>
-
-              {/* Center modal */}
-              <span className="hidden sm:inline-block sm:h-screen sm:align-middle" aria-hidden="true">&#8203;</span>
-
-              {/* Modal panel */}
-              <div className="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full sm:p-6">
-                <div className="absolute top-0 right-0 pt-4 pr-4">
-                  <button
-                    type="button"
-                    className="rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none"
-                    onClick={() => setShowHistory(null)}
+          {testSteps.length > 0 && (
+            <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800/50">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Test Steps</h4>
+              <div className="space-y-1 text-sm font-mono max-h-96 overflow-y-auto">
+                {testSteps.map((step, idx) => (
+                  <div
+                    key={idx}
+                    className={`py-1 ${
+                      step.startsWith('✅') ? 'text-green-700 dark:text-green-300' :
+                      step.startsWith('❌') ? 'text-red-700 dark:text-red-300' :
+                      step.startsWith('⚠️') ? 'text-yellow-700 dark:text-yellow-300' :
+                      step.startsWith('ℹ️') ? 'text-blue-700 dark:text-blue-300' :
+                      step.startsWith('📍') || step.startsWith('📋') ? 'text-purple-700 dark:text-purple-300' :
+                      'text-gray-700 dark:text-gray-300'
+                    }`}
                   >
-                    <span className="sr-only">Close</span>
-                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+                    {step}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-                <div className="sm:flex sm:items-start">
-                  <div className="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                    <h3 className="text-lg font-semibold leading-6 text-gray-900 dark:text-white mb-4" id="modal-title">
-                      Test Audit History: {tests.find(t => t.id === showHistory)?.name}
+          {visualTestResult && !isRunning && (
+            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-6">
+              <div className={`rounded-md p-4 ${
+                visualTestResult.status === 'pass' ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' :
+                visualTestResult.status === 'error' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' :
+                'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
+              }`}>
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    {visualTestResult.status === 'pass' ? (
+                      <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <h3 className={`text-sm font-medium ${
+                      visualTestResult.status === 'pass' ? 'text-green-800 dark:text-green-200' : 'text-red-800 dark:text-red-200'
+                    }`}>
+                      {visualTestResult.message}
                     </h3>
-
-                    <div className="mt-4 max-h-[60vh] overflow-y-auto space-y-3">
-                      {getTestHistory(showHistory).length > 0 ? (
-                        getTestHistory(showHistory).map((run, idx) => (
-                          <div
-                            key={run.id || idx}
-                            className={`p-4 rounded-lg ${
-                              run.status === 'pass'
-                                ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                                : run.status === 'fail'
-                                ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-                                : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3 mb-3">
-                              {run.status === 'pass' ? (
-                                <span className="text-green-600 dark:text-green-400 font-bold text-xl">✓</span>
-                              ) : run.status === 'fail' ? (
-                                <span className="text-red-600 dark:text-red-400 font-bold text-xl">✗</span>
-                              ) : (
-                                <span className="text-yellow-600 dark:text-yellow-400 font-bold text-xl">⚠</span>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm text-gray-900 dark:text-white font-semibold mb-1">
-                                  Run #{run.id} - {run.status === 'pass' ? 'PASSED' : run.status === 'fail' ? 'FAILED' : 'ERROR'}
-                                </div>
-                                <div className="text-sm text-gray-700 dark:text-gray-300">
-                                  {run.message || run.status.toUpperCase()}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-sm text-gray-600 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-3">
-                              <div>
-                                <span className="text-gray-500 dark:text-gray-500">Run At:</span>{' '}
-                                <span className="font-medium text-gray-900 dark:text-white">
-                                  {new Date(run.created_at || run.timestamp).toLocaleString('en-AU', {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit',
-                                    hour12: true
-                                  })}
-                                </span>
-                              </div>
-                              <div>
-                                <span className="text-gray-500 dark:text-gray-500">Run By:</span>{' '}
-                                <span className="font-medium text-gray-900 dark:text-white">Claude Code (API)</span>
-                              </div>
-                              {run.duration !== undefined && run.duration !== null && (
-                                <div>
-                                  <span className="text-gray-500 dark:text-gray-500">Duration:</span>{' '}
-                                  <span className="font-medium text-gray-900 dark:text-white">{run.duration}s</span>
-                                </div>
-                              )}
-                              {run.template_id && (
-                                <div>
-                                  <span className="text-gray-500 dark:text-gray-500">Template:</span>{' '}
-                                  <span className="font-medium text-gray-900 dark:text-white">{scheduleTemplates.find(t => t.id === run.template_id)?.name || `ID ${run.template_id}`}</span>
-                                </div>
-                              )}
-                            </div>
-                            {run.console_output && (
-                              <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-semibold text-gray-900 dark:text-white">Console Output</span>
-                                  <button
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(run.console_output)
-                                      toast.success('Console output copied to clipboard', { duration: 2000 })
-                                    }}
-                                    className="text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-semibold"
-                                  >
-                                    Copy
-                                  </button>
-                                </div>
-                                <pre className="text-xs bg-gray-900 dark:bg-black text-green-400 p-4 rounded-lg overflow-x-auto max-h-64 overflow-y-auto font-mono">
-{run.console_output}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="text-center py-12">
-                          <ClockIcon className="h-16 w-16 text-gray-400 dark:text-gray-600 mx-auto mb-4" />
-                          <p className="text-base text-gray-500 dark:text-gray-400 font-medium">No test history found</p>
-                          <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">Run this test to see history</p>
-                        </div>
-                      )}
-                    </div>
+                    {visualTestResult.taskName && (
+                      <div className="mt-2 text-sm">
+                        <p className={visualTestResult.status === 'pass' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}>
+                          Task: #{visualTestResult.taskId} - {visualTestResult.taskName}
+                        </p>
+                      </div>
+                    )}
+                    {visualTestResult.metrics && (
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div><span className="font-medium">API Calls:</span> {visualTestResult.metrics.apiCalls}</div>
+                        <div><span className="font-medium">Reloads:</span> {visualTestResult.metrics.ganttReloads}</div>
+                        <div><span className="font-medium">Warnings:</span> {visualTestResult.metrics.warnings}</div>
+                        <div><span className="font-medium">Dependencies:</span> {visualTestResult.metrics.dependenciesWorked ? '✅' : '❌'}</div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Gantt Test Status Modal */}
-        <GanttTestStatusModal
-          isOpen={showTestStatusModal}
-          onClose={handleTestModalClose}
-          onOpenGantt={() => {
-            // Navigate to Schedule Master tab with the selected template
-            const templateId = visualTestId ? selectedTemplates[visualTestId] : null
-            if (templateId) {
-              window.location.href = `/admin/system?tab=schedule-master&subtab=setup&template=${templateId}`
-            }
-          }}
-          templateId={visualTestId ? selectedTemplates[visualTestId] : null}
-        />
+          {!visualTestResult && !isRunning && testSteps.length === 0 && (
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="flex gap-3">
+                  <div className="text-blue-600 dark:text-blue-400 text-xl">ℹ️</div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                      How to Run Tests
+                    </h3>
+                    <ol className="text-sm text-blue-800 dark:text-blue-200 space-y-2 list-decimal list-inside">
+                      <li>Click "Reset Data" to clear manually positioned flags</li>
+                      <li>Go to Schedule Master Setup tab and open a template</li>
+                      <li>Click Gantt icon to open the Gantt view</li>
+                      <li>Return here and click "Run Test"</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 border-t border-gray-200 dark:border-gray-700 pt-6">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Test Verifies</h4>
+            <div className="space-y-3">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <h5 className="text-sm font-medium text-gray-900 dark:text-white">✅ Cascade Behavior</h5>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Moves task 5 days and verifies all dependent tasks move correctly
+                </p>
+              </div>
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <h5 className="text-sm font-medium text-gray-900 dark:text-white">✅ No Screen Flashing</h5>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Ensures Gantt doesn't reload unnecessarily (≤1 reload)
+                </p>
+              </div>
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <h5 className="text-sm font-medium text-gray-900 dark:text-white">✅ Dependency Types</h5>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Tests FS, SS, FF, SF relationships with lag values
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-    </>
   )
 }

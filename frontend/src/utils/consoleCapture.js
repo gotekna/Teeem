@@ -61,8 +61,21 @@ class ConsoleCapture {
     const message = args.map(arg => {
       if (typeof arg === 'object') {
         try {
-          return JSON.stringify(arg, null, 2)
+          // Handle circular references and improve object serialization
+          return JSON.stringify(arg, (key, value) => {
+            // Handle circular references
+            if (typeof value === 'object' && value !== null) {
+              if (value instanceof Error) {
+                return `${value.name}: ${value.message}\n${value.stack}`
+              }
+            }
+            return value
+          }, 2)
         } catch (e) {
+          // If JSON.stringify fails, try to extract useful info
+          if (arg instanceof Error) {
+            return `${arg.name}: ${arg.message}\n${arg.stack}`
+          }
           return String(arg)
         }
       }
@@ -72,7 +85,8 @@ class ConsoleCapture {
     this.logs.push({
       timestamp,
       type,
-      message
+      message,
+      raw: args // Store raw args for debugging
     })
 
     // Keep only the last maxLogs entries
@@ -145,10 +159,37 @@ class ConsoleCapture {
   notifyListeners() {
     this.listeners.forEach(listener => listener(this.logs))
   }
+
+  // Debug helper to check if capture is working
+  test() {
+    const beforeCount = this.logs.length
+    console.log('🧪 Testing console capture...')
+    console.error('🧪 Test error')
+    console.warn('🧪 Test warning')
+    const afterCount = this.logs.length
+    const captured = afterCount - beforeCount
+
+    console.log(`✅ Capture is ${captured === 3 ? 'WORKING' : 'NOT WORKING'}`)
+    console.log(`   Before: ${beforeCount} logs`)
+    console.log(`   After: ${afterCount} logs`)
+    console.log(`   Captured: ${captured}/3 test messages`)
+
+    return {
+      working: captured === 3,
+      captured,
+      expected: 3,
+      totalLogs: afterCount
+    }
+  }
 }
 
 // Create singleton instance
 const consoleCapture = new ConsoleCapture()
+
+// Expose to window for debugging
+if (typeof window !== 'undefined') {
+  window.consoleCapture = consoleCapture
+}
 
 // Auto-initialize in browser environment - only on localhost or staging
 if (typeof window !== 'undefined') {

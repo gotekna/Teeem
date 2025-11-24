@@ -107,7 +107,8 @@ module Api
             email: @current_user.email,
             name: @current_user.name,
             role: @current_user.role,
-            permissions: @current_user.permissions
+            permissions: @current_user.permissions,
+            preload_price_books: @current_user.preload_price_books
           }
         }
       end

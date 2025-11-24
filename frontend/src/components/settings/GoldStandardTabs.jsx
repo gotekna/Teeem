@@ -1,6 +1,7 @@
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import GoldStandardTableTab from './GoldStandardTableTab'
 import ColumnInfoTab from './ColumnInfoTab'
+import GoldTableSyncCheckTab from './GoldTableSyncCheckTab'
 
 export default function GoldStandardTabs() {
   return (
@@ -31,6 +32,18 @@ export default function GoldStandardTabs() {
           >
             Column Info
           </Tab>
+          <Tab
+            className={({ selected }) =>
+              `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
+              ${
+                selected
+                  ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+              }`
+            }
+          >
+            Sync Check
+          </Tab>
         </TabList>
 
         <TabPanels>
@@ -42,6 +55,11 @@ export default function GoldStandardTabs() {
           {/* Column Info Tab */}
           <TabPanel>
             <ColumnInfoTab />
+          </TabPanel>
+
+          {/* Gold Table Sync Check Tab */}
+          <TabPanel>
+            <GoldTableSyncCheckTab />
           </TabPanel>
         </TabPanels>
       </TabGroup>

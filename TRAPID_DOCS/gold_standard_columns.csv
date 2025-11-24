@@ -1,0 +1,27 @@
+Column Name (Database),Display Name,SQL Type,Display Type,Validation Rules,Example,Used For
+id,ID / Primary Key,INTEGER,ID / Primary Key,"Auto-increment, unique, not null","1, 2, 3, 100",Primary key for identifying records
+single_line_text,Single line text,VARCHAR(255),Single line text,"Optional text field, max 255 characters, alphanumeric","CONC-001, STL-042A",Unique identifier code for inventory
+multiple_lines_text,Long text,TEXT,Long text,"Optional text field, supports line breaks","Additional notes
+Second line
+Third line","Notes, comments, multi-line descriptions"
+email,Email,VARCHAR(255),Email,"Must contain @ symbol, valid email format","supplier@example.com, contact@business.com.au",Email addresses for contacts
+phone,Phone number,VARCHAR(20),Phone number,Format: (03) 9123 4567 or 1300 numbers,"(03) 9123 4567, 1300 123 456",Landline phone numbers
+mobile,Mobile,VARCHAR(20),Mobile,"Format: 0407 397 541, starts with 04","0407 397 541, 0412 345 678",Mobile phone numbers
+url,URL,VARCHAR(500),URL,"Valid URL format, clickable in table",https://example.com/doc.pdf,Links to external documents or files
+number,Number,INTEGER,Number,"Integers (positive or negative), shows sum in footer","10, 250, 15, -5","Quantity of items, counts, or any integer value"
+whole_number,Whole number,INTEGER,Whole number,"Integers only (no decimals), shows sum","5, 100, 42","Counts, units, days - no fractional values"
+currency,Currency,"NUMERIC(10,2)",Currency,"Positive numbers, 2 decimal places, shows sum in footer","$125.50, $1,234.99",Price in Australian dollars
+percentage,Percent,"NUMERIC(5,2)",Percent,"0-100, input as number (e.g., 11), displayed with % symbol (e.g., 11%)","Input: 11 → Display: 11%, Input: 25.5 → Display: 25.5%",Discount percentage for pricing
+date,Date,DATE,Date,"Stored as YYYY-MM-DD (sortable), displayed as DD-MM-YYYY (Australian format)","Display: 19-11-2025, Stored: 2025-11-19","Date values without time, for contracts, events, start dates"
+created_at,Date & Time (Created),TIMESTAMP,Date & Time (Created),"Stored as YYYY-MM-DD HH:MM:SS (sortable), displayed as DD-MM-YYYY HH:MM (Australian format)","Display: 19-11-2025 14:30, Stored: 2025-11-19 14:30:00","Timestamps, event times, scheduled dates with time"
+gps_coordinates,GPS Coordinates,VARCHAR(100),GPS Coordinates,"Latitude, Longitude format","-33.8688, 151.2093 (Sydney)","GPS coordinates for job sites, delivery addresses, asset tracking"
+color_picker,Color Picker,VARCHAR(7),Color Picker,Hex color format (#RRGGBB),"#FF5733, #3498DB, #000000","Visual categorization, status indicators, UI customization"
+file_upload,File Upload,TEXT,File Upload,File path or URL to uploaded file,"/uploads/doc.pdf, https://example.com/file.png","File references, document links, image paths"
+action_buttons,Action Buttons,VARCHAR(255),Action Buttons,"Optional field, stores action configuration as JSON string","{""buttons"": [{""label"": ""View"", ""action"": ""view""}, {""label"": ""Edit"", ""action"": ""edit""}]}","Row-level actions like View, Edit, Download, Approve, Process"
+checkbox,Checkbox,BOOLEAN,Checkbox,True or False only,"true, false",Active/inactive status flag
+choice,Choice,VARCHAR(50),Choice,"Must be one of predefined options, displayed with colored badges","active, pending, completed, cancelled","Status fields, workflow states, categories with visual indicators"
+lookup,Link to another record,VARCHAR(255),Link to another record,Must reference a valid value from the linked table/list,"Product #123, Category: Materials, Customer: ACME Corp","Foreign key relationships, dropdown selections from other tables"
+multiple_lookups,Link to multiple records,TEXT,Link to multiple records,Array of IDs stored as JSON,"[1, 5, 12]",Multiple relationships to other records
+user,User,INTEGER,User,Must reference valid user ID,"User #7, User #1","Assignment to users, ownership tracking"
+computed,Formula,VIRTUAL/COMPUTED,Formula,"Read-only, calculated from formula (e.g., A × B, SUM(C), LOOKUP(D))","$1,255.00 (price × quantity), Total: $15,000 (SUM of all rows)","Automatic calculations, aggregations, cross-table lookups"
+updated_at,Date & Time (Updated),TIMESTAMP,Date & Time (Updated),Auto-updated on any modification,"Display: 19-11-2025 14:30, Stored: 2025-11-19 14:30:00",Last modification timestamp

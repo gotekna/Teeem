@@ -341,18 +341,18 @@ export default function JobDetailPage() {
             {/* Tabs */}
             <div className="border-b border-gray-200 dark:border-gray-800 -mb-px">
               <nav aria-label="Tabs" className="flex space-x-8">
-                {tabs.map((tab) => (
+                {tabs.map((tabItem) => (
                   <button
-                    key={tab.name}
-                    onClick={() => navigate(`/jobs/${id}/${tab.slug}`)}
+                    key={tabItem.name}
+                    onClick={() => navigate(`/jobs/${id}/${tabItem.slug}`)}
                     className={classNames(
-                      activeTab === tab.slug
+                      activeTab === tabItem.slug
                         ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
                       'whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium'
                     )}
                   >
-                    {tab.name}
+                    {tabItem.name}
                   </button>
                 ))}
               </nav>

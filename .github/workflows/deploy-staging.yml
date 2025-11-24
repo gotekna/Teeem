@@ -1,48 +1,62 @@
-name: Deploy Staging (Rob's Branch) to Vercel
+name: Deploy to Staging
 
 on:
   push:
     branches:
-      - rob
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/deploy-staging.yml'
-  workflow_dispatch:  # Allow manual triggering
+      - rob  # Trigger on push to rob branch
 
 jobs:
-  deploy:
+  deploy-backend:
+    name: Deploy Backend to Heroku
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for subtree
 
+      - name: Deploy backend to Heroku
+        uses: akhileshns/heroku-deploy@v3.13.15
+        with:
+          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+          heroku_app_name: "trapid-backend"
+          heroku_email: "robert@tekna.com.au"
+          appdir: "backend"  # Deploy only backend folder
+
+      - name: Run database migrations
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+        run: |
+          # Install Heroku CLI
+          curl https://cli-assets.heroku.com/install.sh | sh
+
+          # Run migrations
+          heroku run bin/rails db:migrate --app trapid-backend
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "✅ Backend deployed successfully to Heroku"
+          echo "🔗 https://trapid-backend-447058022b51.herokuapp.com/"
+
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: frontend
+          vercel-args: '--prod'  # Deploy to production environment
 
-      - name: Pull Vercel Environment Information
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_STAGING_TOKEN }}
-        working-directory: ./frontend
-        env:
-          VERCEL_ORG_ID: team_0GOp2dbTcdsl9NqDGhtIPY2N
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STAGING_PROJECT_ID }}
-
-      - name: Build Project Artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_STAGING_TOKEN }}
-        working-directory: ./frontend
-        env:
-          VERCEL_ORG_ID: team_0GOp2dbTcdsl9NqDGhtIPY2N
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STAGING_PROJECT_ID }}
-
-      - name: Deploy Project Artifacts to Vercel
-        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_STAGING_TOKEN }}
-        working-directory: ./frontend
-        env:
-          VERCEL_ORG_ID: team_0GOp2dbTcdsl9NqDGhtIPY2N
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_STAGING_PROJECT_ID }}
-
-      - name: Comment deployment URL
+      - name: Notify deployment success
         if: success()
         run: |
-          echo "✅ Deployed staging environment successfully"
-          echo "🔗 Staging URL: https://trapid-staging.vercel.app"
+          echo "✅ Frontend deployed successfully to Vercel"
+          echo "🔗 https://trapid-staging.vercel.app/"

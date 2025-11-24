@@ -117,8 +117,8 @@ export default function PermissionsPage() {
   // if (!can('manage_permissions')) {
   //   return (
   //     <div>
-  //       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-  //         <p className="text-red-800">You do not have permission to manage user permissions.</p>
+  //       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+  //         <p className="text-red-800 dark:text-red-400">You do not have permission to manage user permissions.</p>
   //       </div>
   //     </div>
   //   )

@@ -6,7 +6,7 @@ import { api } from '../api'
 import { formatCurrency } from '../utils/formatters'
 
 // Get API URL for proxy endpoints
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 import {
   ArrowLeftIcon,
   CurrencyDollarIcon,
@@ -85,6 +85,12 @@ export default function PriceBookItemDetailPage() {
   }
 
   const loadTaxRates = async () => {
+    // Skip Xero API calls on localhost since it requires authentication
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    if (isLocalhost) {
+      return
+    }
+
     try {
       const response = await api.get('/api/v1/xero/tax_rates')
       if (response.success && response.tax_rates) {

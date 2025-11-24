@@ -4,6 +4,8 @@ class PortalUser < ApplicationRecord
   # Associations
   belongs_to :contact
   has_many :portal_access_logs, dependent: :destroy
+  has_one :subcontractor_account, dependent: :destroy
+  has_many :quote_responses, foreign_key: :responded_by_portal_user_id, dependent: :nullify
 
   # Constants
   PORTAL_TYPES = %w[supplier customer].freeze
@@ -96,6 +98,25 @@ class PortalUser < ApplicationRecord
 
   def activate!
     update(active: true)
+  end
+
+  # Subcontractor methods
+  def subcontractor?
+    supplier? && subcontractor_account.present?
+  end
+
+  def can_submit_quotes?
+    subcontractor? && subcontractor_account.active?
+  end
+
+  def create_subcontractor_account!(invited_by: nil)
+    return subcontractor_account if subcontractor_account.present?
+
+    SubcontractorAccount.create!(
+      portal_user: self,
+      invited_by_contact: invited_by,
+      account_tier: 'free'
+    )
   end
 
   # Display name for logs/admin

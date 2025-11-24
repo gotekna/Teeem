@@ -16,7 +16,7 @@ import {
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
 } from '@heroicons/react/24/outline'
 import { ShieldCheckIcon } from '@heroicons/react/24/solid'
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react'
@@ -302,7 +302,7 @@ export default function ContactDetailPage() {
   }
 
   const filteredContacts = allContacts.filter(contact =>
-    contact.full_name.toLowerCase().includes(supplierSearchTerm.toLowerCase())
+    (contact.full_name || '').toLowerCase().includes(supplierSearchTerm.toLowerCase())
   )
 
   const toggleCategory = (category) => {
@@ -587,7 +587,7 @@ export default function ContactDetailPage() {
   const handleExportPriceHistory = async () => {
     try {
       setExporting(true)
-      const response = await fetch(`${api.API_URL || 'http://localhost:3001'}/api/v1/pricebook/export_price_history?supplier_id=${id}`, {
+      const response = await fetch(`${api.API_URL || 'http://localhost:3000'}/api/v1/pricebook/export_price_history?supplier_id=${id}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -698,7 +698,7 @@ export default function ContactDetailPage() {
       formData.append('file', importFile)
       formData.append('effective_date', importDate)
 
-      const response = await fetch(`${api.API_URL || 'http://localhost:3001'}/api/v1/pricebook/import_price_history`, {
+      const response = await fetch(`${api.API_URL || 'http://localhost:3000'}/api/v1/pricebook/import_price_history`, {
         method: 'POST',
         body: formData,
         credentials: 'include'

@@ -1,6 +1,11 @@
 # frozen_string_literal: true
 
 class AgentDefinition < ApplicationRecord
+  # Associations
+  belongs_to :created_by, class_name: 'User', optional: true
+  belongs_to :updated_by, class_name: 'User', optional: true
+  belongs_to :last_run_by, class_name: 'User', optional: true
+
   # Validations
   validates :agent_id, presence: true, uniqueness: true
   validates :name, presence: true
@@ -17,27 +22,47 @@ class AgentDefinition < ApplicationRecord
   AGENT_TYPES = %w[development diagnostic deployment planning].freeze
 
   # Record a successful run
-  def record_success(message, details = {})
-    update!(
+  # @param message [String] Success message
+  # @param details [Hash] Additional run details
+  # @param user_name [String, nil] Name of user who ran the agent (from git config)
+  # @param tokens [Integer, nil] Tokens used in this run
+  def record_success(message, details = {}, user_name: nil, tokens: nil)
+    attrs = {
       total_runs: total_runs + 1,
       successful_runs: successful_runs + 1,
       last_run_at: Time.current,
       last_status: 'success',
       last_message: message,
-      last_run_details: details
-    )
+      last_run_details: details,
+      last_run_by_name: user_name
+    }
+    if tokens.present?
+      attrs[:last_run_tokens] = tokens
+      attrs[:total_tokens] = (total_tokens || 0) + tokens
+    end
+    update!(attrs)
   end
 
   # Record a failed run
-  def record_failure(message, details = {})
-    update!(
+  # @param message [String] Failure message
+  # @param details [Hash] Additional run details
+  # @param user_name [String, nil] Name of user who ran the agent (from git config)
+  # @param tokens [Integer, nil] Tokens used in this run
+  def record_failure(message, details = {}, user_name: nil, tokens: nil)
+    attrs = {
       total_runs: total_runs + 1,
       failed_runs: failed_runs + 1,
       last_run_at: Time.current,
       last_status: 'failure',
       last_message: message,
-      last_run_details: details
-    )
+      last_run_details: details,
+      last_run_by_name: user_name
+    }
+    if tokens.present?
+      attrs[:last_run_tokens] = tokens
+      attrs[:total_tokens] = (total_tokens || 0) + tokens
+    end
+    update!(attrs)
   end
 
   # Success rate

@@ -16,7 +16,13 @@ import {
   BookOpenIcon,
   SparklesIcon,
   ChartBarIcon,
-  KeyIcon
+  KeyIcon,
+  ExclamationTriangleIcon,
+  AcademicCapIcon,
+  CheckCircleIcon,
+  BanknotesIcon,
+  UserGroupIcon,
+  CurrencyDollarIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 
@@ -37,6 +43,8 @@ const TablesTab = lazy(() => import('../components/settings/TablesTab'))
 const SchemaPage = lazy(() => import('./SchemaPage'))
 const GitBranchVisualization = lazy(() => import('../components/settings/GitBranchVisualization'))
 const AgentStatus = lazy(() => import('../components/settings/AgentStatus'))
+const SmGanttSetupTab = lazy(() => import('../components/sm-gantt/SmGanttSetupTab'))
+const PriceBookSettingsTab = lazy(() => import('../components/settings/PriceBookSettingsTab'))
 
 // Loading fallback component for lazy-loaded tabs
 function TabLoadingFallback() {
@@ -117,12 +125,45 @@ function SecurityTab() {
 
 // Developer Tools Tab Component with nested sub-tabs
 function DeveloperToolsTab() {
-  return (
-    <div className="px-4 sm:px-6 lg:px-8 py-10">
-      <div className="max-w-7xl">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-6">Developer Tools</h2>
+  const location = useLocation()
+  const navigate = useNavigate()
 
-        <TabGroup>
+  // Map sub-tab names to indices
+  const devSubTabs = ['tables', 'schema', 'branches', 'agents']
+
+  // Get initial sub-tab index from URL query parameter
+  const getInitialSubTabIndex = () => {
+    const params = new URLSearchParams(location.search)
+    const subtab = params.get('subtab')
+    const index = devSubTabs.indexOf(subtab)
+    return index >= 0 ? index : 0
+  }
+
+  const [selectedSubIndex, setSelectedSubIndex] = useState(getInitialSubTabIndex())
+
+  // Update URL when sub-tab changes
+  const handleSubTabChange = (index) => {
+    setSelectedSubIndex(index)
+    const params = new URLSearchParams(location.search)
+    params.set('subtab', devSubTabs[index])
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true })
+  }
+
+  // Update selected sub-tab when URL changes
+  useEffect(() => {
+    const newIndex = getInitialSubTabIndex()
+    if (newIndex !== selectedSubIndex) {
+      setSelectedSubIndex(newIndex)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search])
+
+  return (
+    <div className="px-4 sm:px-6 lg:px-8 py-6">
+      <div>
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Developer Tools</h2>
+
+        <TabGroup selectedIndex={selectedSubIndex} onChange={handleSubTabChange}>
           <TabList className="flex space-x-1 rounded-xl bg-indigo-900/20 p-1 mb-6">
             <Tab
               className={({ selected }) =>
@@ -223,12 +264,16 @@ export default function SettingsPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Map tab names to indices - REORGANIZED: 14 tabs (operational moved to Company)
+  // Map tab names to indices - REORGANIZED: 18 tabs (added pricebook)
   const tabs = [
     'company',
     'security',
     'schedule-master',
+    'sm-gantt-v2',
     'meeting-types',
+    'whs',
+    'financial',
+    'pricebook',
     'documentation',
     'supervisor-checklist',
     'gold-standard',
@@ -341,10 +386,10 @@ export default function SettingsPage() {
           </p>
         </div>
         <div>
-          <TabList className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 w-full overflow-x-auto">
+          <TabList className="flex flex-wrap gap-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 w-full">
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -352,12 +397,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <BuildingOfficeIcon className="h-5 w-5" />
+              <BuildingOfficeIcon className="h-4 w-4" />
               Company
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -365,12 +410,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <ShieldCheckIcon className="h-5 w-5" />
+              <ShieldCheckIcon className="h-4 w-4" />
               Security
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -378,12 +423,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <CalendarDaysIcon className="h-5 w-5" />
+              <CalendarDaysIcon className="h-4 w-4" />
               Schedule Master
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -391,12 +436,25 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <CalendarIcon className="h-5 w-5" />
+              <UserGroupIcon className="h-4 w-4" />
+              SM Gantt v2
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              <CalendarIcon className="h-4 w-4" />
               Meeting Types
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -404,12 +462,51 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <DocumentTextIcon className="h-5 w-5" />
+              <ShieldCheckIcon className="h-4 w-4" />
+              WHS
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              <BanknotesIcon className="h-4 w-4" />
+              Financial
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              <CurrencyDollarIcon className="h-4 w-4" />
+              Price Book
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              <DocumentTextIcon className="h-4 w-4" />
               Documentation
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -417,12 +514,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <ClipboardDocumentCheckIcon className="h-5 w-5" />
+              <ClipboardDocumentCheckIcon className="h-4 w-4" />
               Supervisor Checklist
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -430,12 +527,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <StarIcon className="h-5 w-5" />
+              <StarIcon className="h-4 w-4" />
               Gold Standard View
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -443,12 +540,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <WrenchScrewdriverIcon className="h-5 w-5" />
+              <WrenchScrewdriverIcon className="h-4 w-4" />
               Developer Tools
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -456,12 +553,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <BoltIcon className="h-5 w-5" />
+              <BoltIcon className="h-4 w-4" />
               Claude Shortcuts
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -469,12 +566,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <BookOpenIcon className="h-5 w-5" />
+              <BookOpenIcon className="h-4 w-4" />
               User Manual
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -482,12 +579,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <SparklesIcon className="h-5 w-5" />
+              <SparklesIcon className="h-4 w-4" />
               Inspiring Quotes
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -495,12 +592,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <ChartBarIcon className="h-5 w-5" />
+              <ChartBarIcon className="h-4 w-4" />
               Performance
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -508,12 +605,12 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <KeyIcon className="h-5 w-5" />
+              <KeyIcon className="h-4 w-4" />
               Permissions
             </Tab>
             <Tab
               className={({ selected }) =>
-                `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap flex-shrink-0 flex items-center gap-2
+                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
                 ${
                   selected
                     ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
@@ -521,7 +618,7 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <RocketLaunchIcon className="h-5 w-5" />
+              <RocketLaunchIcon className="h-4 w-4" />
               Deployment
             </Tab>
           </TabList>
@@ -549,77 +646,265 @@ export default function SettingsPage() {
             </Suspense>
           </TabPanel>
 
-          {/* 4. Meeting Types Tab */}
+          {/* 4. SM Gantt v2 Setup Tab */}
+          <TabPanel>
+            <Suspense fallback={<TabLoadingFallback />}>
+              <SmGanttSetupTab />
+            </Suspense>
+          </TabPanel>
+
+          {/* 5. Meeting Types Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <MeetingTypesPage />
             </Suspense>
           </TabPanel>
 
-          {/* 5. Documentation Categories Tab */}
+          {/* 5. WHS Tab */}
+          <TabPanel>
+            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10">
+              <div>
+                <h2 className="text-base font-semibold leading-7 text-gray-900 dark:text-white">
+                  Workplace Health & Safety
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
+                  Configure WHS templates, settings, and compliance requirements for Queensland construction projects.
+                </p>
+
+                <dl className="mt-6 space-y-6 divide-y divide-gray-100 dark:divide-gray-700 border-t border-gray-200 dark:border-gray-700 text-sm leading-6">
+                  <div className="pt-6">
+                    <dt className="font-semibold text-gray-900 dark:text-white mb-3">WHS Modules</dt>
+                    <dd className="space-y-2">
+                      <Link
+                        to="/whs/swms"
+                        className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        <DocumentTextIcon className="h-5 w-5" />
+                        SWMS Management
+                      </Link>
+                      <Link
+                        to="/whs/inspections"
+                        className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        <ClipboardDocumentCheckIcon className="h-5 w-5" />
+                        Site Inspections & Templates
+                      </Link>
+                      <Link
+                        to="/whs/incidents"
+                        className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        <ExclamationTriangleIcon className="h-5 w-5" />
+                        Incident Reporting
+                      </Link>
+                      <Link
+                        to="/whs/inductions"
+                        className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        <AcademicCapIcon className="h-5 w-5" />
+                        Worker Inductions & Templates
+                      </Link>
+                      <Link
+                        to="/whs/action-items"
+                        className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        <CheckCircleIcon className="h-5 w-5" />
+                        Action Items
+                      </Link>
+                    </dd>
+                  </div>
+
+                  <div className="pt-6">
+                    <dt className="font-semibold text-gray-900 dark:text-white mb-3">WPHS Appointee</dt>
+                    <dd className="text-gray-600 dark:text-gray-400">
+                      <p className="mb-2">
+                        The Workplace Health & Safety Appointee is responsible for approving SWMS,
+                        investigating incidents, and managing compliance.
+                      </p>
+                      <p className="text-sm">
+                        Configure WPHS Appointee permissions in the{' '}
+                        <button
+                          onClick={() => handleTabChange(tabs.indexOf('permissions'))}
+                          className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 underline"
+                        >
+                          Permissions
+                        </button>
+                        {' '}tab.
+                      </p>
+                    </dd>
+                  </div>
+
+                  <div className="pt-6">
+                    <dt className="font-semibold text-gray-900 dark:text-white mb-3">WorkCover Queensland</dt>
+                    <dd className="text-gray-600 dark:text-gray-400">
+                      <p>
+                        Incidents marked as requiring WorkCover notification will track compliance
+                        with Queensland workplace safety reporting requirements.
+                      </p>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </TabPanel>
+
+          {/* 6. Financial Tab */}
+          <TabPanel>
+            <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10">
+              <div>
+                <h2 className="text-base font-semibold leading-7 text-gray-900 dark:text-white">
+                  Financial Tracking & Reporting
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-400">
+                  Track income and expenses, generate financial reports, and export data for your accountant.
+                  Built on double-entry bookkeeping (Keepr gem) for accuracy.
+                </p>
+
+                <dl className="mt-6 space-y-6 divide-y divide-gray-100 dark:divide-gray-700 border-t border-gray-200 dark:border-gray-700 text-sm leading-6">
+                  <div className="pt-6">
+                    <dt className="font-semibold text-gray-900 dark:text-white mb-3">Financial Modules</dt>
+                    <dd className="space-y-2">
+                      <Link
+                        to="/financial"
+                        className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        <BanknotesIcon className="h-5 w-5" />
+                        Transactions (Income & Expenses)
+                      </Link>
+                      <Link
+                        to="/financial/reports"
+                        className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300"
+                      >
+                        <ChartBarIcon className="h-5 w-5" />
+                        Financial Reports (Balance Sheet, P&L, Job Profitability)
+                      </Link>
+                    </dd>
+                  </div>
+
+                  <div className="pt-6">
+                    <dt className="font-semibold text-gray-900 dark:text-white mb-3">Chart of Accounts Setup</dt>
+                    <dd className="text-gray-600 dark:text-gray-400">
+                      <p className="mb-3">
+                        The Chart of Accounts provides the foundation for double-entry bookkeeping.
+                        You must set up your accounts before recording transactions.
+                      </p>
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
+                        <h4 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">Setup Required</h4>
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
+                          Run this command in your backend terminal to create default accounts:
+                        </p>
+                        <code className="block bg-gray-900 text-green-400 p-3 rounded font-mono text-xs">
+                          cd backend && bin/rails trapid:financial:setup_simple
+                        </code>
+                        <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
+                          This creates 20 essential accounts (Bank, Revenue, Expenses, etc.)
+                        </p>
+                      </div>
+                    </dd>
+                  </div>
+
+                  <div className="pt-6">
+                    <dt className="font-semibold text-gray-900 dark:text-white mb-3">Documentation</dt>
+                    <dd className="text-gray-600 dark:text-gray-400 space-y-2">
+                      <p>
+                        See <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">FINANCIAL_TRACKING_IMPLEMENTATION.md</code> for backend details
+                      </p>
+                      <p>
+                        See <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">FRONTEND_FINANCIAL_IMPLEMENTATION.md</code> for frontend details
+                      </p>
+                      <p>
+                        See <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs">TESTING_GUIDE.md</code> for testing instructions
+                      </p>
+                    </dd>
+                  </div>
+
+                  <div className="pt-6">
+                    <dt className="font-semibold text-gray-900 dark:text-white mb-3">Important Notes</dt>
+                    <dd className="text-gray-600 dark:text-gray-400">
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>This is for <strong>project financial tracking</strong>, not compliance-grade accounting</li>
+                        <li>Always export to CSV for your accountant (built-in export functionality)</li>
+                        <li>Transactions auto-post to Keepr journals for proper double-entry bookkeeping</li>
+                        <li>All amounts are in AUD (Australian Dollars)</li>
+                        <li>Receipt uploads supported (max 5MB)</li>
+                      </ul>
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+          </TabPanel>
+
+          {/* 7. Price Book Settings Tab */}
+          <TabPanel>
+            <Suspense fallback={<TabLoadingFallback />}>
+              <PriceBookSettingsTab />
+            </Suspense>
+          </TabPanel>
+
+          {/* 8. Documentation Categories Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <DocumentationCategoriesTab />
             </Suspense>
           </TabPanel>
 
-          {/* 6. Supervisor Checklist Tab */}
+          {/* 7. Supervisor Checklist Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <SupervisorChecklistTab />
             </Suspense>
           </TabPanel>
 
-          {/* 7. Gold Standard View Tab */}
+          {/* 8. Gold Standard View Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <GoldStandardTabs />
             </Suspense>
           </TabPanel>
 
-          {/* 8. Developer Tools Tab with nested sub-tabs */}
+          {/* 9. Developer Tools Tab with nested sub-tabs */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <DeveloperToolsTab />
             </Suspense>
           </TabPanel>
 
-          {/* 9. Claude Shortcuts Tab */}
+          {/* 10. Claude Shortcuts Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <AgentShortcutsTab />
             </Suspense>
           </TabPanel>
 
-          {/* 10. User Manual Tab */}
+          {/* 11. User Manual Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <UserManualTab />
             </Suspense>
           </TabPanel>
 
-          {/* 11. Inspiring Quotes Tab */}
+          {/* 12. Inspiring Quotes Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <InspiringQuotesTab />
             </Suspense>
           </TabPanel>
 
-          {/* 12. Performance Tab */}
+          {/* 13. Performance Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <SystemPerformancePage />
             </Suspense>
           </TabPanel>
 
-          {/* 13. Permissions Tab */}
+          {/* 14. Permissions Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <PermissionsPage />
             </Suspense>
           </TabPanel>
 
-          {/* 14. Deployment Tab */}
+          {/* 15. Deployment Tab */}
           <TabPanel>
             <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 md:grid-cols-3">
               <div>

@@ -1,3 +1,23 @@
+---
+name: UI Table Auditor
+description: |
+  ╔═══════════════════════════════════════════════════════════╗
+  ║  Chapter 19 Compliance:     Tables rules checked    [PASS]║
+  ║  TrapidTableView:           Standard enforced       [PASS]║
+  ║  State Handling:            Loading/Empty/Error     [PASS]║
+  ║  Accessibility:             ARIA attributes         [PASS]║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Focus: Table component compliance auditing               ║
+  ║  Bible Rule: Chapter 19 (Tables Section)                  ║
+  ╠═══════════════════════════════════════════════════════════╣
+  ║  Est. Tokens:           ~4,500                            ║
+  ╚═══════════════════════════════════════════════════════════╝
+model: sonnet
+color: purple
+type: diagnostic
+author: Jake
+---
+
 # UI Table Auditor Agent
 
 **Agent ID:** ui-table-auditor
@@ -448,3 +468,55 @@ END
 ## Last Updated
 
 [Auto-generated timestamp will be added]
+
+## Final Summary Output (REQUIRED)
+
+**After completing all checks, you MUST output a clear summary box like this:**
+
+### If ALL Checks Pass:
+```
+╔════════════════════════════════════════════════════════════════╗
+║           UI TABLE AUDITOR COMPLETE                            ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: ALL TABLES COMPLIANT                                  ║
+╠════════════════════════════════════════════════════════════════╣
+║  Chapter 19 Compliance:   Tables rules checked        [PASS]   ║
+║  TrapidTableView:         Standard enforced           [PASS]   ║
+║  State Handling:          Loading/Empty/Error         [PASS]   ║
+║  Accessibility:           ARIA attributes             [PASS]   ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tables Scanned:          [X]                                  ║
+║  Fully Compliant:         [Y] ([Z]%)                           ║
+║  Violations Found:        0                                    ║
+╠════════════════════════════════════════════════════════════════╣
+║  Bible Rule: Chapter 19 (Tables Section)                       ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
+```
+
+### If Issues Found:
+```
+╔════════════════════════════════════════════════════════════════╗
+║           UI TABLE AUDITOR COMPLETE                            ║
+╠════════════════════════════════════════════════════════════════╣
+║  STATUS: TABLE VIOLATIONS FOUND - ACTION REQUIRED              ║
+╠════════════════════════════════════════════════════════════════╣
+║  Chapter 19 Compliance:   [X] violations              [WARN]   ║
+║  TrapidTableView:         [X] non-compliant           [WARN]   ║
+║  State Handling:          [status]                    [PASS/FAIL]
+║  Accessibility:           [status]                    [PASS/FAIL]
+╠════════════════════════════════════════════════════════════════╣
+║  CRITICAL: [X] issues                                          ║
+║  MEDIUM:   [X] issues                                          ║
+║  LOW:      [X] issues                                          ║
+╠════════════════════════════════════════════════════════════════╣
+║  VIOLATIONS:                                                   ║
+║  - [Table.jsx:line] RULE #19.X.X description                   ║
+║  - [Table.jsx:line] Missing [feature]                          ║
+╠════════════════════════════════════════════════════════════════╣
+║  FIX: See detailed findings above                              ║
+╠════════════════════════════════════════════════════════════════╣
+║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
+╚════════════════════════════════════════════════════════════════╝
+```
