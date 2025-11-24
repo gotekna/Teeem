@@ -169,23 +169,23 @@ function App() {
         {/* WHS (Workplace Health & Safety) Routes */}
         <Route path="/whs" element={<AppLayout><WhsDashboardPage /></AppLayout>} />
         <Route path="/whs/dashboard" element={<Navigate to="/whs" replace />} />
-        <Route path="/whs/swms" element={<AppLayout><WhsSwmsPage /></AppLayout>} />
-        <Route path="/whs/inspections" element={<AppLayout><WhsInspectionsPage /></AppLayout>} />
-        <Route path="/whs/incidents" element={<AppLayout><WhsIncidentsPage /></AppLayout>} />
-        <Route path="/whs/inductions" element={<AppLayout><WhsInductionsPage /></AppLayout>} />
-        <Route path="/whs/action-items" element={<AppLayout><WhsActionItemsPage /></AppLayout>} />
+        <Route path="/whs/swms" element={<Navigate to="/tables/206/whs-swms" replace />} />
+        <Route path="/whs/inspections" element={<Navigate to="/tables/209/whs-inspections" replace />} />
+        <Route path="/whs/incidents" element={<Navigate to="/tables/210/whs-incidents" replace />} />
+        <Route path="/whs/inductions" element={<Navigate to="/tables/208/whs-inductions" replace />} />
+        <Route path="/whs/action-items" element={<Navigate to="/tables/207/whs-action-items" replace />} />
 
         {/* Financial Routes */}
         <Route path="/financial" element={<AppLayout><FinancialPage /></AppLayout>} />
         <Route path="/financial/transactions" element={<Navigate to="/financial" replace />} />
         <Route path="/financial/reports" element={<AppLayout><FinancialReportsPage /></AppLayout>} />
         <Route path="/sam" element={<AppLayout><SamPage /></AppLayout>} />
-        <Route path="/price-books" element={<AppLayout><PriceBooksPageWithTabs /></AppLayout>} />
+        <Route path="/price-books" element={<Navigate to="/tables/205/price-books" replace />} />
         <Route path="/price-books/:id" element={<AppLayout><PriceBookItemDetailPage /></AppLayout>} />
-        <Route path="/contacts" element={<AppLayout><ContactsPage /></AppLayout>} />
+        <Route path="/contacts" element={<Navigate to="/tables/214/contacts" replace />} />
         <Route path="/contacts/:id" element={<AppLayout><ContactDetailPage /></AppLayout>} />
         <Route path="/accounts" element={<AppLayout><AccountsPage /></AppLayout>} />
-        <Route path="/users" element={<AppLayout><UsersPage /></AppLayout>} />
+        <Route path="/users" element={<Navigate to="/tables/212/user-management" replace />} />
         <Route path="/health" element={<AppLayout><HealthPage /></AppLayout>} />
         <Route path="/permissions" element={<Navigate to="/admin/system?tab=permissions" replace />} />
         <Route path="/system/performance" element={<Navigate to="/admin/system?tab=performance" replace />} />
@@ -193,7 +193,7 @@ function App() {
         <Route path="/suppliers/new" element={<AppLayout><SupplierNewPage /></AppLayout>} />
         <Route path="/suppliers/:id/edit" element={<AppLayout><SupplierEditPage /></AppLayout>} />
         <Route path="/suppliers/:id" element={<AppLayout><SupplierDetailPage /></AppLayout>} />
-        <Route path="/purchase-orders" element={<AppLayout><PurchaseOrdersPage /></AppLayout>} />
+        <Route path="/purchase-orders" element={<Navigate to="/tables/217/purchase-orders" replace />} />
         <Route path="/purchase-orders/:id/edit" element={<AppLayout><PurchaseOrderEditPage /></AppLayout>} />
         <Route path="/purchase-orders/:id" element={<AppLayout><PurchaseOrderDetailPage /></AppLayout>} />
         <Route path="/import" element={<AppLayout><ImportPage /></AppLayout>} />
@@ -203,6 +203,7 @@ function App() {
         <Route path="/tables/:id" element={<AppLayout><TablePage /></AppLayout>} />
         <Route path="/embed/tables/:id" element={<TablePage embedded />} />
         <Route path="/embed/tables/:id/:slug" element={<TablePage embedded />} />
+        <Route path="/tables/:tableId/columns/new" element={<ColumnEditorPage />} />
         <Route path="/tables/:tableId/columns" element={<ColumnEditorPage />} />
         <Route path="/designer" element={<AppLayout><DesignerHome /></AppLayout>} />
         <Route path="/designer/tables/new" element={<AppLayout><TableBuilder /></AppLayout>} />

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../api';
+import { COLUMN_TYPES, getColumnTypeEmoji } from '../../constants/columnTypes';
 import ChoiceEditor from './ChoiceEditor';
 import FormulaEditor from './FormulaEditor';
 import TypeConversionEditor from './TypeConversionEditor';
@@ -23,7 +24,7 @@ import PreviewChangesModal from './PreviewChangesModal';
  * - Delete columns (with warnings)
  * - Rename columns
  */
-const ColumnEditorFullView = ({ tableId, tableName, onClose }) => {
+const ColumnEditorFullView = ({ tableId, tableName, onClose, isNewMode = false }) => {
   const [table, setTable] = useState(null);
   const [columns, setColumns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,15 @@ const ColumnEditorFullView = ({ tableId, tableName, onClose }) => {
   const [pendingChanges, setPendingChanges] = useState([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [validationResults, setValidationResults] = useState([]);
+
+  // New column creation state
+  const [newColumn, setNewColumn] = useState({
+    name: '',
+    column_name: '',
+    column_type: 'single_line_text',
+    required: false
+  });
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     loadTableData();
@@ -127,6 +137,66 @@ const ColumnEditorFullView = ({ tableId, tableName, onClose }) => {
     console.log('Applying change:', change);
   };
 
+  const handleCreateColumn = async () => {
+    try {
+      setCreating(true);
+
+      // Validate column name
+      if (!newColumn.name.trim()) {
+        alert('Column name is required');
+        return;
+      }
+
+      // Generate column_name from display name if not provided
+      let columnName = newColumn.column_name.trim();
+      if (!columnName) {
+        columnName = newColumn.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '');
+      }
+
+      // Call API to create column
+      const result = await api.post(
+        `/api/v1/tables/${tableId}/columns`,
+        {
+          column: {
+            name: newColumn.name,
+            column_name: columnName,
+            column_type: newColumn.column_type,
+            required: newColumn.required
+          }
+        }
+      );
+
+      if (result.success) {
+        alert('✅ Column created successfully!');
+        // Reset form
+        setNewColumn({
+          name: '',
+          column_name: '',
+          column_type: 'single_line_text',
+          required: false
+        });
+        // Close and navigate back
+        if (onClose) {
+          onClose();
+        }
+      } else {
+        alert('❌ Failed to create column: ' + (result.errors?.join(', ') || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error creating column:', error);
+      const errorMsg = error.response?.data?.errors?.join(', ') ||
+                       error.response?.data?.error ||
+                       error.message ||
+                       'Unknown error occurred';
+      alert('❌ Failed to create column: ' + errorMsg);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const getColumnTypeLabel = (type) => {
     const typeLabels = {
       'string': 'Text',
@@ -142,7 +212,7 @@ const ColumnEditorFullView = ({ tableId, tableName, onClose }) => {
     return typeLabels[type] || type;
   };
 
-  if (loading) {
+  if (loading && !isNewMode) {
     return (
       <div className="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-[100]">
         <div className="text-center">
@@ -150,6 +220,148 @@ const ColumnEditorFullView = ({ tableId, tableName, onClose }) => {
             Loading table columns...
           </div>
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // If in new mode, show column creation form
+  if (isNewMode) {
+    return (
+      <div className="fixed inset-0 bg-white dark:bg-gray-900 z-[100] flex flex-col">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 shadow-lg">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-white">
+                  Create New Column: {tableName}
+                </h1>
+                <p className="text-sm text-green-100 mt-1">
+                  Add a new column to your table
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-white
+                         bg-white/20 hover:bg-white/30 border border-white/30
+                         rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Form Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-8 space-y-6">
+              {/* Column Display Name */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Column Display Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newColumn.name}
+                  onChange={(e) => setNewColumn({ ...newColumn, name: e.target.value })}
+                  placeholder="e.g., Customer Name"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 rounded-lg border-2 border-gray-300
+                           dark:border-gray-600 text-base text-gray-900 dark:text-gray-100
+                           focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent
+                           placeholder-gray-400 dark:placeholder-gray-500"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  The name shown to users in the interface
+                </p>
+              </div>
+
+              {/* Column Database Name (Optional) */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Column Name (Database) <span className="text-gray-400">(Optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={newColumn.column_name}
+                  onChange={(e) => setNewColumn({ ...newColumn, column_name: e.target.value })}
+                  placeholder="Auto-generated from display name"
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 rounded-lg border-2 border-gray-300
+                           dark:border-gray-600 text-base font-mono text-gray-900 dark:text-gray-100
+                           focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent
+                           placeholder-gray-400 dark:placeholder-gray-500"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Leave blank to auto-generate from display name (e.g., customer_name)
+                </p>
+              </div>
+
+              {/* Column Type */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Column Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={newColumn.column_type}
+                  onChange={(e) => setNewColumn({ ...newColumn, column_type: e.target.value })}
+                  className="w-full px-4 py-3 bg-white dark:bg-gray-700 rounded-lg border-2 border-gray-300
+                           dark:border-gray-600 text-base text-gray-900 dark:text-gray-100
+                           focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                >
+                  {COLUMN_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {getColumnTypeEmoji(type.value)} {type.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Select the data type for this column
+                </p>
+              </div>
+
+              {/* Required Checkbox */}
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newColumn.required}
+                    onChange={(e) => setNewColumn({ ...newColumn, required: e.target.checked })}
+                    className="w-5 h-5 text-green-600 bg-white dark:bg-gray-700 border-gray-300
+                             dark:border-gray-600 rounded focus:ring-green-500 focus:ring-2"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Required field
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-8">
+                  Users must provide a value for this column
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={handleCreateColumn}
+                  disabled={creating || !newColumn.name.trim()}
+                  className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-700 text-white text-base font-semibold
+                           rounded-lg shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creating ? 'Creating...' : 'Create Column'}
+                </button>
+                <button
+                  onClick={onClose}
+                  disabled={creating}
+                  className="px-6 py-3 text-base font-medium text-gray-700 dark:text-gray-300
+                           bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600
+                           rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
