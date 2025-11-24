@@ -798,7 +798,11 @@ Rails.application.routes.draw do
       end
 
       # Table views (user-specific saved views)
-      resources :table_views, only: [:index, :show, :create, :update, :destroy]
+      resources :table_views, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :reorder
+        end
+      end
 
       # Estimates management (from Unreal Engine or other sources)
       resources :estimates, only: [:index, :show, :destroy] do
