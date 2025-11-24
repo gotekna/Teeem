@@ -346,6 +346,8 @@ export default function TablePage({ embedded = false }) {
         // Only show loading screen for table 205 (large dataset)
         if (isTable205) {
           setLoading(true)
+        } else {
+          setLoading(false) // Explicitly hide loading screen for small tables
         }
       }
       const perPage = isTable205 && !append ? 10000 : PAGE_SIZE // Load all items for table 205
