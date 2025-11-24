@@ -139,9 +139,9 @@ export default function TablePage({ embedded = false }) {
   //   }
   // }, [id, minimalRecords.length, loading, fullDataLoading, fullDataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-focus search bar for Table 205 after rendering (with retry logic)
+  // Auto-focus search bar for Price Books after rendering (with retry logic)
   useEffect(() => {
-    if (id === '205' && !loading && records.length > 0 && !hasAutoFocusedRef.current) {
+    if ((id === '205' || id === 'price-books') && !loading && records.length > 0 && !hasAutoFocusedRef.current) {
       // Try multiple times with increasing delays (accounts for startTransition rendering)
       const tryFocus = (attempt = 0) => {
         const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
@@ -170,9 +170,9 @@ export default function TablePage({ embedded = false }) {
     hasAutoFocusedRef.current = false
   }, [id])
 
-  // Preserve search focus during rendering (Table 205)
+  // Preserve search focus during rendering (Price Books)
   useEffect(() => {
-    if (id === '205' && !loading && records.length > 0 && hasAutoFocusedRef.current) {
+    if ((id === '205' || id === 'price-books') && !loading && records.length > 0 && hasAutoFocusedRef.current) {
       // Continuously restore focus if it gets lost during rendering
       const timer = setTimeout(() => {
         const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
@@ -243,7 +243,7 @@ export default function TablePage({ embedded = false }) {
 
       const endTime = performance.now()
 
-      if (id === '205') {
+      if (id === '205' || id === 'price-books') {
         console.log('[Progressive Loading] Column conversion:', {
           columnCount: converted.length,
           conversionTime: `${(endTime - startTime).toFixed(2)}ms`,
@@ -436,7 +436,7 @@ export default function TablePage({ embedded = false }) {
       })
 
       // Log sample record to see column structure
-      if (id === '205' && response.records?.length > 0 && !append) {
+      if ((id === '205' || id === 'price-books') && response.records?.length > 0 && !append) {
         console.log('[Progressive Loading] Sample record:', {
           columns: Object.keys(response.records[0]),
           firstRecord: response.records[0]
@@ -474,8 +474,8 @@ export default function TablePage({ embedded = false }) {
       setTotalPages(response.pagination?.total_pages || 1)
       setTotalCount(response.pagination?.total_count || 0)
 
-      // For Table 205, disable infinite scroll since we load everything at once
-      if (isTable205 && !append) {
+      // For Price Books, disable infinite scroll since we load everything at once
+      if (isPriceBooks && !append) {
         setHasMore(false)
       } else {
         setHasMore(page < (response.pagination?.total_pages || 1))
@@ -510,9 +510,9 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
-  // Background loader for full data (Table 205)
+  // Background loader for full data (Price Books)
   const loadFullDataInBackground = async () => {
-    if (id !== '205' || fullDataLoading || fullDataLoaded) return
+    if ((id !== '205' && id !== 'price-books') || fullDataLoading || fullDataLoaded) return
 
     setFullDataLoading(true)
     console.log('[Progressive Loading] Starting background load of full data...')
@@ -691,7 +691,7 @@ export default function TablePage({ embedded = false }) {
   }
 
   // Debug: Log records count before render
-  if (id === '205') {
+  if (id === '205' || id === 'price-books') {
     console.log('[Progressive Loading] Render state:', {
       recordsCount: records.length,
       totalCount,
