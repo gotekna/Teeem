@@ -136,10 +136,10 @@ module Api
             cascadeFilters: [],
             filterGroups: []
           ],
-          columns: [
-            :order,
+          columns: {
+            order: [],
             visible: {}
-          ],
+          },
           sort_order: []
         )
       end
