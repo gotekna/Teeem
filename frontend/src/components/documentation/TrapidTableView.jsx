@@ -4509,7 +4509,6 @@ export default function TrapidTableView({
                   ? 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-400 dark:border-blue-600'
                   : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800'
               } text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap`}
-              title={`${view.filters.length} filter${view.filters.length !== 1 ? 's' : ''}, ${view.visibleColumns ? Object.values(view.visibleColumns).filter(Boolean).length : 0} columns`}
             >
               {view.isDefault && <span className="text-yellow-600 dark:text-yellow-400">⭐</span>}
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
