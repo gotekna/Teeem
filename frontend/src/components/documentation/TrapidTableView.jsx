@@ -717,11 +717,24 @@ export default function TrapidTableView({
     console.log('[TrapidTableView] URL view check:', { viewParam, savedFiltersCount: savedFilters.length, tableId, activeViewId })
     if (viewParam && savedFilters.length > 0) {
       // Find view by name (URL-friendly slug) - try multiple matching strategies
-      const view = savedFilters.find(v =>
+      let view = savedFilters.find(v =>
         v.name.toLowerCase().replace(/\s+/g, '-') === viewParam.toLowerCase() ||
         v.name.toLowerCase() === viewParam.toLowerCase() ||
         v.id.toString() === viewParam
       )
+
+      // Handle legacy __default_setup__ -> redirect to actual default view (display_order = 0)
+      if (!view && viewParam === '__default_setup__') {
+        view = savedFilters.find(v => v.display_order === 0 || v.name === 'Setup')
+        if (view) {
+          console.log('[TrapidTableView] Redirecting legacy __default_setup__ to:', view.name)
+          // Update URL to use the correct view name
+          const newParams = new URLSearchParams(searchParams)
+          newParams.set('view', view.name.toLowerCase().replace(/\s+/g, '-'))
+          setSearchParams(newParams, { replace: true })
+        }
+      }
+
       console.log('[TrapidTableView] URL view search result:', { viewParam, view: view?.name, found: !!view })
       if (view && activeViewId !== view.id) {
         // Load the view's filters
@@ -909,7 +922,7 @@ export default function TrapidTableView({
     }
   }, [COLUMNS])
 
-  // Per-column minimum widths (default 20px for all columns)
+  // Per-column minimum widths (default 75px for all columns)
   const [columnMinWidths, setColumnMinWidths] = useState(() => {
     if (typeof window === 'undefined') return {}
     try {
@@ -1177,7 +1190,7 @@ export default function TrapidTableView({
   const handleResizeMove = (e) => {
     if (!resizingColumn) return
     const diff = e.clientX - resizeStartX
-    const minWidth = columnMinWidths[resizingColumn] ?? 20 // Per-column min width, default 20px
+    const minWidth = columnMinWidths[resizingColumn] ?? 75 // Per-column min width, default 75px
     const newWidth = Math.max(minWidth, resizeStartWidth + diff)
     setColumnWidths(prev => ({
       ...prev,
@@ -4240,7 +4253,7 @@ export default function TrapidTableView({
                                 type="number"
                                 min="0"
                                 max="500"
-                                value={columnMinWidths[column.key] ?? 20}
+                                value={columnMinWidths[column.key] ?? 75}
                                 onChange={(e) => {
                                   const value = parseInt(e.target.value) || 0
                                   setColumnMinWidths(prev => ({
@@ -4993,19 +5006,24 @@ export default function TrapidTableView({
 
                             <button
                               onClick={() => {
-                                // Load the Default view as the starting point for new views
-                                const defaultView = savedFilters.find(v => v.name === 'Default')
-                                if (defaultView) {
-                                  // Load Default view's configuration
-                                  setCascadeFilters(defaultView.filters || [])
-                                  setFilterGroups(defaultView.filterGroups || [{ id: 'default', logic: 'AND' }])
-                                  setInterGroupLogic(defaultView.interGroupLogic || 'OR')
-                                  setSortColumns(defaultView.sortColumns || [])
-                                  setVisibleColumns(defaultView.visibleColumns || {})
-                                  setColumnOrder(defaultView.columnOrder ? [...new Set(defaultView.columnOrder)] : COLUMNS.map(c => c.key))
+                                // Load the Setup view as the starting point for new views
+                                // Look for the setup view: either display_order = 0, __default_setup__, or Setup
+                                const setupView = savedFilters.find(v =>
+                                  v.display_order === 0 ||
+                                  v.name === '__default_setup__' ||
+                                  v.name === 'Setup'
+                                )
+                                if (setupView) {
+                                  // Load Setup view's configuration
+                                  setCascadeFilters(setupView.filters || [])
+                                  setFilterGroups(setupView.filterGroups || [{ id: 'default', logic: 'AND' }])
+                                  setInterGroupLogic(setupView.interGroupLogic || 'OR')
+                                  setSortColumns(setupView.sortColumns || [])
+                                  setVisibleColumns(setupView.visibleColumns || {})
+                                  setColumnOrder(setupView.columnOrder ? [...new Set(setupView.columnOrder)] : COLUMNS.map(c => c.key))
                                   setGroupByColumn(null)
                                 } else {
-                                  // Fallback if Default view doesn't exist (shouldn't happen)
+                                  // Fallback if Setup view doesn't exist (shouldn't happen)
                                   setCascadeFilters([])
                                   setFilterGroups([{ id: 'default', logic: 'AND' }])
                                   setInterGroupLogic('OR')
@@ -5728,7 +5746,14 @@ export default function TrapidTableView({
                               title="Show/hide now"
                             />
                             {/* Column name */}
-                            <span className="flex-1 truncate font-medium">{column.label}</span>
+                            <span className={`flex-1 truncate font-medium ${
+                              ['id', 'created_at', 'updated_at'].includes(column.key)
+                                ? 'text-red-600 dark:text-red-400'
+                                : ''
+                            }`}>
+                              {column.label}
+                              {['id', 'created_at', 'updated_at'].includes(column.key) && ' 🔒'}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -5772,7 +5797,16 @@ export default function TrapidTableView({
             ref={scrollContainerRef}
             className="trapid-table-scroll h-full overflow-y-scroll overflow-x-scroll border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
           >
-          <table className="border-collapse" style={{ tableLayout: 'fixed', width: 'auto' }}>
+          <table className="border-collapse" style={{
+            width: (() => {
+              // Calculate total width from all visible columns
+              const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
+              const totalWidth = visibleCols.reduce((sum, key) => {
+                return sum + (columnWidths[key] || 200)
+              }, 0)
+              return `${totalWidth}px`
+            })()
+          }}>
             <thead className="sticky top-0 z-10 backdrop-blur-sm">
             <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800">
               {(() => {
@@ -5800,7 +5834,7 @@ export default function TrapidTableView({
                     }}
                     style={{
                       width: columnWidths[colKey],
-                      minWidth: columnMinWidths[colKey] ?? 20,
+                      minWidth: columnMinWidths[colKey] ?? 75,
                       maxWidth: columnWidths[colKey],
                       position: 'relative',
                       fontSize: '16px',
@@ -6249,7 +6283,7 @@ export default function TrapidTableView({
                                   }}
                                   style={{
                                     width: columnWidths[colKey],
-                                    minWidth: columnMinWidths[colKey] ?? 20,
+                                    minWidth: columnMinWidths[colKey] ?? 75,
                                     maxWidth: columnWidths[colKey],
                                     fontSize: '14px',
                                     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -6379,7 +6413,7 @@ export default function TrapidTableView({
                       }}
                       style={{
                         width: columnWidths[colKey],
-                        minWidth: columnMinWidths[colKey] ?? 20,
+                        minWidth: columnMinWidths[colKey] ?? 75,
                         maxWidth: columnWidths[colKey],
                         fontSize: '14px',
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -6454,9 +6488,9 @@ export default function TrapidTableView({
                     key={colKey}
                     style={{
                       width: columnWidths[colKey],
-                      minWidth: columnMinWidths[colKey] ?? 20,
+                      minWidth: columnMinWidths[colKey] ?? 75,
                     }}
-                    className={`${colKey === 'select' ? 'px-1 py-1.5' : 'px-6 py-1.5'} ${
+                    className={`${colKey === 'select' ? 'px-2 py-1.5' : 'px-2 py-1.5'} ${
                       colKey === 'select' ? 'text-center' : column.showSum ? 'text-right' : 'text-left'
                     } text-xs font-semibold text-gray-700 dark:text-gray-300`}
                   >

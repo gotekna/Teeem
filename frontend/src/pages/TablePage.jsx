@@ -69,7 +69,7 @@ function convertColumnsToTrapidFormat(apiColumns, tableSlug) {
 // Check if a column is a system column that's typically hidden
 function isSystemOrHiddenColumn(columnName) {
   const systemColumns = [
-    'id', 'sys_type_id', 'deleted', 'drive_id', 'folder_id',
+    'sys_type_id', 'deleted', 'drive_id', 'folder_id',  // Removed 'id' - users want to see it!
     'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
     'tedmodel$type', 'pricebook$type'
   ]
