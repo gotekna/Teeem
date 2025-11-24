@@ -1208,6 +1208,7 @@ module Api
           :xero_account_number,
           :company_number,
           :default_discount,
+          :entity_type,
           contact_types: [],
           lgas: [],
           contact_group_ids: [],
