@@ -504,6 +504,8 @@ export default function TrapidTableView({
 
   // Track previous tableId to detect changes
   const prevTableIdRef = useRef(null)
+  // Track if we're currently creating a Default view to prevent race conditions
+  const creatingDefaultViewRef = useRef(false)
 
   // Load saved views from API when tableId changes
   useEffect(() => {
@@ -568,7 +570,15 @@ export default function TrapidTableView({
 
     // Helper function to create the Default view with all columns selected
     const createDefaultView = async () => {
+      // Prevent concurrent calls from React strict mode or rapid navigation
+      if (creatingDefaultViewRef.current) {
+        console.log('[Load Views] Already creating Default view, skipping duplicate call')
+        return
+      }
+
       try {
+        creatingDefaultViewRef.current = true
+
         // Double-check database to prevent race condition duplicates
         const checkData = await api.get(`/api/v1/table_views`, {
           params: { table_id: tableIdNumeric }
@@ -608,6 +618,8 @@ export default function TrapidTableView({
         console.log('[Load Views] Created Default view:', defaultView)
       } catch (error) {
         console.error('[Load Views] Error creating Default view:', error)
+      } finally {
+        creatingDefaultViewRef.current = false
       }
     }
 
