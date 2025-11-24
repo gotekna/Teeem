@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import TrapidTableView from '../documentation/TrapidTableView'
+import Toast from '../Toast'
 import { COLUMN_TYPES } from '../../constants/columnTypes'
 
 // Map COLUMN_TYPES (single source of truth) to table column configuration
@@ -131,6 +132,7 @@ export default function GoldStandardTableTab() {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [columnsWithIds, setColumnsWithIds] = useState(GOLD_STANDARD_COLUMNS)
+  const [toast, setToast] = useState(null)
   // Removed: showFeatures state - "Features to Test" section deleted
 
   const [newItem, setNewItem] = useState({
@@ -169,9 +171,8 @@ export default function GoldStandardTableTab() {
       if (!response.ok) {
         throw new Error(`API returned ${response.status}: ${response.statusText}`)
       }
-      const items = await response.json()
-      console.log('Fetched items from API:', items.length)
-      setData(items)
+      const result = await response.json()
+      setData(result.items || [])
     } catch (err) {
       console.debug('Gold standard items unavailable:', err?.message || 'Unknown error')
       // Show empty table if API fails - no fallback to sample data
@@ -213,9 +214,7 @@ export default function GoldStandardTableTab() {
 
   const handleEdit = async (entry) => {
     try {
-      console.log('handleEdit called with entry:', entry)
       const payload = { gold_standard_item: entry }
-      console.log('Sending PATCH request with payload:', payload)
 
       const response = await fetch(`/api/v1/gold_standard_items/${entry.id}`, {
         method: 'PATCH',
@@ -223,22 +222,20 @@ export default function GoldStandardTableTab() {
         body: JSON.stringify(payload)
       })
 
-      console.log('Response status:', response.status)
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Response error:', errorText)
-        throw new Error('Failed to update item')
+        const errorData = await response.json()
+        console.error('Response error:', errorData)
+        throw new Error(errorData.errors?.join(', ') || 'Failed to update item')
       }
 
-      const updatedItem = await response.json()
-      console.log('Updated item received from API:', updatedItem)
+      const result = await response.json()
       setData(prevData =>
-        prevData.map(item => item.id === updatedItem.id ? updatedItem : item)
+        prevData.map(item => item.id === result.item.id ? result.item : item)
       )
-      console.log('Updated:', updatedItem)
+      setToast({ message: 'Item updated successfully', type: 'success' })
     } catch (err) {
       console.error('Error updating item:', err)
-      alert(`Failed to update item: ${err.message}`)
+      setToast({ message: `Failed to update item: ${err.message}`, type: 'error' })
     }
   }
 
@@ -255,10 +252,10 @@ export default function GoldStandardTableTab() {
       setData(prevData =>
         prevData.filter(item => item.id !== entry.id)
       )
-      console.log('Deleted:', entry)
+      setToast({ message: 'Item deleted successfully', type: 'success' })
     } catch (err) {
       console.error('Error deleting item:', err)
-      alert(`Failed to delete item: ${err.message}`)
+      setToast({ message: `Failed to delete item: ${err.message}`, type: 'error' })
     }
   }
 
@@ -266,7 +263,7 @@ export default function GoldStandardTableTab() {
   const handleBulkDelete = async (entries) => {
     try {
       // Delete all entries in parallel
-      await Promise.all(
+      const responses = await Promise.all(
         entries.map(entry =>
           fetch(`/api/v1/gold_standard_items/${entry.id}`, {
             method: 'DELETE'
@@ -274,15 +271,21 @@ export default function GoldStandardTableTab() {
         )
       )
 
+      // Check if any requests failed
+      const failed = responses.filter(r => !r.ok)
+      if (failed.length > 0) {
+        throw new Error(`Failed to delete ${failed.length} items`)
+      }
+
       // Remove deleted entries from state
       const deletedIds = entries.map(e => e.id)
       setData(prevData =>
         prevData.filter(item => !deletedIds.includes(item.id))
       )
-      console.log('Bulk deleted:', entries.length, 'items')
+      setToast({ message: `Successfully deleted ${entries.length} items`, type: 'success' })
     } catch (err) {
       console.error('Error bulk deleting items:', err)
-      alert(`Failed to delete items: ${err.message}`)
+      setToast({ message: `Failed to delete items: ${err.message}`, type: 'error' })
     }
   }
 
@@ -323,31 +326,31 @@ export default function GoldStandardTableTab() {
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Failed to create item: ${response.status} ${errorText}`)
+        const errorData = await response.json()
+        throw new Error(errorData.errors?.join(', ') || 'Failed to create item')
       }
 
-      const createdItem = await response.json()
-      console.log('Created:', createdItem)
+      const result = await response.json()
 
       // Close modal first for better UX
       setShowAddModal(false)
 
       // Reload all items from API to ensure consistency
       await fetchGoldStandardItems()
+
+      setToast({ message: 'Item created successfully', type: 'success' })
     } catch (err) {
       console.error('Error creating item:', err)
-      alert(`Failed to save item: ${err.message}`)
+      setToast({ message: `Failed to save item: ${err.message}`, type: 'error' })
     }
   }
 
   const handleImport = () => {
-    alert('Import - This would open a file picker to import price book data')
+    setToast({ message: 'Import feature coming soon', type: 'success' })
   }
 
   const handleExport = () => {
-    console.log('Export price book data')
-    alert('Export functionality - see console for data structure')
+    setToast({ message: 'Export feature coming soon', type: 'success' })
   }
 
   if (loading) {
@@ -706,6 +709,15 @@ export default function GoldStandardTableTab() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   )
