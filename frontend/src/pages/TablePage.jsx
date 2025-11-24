@@ -497,27 +497,42 @@ export default function TablePage({ embedded = false }) {
         setLoadingPhase('rendering')
 
         // Multi-phase progress animation with status messages
+        // Table 205 (Price Books): Extended timeout for 5,285 items
         // Phase 1: Rendering (80-90%) - ~5 seconds
         // Phase 2: Setting up (91-95%) - ~5 seconds
         // Phase 3: Loading views (96-98%) - ~10 seconds
         // Phase 4: Finalizing (99-100%) - ~9 seconds (includes 4s at 100% for React rendering)
-        // Total: ~29 seconds to ensure React completes rendering 5,285 rows
+        // Total: ~29 seconds for table 205 only
+        //
+        // Other tables: Standard timeout (~3 seconds total)
+        const isTable205 = id === '205'
         let currentProgress = 80
 
-        // Phase 1: Rendering table
-        setLoadingPhaseMessage('Rendering table...')
-        const phase1Interval = setInterval(() => {
-          setLoadingProgress(prev => {
-            if (prev < 90) {
-              currentProgress = Math.min(prev + 1, 90)
-              const elapsed = Date.now() - processingStartTime
-              console.log(`[PROGRESS SYNC] 🎨 Rendering table - Progress: ${currentProgress}%, Elapsed: ${elapsed}ms`)
-              return currentProgress
-            }
-            return prev
-          })
-        }, 500) // 10 steps * 500ms = 5 seconds to reach 90%
-        activeTimersRef.current.intervals.push(phase1Interval)
+        if (!isTable205) {
+          // Quick loading for normal tables (< 1000 records)
+          setLoadingProgress(100)
+          const quickTimeout = setTimeout(() => {
+            console.log('[PROGRESS SYNC] 🎉 Quick load complete, dismissing loading screen')
+            setLoading(false)
+            loadInProgressRef.current = false
+          }, 1000) // Just 1 second for small tables
+          activeTimersRef.current.timeouts.push(quickTimeout)
+        } else {
+          // Extended multi-phase loading for table 205 (5,285 items)
+          // Phase 1: Rendering table
+          setLoadingPhaseMessage('Rendering table...')
+          const phase1Interval = setInterval(() => {
+            setLoadingProgress(prev => {
+              if (prev < 90) {
+                currentProgress = Math.min(prev + 1, 90)
+                const elapsed = Date.now() - processingStartTime
+                console.log(`[PROGRESS SYNC] 🎨 Rendering table - Progress: ${currentProgress}%, Elapsed: ${elapsed}ms`)
+                return currentProgress
+              }
+              return prev
+            })
+          }, 500) // 10 steps * 500ms = 5 seconds to reach 90%
+          activeTimersRef.current.intervals.push(phase1Interval)
 
         // Phase 2: Setting up table (after 5 seconds)
         const phase2Timeout = setTimeout(() => {
@@ -592,7 +607,8 @@ export default function TablePage({ embedded = false }) {
           activeTimersRef.current.timeouts.push(phase3Timeout)
         }, 5000) // 5 seconds for render phase
 
-        activeTimersRef.current.timeouts.push(phase2Timeout)
+          activeTimersRef.current.timeouts.push(phase2Timeout)
+        } // End of table 205 extended loading
       } else {
         setLoadingMore(false)
       }
