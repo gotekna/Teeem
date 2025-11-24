@@ -391,21 +391,6 @@ export default function TablePage({ embedded = false }) {
 
       // No loading screen for table 205 - preload handles it or loads fast
       const startTime = Date.now()
-      if (false) {  // Disabled - no progress tracking needed
-        progressInterval = setInterval(() => {
-          simulatedProgress += Math.random() * 8 + 3 // 3-11% per tick
-          if (simulatedProgress < 70) {
-            const elapsed = Date.now() - startTime
-            console.log(`[PROGRESS SYNC] ⬇️ Downloading - Progress: ${Math.round(simulatedProgress)}%, Elapsed: ${elapsed}ms`)
-            setLoadingProgress(Math.min(simulatedProgress, 70))
-          }
-        }, 200) // Update every 200ms
-
-        // Track the interval for cleanup
-        if (!append) {
-          activeTimersRef.current.intervals.push(progressInterval)
-        }
-      }
 
       // Option 3: Load views in parallel with records (for performance optimization)
       // Start loading views immediately - don't wait for records to finish
