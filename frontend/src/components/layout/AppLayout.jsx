@@ -369,7 +369,16 @@ export default function AppLayout({ children }) {
   }
 
   const isCurrentPath = (href) => {
+    // Check Active Jobs first (before Dashboard) to avoid false matches
+    if (href === '/tables/active-jobs') {
+      return location.pathname === '/tables/active-jobs' ||
+             location.pathname.match(/^\/tables\/\d+\/active-jobs/)
+    }
     if (href === '/dashboard') {
+      // Exclude active-jobs paths from Dashboard matching
+      if (location.pathname.match(/\/active-jobs/)) {
+        return false
+      }
       return location.pathname === '/dashboard' || location.pathname.startsWith('/tables/')
     }
     return location.pathname === href || location.pathname.startsWith(href + '/')
