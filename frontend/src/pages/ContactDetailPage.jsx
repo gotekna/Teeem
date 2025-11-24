@@ -112,6 +112,7 @@ export default function ContactDetailPage() {
   // Tab navigation using URL search params
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') || 'overview'
+  const returnTo = searchParams.get('returnTo') || sessionStorage.getItem('contactsTableView') || '/tables/214/contacts'
 
   // Ensure URL always has tab parameter
   useEffect(() => {
@@ -813,6 +814,15 @@ export default function ContactDetailPage() {
         <div className="max-w-7xl mx-auto pt-1 pb-1">
         {/* Header */}
         <div>
+          {/* Back to Contacts Button */}
+          <button
+            onClick={() => navigate(returnTo)}
+            className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-2 transition-colors"
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+            Back to Contacts
+          </button>
+
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-base font-bold text-gray-900 dark:text-white">
