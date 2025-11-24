@@ -2,6 +2,7 @@ class PricebookItem < ApplicationRecord
   # Associations
   belongs_to :supplier, class_name: 'Contact', foreign_key: 'supplier_id', optional: true
   belongs_to :default_supplier, class_name: 'Contact', foreign_key: 'default_supplier_id', optional: true
+  belongs_to :pricebook_category, foreign_key: 'category_id', optional: true
   has_many :price_histories, dependent: :destroy
 
   # Attribute for skipping price history callback

@@ -45,28 +45,36 @@ module Api
 
       # PATCH/PUT /api/v1/tables/:table_id/columns/:id
       def update
+        # Track if structural changes are being made (require table rebuild)
+        structural_change = column_params[:column_name].present? && column_params[:column_name] != @column.column_name ||
+                           column_params[:column_type].present? && column_params[:column_type] != @column.column_type
+
         if @column.update(column_params)
-          # Rebuild the database table to reflect the changes
-          table_reloaded = Table.includes(:columns).find(@table.id)
-          builder = TableBuilder.new(table_reloaded)
-          result = builder.create_database_table
+          # Only rebuild database table if structural changes were made
+          # Display name changes don't require a rebuild
+          if structural_change
+            table_reloaded = Table.includes(:columns).find(@table.id)
+            builder = TableBuilder.new(table_reloaded)
+            result = builder.create_database_table
 
-          if result[:success]
-            # Reload the dynamic model to pick up changes
-            table_reloaded.reload_dynamic_model
-            # Reset the connection's schema cache for this table
-            ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(table_reloaded.database_table_name)
-
-            render json: {
-              success: true,
-              column: column_json(@column)
-            }
-          else
-            render json: {
-              success: false,
-              errors: result[:errors]
-            }, status: :unprocessable_entity
+            if result[:success]
+              # Reload the dynamic model to pick up changes
+              table_reloaded.reload_dynamic_model
+              # Reset the connection's schema cache for this table
+              ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(table_reloaded.database_table_name)
+            else
+              render json: {
+                success: false,
+                errors: result[:errors]
+              }, status: :unprocessable_entity
+              return
+            end
           end
+
+          render json: {
+            success: true,
+            column: column_json(@column.reload)
+          }
         else
           render json: {
             success: false,
@@ -267,6 +275,204 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/tables/:table_id/columns/:id/choices
+      # Returns all unique values for a choice/select column with usage counts
+      def choices
+        column = find_column_by_id_or_name(params[:id])
+
+        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
+          return render json: { error: 'Not a choice column' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        # Get distinct values from actual data with counts
+        data_choices = model
+          .group(column_name)
+          .count
+          .map { |value, count| { value: value.to_s, count: count } }
+          .reject { |c| c[:value].blank? }
+
+        # Get manually-added available choices (with 0 count if not used yet)
+        available_choices = column.available_choices || []
+        available_choice_values = available_choices.map(&:to_s)
+
+        # Merge: include all data choices + any available choices not yet used
+        all_choice_values = (data_choices.map { |c| c[:value] } + available_choice_values).uniq
+
+        # Build final choices list
+        choices_data = all_choice_values.map do |value|
+          existing = data_choices.find { |c| c[:value] == value }
+          {
+            value: value,
+            count: existing ? existing[:count] : 0
+          }
+        end
+
+        # Sort by saved order if it exists, otherwise alphabetically
+        choices_data = if column.choices_order.present?
+          # Sort by the saved order, putting unlisted items at the end alphabetically
+          choices_data.sort_by do |c|
+            index = column.choices_order.index(c[:value])
+            [index.nil? ? 1 : 0, index || 0, c[:value].downcase]
+          end
+        else
+          choices_data.sort_by { |c| c[:value].downcase }
+        end
+
+        total_records = model.count
+
+        render json: {
+          success: true,
+          choices: choices_data,
+          total_records: total_records
+        }
+      rescue => e
+        Rails.logger.error "Error loading choices: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/add_choice
+      # Adds a new choice value (stored as metadata, no data modification)
+      def add_choice
+        column = find_column_by_id_or_name(params[:id])
+        new_value = params[:value]
+
+        if new_value.blank?
+          return render json: { error: 'value is required' }, status: :bad_request
+        end
+
+        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
+          return render json: { error: 'Not a choice column' }, status: :bad_request
+        end
+
+        # Initialize available_choices array if it doesn't exist
+        available_choices = column.available_choices || []
+
+        # Check if choice already exists
+        if available_choices.include?(new_value)
+          return render json: { error: 'Choice already exists' }, status: :bad_request
+        end
+
+        # Add the new choice
+        available_choices << new_value
+        column.update!(available_choices: available_choices)
+
+        render json: {
+          success: true,
+          choices: available_choices
+        }
+      rescue => e
+        Rails.logger.error "Error adding choice: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/reorder_choices
+      # Saves the display order for choice values (drag-and-drop persistence)
+      def reorder_choices
+        column = find_column_by_id_or_name(params[:id])
+        new_order = params[:order] || []
+
+        if new_order.empty?
+          return render json: { error: 'order array is required' }, status: :bad_request
+        end
+
+        unless column.column_type.in?(['single_select', 'multi_select', 'choice', 'dropdown', 'select'])
+          return render json: { error: 'Not a choice column' }, status: :bad_request
+        end
+
+        # Save the order
+        column.update!(choices_order: new_order)
+
+        render json: {
+          success: true,
+          choices_order: new_order
+        }
+      rescue => e
+        Rails.logger.error "Error reordering choices: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/rename_choice
+      # Renames a choice value across all records
+      def rename_choice
+        column = find_column_by_id_or_name(params[:id])
+        old_value = params[:old_value]
+        new_value = params[:new_value]
+
+        if old_value.blank? || new_value.blank?
+          return render json: { error: 'Both old_value and new_value are required' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        affected_rows = model.where(column_name => old_value).update_all(column_name => new_value)
+
+        render json: {
+          success: true,
+          affected_rows: affected_rows
+        }
+      rescue => e
+        Rails.logger.error "Error renaming choice: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/tables/:table_id/columns/:id/merge_choices
+      # Merges multiple choice values into one
+      def merge_choices
+        column = find_column_by_id_or_name(params[:id])
+        source_values = params[:source_values] || []
+        target_value = params[:target_value]
+
+        if source_values.empty? || target_value.blank?
+          return render json: { error: 'source_values and target_value are required' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        affected_rows = model.where(column_name => source_values).update_all(column_name => target_value)
+
+        render json: {
+          success: true,
+          affected_rows: affected_rows
+        }
+      rescue => e
+        Rails.logger.error "Error merging choices: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # DELETE /api/v1/tables/:table_id/columns/:id/delete_choice
+      # Deletes a choice by either clearing values or replacing with another value
+      def delete_choice
+        column = find_column_by_id_or_name(params[:id])
+        value = params[:value]
+        replacement_value = params[:replacement_value]
+
+        if value.blank?
+          return render json: { error: 'value is required' }, status: :bad_request
+        end
+
+        model = @table.dynamic_model
+        column_name = column.column_name
+
+        if replacement_value.present?
+          affected_rows = model.where(column_name => value).update_all(column_name => replacement_value)
+        else
+          affected_rows = model.where(column_name => value).update_all(column_name => nil)
+        end
+
+        render json: {
+          success: true,
+          affected_rows: affected_rows
+        }
+      rescue => e
+        Rails.logger.error "Error deleting choice: #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
       private
 
       def set_table
@@ -279,6 +485,17 @@ module Api
         @column = @table.columns.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Column not found' }, status: :not_found
+      end
+
+      # Find column by numeric ID or by column_name string
+      def find_column_by_id_or_name(id_or_name)
+        if id_or_name.to_s.match?(/^\d+$/)
+          @table.columns.find(id_or_name)
+        else
+          @table.columns.find_by!(column_name: id_or_name)
+        end
+      rescue ActiveRecord::RecordNotFound
+        raise ActiveRecord::RecordNotFound, "Column not found: #{id_or_name}"
       end
 
       def column_params
@@ -324,8 +541,7 @@ module Api
           lookup_table_id: column.lookup_table_id,
           lookup_display_column: column.lookup_display_column,
           is_multiple: column.is_multiple,
-          has_cross_table_refs: column.has_cross_table_refs,
-          settings: column.settings
+          has_cross_table_refs: column.has_cross_table_refs
         }
       end
     end

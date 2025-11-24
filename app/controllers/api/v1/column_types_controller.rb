@@ -4,7 +4,7 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types
   # Returns all column type definitions from the Gold Standard Reference table
   def index
-    gold_standard_table = Table.find_by(id: 166) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
 
     unless gold_standard_table
       render json: {
@@ -15,9 +15,12 @@ class Api::V1::ColumnTypesController < ApplicationController
       return
     end
 
+    # Get sample data from gold_standard_items table (first row)
+    sample_data = get_sample_data
+
     # Get all columns from Gold Standard table and convert to type definitions
     column_types = gold_standard_table.columns.map do |column|
-      format_column_type(column)
+      format_column_type(column, sample_data)
     end
 
     # Sort by category and label
@@ -28,14 +31,15 @@ class Api::V1::ColumnTypesController < ApplicationController
       data: sorted_types,
       total: sorted_types.count,
       source: 'Gold Standard Reference Table',
-      table_id: gold_standard_table.id
+      table_id: gold_standard_table.id,
+      has_sample_data: sample_data.present?
     }
   end
 
   # GET /api/v1/column_types/:column_type
   # Returns specific column type definition
   def show
-    gold_standard_table = Table.find_by(id: 166) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
 
     unless gold_standard_table
       render json: {
@@ -64,7 +68,7 @@ class Api::V1::ColumnTypesController < ApplicationController
   # PATCH /api/v1/column_types/:column_type
   # Updates metadata for a specific column type in the Gold Standard table
   def update
-    gold_standard_table = Table.find_by(id: 166) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
 
     unless gold_standard_table
       render json: {
@@ -111,8 +115,18 @@ class Api::V1::ColumnTypesController < ApplicationController
 
   private
 
+  # Get sample data from gold_standard_items table
+  def get_sample_data
+    # Query the gold_standard_items table directly
+    result = ActiveRecord::Base.connection.exec_query('SELECT * FROM gold_standard_items LIMIT 1')
+    result.first if result.any?
+  rescue StandardError => e
+    Rails.logger.error "Failed to fetch sample data: #{e.message}"
+    nil
+  end
+
   # Format a Gold Standard column into column type metadata
-  def format_column_type(column)
+  def format_column_type(column, sample_data = nil)
     # Map column_type to category
     category = categorize_column_type(column.column_type)
 
@@ -123,6 +137,12 @@ class Api::V1::ColumnTypesController < ApplicationController
     validation_rules = get_validation_rules(column)
     example = get_example(column)
     used_for = get_used_for(column)
+
+    # Get actual sample value from the table if available
+    sample_value = nil
+    if sample_data && column.column_type.present?
+      sample_value = sample_data[column.column_type]
+    end
 
     {
       value: column.column_type,
@@ -135,7 +155,8 @@ class Api::V1::ColumnTypesController < ApplicationController
       columnName: column.column_name,
       displayName: column.name,
       required: column.required || false,
-      columnId: column.id
+      columnId: column.id,
+      sampleValue: sample_value
     }
   end
 
@@ -157,6 +178,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => 'Special',
       'color_picker' => 'Special',
       'file_upload' => 'Special',
+      'action_buttons' => 'Special',
       'boolean' => 'Selection',
       'choice' => 'Selection',
       'lookup' => 'Relationships',
@@ -168,29 +190,20 @@ class Api::V1::ColumnTypesController < ApplicationController
   end
 
   # Get SQL type from Column model mapping
+  # Uses Column::COLUMN_SQL_TYPE_MAP which is the single source of truth
   def get_sql_type(column_type)
-    db_type = Column::COLUMN_TYPE_MAP[column_type]
-
-    sql_types = {
-      string: 'VARCHAR(255)',
-      text: 'TEXT',
-      integer: 'INTEGER',
-      decimal: 'DECIMAL(10,2)',
-      boolean: 'BOOLEAN',
-      date: 'DATE',
-      datetime: 'TIMESTAMP'
-    }
-
-    sql_types[db_type] || 'UNKNOWN'
+    Column::COLUMN_SQL_TYPE_MAP[column_type] || 'UNKNOWN'
   end
 
   # Get validation rules for a column type
+  # First tries to get from database column.description field
+  # Falls back to hardcoded rules if not set
   def get_validation_rules(column)
-    # Check settings first
-    return column.settings['validation_rules'] if column.settings&.dig('validation_rules').present?
+    # Use database description if available (updated by trapid:update_validation_rules rake task)
+    return column.description if column.description.present?
 
-    # Fall back to defaults
-    rules = {
+    # Fallback to hardcoded defaults (only used if database not populated)
+    fallback_rules = {
       'single_line_text' => 'Optional text field, max 255 characters, alphanumeric',
       'multiple_lines_text' => 'Long text field, unlimited length, supports line breaks',
       'email' => 'Valid email address format (user@domain.com)',
@@ -206,6 +219,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => 'GPS format: latitude, longitude',
       'color_picker' => 'Hex color code: #RRGGBB',
       'file_upload' => 'File path or URL to uploaded file',
+      'action_buttons' => 'Optional field, stores action configuration as JSON string',
       'boolean' => 'True/False, Yes/No, 1/0',
       'choice' => 'Single selection from predefined list',
       'lookup' => 'Reference to another table record',
@@ -214,15 +228,11 @@ class Api::V1::ColumnTypesController < ApplicationController
       'computed' => 'Formula-based calculated value'
     }
 
-    rules[column.column_type] || 'No validation rules defined'
+    fallback_rules[column.column_type] || 'No validation rules defined'
   end
 
   # Get example value for a column type
   def get_example(column)
-    # Check settings first
-    return column.settings['example'] if column.settings&.dig('example').present?
-
-    # Fall back to defaults
     examples = {
       'single_line_text' => 'CONC-001, STL-042A',
       'multiple_lines_text' => 'This is a longer description\nwith multiple lines',
@@ -239,6 +249,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => '-33.8688, 151.2093',
       'color_picker' => '#3498DB',
       'file_upload' => '/uploads/document.pdf',
+      'action_buttons' => '{"buttons": [{"label": "View", "action": "view"}, {"label": "Edit", "action": "edit"}]}',
       'boolean' => 'true, false',
       'choice' => 'Active, Pending, Complete',
       'lookup' => 'Customer: ABC Corp',
@@ -252,10 +263,6 @@ class Api::V1::ColumnTypesController < ApplicationController
 
   # Get usage description for a column type
   def get_used_for(column)
-    # Check settings first
-    return column.settings['used_for'] if column.settings&.dig('used_for').present?
-
-    # Fall back to defaults
     descriptions = {
       'single_line_text' => 'Unique identifier code for inventory',
       'multiple_lines_text' => 'Detailed notes, descriptions, comments',
@@ -272,6 +279,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       'gps_coordinates' => 'Location data, addresses with coordinates',
       'color_picker' => 'Status colors, category colors',
       'file_upload' => 'Attachments, documents, images',
+      'action_buttons' => 'Row-level actions like View, Edit, Download, Approve, Process',
       'boolean' => 'Yes/No flags, active/inactive status',
       'choice' => 'Status, priority, category selection',
       'lookup' => 'Link to related record in another table',

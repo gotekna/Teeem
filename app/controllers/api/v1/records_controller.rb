@@ -8,7 +8,16 @@ module Api
         # Sanitize and validate pagination parameters to prevent DoS
         page = [(params[:page] || 1).to_i, 1].max
         per_page = [(params[:per_page] || 50).to_i, 1].max
-        per_page = [per_page, 1000].min  # Cap at 1000 to prevent DoS
+
+        # Support minimal fields for fast initial loading
+        fields_mode = params[:fields] # 'minimal' or nil (full)
+
+        # For minimal mode, allow loading all records at once (it's lightweight)
+        if fields_mode == 'minimal'
+          per_page = [per_page, 20000].min  # Allow up to 20K items in minimal mode
+        else
+          per_page = [per_page, 10000].min  # Cap at 10000 to prevent DoS
+        end
 
         search = params[:search]
         sort_by = params[:sort_by]
@@ -19,7 +28,12 @@ module Api
 
         # Apply search filter
         if search.present?
-          searchable_columns = @table.columns.where(searchable: true).pluck(:column_name)
+          searchable_columns = if @table.table_type == 'system'
+            # For system tables, search text columns from the model
+            model.columns.select { |c| [:string, :text].include?(c.type) }.map(&:name)
+          else
+            @table.columns.where(searchable: true).pluck(:column_name)
+          end
           if searchable_columns.any?
             search_conditions = searchable_columns.map { |col| "#{col} ILIKE :search" }.join(' OR ')
             query = query.where(search_conditions, search: "%#{search}%")
@@ -28,11 +42,16 @@ module Api
 
         # Apply sorting with SQL injection prevention
         if sort_by.present?
-          # Validate that the column exists and get the sanitized column name
-          column = @table.columns.find_by(column_name: sort_by)
-          if column
+          # For system tables, validate against model columns
+          valid_columns = if @table.table_type == 'system'
+            model.column_names
+          else
+            @table.columns.pluck(:column_name)
+          end
+
+          if valid_columns.include?(sort_by)
             # Use Arel to safely build the order clause
-            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(column.column_name)} #{sort_direction}"))
+            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
           else
             query = query.order(created_at: :desc)
           end
@@ -40,12 +59,21 @@ module Api
           query = query.order(created_at: :desc)
         end
 
-        # Paginate
+        # Get count before applying select (to avoid COUNT() column issues)
         total_count = query.count
+
+        # For minimal mode, select only specific columns for faster queries
+        # IMPORTANT: Apply select AFTER count to avoid PostgreSQL COUNT() errors
+        if fields_mode == 'minimal' && @table.id == 205 # Price Books
+          # Include timestamps as they're always needed by record_to_json
+          query = query.select(:id, :item_code, :item_name, :category, :created_at, :updated_at)
+        end
+
+        # Paginate
         records = query.offset((page - 1) * per_page).limit(per_page)
 
-        # Build lookup cache to prevent N+1 queries
-        lookup_cache = build_lookup_cache(records)
+        # Build lookup cache to prevent N+1 queries (only for user tables with lookup columns)
+        lookup_cache = @table.table_type == 'system' ? {} : build_lookup_cache(records)
 
         render json: {
           success: true,
@@ -155,6 +183,15 @@ module Api
           created_at: record.created_at,
           updated_at: record.updated_at
         }
+
+        # For system tables, return all model attributes directly
+        if @table.table_type == 'system'
+          record.attributes.each do |key, value|
+            next if ['id', 'created_at', 'updated_at'].include?(key)
+            json[key] = value
+          end
+          return json
+        end
 
         # First pass: collect all base column values
         record_data = {}

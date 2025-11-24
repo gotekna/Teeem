@@ -37,9 +37,31 @@ class Api::V1::GoldStandardItemsController < ApplicationController
 
   def item_params
     params.require(:gold_standard_item).permit(
-      :section, :email, :phone, :mobile, :title, :category_type, :is_active,
-      :discount, :component, :status, :price, :quantity, :whole_number, :unit,
-      :severity, :content, :category, :document_link, :updated_at, :created_at
+      # System columns
+      :id, :created_at, :updated_at,
+      # Gold Standard columns (after cleanup migration - using generic type names)
+      :single_line_text,
+      :multiple_lines_text,
+      :email,
+      :phone,
+      :mobile,
+      :url,
+      :number,
+      :whole_number,
+      :currency,
+      :percentage,
+      :date,
+      :date_and_time,
+      :gps_coordinates,
+      :color_picker,
+      :file_upload,
+      :action_buttons,
+      :boolean,
+      :choice,
+      :lookup,
+      :multiple_lookups,
+      :user,
+      :computed
     )
   end
 end

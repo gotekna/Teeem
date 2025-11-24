@@ -12,6 +12,10 @@ class Construction < ApplicationRecord
   has_many :contacts, through: :construction_contacts
   has_many :rain_logs, dependent: :destroy
 
+  # SM Gantt associations (Schedule Master v2)
+  has_many :sm_tasks, dependent: :destroy
+  has_many :sm_rollover_logs, dependent: :destroy
+
   # Enums
   enum :onedrive_folder_creation_status, {
     not_requested: 'not_requested',

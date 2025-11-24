@@ -34,6 +34,15 @@ class Contact < ApplicationRecord
   has_many :supplier_ratings, dependent: :destroy
   has_many :maintenance_requests, foreign_key: :supplier_contact_id, dependent: :destroy
 
+  # Subcontractor-related associations
+  has_one :subcontractor_account, through: :portal_user
+  has_many :quote_responses, dependent: :destroy
+  has_many :quote_request_contacts, dependent: :destroy
+  has_many :quote_requests, through: :quote_request_contacts
+  has_one :accounting_integration, dependent: :destroy
+  has_many :subcontractor_invoices, dependent: :destroy
+  has_many :pay_now_requests, dependent: :destroy
+
   # Constants
   CONTACT_TYPES = %w[customer supplier sales land_agent].freeze
 
@@ -137,6 +146,41 @@ class Contact < ApplicationRecord
 
   def open_maintenance_requests_count
     maintenance_requests.active.count
+  end
+
+  # Subcontractor-specific methods
+  def is_subcontractor?
+    is_supplier? && subcontractor_account.present?
+  end
+
+  def enable_subcontractor_access!(invited_by: nil)
+    return if subcontractor_account.present?
+
+    transaction do
+      # Ensure portal access is enabled first
+      unless has_portal_access?
+        enable_portal!('supplier')
+      end
+
+      # Create subcontractor account
+      portal_user.create_subcontractor_account!(invited_by: invited_by)
+    end
+  end
+
+  def kudos_score
+    subcontractor_account&.kudos_score || 0
+  end
+
+  def pending_quote_requests
+    quote_requests.active.pending_response
+  end
+
+  def active_jobs
+    purchase_orders.where(status: %w[sent received])
+  end
+
+  def accounting_connected?
+    accounting_integration.present? && accounting_integration.connected?
   end
 
   private

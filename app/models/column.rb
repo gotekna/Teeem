@@ -2,6 +2,12 @@ class Column < ApplicationRecord
   belongs_to :table
   belongs_to :lookup_table, class_name: 'Table', optional: true, foreign_key: :lookup_table_id
 
+  # Serialize available_choices as JSON array
+  serialize :available_choices, coder: JSON, type: Array
+
+  # Serialize choices_order as JSON array
+  serialize :choices_order, coder: JSON, type: Array
+
   validates :name, presence: true
   validates :column_name, presence: true, uniqueness: { scope: :table_id }
   validates :column_type, presence: true, inclusion: {
@@ -27,6 +33,7 @@ class Column < ApplicationRecord
       gps_coordinates
       color_picker
       file_upload
+      action_buttons
     ]
   }
 
@@ -35,6 +42,7 @@ class Column < ApplicationRecord
   validate :lookup_configuration_valid, if: -> { column_type.in?(['lookup', 'multiple_lookups']) }
 
   # Map column types to database column types
+  # NOTE: This maps to Rails types. For actual SQL types with limits, see COLUMN_SQL_TYPE_MAP
   COLUMN_TYPE_MAP = {
     'single_line_text' => :string,
     'email' => :string,
@@ -56,11 +64,47 @@ class Column < ApplicationRecord
     'multiple_lookups' => :text,  # stored as JSON array
     'gps_coordinates' => :string,  # stored as "lat,lng"
     'color_picker' => :string,  # stored as hex color #RRGGBB
-    'file_upload' => :text  # stored as file path or URL
+    'file_upload' => :text,  # stored as file path or URL
+    'action_buttons' => :string  # stored as JSON configuration
+  }.freeze
+
+  # Map column types to SQL types with proper limits
+  # This is the SINGLE SOURCE OF TRUTH for SQL type definitions
+  # Matches Trinity database documentation (Teacher §T19.001-T19.021)
+  # AUTO-GENERATED from gold_standard_columns.csv
+  # DO NOT EDIT MANUALLY - Run: rails trapid:column_types:sync_from_csv
+  # Last updated: 2025-11-21 20:02:30
+  COLUMN_SQL_TYPE_MAP = {
+    'single_line_text' => 'VARCHAR(255)',
+    'multiple_lines_text' => 'TEXT',
+    'email' => 'VARCHAR(255)',
+    'phone' => 'VARCHAR(20)',
+    'mobile' => 'VARCHAR(20)',
+    'url' => 'VARCHAR(500)',
+    'number' => 'NUMERIC(10,2)',
+    'whole_number' => 'INTEGER',
+    'currency' => 'NUMERIC(10,2)',
+    'percentage' => 'NUMERIC(5,2)',
+    'date' => 'DATE',
+    'date_and_time' => 'TIMESTAMP',  # System-generated timestamps
+    'gps_coordinates' => 'VARCHAR(100)',
+    'color_picker' => 'VARCHAR(7)',
+    'file_upload' => 'TEXT',
+    'action_buttons' => 'VARCHAR(255)',
+    'boolean' => 'BOOLEAN',
+    'choice' => 'VARCHAR(50)',
+    'lookup' => 'VARCHAR(255)',
+    'multiple_lookups' => 'TEXT',
+    'user' => 'INTEGER',
+    'computed' => 'VIRTUAL/COMPUTED'
   }.freeze
 
   def db_type
     COLUMN_TYPE_MAP[column_type]
+  end
+
+  def sql_type
+    COLUMN_SQL_TYPE_MAP[column_type] || 'UNKNOWN'
   end
 
   private
@@ -73,12 +117,8 @@ class Column < ApplicationRecord
 
   def detect_cross_table_refs
     # Check if the formula contains cross-table references
-    formula_expression = settings&.dig('formula')
-    if formula_expression.present?
-      self.has_cross_table_refs = FormulaEvaluator.uses_cross_table_references?(formula_expression)
-    else
-      self.has_cross_table_refs = false
-    end
+    # Note: Formula storage not yet implemented, default to false
+    self.has_cross_table_refs = false
   end
 
   def lookup_configuration_valid
