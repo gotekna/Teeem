@@ -243,6 +243,12 @@ Rails.application.routes.draw do
 
         # SMS messages (nested under contacts)
         resources :sms_messages, only: [:index, :create]
+
+        # Contact persons (nested under contacts) - for Xero sync
+        resources :contact_persons, only: [:index, :create, :update, :destroy]
+
+        # Contact groups (nested under contacts)
+        resources :contact_groups, only: [:index]
       end
 
       # SMS webhooks (Twilio callbacks - not nested)
