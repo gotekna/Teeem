@@ -382,6 +382,22 @@ export default function TablePage({ embedded = false }) {
         activeTimersRef.current.intervals.push(progressInterval)
       }
 
+      // Option 3: Load views in parallel with records (for performance optimization)
+      // Start loading views immediately - don't wait for records to finish
+      let viewsPromise = null
+      if (!append && table?.id) {
+        console.log('[Progressive Loading] 🚀 Starting parallel view load for table:', table.id)
+        viewsPromise = api.get(`/api/v1/table_views`, {
+          params: { table_id: table.id }
+        }).then(data => {
+          console.log('[Progressive Loading] ✅ Views loaded in parallel:', data.views?.length || 0, 'views')
+          return data
+        }).catch(error => {
+          console.error('[Progressive Loading] ❌ Error loading views in parallel:', error)
+          return null
+        })
+      }
+
       const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}`, {
         onDownloadProgress: (progressEvent) => {
           // Just update progress if we have real data
@@ -461,6 +477,16 @@ export default function TablePage({ embedded = false }) {
         setHasMore(false)
       } else {
         setHasMore(page < (response.pagination?.total_pages || 1))
+      }
+
+      // Wait for parallel view loading to complete (Option 3)
+      if (viewsPromise && !append) {
+        console.log('[Progressive Loading] ⏳ Waiting for parallel view load to complete...')
+        const viewsData = await viewsPromise
+        if (viewsData && viewsData.success && viewsData.views) {
+          console.log('[Progressive Loading] ✅ Storing', viewsData.views.length, 'preloaded views')
+          setPreloadedViews(viewsData.views)
+        }
       }
 
       // Continue progress animation through the rendering phase
@@ -1026,6 +1052,7 @@ export default function TablePage({ embedded = false }) {
             tableName={table.name}
             entries={records}
             columns={trapidColumns}
+            preloadedViews={preloadedViews}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}

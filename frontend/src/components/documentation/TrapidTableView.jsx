@@ -116,7 +116,8 @@ export default function TrapidTableView({
   onView = null,  // NEW: Custom handler for View action button (e.g., navigate to detail page)
   onColumnUpdate = null,  // NEW: Callback when a column schema is updated (to refresh table data)
   viewOnly = false,  // NEW: When true, only show View button in action column (no edit/delete)
-  loadingMore = false  // NEW: Shows loading indicator when more records are being fetched
+  loadingMore = false,  // NEW: Shows loading indicator when more records are being fetched
+  preloadedViews = null  // NEW: Preloaded views from parent (skips API call if provided)
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -512,12 +513,23 @@ export default function TrapidTableView({
       try {
         console.log('[Load Views] Loading saved views for table:', tableIdNumeric)
         console.log('[Load Views] prevTableIdRef:', prevTableIdRef.current, 'current tableId:', tableId)
-        const data = await api.get(`/api/v1/table_views`, {
-          params: { table_id: tableIdNumeric }
-        })
+
+        // Option 3: Use preloaded views if available (parallel loading optimization)
+        let data
+        if (preloadedViews) {
+          console.log('[Load Views] ✅ Using preloaded views (parallel loading):', preloadedViews.length, 'views')
+          data = { success: true, views: preloadedViews }
+        } else {
+          console.log('[Load Views] 🔄 Loading views via API (no preloaded data)')
+          data = await api.get(`/api/v1/table_views`, {
+            params: { table_id: tableIdNumeric }
+          })
+        }
 
         if (data.success && data.views) {
-          console.log('[Load Views] Loaded saved views:', data.views.length, 'views')
+          if (!preloadedViews) {
+            console.log('[Load Views] Loaded saved views:', data.views.length, 'views')
+          }
           // Convert API format to frontend format
           const converted = data.views.map(view => {
             const filters = view.filters || {}
@@ -579,14 +591,14 @@ export default function TrapidTableView({
       }
     }
 
-    if (prevTableIdRef.current !== tableId) {
-      console.log('[Load Views] tableId changed:', { from: prevTableIdRef.current, to: tableId })
+    if (prevTableIdRef.current !== tableId || (preloadedViews && savedFilters.length === 0)) {
+      console.log('[Load Views] tableId changed or preloaded views available:', { from: prevTableIdRef.current, to: tableId, hasPreloadedViews: !!preloadedViews })
       loadSavedViews()
       prevTableIdRef.current = tableId
     } else {
-      console.log('[Load Views] tableId unchanged, skipping load:', tableId)
+      console.log('[Load Views] tableId unchanged and no preloaded views, skipping load:', tableId)
     }
-  }, [tableId, tableIdNumeric])
+  }, [tableId, tableIdNumeric, preloadedViews])
 
   // Note: Saved views are now persisted via API calls when creating/updating/deleting
   // No need for automatic localStorage sync
@@ -5809,7 +5821,16 @@ export default function TrapidTableView({
                           // Add any new columns that aren't in the saved order
                           const orderedKeys = new Set(orderedCols.map(c => c.key))
                           const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
-                          return [...orderedCols, ...newCols]
+                          const allCols = [...orderedCols, ...newCols]
+
+                          // Sort: checked columns first, then unchecked (maintains relative order within each group)
+                          return allCols.sort((a, b) => {
+                            const aChecked = visibleColumns[a.key] !== false
+                            const bChecked = visibleColumns[b.key] !== false
+                            if (aChecked && !bChecked) return -1
+                            if (!aChecked && bChecked) return 1
+                            return 0 // Maintain relative order within groups
+                          })
                         })().map((column) => (
                           <div
                             key={column.key}
