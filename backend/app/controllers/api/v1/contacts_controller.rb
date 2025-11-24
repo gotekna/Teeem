@@ -45,15 +45,50 @@ module Api
 
         @contacts = @contacts.order(:full_name)
 
+        # Optionally include companies and jobs data
+        include_companies = params[:include_companies] == 'true'
+        include_jobs = params[:include_jobs] == 'true'
+
+        contacts_json = @contacts.as_json(
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :trapid_rating, :entity_type, :primary_role, :employment_status],
+          include: {
+            portal_user: { only: [:id, :email, :portal_type, :active] }
+          },
+          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name]
+        )
+
+        # Add company and job counts for all contacts
+        if include_companies || include_jobs
+          contacts_json.each do |contact_json|
+            contact = @contacts.find { |c| c.id == contact_json['id'] }
+            next unless contact
+
+            if include_companies
+              # Add primary company info
+              if contact.primary_company
+                contact_json['primary_company'] = {
+                  id: contact.primary_company.id,
+                  name: contact.primary_company.display_name
+                }
+              end
+
+              # Count additional companies
+              contact_json['additional_companies_count'] = contact.outgoing_relationships
+                .active
+                .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in'])
+                .count
+            end
+
+            if include_jobs
+              # Count jobs
+              contact_json['jobs_count'] = contact.construction_contacts.count
+            end
+          end
+        end
+
         render json: {
           success: true,
-          contacts: @contacts.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :trapid_rating],
-            include: {
-              portal_user: { only: [:id, :email, :portal_type, :active] }
-            },
-            methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name]
-          )
+          contacts: contacts_json
         }
       end
 
@@ -120,6 +155,51 @@ module Api
             )
           end
         end
+
+        # Add primary company and employment details
+        if @contact.primary_company.present?
+          contact_json[:primary_company] = {
+            id: @contact.primary_company.id,
+            name: @contact.primary_company.display_name,
+            contact_types: @contact.primary_company.contact_types,
+            role: @contact.primary_role,
+            employment_status: @contact.employment_status,
+            start_date: @contact.employment_start_date
+          }
+        end
+
+        # Add additional companies via relationships
+        contact_json[:additional_companies] = @contact.outgoing_relationships
+          .active
+          .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in', 'authorized_signatory_of', 'beneficial_owner_of'])
+          .includes(:related_contact)
+          .map do |rel|
+            {
+              id: rel.related_contact.id,
+              name: rel.related_contact.display_name,
+              relationship_type: rel.relationship_type,
+              role_in_relationship: rel.role_in_relationship,
+              ownership_percentage: rel.ownership_percentage,
+              context: rel.context,
+              start_date: rel.start_date,
+              end_date: rel.end_date,
+              is_active: rel.is_active
+            }
+          end
+
+        # Add jobs/constructions
+        contact_json[:jobs] = @contact.construction_contacts
+          .includes(:construction)
+          .map do |cc|
+            {
+              construction_id: cc.construction_id,
+              construction_name: cc.construction.name,
+              address: cc.construction.address,
+              role: cc.role,
+              primary: cc.primary,
+              status: cc.construction.status
+            }
+          end
 
         render json: {
           success: true,

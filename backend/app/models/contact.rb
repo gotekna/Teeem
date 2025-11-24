@@ -29,6 +29,14 @@ class Contact < ApplicationRecord
            foreign_key: :related_contact_id, dependent: :destroy
   has_many :related_contacts, through: :outgoing_relationships, source: :related_contact
 
+  # Primary company relationship (person works for company)
+  belongs_to :primary_company, class_name: 'Contact', optional: true
+  has_many :employees, class_name: 'Contact', foreign_key: :primary_company_id, dependent: :nullify
+
+  # Construction/Job associations
+  has_many :construction_contacts, dependent: :destroy
+  has_many :constructions, through: :construction_contacts
+
   # Portal-related associations
   has_one :portal_user, dependent: :destroy
   has_many :supplier_ratings, dependent: :destroy
@@ -45,6 +53,8 @@ class Contact < ApplicationRecord
 
   # Constants
   CONTACT_TYPES = %w[customer supplier sales land_agent].freeze
+  ENTITY_TYPES = %w[person company trust].freeze
+  EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
   # Validations
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
@@ -60,6 +70,11 @@ class Contact < ApplicationRecord
   scope :suppliers, -> { with_type('supplier') }
   scope :sales, -> { with_type('sales') }
   scope :land_agents, -> { with_type('land_agent') }
+
+  # Entity type scopes
+  scope :people, -> { where(entity_type: 'person') }
+  scope :companies, -> { where(entity_type: 'company') }
+  scope :trusts, -> { where(entity_type: 'trust') }
 
   # Instance methods
   def display_name
@@ -88,6 +103,80 @@ class Contact < ApplicationRecord
 
   def is_land_agent?
     contact_types&.include?('land_agent')
+  end
+
+  # Entity type helpers
+  def is_person?
+    entity_type == 'person' || contact_types&.include?('person')
+  end
+
+  def is_company?
+    entity_type == 'company' || contact_types&.include?('company')
+  end
+
+  def is_trust?
+    entity_type == 'trust' || contact_types&.include?('trust')
+  end
+
+  # Company/Employment relationship helpers
+  def all_companies
+    companies = []
+    companies << primary_company if primary_company.present?
+    companies += additional_companies.to_a
+    companies.uniq
+  end
+
+  def additional_companies
+    outgoing_relationships
+      .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in'])
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  def employers
+    companies = []
+    companies << primary_company if primary_company.present?
+    companies += outgoing_relationships
+      .where(relationship_type: 'employee_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+    companies.uniq
+  end
+
+  def directors_of
+    outgoing_relationships
+      .where(relationship_type: 'director_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  def shareholders_of
+    outgoing_relationships
+      .where(relationship_type: 'shareholder_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  def trustees_of
+    outgoing_relationships
+      .where(relationship_type: 'trustee_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  # Job/Construction helpers
+  def all_jobs_with_roles
+    construction_contacts.includes(:construction).map do |cc|
+      {
+        construction: cc.construction,
+        role: cc.role,
+        primary: cc.primary
+      }
+    end
+  end
+
+  def primary_jobs
+    construction_contacts.where(primary: true).includes(:construction).map(&:construction)
   end
 
   # Supplier-specific helper methods
