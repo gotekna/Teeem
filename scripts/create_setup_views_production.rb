@@ -27,7 +27,8 @@ tables.each do |table|
     all_columns.each { |col| visible_columns[col] = true }
     column_order = ["select", "actions"] + all_columns
 
-    default_view.update!(
+    # Use update_columns to skip validations (view already exists)
+    default_view.update_columns(
       name: "Setup",
       display_order: 0,
       columns: { "visible" => visible_columns, "order" => column_order },
