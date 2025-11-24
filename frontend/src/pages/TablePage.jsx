@@ -224,12 +224,14 @@ export default function TablePage({ embedded = false }) {
       loadInProgressRef.current = false
       setViewsLoaded(false)
       setViewsLoading(false)
+      // CRITICAL: Clear records to prevent cross-table contamination
+      setRecords([])
     }
   }, [table, id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step 2: Load records after views are loaded
   useEffect(() => {
-    if (viewsLoaded && table && !loading && records.length === 0) {
+    if (viewsLoaded && table && records.length === 0) {
       console.log('[Progressive Loading] 📊 Step 2: Loading records in background...')
       loadRecords()
     }
