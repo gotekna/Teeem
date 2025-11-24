@@ -849,6 +849,16 @@ export default function TablePage({ embedded = false }) {
               table.slug === 'contacts' ||
               table.database_table_name === 'contacts'
             }
+            onEditRelationships={
+              (table.slug === 'contacts' || table.database_table_name === 'contacts')
+                ? (entry) => {
+                    // Navigate to relationships tab in edit mode
+                    const currentTableUrl = window.location.pathname + window.location.search
+                    sessionStorage.setItem('contactsTableView', currentTableUrl)
+                    navigate(`/contacts/${entry.id}?tab=relationships&edit=true&returnTo=${encodeURIComponent(currentTableUrl)}`)
+                  }
+                : null
+            }
             customActions={
               <div className="flex items-center gap-3">
                 {/* View Mode Switcher for Table 205 */}
