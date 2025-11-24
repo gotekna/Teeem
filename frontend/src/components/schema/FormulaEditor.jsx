@@ -27,11 +27,59 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
   }, [formula]);
 
   useEffect(() => {
-    // Get available columns from table
+    // Get available columns from table or fetch from API
     if (table?.columns) {
       setAvailableColumns(table.columns);
+    } else if (tableId) {
+      // Fetch columns from API if not in table prop
+      const fetchColumns = async () => {
+        try {
+          const response = await api.get(`/api/v1/tables/${tableId}`);
+          if (response.data?.columns) {
+            setAvailableColumns(response.data.columns);
+          }
+        } catch (error) {
+          console.error('Error fetching columns for formula editor:', error);
+        }
+      };
+      fetchColumns();
     }
-  }, [table]);
+  }, [table, tableId]);
+
+  // Fetch columns from linked tables when available columns change
+  useEffect(() => {
+    const fetchLinkedTableColumns = async () => {
+      const lookupColumns = availableColumns.filter(
+        col => col.column_type === 'lookup' || col.column_type === 'link_to_another_record'
+      );
+
+      if (lookupColumns.length === 0) {
+        setLinkedTableColumns({});
+        return;
+      }
+
+      const linkedColumns = {};
+
+      for (const lookupCol of lookupColumns) {
+        if (lookupCol.lookup_table_id) {
+          try {
+            const response = await api.get(`/api/v1/tables/${lookupCol.lookup_table_id}`);
+            if (response.data?.columns) {
+              linkedColumns[lookupCol.column_name] = response.data.columns;
+            }
+          } catch (error) {
+            console.error(`Error fetching columns for linked table ${lookupCol.lookup_table_id}:`, error);
+          }
+        }
+      }
+
+      setLinkedTableColumns(linkedColumns);
+    };
+
+    if (activeTab === 'linked' && availableColumns.length > 0) {
+      fetchLinkedTableColumns();
+    }
+  }, [availableColumns, activeTab]);
 
   const handleFormulaChange = (value) => {
     // Ensure formula starts with =
@@ -670,21 +718,30 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
                           <div className="text-xs text-green-700 dark:text-green-400 mb-2">
                             → {lookupCol.lookup_table_name || 'Related table'}
                           </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400">
-                            Click to insert:
+                          <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                            Click a field to insert:
                           </div>
-                          <div className="mt-2 space-y-1">
-                            <button
-                              onClick={() => handleInsertLinkedData(lookupCol.column_name, 'id')}
-                              className="w-full text-left px-2 py-1 text-xs bg-white dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 rounded border border-green-200 dark:border-green-700"
-                            >
-                              <span className="font-mono text-green-600 dark:text-green-400">
-                                LOOKUP([{lookupCol.column_name}], "...")
-                              </span>
-                            </button>
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">
-                            Replace "..." with the field name you want from the related table
+                          <div className="mt-2 space-y-1 max-h-48 overflow-y-auto">
+                            {linkedTableColumns[lookupCol.column_name] ? (
+                              linkedTableColumns[lookupCol.column_name].map(relatedCol => (
+                                <button
+                                  key={relatedCol.id}
+                                  onClick={() => handleInsertLinkedData(lookupCol.column_name, relatedCol.column_name)}
+                                  className="w-full text-left px-2 py-1.5 text-xs bg-white dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-900/30 rounded border border-green-200 dark:border-green-700 transition-colors"
+                                >
+                                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                                    {relatedCol.name}
+                                  </div>
+                                  <div className="font-mono text-green-600 dark:text-green-400 text-[10px] mt-0.5">
+                                    LOOKUP([{lookupCol.column_name}], "{relatedCol.column_name}")
+                                  </div>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="text-xs text-gray-500 dark:text-gray-400 italic p-2">
+                                Loading columns...
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))
