@@ -114,6 +114,8 @@ export default function TablePage({ embedded = false }) {
   const [minimalRecords, setMinimalRecords] = useState([])
   const [showNotification, setShowNotification] = useState(false)
   const [preloadedViews, setPreloadedViews] = useState(null) // Pre-loaded views for parallel loading
+  const [viewsLoaded, setViewsLoaded] = useState(false) // Track if views are loaded (for progressive loading)
+  const [viewsLoading, setViewsLoading] = useState(false) // Track if views are currently loading
 
   // Reset progressive loading state when table changes
   useEffect(() => {
@@ -208,11 +210,11 @@ export default function TablePage({ embedded = false }) {
     // DON'T reset loadInProgressRef here - let loadRecords manage it
   }, [])
 
-  // Load records after table is loaded
+  // PROGRESSIVE LOADING: Load views FIRST, then records in background
   useEffect(() => {
     if (table) {
-      console.log('[PROGRESS SYNC] 📋 Table metadata loaded, starting record load...')
-      loadRecords()
+      console.log('[Progressive Loading] 🚀 Step 1: Loading views first...')
+      loadViewsFirst()
     }
     // Cleanup timers on unmount or when table/id changes
     return () => {
@@ -220,8 +222,18 @@ export default function TablePage({ embedded = false }) {
       clearAllTimers()
       // Reset flag to allow fresh load on remount
       loadInProgressRef.current = false
+      setViewsLoaded(false)
+      setViewsLoading(false)
     }
   }, [table, id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step 2: Load records after views are loaded
+  useEffect(() => {
+    if (viewsLoaded && table && !loading && records.length === 0) {
+      console.log('[Progressive Loading] 📊 Step 2: Loading records in background...')
+      loadRecords()
+    }
+  }, [viewsLoaded, table]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track when loading state changes
   useEffect(() => {
@@ -319,6 +331,35 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
+  // PROGRESSIVE LOADING: Load views independently BEFORE records
+  // This makes the UI feel faster by showing saved views immediately
+  const loadViewsFirst = async () => {
+    if (viewsLoading || viewsLoaded || !table?.id) return
+
+    setViewsLoading(true)
+    console.log('[Progressive Loading] 🎯 Loading views for table:', table.id)
+
+    try {
+      const data = await api.get(`/api/v1/table_views`, {
+        params: { table_id: table.id }
+      })
+
+      if (data && data.success && data.views) {
+        console.log('[Progressive Loading] ✅ Views loaded!', data.views.length, 'views')
+        setPreloadedViews(data.views)
+        setViewsLoaded(true)
+        // Views are ready - users can now interact with saved views
+        // while records load in the background
+      }
+    } catch (error) {
+      console.error('[Progressive Loading] ❌ Error loading views:', error)
+      // Even if views fail, continue loading - don't block the page
+      setViewsLoaded(true) // Set to true anyway so records can start loading
+    } finally {
+      setViewsLoading(false)
+    }
+  }
+
   const loadRecords = async (page = 1, append = false) => {
     // Prevent duplicate loads (React Strict Mode protection)
     const now = Date.now()
@@ -399,21 +440,7 @@ export default function TablePage({ embedded = false }) {
       // No loading screen for Price Books - preload handles it or loads fast
       const startTime = Date.now()
 
-      // Option 3: Load views in parallel with records (for performance optimization)
-      // Start loading views immediately - don't wait for records to finish
-      let viewsPromise = null
-      if (!append && table?.id) {
-        console.log('[Progressive Loading] 🚀 Starting parallel view load for table:', table.id)
-        viewsPromise = api.get(`/api/v1/table_views`, {
-          params: { table_id: table.id }
-        }).then(data => {
-          console.log('[Progressive Loading] ✅ Views loaded in parallel:', data.views?.length || 0, 'views')
-          return data
-        }).catch(error => {
-          console.error('[Progressive Loading] ❌ Error loading views in parallel:', error)
-          return null
-        })
-      }
+      // Views are already loaded by loadViewsFirst() - no need to load them here
 
       const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}`, {
         onDownloadProgress: (progressEvent) => {
@@ -488,15 +515,7 @@ export default function TablePage({ embedded = false }) {
         setHasMore(page < (response.pagination?.total_pages || 1))
       }
 
-      // Wait for parallel view loading to complete (Option 3)
-      if (viewsPromise && !append) {
-        console.log('[Progressive Loading] ⏳ Waiting for parallel view load to complete...')
-        const viewsData = await viewsPromise
-        if (viewsData && viewsData.success && viewsData.views) {
-          console.log('[Progressive Loading] ✅ Storing', viewsData.views.length, 'preloaded views')
-          setPreloadedViews(viewsData.views)
-        }
-      }
+      // Views were already loaded by loadViewsFirst() - they're ready to use
 
       // Data is loaded - clean up
       if (!append) {
