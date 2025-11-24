@@ -512,15 +512,32 @@ export default function TrapidTableView({
     const loadSavedViews = async () => {
       if (!tableIdNumeric) return
 
+      // Check if table changed (will need to reset activeViewId and auto-apply new view)
+      const tableChanged = prevTableIdRef.current !== null && prevTableIdRef.current !== tableId
+      if (tableChanged) {
+        console.log('[Load Views] Table changed, will reset activeViewId and auto-apply')
+        setActiveViewId(null)
+      }
+
       try {
         console.log('[Load Views] Loading saved views for table:', tableIdNumeric)
         console.log('[Load Views] prevTableIdRef:', prevTableIdRef.current, 'current tableId:', tableId)
 
         // Option 3: Use preloaded views if available (parallel loading optimization)
+        // But first validate they're for the correct table
         let data
-        if (preloadedViews) {
-          console.log('[Load Views] ✅ Using preloaded views (parallel loading):', preloadedViews.length, 'views')
-          data = { success: true, views: preloadedViews }
+        if (preloadedViews && preloadedViews.length > 0) {
+          // Check if preloaded views are for the current table
+          const firstViewTableId = preloadedViews[0]?.table_id
+          if (firstViewTableId == tableIdNumeric) {
+            console.log('[Load Views] ✅ Using preloaded views (parallel loading):', preloadedViews.length, 'views')
+            data = { success: true, views: preloadedViews }
+          } else {
+            console.log('[Load Views] ⚠️ Preloaded views are for wrong table (', firstViewTableId, 'vs', tableIdNumeric, '), loading via API instead')
+            data = await api.get(`/api/v1/table_views`, {
+              params: { table_id: tableIdNumeric }
+            })
+          }
         } else {
           console.log('[Load Views] 🔄 Loading views via API (no preloaded data)')
           data = await api.get(`/api/v1/table_views`, {
@@ -534,13 +551,16 @@ export default function TrapidTableView({
           }
 
           // Validate that all views belong to the current table
+          // Use loose equality (!=) to handle Integer vs String type mismatch
           const validViews = data.views.filter(view => {
-            if (view.table_id !== tableIdNumeric) {
+            if (view.table_id != tableIdNumeric) {
               console.warn('[Load Views] ⚠️ Filtering out view from wrong table:', {
                 viewId: view.id,
                 viewName: view.name,
                 viewTableId: view.table_id,
-                currentTableId: tableIdNumeric
+                viewTableIdType: typeof view.table_id,
+                currentTableId: tableIdNumeric,
+                currentTableIdType: typeof tableIdNumeric
               })
               return false
             }
@@ -574,10 +594,47 @@ export default function TrapidTableView({
           })
           setSavedFilters(converted)
 
-          // Auto-create "Default" view if it doesn't exist
-          const hasDefaultView = converted.some(v => v.name === 'Default')
-          if (!hasDefaultView) {
-            console.log('[Load Views] No Default view found, creating one')
+          // Auto-apply the view with display_order = 0 (typically the Default view)
+          const sortedViews = [...converted].sort((a, b) => (a.display_order || 0) - (b.display_order || 0))
+          const defaultView = sortedViews.find(v => v.display_order === 0)
+
+          // Auto-apply if: table just changed OR no active view yet
+          if (defaultView && (tableChanged || !activeViewId)) {
+            console.log('[Load Views] Auto-applying view with display_order = 0:', defaultView.name)
+
+            // Apply the view's filters
+            setCascadeFilters(defaultView.filters || [])
+            setFilterGroups(defaultView.filterGroups || [{ id: 'default', logic: 'AND' }])
+            setInterGroupLogic(defaultView.interGroupLogic || 'AND')
+
+            // Apply the view's column visibility
+            if (defaultView.visibleColumns && Object.keys(defaultView.visibleColumns).length > 0) {
+              setVisibleColumns(defaultView.visibleColumns)
+            }
+
+            // Apply the view's column order
+            if (defaultView.columnOrder && defaultView.columnOrder.length > 0) {
+              setColumnOrder(defaultView.columnOrder)
+            }
+
+            // Apply the view's sort columns
+            if (defaultView.sortColumns && defaultView.sortColumns.length > 0) {
+              setSortColumns(defaultView.sortColumns)
+            }
+
+            // Apply the view's group by column
+            if (defaultView.groupByColumn) {
+              setGroupByColumn(defaultView.groupByColumn)
+            }
+
+            // Mark this view as active
+            setActiveViewId(defaultView.id)
+          }
+
+          // Auto-create "Setup" view if it doesn't exist
+          const hasSetupView = converted.some(v => v.name === 'Setup')
+          if (!hasSetupView) {
+            console.log('[Load Views] No Setup view found, creating one')
             await createDefaultView()
           }
         }
@@ -587,11 +644,11 @@ export default function TrapidTableView({
       }
     }
 
-    // Helper function to create the Default view with all columns selected
+    // Helper function to create the Setup view with all columns selected
     const createDefaultView = async () => {
       // Prevent concurrent calls from React strict mode or rapid navigation
       if (creatingDefaultViewRef.current) {
-        console.log('[Load Views] Already creating Default view, skipping duplicate call')
+        console.log('[Load Views] Already creating Setup view, skipping duplicate call')
         return
       }
 
@@ -603,10 +660,10 @@ export default function TrapidTableView({
           params: { table_id: tableIdNumeric }
         })
 
-        const existingDefault = checkData.views?.find(v => v.name === 'Default')
-        if (existingDefault) {
-          console.log('[Load Views] Default view already exists in database, skipping creation')
-          return existingDefault
+        const existingSetup = checkData.views?.find(v => v.name === 'Setup')
+        if (existingSetup) {
+          console.log('[Load Views] Setup view already exists in database, skipping creation')
+          return existingSetup
         }
 
         // IMPORTANT: Fetch fresh columns from API to avoid stale state during table transitions
@@ -623,8 +680,8 @@ export default function TrapidTableView({
           }
         })
 
-        const defaultView = await saveNewView({
-          name: 'Default',
+        const setupView = await saveNewView({
+          name: 'Setup',
           filters: [],
           filterGroups: [{ id: 'default', logic: 'AND' }],
           interGroupLogic: 'OR',
@@ -634,9 +691,9 @@ export default function TrapidTableView({
           isDefault: true // Mark as system default view
         })
 
-        console.log('[Load Views] Created Default view:', defaultView)
+        console.log('[Load Views] Created Setup view:', setupView)
       } catch (error) {
-        console.error('[Load Views] Error creating Default view:', error)
+        console.error('[Load Views] Error creating Setup view:', error)
       } finally {
         creatingDefaultViewRef.current = false
       }
@@ -691,15 +748,10 @@ export default function TrapidTableView({
         setGroupByColumn(view.groupByColumn || null)
         setActiveViewId(view.id)
       }
-    } else if (!viewParam && activeViewId) {
-      // URL has no view param but we have an active view - clear it (back button pressed)
-      setCascadeFilters([])
-      setFilterGroups([{ id: 'default', logic: 'AND' }])
-      setInterGroupLogic('OR')
-      setSortColumns([])
-      setGroupByColumn(null)
-      setActiveViewId(null)
     }
+    // Note: We don't clear activeViewId when there's no URL param anymore
+    // This allows auto-applied views (display_order = 0) to remain active
+    // Users can manually clear the view using the Filters button or by applying a different view
   }, [searchParams, savedFilters]) // Re-run when URL or saved filters change
 
   // Sync URL when activeViewId changes to null (view cleared)
