@@ -45,10 +45,9 @@ export default function SavedViewsKanban({
       const [draggedItem] = newFilters.splice(fromIndex, 1)
       newFilters.splice(toIndex, 0, draggedItem)
 
-      // Set isDefault on first item, clear on others
+      // Set display_order based on position (no default flag)
       const reordered = newFilters.map((v, idx) => ({
         ...v,
-        isDefault: idx === 0,
         display_order: idx
       }))
 
@@ -298,18 +297,6 @@ export default function SavedViewsKanban({
               {isActive && (
                 <div className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg z-10">
                   ACTIVE
-                </div>
-              )}
-
-              {/* Default star (auto-set for first card) */}
-              {isFirst && (
-                <div className="absolute -top-2 -left-2 z-10">
-                  <div className="relative">
-                    <StarIconSolid className="h-6 w-6 text-yellow-500 drop-shadow-md" />
-                    <div className="absolute -bottom-1 -right-1 bg-yellow-600 text-white text-[8px] font-bold px-1 rounded-full">
-                      DEFAULT
-                    </div>
-                  </div>
                 </div>
               )}
 

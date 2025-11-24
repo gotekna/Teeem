@@ -4471,10 +4471,7 @@ export default function TrapidTableView({
           {savedFilters
             .filter(v => v.name !== '__default_setup__')
             .sort((a, b) => {
-              // Default view always first
-              if (a.isDefault) return -1
-              if (b.isDefault) return 1
-              // Then sort by display_order
+              // Sort by display_order only (no default priority)
               return (a.display_order || 0) - (b.display_order || 0)
             })
             .map((view) => (
@@ -4525,7 +4522,6 @@ export default function TrapidTableView({
                   : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800'
               } text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap`}
             >
-              {view.isDefault && <span className="text-yellow-600 dark:text-yellow-400">⭐</span>}
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
