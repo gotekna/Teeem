@@ -26,7 +26,24 @@ class TableView < ApplicationRecord
   # This must run before validation so the uniqueness check passes
   before_validation :unset_other_defaults, if: :is_default?
 
+  # Before saving, deduplicate column order to prevent React duplicate key errors
+  before_save :deduplicate_column_order
+
   private
+
+  def deduplicate_column_order
+    return unless columns.is_a?(Hash) && columns['order'].is_a?(Array)
+
+    # Remove duplicate columns while preserving order
+    original_order = columns['order']
+    deduped_order = original_order.uniq
+
+    # Only update if there were duplicates
+    if original_order.length != deduped_order.length
+      Rails.logger.warn "[TableView] Removed duplicate columns from view '#{name}': #{original_order - deduped_order}"
+      columns['order'] = deduped_order
+    end
+  end
 
   def unset_other_defaults
     TableView.where(user_id: user_id, table_id: table_id, is_default: true)
