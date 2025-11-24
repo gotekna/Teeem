@@ -117,7 +117,8 @@ export default function TrapidTableView({
   onColumnUpdate = null,  // NEW: Callback when a column schema is updated (to refresh table data)
   viewOnly = false,  // NEW: When true, only show View button in action column (no edit/delete)
   loadingMore = false,  // NEW: Shows loading indicator when more records are being fetched
-  preloadedViews = null  // NEW: Preloaded views from parent (skips API call if provided)
+  preloadedViews = null,  // NEW: Preloaded views from parent (skips API call if provided)
+  hideUpdateViewButton = false  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -4543,6 +4544,7 @@ export default function TrapidTableView({
 
           {/* Update View Button - appears when active view has been modified */}
           {(() => {
+            if (hideUpdateViewButton) return null  // Skip if disabled via prop
             if (!activeViewId) return null
             const activeView = savedFilters.find(v => v.id === activeViewId)
             if (!activeView) return null
@@ -5650,7 +5652,6 @@ export default function TrapidTableView({
                 {/* END PADDING WRAPPER */}
                 </div>
                 {/* END MODAL WRAPPER */}
-              </>
             )}
           </div>
 

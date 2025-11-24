@@ -243,47 +243,45 @@ export default function AppLayout({ children }) {
     loadActiveJobs()
   }, [])
 
-  // Preload Price Books (Table 205) if user has enabled it
+  // Preload Price Books (Table 205) for all users
   useEffect(() => {
-    if (user?.preload_price_books) {
-      console.log('[Preload] User has preload_price_books enabled, starting background load...')
-      setPriceBooksPreloadStatus('loading')
+    console.log('[Preload] Starting background preload for Price Books (Table 205)...')
+    setPriceBooksPreloadStatus('loading')
 
-      // Wait 3 seconds after app loads to not interfere with initial render
-      const timer = setTimeout(async () => {
-        try {
-          const startTime = Date.now()
-          console.log('[Preload] Starting table 205 (Price Books) background load...')
+    // Wait 3 seconds after app loads to not interfere with initial render
+    const timer = setTimeout(async () => {
+      try {
+        const startTime = Date.now()
+        console.log('[Preload] Fetching table 205 (Price Books) data...')
 
-          const response = await api.get('/api/v1/tables/205/records', {
-            params: {
-              per_page: 10000,
-              page: 1
-            }
-          })
+        const response = await api.get('/api/v1/tables/205/records', {
+          params: {
+            per_page: 10000,
+            page: 1
+          }
+        })
 
-          const loadTime = Date.now() - startTime
-          console.log(`[Preload] ✅ Table 205 preloaded in ${loadTime}ms:`, {
-            recordCount: response.records?.length,
-            totalCount: response.pagination?.total_count
-          })
+        const loadTime = Date.now() - startTime
+        console.log(`[Preload] ✅ Table 205 preloaded in ${loadTime}ms:`, {
+          recordCount: response.records?.length,
+          totalCount: response.pagination?.total_count
+        })
 
-          // Store in sessionStorage for TablePage to use
-          sessionStorage.setItem('preloaded_table_205', JSON.stringify({
-            data: response,
-            timestamp: Date.now()
-          }))
+        // Store in sessionStorage for TablePage to use
+        sessionStorage.setItem('preloaded_table_205', JSON.stringify({
+          data: response,
+          timestamp: Date.now()
+        }))
 
-          setPriceBooksPreloadStatus('complete')
-        } catch (error) {
-          console.error('[Preload] Failed to preload table 205:', error)
-          setPriceBooksPreloadStatus('idle')
-        }
-      }, 3000) // 3 second delay
+        setPriceBooksPreloadStatus('complete')
+      } catch (error) {
+        console.error('[Preload] Failed to preload table 205:', error)
+        setPriceBooksPreloadStatus('idle')
+      }
+    }, 3000) // 3 second delay
 
-      return () => clearTimeout(timer)
-    }
-  }, [user])
+    return () => clearTimeout(timer)
+  }, [])
 
   // Auto-expand job if we're on a job detail page
   useEffect(() => {

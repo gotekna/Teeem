@@ -389,17 +389,9 @@ export default function TablePage({ embedded = false }) {
         fieldsParam
       })
 
-      // Reset progress at start and set to loading phase (only for table 205)
-      if (!append && isTable205) {
-        console.log('[PROGRESS SYNC] 🚀 Starting load - Progress: 0%, Phase: loading')
-        setLoadingProgress(0)
-        setLoadingPhase('loading')
-      }
-
-      // Start simulated progress - only for table 205 (large dataset)
-      let simulatedProgress = 0
+      // No loading screen for table 205 - preload handles it or loads fast
       const startTime = Date.now()
-      if (isTable205) {
+      if (false) {  // Disabled - no progress tracking needed
         progressInterval = setInterval(() => {
           simulatedProgress += Math.random() * 8 + 3 // 3-11% per tick
           if (simulatedProgress < 70) {
@@ -452,11 +444,7 @@ export default function TablePage({ embedded = false }) {
       if (isTable205) {
         const downloadEndTime = Date.now()
         console.log(`[PROGRESS SYNC] ✅ Download complete - Time: ${downloadEndTime - startTime}ms, Records: ${response.records?.length}`)
-
-        // Show processing phase (parsing JSON)
-        console.log('[PROGRESS SYNC] 🔄 Processing data - Progress: 75%, Phase: processing')
-        setLoadingPhase('processing')
-        setLoadingProgress(75)
+        // No loading screen - loads fast with preload or direct fetch
       }
 
       const loadEndTime = performance.now()
