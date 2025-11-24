@@ -172,7 +172,7 @@ export default function DesignerHome() {
               </div>
               <div className="flex flex-none items-center gap-x-4">
                 <Link
-                  to={`/tables/${table.id}`}
+                  to={`/tables/${table.id}/${table.slug}`}
                   className="hidden rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:block dark:bg-white/10 dark:text-white dark:shadow-none dark:ring-white/5 dark:hover:bg-white/20"
                 >
                   View table<span className="sr-only">, {table.name}</span>
@@ -197,7 +197,7 @@ export default function DesignerHome() {
                     </MenuItem>
                     <MenuItem>
                       <Link
-                        to={`/tables/${table.id}`}
+                        to={`/tables/${table.id}/${table.slug}`}
                         className="block px-3 py-1 text-sm/6 text-gray-900 data-[focus]:bg-gray-50 data-[focus]:outline-none dark:text-white dark:data-[focus]:bg-white/5"
                       >
                         View Data<span className="sr-only">, {table.name}</span>

@@ -787,7 +787,7 @@ export default function AppLayout({ children }) {
                                   return (
                                     <li className="pl-6">
                                       <Link
-                                        to="/tables/active-jobs"
+                                        to="/tables/204/active-jobs"
                                         className="text-xs text-gray-500 hover:text-indigo-600 dark:text-gray-400"
                                       >
                                         +{remaining} more...

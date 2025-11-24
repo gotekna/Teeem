@@ -82,7 +82,7 @@ function isSystemOrHiddenColumn(columnName) {
 }
 
 export default function TablePage({ embedded = false }) {
-  const { id } = useParams()
+  const { id, slug } = useParams() // Get both ID and slug from URL
   const navigate = useNavigate()
   const [table, setTable] = useState(null)
   const [records, setRecords] = useState([])
@@ -321,6 +321,13 @@ export default function TablePage({ embedded = false }) {
       const response = await api.get(`/api/v1/tables/${id}`)
       console.log('[Load Table] ✅ Table loaded:', response.table?.name)
       setTable(response.table)
+
+      // If URL only has ID (not ID/slug), redirect to include both
+      if (response.table && !slug && response.table.slug) {
+        const newUrl = `/tables/${response.table.id}/${response.table.slug}`
+        console.log('[Load Table] 🔄 Redirecting to combined ID/slug URL:', newUrl)
+        navigate(newUrl, { replace: true }) // replace: true keeps browser history clean
+      }
     } catch (err) {
       console.error('[Load Table] ❌ Failed to load table:', {
         id,

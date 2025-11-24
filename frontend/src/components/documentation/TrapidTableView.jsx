@@ -4970,6 +4970,7 @@ export default function TrapidTableView({
                           hideHeader={true}
                           searchParams={searchParams}
                           setSearchParams={setSearchParams}
+                          columns={COLUMNS}
                         />
                       </div>
                     {/* END COLUMN 1 (Saved Views) */}

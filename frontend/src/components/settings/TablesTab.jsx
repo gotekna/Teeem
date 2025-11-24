@@ -57,7 +57,8 @@ export default function TablesTab() {
   }, [])
 
   const handleNavigateToTable = (table) => {
-    navigate(`/tables/${table.slug}`)
+    // Use combined ID/slug format for better URLs
+    navigate(`/tables/${table.id}/${table.slug}`)
   }
 
   const handleStartEdit = (table) => {
@@ -139,8 +140,8 @@ export default function TablesTab() {
         setShowCreateModal(false)
         setNewTableName('')
 
-        // Navigate to the new table to add columns
-        navigate(`/tables/${response.table.slug}`)
+        // Navigate to the new table to add columns (combined ID/slug format)
+        navigate(`/tables/${response.table.id}/${response.table.slug}`)
       }
     } catch (err) {
       console.error('Failed to create table:', err)
@@ -585,7 +586,7 @@ export default function TablesTab() {
                     <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                       {(table.slug || table.legacy_id) && (
                         <button
-                          onClick={() => navigate(`/tables/${table.slug || table.legacy_id}`)}
+                          onClick={() => navigate(`/tables/${table.id}/${table.slug || table.legacy_id}`)}
                           className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
                           title="Open table"
                         >

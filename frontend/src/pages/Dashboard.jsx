@@ -119,7 +119,7 @@ export default function Dashboard() {
       })
 
       // Step 4: Navigate to the spreadsheet view
-      navigate(`/tables/${tableSlug}`)
+      navigate(`/tables/${tableId}/${tableSlug}`)
     } catch (err) {
       console.error('Table creation error:', err)
       setCreateError(err.response?.data?.error || err.message || 'Failed to create table')
@@ -323,7 +323,7 @@ export default function Dashboard() {
             {filteredTables.map((table) => (
               <Link
                 key={table.id}
-                to={`/tables/${table.id}`}
+                to={`/tables/${table.id}/${table.slug}`}
                 className="group block p-3 sm:p-4 lg:p-5 bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-400 transition-all dark:bg-gray-800 dark:border-gray-700 dark:hover:border-blue-500"
               >
                 <div className="flex items-start justify-between mb-2 sm:mb-3">
