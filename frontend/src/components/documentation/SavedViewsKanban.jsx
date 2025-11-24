@@ -158,6 +158,7 @@ export default function SavedViewsKanban({
       setGroupByColumn(view.groupByColumn || null)
     }
     setActiveViewId(view.id)
+    setEditingViewId(null) // Clear edit mode when loading a view
     // Stay in cascade popup - just load settings into editor
     // Don't close popup or update URL until user explicitly closes
   }
