@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_24_052512) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_24_081450) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -555,7 +555,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_24_052512) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "role_in_relationship"
+    t.decimal "ownership_percentage", precision: 5, scale: 2
+    t.text "context"
+    t.date "start_date"
+    t.date "end_date"
+    t.boolean "is_active", default: true
+    t.jsonb "metadata", default: {}
+    t.index ["is_active"], name: "index_contact_relationships_on_is_active"
     t.index ["related_contact_id"], name: "index_contact_relationships_on_related_contact_id"
+    t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
     t.index ["source_contact_id", "related_contact_id"], name: "index_contact_relationships_on_source_and_related", unique: true
     t.index ["source_contact_id"], name: "index_contact_relationships_on_source_contact_id"
   end
@@ -647,12 +656,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_24_052512) do
     t.boolean "is_beneficial_owner", default: false
     t.decimal "shareholding_percentage", precision: 5, scale: 2
     t.string "company_name_or_trust"
+    t.bigint "primary_company_id"
+    t.string "primary_role"
+    t.string "employment_status"
+    t.date "employment_start_date"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
     t.index ["is_beneficial_owner"], name: "index_contacts_on_is_beneficial_owner"
     t.index ["is_director"], name: "index_contacts_on_is_director"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
+    t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["primary_contact_type"], name: "index_contacts_on_primary_contact_type"
     t.index ["rating"], name: "index_contacts_on_rating"
     t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
@@ -3128,6 +3142,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_24_052512) do
   add_foreign_key "contact_persons", "contacts"
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
+  add_foreign_key "contacts", "contacts", column: "primary_company_id"
   add_foreign_key "document_tasks", "constructions"
   add_foreign_key "emails", "constructions"
   add_foreign_key "estimate_line_items", "estimates"
