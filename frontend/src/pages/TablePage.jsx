@@ -780,7 +780,7 @@ export default function TablePage({ embedded = false }) {
 
       {/* TrapidTableView - The Gold Standard */}
       <div className="flex-1 min-h-0 overflow-auto">
-        {loading ? (
+        {loading && id !== '205' ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center w-full max-w-lg px-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
