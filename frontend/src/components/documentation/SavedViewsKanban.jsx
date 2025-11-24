@@ -28,6 +28,7 @@ export default function SavedViewsKanban({
   setInterGroupLogic,
   setSortColumns,
   setGroupByColumn,
+  deleteView,
   hideHeader = false,
   searchParams,
   setSearchParams
@@ -161,10 +162,13 @@ export default function SavedViewsKanban({
     // Don't close popup or update URL until user explicitly closes
   }
 
-  const handleDeleteView = (view) => {
+  const handleDeleteView = async (view) => {
     if (confirm(`Delete view "${view.name}"?`)) {
-      setSavedFilters(savedFilters.filter(v => v.id !== view.id))
-      if (activeViewId === view.id) {
+      // Call API to delete from database
+      // deleteView handles updating savedFilters in parent component
+      const success = await deleteView(view.id)
+      if (success && activeViewId === view.id) {
+        // Clear active view if we just deleted it
         setActiveViewId(null)
       }
     }

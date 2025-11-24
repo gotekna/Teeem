@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_23_115737) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_24_020356) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -646,6 +646,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_23_115737) do
     t.string "director_position"
     t.boolean "is_beneficial_owner", default: false
     t.decimal "shareholding_percentage", precision: 5, scale: 2
+    t.string "company_name_or_trust"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
@@ -2483,6 +2484,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_23_115737) do
     t.boolean "is_default", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "display_order", default: 0
+    t.string "group_by_column"
+    t.index ["table_id", "user_id", "display_order"], name: "index_table_views_on_table_user_order"
     t.index ["table_id", "user_id"], name: "index_table_views_on_table_id_and_user_id"
     t.index ["table_id"], name: "index_table_views_on_table_id"
     t.index ["user_id"], name: "index_table_views_on_user_id"

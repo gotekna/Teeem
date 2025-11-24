@@ -546,6 +546,8 @@ export default function TrapidTableView({
               visibleColumns: columns.visible || {},
               columnOrder: columns.order || [],
               sortColumns: Array.isArray(view.sort_order) ? view.sort_order : [],
+              groupByColumn: view.group_by_column || null,
+              display_order: view.display_order || 0,
               isDefault: view.is_default || false
             }
           })
@@ -567,6 +569,17 @@ export default function TrapidTableView({
     // Helper function to create the Default view with all columns selected
     const createDefaultView = async () => {
       try {
+        // Double-check database to prevent race condition duplicates
+        const checkData = await api.get(`/api/v1/table_views`, {
+          params: { table_id: tableIdNumeric }
+        })
+
+        const existingDefault = checkData.views?.find(v => v.name === 'Default')
+        if (existingDefault) {
+          console.log('[Load Views] Default view already exists in database, skipping creation')
+          return existingDefault
+        }
+
         const allColumnsVisible = {}
         COLUMNS.forEach(col => {
           if (col.key !== 'select' && col.key !== 'actions') {
@@ -1794,6 +1807,7 @@ export default function TrapidTableView({
             order: viewData.columnOrder || []
           },
           sort_order: viewData.sortColumns || {},
+          group_by_column: viewData.groupByColumn || null,
           is_default: viewData.isDefault || false
         }
       })
@@ -1814,6 +1828,7 @@ export default function TrapidTableView({
           visibleColumns: columns.visible || {},
           columnOrder: columns.order || [],
           sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
+          groupByColumn: response.view.group_by_column || null,
           isDefault: response.view.is_default || false
         }
         setSavedFilters([...savedFilters, newView])
@@ -1846,6 +1861,7 @@ export default function TrapidTableView({
             order: viewData.columnOrder || []
           },
           sort_order: viewData.sortColumns || {},
+          group_by_column: viewData.groupByColumn || null,
           is_default: viewData.isDefault || false
         }
       })
@@ -1867,6 +1883,7 @@ export default function TrapidTableView({
             visibleColumns: columns.visible || {},
             columnOrder: columns.order || [],
             sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
+            groupByColumn: response.view.group_by_column || null,
             isDefault: response.view.is_default || false
           } : v
         ))
@@ -4460,7 +4477,8 @@ export default function TrapidTableView({
               // Default view always first
               if (a.isDefault) return -1
               if (b.isDefault) return 1
-              return 0
+              // Then sort by display_order
+              return (a.display_order || 0) - (b.display_order || 0)
             })
             .map((view) => (
             <button
@@ -4551,10 +4569,11 @@ export default function TrapidTableView({
             const savedFiltersStr = JSON.stringify(activeView.filters.map(normalizeFilter))
             const filtersChanged = currentFilters !== savedFiltersStr
             const columnsChanged = activeView.visibleColumns && JSON.stringify(visibleColumns) !== JSON.stringify(activeView.visibleColumns)
-            const sortChanged = JSON.stringify(sortColumns) !== JSON.stringify(activeView.sortColumns || [])
+            // Note: sortChanged is intentionally NOT included - sorting is temporary and doesn't trigger the update button
+            // const sortChanged = JSON.stringify(sortColumns) !== JSON.stringify(activeView.sortColumns || [])
             const groupByChanged = groupByColumn !== (activeView.groupByColumn || null)
 
-            if (!filtersChanged && !columnsChanged && !sortChanged && !groupByChanged) return null
+            if (!filtersChanged && !columnsChanged && !groupByChanged) return null
 
             return (
               <button
@@ -4960,6 +4979,7 @@ export default function TrapidTableView({
                           setInterGroupLogic={setInterGroupLogic}
                           setSortColumns={setSortColumns}
                           setGroupByColumn={setGroupByColumn}
+                          deleteView={deleteView}
                           hideHeader={true}
                           searchParams={searchParams}
                           setSearchParams={setSearchParams}
