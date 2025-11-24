@@ -250,7 +250,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   }
 
   const handleChangeToSoleTrader = async () => {
-    if (!confirm('Change this contact from Person to Sole Trader (Company)?\n\nThis will update the entity_type to "company" and enable Xero sync capability.')) {
+    if (!confirm('Change this contact from Person to Sole Trader (Company)?\n\nThis will:\n1. Update entity_type to "company"\n2. Create a ContactPerson record with the same details\n3. Mark as primary contact\n\nThis matches Xero\'s model where sole traders are companies with a primary contact person.')) {
       return
     }
 
@@ -258,6 +258,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     setConvertError(null)
 
     try {
+      // Step 1: Update entity_type to 'company'
       const response = await api.patch(`/api/v1/contacts/${contact.id}`, {
         contact: {
           entity_type: 'company'
@@ -265,8 +266,24 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       })
 
       if (response.success) {
-        onContactUpdate(response.contact)
-        alert('✅ Contact converted to Sole Trader successfully! You can now link to Xero.')
+        // Step 2: Create ContactPerson with same details
+        const contactPersonResponse = await api.post(`/api/v1/contacts/${contact.id}/contact_persons`, {
+          contact_person: {
+            first_name: contact.first_name || '',
+            last_name: contact.last_name || '',
+            email: contact.email || '',
+            phone: contact.mobile_phone || contact.office_phone || '',
+            position: contact.position || 'Owner',
+            primary_contact: true
+          }
+        })
+
+        if (contactPersonResponse.success) {
+          onContactUpdate(response.contact)
+          alert('✅ Contact converted to Sole Trader successfully!\n\n• Entity type changed to Company\n• Primary contact person created\n• Ready to link with Xero')
+        } else {
+          setConvertError('Contact converted but failed to create primary contact person')
+        }
       } else {
         setConvertError(response.error || 'Failed to convert contact')
       }
