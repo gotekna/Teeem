@@ -5922,10 +5922,42 @@ export default function TrapidTableView({
                               checked={visibleColumns[column.key] !== false}
                               onChange={(e) => {
                                 e.stopPropagation()
+                                const isChecking = e.target.checked
+
+                                // Update visibility
                                 setVisibleColumns({
                                   ...visibleColumns,
-                                  [column.key]: e.target.checked
+                                  [column.key]: isChecking
                                 })
+
+                                // When checking a column, move it to the bottom of checked columns
+                                if (isChecking && visibilityColumnOrder) {
+                                  const currentOrder = [...visibilityColumnOrder]
+                                  // Remove the column from its current position
+                                  const index = currentOrder.indexOf(column.key)
+                                  if (index > -1) {
+                                    currentOrder.splice(index, 1)
+                                  }
+
+                                  // Find the position to insert: after the last checked column
+                                  const allCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                                  const checkedKeys = allCols
+                                    .filter(col => col.key !== column.key && visibleColumns[col.key] !== false)
+                                    .map(col => col.key)
+
+                                  // Find the last checked column in the current order
+                                  let insertIndex = 0
+                                  for (let i = currentOrder.length - 1; i >= 0; i--) {
+                                    if (checkedKeys.includes(currentOrder[i])) {
+                                      insertIndex = i + 1
+                                      break
+                                    }
+                                  }
+
+                                  // Insert at the position after the last checked column
+                                  currentOrder.splice(insertIndex, 0, column.key)
+                                  setVisibilityColumnOrder(currentOrder)
+                                }
                               }}
                               className="rounded border-blue-400 w-4 h-4 text-blue-600 cursor-pointer flex-shrink-0"
                               title="Show/hide now"
