@@ -4455,6 +4455,7 @@ export default function TrapidTableView({
 
           {/* Quick Access Saved View Buttons */}
           {savedFilters
+            .filter(v => v.name !== '__default_setup__')
             .sort((a, b) => {
               // Default view always first
               if (a.isDefault) return -1
