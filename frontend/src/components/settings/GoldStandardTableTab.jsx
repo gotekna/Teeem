@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { PlusIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { PlusIcon } from '@heroicons/react/24/outline'
 import TrapidTableView from '../documentation/TrapidTableView'
 import Toast from '../Toast'
+import GoldStandardFormModal from './GoldStandardFormModal'
+import * as goldStandardApi from '../../services/goldStandardApi'
 import { COLUMN_TYPES } from '../../constants/columnTypes'
 
 // Map COLUMN_TYPES (single source of truth) to table column configuration
@@ -133,30 +135,6 @@ export default function GoldStandardTableTab() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [columnsWithIds, setColumnsWithIds] = useState(GOLD_STANDARD_COLUMNS)
   const [toast, setToast] = useState(null)
-  // Removed: showFeatures state - "Features to Test" section deleted
-
-  const [newItem, setNewItem] = useState({
-    single_line_text: '',
-    email: '',
-    phone: '',
-    mobile: '',
-    date: '',
-    gps_coordinates: '',
-    color_picker: '#000000',
-    file_upload: '',
-    action_buttons: '',
-    lookup: '',
-    boolean: true,
-    percentage: 0,
-    choice: 'active',
-    currency: 0,
-    number: 0,
-    whole_number: 0,
-    multiple_lines_text: '',
-    url: '',
-    user: getCurrentUserId(),
-    multiple_lookups: ''
-  })
 
   // Fetch gold standard items and columns from API
   useEffect(() => {
@@ -167,11 +145,7 @@ export default function GoldStandardTableTab() {
   const fetchGoldStandardItems = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/v1/gold_standard_items')
-      if (!response.ok) {
-        throw new Error(`API returned ${response.status}: ${response.statusText}`)
-      }
-      const result = await response.json()
+      const result = await goldStandardApi.fetchItems()
       setData(result.items || [])
     } catch (err) {
       console.debug('Gold standard items unavailable:', err?.message || 'Unknown error')
@@ -214,21 +188,7 @@ export default function GoldStandardTableTab() {
 
   const handleEdit = async (entry) => {
     try {
-      const payload = { gold_standard_item: entry }
-
-      const response = await fetch(`/api/v1/gold_standard_items/${entry.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error('Response error:', errorData)
-        throw new Error(errorData.errors?.join(', ') || 'Failed to update item')
-      }
-
-      const result = await response.json()
+      const result = await goldStandardApi.updateItem(entry.id, entry)
       setData(prevData =>
         prevData.map(item => item.id === result.item.id ? result.item : item)
       )
@@ -243,12 +203,7 @@ export default function GoldStandardTableTab() {
     if (!confirm('Are you sure you want to delete this item?')) return
 
     try {
-      const response = await fetch(`/api/v1/gold_standard_items/${entry.id}`, {
-        method: 'DELETE'
-      })
-
-      if (!response.ok) throw new Error('Failed to delete item')
-
+      await goldStandardApi.deleteItem(entry.id)
       setData(prevData =>
         prevData.filter(item => item.id !== entry.id)
       )
@@ -262,25 +217,12 @@ export default function GoldStandardTableTab() {
   // Bulk delete handler - no confirmation needed (TrapidTableView already confirmed)
   const handleBulkDelete = async (entries) => {
     try {
-      // Delete all entries in parallel
-      const responses = await Promise.all(
-        entries.map(entry =>
-          fetch(`/api/v1/gold_standard_items/${entry.id}`, {
-            method: 'DELETE'
-          })
-        )
-      )
-
-      // Check if any requests failed
-      const failed = responses.filter(r => !r.ok)
-      if (failed.length > 0) {
-        throw new Error(`Failed to delete ${failed.length} items`)
-      }
+      const ids = entries.map(e => e.id)
+      await goldStandardApi.bulkDeleteItems(ids)
 
       // Remove deleted entries from state
-      const deletedIds = entries.map(e => e.id)
       setData(prevData =>
-        prevData.filter(item => !deletedIds.includes(item.id))
+        prevData.filter(item => !ids.includes(item.id))
       )
       setToast({ message: `Successfully deleted ${entries.length} items`, type: 'success' })
     } catch (err) {
@@ -290,47 +232,12 @@ export default function GoldStandardTableTab() {
   }
 
   const handleAddNew = () => {
-    // Field names must match actual database columns (see Bible Rule #19.37)
-    // Source of Truth: Trinity T19.001-T19.021
-    setNewItem({
-      single_line_text: '',
-      email: '',
-      phone: '',
-      mobile: '',
-      date: '',
-      gps_coordinates: '',
-      color_picker: '#000000',
-      file_upload: '',
-      action_buttons: '',
-      lookup: '',
-      boolean: true,
-      percentage: 0,
-      choice: 'active',
-      currency: 0,
-      number: 0,
-      whole_number: 0,
-      multiple_lines_text: '',
-      url: '',
-      user: getCurrentUserId(),
-      multiple_lookups: ''
-    })
     setShowAddModal(true)
   }
 
-  const handleSaveNewItem = async () => {
+  const handleSaveNewItem = async (formData) => {
     try {
-      const response = await fetch('/api/v1/gold_standard_items', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gold_standard_item: newItem })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.errors?.join(', ') || 'Failed to create item')
-      }
-
-      const result = await response.json()
+      await goldStandardApi.createItem(formData)
 
       // Close modal first for better UX
       setShowAddModal(false)
@@ -342,6 +249,7 @@ export default function GoldStandardTableTab() {
     } catch (err) {
       console.error('Error creating item:', err)
       setToast({ message: `Failed to save item: ${err.message}`, type: 'error' })
+      throw err // Re-throw so modal can handle it
     }
   }
 
@@ -411,304 +319,12 @@ export default function GoldStandardTableTab() {
 
       {/* Add New Item Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add New Item</h3>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
-              >
-                <XMarkIcon className="h-6 w-6" />
-              </button>
-            </div>
-
-            <div className="px-6 py-4 space-y-4">
-              {/* Single Line Text */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Single Line Text
-                </label>
-                <input
-                  type="text"
-                  value={newItem.single_line_text}
-                  onChange={(e) => setNewItem({ ...newItem, single_line_text: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="e.g., CONC-001"
-                />
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={newItem.email}
-                  onChange={(e) => setNewItem({ ...newItem, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="supplier@example.com"
-                />
-              </div>
-
-              {/* Phone & Mobile */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    value={newItem.phone}
-                    onChange={(e) => setNewItem({ ...newItem, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="(03) 9123 4567"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Mobile
-                  </label>
-                  <input
-                    type="tel"
-                    value={newItem.mobile}
-                    onChange={(e) => setNewItem({ ...newItem, mobile: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="0407 397 541"
-                  />
-                </div>
-              </div>
-
-              {/* Date */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={newItem.date}
-                  onChange={(e) => setNewItem({ ...newItem, date: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-
-              {/* GPS Coordinates */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  GPS Coordinates
-                </label>
-                <input
-                  type="text"
-                  value={newItem.gps_coordinates}
-                  onChange={(e) => setNewItem({ ...newItem, gps_coordinates: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="-33.8688, 151.2093"
-                />
-              </div>
-
-              {/* Color Picker */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Color Picker
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="color"
-                    value={newItem.color_picker}
-                    onChange={(e) => setNewItem({ ...newItem, color_picker: e.target.value })}
-                    className="h-10 w-20 border border-gray-300 dark:border-gray-600 rounded cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    value={newItem.color_picker}
-                    onChange={(e) => setNewItem({ ...newItem, color_picker: e.target.value })}
-                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono"
-                    placeholder="#000000"
-                  />
-                </div>
-              </div>
-
-              {/* File Upload */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  File Upload
-                </label>
-                <input
-                  type="text"
-                  value={newItem.file_upload}
-                  onChange={(e) => setNewItem({ ...newItem, file_upload: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="/uploads/document.pdf"
-                />
-              </div>
-
-              {/* Lookup */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Lookup
-                </label>
-                <select
-                  value={newItem.lookup}
-                  onChange={(e) => setNewItem({ ...newItem, lookup: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="">Select...</option>
-                  <option value="Concrete">Concrete</option>
-                  <option value="Timber">Timber</option>
-                  <option value="Steel">Steel</option>
-                  <option value="Plasterboard">Plasterboard</option>
-                  <option value="Insulation">Insulation</option>
-                  <option value="Tiles">Tiles</option>
-                  <option value="Paint">Paint</option>
-                  <option value="Roofing">Roofing</option>
-                  <option value="Electrical">Electrical</option>
-                  <option value="Plumbing">Plumbing</option>
-                  <option value="Landscaping">Landscaping</option>
-                </select>
-              </div>
-
-              {/* Choice */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Choice
-                </label>
-                <select
-                  value={newItem.choice}
-                  onChange={(e) => setNewItem({ ...newItem, choice: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              {/* Boolean */}
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={newItem.boolean}
-                  onChange={(e) => setNewItem({ ...newItem, boolean: e.target.checked })}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Boolean
-                </label>
-              </div>
-
-              {/* Percentage */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Percentage
-                </label>
-                <input
-                  type="number"
-                  value={newItem.percentage}
-                  onChange={(e) => setNewItem({ ...newItem, percentage: parseFloat(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="0"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                />
-              </div>
-
-              {/* Currency, Number, and Whole Number */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Currency
-                  </label>
-                  <input
-                    type="number"
-                    value={newItem.currency}
-                    onChange={(e) => setNewItem({ ...newItem, currency: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Number
-                  </label>
-                  <input
-                    type="number"
-                    value={newItem.number}
-                    onChange={(e) => setNewItem({ ...newItem, number: parseFloat(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="0"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Whole Number
-                  </label>
-                  <input
-                    type="number"
-                    value={newItem.whole_number}
-                    onChange={(e) => setNewItem({ ...newItem, whole_number: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    placeholder="0"
-                    min="0"
-                    step="1"
-                  />
-                </div>
-              </div>
-
-              {/* URL */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  URL
-                </label>
-                <input
-                  type="url"
-                  value={newItem.url}
-                  onChange={(e) => setNewItem({ ...newItem, url: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="https://example.com/document.pdf"
-                />
-              </div>
-
-              {/* Multiple Lines Text */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Multiple Lines Text
-                </label>
-                <textarea
-                  value={newItem.multiple_lines_text}
-                  onChange={(e) => setNewItem({ ...newItem, multiple_lines_text: e.target.value })}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none"
-                  placeholder="Enter any notes or description..."
-                />
-              </div>
-
-              {/* Auto-populated timestamp note */}
-              <div className="text-sm text-gray-500 dark:text-gray-400 italic">
-                ID, Created At, and Updated At will be auto-populated when the item is created
-              </div>
-            </div>
-
-            <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-700 px-6 py-4 flex items-center justify-end gap-3 border-t border-gray-200 dark:border-gray-600">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-500 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveNewItem}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-              >
-                Save Item
-              </button>
-            </div>
-          </div>
-        </div>
+        <GoldStandardFormModal
+          item={null}
+          onSave={handleSaveNewItem}
+          onCancel={() => setShowAddModal(false)}
+          currentUserId={getCurrentUserId()}
+        />
       )}
 
       {/* Toast Notification */}

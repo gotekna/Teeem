@@ -116,6 +116,7 @@ export default function TrapidTableView({
   onView = null,  // NEW: Custom handler for View action button (e.g., navigate to detail page)
   onColumnUpdate = null,  // NEW: Callback when a column schema is updated (to refresh table data)
   viewOnly = false,  // NEW: When true, only show View button in action column (no edit/delete)
+  onEditRelationships = null,  // NEW: Custom handler for editing relationships (adds extra action button)
   loadingMore = false,  // NEW: Shows loading indicator when more records are being fetched
   preloadedViews = null,  // NEW: Preloaded views from parent (skips API call if provided)
   hideUpdateViewButton = false  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)

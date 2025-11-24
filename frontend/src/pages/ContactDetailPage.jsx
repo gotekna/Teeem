@@ -113,6 +113,7 @@ export default function ContactDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') || 'overview'
   const returnTo = searchParams.get('returnTo') || sessionStorage.getItem('contactsTableView') || '/tables/214/contacts'
+  const shouldEnableEdit = searchParams.get('edit') === 'true'
 
   // Ensure URL always has tab parameter
   useEffect(() => {
@@ -120,6 +121,13 @@ export default function ContactDetailPage() {
       setSearchParams({ tab: 'overview' }, { replace: true })
     }
   }, [])
+
+  // Auto-enable edit mode if edit=true in URL
+  useEffect(() => {
+    if (shouldEnableEdit && !isPageEditMode) {
+      setIsPageEditMode(true)
+    }
+  }, [shouldEnableEdit])
 
   useEffect(() => {
     loadContact()
