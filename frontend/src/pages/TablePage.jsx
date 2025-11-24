@@ -305,11 +305,17 @@ export default function TablePage({ embedded = false }) {
 
   const loadTable = async () => {
     try {
+      console.log('[Load Table] Loading table with ID/slug:', id)
       const response = await api.get(`/api/v1/tables/${id}`)
+      console.log('[Load Table] ✅ Table loaded:', response.table?.name)
       setTable(response.table)
     } catch (err) {
-      setError('Failed to load table')
-      console.error(err)
+      console.error('[Load Table] ❌ Failed to load table:', {
+        id,
+        error: err.response?.data || err.message,
+        status: err.response?.status
+      })
+      setError(err.response?.data?.error || 'Failed to load table')
     }
   }
 
@@ -760,197 +766,7 @@ export default function TablePage({ embedded = false }) {
 
       {/* TrapidTableView - The Gold Standard */}
       <div className="flex-1 min-h-0 overflow-auto">
-        {loading && id !== '205' ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center w-full max-w-lg px-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-
-              {/* Phase Breakdown */}
-              <div className="mt-6 space-y-3">
-                {/* Phase 1: Initializing */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress > 0 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-blue-500 rounded-full animate-pulse"></div>
-                    )}
-                    <span className={loadingProgress > 0 ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 font-medium'}>
-                      Initializing
-                    </span>
-                  </div>
-                  {loadingProgress === 0 && <span className="text-xs text-gray-500">...</span>}
-                </div>
-
-                {/* Phase 2: Downloading */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 70 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'loading' && loadingProgress > 0 ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 70 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'loading' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Downloading records
-                    </span>
-                  </div>
-                  {loadingPhase === 'loading' && loadingProgress > 0 && loadingProgress < 70 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round((loadingProgress / 70) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 70 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 3: Processing */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 80 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'processing' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 80 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'processing' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Processing data
-                    </span>
-                  </div>
-                  {loadingPhase === 'processing' && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 70) / 10) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 80 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 4: Rendering table */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 90 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'rendering' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 90 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'rendering' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Rendering table
-                    </span>
-                  </div>
-                  {loadingPhase === 'rendering' && loadingProgress < 90 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 80) / 10) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 90 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 5: Setting up table */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 95 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'setup' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 95 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'setup' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Setting up table
-                    </span>
-                  </div>
-                  {loadingPhase === 'setup' && loadingProgress < 95 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 90) / 5) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 95 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 6: Loading views */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 98 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'views' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 98 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'views' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Loading views
-                    </span>
-                  </div>
-                  {loadingPhase === 'views' && loadingProgress < 98 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 95) / 3) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 98 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 7: Finalizing */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 100 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'finalizing' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 100 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'finalizing' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Finalizing
-                    </span>
-                  </div>
-                  {loadingPhase === 'finalizing' && loadingProgress < 100 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {loadingProgress}%
-                    </span>
-                  )}
-                  {loadingProgress >= 100 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-              </div>
-
-              {/* Overall Progress Bar */}
-              <div className="mt-6">
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${loadingProgress}%` }}
-                  ></div>
-                </div>
-                <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-                  Overall Progress: {Math.round(loadingProgress)}%
-                </p>
-              </div>
-
-              {/* Record count estimate for large tables */}
-              {id === '205' && loadingProgress < 100 && (
-                <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
-                  Loading 5,285 items with all columns
-                </p>
-              )}
-            </div>
-          </div>
-        ) : trapidColumns.length > 0 ? (
+        {trapidColumns.length > 0 ? (
           <TrapidTableView
             tableId={`table-${table.slug || id}`}
             tableIdNumeric={table.id}
