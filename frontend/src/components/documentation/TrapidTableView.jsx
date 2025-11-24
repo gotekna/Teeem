@@ -512,13 +512,6 @@ export default function TrapidTableView({
     const loadSavedViews = async () => {
       if (!tableIdNumeric) return
 
-      // Clear old views when switching tables to prevent cross-table contamination
-      if (prevTableIdRef.current && prevTableIdRef.current !== tableId) {
-        console.log('[Load Views] Table changed, clearing old views from:', prevTableIdRef.current)
-        setSavedFilters([])
-        setActiveViewId(null)
-      }
-
       try {
         console.log('[Load Views] Loading saved views for table:', tableIdNumeric)
         console.log('[Load Views] prevTableIdRef:', prevTableIdRef.current, 'current tableId:', tableId)
