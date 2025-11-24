@@ -165,6 +165,12 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
           // Remove from local state
           console.log('✅ Successfully deleted, updating local state');
           setChoices(choices.filter(c => c.value !== choice.value));
+
+          // Call onUpdate to refresh dropdown choices in parent component
+          if (onUpdate) {
+            console.log('🔄 Calling onUpdate to refresh dropdowns');
+            onUpdate();
+          }
         }
       } catch (error) {
         console.error('❌ Error deleting choice:', error);

@@ -722,6 +722,13 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
                   >
                     Clear
                   </button>
+                  <button
+                    onClick={() => setShowHelp(!showHelp)}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-lg text-sm hover:bg-gray-600
+                             transition-colors font-medium"
+                  >
+                    {showHelp ? 'Hide' : 'Show'} Help
+                  </button>
                 </div>
               </div>
 
@@ -739,6 +746,83 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
                   <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
                     Click "Generate Formula" to apply this to your column
                   </p>
+                </div>
+              )}
+
+              {/* Template Help Section */}
+              {showHelp && (
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200
+                              dark:border-blue-800 rounded-lg mt-4">
+                  <div className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3">
+                    Text Template Help
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        How to Use
+                      </div>
+                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+                        <li>Type regular text in the template area</li>
+                        <li>Click columns from the sidebar to insert <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">{'{column_name}'}</code> placeholders</li>
+                        <li>The template automatically converts to a CONCAT formula</li>
+                        <li>Click "Generate Formula" to apply it to your column</li>
+                      </ul>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Examples
+                      </div>
+                      <div className="space-y-2">
+                        <div className="p-2 bg-white dark:bg-gray-800 rounded">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Full Name
+                          </div>
+                          <div className="font-mono text-xs text-blue-600 dark:text-blue-400 mb-1">
+                            {'{first_name} {last_name}'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Becomes: =CONCAT([first_name], " ", [last_name])
+                          </div>
+                        </div>
+                        <div className="p-2 bg-white dark:bg-gray-800 rounded">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Email Template
+                          </div>
+                          <div className="font-mono text-xs text-blue-600 dark:text-blue-400 mb-1">
+                            {'Hello {first_name}, your order #{order_id} is ready!'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Combines text and multiple columns
+                          </div>
+                        </div>
+                        <div className="p-2 bg-white dark:bg-gray-800 rounded">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Address Format
+                          </div>
+                          <div className="font-mono text-xs text-blue-600 dark:text-blue-400 mb-1">
+                            {'{street}, {city}, {state} {zipcode}'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Formats addresses with proper punctuation
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Tips
+                      </div>
+                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+                        <li>Use templates for user-friendly text instead of writing CONCAT manually</li>
+                        <li>Include punctuation and spacing as needed</li>
+                        <li>Preview updates automatically as you type</li>
+                        <li>Great for emails, labels, formatted names, addresses</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               )}
             </>
@@ -804,6 +888,112 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
                   </div>
                 )}
               </div>
+
+              {/* Show Help Button */}
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowHelp(!showHelp)}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg text-sm hover:bg-gray-600
+                           transition-colors font-medium"
+                >
+                  {showHelp ? 'Hide' : 'Show'} Help
+                </button>
+              </div>
+
+              {/* Linked Data Help Section */}
+              {showHelp && (
+                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200
+                              dark:border-green-800 rounded-lg mt-4">
+                  <div className="text-sm font-semibold text-green-800 dark:text-green-300 mb-3">
+                    Linked Data Help
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        What is Linked Data?
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">
+                        Linked data lets you reference fields from related tables. For example, if a line item links to a product, you can pull in the product's price, description, or any other field.
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        How to Use
+                      </div>
+                      <ol className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-decimal list-inside">
+                        <li>Your table needs a <strong>lookup column</strong> that links to another table</li>
+                        <li>Click any field from the linked table in the sidebar</li>
+                        <li>A LOOKUP formula is automatically inserted</li>
+                        <li>The formula fetches the field value from the linked record</li>
+                      </ol>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Examples
+                      </div>
+                      <div className="space-y-2">
+                        <div className="p-2 bg-white dark:bg-gray-800 rounded border-l-2 border-green-500">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Get Product Price
+                          </div>
+                          <div className="font-mono text-xs text-green-600 dark:text-green-400 mb-1">
+                            =LOOKUP([product], "unit_price")
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Pulls the unit_price from the linked product record
+                          </div>
+                        </div>
+                        <div className="p-2 bg-white dark:bg-gray-800 rounded border-l-2 border-green-500">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Calculate Line Total
+                          </div>
+                          <div className="font-mono text-xs text-green-600 dark:text-green-400 mb-1">
+                            =[quantity] * LOOKUP([product], "unit_price")
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Multiply local quantity by product price
+                          </div>
+                        </div>
+                        <div className="p-2 bg-white dark:bg-gray-800 rounded border-l-2 border-green-500">
+                          <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Customer Email
+                          </div>
+                          <div className="font-mono text-xs text-green-600 dark:text-green-400 mb-1">
+                            =LOOKUP([customer], "email")
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Get customer's email from the customers table
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Common Use Cases
+                      </div>
+                      <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+                        <li><strong>PO Line Items:</strong> Pull product details, prices, descriptions</li>
+                        <li><strong>Invoice Lines:</strong> Reference customer info, billing addresses</li>
+                        <li><strong>Project Tasks:</strong> Get project name, budget, manager</li>
+                        <li><strong>Orders:</strong> Show customer name, shipping address, payment terms</li>
+                      </ul>
+                    </div>
+
+                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded">
+                      <div className="text-xs font-semibold text-blue-800 dark:text-blue-300 mb-1">
+                        💡 Pro Tip
+                      </div>
+                      <p className="text-xs text-blue-700 dark:text-blue-400">
+                        You can chain LOOKUPs! If Product links to Supplier, you can use: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">LOOKUP(LOOKUP([product], "supplier"), "email")</code>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ) : null}
         </div>

@@ -241,6 +241,9 @@ export default function TrapidTableView({
   // Column choices for choice/dropdown columns - keyed by column ID
   const [columnChoices, setColumnChoices] = useState({})
 
+  // Search term for multiple_lookups checkbox list
+  const [lookupSearch, setLookupSearch] = useState('')
+
   // Fetch users from API
   useEffect(() => {
     const fetchUsers = async () => {
@@ -260,11 +263,11 @@ export default function TrapidTableView({
     fetchUsers()
   }, [])
 
-  // Fetch choices for all choice columns
+  // Fetch choices for all choice columns and lookup options for lookup columns
   useEffect(() => {
     const fetchColumnChoices = async () => {
       if (!tableIdNumeric) {
-        console.log('⚠️ No tableIdNumeric, skipping choice fetch')
+        console.log('⚠️ No tableIdNumeric, skipping choice/lookup fetch')
         return
       }
 
@@ -273,8 +276,15 @@ export default function TrapidTableView({
         col.column_type === 'choice' || col.column_type === 'single_select' || col.column_type === 'dropdown'
       )
 
-      console.log('🔍 Fetching choices for', choiceColumns.length, 'choice columns:', choiceColumns.map(c => ({ key: c.key, id: c.id })))
+      // Find all lookup columns (both single and multiple)
+      const lookupColumns = COLUMNS.filter(col =>
+        col.column_type === 'lookup' || col.column_type === 'link_to_another_record' || col.column_type === 'multiple_lookups'
+      )
 
+      console.log('🔍 Fetching choices for', choiceColumns.length, 'choice columns:', choiceColumns.map(c => ({ key: c.key, id: c.id })))
+      console.log('🔗 Fetching lookup options for', lookupColumns.length, 'lookup columns:', lookupColumns.map(c => ({ key: c.key, id: c.id })))
+
+      // Fetch choices for choice columns
       for (const column of choiceColumns) {
         if (!column.id) {
           console.log('⚠️ Skipping column without ID:', column.key)
@@ -305,6 +315,40 @@ export default function TrapidTableView({
             console.debug(`⏭️ Skipping column ${column.id} (from previous table)`)
           } else {
             console.error(`❌ Failed to fetch choices for column ${column.id}:`, error)
+          }
+        }
+      }
+
+      // Fetch lookup options for lookup columns
+      for (const column of lookupColumns) {
+        if (!column.id) {
+          console.log('⚠️ Skipping lookup column without ID:', column.key)
+          continue
+        }
+
+        try {
+          console.log('📡 Fetching lookup options from API for column:', column.id)
+          const data = await api.get(`/api/v1/tables/${tableIdNumeric}/columns/${column.id}/lookup_options`, {
+            params: { _: Date.now() } // Cache buster
+          })
+          console.log('✅ Received lookup options for column', column.id, ':', data.options?.map(o => o.display))
+          if (data.success && data.options) {
+            // Store as {id, display} objects for lookups (different from choices which are just strings)
+            setColumnChoices(prev => {
+              const updated = {
+                ...prev,
+                [column.id]: data.options // Store full objects with id and display
+              }
+              console.log('📦 Updated columnChoices with lookup options:', updated)
+              return updated
+            })
+          }
+        } catch (error) {
+          // Silently skip "Column not found" or "Not configured" errors
+          if (error.message && (error.message.includes('Column not found') || error.message.includes('not configured'))) {
+            console.debug(`⏭️ Skipping lookup column ${column.id} (not configured or from previous table)`)
+          } else {
+            console.error(`❌ Failed to fetch lookup options for column ${column.id}:`, error)
           }
         }
       }
@@ -3513,6 +3557,236 @@ export default function TrapidTableView({
           ) : <span className="text-gray-400">-</span>
         }
 
+        if (columnType === 'lookup' || columnType === 'link_to_another_record') {
+          // Edit mode - show dropdown with lookup options from linked table
+          if (editingRowId === entry.id) {
+            const columnDef = COLUMNS.find(c => c.key === columnKey)
+            const lookupOptions = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+            console.log('🔗 Rendering lookup dropdown for column', columnKey, 'with options:', lookupOptions)
+
+            // Check if lookupOptions are objects {id, display} or just strings (fallback)
+            const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
+
+            return (
+              <select
+                value={editingData[columnKey] || ''}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setEditingData({ ...editingData, [columnKey]: value })
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select...</option>
+                {isObjectFormat ? (
+                  lookupOptions.map(option => (
+                    <option key={option.id} value={option.id}>{option.display}</option>
+                  ))
+                ) : (
+                  lookupOptions.map(option => (
+                    <option key={option} value={option}>{option}</option>
+                  ))
+                )}
+              </select>
+            )
+          }
+
+          // Display mode - render lookup value as text
+          // The value stored is the ID, so we need to look up the display value
+          if (entry[columnKey]) {
+            const columnDef = COLUMNS.find(c => c.key === columnKey)
+            const lookupOptions = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+            const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
+
+            let displayValue = entry[columnKey]
+            if (isObjectFormat) {
+              // Convert both to numbers for comparison to handle type mismatches
+              const entryId = parseInt(entry[columnKey])
+              const matchingOption = lookupOptions.find(opt => parseInt(opt.id) === entryId)
+              if (matchingOption) {
+                displayValue = matchingOption.display
+              }
+            }
+
+            return (
+              <span className="text-gray-900 dark:text-white">
+                {displayValue}
+              </span>
+            )
+          }
+          return <span className="text-gray-400">-</span>
+        }
+
+        if (columnType === 'multiple_lookups') {
+          // Edit mode - show checkbox list with lookup options from linked table
+          if (editingRowId === entry.id) {
+            const columnDef = COLUMNS.find(c => c.key === columnKey)
+            const lookupOptions = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+            console.log('🔗 Rendering multiple_lookups checkboxes for column', columnKey, 'with options:', lookupOptions)
+
+            // Check if lookupOptions are objects {id, display} or just strings (fallback)
+            const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
+
+            // Parse the current value (stored as JSON array of IDs)
+            let currentValues = []
+            try {
+              const rawValue = editingData[columnKey]
+              if (typeof rawValue === 'string') {
+                currentValues = JSON.parse(rawValue)
+              } else if (Array.isArray(rawValue)) {
+                currentValues = rawValue
+              }
+            } catch (e) {
+              console.error('Error parsing multiple_lookups value:', e)
+            }
+
+            const handleCheckboxChange = (optionId) => {
+              const id = parseInt(optionId)
+              let newValues = [...currentValues.map(v => parseInt(v))]
+
+              if (newValues.includes(id)) {
+                newValues = newValues.filter(v => v !== id)
+              } else {
+                newValues.push(id)
+              }
+
+              setEditingData({ ...editingData, [columnKey]: JSON.stringify(newValues) })
+            }
+
+            // Filter options based on search (using component-level state)
+            const filteredOptions = lookupOptions.filter(option => {
+              if (!lookupSearch) return true
+              const displayValue = isObjectFormat ? option.display : option
+              return displayValue.toLowerCase().includes(lookupSearch.toLowerCase())
+            })
+
+            return (
+              <div
+                className="w-full border border-blue-500 rounded bg-white dark:bg-gray-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Search Input */}
+                <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    value={lookupSearch}
+                    onChange={(e) => setLookupSearch(e.target.value)}
+                    className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                {/* Checkbox List */}
+                <div className="max-h-48 overflow-y-auto p-2">
+                  {filteredOptions.length === 0 ? (
+                    <p className="text-gray-400 text-sm">
+                      {lookupSearch ? 'No matches found' : 'No options available'}
+                    </p>
+                  ) : (
+                    <div className="space-y-1">
+                      {isObjectFormat ? (
+                        filteredOptions.map(option => {
+                          const isChecked = currentValues.map(v => parseInt(v)).includes(parseInt(option.id))
+                          return (
+                            <label
+                              key={option.id}
+                              className="flex items-center gap-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleCheckboxChange(option.id)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-900 dark:text-white">{option.display}</span>
+                            </label>
+                          )
+                        })
+                      ) : (
+                        filteredOptions.map(option => {
+                          const isChecked = currentValues.includes(option)
+                          return (
+                            <label
+                              key={option}
+                              className="flex items-center gap-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => handleCheckboxChange(option)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-900 dark:text-white">{option}</span>
+                            </label>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Selected count */}
+                {currentValues.length > 0 && (
+                  <div className="px-2 py-1.5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                      {currentValues.length} selected
+                    </span>
+                  </div>
+                )}
+              </div>
+            )
+          }
+
+          // Display mode - render multiple lookup values as badges
+          if (entry[columnKey]) {
+            const columnDef = COLUMNS.find(c => c.key === columnKey)
+            const lookupOptions = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
+            const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
+
+            // Parse the stored JSON array of IDs
+            let selectedIds = []
+            try {
+              const rawValue = entry[columnKey]
+              if (typeof rawValue === 'string') {
+                selectedIds = JSON.parse(rawValue)
+              } else if (Array.isArray(rawValue)) {
+                selectedIds = rawValue
+              }
+            } catch (e) {
+              console.error('Error parsing multiple_lookups value:', e)
+            }
+
+            if (selectedIds.length === 0) {
+              return <span className="text-gray-400">-</span>
+            }
+
+            // Look up display values for each ID
+            const displayValues = selectedIds.map(id => {
+              if (isObjectFormat) {
+                const entryId = parseInt(id)
+                const matchingOption = lookupOptions.find(opt => parseInt(opt.id) === entryId)
+                return matchingOption ? matchingOption.display : id
+              }
+              return id
+            })
+
+            return (
+              <div className="flex flex-wrap gap-1">
+                {displayValues.map((displayValue, idx) => (
+                  <span
+                    key={idx}
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                  >
+                    {displayValue}
+                  </span>
+                ))}
+              </div>
+            )
+          }
+          return <span className="text-gray-400">-</span>
+        }
+
         if (columnType === 'choice') {
           // Edit mode - show dropdown with available choices
           if (editingRowId === entry.id) {
@@ -5898,17 +6172,38 @@ export default function TrapidTableView({
                             // Only show cog if column has a database ID (numeric) - system columns like 'id' primary key have no column record
                             column.id && typeof column.id === 'number' ? (
                               <button
-                                onClick={(e) => {
+                                onClick={async (e) => {
                                   e.preventDefault()
                                   e.stopPropagation()
-                                  // Create a column object to pass to the editor
-                                  setSelectedColumnForEdit({
-                                    id: column.id,
-                                    name: column.label,
-                                    column_name: colKey,
-                                    column_type: column.column_type || 'single_line_text',
-                                    required: false
-                                  })
+                                  // Fetch the full column data from API to get all configuration including lookup settings
+                                  try {
+                                    const response = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+                                    if (response.success && response.table) {
+                                      const fullColumn = response.table.columns.find(c => c.id === column.id)
+                                      if (fullColumn) {
+                                        setSelectedColumnForEdit(fullColumn)
+                                      } else {
+                                        // Fallback to basic column data if not found in API response
+                                        setSelectedColumnForEdit({
+                                          id: column.id,
+                                          name: column.label,
+                                          column_name: colKey,
+                                          column_type: column.column_type || 'single_line_text',
+                                          required: false
+                                        })
+                                      }
+                                    }
+                                  } catch (error) {
+                                    console.error('Error fetching column data:', error)
+                                    // Fallback to basic column data on error
+                                    setSelectedColumnForEdit({
+                                      id: column.id,
+                                      name: column.label,
+                                      column_name: colKey,
+                                      column_type: column.column_type || 'single_line_text',
+                                      required: false
+                                    })
+                                  }
                                 }}
                                 className={`ml-2 p-1 rounded transition-colors ${
                                   isSystemGenerated
@@ -7691,11 +7986,36 @@ export default function TrapidTableView({
           tableId={tableIdNumeric}
           onClose={() => setSelectedColumnForEdit(null)}
           onUpdate={async () => {
-            // Refetch choices for this column if it's a choice column
+            console.log('🔄 onUpdate called for column:', selectedColumnForEdit.id, 'type:', selectedColumnForEdit.column_type)
+
+            // Refetch the full column data to get updated configuration
+            const isLookupColumn = selectedColumnForEdit.column_type === 'lookup' ||
+                                   selectedColumnForEdit.column_type === 'link_to_another_record'
             const isChoiceColumn = selectedColumnForEdit.column_type === 'choice' ||
                                    selectedColumnForEdit.column_type === 'single_select' ||
                                    selectedColumnForEdit.column_type === 'dropdown'
 
+            // Refetch column data for lookup columns
+            if (isLookupColumn && selectedColumnForEdit.id) {
+              try {
+                console.log('🔄 Refetching column data for lookup column:', selectedColumnForEdit.id)
+                const tableData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+                if (tableData.success && tableData.table?.columns) {
+                  const updatedColumn = tableData.table.columns.find(c => c.id === selectedColumnForEdit.id)
+                  if (updatedColumn) {
+                    console.log('✅ Column data refreshed:', {
+                      lookup_table_id: updatedColumn.lookup_table_id,
+                      lookup_display_column: updatedColumn.lookup_display_column
+                    })
+                    setSelectedColumnForEdit(updatedColumn)
+                  }
+                }
+              } catch (error) {
+                console.error('❌ Failed to refetch column data:', error)
+              }
+            }
+
+            // Refetch choices for choice columns
             if (isChoiceColumn && selectedColumnForEdit.id) {
               try {
                 console.log('🔄 Refetching choices for column:', selectedColumnForEdit.id)
@@ -7723,9 +8043,14 @@ export default function TrapidTableView({
 
             // Call the onColumnUpdate callback if provided to refresh table data
             if (onColumnUpdate) {
+              console.log('📢 Calling onColumnUpdate to refresh table and columns')
               onColumnUpdate()
+            } else {
+              console.log('⚠️ onColumnUpdate not provided - table columns will not refresh')
             }
-            setSelectedColumnForEdit(null)
+
+            // Don't close the modal here - let onClose handle that
+            // This allows the refetch to complete before the modal closes
           }}
         />
       )}

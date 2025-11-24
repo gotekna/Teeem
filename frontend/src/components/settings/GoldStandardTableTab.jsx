@@ -189,12 +189,18 @@ export default function GoldStandardTableTab() {
       const result = await response.json()
       const dbColumns = result.table?.columns || []
 
-      // Merge database column IDs with static column config
+      // Merge database column data with static column config
       const updatedColumns = GOLD_STANDARD_COLUMNS.map(col => {
         // Find matching database column by column_name (key)
         const dbCol = dbColumns.find(dc => dc.column_name === col.key)
         if (dbCol) {
-          return { ...col, id: dbCol.id }
+          // Merge ALL database column properties (id, lookup_table_id, lookup_display_column, etc.)
+          return {
+            ...col,
+            id: dbCol.id,
+            lookup_table_id: dbCol.lookup_table_id,
+            lookup_display_column: dbCol.lookup_display_column
+          }
         }
         return col
       })
@@ -382,6 +388,11 @@ export default function GoldStandardTableTab() {
         enableSchemaEditor={true}
         onImport={handleImport}
         onExport={handleExport}
+        onColumnUpdate={() => {
+          // Reload column definitions when column schema is updated
+          console.log('📢 GoldStandardTableTab: Refreshing columns after schema update')
+          fetchColumnIds()
+        }}
         hideUpdateViewButton={true}
         customActions={
           <button

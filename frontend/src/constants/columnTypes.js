@@ -301,9 +301,9 @@ export const COLUMN_TYPES = [
     category: 'Computed',
     description: 'Calculated value based on other fields',
     sqlType: 'VIRTUAL/COMPUTED',
-    validationRules: 'Read-only, calculated from formula (e.g., A × B, SUM(C), LOOKUP(D))',
-    example: '$1,255.00 (price × quantity), Total: $15,000 (SUM of all rows)',
-    usedFor: 'Automatic calculations, aggregations, cross-table lookups'
+    validationRules: 'Read-only, calculated from formula (e.g., A × B, SUM(C), LOOKUP(D), ROLLUP(E, "field"))',
+    example: '$1,255.00 (price × quantity), Total: $15,000 (ROLLUP of line items), Customer: john@example.com (LOOKUP)',
+    usedFor: 'Automatic calculations, aggregations, cross-table lookups, rollup totals from related tables'
   },
 ]
 
