@@ -31,6 +31,7 @@ import AdditionalCompaniesSection from '../components/contacts/AdditionalCompani
 import JobsSection from '../components/contacts/JobsSection'
 import CommunicationsTab from '../components/communications/CommunicationsTab'
 import PortalUserSection from '../components/contacts/PortalUserSection'
+import XeroSyncTab from '../components/contacts/XeroSyncTab'
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn) => {
@@ -952,6 +953,16 @@ export default function ContactDetailPage() {
               } whitespace-nowrap py-1 px-1 border-b-2 font-medium text-xs transition-colors`}
             >
               Portal Access
+            </button>
+            <button
+              onClick={() => setSearchParams({ tab: 'xero-sync' })}
+              className={`${
+                activeTab === 'xero-sync'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              } whitespace-nowrap py-1 px-1 border-b-2 font-medium text-xs transition-colors`}
+            >
+              XERO Sync
             </button>
           </nav>
         </div>
@@ -2884,6 +2895,19 @@ export default function ContactDetailPage() {
               isEditMode={isPageEditMode}
             />
           </div>
+        </div>
+      )}
+
+      {/* XERO Sync Tab */}
+      {activeTab === 'xero-sync' && (
+        <div className="mt-6">
+          <XeroSyncTab
+            contact={contact}
+            onContactUpdate={(updatedContact) => {
+              setContact(updatedContact)
+              loadContact()
+            }}
+          />
         </div>
       )}
       </div>

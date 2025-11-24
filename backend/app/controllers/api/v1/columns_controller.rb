@@ -417,6 +417,13 @@ module Api
 
         affected_rows = model.where(column_name => old_value).update_all(column_name => new_value)
 
+        # Also update available_choices array if the old value exists there
+        if column.available_choices.present? && column.available_choices.include?(old_value)
+          updated_choices = column.available_choices.map { |c| c == old_value ? new_value : c }.uniq
+          column.update(available_choices: updated_choices)
+          Rails.logger.info "Renamed '#{old_value}' to '#{new_value}' in column #{column.id} available_choices"
+        end
+
         render json: {
           success: true,
           affected_rows: affected_rows
@@ -441,6 +448,16 @@ module Api
         column_name = column.column_name
 
         affected_rows = model.where(column_name => source_values).update_all(column_name => target_value)
+
+        # Also update available_choices array - remove merged source values
+        if column.available_choices.present?
+          # Remove source values from available_choices (they're now merged into target)
+          updated_choices = column.available_choices.reject { |c| source_values.include?(c) }
+          # Ensure target_value is in the list (add if not present)
+          updated_choices << target_value unless updated_choices.include?(target_value)
+          column.update(available_choices: updated_choices)
+          Rails.logger.info "Merged #{source_values.inspect} into '#{target_value}' in column #{column.id} available_choices"
+        end
 
         render json: {
           success: true,
