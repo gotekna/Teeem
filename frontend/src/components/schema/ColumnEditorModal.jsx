@@ -79,7 +79,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
   const isChoiceColumn = ['choice', 'dropdown', 'select', 'single_select', 'multi_select'].includes(column.column_type?.toLowerCase());
   const isComputedColumn = column.column_type === 'computed' || column.formula;
-  const isLookupColumn = column.column_type === 'lookup' || column.column_type === 'link_to_another_record';
+  const isLookupColumn = column.column_type === 'lookup' || column.column_type === 'link_to_another_record' || column.column_type === 'multiple_lookups';
 
   const tabs = [
     { id: 'info', label: 'Column Info', icon: 'ℹ️' },
@@ -99,10 +99,8 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   }
 
   const handleClose = () => {
-    // Always call onUpdate first to refetch any changes (like deleted choices)
-    if (onUpdate) {
-      onUpdate();
-    }
+    // Let individual editors (ChoiceEditor, LookupEditor) handle their own onUpdate calls
+    // Don't call onUpdate here to avoid duplicate refetches
     if (onClose) {
       onClose();
     }
@@ -196,7 +194,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
              handleClose();
            }
          }}>
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl max-h-[90vh]
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl max-h-[90vh]
                     flex flex-col overflow-hidden mx-auto"
            onClick={(e) => e.stopPropagation()}>
         {/* Header - Red for system-generated, Purple for user columns */}
