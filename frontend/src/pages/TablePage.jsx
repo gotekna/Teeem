@@ -426,12 +426,6 @@ export default function TablePage({ embedded = false }) {
         progressInterval = null
       }
 
-      if (isTable205) {
-        const downloadEndTime = Date.now()
-        console.log(`[PROGRESS SYNC] ✅ Download complete - Time: ${downloadEndTime - startTime}ms, Records: ${response.records?.length}`)
-        // No loading screen - loads fast with preload or direct fetch
-      }
-
       const loadEndTime = performance.now()
       console.log('[Progressive Loading] Response received:', {
         recordCount: response.records?.length,
