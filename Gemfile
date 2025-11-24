@@ -43,6 +43,7 @@ gem "rack-attack", "~> 6.7"
 
 # File processing for spreadsheet import/export
 gem "roo", "~> 2.10.0"  # Excel/CSV parsing
+gem "creek", "~> 2.6"   # xlsx streaming parser (required by roo for xlsx)
 gem "caxlsx", "~> 4.1.0"  # Excel generation
 gem "caxlsx_rails", "~> 0.6.3"  # Rails integration for Excel export
 
