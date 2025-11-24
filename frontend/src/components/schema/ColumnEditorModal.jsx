@@ -20,6 +20,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
     data_type: column?.column_type || column?.data_type || 'single_line_text'
   });
   const [saving, setSaving] = useState(false);
+  const [availableColumns, setAvailableColumns] = useState([]);
 
   // REMOVED: Hardcoded COLUMN_TYPE_METADATA - now using COLUMN_TYPES from constants/columnTypes.js as single source of truth
 
@@ -74,6 +75,24 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
       });
     }
   }, [column]);
+
+  // Fetch available columns for reference
+  useEffect(() => {
+    if (!isOpen || !tableId) return;
+
+    const fetchColumns = async () => {
+      try {
+        const response = await api.get(`/api/v1/tables/${tableId}`);
+        if (response.success && response.table?.columns) {
+          setAvailableColumns(response.table.columns);
+        }
+      } catch (error) {
+        console.error('Error fetching columns for column editor:', error);
+      }
+    };
+
+    fetchColumns();
+  }, [isOpen, tableId]);
 
   if (!isOpen || !column) return null;
 
@@ -251,8 +270,10 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
           ))}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Content with Columns Sidebar */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Main Content */}
+          <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'info' && (
             <div className="space-y-6">
               {/* System Generated Warning Banner */}
@@ -500,6 +521,70 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
               onClose={onClose}
             />
           )}
+          </div>
+
+          {/* Columns Sidebar */}
+          <div className="w-72 border-l border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 overflow-y-auto p-4">
+            <div className="mb-4">
+              <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                <span>📊</span> Available Columns
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {availableColumns.length} columns in this table
+              </p>
+            </div>
+
+            {availableColumns.length === 0 ? (
+              <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                Loading columns...
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {availableColumns.map((col) => (
+                  <div
+                    key={col.id}
+                    draggable={true}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', `[${col.column_name}]`);
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    className={`p-3 rounded-lg border cursor-move transition-all hover:shadow-md
+                              ${col.id === column.id
+                                ? 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700'
+                                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600'
+                              }`}
+                    title={`Drag to use [${col.column_name}]`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className={`text-sm font-medium truncate ${
+                          col.id === column.id
+                            ? 'text-purple-900 dark:text-purple-100'
+                            : 'text-gray-900 dark:text-gray-100'
+                        }`}>
+                          {col.name}
+                          {col.id === column.id && (
+                            <span className="ml-1 text-xs text-purple-600 dark:text-purple-400">(current)</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-mono truncate mt-0.5">
+                          [{col.column_name}]
+                        </div>
+                      </div>
+                      <div className="text-xs shrink-0">
+                        {col.column_type === 'lookup' && '🔗'}
+                        {col.column_type === 'computed' && '📐'}
+                        {['choice', 'dropdown', 'select', 'single_select', 'multi_select'].includes(col.column_type) && '📋'}
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                      {col.column_type || 'text'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}

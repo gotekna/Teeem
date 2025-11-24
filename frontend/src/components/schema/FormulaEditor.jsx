@@ -35,8 +35,8 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
       const fetchColumns = async () => {
         try {
           const response = await api.get(`/api/v1/tables/${tableId}`);
-          if (response.data?.columns) {
-            setAvailableColumns(response.data.columns);
+          if (response.success && response.table?.columns) {
+            setAvailableColumns(response.table.columns);
           }
         } catch (error) {
           console.error('Error fetching columns for formula editor:', error);
@@ -64,8 +64,8 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
         if (lookupCol.lookup_table_id) {
           try {
             const response = await api.get(`/api/v1/tables/${lookupCol.lookup_table_id}`);
-            if (response.data?.columns) {
-              linkedColumns[lookupCol.column_name] = response.data.columns;
+            if (response.success && response.table?.columns) {
+              linkedColumns[lookupCol.column_name] = response.table.columns;
             }
           } catch (error) {
             console.error(`Error fetching columns for linked table ${lookupCol.lookup_table_id}:`, error);
@@ -551,6 +551,126 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Cross-Table References
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  Reference fields from related tables using the <strong>Linked Data</strong> tab or LOOKUP function:
+                </p>
+                <div className="space-y-2">
+                  <div className="p-2 bg-white dark:bg-gray-800 rounded border-l-2 border-green-500">
+                    <div className="font-mono text-xs text-green-600 dark:text-green-400">
+                      =LOOKUP([customer], "email")
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Get the email field from the linked customer record
+                    </div>
+                  </div>
+                  <div className="p-2 bg-white dark:bg-gray-800 rounded border-l-2 border-green-500">
+                    <div className="font-mono text-xs text-green-600 dark:text-green-400">
+                      =[quantity] * LOOKUP([product], "unit_price")
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      Calculate line total using price from product table
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  🎯 Rollup Aggregations (Calculate Totals from Related Tables)
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                  To calculate totals across multiple related records (e.g., PO total from line items):
+                </p>
+                <div className="space-y-2">
+                  <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded border-l-2 border-orange-500">
+                    <div className="font-mono text-xs text-orange-600 dark:text-orange-400 mb-1">
+                      =ROLLUP([line_items], "line_total")
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Sum the line_total field from all related line items
+                    </div>
+                    <div className="text-xs text-orange-700 dark:text-orange-400 font-semibold">
+                      Use case: Purchase Order total
+                    </div>
+                  </div>
+                  <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded border-l-2 border-orange-500">
+                    <div className="font-mono text-xs text-orange-600 dark:text-orange-400 mb-1">
+                      =ROLLUP([tasks], "hours_worked", AVG)
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Average hours across all related tasks
+                    </div>
+                    <div className="text-xs text-orange-700 dark:text-orange-400 font-semibold">
+                      Use case: Project statistics
+                    </div>
+                  </div>
+                  <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded border-l-2 border-orange-500">
+                    <div className="font-mono text-xs text-orange-600 dark:text-orange-400 mb-1">
+                      =ROLLUP([invoices], "amount", COUNT)
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      Count the number of related invoices
+                    </div>
+                    <div className="text-xs text-orange-700 dark:text-orange-400 font-semibold">
+                      Use case: Customer invoice count
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/30 rounded text-xs">
+                  <strong className="text-blue-800 dark:text-blue-300">💡 How it works:</strong>
+                  <ul className="mt-1 space-y-1 text-blue-700 dark:text-blue-400 list-disc list-inside">
+                    <li><strong>Reverse lookup:</strong> Finds all records in the child table that link back to this record</li>
+                    <li><strong>Aggregate:</strong> Applies SUM (default), AVG, COUNT, MIN, or MAX to the specified field</li>
+                    <li><strong>Auto-updates:</strong> Recalculates when related records change</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                  Common Patterns
+                </div>
+                <div className="space-y-2">
+                  <div className="p-2 bg-gray-50 dark:bg-gray-800/50 rounded">
+                    <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      📦 Purchase Order Total
+                    </div>
+                    <div className="font-mono text-xs text-gray-600 dark:text-gray-400 mb-1">
+                      PO Table: =ROLLUP([line_items_link], "line_total")
+                    </div>
+                    <div className="font-mono text-xs text-gray-600 dark:text-gray-400">
+                      Line Item: =[quantity] * [unit_price]
+                    </div>
+                  </div>
+                  <div className="p-2 bg-gray-50 dark:bg-gray-800/50 rounded">
+                    <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      📊 Project Budget vs Actual
+                    </div>
+                    <div className="font-mono text-xs text-gray-600 dark:text-gray-400 mb-1">
+                      Actual: =ROLLUP([expenses], "amount")
+                    </div>
+                    <div className="font-mono text-xs text-gray-600 dark:text-gray-400">
+                      Variance: =[budget] - [actual_spent]
+                    </div>
+                  </div>
+                  <div className="p-2 bg-gray-50 dark:bg-gray-800/50 rounded">
+                    <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      👥 Team Performance
+                    </div>
+                    <div className="font-mono text-xs text-gray-600 dark:text-gray-400 mb-1">
+                      Total Tasks: =ROLLUP([tasks], "id", COUNT)
+                    </div>
+                    <div className="font-mono text-xs text-gray-600 dark:text-gray-400">
+                      Avg Time: =ROLLUP([tasks], "duration", AVG)
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
