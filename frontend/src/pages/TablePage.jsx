@@ -330,6 +330,7 @@ export default function TablePage({ embedded = false }) {
     }
 
     let progressInterval = null
+    let simulatedProgress = 0 // Track simulated progress for download
 
     try {
       // For Price Books table (ID: 205, slug: price-books), load ALL items with full data
