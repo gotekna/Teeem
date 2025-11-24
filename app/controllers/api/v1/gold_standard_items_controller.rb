@@ -1,67 +1,135 @@
 class Api::V1::GoldStandardItemsController < ApplicationController
   before_action :set_item, only: [:update, :destroy]
+  before_action :authenticate_user!, only: [:sync_with_columns]
 
   def index
+    # Pagination parameters
+    page = (params[:page] || 1).to_i
+    per_page = [(params[:per_page] || 100).to_i, 500].min  # Cap at 500 max
+    page = [page, 1].max  # Ensure page is at least 1
+
+    # Calculate offset
+    offset = (page - 1) * per_page
+
+    # Fetch paginated items
     items = GoldStandardItem.order(created_at: :desc)
-    render json: items
+                             .limit(per_page)
+                             .offset(offset)
+
+    # Get total count for pagination metadata
+    total_count = GoldStandardItem.count
+
+    # Set caching headers (5 minutes cache)
+    expires_in 5.minutes, public: true
+
+    render json: {
+      success: true,
+      items: items,
+      pagination: {
+        current_page: page,
+        per_page: per_page,
+        total_count: total_count,
+        total_pages: (total_count.to_f / per_page).ceil,
+        has_next_page: offset + per_page < total_count,
+        has_prev_page: page > 1
+      }
+    }
   end
 
   def create
     item = GoldStandardItem.new(item_params)
 
     if item.save
-      render json: item, status: :created
+      render json: { success: true, item: item }, status: :created
     else
-      render json: { errors: item.errors.full_messages }, status: :unprocessable_entity
+      render json: { success: false, errors: item.errors.full_messages }, status: :unprocessable_entity
     end
   end
 
   def update
     if @item.update(item_params)
-      render json: @item
+      render json: { success: true, item: @item }
     else
-      render json: { errors: @item.errors.full_messages }, status: :unprocessable_entity
+      render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
     end
   end
 
   def destroy
     @item.destroy
-    head :no_content
+    render json: { success: true, message: "Item deleted successfully" }
+  end
+
+  # Public endpoint to sync column types with the columns table
+  # NOTE: This should be protected in production - see Item 14
+  def sync_with_columns
+    begin
+      # Fetch all columns for the Gold Standard table (table_id = 9)
+      columns = Column.where(table_id: 9).order(:position)
+
+      render json: {
+        success: true,
+        message: "Column sync retrieved successfully",
+        columns: columns.map { |col| {
+          id: col.id,
+          name: col.name,
+          column_type: col.column_type,
+          position: col.position
+        }}
+      }
+    rescue => e
+      render json: {
+        success: false,
+        error: e.message
+      }, status: :internal_server_error
+    end
   end
 
   private
 
   def set_item
     @item = GoldStandardItem.find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    render json: { success: false, error: "Item not found" }, status: :not_found
   end
 
   def item_params
+    # SECURITY: Only permit user-editable fields, never system timestamps or IDs
     params.require(:gold_standard_item).permit(
-      # System columns
-      :id, :created_at, :updated_at,
-      # Gold Standard columns (after cleanup migration - using generic type names)
-      :single_line_text,
-      :multiple_lines_text,
+      # Contact fields
       :email,
       :phone,
       :mobile,
-      :url,
-      :number,
+
+      # Text fields
+      :single_line_text,
+      :multiple_lines_text,
+
+      # Numeric fields
       :whole_number,
+      :number,
       :currency,
       :percentage,
+
+      # Date fields
       :date,
       :date_and_time,
+
+      # Special fields
+      :url,
       :gps_coordinates,
       :color_picker,
       :file_upload,
-      :action_buttons,
       :boolean,
+
+      # Lookup and choice fields
       :choice,
       :lookup,
       :multiple_lookups,
+
+      # Other fields
       :user,
-      :computed
+      :computed,
+      :action_buttons
     )
   end
 end
