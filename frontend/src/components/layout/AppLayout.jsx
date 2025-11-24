@@ -213,6 +213,7 @@ export default function AppLayout({ children }) {
   })
   const [backendVersion, setBackendVersion] = useState('loading...')
   const [unreadCount, setUnreadCount] = useState(0)
+  const [priceBooksPreloadStatus, setPriceBooksPreloadStatus] = useState('idle') // 'idle', 'loading', 'complete'
   const frontendVersion = packageJson.version
 
   useEffect(() => {
@@ -246,6 +247,7 @@ export default function AppLayout({ children }) {
   useEffect(() => {
     if (user?.preload_price_books) {
       console.log('[Preload] User has preload_price_books enabled, starting background load...')
+      setPriceBooksPreloadStatus('loading')
 
       // Wait 3 seconds after app loads to not interfere with initial render
       const timer = setTimeout(async () => {
@@ -271,8 +273,11 @@ export default function AppLayout({ children }) {
             data: response,
             timestamp: Date.now()
           }))
+
+          setPriceBooksPreloadStatus('complete')
         } catch (error) {
           console.error('[Preload] Failed to preload table 205:', error)
+          setPriceBooksPreloadStatus('idle')
         }
       }, 3000) // 3 second delay
 
@@ -437,7 +442,19 @@ export default function AppLayout({ children }) {
                                   'size-6 shrink-0',
                                 )}
                               />
-                              {item.name}
+                              <span className="flex items-center gap-2 flex-1">
+                                {item.name}
+                                {item.name === 'Price Books' && priceBooksPreloadStatus === 'loading' && (
+                                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-normal">
+                                    Loading...
+                                  </span>
+                                )}
+                                {item.name === 'Price Books' && priceBooksPreloadStatus === 'complete' && (
+                                  <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded font-normal">
+                                    ✓ Ready
+                                  </span>
+                                )}
+                              </span>
                             </Link>
                           </li>
                         )
@@ -811,7 +828,21 @@ export default function AppLayout({ children }) {
                               'size-6 shrink-0',
                             )}
                           />
-                          {!sidebarCollapsed && item.name}
+                          {!sidebarCollapsed && (
+                            <span className="flex items-center gap-2 flex-1">
+                              {item.name}
+                              {item.name === 'Price Books' && priceBooksPreloadStatus === 'loading' && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-normal">
+                                  Loading...
+                                </span>
+                              )}
+                              {item.name === 'Price Books' && priceBooksPreloadStatus === 'complete' && (
+                                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded font-normal">
+                                  ✓ Ready
+                                </span>
+                              )}
+                            </span>
+                          )}
                         </Link>
                       </li>
                     )
