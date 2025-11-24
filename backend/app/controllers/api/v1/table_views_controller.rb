@@ -14,7 +14,7 @@ module Api
 
         render json: {
           success: true,
-          views: views.order(created_at: :desc)
+          views: views.order(display_order: :asc, created_at: :desc)
         }
       end
 
@@ -69,6 +69,41 @@ module Api
         }
       end
 
+      # POST /api/v1/table_views/reorder
+      # Bulk update display_order for views after drag-and-drop
+      def reorder
+        orders = params[:orders] # Array of {id: X, display_order: Y}
+
+        if orders.blank?
+          return render json: {
+            success: false,
+            error: "No orders provided"
+          }, status: :unprocessable_entity
+        end
+
+        ActiveRecord::Base.transaction do
+          orders.each do |item|
+            view = current_user.table_views.find(item[:id])
+            view.update!(display_order: item[:display_order])
+          end
+        end
+
+        render json: {
+          success: true,
+          message: "Views reordered successfully"
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          error: "One or more views not found"
+        }, status: :not_found
+      rescue => e
+        render json: {
+          success: false,
+          error: e.message
+        }, status: :unprocessable_entity
+      end
+
       private
 
       def set_table_view
@@ -86,6 +121,7 @@ module Api
           :name,
           :view_type,
           :is_default,
+          :display_order,
           filters: [
             :interGroupLogic,
             cascadeFilters: [],

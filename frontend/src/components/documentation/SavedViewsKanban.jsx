@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { StarIcon, PencilIcon, TrashIcon, FunnelIcon, EyeIcon } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
+import { api } from '../../api'
 
 /**
  * SavedViewsKanban - Trello-style drag-and-drop list for saved views
@@ -36,16 +37,31 @@ export default function SavedViewsKanban({
   const [lastDragEndTime, setLastDragEndTime] = useState(0)
 
   // Helper to reorder and set default flags in one operation
-  const reorderFilters = (fromIndex, toIndex) => {
+  const reorderFilters = async (fromIndex, toIndex) => {
+    // Optimistically update UI first
     setSavedFilters(prev => {
       const newFilters = [...prev]
       const [draggedItem] = newFilters.splice(fromIndex, 1)
       newFilters.splice(toIndex, 0, draggedItem)
+
       // Set isDefault on first item, clear on others
-      return newFilters.map((v, idx) => ({
+      const reordered = newFilters.map((v, idx) => ({
         ...v,
-        isDefault: idx === 0
+        isDefault: idx === 0,
+        display_order: idx
       }))
+
+      // Save new order to API in background
+      const orders = reordered.map(v => ({
+        id: v.id,
+        display_order: v.display_order
+      }))
+
+      api.post('/api/v1/table_views/reorder', { orders })
+        .then(() => console.log('View order saved'))
+        .catch(err => console.error('Failed to save view order:', err))
+
+      return reordered
     })
   }
 
