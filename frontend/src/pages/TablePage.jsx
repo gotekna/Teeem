@@ -332,12 +332,12 @@ export default function TablePage({ embedded = false }) {
     let progressInterval = null
 
     try {
-      // For Table 205 (Price Books), load ALL items with full data
-      const isTable205 = id === '205'
+      // For Price Books table (ID: 205, slug: price-books), load ALL items with full data
+      const isPriceBooks = id === '205' || id === 'price-books'
 
-      // Check for preloaded data in sessionStorage (Table 205 only)
-      if (isTable205 && !append) {
-        const preloadedData = sessionStorage.getItem('preloaded_table_205')
+      // Check for preloaded data in sessionStorage (Price Books only)
+      if (isPriceBooks && !append) {
+        const preloadedData = sessionStorage.getItem('preloaded_table_price_books')
         if (preloadedData) {
           try {
             const { data, timestamp } = JSON.parse(preloadedData)
@@ -356,11 +356,11 @@ export default function TablePage({ embedded = false }) {
               return // Skip API call entirely!
             } else {
               console.log(`[Preload] ⚠️ Preloaded data expired (age: ${Math.round(age / 1000)}s), loading fresh data`)
-              sessionStorage.removeItem('preloaded_table_205')
+              sessionStorage.removeItem('preloaded_table_price_books')
             }
           } catch (error) {
             console.error('[Preload] Failed to parse preloaded data:', error)
-            sessionStorage.removeItem('preloaded_table_205')
+            sessionStorage.removeItem('preloaded_table_price_books')
           }
         }
       }
@@ -376,7 +376,7 @@ export default function TablePage({ embedded = false }) {
         // Don't show loading screen - data loads fast enough
         setLoading(false)
       }
-      const perPage = isTable205 && !append ? 10000 : PAGE_SIZE // Load all items for table 205
+      const perPage = isPriceBooks && !append ? 10000 : PAGE_SIZE // Load all items for Price Books
       const fieldsParam = '' // Always load full fields
 
       console.log('[Progressive Loading] loadRecords called:', {
@@ -384,12 +384,12 @@ export default function TablePage({ embedded = false }) {
         viewMode,
         page,
         append,
-        isTable205,
+        isPriceBooks,
         perPage,
         fieldsParam
       })
 
-      // No loading screen for table 205 - preload handles it or loads fast
+      // No loading screen for Price Books - preload handles it or loads fast
       const startTime = Date.now()
 
       // Option 3: Load views in parallel with records (for performance optimization)
@@ -949,7 +949,7 @@ export default function TablePage({ embedded = false }) {
               )}
             </div>
           </div>
-        ) : (
+        ) : trapidColumns.length > 0 ? (
           <TrapidTableView
             tableId={`table-${table.slug || id}`}
             tableIdNumeric={table.id}
@@ -1028,7 +1028,7 @@ export default function TablePage({ embedded = false }) {
               </div>
             }
           />
-        )}
+        ) : null}
       </div>
 
       {/* Infinite Scroll Status */}

@@ -72,10 +72,10 @@ const navigation = [
   { name: 'WHS', href: '/whs', icon: ShieldCheckIcon },
   { name: 'Financial', href: '/financial', icon: BanknotesIcon },
   { name: 'Xest', href: '/xest', icon: BeakerIcon },
-  { name: 'Price Books', href: '/tables/205', icon: BookOpenIcon },
-  { name: 'Contacts', href: '/tables/214', icon: UsersIcon },
-  { name: 'Suppliers', href: '/tables/215', icon: UserGroupIcon },
-  { name: 'Purchase Orders', href: '/tables/217', icon: DocumentTextIcon },
+  { name: 'Price Books', href: '/tables/price-books', icon: BookOpenIcon },
+  { name: 'Contacts', href: '/tables/contacts', icon: UsersIcon },
+  { name: 'Suppliers', href: '/tables/suppliers', icon: UserGroupIcon },
+  { name: 'Purchase Orders', href: '/tables/purchase-orders', icon: DocumentTextIcon },
   { name: 'Accounts', href: '/accounts', icon: BanknotesIcon },
   { name: 'Corporate', href: '/corporate/companies', icon: BuildingOfficeIcon },
   { name: 'Documents', href: '/documents', icon: DocumentTextIcon },
@@ -243,18 +243,18 @@ export default function AppLayout({ children }) {
     loadActiveJobs()
   }, [])
 
-  // Preload Price Books (Table 205) for all users
+  // Preload Price Books (Table: price-books) for all users
   useEffect(() => {
-    console.log('[Preload] Starting background preload for Price Books (Table 205)...')
+    console.log('[Preload] Starting background preload for Price Books (price-books)...')
     setPriceBooksPreloadStatus('loading')
 
     // Wait 3 seconds after app loads to not interfere with initial render
     const timer = setTimeout(async () => {
       try {
         const startTime = Date.now()
-        console.log('[Preload] Fetching table 205 (Price Books) data...')
+        console.log('[Preload] Fetching price-books table data...')
 
-        const response = await api.get('/api/v1/tables/205/records', {
+        const response = await api.get('/api/v1/tables/price-books/records', {
           params: {
             per_page: 10000,
             page: 1
@@ -262,20 +262,20 @@ export default function AppLayout({ children }) {
         })
 
         const loadTime = Date.now() - startTime
-        console.log(`[Preload] ✅ Table 205 preloaded in ${loadTime}ms:`, {
+        console.log(`[Preload] ✅ price-books table preloaded in ${loadTime}ms:`, {
           recordCount: response.records?.length,
           totalCount: response.pagination?.total_count
         })
 
         // Store in sessionStorage for TablePage to use
-        sessionStorage.setItem('preloaded_table_205', JSON.stringify({
+        sessionStorage.setItem('preloaded_table_price_books', JSON.stringify({
           data: response,
           timestamp: Date.now()
         }))
 
         setPriceBooksPreloadStatus('complete')
       } catch (error) {
-        console.error('[Preload] Failed to preload table 205:', error)
+        console.error('[Preload] Failed to preload price-books table:', error)
         setPriceBooksPreloadStatus('idle')
       }
     }, 3000) // 3 second delay
