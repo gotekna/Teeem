@@ -193,11 +193,12 @@ module Api
           .map do |cc|
             {
               construction_id: cc.construction_id,
-              construction_name: cc.construction.name,
-              address: cc.construction.address,
+              construction_title: cc.construction.title,
+              location: cc.construction.location,
               role: cc.role,
               primary: cc.primary,
-              status: cc.construction.status
+              status: cc.construction.status,
+              stage: cc.construction.stage
             }
           end
 
