@@ -4,7 +4,10 @@ class Table < ApplicationRecord
   RESERVED_NAMES = %w[user users table tables column columns record records].freeze
 
   validates :name, presence: true
-  validates :database_table_name, presence: true, uniqueness: true
+  validates :database_table_name, presence: true
+  # Note: database_table_name doesn't need to be unique - multiple Gold Standard tables
+  # can point to the same underlying database table with different filters
+  # (e.g., Trinity Bible/Teacher/Lexicon all use 'trinity' table, Suppliers uses 'contacts')
   validates :slug, presence: true, uniqueness: true
   validate :name_not_reserved
 

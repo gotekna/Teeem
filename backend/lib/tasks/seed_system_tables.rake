@@ -322,7 +322,8 @@ namespace :trapid do
           # Update existing table with system fields
           updates_needed = table.table_type != 'system' ||
                           table.model_class != table_data[:model_class] ||
-                          table.api_endpoint != table_data[:api_endpoint]
+                          table.api_endpoint != table_data[:api_endpoint] ||
+                          table.database_table_name != table_data[:database_table_name]
 
           if updates_needed
             table.update!(
@@ -332,7 +333,8 @@ namespace :trapid do
               file_location: table_data[:file_location],
               has_saved_views: table_data[:has_saved_views],
               icon: table_data[:icon],
-              description: table_data[:description]
+              description: table_data[:description],
+              database_table_name: table_data[:database_table_name]
             )
             updated += 1
             puts "  Updated: #{table_data[:name]} (ID: #{table.id})"
@@ -342,13 +344,14 @@ namespace :trapid do
           end
         else
           # Create new system table with FIXED ID
-          unique_db_name = "system_#{table_data[:slug].gsub('-', '_')}"
+          # Use the database_table_name from config (not generated)
+          db_name = table_data[:database_table_name]
 
           # Use raw SQL to insert with specific ID
           table = Table.new(
             name: table_data[:name],
             slug: table_data[:slug],
-            database_table_name: unique_db_name,
+            database_table_name: db_name,
             icon: table_data[:icon],
             description: table_data[:description],
             table_type: 'system',
