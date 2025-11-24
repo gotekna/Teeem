@@ -67,8 +67,11 @@ gem "anthropic", "~> 0.1.0"  # Claude API for AI-powered plan review
 gem "sentry-ruby", "~> 5.22"
 gem "sentry-rails", "~> 5.22"
 
+# Structured logging
+gem "lograge", "~> 0.14"
+
 # Double-entry bookkeeping for financial tracking
-gem "keepr", "~> 0.9.0"
+# gem "keepr", "~> 0.9.0"  # REMOVED: Keepr integration never implemented
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
