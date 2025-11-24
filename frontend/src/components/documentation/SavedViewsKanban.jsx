@@ -39,10 +39,26 @@ export default function SavedViewsKanban({
   const [lastDragEndTime, setLastDragEndTime] = useState(0)
 
   // Helper to reorder and set default flags in one operation
-  const reorderFilters = async (fromIndex, toIndex) => {
+  // fromIndex and toIndex are based on the FILTERED array (without __default_setup__)
+  // We need to adjust them to work with the full savedFilters array
+  const reorderFilters = async (fromIndexFiltered, toIndexFiltered) => {
     // Optimistically update UI first
     setSavedFilters(prev => {
       const newFilters = [...prev]
+
+      // Find the index of __default_setup__ in the full array
+      const defaultSetupIndex = newFilters.findIndex(v => v.name === '__default_setup__')
+      const hasDefaultSetup = defaultSetupIndex !== -1
+
+      // Adjust indices to account for __default_setup__ being filtered out
+      // If __default_setup__ exists and is before our target indices, add 1
+      const fromIndex = hasDefaultSetup && defaultSetupIndex <= fromIndexFiltered
+        ? fromIndexFiltered + 1
+        : fromIndexFiltered
+      const toIndex = hasDefaultSetup && defaultSetupIndex <= toIndexFiltered
+        ? toIndexFiltered + 1
+        : toIndexFiltered
+
       const [draggedItem] = newFilters.splice(fromIndex, 1)
       newFilters.splice(toIndex, 0, draggedItem)
 
@@ -89,19 +105,20 @@ export default function SavedViewsKanban({
     if (draggedIndex !== null && draggedIndex !== index) {
       console.log('handleDrop reordering from', draggedIndex, 'to', index)
       reorderFilters(draggedIndex, index)
-      // Clear drag state immediately after successful drop
-      setDraggedIndex(null)
-      setDragOverIndex(null)
     }
+    // Always clear drag state after drop
+    setDraggedIndex(null)
+    setDragOverIndex(null)
   }
 
   const handleDragEnd = (e) => {
     e.stopPropagation()
-    // If dragOverIndex is set but drop didn't fire, do the reorder now
+    // Only reorder if drop didn't fire (draggedIndex still set) and we have a valid target
     if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
       console.log('handleDragEnd reordering from', draggedIndex, 'to', dragOverIndex)
       reorderFilters(draggedIndex, dragOverIndex)
     }
+    // Always clear drag state to prevent stuck visual states
     setDraggedIndex(null)
     setDragOverIndex(null)
     // Record when drag ended to prevent click from firing
