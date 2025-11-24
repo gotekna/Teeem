@@ -7968,32 +7968,25 @@ export default function TrapidTableView({
           onUpdate={async () => {
             console.log('🔄 onUpdate called for column:', selectedColumnForEdit.id, 'type:', selectedColumnForEdit.column_type)
 
-            // Refetch the full column data to get updated configuration
-            const isLookupColumn = selectedColumnForEdit.column_type === 'lookup' ||
-                                   selectedColumnForEdit.column_type === 'link_to_another_record'
+            // Refetch the full column data to get updated configuration (alignment, lookup settings, etc.)
+            try {
+              console.log('🔄 Refetching column data for column:', selectedColumnForEdit.id)
+              const tableData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+              if (tableData.success && tableData.table?.columns) {
+                const updatedColumn = tableData.table.columns.find(c => c.id === selectedColumnForEdit.id)
+                if (updatedColumn) {
+                  console.log('✅ Column data refreshed:', updatedColumn)
+                  setSelectedColumnForEdit(updatedColumn)
+                }
+              }
+            } catch (error) {
+              console.error('❌ Failed to refetch column data:', error)
+            }
+
+            // Check if this is a choice column for special handling
             const isChoiceColumn = selectedColumnForEdit.column_type === 'choice' ||
                                    selectedColumnForEdit.column_type === 'single_select' ||
                                    selectedColumnForEdit.column_type === 'dropdown'
-
-            // Refetch column data for lookup columns
-            if (isLookupColumn && selectedColumnForEdit.id) {
-              try {
-                console.log('🔄 Refetching column data for lookup column:', selectedColumnForEdit.id)
-                const tableData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
-                if (tableData.success && tableData.table?.columns) {
-                  const updatedColumn = tableData.table.columns.find(c => c.id === selectedColumnForEdit.id)
-                  if (updatedColumn) {
-                    console.log('✅ Column data refreshed:', {
-                      lookup_table_id: updatedColumn.lookup_table_id,
-                      lookup_display_column: updatedColumn.lookup_display_column
-                    })
-                    setSelectedColumnForEdit(updatedColumn)
-                  }
-                }
-              } catch (error) {
-                console.error('❌ Failed to refetch column data:', error)
-              }
-            }
 
             // Refetch choices for choice columns
             if (isChoiceColumn && selectedColumnForEdit.id) {
