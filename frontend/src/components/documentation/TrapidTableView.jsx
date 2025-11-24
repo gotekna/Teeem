@@ -1848,6 +1848,7 @@ export default function TrapidTableView({
   // Helper function to update an existing view via API
   const updateView = async (viewId, viewData) => {
     try {
+      console.log('[Update View] Sending column order to API:', viewData.columnOrder)
       const response = await api.put(`/api/v1/table_views/${viewId}`, {
         table_view: {
           name: viewData.name,
@@ -1865,6 +1866,7 @@ export default function TrapidTableView({
           is_default: viewData.isDefault || false
         }
       })
+      console.log('[Update View] API response:', response)
 
       if (response.success && response.view) {
         // Update the view in savedFilters
@@ -4666,9 +4668,6 @@ export default function TrapidTableView({
                       Cascade Filters
                     </span>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded" title="Hold Shift and click multiple column headers to sort by multiple columns">
-                        💡 Shift+Click headers for multi-sort
-                      </span>
                       <button
                         onClick={closeCascadePopup}
                         className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -4717,6 +4716,7 @@ export default function TrapidTableView({
                                 const newName = nameInput?.value?.trim() || savedFilters.find(v => v.id === editingViewId)?.name
                                 const editedView = savedFilters.find(v => v.id === editingViewId)
 
+                                console.log('[Save View] Saving column order:', visibilityColumnOrder)
                                 if (editedView) {
                                   await updateView(editingViewId, {
                                     ...editedView,
@@ -4748,6 +4748,7 @@ export default function TrapidTableView({
                                 const newName = nameInput?.value?.trim() || savedFilters.find(v => v.id === editingViewId)?.name
                                 const editedView = savedFilters.find(v => v.id === editingViewId)
 
+                                console.log('[Save View] Saving column order:', visibilityColumnOrder)
                                 if (editedView) {
                                   await updateView(editingViewId, {
                                     ...editedView,

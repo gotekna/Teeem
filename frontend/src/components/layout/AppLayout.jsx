@@ -6,6 +6,7 @@ import BackButton from '../common/BackButton'
 import FloatingHelpButton from '../FloatingHelpButton'
 import InspiringBanner from '../InspiringBanner'
 import { api } from '../../api'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   Dialog,
   DialogBackdrop,
@@ -117,6 +118,7 @@ const defaultSidebarState = {
 
 export default function AppLayout({ children }) {
   const location = useLocation()
+  const { user } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeJobs, setActiveJobs] = useState([])
   const [jobSearchQuery, setJobSearchQuery] = useState('')
@@ -239,6 +241,44 @@ export default function AppLayout({ children }) {
     }
     loadActiveJobs()
   }, [])
+
+  // Preload Price Books (Table 205) if user has enabled it
+  useEffect(() => {
+    if (user?.preload_price_books) {
+      console.log('[Preload] User has preload_price_books enabled, starting background load...')
+
+      // Wait 3 seconds after app loads to not interfere with initial render
+      const timer = setTimeout(async () => {
+        try {
+          const startTime = Date.now()
+          console.log('[Preload] Starting table 205 (Price Books) background load...')
+
+          const response = await api.get('/api/v1/tables/205/records', {
+            params: {
+              per_page: 10000,
+              page: 1
+            }
+          })
+
+          const loadTime = Date.now() - startTime
+          console.log(`[Preload] ✅ Table 205 preloaded in ${loadTime}ms:`, {
+            recordCount: response.records?.length,
+            totalCount: response.pagination?.total_count
+          })
+
+          // Store in sessionStorage for TablePage to use
+          sessionStorage.setItem('preloaded_table_205', JSON.stringify({
+            data: response,
+            timestamp: Date.now()
+          }))
+        } catch (error) {
+          console.error('[Preload] Failed to preload table 205:', error)
+        }
+      }, 3000) // 3 second delay
+
+      return () => clearTimeout(timer)
+    }
+  }, [user])
 
   // Auto-expand job if we're on a job detail page
   useEffect(() => {

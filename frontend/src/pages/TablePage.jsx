@@ -335,6 +335,36 @@ export default function TablePage({ embedded = false }) {
       // For Table 205 (Price Books), load ALL items with full data
       const isTable205 = id === '205'
 
+      // Check for preloaded data in sessionStorage (Table 205 only)
+      if (isTable205 && !append) {
+        const preloadedData = sessionStorage.getItem('preloaded_table_205')
+        if (preloadedData) {
+          try {
+            const { data, timestamp } = JSON.parse(preloadedData)
+            const age = Date.now() - timestamp
+            const maxAge = 5 * 60 * 1000 // 5 minutes
+
+            if (age < maxAge) {
+              console.log(`[Preload] ✅ Using preloaded data (age: ${Math.round(age / 1000)}s)`)
+              setRecords(data.records || [])
+              setCurrentPage(data.pagination?.page || 1)
+              setTotalPages(data.pagination?.total_pages || 1)
+              setTotalCount(data.pagination?.total_count || 0)
+              setHasMore(false)
+              setLoading(false)
+              loadInProgressRef.current = false
+              return // Skip API call entirely!
+            } else {
+              console.log(`[Preload] ⚠️ Preloaded data expired (age: ${Math.round(age / 1000)}s), loading fresh data`)
+              sessionStorage.removeItem('preloaded_table_205')
+            }
+          } catch (error) {
+            console.error('[Preload] Failed to parse preloaded data:', error)
+            sessionStorage.removeItem('preloaded_table_205')
+          }
+        }
+      }
+
       if (append) {
         setLoadingMore(true)
       } else {
@@ -498,126 +528,21 @@ export default function TablePage({ embedded = false }) {
         }
       }
 
-      // Continue progress animation through the rendering phase
+      // Quick completion for all tables (data is already loaded)
       if (!append) {
-        const processingStartTime = Date.now()
         console.log('[PROGRESS SYNC] 🎨 Starting render phase - Progress: 80%, Phase: rendering')
         setLoadingProgress(80)
         setLoadingPhase('rendering')
 
-        // Multi-phase progress animation with status messages
-        // Table 205 (Price Books): Extended timeout for 5,285 items
-        // Phase 1: Rendering (80-90%) - ~5 seconds
-        // Phase 2: Setting up (91-95%) - ~5 seconds
-        // Phase 3: Loading views (96-98%) - ~10 seconds
-        // Phase 4: Finalizing (99-100%) - ~20 seconds (5s at 99%, 15s at 100% for React rendering and interactivity)
-        // Total: ~40 seconds for table 205 only
-        //
-        // Other tables: Standard timeout (~1 second total)
-        const isTable205 = id === '205'
-        let currentProgress = 80
-
-        if (!isTable205) {
-          // Quick loading for normal tables (< 1000 records)
-          setLoadingProgress(100)
-          const quickTimeout = setTimeout(() => {
-            console.log('[PROGRESS SYNC] 🎉 Quick load complete, dismissing loading screen')
-            setLoading(false)
-            loadInProgressRef.current = false
-          }, 1000) // Just 1 second for small tables
-          activeTimersRef.current.timeouts.push(quickTimeout)
-        } else {
-          // Extended multi-phase loading for table 205 (5,285 items)
-          // Phase 1: Rendering table
-          setLoadingPhaseMessage('Rendering table...')
-          const phase1Interval = setInterval(() => {
-            setLoadingProgress(prev => {
-              if (prev < 90) {
-                currentProgress = Math.min(prev + 1, 90)
-                const elapsed = Date.now() - processingStartTime
-                console.log(`[PROGRESS SYNC] 🎨 Rendering table - Progress: ${currentProgress}%, Elapsed: ${elapsed}ms`)
-                return currentProgress
-              }
-              return prev
-            })
-          }, 500) // 10 steps * 500ms = 5 seconds to reach 90%
-          activeTimersRef.current.intervals.push(phase1Interval)
-
-        // Phase 2: Setting up table (after 5 seconds)
-        const phase2Timeout = setTimeout(() => {
-          clearInterval(phase1Interval)
-          setLoadingPhase('setup')
-          setLoadingPhaseMessage('Setting up table...')
-          console.log('[PROGRESS SYNC] 🔧 Setting up table phase')
-
-          const phase2Interval = setInterval(() => {
-            setLoadingProgress(prev => {
-              if (prev < 95) {
-                currentProgress = Math.min(prev + 1, 95)
-                console.log(`[PROGRESS SYNC] 🔧 Setting up - Progress: ${currentProgress}%`)
-                return currentProgress
-              }
-              return prev
-            })
-          }, 1000) // 5 steps * 1000ms = 5 seconds to reach 95%
-          activeTimersRef.current.intervals.push(phase2Interval)
-
-          // Phase 3: Loading views (after 10 seconds total)
-          const phase3Timeout = setTimeout(() => {
-            clearInterval(phase2Interval)
-            setLoadingPhase('views')
-            setLoadingPhaseMessage('Loading views...')
-            console.log('[PROGRESS SYNC] 👁️ Loading views phase')
-
-            const phase3Interval = setInterval(() => {
-              setLoadingProgress(prev => {
-                if (prev < 98) {
-                  currentProgress = Math.min(prev + 1, 98)
-                  console.log(`[PROGRESS SYNC] 👁️ Loading views - Progress: ${currentProgress}%`)
-                  return currentProgress
-                }
-                return prev
-              })
-            }, 3333) // 3 steps * 3333ms = 10 seconds to reach 98%
-            activeTimersRef.current.intervals.push(phase3Interval)
-
-            // Phase 4: Finalizing (after 20 seconds total)
-            const phase4Timeout = setTimeout(() => {
-              clearInterval(phase3Interval)
-              setLoadingPhase('finalizing')
-              setLoadingPhaseMessage('Finalizing...')
-              console.log('[PROGRESS SYNC] ✨ Finalizing phase')
-
-              setLoadingProgress(99)
-
-              // Final completion (after 25 seconds total, then 4 more seconds at 100%)
-              const completionTimeout = setTimeout(() => {
-                const totalTime = Date.now() - startTime
-                console.log(`[PROGRESS SYNC] ✅ All phases complete - Total time: ${totalTime}ms`)
-                setLoadingProgress(100)
-
-                // Wait for React rendering to complete (additional 15 seconds at 100%)
-                const finalTimeout = setTimeout(() => {
-                  const finalTime = Date.now() - startTime
-                  console.log(`[PROGRESS SYNC] 🎉 Loading complete - Final time: ${finalTime}ms, Dismissing loading screen`)
-                  setLoading(false)
-                  loadInProgressRef.current = false
-                }, 15000) // 15 seconds at 100% to allow React rendering and interactivity setup to complete
-
-                activeTimersRef.current.timeouts.push(finalTimeout)
-              }, 5000) // 5 seconds at 99%
-
-              activeTimersRef.current.timeouts.push(completionTimeout)
-            }, 10000) // 10 seconds for views phase
-
-            activeTimersRef.current.timeouts.push(phase4Timeout)
-          }, 5000) // 5 seconds for setup phase
-
-          activeTimersRef.current.timeouts.push(phase3Timeout)
-        }, 5000) // 5 seconds for render phase
-
-          activeTimersRef.current.timeouts.push(phase2Timeout)
-        } // End of table 205 extended loading
+        // Fast loading for all tables - data is already fetched, just wait for React to render
+        setLoadingProgress(100)
+        const quickTimeout = setTimeout(() => {
+          const totalTime = Date.now() - startTime
+          console.log(`[PROGRESS SYNC] 🎉 Load complete in ${totalTime}ms, dismissing loading screen`)
+          setLoading(false)
+          loadInProgressRef.current = false
+        }, 500) // Just 500ms to allow React rendering to complete
+        activeTimersRef.current.timeouts.push(quickTimeout)
       } else {
         setLoadingMore(false)
       }
@@ -1112,7 +1037,12 @@ export default function TablePage({ embedded = false }) {
               // Reload table data when column schema is updated
               loadTable()
             }}
-            viewOnly={table.slug === 'pricebook-items' || table.database_table_name === 'pricebook_items'}
+            viewOnly={
+              table.slug === 'pricebook-items' ||
+              table.database_table_name === 'pricebook_items' ||
+              table.slug === 'contacts' ||
+              table.database_table_name === 'contacts'
+            }
             customActions={
               <div className="flex items-center gap-3">
                 {/* View Mode Switcher for Table 205 */}
