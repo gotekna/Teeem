@@ -81,27 +81,35 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        ActiveRecord::Base.transaction do
-          orders.each do |item|
-            view = current_user.table_views.find(item[:id])
-            view.update!(display_order: item[:display_order])
+        begin
+          ActiveRecord::Base.transaction do
+            orders.each do |item|
+              view = current_user.table_views.find(item[:id])
+              Rails.logger.info "[Reorder] Updating view #{view.id} (#{view.name}) from display_order #{view.display_order} to #{item[:display_order]}"
+              view.update!(display_order: item[:display_order])
+              Rails.logger.info "[Reorder] Successfully updated view #{view.id}"
+            end
           end
-        end
 
-        render json: {
-          success: true,
-          message: "Views reordered successfully"
-        }
-      rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "One or more views not found"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+          render json: {
+            success: true,
+            message: "Views reordered successfully"
+          }
+        rescue ActiveRecord::RecordNotFound => e
+          Rails.logger.error "[Reorder] RecordNotFound: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: {
+            success: false,
+            error: "One or more views not found"
+          }, status: :not_found
+        rescue => e
+          Rails.logger.error "[Reorder] Error: #{e.class.name}: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :unprocessable_entity
+        end
       end
 
       private
@@ -122,6 +130,7 @@ module Api
           :view_type,
           :is_default,
           :display_order,
+          :group_by_column,
           filters: [
             :interGroupLogic,
             cascadeFilters: [],
