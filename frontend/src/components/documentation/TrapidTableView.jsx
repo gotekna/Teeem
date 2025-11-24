@@ -582,7 +582,7 @@ export default function TrapidTableView({
 
         // IMPORTANT: Fetch fresh columns from API to avoid stale state during table transitions
         const freshColumnsData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
-        const freshColumns = freshColumnsData.columns || []
+        const freshColumns = freshColumnsData.table?.columns || []
 
         const allColumnsVisible = {}
         const columnOrder = ['select', 'actions']
