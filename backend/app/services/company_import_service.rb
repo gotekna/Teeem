@@ -1,3 +1,4 @@
+require 'creek'
 require 'roo'
 
 class CompanyImportService
