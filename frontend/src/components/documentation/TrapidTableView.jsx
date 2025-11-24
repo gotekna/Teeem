@@ -269,7 +269,7 @@ export default function TrapidTableView({
       }
 
       // Find all choice columns
-      const choiceColumns = columns.filter(col =>
+      const choiceColumns = COLUMNS.filter(col =>
         col.column_type === 'choice' || col.column_type === 'single_select' || col.column_type === 'dropdown'
       )
 
@@ -1878,7 +1878,7 @@ export default function TrapidTableView({
     const dataValues = [...new Set(entries.map(e => e[columnKey] || e.entry_type).filter(Boolean))]
 
     // For choice columns, also include available choices (even if not used in data)
-    const columnDef = columns.find(c => c.key === columnKey)
+    const columnDef = COLUMNS.find(c => c.key === columnKey)
     if (columnDef?.column_type === 'choice' && columnDef?.id) {
       const availableChoices = columnChoices[columnDef.id] || []
       // Use the order from API (columnChoices), not alphabetical sort
@@ -3254,7 +3254,7 @@ export default function TrapidTableView({
         // Choice/dropdown column with predefined options
         if (editingRowId === entry.id) {
           // Get available choices for this column
-          const columnDef = columns.find(c => c.key === columnKey)
+          const columnDef = COLUMNS.find(c => c.key === columnKey)
           const availableChoices = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
           console.log('🎯 [CASE CHOICE] Rendering dropdown for column', columnKey, 'columnDef.id:', columnDef?.id, 'with choices:', availableChoices)
 
@@ -3516,7 +3516,7 @@ export default function TrapidTableView({
         if (columnType === 'choice') {
           // Edit mode - show dropdown with available choices
           if (editingRowId === entry.id) {
-            const columnDef = columns.find(c => c.key === columnKey)
+            const columnDef = COLUMNS.find(c => c.key === columnKey)
             const availableChoices = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
             console.log('🎯 Rendering dropdown for column', columnKey, 'with choices:', availableChoices)
 
@@ -6271,7 +6271,7 @@ export default function TrapidTableView({
                                         setValidationError(null)
                                         setEditingRowId(entry.id);
                                         const safeEditingData = { ...entry }
-                                        columns.forEach(col => {
+                                        COLUMNS.forEach(col => {
                                           if (safeEditingData[col.key] === undefined) {
                                             safeEditingData[col.key] = ''
                                           }
@@ -6401,7 +6401,7 @@ export default function TrapidTableView({
                             setEditingRowId(entry.id);
                             // Populate with current values, defaulting undefined to '' to prevent controlled/uncontrolled warnings
                             const safeEditingData = { ...entry }
-                            columns.forEach(col => {
+                            COLUMNS.forEach(col => {
                               if (safeEditingData[col.key] === undefined) {
                                 safeEditingData[col.key] = ''
                               }
