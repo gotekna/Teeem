@@ -38,6 +38,9 @@ module Api
           result = builder.create_database_table
 
           if result[:success]
+            # Auto-create "Setup" view for the new table
+            create_default_setup_view(table) if current_user
+
             render json: {
               success: true,
               table: table_json(table)
@@ -207,6 +210,48 @@ module Api
           :description,
           :is_live
         )
+      end
+
+      # Auto-create the "Setup" view for new tables
+      # This view serves as the default template with all columns visible
+      def create_default_setup_view(table)
+        # Get all columns for the table
+        all_columns = table.columns.pluck(:column_name)
+
+        # Build visible columns hash (all columns visible by default)
+        visible_columns = {}
+        all_columns.each { |col| visible_columns[col] = true }
+        # Add system columns
+        visible_columns['select'] = true
+        visible_columns['actions'] = true
+
+        # Build column order array
+        column_order = ['select', 'actions'] + all_columns
+
+        # Create the Setup view
+        current_user.table_views.create!(
+          table_id: table.id,
+          name: 'Setup',
+          view_type: 'custom',
+          filters: {
+            interGroupLogic: 'OR',
+            cascadeFilters: [],
+            filterGroups: []
+          },
+          columns: {
+            visible: visible_columns,
+            order: column_order
+          },
+          sort_order: [],
+          group_by_column: nil,
+          is_default: true,
+          display_order: 0
+        )
+
+        Rails.logger.info "Created default 'Setup' view for table #{table.id} (#{table.name})"
+      rescue => e
+        Rails.logger.error "Failed to create Setup view for table #{table.id}: #{e.message}"
+        # Don't fail table creation if view creation fails
       end
 
       def table_json(table, include_columns: false, include_record_count: false, referencing_map: nil)
