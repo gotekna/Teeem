@@ -4542,62 +4542,6 @@ export default function TrapidTableView({
             </button>
           ))}
 
-          {/* Update View Button - appears when active view has been modified */}
-          {(() => {
-            if (hideUpdateViewButton) return null  // Skip if disabled via prop
-            if (!activeViewId) return null
-            const activeView = savedFilters.find(v => v.id === activeViewId)
-            if (!activeView) return null
-
-            // Don't show update button while:
-            // 1. Editing a filter value inline
-            // 2. The cascade dropdown is open (user may be working with filters)
-            // 3. User is typing a new view name (filterName has content)
-            if (editingFilterId || showCascadeDropdown || filterName.trim()) return null
-
-            // Check if filters or columns have changed
-            // Normalize both current and saved filters to include default operator
-            const normalizeFilter = (f) => ({
-              column: f.column,
-              value: f.value,
-              operator: f.operator || '=',
-              label: f.label
-            })
-            const currentFilters = JSON.stringify(cascadeFilters.map(normalizeFilter))
-            const savedFiltersStr = JSON.stringify(activeView.filters.map(normalizeFilter))
-            const filtersChanged = currentFilters !== savedFiltersStr
-            const columnsChanged = activeView.visibleColumns && JSON.stringify(visibleColumns) !== JSON.stringify(activeView.visibleColumns)
-            // Note: sortChanged is intentionally NOT included - sorting is temporary and doesn't trigger the update button
-            // const sortChanged = JSON.stringify(sortColumns) !== JSON.stringify(activeView.sortColumns || [])
-            const groupByChanged = groupByColumn !== (activeView.groupByColumn || null)
-
-            if (!filtersChanged && !columnsChanged && !groupByChanged) return null
-
-            return (
-              <button
-                onClick={async () => {
-                  const activeView = savedFilters.find(v => v.id === activeViewId)
-                  if (activeView) {
-                    await updateView(activeViewId, {
-                      ...activeView,
-                      filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                      filterGroups: [...filterGroups],
-                      interGroupLogic,
-                      visibleColumns: { ...visibleColumns },
-                      columnOrder: visibilityColumnOrder,
-                      sortColumns: [...sortColumns],
-                      groupByColumn
-                    })
-                  }
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white text-sm font-bold rounded-lg shadow-lg transition-all transform hover:scale-105 flex items-center gap-2 whitespace-nowrap animate-pulse"
-                title="Save changes to this view"
-              >
-                💾 Update "{activeView.name}"
-              </button>
-            )
-          })()}
-
             {/* Excel-style dropdown panel */}
             {showCascadeDropdown && (
               <>
@@ -4902,6 +4846,57 @@ export default function TrapidTableView({
                           </>
                         ) : (
                           <>
+                            {/* Update View Button - appears when active view has been modified */}
+                            {(() => {
+                              if (hideUpdateViewButton) return null  // Skip if disabled via prop
+                              if (!activeViewId) return null
+                              const activeView = savedFilters.find(v => v.id === activeViewId)
+                              if (!activeView) return null
+
+                              // Check if filters or columns have changed
+                              // Normalize both current and saved filters to include default operator
+                              const normalizeFilter = (f) => ({
+                                column: f.column,
+                                value: f.value,
+                                operator: f.operator || '=',
+                                label: f.label
+                              })
+                              const currentFilters = JSON.stringify(cascadeFilters.map(normalizeFilter))
+                              const savedFiltersStr = JSON.stringify(activeView.filters.map(normalizeFilter))
+                              const filtersChanged = currentFilters !== savedFiltersStr
+                              const columnsChanged = activeView.visibleColumns && JSON.stringify(visibleColumns) !== JSON.stringify(activeView.visibleColumns)
+                              const groupByChanged = groupByColumn !== (activeView.groupByColumn || null)
+
+                              if (!filtersChanged && !columnsChanged && !groupByChanged) return null
+
+                              return (
+                                <>
+                                  <button
+                                    onClick={async () => {
+                                      const activeView = savedFilters.find(v => v.id === activeViewId)
+                                      if (activeView) {
+                                        await updateView(activeViewId, {
+                                          ...activeView,
+                                          filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                                          filterGroups: [...filterGroups],
+                                          interGroupLogic,
+                                          visibleColumns: { ...visibleColumns },
+                                          columnOrder: visibilityColumnOrder,
+                                          sortColumns: [...sortColumns],
+                                          groupByColumn
+                                        })
+                                      }
+                                    }}
+                                    className="text-xs px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white font-bold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 animate-pulse"
+                                    title="Save changes to this view"
+                                  >
+                                    💾 Update "{activeView.name}"
+                                  </button>
+                                  <span className="text-xs opacity-75">You have unsaved changes</span>
+                                </>
+                              )
+                            })()}
+
                             <button
                               onClick={() => {
                                 // Load the Default view as the starting point for new views
