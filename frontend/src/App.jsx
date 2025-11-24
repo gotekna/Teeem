@@ -197,8 +197,12 @@ function App() {
         <Route path="/purchase-orders/:id/edit" element={<AppLayout><PurchaseOrderEditPage /></AppLayout>} />
         <Route path="/purchase-orders/:id" element={<AppLayout><PurchaseOrderDetailPage /></AppLayout>} />
         <Route path="/import" element={<AppLayout><ImportPage /></AppLayout>} />
+        {/* New format: /tables/{id}/{slug} - shows both ID and slug in URL */}
+        <Route path="/tables/:id/:slug" element={<AppLayout><TablePage /></AppLayout>} />
+        {/* Legacy format: /tables/{id} - backward compatibility */}
         <Route path="/tables/:id" element={<AppLayout><TablePage /></AppLayout>} />
         <Route path="/embed/tables/:id" element={<TablePage embedded />} />
+        <Route path="/embed/tables/:id/:slug" element={<TablePage embedded />} />
         <Route path="/tables/:tableId/columns" element={<ColumnEditorPage />} />
         <Route path="/designer" element={<AppLayout><DesignerHome /></AppLayout>} />
         <Route path="/designer/tables/new" element={<AppLayout><TableBuilder /></AppLayout>} />

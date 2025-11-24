@@ -31,7 +31,8 @@ export default function SavedViewsKanban({
   deleteView,
   hideHeader = false,
   searchParams,
-  setSearchParams
+  setSearchParams,
+  columns = []
 }) {
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [dragOverIndex, setDragOverIndex] = useState(null)
@@ -45,10 +46,9 @@ export default function SavedViewsKanban({
       const [draggedItem] = newFilters.splice(fromIndex, 1)
       newFilters.splice(toIndex, 0, draggedItem)
 
-      // Set isDefault on first item, clear on others
+      // Set display_order based on position (no default flag)
       const reordered = newFilters.map((v, idx) => ({
         ...v,
-        isDefault: idx === 0,
         display_order: idx
       }))
 
@@ -301,18 +301,6 @@ export default function SavedViewsKanban({
                 </div>
               )}
 
-              {/* Default star (auto-set for first card) */}
-              {isFirst && (
-                <div className="absolute -top-2 -left-2 z-10">
-                  <div className="relative">
-                    <StarIconSolid className="h-6 w-6 text-yellow-500 drop-shadow-md" />
-                    <div className="absolute -bottom-1 -right-1 bg-yellow-600 text-white text-[8px] font-bold px-1 rounded-full">
-                      DEFAULT
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Card content */}
               <div className="ml-6">
                 {/* View name with inline Edit/Delete buttons */}
@@ -395,7 +383,38 @@ export default function SavedViewsKanban({
                   <div className="flex items-center gap-1 text-xs px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
                     <EyeIcon className="h-3 w-3" />
                     <span className="font-medium">
-                      {view.visibleColumns ? Object.values(view.visibleColumns).filter(Boolean).length : 0} cols
+                      {(() => {
+                        // Get list of valid column keys for current table
+                        const validColumnKeys = columns.map(col => col.key).filter(key => key !== 'select' && key !== 'actions')
+
+                        // For active view, filter visibleColumns to only include columns that exist in current table
+                        const count = isActive && visibleColumns
+                          ? Object.entries(visibleColumns)
+                              .filter(([key, value]) => value === true && validColumnKeys.includes(key))
+                              .length
+                          : (view.visibleColumns
+                              ? Object.entries(view.visibleColumns)
+                                  .filter(([key, value]) => value === true && validColumnKeys.includes(key))
+                                  .length
+                              : 0)
+
+                        // Debug logging for active view
+                        if (isActive && visibleColumns) {
+                          const allTrueColumns = Object.entries(visibleColumns).filter(([k, v]) => v === true).map(([k]) => k)
+                          const validTrueColumns = allTrueColumns.filter(key => validColumnKeys.includes(key))
+                          const invalidColumns = allTrueColumns.filter(key => !validColumnKeys.includes(key))
+
+                          console.log('[SavedViewsKanban] Active view column count (FILTERED):', {
+                            viewName: view.name,
+                            count,
+                            validTrueColumns,
+                            invalidColumns: invalidColumns.length > 0 ? invalidColumns : 'none',
+                            validColumnKeys: validColumnKeys.slice(0, 5) + '... (' + validColumnKeys.length + ' total)'
+                          })
+                        }
+
+                        return count
+                      })()} cols
                     </span>
                   </div>
                 </div>

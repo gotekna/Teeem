@@ -117,7 +117,8 @@ export default function TrapidTableView({
   onColumnUpdate = null,  // NEW: Callback when a column schema is updated (to refresh table data)
   viewOnly = false,  // NEW: When true, only show View button in action column (no edit/delete)
   loadingMore = false,  // NEW: Shows loading indicator when more records are being fetched
-  preloadedViews = null  // NEW: Preloaded views from parent (skips API call if provided)
+  preloadedViews = null,  // NEW: Preloaded views from parent (skips API call if provided)
+  hideUpdateViewButton = false  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -425,12 +426,6 @@ export default function TrapidTableView({
   // Saved custom filters - load from localStorage on mount (per table)
   const [savedFilters, setSavedFilters] = useState([])
   const [filterName, setFilterName] = useState('') // Name for saving current filter combo
-
-  // Feature flag: Use kanban-style saved views (default: true)
-  const [useKanbanSavedViews, setUseKanbanSavedViews] = useState(() => {
-    const saved = localStorage.getItem('trapidTableUseKanbanSavedViews')
-    return saved !== null ? JSON.parse(saved) : true
-  })
 
   const [selectedCascadeColumn, setSelectedCascadeColumn] = useState('') // Currently selected column in cascade filter
   const [cascadeInputValue, setCascadeInputValue] = useState('') // Input value for text-based filters
@@ -4476,10 +4471,7 @@ export default function TrapidTableView({
           {savedFilters
             .filter(v => v.name !== '__default_setup__')
             .sort((a, b) => {
-              // Default view always first
-              if (a.isDefault) return -1
-              if (b.isDefault) return 1
-              // Then sort by display_order
+              // Sort by display_order only (no default priority)
               return (a.display_order || 0) - (b.display_order || 0)
             })
             .map((view) => (
@@ -4530,7 +4522,6 @@ export default function TrapidTableView({
                   : 'bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800'
               } text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap`}
             >
-              {view.isDefault && <span className="text-yellow-600 dark:text-yellow-400">⭐</span>}
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
@@ -4546,61 +4537,6 @@ export default function TrapidTableView({
               )}
             </button>
           ))}
-
-          {/* Update View Button - appears when active view has been modified */}
-          {(() => {
-            if (!activeViewId) return null
-            const activeView = savedFilters.find(v => v.id === activeViewId)
-            if (!activeView) return null
-
-            // Don't show update button while:
-            // 1. Editing a filter value inline
-            // 2. The cascade dropdown is open (user may be working with filters)
-            // 3. User is typing a new view name (filterName has content)
-            if (editingFilterId || showCascadeDropdown || filterName.trim()) return null
-
-            // Check if filters or columns have changed
-            // Normalize both current and saved filters to include default operator
-            const normalizeFilter = (f) => ({
-              column: f.column,
-              value: f.value,
-              operator: f.operator || '=',
-              label: f.label
-            })
-            const currentFilters = JSON.stringify(cascadeFilters.map(normalizeFilter))
-            const savedFiltersStr = JSON.stringify(activeView.filters.map(normalizeFilter))
-            const filtersChanged = currentFilters !== savedFiltersStr
-            const columnsChanged = activeView.visibleColumns && JSON.stringify(visibleColumns) !== JSON.stringify(activeView.visibleColumns)
-            // Note: sortChanged is intentionally NOT included - sorting is temporary and doesn't trigger the update button
-            // const sortChanged = JSON.stringify(sortColumns) !== JSON.stringify(activeView.sortColumns || [])
-            const groupByChanged = groupByColumn !== (activeView.groupByColumn || null)
-
-            if (!filtersChanged && !columnsChanged && !groupByChanged) return null
-
-            return (
-              <button
-                onClick={async () => {
-                  const activeView = savedFilters.find(v => v.id === activeViewId)
-                  if (activeView) {
-                    await updateView(activeViewId, {
-                      ...activeView,
-                      filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                      filterGroups: [...filterGroups],
-                      interGroupLogic,
-                      visibleColumns: { ...visibleColumns },
-                      columnOrder: visibilityColumnOrder,
-                      sortColumns: [...sortColumns],
-                      groupByColumn
-                    })
-                  }
-                }}
-                className="px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white text-sm font-bold rounded-lg shadow-lg transition-all transform hover:scale-105 flex items-center gap-2 whitespace-nowrap animate-pulse"
-                title="Save changes to this view"
-              >
-                💾 Update "{activeView.name}"
-              </button>
-            )
-          })()}
 
             {/* Excel-style dropdown panel */}
             {showCascadeDropdown && (
@@ -4906,6 +4842,57 @@ export default function TrapidTableView({
                           </>
                         ) : (
                           <>
+                            {/* Update View Button - appears when active view has been modified */}
+                            {(() => {
+                              if (hideUpdateViewButton) return null  // Skip if disabled via prop
+                              if (!activeViewId) return null
+                              const activeView = savedFilters.find(v => v.id === activeViewId)
+                              if (!activeView) return null
+
+                              // Check if filters or columns have changed
+                              // Normalize both current and saved filters to include default operator
+                              const normalizeFilter = (f) => ({
+                                column: f.column,
+                                value: f.value,
+                                operator: f.operator || '=',
+                                label: f.label
+                              })
+                              const currentFilters = JSON.stringify(cascadeFilters.map(normalizeFilter))
+                              const savedFiltersStr = JSON.stringify(activeView.filters.map(normalizeFilter))
+                              const filtersChanged = currentFilters !== savedFiltersStr
+                              const columnsChanged = activeView.visibleColumns && JSON.stringify(visibleColumns) !== JSON.stringify(activeView.visibleColumns)
+                              const groupByChanged = groupByColumn !== (activeView.groupByColumn || null)
+
+                              if (!filtersChanged && !columnsChanged && !groupByChanged) return null
+
+                              return (
+                                <>
+                                  <button
+                                    onClick={async () => {
+                                      const activeView = savedFilters.find(v => v.id === activeViewId)
+                                      if (activeView) {
+                                        await updateView(activeViewId, {
+                                          ...activeView,
+                                          filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                                          filterGroups: [...filterGroups],
+                                          interGroupLogic,
+                                          visibleColumns: { ...visibleColumns },
+                                          columnOrder: visibilityColumnOrder,
+                                          sortColumns: [...sortColumns],
+                                          groupByColumn
+                                        })
+                                      }
+                                    }}
+                                    className="text-xs px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white font-bold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 animate-pulse"
+                                    title="Save changes to this view"
+                                  >
+                                    💾 Update "{activeView.name}"
+                                  </button>
+                                  <span className="text-xs opacity-75">You have unsaved changes</span>
+                                </>
+                              )
+                            })()}
+
                             <button
                               onClick={() => {
                                 // Load the Default view as the starting point for new views
@@ -4957,7 +4944,6 @@ export default function TrapidTableView({
                   <div className="grid grid-cols-[340px,1fr,300px] gap-4 flex-1 min-h-0">
                     {/* COLUMN 1: Saved Views Section (moved to left) */}
                     <div className="border-r border-gray-200 dark:border-gray-700 pr-4 h-full overflow-hidden flex flex-col">
-                    {useKanbanSavedViews ? (
                       <div className="flex-1 min-h-0">
                         {/* Kanban-style drag-and-drop saved views - without its own header now */}
                         <SavedViewsKanban
@@ -4984,349 +4970,9 @@ export default function TrapidTableView({
                           hideHeader={true}
                           searchParams={searchParams}
                           setSearchParams={setSearchParams}
+                          columns={COLUMNS}
                         />
                       </div>
-                    ) : (
-                      <div className="space-y-3 overflow-y-auto">
-                      {/* OLD: Classic list-style saved views */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                          Saved Views
-                        </span>
-                        {savedFilters.length > 0 && (
-                          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] bg-green-600 text-white rounded-full text-[10px] font-bold">
-                            {savedFilters.length}
-                          </span>
-                        )}
-                      </div>
-
-                    {/* Update existing view button - only show if active view has been modified */}
-                    {(() => {
-                      if (!activeViewId || cascadeFilters.length === 0) return null
-                      const activeView = savedFilters.find(v => v.id === activeViewId)
-                      if (!activeView) return null
-
-                      // Check if filters or columns have changed
-                      const normalizeFilter = (f) => ({
-                        column: f.column,
-                        value: f.value,
-                        operator: f.operator || '=',
-                        label: f.label
-                      })
-                      const currentFilters = JSON.stringify(cascadeFilters.map(normalizeFilter))
-                      const savedFiltersStr = JSON.stringify(activeView.filters.map(normalizeFilter))
-                      const filtersChanged = currentFilters !== savedFiltersStr
-                      const columnsChanged = activeView.visibleColumns && JSON.stringify(visibleColumns) !== JSON.stringify(activeView.visibleColumns)
-
-                      if (!filtersChanged && !columnsChanged) return null
-
-                      return (
-                        <div className="pb-3 border-b border-gray-200 dark:border-gray-700">
-                          <button
-                            onClick={async () => {
-                              const activeView = savedFilters.find(v => v.id === activeViewId)
-                              if (activeView) {
-                                await updateView(activeViewId, {
-                                  ...activeView,
-                                  filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                  filterGroups: [...filterGroups],
-                                  interGroupLogic,
-                                  visibleColumns: { ...visibleColumns }
-                                })
-                              }
-
-                              // Clear active filters and view
-                              setCascadeFilters([])
-                              setFilterGroups([{ id: 'default', logic: 'AND' }])
-                              setInterGroupLogic('OR')
-                              setActiveViewId(null)
-                              setShowCascadeDropdown(false)
-                            }}
-                            className="w-full px-4 py-2 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white text-sm font-bold rounded-lg shadow-lg transition-all transform hover:scale-105 flex items-center justify-center gap-2 whitespace-nowrap"
-                            title="Save changes to this view and close"
-                          >
-                            💾 Update "{activeView.name}"
-                          </button>
-                        </div>
-                      )
-                    })()}
-
-                    {/* Save current view section - only show if there are active filters */}
-                    {cascadeFilters.length > 0 && (
-                      <div className="pb-3 border-b border-gray-200 dark:border-gray-700">
-                        <div className="mb-2">
-                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-                            Save Current View:
-                          </label>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex gap-1">
-                            <input
-                              type="text"
-                              value={filterName}
-                              onChange={(e) => {
-                                const value = e.target.value
-                                if (value.length <= 20) {
-                                  setFilterName(value)
-                                }
-                              }}
-                              placeholder="View name (max 20 chars)..."
-                              maxLength={20}
-                              className="flex-1 text-xs px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 dark:text-white placeholder-gray-400"
-                            />
-                            <span className="text-[10px] text-gray-400 self-center">{filterName.length}/20</span>
-                          </div>
-                          <div className="text-[10px] text-gray-500 dark:text-gray-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800">
-                            Will save: {cascadeFilters.length} filter{cascadeFilters.length !== 1 ? 's' : ''} + {COLUMNS.filter(col => col.key !== 'select' && defaultColumnsForNewViews[col.key] !== false).length} default column{COLUMNS.filter(col => col.key !== 'select' && defaultColumnsForNewViews[col.key] !== false).length !== 1 ? 's' : ''}
-                          </div>
-                          <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              id="cascade-saved-views-set-as-default-left"
-                              className="rounded border-gray-300"
-                            />
-                            <span>Set as default view</span>
-                          </label>
-                          <button
-                            onClick={async () => {
-                              if (!filterName.trim()) return
-                              const isDefault = document.getElementById('cascade-saved-views-set-as-default-left').checked
-
-                              // Use defaultColumnsForNewViews for saved view columns
-                              const columnsToSave = {}
-                              COLUMNS.filter(col => col.key !== 'select').forEach(col => {
-                                columnsToSave[col.key] = defaultColumnsForNewViews[col.key] !== false
-                              })
-
-                              // Save current column order (use visibility order or generate from current)
-                              const orderToSave = visibilityColumnOrder || COLUMNS.filter(col => col.key !== 'select').sort((a, b) => a.label.localeCompare(b.label)).map(c => c.key)
-
-                              const newView = await saveNewView({
-                                name: filterName.trim(),
-                                filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, value2: f.value2, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                filterGroups: [...filterGroups],
-                                interGroupLogic,
-                                visibleColumns: columnsToSave,
-                                columnOrder: orderToSave,
-                                isDefault: isDefault
-                              })
-
-                              if (newView) {
-                                setActiveViewId(newView.id)
-                                setFilterName('')
-                                document.getElementById('cascade-saved-views-set-as-default-left').checked = false
-                              }
-                            }}
-                            disabled={!filterName.trim()}
-                            className="w-full px-3 py-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-900/50 text-green-800 dark:text-green-200 text-xs font-medium rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            Save View
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Saved views list */}
-                    {savedFilters.length > 0 ? (
-                      <div>
-                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Your Saved Views ({savedFilters.length}):
-                        </label>
-                        <div className="space-y-1.5">
-                          {savedFilters.map((saved, index) => (
-                            <div
-                              key={saved.id}
-                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border ${
-                                activeViewId === saved.id
-                                  ? 'bg-blue-100 dark:bg-blue-900/40 border-blue-400 dark:border-blue-600'
-                                  : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-                              }`}
-                            >
-                              {editingViewId === saved.id ? (
-                                <>
-                                  <input
-                                    type="text"
-                                    defaultValue={saved.name}
-                                    maxLength={20}
-                                    onBlur={async (e) => {
-                                      const newName = e.target.value.trim()
-                                      if (newName && newName !== saved.name) {
-                                        // Update view name via API
-                                        await updateView(saved.id, { ...saved, name: newName })
-                                      }
-                                      setEditingViewId(null)
-                                    }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') e.target.blur()
-                                      if (e.key === 'Escape') setEditingViewId(null)
-                                    }}
-                                    autoFocus
-                                    className="flex-1 text-xs px-1 py-0.5 border border-blue-400 rounded bg-white dark:bg-gray-700 dark:text-white"
-                                  />
-                                </>
-                              ) : (
-                                <>
-                                  <div className="flex-1 flex flex-col gap-0.5">
-                                    <button
-                                      onClick={() => {
-                                        setCascadeFilters(saved.filters.map(f => ({
-                                          id: Date.now() + Math.random(),
-                                          column: f.column,
-                                          value: f.value,
-                                          value2: f.value2,
-                                          operator: f.operator || '=',
-                                          label: f.label,
-                                          groupId: f.groupId
-                                        })))
-                                        // Restore filter groups and inter-group logic
-                                        if (saved.filterGroups) {
-                                          setFilterGroups(saved.filterGroups)
-                                        }
-                                        if (saved.interGroupLogic) {
-                                          setInterGroupLogic(saved.interGroupLogic)
-                                        }
-                                        if (saved.visibleColumns) {
-                                          setVisibleColumns(saved.visibleColumns)
-                                        }
-                                        // Restore column order for both visibility panel and table
-                                        if (saved.columnOrder) {
-                                          setVisibilityColumnOrder(saved.columnOrder)
-                                          setColumnOrder(saved.columnOrder)
-                                        }
-                                        setActiveViewId(saved.id)
-                                        setShowCascadeDropdown(false)
-                                      }}
-                                      className="text-left text-xs text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 font-medium truncate"
-                                      title={`${saved.name} - ${saved.filters.length} filters, ${saved.visibleColumns ? Object.values(saved.visibleColumns).filter(Boolean).length : 0} columns visible`}
-                                    >
-                                      {saved.name === 'Default' && <span className="text-blue-600 dark:text-blue-400">📌 </span>}
-                                      {saved.isDefault && saved.name !== 'Default' && <span className="text-yellow-600 dark:text-yellow-400">⭐ </span>}
-                                      <span className={saved.name === 'Default' ? 'font-bold' : ''}>{saved.name}</span>
-                                    </button>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400">
-                                      {saved.filters.length} filter{saved.filters.length !== 1 ? 's' : ''} • {saved.visibleColumns ? Object.values(saved.visibleColumns).filter(Boolean).length : 0} column{saved.visibleColumns && Object.values(saved.visibleColumns).filter(Boolean).length !== 1 ? 's' : ''}
-                                    </div>
-                                  </div>
-                                  {/* Up/Down arrows for reordering */}
-                                  <div className="flex flex-col gap-0.5">
-                                    <button
-                                      onClick={() => {
-                                        if (index === 0) return
-                                        const newFilters = [...savedFilters]
-                                        const temp = newFilters[index]
-                                        newFilters[index] = newFilters[index - 1]
-                                        newFilters[index - 1] = temp
-                                        setSavedFilters(newFilters)
-                                      }}
-                                      disabled={index === 0}
-                                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed text-[10px] leading-none"
-                                      title="Move up"
-                                    >
-                                      ▲
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        if (index === savedFilters.length - 1) return
-                                        const newFilters = [...savedFilters]
-                                        const temp = newFilters[index]
-                                        newFilters[index] = newFilters[index + 1]
-                                        newFilters[index + 1] = temp
-                                        setSavedFilters(newFilters)
-                                      }}
-                                      disabled={index === savedFilters.length - 1}
-                                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-30 disabled:cursor-not-allowed text-[10px] leading-none"
-                                      title="Move down"
-                                    >
-                                      ▼
-                                    </button>
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      // Load the view for editing
-                                      setCascadeFilters(saved.filters.map(f => ({
-                                        id: Date.now() + Math.random(),
-                                        column: f.column,
-                                        value: f.value,
-                                        value2: f.value2,
-                                        operator: f.operator || '=',
-                                        label: f.label,
-                                        groupId: f.groupId
-                                      })))
-                                      // Restore filter groups and inter-group logic
-                                      if (saved.filterGroups) {
-                                        setFilterGroups(saved.filterGroups)
-                                      }
-                                      if (saved.interGroupLogic) {
-                                        setInterGroupLogic(saved.interGroupLogic)
-                                      }
-                                      if (saved.visibleColumns) {
-                                        setVisibleColumns(saved.visibleColumns)
-                                      }
-                                      // Restore column order for both visibility panel and table
-                                      if (saved.columnOrder) {
-                                        setVisibilityColumnOrder(saved.columnOrder)
-                                        setColumnOrder(saved.columnOrder)
-                                      }
-                                      setActiveViewId(saved.id)
-                                      // Don't close dropdown - keep it open so user can see what they're editing
-                                    }}
-                                    className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
-                                    title="Load view to edit filters and columns"
-                                  >
-                                    ✏️
-                                  </button>
-                                  {/* Hide rename, star, and delete buttons for Default system view */}
-                                  {saved.name !== 'Default' && (
-                                    <>
-                                      <button
-                                        onClick={() => setEditingViewId(saved.id)}
-                                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs"
-                                        title="Rename view"
-                                      >
-                                        📝
-                                      </button>
-                                      <button
-                                        onClick={async () => {
-                                          // Set this view as default via API
-                                          await updateView(saved.id, { ...saved, isDefault: true })
-                                        }}
-                                        className={`text-xs ${saved.isDefault ? 'opacity-50' : 'hover:text-yellow-600'}`}
-                                        title={saved.isDefault ? "Already default" : "Set as default"}
-                                        disabled={saved.isDefault}
-                                      >
-                                        ⭐
-                                      </button>
-                                      <button
-                                        onClick={async () => {
-                                          console.log('[DELETE BUTTON] Clicked! View ID:', saved.id, 'Name:', saved.name)
-                                          if (activeViewId === saved.id) {
-                                            console.log('[DELETE BUTTON] Clearing active view')
-                                            setActiveViewId(null)
-                                          }
-                                          console.log('[DELETE BUTTON] Calling deleteView...')
-                                          await deleteView(saved.id)
-                                          console.log('[DELETE BUTTON] deleteView completed')
-                                        }}
-                                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold"
-                                        title="Delete view"
-                                      >
-                                        ✕
-                                      </button>
-                                    </>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-3 bg-gray-50 dark:bg-gray-700/30 rounded">
-                        No saved views yet. Apply some filters and save them as a view!
-                      </div>
-                    )}
-                    </div>
-                    )}
                     {/* END COLUMN 1 (Saved Views) */}
                     </div>
 

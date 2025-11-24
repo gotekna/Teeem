@@ -71,6 +71,8 @@ module Api
 
       # POST /api/v1/table_views/reorder
       # Bulk update display_order for views after drag-and-drop
+      # GOLD STANDARD RULE: The view with display_order = 0 automatically becomes the default view
+      # (enforced by TableView model after_save callback)
       def reorder
         orders = params[:orders] # Array of {id: X, display_order: Y}
 
@@ -89,6 +91,8 @@ module Api
               view.update!(display_order: item[:display_order])
               Rails.logger.info "[Reorder] Successfully updated view #{view.id}"
             end
+            # Note: The view at display_order = 0 will automatically be set as default
+            # by the TableView model's ensure_first_view_is_default callback
           end
 
           render json: {

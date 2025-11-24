@@ -382,6 +382,7 @@ export default function GoldStandardTableTab() {
         enableSchemaEditor={true}
         onImport={handleImport}
         onExport={handleExport}
+        hideUpdateViewButton={true}
         customActions={
           <button
             onClick={handleAddNew}

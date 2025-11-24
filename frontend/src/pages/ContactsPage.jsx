@@ -1651,7 +1651,7 @@ export default function ContactsPage() {
                   </p>
                 </div>
                 <Link
-                  to="/tables/contacts"
+                  to="/tables/214/contacts"
                   className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg"
                 >
                   <TableCellsIcon className="h-4 w-4" />
@@ -1661,7 +1661,7 @@ export default function ContactsPage() {
             </div>
             <div className="flex-1 min-h-0 overflow-hidden bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
               <iframe
-                src="/embed/tables/contacts"
+                src="/embed/tables/214/contacts"
                 className="w-full h-full border-0"
                 title="Raw Contacts Table"
               />
