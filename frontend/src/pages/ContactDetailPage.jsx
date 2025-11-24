@@ -26,6 +26,9 @@ import ContactPersonsSection from '../components/contacts/ContactPersonsSection'
 import ContactMapCard from '../components/contacts/ContactMapCard'
 import ContactGroupsSection from '../components/contacts/ContactGroupsSection'
 import ContactRelationshipsSection from '../components/contacts/ContactRelationshipsSection'
+import PrimaryEmploymentSection from '../components/contacts/PrimaryEmploymentSection'
+import AdditionalCompaniesSection from '../components/contacts/AdditionalCompaniesSection'
+import JobsSection from '../components/contacts/JobsSection'
 import CommunicationsTab from '../components/communications/CommunicationsTab'
 import PortalUserSection from '../components/contacts/PortalUserSection'
 
@@ -1819,6 +1822,9 @@ export default function ContactDetailPage() {
       {/* Related Contacts Tab */}
       {activeTab === 'relationships' && (
         <div className="mt-6">
+          <PrimaryEmploymentSection contact={contact} />
+          <AdditionalCompaniesSection contact={contact} />
+          <JobsSection contact={contact} />
           <ContactRelationshipsSection contactId={id} isEditMode={isPageEditMode} />
         </div>
       )}

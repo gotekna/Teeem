@@ -4,15 +4,37 @@ import { LinkIcon, PencilIcon, TrashIcon, PlusIcon, CheckCircleIcon, XCircleIcon
 import { api } from '../../api'
 
 const RELATIONSHIP_TYPES = [
-  { value: 'previous_client', label: 'Previous Client' },
-  { value: 'parent_company', label: 'Parent Company' },
-  { value: 'subsidiary', label: 'Subsidiary' },
-  { value: 'partner', label: 'Partner' },
-  { value: 'referral', label: 'Referral' },
-  { value: 'supplier_alternate', label: 'Supplier Alternate' },
-  { value: 'related_project', label: 'Related Project' },
-  { value: 'family_member', label: 'Family Member' },
-  { value: 'other', label: 'Other' }
+  // Employment
+  { value: 'employee_of', label: 'Employee of', category: 'Employment' },
+  { value: 'contractor_for', label: 'Contractor for', category: 'Employment' },
+
+  // Company roles
+  { value: 'director_of', label: 'Director of', category: 'Company Roles' },
+  { value: 'shareholder_of', label: 'Shareholder of', category: 'Company Roles' },
+  { value: 'authorized_signatory_of', label: 'Authorized Signatory of', category: 'Company Roles' },
+  { value: 'beneficial_owner_of', label: 'Beneficial Owner of', category: 'Company Roles' },
+
+  // Trust roles
+  { value: 'trustee_of', label: 'Trustee of', category: 'Trust Roles' },
+  { value: 'beneficiary_of', label: 'Beneficiary of', category: 'Trust Roles' },
+  { value: 'appointor_of', label: 'Appointor of', category: 'Trust Roles' },
+
+  // Ownership
+  { value: 'owner_of', label: 'Owner of', category: 'Ownership' },
+  { value: 'co_owner_with', label: 'Co-owner with', category: 'Ownership' },
+
+  // Business relationships
+  { value: 'partner_in', label: 'Partner in', category: 'Business' },
+  { value: 'parent_company', label: 'Parent Company', category: 'Business' },
+  { value: 'subsidiary', label: 'Subsidiary', category: 'Business' },
+
+  // Legacy/General
+  { value: 'previous_client', label: 'Previous Client', category: 'General' },
+  { value: 'referral', label: 'Referral', category: 'General' },
+  { value: 'supplier_alternate', label: 'Supplier Alternate', category: 'General' },
+  { value: 'related_project', label: 'Related Project', category: 'General' },
+  { value: 'family_member', label: 'Family Member', category: 'General' },
+  { value: 'other', label: 'Other', category: 'General' }
 ]
 
 // Helper function to format relationship type as human-readable text
@@ -85,7 +107,10 @@ export default function ContactRelationshipsSection({ contactId, isEditMode }) {
   const startAdding = () => {
     setNewRelationship({
       related_contact_id: '',
-      relationship_type: 'other',
+      relationship_type: 'employee_of',
+      role_in_relationship: '',
+      ownership_percentage: null,
+      context: '',
       notes: ''
     })
     setContactSearchTerm('')
@@ -217,6 +242,53 @@ export default function ContactRelationshipsSection({ contactId, isEditMode }) {
             <option key={type.value} value={type.value}>{type.label}</option>
           ))}
         </select>
+      </div>
+
+      {/* Role in Relationship */}
+      <div>
+        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+          Role/Title (Optional)
+        </label>
+        <input
+          type="text"
+          placeholder="e.g., Managing Director, Sales Manager..."
+          value={relationship.role_in_relationship || ''}
+          onChange={(e) => onChange({ ...relationship, role_in_relationship: e.target.value })}
+          className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+        />
+      </div>
+
+      {/* Ownership Percentage (show for ownership types) */}
+      {['shareholder_of', 'owner_of', 'co_owner_with', 'beneficial_owner_of'].includes(relationship.relationship_type) && (
+        <div>
+          <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+            Ownership Percentage (Optional)
+          </label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            placeholder="e.g., 50.00"
+            value={relationship.ownership_percentage || ''}
+            onChange={(e) => onChange({ ...relationship, ownership_percentage: e.target.value })}
+            className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          />
+        </div>
+      )}
+
+      {/* Context */}
+      <div>
+        <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
+          Context (Optional)
+        </label>
+        <input
+          type="text"
+          placeholder="e.g., 123 Main St property, Project XYZ..."
+          value={relationship.context || ''}
+          onChange={(e) => onChange({ ...relationship, context: e.target.value })}
+          className="w-full px-3 py-2 text-sm rounded border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+        />
       </div>
 
       {/* Notes */}
