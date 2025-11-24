@@ -811,11 +811,11 @@ export default function TrapidTableView({
         v.id.toString() === viewParam
       )
 
-      // Handle legacy __default_setup__ -> redirect to actual default view (display_order = 0)
+      // Handle legacy __default_setup__ -> redirect to Setup view
       if (!view && viewParam === '__default_setup__') {
-        view = savedFilters.find(v => v.display_order === 0 || v.name === 'Setup')
+        view = savedFilters.find(v => v.name === 'Setup')
         if (view) {
-          console.log('[TrapidTableView] Redirecting legacy __default_setup__ to:', view.name)
+          console.log('[TrapidTableView] Redirecting legacy __default_setup__ to Setup view')
           // Update URL to use the correct view name
           const newParams = new URLSearchParams(searchParams)
           newParams.set('view', view.name.toLowerCase().replace(/\s+/g, '-'))
@@ -5267,12 +5267,8 @@ export default function TrapidTableView({
                             <button
                               onClick={() => {
                                 // Load the Setup view as the starting point for new views
-                                // Look for the setup view: either display_order = 0, __default_setup__, or Setup
-                                const setupView = savedFilters.find(v =>
-                                  v.display_order === 0 ||
-                                  v.name === '__default_setup__' ||
-                                  v.name === 'Setup'
-                                )
+                                // The Setup view is the standard template with all columns visible
+                                const setupView = savedFilters.find(v => v.name === 'Setup')
                                 if (setupView) {
                                   // Load Setup view's configuration
                                   loadViewState(setupView)

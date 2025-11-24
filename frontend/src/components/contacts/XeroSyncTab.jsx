@@ -13,6 +13,11 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [syncError, setSyncError] = useState(null)
   const [purchaseOrders, setPurchaseOrders] = useState([])
   const [xeroInvoices, setXeroInvoices] = useState([])
+  const [xeroCreditNotes, setXeroCreditNotes] = useState([])
+  const [xeroPayments, setXeroPayments] = useState([])
+  const [xeroQuotes, setXeroQuotes] = useState([])
+  const [contactPersons, setContactPersons] = useState([])
+  const [contactGroups, setContactGroups] = useState([])
   const [loadingTransactions, setLoadingTransactions] = useState(false)
   const [transactionsError, setTransactionsError] = useState(null)
 
@@ -104,11 +109,54 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         setPurchaseOrders(poResponse.purchase_orders || [])
       }
 
-      // Fetch Xero Invoices if contact is linked
+      // Fetch Contact Persons from Trapid
+      const personsResponse = await api.get(`/api/v1/contacts/${contact.id}/contact_persons`)
+      if (personsResponse.success) {
+        setContactPersons(personsResponse.contact_persons || [])
+      }
+
+      // Fetch Contact Groups from Trapid
+      const groupsResponse = await api.get(`/api/v1/contacts/${contact.id}/contact_groups`)
+      if (groupsResponse.success) {
+        setContactGroups(groupsResponse.contact_groups || [])
+      }
+
+      // Fetch Xero data if contact is linked
       if (contact?.xero_id) {
-        const xeroResponse = await api.get(`/api/v1/xero/invoices?contact_id=${contact.xero_id}`)
-        if (xeroResponse.success) {
-          setXeroInvoices(xeroResponse.data?.invoices || [])
+        // Invoices
+        const invoicesResponse = await api.get(`/api/v1/xero/invoices?contact_id=${contact.xero_id}`)
+        if (invoicesResponse.success) {
+          setXeroInvoices(invoicesResponse.data?.invoices || [])
+        }
+
+        // Credit Notes
+        try {
+          const creditNotesResponse = await api.get(`/api/v1/xero/credit_notes?contact_id=${contact.xero_id}`)
+          if (creditNotesResponse.success) {
+            setXeroCreditNotes(creditNotesResponse.data?.credit_notes || [])
+          }
+        } catch (e) {
+          console.log('Credit Notes endpoint not available yet')
+        }
+
+        // Payments
+        try {
+          const paymentsResponse = await api.get(`/api/v1/xero/payments?contact_id=${contact.xero_id}`)
+          if (paymentsResponse.success) {
+            setXeroPayments(paymentsResponse.data?.payments || [])
+          }
+        } catch (e) {
+          console.log('Payments endpoint not available yet')
+        }
+
+        // Quotes
+        try {
+          const quotesResponse = await api.get(`/api/v1/xero/quotes?contact_id=${contact.xero_id}`)
+          if (quotesResponse.success) {
+            setXeroQuotes(quotesResponse.data?.quotes || [])
+          }
+        } catch (e) {
+          console.log('Quotes endpoint not available yet')
         }
       }
     } catch (error) {
@@ -229,6 +277,25 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         </div>
       )}
 
+      {/* Entity Type Warning */}
+      {contact?.entity_type === 'person' && (
+        <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
+          <div className="flex items-start gap-3">
+            <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                ⚠️ Persons Cannot Be Linked to Xero
+              </p>
+              <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                Xero only supports <strong>Company</strong> or <strong>Sole Trader</strong> contacts.
+                To sync this contact with Xero, change the entity_type to "company" first.
+                Individual people should be added as Contact Persons under a company contact.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Link Status */}
       <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <div className="flex items-center gap-2">
@@ -236,16 +303,351 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           <p className="text-sm text-blue-800 dark:text-blue-300">
             {contact?.xero_id ? (
               <>
-                <span className="font-semibold">Linked to Xero</span> • Contact ID: {contact.xero_id}
+                <span className="font-semibold">✅ Linked to Xero</span> • Contact ID: {contact.xero_id}
               </>
             ) : (
               <>
-                <span className="font-semibold">Not Linked</span> • Use the "Link Xero Contact" button in the Overview tab to connect this contact
+                <span className="font-semibold">❌ Not Linked</span> • Use the "Link Xero Contact" button in the Overview tab to connect this contact
               </>
             )}
           </p>
         </div>
       </div>
+
+      {/* Connection Guide */}
+      <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+          📋 How Trapid Connects to Xero
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">🔗 Contact Fields</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Name, email, phone, tax number, bank details sync bidirectionally via <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">xero_id</code>
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">📝 Purchase Orders</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Trapid POs link to Xero Bills/Invoices via <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">xero_invoice_id</code>. Payment status syncs from Xero.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">🧾 Invoices & Bills</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                All Xero invoices for this contact are fetched via Xero API using the <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">ContactID</code> filter.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">💳 Credit Notes & Payments</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Refunds, adjustments, and payment history fetched from Xero API in real-time.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">💰 Financial Balances</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                AR/AP balances (outstanding/overdue) sync from Xero's contact summary data.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">👥 Contact Persons</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                People at a company (FirstName, LastName, Email) stored in <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">contact_persons</code> table.
+              </p>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">🏷️ Contact Groups</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Xero categories/segments stored in <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">contact_groups</code> for reporting.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Transaction History (Purchase Orders & Invoices) */}
+      {contact['is_supplier?'] && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Transaction History
+          </h3>
+
+          {loadingTransactions ? (
+            <div className="flex items-center justify-center p-8 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 dark:border-indigo-400"></div>
+              <span className="ml-3 text-gray-600 dark:text-gray-400">Loading transactions...</span>
+            </div>
+          ) : transactionsError ? (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <p className="text-sm text-red-800 dark:text-red-300">{transactionsError}</p>
+            </div>
+          ) : (
+            <>
+              {/* Trapid Purchase Orders */}
+              <div className="mb-6">
+                <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
+                  Purchase Orders in Trapid ({purchaseOrders.length})
+                </h4>
+                {purchaseOrders.length > 0 ? (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">PO Number</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount Paid (Xero)</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Xero Link</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">How It Links</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Ordered Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {purchaseOrders.slice(0, 10).map((po) => (
+                          <tr key={po.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{po.purchase_order_number}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                po.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                po.status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
+                                'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                              }`}>
+                                {po.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatCurrency(po.total)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatCurrency(po.xero_amount_paid)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {po.xero_invoice_id ? (
+                                <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                                  <CheckCircleIcon className="h-4 w-4" />
+                                  <span className="font-mono text-xs">{po.xero_invoice_id.substring(0, 8)}...</span>
+                                </span>
+                              ) : (
+                                <span className="text-gray-400">Not Linked</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
+                              <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">xero_invoice_id</code> field stores Xero Bill/Invoice ID
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(po.ordered_date)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {purchaseOrders.length > 10 && (
+                      <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Showing 10 of {purchaseOrders.length} purchase orders
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">No purchase orders found for this supplier</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Xero Invoices */}
+              {contact?.xero_id && (
+                <div className="mb-6">
+                  <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
+                    Invoices in Xero ({xeroInvoices.length})
+                  </h4>
+                  {xeroInvoices.length > 0 ? (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-800/50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Invoice Number</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount Due</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">How It Links</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                          {xeroInvoices.slice(0, 10).map((invoice, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{invoice.InvoiceNumber || '-'}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{invoice.Type}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  invoice.Status === 'PAID' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                  invoice.Status === 'DRAFT' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
+                                  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                }`}>
+                                  {invoice.Status}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatCurrency(invoice.Total)}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatCurrency(invoice.AmountDue)}</td>
+                              <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
+                                Fetched from Xero API via <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">contact.xero_id</code> filter
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(invoice.Date)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {xeroInvoices.length > 10 && (
+                        <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Showing 10 of {xeroInvoices.length} Xero invoices
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <p className="text-sm text-gray-600 dark:text-gray-400">No Xero invoices found for this contact</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Xero Credit Notes */}
+              {contact?.xero_id && xeroCreditNotes.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
+                    Credit Notes in Xero ({xeroCreditNotes.length})
+                  </h4>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Credit Note Number</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">How It Links</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {xeroCreditNotes.slice(0, 10).map((cn, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{cn.CreditNoteNumber || '-'}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{cn.Type}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                                {cn.Status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatCurrency(cn.Total)}</td>
+                            <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
+                              Fetched from Xero API (Refunds/Adjustments)
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(cn.Date)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Xero Payments */}
+              {contact?.xero_id && xeroPayments.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
+                    Payments in Xero ({xeroPayments.length})
+                  </h4>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Payment Date</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">How It Links</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {xeroPayments.slice(0, 10).map((payment, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatDate(payment.Date)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400">{formatCurrency(payment.Amount)}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{payment.Reference || '-'}</td>
+                            <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
+                              Linked to invoices via <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">InvoiceID</code>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Persons */}
+              {contactPersons.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
+                    Contact Persons in Trapid ({contactPersons.length})
+                  </h4>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">First Name</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Last Name</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Email</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">How It Links</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {contactPersons.map((person, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{person.first_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{person.last_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{person.email || '-'}</td>
+                            <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
+                              Stored in <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">contact_persons</code> table, synced from Xero
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Groups */}
+              {contactGroups.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
+                    Contact Groups in Trapid ({contactGroups.length})
+                  </h4>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex flex-wrap gap-2">
+                      {contactGroups.map((group, idx) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300"
+                        >
+                          {group.name}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs text-gray-600 dark:text-gray-400">
+                      <strong>How It Links:</strong> Groups are stored in <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">contact_groups</code> table, synced from Xero for categorization/reporting
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Field Mappings Table */}
       {fieldMappings.map((section, idx) => (

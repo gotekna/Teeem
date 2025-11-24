@@ -8,6 +8,12 @@ class TableView < ApplicationRecord
   # Ensure only one default view per user per table
   validates :is_default, uniqueness: { scope: [:user_id, :table_id] }, if: :is_default?
 
+  # Protect the "Setup" view from being renamed
+  validate :prevent_setup_view_rename, on: :update
+
+  # Prevent deletion of "Setup" view
+  before_destroy :prevent_setup_view_deletion
+
   # Serialize JSON fields
   attribute :filters, :json, default: {}
   attribute :columns, :json, default: []
@@ -76,6 +82,21 @@ class TableView < ApplicationRecord
                .where.not(id: first_view.id)
                .where(is_default: true)
                .update_all(is_default: false)
+    end
+  end
+
+  # Prevent renaming the "Setup" view (it's the standard template)
+  def prevent_setup_view_rename
+    if name_was == 'Setup' && name_changed? && name != 'Setup'
+      errors.add(:name, "The 'Setup' view cannot be renamed as it's the default template for new views")
+    end
+  end
+
+  # Prevent deletion of the "Setup" view
+  def prevent_setup_view_deletion
+    if name == 'Setup'
+      errors.add(:base, "The 'Setup' view cannot be deleted as it's required as the template for new views")
+      throw(:abort)
     end
   end
 end

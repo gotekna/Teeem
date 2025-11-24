@@ -181,6 +181,12 @@ export default function SavedViewsKanban({
   }
 
   const handleDeleteView = async (view) => {
+    // Protect the "Setup" view from deletion
+    if (view.name === 'Setup') {
+      alert('The "Setup" view cannot be deleted as it\'s required as the template for new views.')
+      return
+    }
+
     if (confirm(`Delete view "${view.name}"?`)) {
       // Call API to delete from database
       // deleteView handles updating savedFilters in parent component
@@ -236,6 +242,15 @@ export default function SavedViewsKanban({
                   }}
                   onBlur={(e) => {
                     const newName = e.target.value.trim()
+                    const editingView = savedFilters.find(v => v.id === editingViewId)
+
+                    // Protect "Setup" view from being renamed
+                    if (editingView && editingView.name === 'Setup' && newName !== 'Setup') {
+                      alert('The "Setup" view cannot be renamed as it\'s the default template for new views.')
+                      setEditingViewId(null)
+                      return
+                    }
+
                     if (newName) {
                       setSavedFilters(savedFilters.map(v =>
                         v.id === editingViewId ? { ...v, name: newName } : v
@@ -375,8 +390,8 @@ export default function SavedViewsKanban({
                     >
                       <PencilIcon className="h-3.5 w-3.5" />
                     </button>
-                    {/* Delete button - only show for non-Default views */}
-                    {view.name !== 'Default' && (
+                    {/* Delete button - only show for non-Default and non-Setup views */}
+                    {view.name !== 'Default' && view.name !== 'Setup' && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
