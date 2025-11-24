@@ -273,10 +273,22 @@ namespace :trapid do
           has_saved_views: false,
           api_endpoint: '/api/v1/price_histories',
           database_table_name: 'price_histories'
+        },
+        {
+          id: 223,  # Fixed ID - new Gold Standard table
+          name: 'Table Views',
+          slug: 'table-views',
+          icon: '👁️',
+          file_location: 'pages/TableViewsPage.jsx',
+          model_class: 'TableView',
+          description: 'Saved table views with filters, columns, and sort settings',
+          has_saved_views: false,  # Views table doesn't need its own saved views
+          api_endpoint: '/api/v1/table_views',
+          database_table_name: 'table_views'
         }
       ]
 
-      puts "Seeding #{system_tables.count} system tables with FIXED IDs (199-221)..."
+      puts "Seeding #{system_tables.count} system tables with FIXED IDs (199-223)..."
       created = 0
       updated = 0
       skipped = 0
