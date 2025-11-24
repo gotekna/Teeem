@@ -32,7 +32,7 @@ namespace :trapid do
           description: 'Rules and standards documentation (category: bible)',
           has_saved_views: true,
           api_endpoint: '/api/v1/trinity?category=bible',
-          database_table_name: 'trinity_entries'
+          database_table_name: 'trinity'
         },
         {
           id: 202,  # Fixed ID - matches production
@@ -44,7 +44,7 @@ namespace :trapid do
           description: 'How-to guides and implementation patterns (category: teacher)',
           has_saved_views: true,
           api_endpoint: '/api/v1/trinity?category=teacher',
-          database_table_name: 'trinity_entries'
+          database_table_name: 'trinity'
         },
         {
           id: 203,  # Fixed ID - matches production
@@ -56,7 +56,7 @@ namespace :trapid do
           description: 'Bug history and architecture decisions (category: lexicon)',
           has_saved_views: true,
           api_endpoint: '/api/v1/trinity?category=lexicon',
-          database_table_name: 'trinity_entries'
+          database_table_name: 'trinity'
         },
         {
           id: 204,  # Fixed ID - matches production
@@ -273,10 +273,22 @@ namespace :trapid do
           has_saved_views: false,
           api_endpoint: '/api/v1/price_histories',
           database_table_name: 'price_histories'
+        },
+        {
+          id: 223,  # Fixed ID - new Gold Standard table
+          name: 'Table Views',
+          slug: 'table-views',
+          icon: '👁️',
+          file_location: 'pages/TableViewsPage.jsx',
+          model_class: 'TableView',
+          description: 'Saved table views with filters, columns, and sort settings',
+          has_saved_views: false,  # Views table doesn't need its own saved views
+          api_endpoint: '/api/v1/table_views',
+          database_table_name: 'table_views'
         }
       ]
 
-      puts "Seeding #{system_tables.count} system tables with FIXED IDs (199-221)..."
+      puts "Seeding #{system_tables.count} system tables with FIXED IDs (199-223)..."
       created = 0
       updated = 0
       skipped = 0
@@ -310,7 +322,8 @@ namespace :trapid do
           # Update existing table with system fields
           updates_needed = table.table_type != 'system' ||
                           table.model_class != table_data[:model_class] ||
-                          table.api_endpoint != table_data[:api_endpoint]
+                          table.api_endpoint != table_data[:api_endpoint] ||
+                          table.database_table_name != table_data[:database_table_name]
 
           if updates_needed
             table.update!(
@@ -320,7 +333,8 @@ namespace :trapid do
               file_location: table_data[:file_location],
               has_saved_views: table_data[:has_saved_views],
               icon: table_data[:icon],
-              description: table_data[:description]
+              description: table_data[:description],
+              database_table_name: table_data[:database_table_name]
             )
             updated += 1
             puts "  Updated: #{table_data[:name]} (ID: #{table.id})"
@@ -330,13 +344,14 @@ namespace :trapid do
           end
         else
           # Create new system table with FIXED ID
-          unique_db_name = "system_#{table_data[:slug].gsub('-', '_')}"
+          # Use the database_table_name from config (not generated)
+          db_name = table_data[:database_table_name]
 
           # Use raw SQL to insert with specific ID
           table = Table.new(
             name: table_data[:name],
             slug: table_data[:slug],
-            database_table_name: unique_db_name,
+            database_table_name: db_name,
             icon: table_data[:icon],
             description: table_data[:description],
             table_type: 'system',
