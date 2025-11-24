@@ -332,6 +332,9 @@ export default function TablePage({ embedded = false }) {
     let progressInterval = null
 
     try {
+      // For Table 205 (Price Books), load ALL items with full data
+      const isTable205 = id === '205'
+
       if (append) {
         setLoadingMore(true)
       } else {
@@ -340,11 +343,11 @@ export default function TablePage({ embedded = false }) {
         loadInProgressRef.current = true
         // Now clear any existing timers
         clearAllTimers()
-        setLoading(true)
+        // Only show loading screen for table 205 (large dataset)
+        if (isTable205) {
+          setLoading(true)
+        }
       }
-
-      // For Table 205 (Price Books), load ALL items with full data
-      const isTable205 = id === '205'
       const perPage = isTable205 && !append ? 10000 : PAGE_SIZE // Load all items for table 205
       const fieldsParam = '' // Always load full fields
 
@@ -358,28 +361,30 @@ export default function TablePage({ embedded = false }) {
         fieldsParam
       })
 
-      // Reset progress at start and set to loading phase
-      if (!append) {
+      // Reset progress at start and set to loading phase (only for table 205)
+      if (!append && isTable205) {
         console.log('[PROGRESS SYNC] 🚀 Starting load - Progress: 0%, Phase: loading')
         setLoadingProgress(0)
         setLoadingPhase('loading')
       }
 
-      // Start simulated progress - slower and more realistic for large datasets
+      // Start simulated progress - only for table 205 (large dataset)
       let simulatedProgress = 0
       const startTime = Date.now()
-      progressInterval = setInterval(() => {
-        simulatedProgress += Math.random() * 8 + 3 // 3-11% per tick
-        if (simulatedProgress < 70) {
-          const elapsed = Date.now() - startTime
-          console.log(`[PROGRESS SYNC] ⬇️ Downloading - Progress: ${Math.round(simulatedProgress)}%, Elapsed: ${elapsed}ms`)
-          setLoadingProgress(Math.min(simulatedProgress, 70))
-        }
-      }, 200) // Update every 200ms
+      if (isTable205) {
+        progressInterval = setInterval(() => {
+          simulatedProgress += Math.random() * 8 + 3 // 3-11% per tick
+          if (simulatedProgress < 70) {
+            const elapsed = Date.now() - startTime
+            console.log(`[PROGRESS SYNC] ⬇️ Downloading - Progress: ${Math.round(simulatedProgress)}%, Elapsed: ${elapsed}ms`)
+            setLoadingProgress(Math.min(simulatedProgress, 70))
+          }
+        }, 200) // Update every 200ms
 
-      // Track the interval for cleanup
-      if (!append) {
-        activeTimersRef.current.intervals.push(progressInterval)
+        // Track the interval for cleanup
+        if (!append) {
+          activeTimersRef.current.intervals.push(progressInterval)
+        }
       }
 
       // Option 3: Load views in parallel with records (for performance optimization)
@@ -410,19 +415,21 @@ export default function TablePage({ embedded = false }) {
         }
       })
 
-      // Clear interval now that data is received
+      // Clear interval now that data is received (only for table 205)
       if (progressInterval) {
         clearInterval(progressInterval)
         progressInterval = null
       }
 
-      const downloadEndTime = Date.now()
-      console.log(`[PROGRESS SYNC] ✅ Download complete - Time: ${downloadEndTime - startTime}ms, Records: ${response.records?.length}`)
+      if (isTable205) {
+        const downloadEndTime = Date.now()
+        console.log(`[PROGRESS SYNC] ✅ Download complete - Time: ${downloadEndTime - startTime}ms, Records: ${response.records?.length}`)
 
-      // Show processing phase (parsing JSON)
-      console.log('[PROGRESS SYNC] 🔄 Processing data - Progress: 75%, Phase: processing')
-      setLoadingPhase('processing')
-      setLoadingProgress(75)
+        // Show processing phase (parsing JSON)
+        console.log('[PROGRESS SYNC] 🔄 Processing data - Progress: 75%, Phase: processing')
+        setLoadingPhase('processing')
+        setLoadingProgress(75)
+      }
 
       const loadEndTime = performance.now()
       console.log('[Progressive Loading] Response received:', {
