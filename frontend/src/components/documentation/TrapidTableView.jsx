@@ -539,8 +539,27 @@ export default function TrapidTableView({
           if (!preloadedViews) {
             console.log('[Load Views] Loaded saved views:', data.views.length, 'views')
           }
+
+          // Validate that all views belong to the current table
+          const validViews = data.views.filter(view => {
+            if (view.table_id !== tableIdNumeric) {
+              console.warn('[Load Views] ⚠️ Filtering out view from wrong table:', {
+                viewId: view.id,
+                viewName: view.name,
+                viewTableId: view.table_id,
+                currentTableId: tableIdNumeric
+              })
+              return false
+            }
+            return true
+          })
+
+          if (validViews.length !== data.views.length) {
+            console.warn(`[Load Views] Filtered out ${data.views.length - validViews.length} views from wrong table`)
+          }
+
           // Convert API format to frontend format
-          const converted = data.views.map(view => {
+          const converted = validViews.map(view => {
             const filters = view.filters || {}
             const columns = view.columns || {}
 
