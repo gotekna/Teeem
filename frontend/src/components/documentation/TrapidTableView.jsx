@@ -538,10 +538,44 @@ export default function TrapidTableView({
             }
           })
           setSavedFilters(converted)
+
+          // Auto-create "Default" view if it doesn't exist
+          const hasDefaultView = converted.some(v => v.name === 'Default')
+          if (!hasDefaultView) {
+            console.log('[Load Views] No Default view found, creating one')
+            await createDefaultView()
+          }
         }
       } catch (error) {
         console.error('Error loading saved views:', error)
         setSavedFilters([])
+      }
+    }
+
+    // Helper function to create the Default view with all columns selected
+    const createDefaultView = async () => {
+      try {
+        const allColumnsVisible = {}
+        COLUMNS.forEach(col => {
+          if (col.key !== 'select' && col.key !== 'actions') {
+            allColumnsVisible[col.key] = true
+          }
+        })
+
+        const defaultView = await saveNewView({
+          name: 'Default',
+          filters: [],
+          filterGroups: [{ id: 'default', logic: 'AND' }],
+          interGroupLogic: 'OR',
+          visibleColumns: allColumnsVisible,
+          columnOrder: COLUMNS.map(c => c.key),
+          sortColumns: [],
+          isDefault: true // Mark as system default view
+        })
+
+        console.log('[Load Views] Created Default view:', defaultView)
+      } catch (error) {
+        console.error('[Load Views] Error creating Default view:', error)
       }
     }
 
@@ -714,19 +748,7 @@ export default function TrapidTableView({
   }
   const [defaultColumnsForNewViews, setDefaultColumnsForNewViews] = useState(getInitialDefaultColumns())
 
-  // Load default column setup from database when saved views are loaded
-  useEffect(() => {
-    const setupView = savedFilters.find(v => v.name === '__default_setup__')
-    if (setupView && setupView.visibleColumns) {
-      // Merge with defaults to handle new columns
-      const defaultVisible = getDefaultVisibleColumns()
-      const merged = {}
-      Object.keys(defaultVisible).forEach(key => {
-        merged[key] = key in setupView.visibleColumns ? setupView.visibleColumns[key] : defaultVisible[key]
-      })
-      setDefaultColumnsForNewViews(merged)
-    }
-  }, [savedFilters])
+  // Removed: Old __default_setup__ system
 
   // Sync columnOrder and visibleColumns when COLUMNS change (e.g., new columns added from API)
   // This ensures new columns appear in the table instead of being hidden due to stale localStorage
@@ -806,85 +828,7 @@ export default function TrapidTableView({
     }
   }, [columnShowFilters, tableId])
 
-  // Save default columns to database whenever they change (per table, per user)
-  useEffect(() => {
-    const saveDefaultSetup = async () => {
-      if (!tableIdNumeric || !defaultColumnsForNewViews) return
-
-      try {
-        console.log('[Default Setup] Saving to database:', { defaultColumnsForNewViews, tableId: tableIdNumeric })
-
-        // Also save to localStorage as backup
-        localStorage.setItem(`trapid-default-columns-${tableId}`, JSON.stringify(defaultColumnsForNewViews))
-
-        // Check API directly for existing setup (don't rely on savedFilters which might not be loaded yet)
-        const existingViews = await api.get('/api/v1/table_views', {
-          params: { table_id: tableIdNumeric }
-        })
-
-        const existingSetup = existingViews.success && existingViews.views
-          ? existingViews.views.find(v => v.name === '__default_setup__')
-          : null
-
-        console.log('[Default Setup] Existing setup from API:', existingSetup?.id)
-
-        const setupData = {
-          name: '__default_setup__',
-          view_type: 'system',
-          filters: {},
-          columns: {
-            visible: defaultColumnsForNewViews,
-            order: []
-          },
-          sort_order: [],
-          is_default: false
-        }
-        console.log('[Default Setup] Setup data to save:', setupData)
-
-        if (existingSetup) {
-          // Update existing default setup
-          const response = await api.put(`/api/v1/table_views/${existingSetup.id}`, {
-            table_view: setupData
-          })
-          console.log('[Default Setup] Updated existing setup:', response)
-        } else {
-          // Create new default setup view
-          const response = await api.post('/api/v1/table_views', {
-            table_view: {
-              ...setupData,
-              table_id: tableIdNumeric
-            }
-          })
-          console.log('[Default Setup] Created new setup:', response)
-
-          if (response.success && response.view) {
-            // Add to savedFilters (but it won't show in the list due to name filter)
-            const filters = response.view.filters || {}
-            const columns = response.view.columns || {}
-
-            const newView = {
-              id: response.view.id,
-              name: response.view.name,
-              filters: filters.cascadeFilters || [],
-              filterGroups: filters.filterGroups || [],
-              interGroupLogic: filters.interGroupLogic || 'AND',
-              visibleColumns: columns.visible || {},
-              columnOrder: columns.order || [],
-              sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
-              isDefault: response.view.is_default || false
-            }
-            setSavedFilters([...savedFilters, newView])
-          }
-        }
-      } catch (error) {
-        console.error('Error saving default column setup to database:', error)
-      }
-    }
-
-    // Debounce the save to avoid too many API calls
-    const timer = setTimeout(saveDefaultSetup, 1000)
-    return () => clearTimeout(timer)
-  }, [defaultColumnsForNewViews, tableId, tableIdNumeric])
+  // Removed: Old __default_setup__ system that conflicted with new "Default" view system
 
   // Save visibility column order to localStorage whenever it changes (per table)
   useEffect(() => {
@@ -4932,23 +4876,36 @@ export default function TrapidTableView({
                           <>
                             <button
                               onClick={() => {
-                                // Clear all view state when creating new
-                                setCascadeFilters([])
-                                setFilterGroups([{ id: 'default', logic: 'AND' }])
-                                setInterGroupLogic('OR')
-                                setSortColumns([])
-                                setGroupByColumn(null)
+                                // Load the Default view as the starting point for new views
+                                const defaultView = savedFilters.find(v => v.name === 'Default')
+                                if (defaultView) {
+                                  // Load Default view's configuration
+                                  setCascadeFilters(defaultView.filters || [])
+                                  setFilterGroups(defaultView.filterGroups || [{ id: 'default', logic: 'AND' }])
+                                  setInterGroupLogic(defaultView.interGroupLogic || 'OR')
+                                  setSortColumns(defaultView.sortColumns || [])
+                                  setVisibleColumns(defaultView.visibleColumns || {})
+                                  setColumnOrder(defaultView.columnOrder || COLUMNS.map(c => c.key))
+                                  setGroupByColumn(null)
+                                } else {
+                                  // Fallback if Default view doesn't exist (shouldn't happen)
+                                  setCascadeFilters([])
+                                  setFilterGroups([{ id: 'default', logic: 'AND' }])
+                                  setInterGroupLogic('OR')
+                                  setSortColumns([])
+                                  setGroupByColumn(null)
+                                  const allVisible = {}
+                                  COLUMNS.forEach(col => {
+                                    if (col.key !== 'select' && col.key !== 'actions') {
+                                      allVisible[col.key] = true
+                                    }
+                                  })
+                                  setVisibleColumns(allVisible)
+                                  setColumnOrder(COLUMNS.map(c => c.key))
+                                }
                                 setActiveViewId(null)
                                 setEditingViewId(null)
                                 setCreatingNewView(true)
-                                // Set columns to the default for new views
-                                setVisibleColumns(defaultColumnsForNewViews)
-
-                                // Set column order: checked columns first, then unchecked
-                                const allColumnKeys = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').map(col => col.key)
-                                const checkedCols = allColumnKeys.filter(key => defaultColumnsForNewViews[key] !== false)
-                                const uncheckedCols = allColumnKeys.filter(key => defaultColumnsForNewViews[key] === false)
-                                setColumnOrder(['select', ...checkedCols, ...uncheckedCols, 'actions'])
                               }}
                               className="text-xs px-3 py-1.5 bg-green-500 hover:bg-green-600 rounded transition-colors whitespace-nowrap font-medium flex items-center gap-1"
                             >
@@ -5140,10 +5097,10 @@ export default function TrapidTableView({
                     {savedFilters.length > 0 ? (
                       <div>
                         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Your Saved Views ({savedFilters.filter(v => v.name !== '__default_setup__').length}):
+                          Your Saved Views ({savedFilters.length}):
                         </label>
                         <div className="space-y-1.5">
-                          {savedFilters.filter(v => v.name !== '__default_setup__').map((saved, index) => (
+                          {savedFilters.map((saved, index) => (
                             <div
                               key={saved.id}
                               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded border ${
@@ -5209,8 +5166,9 @@ export default function TrapidTableView({
                                       className="text-left text-xs text-gray-700 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400 font-medium truncate"
                                       title={`${saved.name} - ${saved.filters.length} filters, ${saved.visibleColumns ? Object.values(saved.visibleColumns).filter(Boolean).length : 0} columns visible`}
                                     >
-                                      {saved.isDefault && <span className="text-yellow-600 dark:text-yellow-400">⭐ </span>}
-                                      {saved.name}
+                                      {saved.name === 'Default' && <span className="text-blue-600 dark:text-blue-400">📌 </span>}
+                                      {saved.isDefault && saved.name !== 'Default' && <span className="text-yellow-600 dark:text-yellow-400">⭐ </span>}
+                                      <span className={saved.name === 'Default' ? 'font-bold' : ''}>{saved.name}</span>
                                     </button>
                                     <div className="text-[10px] text-gray-500 dark:text-gray-400">
                                       {saved.filters.length} filter{saved.filters.length !== 1 ? 's' : ''} • {saved.visibleColumns ? Object.values(saved.visibleColumns).filter(Boolean).length : 0} column{saved.visibleColumns && Object.values(saved.visibleColumns).filter(Boolean).length !== 1 ? 's' : ''}
@@ -5284,40 +5242,45 @@ export default function TrapidTableView({
                                   >
                                     ✏️
                                   </button>
-                                  <button
-                                    onClick={() => setEditingViewId(saved.id)}
-                                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs"
-                                    title="Rename view"
-                                  >
-                                    📝
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      // Set this view as default via API
-                                      await updateView(saved.id, { ...saved, isDefault: true })
-                                    }}
-                                    className={`text-xs ${saved.isDefault ? 'opacity-50' : 'hover:text-yellow-600'}`}
-                                    title={saved.isDefault ? "Already default" : "Set as default"}
-                                    disabled={saved.isDefault}
-                                  >
-                                    ⭐
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      console.log('[DELETE BUTTON] Clicked! View ID:', saved.id, 'Name:', saved.name)
-                                      if (activeViewId === saved.id) {
-                                        console.log('[DELETE BUTTON] Clearing active view')
-                                        setActiveViewId(null)
-                                      }
-                                      console.log('[DELETE BUTTON] Calling deleteView...')
-                                      await deleteView(saved.id)
-                                      console.log('[DELETE BUTTON] deleteView completed')
-                                    }}
-                                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold"
-                                    title="Delete view"
-                                  >
-                                    ✕
-                                  </button>
+                                  {/* Hide rename, star, and delete buttons for Default system view */}
+                                  {saved.name !== 'Default' && (
+                                    <>
+                                      <button
+                                        onClick={() => setEditingViewId(saved.id)}
+                                        className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 text-xs"
+                                        title="Rename view"
+                                      >
+                                        📝
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          // Set this view as default via API
+                                          await updateView(saved.id, { ...saved, isDefault: true })
+                                        }}
+                                        className={`text-xs ${saved.isDefault ? 'opacity-50' : 'hover:text-yellow-600'}`}
+                                        title={saved.isDefault ? "Already default" : "Set as default"}
+                                        disabled={saved.isDefault}
+                                      >
+                                        ⭐
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          console.log('[DELETE BUTTON] Clicked! View ID:', saved.id, 'Name:', saved.name)
+                                          if (activeViewId === saved.id) {
+                                            console.log('[DELETE BUTTON] Clearing active view')
+                                            setActiveViewId(null)
+                                          }
+                                          console.log('[DELETE BUTTON] Calling deleteView...')
+                                          await deleteView(saved.id)
+                                          console.log('[DELETE BUTTON] deleteView completed')
+                                        }}
+                                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold"
+                                        title="Delete view"
+                                      >
+                                        ✕
+                                      </button>
+                                    </>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -5782,20 +5745,8 @@ export default function TrapidTableView({
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
                           <div className="text-center px-4">
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-3">
+                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                               Click "+ Create New" or edit an existing view to modify columns
-                            </p>
-                            <button
-                              onClick={() => setEditingDefaultSetup(true)}
-                              className="px-3 py-2 bg-yellow-500 hover:bg-yellow-600 text-white text-sm font-medium rounded-lg shadow-md transition-colors flex items-center gap-2 mx-auto"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              Edit Default Setup
-                            </button>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                              Set which columns appear by default in new views
                             </p>
                           </div>
                         </div>
@@ -5803,24 +5754,9 @@ export default function TrapidTableView({
                       {/* Header with toggle buttons */}
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                          {editingDefaultSetup ? (
-                            <span className="text-yellow-600 dark:text-yellow-400">Editing Default Setup</span>
-                          ) : (
-                            'Columns:'
-                          )}
+                          Columns:
                         </label>
                         <div className="flex gap-1">
-                          {editingDefaultSetup && (
-                            <button
-                              onClick={() => setEditingDefaultSetup(false)}
-                              className="px-2 py-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-medium rounded transition-colors flex items-center gap-1"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              Done
-                            </button>
-                          )}
                           <button
                             onClick={() => {
                               const allVisible = COLUMNS.filter(col => col.key !== 'select').every(col => visibleColumns[col.key] !== false)
@@ -5835,27 +5771,12 @@ export default function TrapidTableView({
                           >
                             👁 {COLUMNS.filter(col => col.key !== 'select').every(col => visibleColumns[col.key] !== false) ? 'Hide' : 'Show'}
                           </button>
-                          <button
-                            onClick={() => {
-                              const allDefault = COLUMNS.filter(col => col.key !== 'select').every(col => defaultColumnsForNewViews[col.key] !== false)
-                              const newDefaults = {}
-                              COLUMNS.filter(col => col.key !== 'select').forEach(col => {
-                                newDefaults[col.key] = !allDefault
-                              })
-                              setDefaultColumnsForNewViews({ ...defaultColumnsForNewViews, ...newDefaults })
-                            }}
-                            className="px-1.5 py-0.5 bg-yellow-100 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 text-[9px] font-medium rounded transition-colors"
-                            title="Toggle all defaults"
-                          >
-                            ⭐ {COLUMNS.filter(col => col.key !== 'select').every(col => defaultColumnsForNewViews[col.key] !== false) ? 'Clear' : 'Set All'}
-                          </button>
                         </div>
                       </div>
                       {/* Column header row */}
                       <div className="flex items-center gap-2 px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
                         <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
                         <span className="flex-1">Column</span>
-                        <span className="w-24 text-center text-yellow-600" title="Default Column Setup Only">Default Setup</span>
                       </div>
                       {/* Combined column list */}
                       <div className="space-y-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1">
@@ -5990,35 +5911,11 @@ export default function TrapidTableView({
                             />
                             {/* Column name */}
                             <span className="flex-1 truncate font-medium">{column.label}</span>
-                            {/* Default checkbox (yellow) - default for new views */}
-                            <div className="w-24 flex justify-center">
-                              <input
-                                type="checkbox"
-                                checked={defaultColumnsForNewViews[column.key] !== false}
-                                onChange={(e) => {
-                                  e.stopPropagation()
-                                  setDefaultColumnsForNewViews({
-                                    ...defaultColumnsForNewViews,
-                                    [column.key]: e.target.checked
-                                  })
-                                }}
-                                className="rounded border-yellow-400 w-4 h-4 text-yellow-600 cursor-pointer flex-shrink-0"
-                                title="Include in new views by default"
-                              />
-                            </div>
                           </div>
                         ))}
                       </div>
                       <div className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
-                        {editingDefaultSetup ? (
-                          <div className="bg-yellow-100 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded px-2 py-1">
-                            <span className="text-yellow-800 dark:text-yellow-300 font-medium">
-                              💡 Edit the Default Setup column (right side) to control which columns appear when creating new views
-                            </span>
-                          </div>
-                        ) : (
-                          '👁 Show/hide now • Default Setup: Columns selected by default when creating new views'
-                        )}
+                        👁 Show/hide columns for the current view
                       </div>
                     </div>
                   </div>

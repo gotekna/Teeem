@@ -219,7 +219,7 @@ export default function SavedViewsKanban({
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold">Saved Views</span>
                   <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] bg-white/20 backdrop-blur-sm text-white rounded-full text-xs font-bold">
-                    {savedFilters.length}
+                    {savedFilters.filter(v => v.name !== '__default_setup__').length}
                   </span>
                 </div>
                 <div className="text-xs opacity-90">Drag to reorder</div>
@@ -231,7 +231,7 @@ export default function SavedViewsKanban({
 
       {/* Scrollable card list */}
       <div className="flex-1 overflow-y-auto cascade-popup-scroll px-3 py-3 space-y-2">
-        {savedFilters.map((view, index) => {
+        {savedFilters.filter(v => v.name !== '__default_setup__').map((view, index) => {
           const isActive = activeViewId === view.id
           const isThisCardDragging = draggedIndex === index
           const isDragOver = dragOverIndex === index
@@ -297,9 +297,11 @@ export default function SavedViewsKanban({
                 {/* View name with inline Edit/Delete buttons */}
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h4 className="font-semibold text-sm text-gray-900 dark:text-white truncate flex-1">
-                    {view.name}
+                    {view.name === 'Default' && <span className="text-blue-600 dark:text-blue-400">📌 </span>}
+                    <span className={view.name === 'Default' ? 'font-bold' : ''}>{view.name}</span>
                   </h4>
                   <div className="flex items-center gap-1 flex-shrink-0">
+                    {/* Edit button - show for ALL views including Default */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -347,16 +349,19 @@ export default function SavedViewsKanban({
                     >
                       <PencilIcon className="h-3.5 w-3.5" />
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleDeleteView(view)
-                      }}
-                      className="p-1 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                      title="Delete view"
-                    >
-                      <TrashIcon className="h-3.5 w-3.5" />
-                    </button>
+                    {/* Delete button - only show for non-Default views */}
+                    {view.name !== 'Default' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDeleteView(view)
+                        }}
+                        className="p-1 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                        title="Delete view"
+                      >
+                        <TrashIcon className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 

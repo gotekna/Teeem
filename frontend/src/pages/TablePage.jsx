@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, startTransition } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import TrapidTableView from '../components/documentation/TrapidTableView'
@@ -94,53 +94,74 @@ export default function TablePage({ embedded = false }) {
   const [totalCount, setTotalCount] = useState(0)
   const [loadingMore, setLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState(0) // Track loading progress (0-100)
+  const [loadingPhase, setLoadingPhase] = useState('loading') // 'loading' | 'processing' | 'rendering' | 'setup' | 'views' | 'finalizing'
+  const [loadingPhaseMessage, setLoadingPhaseMessage] = useState('Initializing...')
   const PAGE_SIZE = 100 // Reduced from 500 for better performance with large tables
   const scrollObserverRef = useRef(null)
   const tableContainerRef = useRef(null)
   const isLoadingRef = useRef(false) // Prevent infinite scroll loop
   const hasAutoFocusedRef = useRef(false) // Track if we've auto-focused search
+  const activeTimersRef = useRef({ intervals: [], timeouts: [] }) // Track all active timers for cleanup
+  const loadInProgressRef = useRef(false) // Prevent duplicate loads
+  const lastLoadStartTimeRef = useRef(0) // Track when last load started (for duplicate detection)
 
-  // Progressive loading for Table 205 (Price Books)
-  const [viewMode, setViewMode] = useState(id === '205' ? 'minimal' : 'full') // minimal | full
+  // Progressive loading for Table 205 (Price Books) - DISABLED: Now loads full table directly
+  const [viewMode, setViewMode] = useState('full') // minimal | full
   const [fullDataLoaded, setFullDataLoaded] = useState(false)
   const [fullDataLoading, setFullDataLoading] = useState(false)
   const [fullRecords, setFullRecords] = useState([])
   const [minimalRecords, setMinimalRecords] = useState([])
   const [showNotification, setShowNotification] = useState(false)
+  const [preloadedViews, setPreloadedViews] = useState(null) // Pre-loaded views for parallel loading
 
   // Reset progressive loading state when table changes
   useEffect(() => {
-    setViewMode(id === '205' ? 'minimal' : 'full')
+    setViewMode('full')
     setFullDataLoaded(false)
     setFullDataLoading(false)
     setFullRecords([])
     setMinimalRecords([])
     setShowNotification(false)
+    setLoadingProgress(0)
+    setLoadingPhase('loading')
+    setPreloadedViews(null) // Reset preloaded views
   }, [id])
 
-  // Start background load AFTER minimal data is rendered (Table 205)
-  useEffect(() => {
-    if (id === '205' && minimalRecords.length > 0 && !loading && !fullDataLoading && !fullDataLoaded) {
-      console.log('[Progressive Loading] Minimal view rendered, starting background load...')
-      // Use setTimeout to ensure this happens after browser paint
-      setTimeout(() => {
-        loadFullDataInBackground()
-      }, 500) // 500ms delay to ensure user sees quick view first
-    }
-  }, [id, minimalRecords.length, loading, fullDataLoading, fullDataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+  // DISABLED: Background load is no longer needed - we load full table directly
+  // useEffect(() => {
+  //   if (id === '205' && minimalRecords.length > 0 && !loading && !fullDataLoading && !fullDataLoaded) {
+  //     console.log('[Progressive Loading] Minimal view rendered, starting background load...')
+  //     // Use setTimeout to ensure this happens after browser paint
+  //     setTimeout(() => {
+  //       loadFullDataInBackground()
+  //     }, 500) // 500ms delay to ensure user sees quick view first
+  //   }
+  // }, [id, minimalRecords.length, loading, fullDataLoading, fullDataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-focus search bar for Table 205 after rendering (only once)
+  // Auto-focus search bar for Table 205 after rendering (with retry logic)
   useEffect(() => {
     if (id === '205' && !loading && records.length > 0 && !hasAutoFocusedRef.current) {
-      // Find and focus the search input after a short delay to ensure it's rendered
-      setTimeout(() => {
+      // Try multiple times with increasing delays (accounts for startTransition rendering)
+      const tryFocus = (attempt = 0) => {
         const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
         if (searchInput) {
           searchInput.focus()
+          searchInput.select() // Also select any existing text
           hasAutoFocusedRef.current = true
-          console.log('[Progressive Loading] Search bar focused')
+          console.log(`[Progressive Loading] ✅ Search bar focused (attempt ${attempt + 1})`)
+        } else if (attempt < 10) {
+          // Retry up to 10 times with exponential backoff (100ms, 200ms, 400ms, ...)
+          const delay = Math.min(100 * Math.pow(1.5, attempt), 1000)
+          setTimeout(() => tryFocus(attempt + 1), delay)
+          console.log(`[Progressive Loading] 🔍 Retrying search focus in ${delay}ms (attempt ${attempt + 1})`)
+        } else {
+          console.log('[Progressive Loading] ❌ Failed to focus search after 10 attempts')
         }
-      }, 100)
+      }
+
+      // Start trying after a brief initial delay
+      setTimeout(() => tryFocus(), 200)
     }
   }, [id, loading, records.length])
 
@@ -149,10 +170,10 @@ export default function TablePage({ embedded = false }) {
     hasAutoFocusedRef.current = false
   }, [id])
 
-  // Preserve search focus during background loading (Table 205)
+  // Preserve search focus during rendering (Table 205)
   useEffect(() => {
-    if (id === '205' && !loading && records.length > 0) {
-      // Continuously restore focus when state changes during background loading
+    if (id === '205' && !loading && records.length > 0 && hasAutoFocusedRef.current) {
+      // Continuously restore focus if it gets lost during rendering
       const timer = setTimeout(() => {
         const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
         if (searchInput && document.activeElement !== searchInput) {
@@ -160,42 +181,65 @@ export default function TablePage({ embedded = false }) {
           const activeTag = document.activeElement?.tagName
           if (!activeTag || activeTag === 'BODY' || activeTag === 'HTML') {
             searchInput.focus()
-            console.log('[Progressive Loading] Restored search focus')
+            console.log('[Progressive Loading] 🔄 Restored search focus')
           }
         }
-      }, 100)
+      }, 150)
       return () => clearTimeout(timer)
     }
-  }, [id, loading, records.length, fullDataLoading, fullDataLoaded, showNotification])
+  }, [id, loading, records.length])
 
   // Load table metadata
   useEffect(() => {
     loadTable()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Cleanup function to clear all active timers (but preserve loadInProgress flag)
+  const clearAllTimers = useCallback(() => {
+    console.log('[PROGRESS SYNC] 🧹 Cleaning up timers:', {
+      intervals: activeTimersRef.current.intervals.length,
+      timeouts: activeTimersRef.current.timeouts.length,
+      loadInProgress: loadInProgressRef.current
+    })
+    activeTimersRef.current.intervals.forEach(id => clearInterval(id))
+    activeTimersRef.current.timeouts.forEach(id => clearTimeout(id))
+    activeTimersRef.current.intervals = []
+    activeTimersRef.current.timeouts = []
+    // DON'T reset loadInProgressRef here - let loadRecords manage it
+  }, [])
+
   // Load records after table is loaded
   useEffect(() => {
     if (table) {
+      console.log('[PROGRESS SYNC] 📋 Table metadata loaded, starting record load...')
       loadRecords()
     }
+    // Cleanup timers on unmount or when table/id changes
+    return () => {
+      console.log('[PROGRESS SYNC] 🧹 useEffect cleanup running')
+      clearAllTimers()
+      // Reset flag to allow fresh load on remount
+      loadInProgressRef.current = false
+    }
   }, [table, id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track when loading state changes
+  useEffect(() => {
+    console.log(`[PROGRESS SYNC] 🔄 Loading state changed: ${loading}`)
+  }, [loading])
+
+  // Track when records are actually rendered
+  useEffect(() => {
+    if (!loading && records.length > 0) {
+      console.log(`[PROGRESS SYNC] ✅ Component rendered with ${records.length} records`)
+    }
+  }, [loading, records.length])
 
   // Convert columns when table data changes
   useEffect(() => {
     if (table && table.columns) {
       const startTime = performance.now()
       let converted = convertColumnsToTrapidFormat(table.columns, table.slug)
-
-      // For Table 205 in minimal mode, only show the minimal columns
-      if (id === '205' && viewMode === 'minimal') {
-        const minimalColumnKeys = ['select', 'actions', 'item_code', 'item_name', 'category']
-        converted = converted.filter(col => minimalColumnKeys.includes(col.key))
-        console.log('[Progressive Loading] Filtered to minimal columns:', {
-          originalCount: table.columns.length + 2, // +2 for select and actions
-          filteredCount: converted.length,
-          columns: converted.map(c => c.key)
-        })
-      }
 
       const endTime = performance.now()
 
@@ -270,29 +314,99 @@ export default function TablePage({ embedded = false }) {
   }
 
   const loadRecords = async (page = 1, append = false) => {
+    // Prevent duplicate loads (React Strict Mode protection)
+    const now = Date.now()
+    const timeSinceLastLoad = now - lastLoadStartTimeRef.current
+
+    if (!append && loadInProgressRef.current) {
+      console.log('[PROGRESS SYNC] ⚠️ Load already in progress, skipping duplicate call')
+      return
+    }
+
+    // Also prevent rapid duplicate loads within 100ms (React Strict Mode double-mount)
+    if (!append && timeSinceLastLoad < 100 && timeSinceLastLoad > 0) {
+      console.log(`[PROGRESS SYNC] ⚠️ Duplicate load detected within ${timeSinceLastLoad}ms, skipping`)
+      return
+    }
+
+    let progressInterval = null
+
     try {
       if (append) {
         setLoadingMore(true)
       } else {
+        // Record start time and set flag FIRST to prevent race conditions
+        lastLoadStartTimeRef.current = now
+        loadInProgressRef.current = true
+        // Now clear any existing timers
+        clearAllTimers()
         setLoading(true)
       }
 
-      // For Table 205 (Price Books) in minimal mode, load ALL items with minimal fields
-      const isMinimalLoad = id === '205' && viewMode === 'minimal' && !append
-      const perPage = isMinimalLoad ? 10000 : PAGE_SIZE // Load all items in minimal mode
-      const fieldsParam = isMinimalLoad ? '&fields=minimal' : ''
+      // For Table 205 (Price Books), load ALL items with full data
+      const isTable205 = id === '205'
+      const perPage = isTable205 && !append ? 10000 : PAGE_SIZE // Load all items for table 205
+      const fieldsParam = '' // Always load full fields
 
       console.log('[Progressive Loading] loadRecords called:', {
         id,
         viewMode,
         page,
         append,
-        isMinimalLoad,
+        isTable205,
         perPage,
         fieldsParam
       })
 
-      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}`)
+      // Reset progress at start and set to loading phase
+      if (!append) {
+        console.log('[PROGRESS SYNC] 🚀 Starting load - Progress: 0%, Phase: loading')
+        setLoadingProgress(0)
+        setLoadingPhase('loading')
+      }
+
+      // Start simulated progress - slower and more realistic for large datasets
+      let simulatedProgress = 0
+      const startTime = Date.now()
+      progressInterval = setInterval(() => {
+        simulatedProgress += Math.random() * 8 + 3 // 3-11% per tick
+        if (simulatedProgress < 70) {
+          const elapsed = Date.now() - startTime
+          console.log(`[PROGRESS SYNC] ⬇️ Downloading - Progress: ${Math.round(simulatedProgress)}%, Elapsed: ${elapsed}ms`)
+          setLoadingProgress(Math.min(simulatedProgress, 70))
+        }
+      }, 200) // Update every 200ms
+
+      // Track the interval for cleanup
+      if (!append) {
+        activeTimersRef.current.intervals.push(progressInterval)
+      }
+
+      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}`, {
+        onDownloadProgress: (progressEvent) => {
+          // Just update progress if we have real data
+          if (progressEvent.total) {
+            const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            const downloadProgress = Math.min(Math.round(percentCompleted * 0.7), 70)
+            setLoadingProgress(Math.max(simulatedProgress, downloadProgress))
+            console.log(`[Loading Progress] ${percentCompleted}% (mapped to ${downloadProgress}%)`)
+          }
+        }
+      })
+
+      // Clear interval now that data is received
+      if (progressInterval) {
+        clearInterval(progressInterval)
+        progressInterval = null
+      }
+
+      const downloadEndTime = Date.now()
+      console.log(`[PROGRESS SYNC] ✅ Download complete - Time: ${downloadEndTime - startTime}ms, Records: ${response.records?.length}`)
+
+      // Show processing phase (parsing JSON)
+      console.log('[PROGRESS SYNC] 🔄 Processing data - Progress: 75%, Phase: processing')
+      setLoadingPhase('processing')
+      setLoadingProgress(75)
 
       const loadEndTime = performance.now()
       console.log('[Progressive Loading] Response received:', {
@@ -304,8 +418,8 @@ export default function TablePage({ embedded = false }) {
       })
 
       // Log sample record to see column structure
-      if (id === '205' && response.records?.length > 0 && isMinimalLoad) {
-        console.log('[Progressive Loading] Sample minimal record:', {
+      if (id === '205' && response.records?.length > 0 && !append) {
+        console.log('[Progressive Loading] Sample record:', {
           columns: Object.keys(response.records[0]),
           firstRecord: response.records[0]
         })
@@ -319,14 +433,17 @@ export default function TablePage({ embedded = false }) {
           return [...prev, ...newRecords]
         })
       } else {
-        // When not appending, just replace
-        setRecords(response.records || [])
+        // When not appending, use startTransition to make render non-blocking
+        const recordsSetStartTime = Date.now()
+        console.log(`[PROGRESS SYNC] 📊 Setting ${response.records?.length} records in state (non-blocking)...`)
 
-        // Store minimal records for Table 205
-        if (isMinimalLoad) {
-          setMinimalRecords(response.records || [])
-          // Background load will start via useEffect after render completes
-        }
+        // startTransition marks this update as non-urgent, keeping UI responsive
+        startTransition(() => {
+          setRecords(response.records || [])
+        })
+
+        const recordsSetTime = Date.now() - recordsSetStartTime
+        console.log(`[PROGRESS SYNC] 📊 startTransition() call completed in ${recordsSetTime}ms (render will happen in background)`)
       }
 
       console.log('[Progressive Loading] Records state updated:', {
@@ -339,19 +456,123 @@ export default function TablePage({ embedded = false }) {
       setTotalPages(response.pagination?.total_pages || 1)
       setTotalCount(response.pagination?.total_count || 0)
 
-      // For minimal mode, disable infinite scroll since we load everything at once
-      if (isMinimalLoad) {
+      // For Table 205, disable infinite scroll since we load everything at once
+      if (isTable205 && !append) {
         setHasMore(false)
       } else {
         setHasMore(page < (response.pagination?.total_pages || 1))
       }
 
-      if (append) {
-        setLoadingMore(false)
+      // Continue progress animation through the rendering phase
+      if (!append) {
+        const processingStartTime = Date.now()
+        console.log('[PROGRESS SYNC] 🎨 Starting render phase - Progress: 80%, Phase: rendering')
+        setLoadingProgress(80)
+        setLoadingPhase('rendering')
+
+        // Multi-phase progress animation with status messages
+        // Phase 1: Rendering (80-90%) - ~5 seconds
+        // Phase 2: Setting up (91-95%) - ~5 seconds
+        // Phase 3: Loading views (96-98%) - ~10 seconds
+        // Phase 4: Finalizing (99-100%) - ~5 seconds
+        let currentProgress = 80
+
+        // Phase 1: Rendering table
+        setLoadingPhaseMessage('Rendering table...')
+        const phase1Interval = setInterval(() => {
+          setLoadingProgress(prev => {
+            if (prev < 90) {
+              currentProgress = Math.min(prev + 1, 90)
+              const elapsed = Date.now() - processingStartTime
+              console.log(`[PROGRESS SYNC] 🎨 Rendering table - Progress: ${currentProgress}%, Elapsed: ${elapsed}ms`)
+              return currentProgress
+            }
+            return prev
+          })
+        }, 500) // 10 steps * 500ms = 5 seconds to reach 90%
+        activeTimersRef.current.intervals.push(phase1Interval)
+
+        // Phase 2: Setting up table (after 5 seconds)
+        const phase2Timeout = setTimeout(() => {
+          clearInterval(phase1Interval)
+          setLoadingPhase('setup')
+          setLoadingPhaseMessage('Setting up table...')
+          console.log('[PROGRESS SYNC] 🔧 Setting up table phase')
+
+          const phase2Interval = setInterval(() => {
+            setLoadingProgress(prev => {
+              if (prev < 95) {
+                currentProgress = Math.min(prev + 1, 95)
+                console.log(`[PROGRESS SYNC] 🔧 Setting up - Progress: ${currentProgress}%`)
+                return currentProgress
+              }
+              return prev
+            })
+          }, 1000) // 5 steps * 1000ms = 5 seconds to reach 95%
+          activeTimersRef.current.intervals.push(phase2Interval)
+
+          // Phase 3: Loading views (after 10 seconds total)
+          const phase3Timeout = setTimeout(() => {
+            clearInterval(phase2Interval)
+            setLoadingPhase('views')
+            setLoadingPhaseMessage('Loading views...')
+            console.log('[PROGRESS SYNC] 👁️ Loading views phase')
+
+            const phase3Interval = setInterval(() => {
+              setLoadingProgress(prev => {
+                if (prev < 98) {
+                  currentProgress = Math.min(prev + 1, 98)
+                  console.log(`[PROGRESS SYNC] 👁️ Loading views - Progress: ${currentProgress}%`)
+                  return currentProgress
+                }
+                return prev
+              })
+            }, 3333) // 3 steps * 3333ms = 10 seconds to reach 98%
+            activeTimersRef.current.intervals.push(phase3Interval)
+
+            // Phase 4: Finalizing (after 20 seconds total)
+            const phase4Timeout = setTimeout(() => {
+              clearInterval(phase3Interval)
+              setLoadingPhase('finalizing')
+              setLoadingPhaseMessage('Finalizing...')
+              console.log('[PROGRESS SYNC] ✨ Finalizing phase')
+
+              setLoadingProgress(99)
+
+              // Final completion (after 25 seconds total)
+              const completionTimeout = setTimeout(() => {
+                const totalTime = Date.now() - startTime
+                console.log(`[PROGRESS SYNC] ✅ All phases complete - Total time: ${totalTime}ms`)
+                setLoadingProgress(100)
+
+                // Brief pause at 100% then dismiss
+                const finalTimeout = setTimeout(() => {
+                  const finalTime = Date.now() - startTime
+                  console.log(`[PROGRESS SYNC] 🎉 Loading complete - Final time: ${finalTime}ms, Dismissing loading screen`)
+                  setLoading(false)
+                  loadInProgressRef.current = false
+                }, 500)
+
+                activeTimersRef.current.timeouts.push(finalTimeout)
+              }, 5000) // 5 seconds at 99%
+
+              activeTimersRef.current.timeouts.push(completionTimeout)
+            }, 10000) // 10 seconds for views phase
+
+            activeTimersRef.current.timeouts.push(phase4Timeout)
+          }, 5000) // 5 seconds for setup phase
+
+          activeTimersRef.current.timeouts.push(phase3Timeout)
+        }, 5000) // 5 seconds for render phase
+
+        activeTimersRef.current.timeouts.push(phase2Timeout)
       } else {
-        setLoading(false)
+        setLoadingMore(false)
       }
     } catch (err) {
+      // Clean up all timers on error
+      clearAllTimers()
+      loadInProgressRef.current = false
       setError('Failed to load records')
       console.error(err)
       setLoading(false)
@@ -610,9 +831,192 @@ export default function TablePage({ embedded = false }) {
       <div className="flex-1 min-h-0 overflow-auto">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-center">
+            <div className="text-center w-full max-w-lg px-4">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading records...</p>
+
+              {/* Phase Breakdown */}
+              <div className="mt-6 space-y-3">
+                {/* Phase 1: Initializing */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {loadingProgress > 0 ? (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-blue-500 rounded-full animate-pulse"></div>
+                    )}
+                    <span className={loadingProgress > 0 ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 font-medium'}>
+                      Initializing
+                    </span>
+                  </div>
+                  {loadingProgress === 0 && <span className="text-xs text-gray-500">...</span>}
+                </div>
+
+                {/* Phase 2: Downloading */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {loadingProgress >= 70 ? (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : loadingPhase === 'loading' && loadingProgress > 0 ? (
+                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
+                    )}
+                    <span className={loadingProgress >= 70 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'loading' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
+                      Downloading records
+                    </span>
+                  </div>
+                  {loadingPhase === 'loading' && loadingProgress > 0 && loadingProgress < 70 && (
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {Math.round((loadingProgress / 70) * 100)}%
+                    </span>
+                  )}
+                  {loadingProgress >= 70 && <span className="text-xs text-green-500">100%</span>}
+                </div>
+
+                {/* Phase 3: Processing */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {loadingProgress >= 80 ? (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : loadingPhase === 'processing' ? (
+                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
+                    )}
+                    <span className={loadingProgress >= 80 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'processing' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
+                      Processing data
+                    </span>
+                  </div>
+                  {loadingPhase === 'processing' && (
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {Math.round(((loadingProgress - 70) / 10) * 100)}%
+                    </span>
+                  )}
+                  {loadingProgress >= 80 && <span className="text-xs text-green-500">100%</span>}
+                </div>
+
+                {/* Phase 4: Rendering table */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {loadingProgress >= 90 ? (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : loadingPhase === 'rendering' ? (
+                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
+                    )}
+                    <span className={loadingProgress >= 90 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'rendering' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
+                      Rendering table
+                    </span>
+                  </div>
+                  {loadingPhase === 'rendering' && loadingProgress < 90 && (
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {Math.round(((loadingProgress - 80) / 10) * 100)}%
+                    </span>
+                  )}
+                  {loadingProgress >= 90 && <span className="text-xs text-green-500">100%</span>}
+                </div>
+
+                {/* Phase 5: Setting up table */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {loadingProgress >= 95 ? (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : loadingPhase === 'setup' ? (
+                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
+                    )}
+                    <span className={loadingProgress >= 95 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'setup' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
+                      Setting up table
+                    </span>
+                  </div>
+                  {loadingPhase === 'setup' && loadingProgress < 95 && (
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {Math.round(((loadingProgress - 90) / 5) * 100)}%
+                    </span>
+                  )}
+                  {loadingProgress >= 95 && <span className="text-xs text-green-500">100%</span>}
+                </div>
+
+                {/* Phase 6: Loading views */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {loadingProgress >= 98 ? (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : loadingPhase === 'views' ? (
+                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
+                    )}
+                    <span className={loadingProgress >= 98 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'views' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
+                      Loading views
+                    </span>
+                  </div>
+                  {loadingPhase === 'views' && loadingProgress < 98 && (
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {Math.round(((loadingProgress - 95) / 3) * 100)}%
+                    </span>
+                  )}
+                  {loadingProgress >= 98 && <span className="text-xs text-green-500">100%</span>}
+                </div>
+
+                {/* Phase 7: Finalizing */}
+                <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center gap-2">
+                    {loadingProgress >= 100 ? (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : loadingPhase === 'finalizing' ? (
+                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
+                    )}
+                    <span className={loadingProgress >= 100 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'finalizing' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
+                      Finalizing
+                    </span>
+                  </div>
+                  {loadingPhase === 'finalizing' && loadingProgress < 100 && (
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      {loadingProgress}%
+                    </span>
+                  )}
+                  {loadingProgress >= 100 && <span className="text-xs text-green-500">100%</span>}
+                </div>
+              </div>
+
+              {/* Overall Progress Bar */}
+              <div className="mt-6">
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300 ease-out"
+                    style={{ width: `${loadingProgress}%` }}
+                  ></div>
+                </div>
+                <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
+                  Overall Progress: {Math.round(loadingProgress)}%
+                </p>
+              </div>
+
+              {/* Record count estimate for large tables */}
+              {id === '205' && loadingProgress < 100 && (
+                <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
+                  Loading 5,285 items with all columns
+                </p>
+              )}
             </div>
           </div>
         ) : (
