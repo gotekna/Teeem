@@ -500,7 +500,8 @@ export default function TablePage({ embedded = false }) {
         // Phase 1: Rendering (80-90%) - ~5 seconds
         // Phase 2: Setting up (91-95%) - ~5 seconds
         // Phase 3: Loading views (96-98%) - ~10 seconds
-        // Phase 4: Finalizing (99-100%) - ~5 seconds
+        // Phase 4: Finalizing (99-100%) - ~9 seconds (includes 4s at 100% for React rendering)
+        // Total: ~29 seconds to ensure React completes rendering 5,285 rows
         let currentProgress = 80
 
         // Phase 1: Rendering table
@@ -565,19 +566,19 @@ export default function TablePage({ embedded = false }) {
 
               setLoadingProgress(99)
 
-              // Final completion (after 25 seconds total)
+              // Final completion (after 25 seconds total, then 4 more seconds at 100%)
               const completionTimeout = setTimeout(() => {
                 const totalTime = Date.now() - startTime
                 console.log(`[PROGRESS SYNC] ✅ All phases complete - Total time: ${totalTime}ms`)
                 setLoadingProgress(100)
 
-                // Brief pause at 100% then dismiss
+                // Wait for React rendering to complete (additional 4 seconds at 100%)
                 const finalTimeout = setTimeout(() => {
                   const finalTime = Date.now() - startTime
                   console.log(`[PROGRESS SYNC] 🎉 Loading complete - Final time: ${finalTime}ms, Dismissing loading screen`)
                   setLoading(false)
                   loadInProgressRef.current = false
-                }, 500)
+                }, 4000) // 4 seconds at 100% to allow React rendering to complete
 
                 activeTimersRef.current.timeouts.push(finalTimeout)
               }, 5000) // 5 seconds at 99%
