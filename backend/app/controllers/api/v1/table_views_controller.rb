@@ -6,10 +6,16 @@ module Api
       # GET /api/v1/table_views
       # GET /api/v1/table_views?table_id=123
       def index
-        views = current_user.table_views
+        # Handle both authenticated and unauthenticated requests
+        # Unauthenticated users see public/system views (user_id IS NULL)
+        if current_user
+          views = current_user.table_views
+        else
+          views = TableView.where(user_id: nil)
+        end
 
         if params[:table_id].present?
-          views = views.for_table(params[:table_id])
+          views = views.where(table_id: params[:table_id])
         end
 
         render json: {
