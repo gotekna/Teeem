@@ -143,15 +143,38 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     }
   };
 
-  const handleDeleteChoice = (choice) => {
+  const handleDeleteChoice = async (choice) => {
+    console.log('🗑️ handleDeleteChoice called', {
+      value: choice.value,
+      count: choice.count,
+      tableId,
+      columnId: column.id
+    });
+
     if (choice.count === 0) {
-      // No data to worry about, just remove from list
-      setChoices(choices.filter(c => c.value !== choice.value));
-      // Don't call onUpdate() here - deleting saves automatically, no need to close modal
+      // No data to worry about, delete immediately
+      console.log('✅ Choice has 0 records, deleting immediately');
+      try {
+        console.log('🌐 Making DELETE request to:', `/api/v1/tables/${tableId}/columns/${column.id}/delete_choice`);
+        const response = await api.delete(`/api/v1/tables/${tableId}/columns/${column.id}/delete_choice`, {
+          params: { value: choice.value }
+        });
+        console.log('✅ Delete response:', response);
+
+        if (response.success) {
+          // Remove from local state
+          console.log('✅ Successfully deleted, updating local state');
+          setChoices(choices.filter(c => c.value !== choice.value));
+        }
+      } catch (error) {
+        console.error('❌ Error deleting choice:', error);
+        alert('Failed to delete choice: ' + (error.response?.data?.error || error.message));
+      }
       return;
     }
 
     // Show modal for choices with data
+    console.log('⚠️ Choice has records, showing delete modal');
     setShowDeleteModal(choice);
     setReplacementValue('');
     setDeleteAction('clear');

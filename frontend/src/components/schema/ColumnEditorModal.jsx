@@ -99,6 +99,10 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   }
 
   const handleClose = () => {
+    // Always call onUpdate first to refetch any changes (like deleted choices)
+    if (onUpdate) {
+      onUpdate();
+    }
     if (onClose) {
       onClose();
     }

@@ -7690,7 +7690,37 @@ export default function TrapidTableView({
           table={null} // TODO: Pass table data if needed
           tableId={tableIdNumeric}
           onClose={() => setSelectedColumnForEdit(null)}
-          onUpdate={() => {
+          onUpdate={async () => {
+            // Refetch choices for this column if it's a choice column
+            const isChoiceColumn = selectedColumnForEdit.column_type === 'choice' ||
+                                   selectedColumnForEdit.column_type === 'single_select' ||
+                                   selectedColumnForEdit.column_type === 'dropdown'
+
+            if (isChoiceColumn && selectedColumnForEdit.id) {
+              try {
+                console.log('🔄 Refetching choices for column:', selectedColumnForEdit.id)
+                const data = await api.get(`/api/v1/tables/${tableIdNumeric}/columns/${selectedColumnForEdit.id}/choices`, {
+                  params: { _: Date.now() } // Cache buster
+                })
+                console.log('📦 API Response:', data)
+                if (data.success && data.choices) {
+                  const choiceValues = data.choices.map(c => c.value)
+                  console.log('📋 Choice values from API:', choiceValues)
+                  setColumnChoices(prev => {
+                    const updated = {
+                      ...prev,
+                      [selectedColumnForEdit.id]: choiceValues
+                    }
+                    console.log('💾 Updated columnChoices state:', updated)
+                    return updated
+                  })
+                  console.log('✅ Choices refreshed for column:', selectedColumnForEdit.id)
+                }
+              } catch (error) {
+                console.error('❌ Failed to refetch choices:', error)
+              }
+            }
+
             // Call the onColumnUpdate callback if provided to refresh table data
             if (onColumnUpdate) {
               onColumnUpdate()

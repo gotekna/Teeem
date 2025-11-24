@@ -458,10 +458,18 @@ module Api
         model = @table.dynamic_model
         column_name = column.column_name
 
+        # Update or clear data rows that use this choice
         if replacement_value.present?
           affected_rows = model.where(column_name => value).update_all(column_name => replacement_value)
         else
           affected_rows = model.where(column_name => value).update_all(column_name => nil)
+        end
+
+        # Also remove from available_choices array if it exists there
+        if column.available_choices.present? && column.available_choices.include?(value)
+          updated_choices = column.available_choices.reject { |c| c == value }
+          column.update(available_choices: updated_choices)
+          Rails.logger.info "Removed '#{value}' from column #{column.id} available_choices"
         end
 
         render json: {
