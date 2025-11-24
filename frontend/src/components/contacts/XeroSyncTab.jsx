@@ -20,6 +20,12 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [contactGroups, setContactGroups] = useState([])
   const [loadingTransactions, setLoadingTransactions] = useState(false)
   const [transactionsError, setTransactionsError] = useState(null)
+  const [showConvertModal, setShowConvertModal] = useState(false)
+  const [converting, setConverting] = useState(false)
+  const [convertError, setConvertError] = useState(null)
+  const [companies, setCompanies] = useState([])
+  const [selectedCompanyId, setSelectedCompanyId] = useState('')
+  const [deleteOriginal, setDeleteOriginal] = useState(false)
 
   // Define the field mappings between Xero and Trapid
   const fieldMappings = [
@@ -243,6 +249,87 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     }
   }
 
+  const handleChangeToSoleTrader = async () => {
+    if (!confirm('Change this contact from Person to Sole Trader (Company)?\n\nThis will update the entity_type to "company" and enable Xero sync capability.')) {
+      return
+    }
+
+    setConverting(true)
+    setConvertError(null)
+
+    try {
+      const response = await api.patch(`/api/v1/contacts/${contact.id}`, {
+        contact: {
+          entity_type: 'company'
+        }
+      })
+
+      if (response.success) {
+        onContactUpdate(response.contact)
+        alert('✅ Contact converted to Sole Trader successfully! You can now link to Xero.')
+      } else {
+        setConvertError(response.error || 'Failed to convert contact')
+      }
+    } catch (error) {
+      setConvertError(error.message || 'Failed to convert contact')
+    } finally {
+      setConverting(false)
+    }
+  }
+
+  const loadCompanies = async () => {
+    try {
+      const response = await api.get('/api/v1/contacts?entity_type=company&limit=100')
+      if (response.success) {
+        setCompanies(response.contacts || [])
+      }
+    } catch (error) {
+      console.error('Failed to load companies:', error)
+    }
+  }
+
+  const handleConvertToContactPerson = async () => {
+    if (!selectedCompanyId) {
+      setConvertError('Please select a company first')
+      return
+    }
+
+    setConverting(true)
+    setConvertError(null)
+
+    try {
+      // Create contact person under the selected company
+      const response = await api.post(`/api/v1/contacts/${selectedCompanyId}/contact_persons`, {
+        contact_person: {
+          first_name: contact.first_name || '',
+          last_name: contact.last_name || '',
+          email: contact.email || '',
+          phone: contact.mobile_phone || contact.office_phone || '',
+          position: contact.position || ''
+        }
+      })
+
+      if (response.success) {
+        // If user chose to delete original, delete it
+        if (deleteOriginal) {
+          await api.delete(`/api/v1/contacts/${contact.id}`)
+          alert('✅ Contact converted to Contact Person and original contact deleted!')
+          // Navigate back to contacts table
+          window.location.href = '/tables/214/contacts'
+        } else {
+          alert('✅ Contact Person created successfully! The original contact still exists.')
+          setShowConvertModal(false)
+        }
+      } else {
+        setConvertError(response.error || 'Failed to create contact person')
+      }
+    } catch (error) {
+      setConvertError(error.message || 'Failed to create contact person')
+    } finally {
+      setConverting(false)
+    }
+  }
+
   return (
     <div className="py-6">
       {/* Header with Sync Button */}
@@ -282,15 +369,40 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
           <div className="flex items-start gap-3">
             <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
                 ⚠️ Persons Cannot Be Linked to Xero
               </p>
-              <p className="text-sm text-yellow-800 dark:text-yellow-300">
+              <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-3">
                 Xero only supports <strong>Company</strong> or <strong>Sole Trader</strong> contacts.
-                To sync this contact with Xero, change the entity_type to "company" first.
-                Individual people should be added as Contact Persons under a company contact.
+                Choose an option below to enable Xero sync:
               </p>
+
+              {convertError && (
+                <div className="mb-3 p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-sm text-red-800 dark:text-red-300">
+                  {convertError}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleChangeToSoleTrader}
+                  disabled={converting}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {converting ? 'Converting...' : 'Change to Sole Trader'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowConvertModal(true)
+                    loadCompanies()
+                  }}
+                  disabled={converting}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Convert to Contact Person
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -723,6 +835,100 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           </div>
         </div>
       </div>
+
+      {/* Convert to Contact Person Modal */}
+      {showConvertModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+                Convert to Contact Person
+              </h3>
+
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                This will create a new Contact Person under a company contact. The contact person can then be synced with Xero.
+              </p>
+
+              {convertError && (
+                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-800 dark:text-red-300">
+                  {convertError}
+                </div>
+              )}
+
+              {/* Data Preview */}
+              <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded border border-gray-200 dark:border-gray-600">
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Data to be copied:</h4>
+                <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                  <li>• Name: {contact?.first_name || ''} {contact?.last_name || ''}</li>
+                  <li>• Email: {contact?.email || '-'}</li>
+                  <li>• Phone: {contact?.mobile_phone || contact?.office_phone || '-'}</li>
+                  <li>• Position: {contact?.position || '-'}</li>
+                </ul>
+              </div>
+
+              {/* Company Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Company *
+                </label>
+                <select
+                  value={selectedCompanyId}
+                  onChange={(e) => setSelectedCompanyId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Select a company --</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.full_name || company.company_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Delete Original Option */}
+              <div className="mb-6">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={deleteOriginal}
+                    onChange={(e) => setDeleteOriginal(e.target.checked)}
+                    className="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">
+                    Delete original person contact after conversion
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 ml-6 mt-1">
+                  (Recommended if this person will only exist under a company)
+                </p>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowConvertModal(false)
+                    setConvertError(null)
+                    setSelectedCompanyId('')
+                    setDeleteOriginal(false)
+                  }}
+                  disabled={converting}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConvertToContactPerson}
+                  disabled={converting || !selectedCompanyId}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {converting ? 'Converting...' : 'Convert'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
