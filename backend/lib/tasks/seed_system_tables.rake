@@ -32,7 +32,7 @@ namespace :trapid do
           description: 'Rules and standards documentation (category: bible)',
           has_saved_views: true,
           api_endpoint: '/api/v1/trinity?category=bible',
-          database_table_name: 'trinity_entries'
+          database_table_name: 'trinity'
         },
         {
           id: 202,  # Fixed ID - matches production
@@ -44,7 +44,7 @@ namespace :trapid do
           description: 'How-to guides and implementation patterns (category: teacher)',
           has_saved_views: true,
           api_endpoint: '/api/v1/trinity?category=teacher',
-          database_table_name: 'trinity_entries'
+          database_table_name: 'trinity'
         },
         {
           id: 203,  # Fixed ID - matches production
@@ -56,7 +56,7 @@ namespace :trapid do
           description: 'Bug history and architecture decisions (category: lexicon)',
           has_saved_views: true,
           api_endpoint: '/api/v1/trinity?category=lexicon',
-          database_table_name: 'trinity_entries'
+          database_table_name: 'trinity'
         },
         {
           id: 204,  # Fixed ID - matches production
