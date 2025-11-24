@@ -82,7 +82,7 @@ function isSystemOrHiddenColumn(columnName) {
 }
 
 export default function TablePage({ embedded = false }) {
-  const { id } = useParams()
+  const { id, slug } = useParams() // Get both ID and slug from URL
   const navigate = useNavigate()
   const [table, setTable] = useState(null)
   const [records, setRecords] = useState([])
@@ -114,6 +114,8 @@ export default function TablePage({ embedded = false }) {
   const [minimalRecords, setMinimalRecords] = useState([])
   const [showNotification, setShowNotification] = useState(false)
   const [preloadedViews, setPreloadedViews] = useState(null) // Pre-loaded views for parallel loading
+  const [viewsLoaded, setViewsLoaded] = useState(false) // Track if views are loaded (for progressive loading)
+  const [viewsLoading, setViewsLoading] = useState(false) // Track if views are currently loading
 
   // Reset progressive loading state when table changes
   useEffect(() => {
@@ -139,9 +141,9 @@ export default function TablePage({ embedded = false }) {
   //   }
   // }, [id, minimalRecords.length, loading, fullDataLoading, fullDataLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-focus search bar for Table 205 after rendering (with retry logic)
+  // Auto-focus search bar for Price Books after rendering (with retry logic)
   useEffect(() => {
-    if (id === '205' && !loading && records.length > 0 && !hasAutoFocusedRef.current) {
+    if ((id === '205' || id === 'price-books') && !loading && records.length > 0 && !hasAutoFocusedRef.current) {
       // Try multiple times with increasing delays (accounts for startTransition rendering)
       const tryFocus = (attempt = 0) => {
         const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
@@ -170,9 +172,9 @@ export default function TablePage({ embedded = false }) {
     hasAutoFocusedRef.current = false
   }, [id])
 
-  // Preserve search focus during rendering (Table 205)
+  // Preserve search focus during rendering (Price Books)
   useEffect(() => {
-    if (id === '205' && !loading && records.length > 0 && hasAutoFocusedRef.current) {
+    if ((id === '205' || id === 'price-books') && !loading && records.length > 0 && hasAutoFocusedRef.current) {
       // Continuously restore focus if it gets lost during rendering
       const timer = setTimeout(() => {
         const searchInput = document.querySelector('input[type="text"][placeholder*="Search"], input[type="search"]')
@@ -208,11 +210,11 @@ export default function TablePage({ embedded = false }) {
     // DON'T reset loadInProgressRef here - let loadRecords manage it
   }, [])
 
-  // Load records after table is loaded
+  // PROGRESSIVE LOADING: Load views FIRST, then records in background
   useEffect(() => {
     if (table) {
-      console.log('[PROGRESS SYNC] 📋 Table metadata loaded, starting record load...')
-      loadRecords()
+      console.log('[Progressive Loading] 🚀 Step 1: Loading views first...')
+      loadViewsFirst()
     }
     // Cleanup timers on unmount or when table/id changes
     return () => {
@@ -220,8 +222,18 @@ export default function TablePage({ embedded = false }) {
       clearAllTimers()
       // Reset flag to allow fresh load on remount
       loadInProgressRef.current = false
+      setViewsLoaded(false)
+      setViewsLoading(false)
     }
   }, [table, id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step 2: Load records after views are loaded
+  useEffect(() => {
+    if (viewsLoaded && table && !loading && records.length === 0) {
+      console.log('[Progressive Loading] 📊 Step 2: Loading records in background...')
+      loadRecords()
+    }
+  }, [viewsLoaded, table]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track when loading state changes
   useEffect(() => {
@@ -243,7 +255,7 @@ export default function TablePage({ embedded = false }) {
 
       const endTime = performance.now()
 
-      if (id === '205') {
+      if (id === '205' || id === 'price-books') {
         console.log('[Progressive Loading] Column conversion:', {
           columnCount: converted.length,
           conversionTime: `${(endTime - startTime).toFixed(2)}ms`,
@@ -305,11 +317,53 @@ export default function TablePage({ embedded = false }) {
 
   const loadTable = async () => {
     try {
+      console.log('[Load Table] Loading table with ID/slug:', id)
       const response = await api.get(`/api/v1/tables/${id}`)
+      console.log('[Load Table] ✅ Table loaded:', response.table?.name)
       setTable(response.table)
+
+      // If URL only has ID (not ID/slug), redirect to include both
+      if (response.table && !slug && response.table.slug) {
+        const newUrl = `/tables/${response.table.id}/${response.table.slug}`
+        console.log('[Load Table] 🔄 Redirecting to combined ID/slug URL:', newUrl)
+        navigate(newUrl, { replace: true }) // replace: true keeps browser history clean
+      }
     } catch (err) {
-      setError('Failed to load table')
-      console.error(err)
+      console.error('[Load Table] ❌ Failed to load table:', {
+        id,
+        error: err.response?.data || err.message,
+        status: err.response?.status
+      })
+      setError(err.response?.data?.error || 'Failed to load table')
+    }
+  }
+
+  // PROGRESSIVE LOADING: Load views independently BEFORE records
+  // This makes the UI feel faster by showing saved views immediately
+  const loadViewsFirst = async () => {
+    if (viewsLoading || viewsLoaded || !table?.id) return
+
+    setViewsLoading(true)
+    console.log('[Progressive Loading] 🎯 Loading views for table:', table.id)
+
+    try {
+      const data = await api.get(`/api/v1/table_views`, {
+        params: { table_id: table.id }
+      })
+
+      if (data && data.success && data.views) {
+        console.log('[Progressive Loading] ✅ Views loaded!', data.views.length, 'views')
+        setPreloadedViews(data.views)
+        setViewsLoaded(true)
+        // Views are ready - users can now interact with saved views
+        // while records load in the background
+      }
+    } catch (error) {
+      console.error('[Progressive Loading] ❌ Error loading views:', error)
+      // Even if views fail, continue loading - don't block the page
+      setViewsLoaded(true) // Set to true anyway so records can start loading
+    } finally {
+      setViewsLoading(false)
     }
   }
 
@@ -330,14 +384,15 @@ export default function TablePage({ embedded = false }) {
     }
 
     let progressInterval = null
+    let simulatedProgress = 0 // Track simulated progress for download
 
     try {
-      // For Table 205 (Price Books), load ALL items with full data
-      const isTable205 = id === '205'
+      // For Price Books table (ID: 205, slug: price-books), load ALL items with full data
+      const isPriceBooks = id === '205' || id === 'price-books'
 
-      // Check for preloaded data in sessionStorage (Table 205 only)
-      if (isTable205 && !append) {
-        const preloadedData = sessionStorage.getItem('preloaded_table_205')
+      // Check for preloaded data in sessionStorage (Price Books only)
+      if (isPriceBooks && !append) {
+        const preloadedData = sessionStorage.getItem('preloaded_table_price_books')
         if (preloadedData) {
           try {
             const { data, timestamp } = JSON.parse(preloadedData)
@@ -356,11 +411,11 @@ export default function TablePage({ embedded = false }) {
               return // Skip API call entirely!
             } else {
               console.log(`[Preload] ⚠️ Preloaded data expired (age: ${Math.round(age / 1000)}s), loading fresh data`)
-              sessionStorage.removeItem('preloaded_table_205')
+              sessionStorage.removeItem('preloaded_table_price_books')
             }
           } catch (error) {
             console.error('[Preload] Failed to parse preloaded data:', error)
-            sessionStorage.removeItem('preloaded_table_205')
+            sessionStorage.removeItem('preloaded_table_price_books')
           }
         }
       }
@@ -376,7 +431,7 @@ export default function TablePage({ embedded = false }) {
         // Don't show loading screen - data loads fast enough
         setLoading(false)
       }
-      const perPage = isTable205 && !append ? 10000 : PAGE_SIZE // Load all items for table 205
+      const perPage = isPriceBooks && !append ? 10000 : PAGE_SIZE // Load all items for Price Books
       const fieldsParam = '' // Always load full fields
 
       console.log('[Progressive Loading] loadRecords called:', {
@@ -384,52 +439,15 @@ export default function TablePage({ embedded = false }) {
         viewMode,
         page,
         append,
-        isTable205,
+        isPriceBooks,
         perPage,
         fieldsParam
       })
 
-      // Reset progress at start and set to loading phase (only for table 205)
-      if (!append && isTable205) {
-        console.log('[PROGRESS SYNC] 🚀 Starting load - Progress: 0%, Phase: loading')
-        setLoadingProgress(0)
-        setLoadingPhase('loading')
-      }
-
-      // Start simulated progress - only for table 205 (large dataset)
-      let simulatedProgress = 0
+      // No loading screen for Price Books - preload handles it or loads fast
       const startTime = Date.now()
-      if (isTable205) {
-        progressInterval = setInterval(() => {
-          simulatedProgress += Math.random() * 8 + 3 // 3-11% per tick
-          if (simulatedProgress < 70) {
-            const elapsed = Date.now() - startTime
-            console.log(`[PROGRESS SYNC] ⬇️ Downloading - Progress: ${Math.round(simulatedProgress)}%, Elapsed: ${elapsed}ms`)
-            setLoadingProgress(Math.min(simulatedProgress, 70))
-          }
-        }, 200) // Update every 200ms
 
-        // Track the interval for cleanup
-        if (!append) {
-          activeTimersRef.current.intervals.push(progressInterval)
-        }
-      }
-
-      // Option 3: Load views in parallel with records (for performance optimization)
-      // Start loading views immediately - don't wait for records to finish
-      let viewsPromise = null
-      if (!append && table?.id) {
-        console.log('[Progressive Loading] 🚀 Starting parallel view load for table:', table.id)
-        viewsPromise = api.get(`/api/v1/table_views`, {
-          params: { table_id: table.id }
-        }).then(data => {
-          console.log('[Progressive Loading] ✅ Views loaded in parallel:', data.views?.length || 0, 'views')
-          return data
-        }).catch(error => {
-          console.error('[Progressive Loading] ❌ Error loading views in parallel:', error)
-          return null
-        })
-      }
+      // Views are already loaded by loadViewsFirst() - no need to load them here
 
       const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}`, {
         onDownloadProgress: (progressEvent) => {
@@ -449,16 +467,6 @@ export default function TablePage({ embedded = false }) {
         progressInterval = null
       }
 
-      if (isTable205) {
-        const downloadEndTime = Date.now()
-        console.log(`[PROGRESS SYNC] ✅ Download complete - Time: ${downloadEndTime - startTime}ms, Records: ${response.records?.length}`)
-
-        // Show processing phase (parsing JSON)
-        console.log('[PROGRESS SYNC] 🔄 Processing data - Progress: 75%, Phase: processing')
-        setLoadingPhase('processing')
-        setLoadingProgress(75)
-      }
-
       const loadEndTime = performance.now()
       console.log('[Progressive Loading] Response received:', {
         recordCount: response.records?.length,
@@ -469,7 +477,7 @@ export default function TablePage({ embedded = false }) {
       })
 
       // Log sample record to see column structure
-      if (id === '205' && response.records?.length > 0 && !append) {
+      if ((id === '205' || id === 'price-books') && response.records?.length > 0 && !append) {
         console.log('[Progressive Loading] Sample record:', {
           columns: Object.keys(response.records[0]),
           firstRecord: response.records[0]
@@ -507,22 +515,14 @@ export default function TablePage({ embedded = false }) {
       setTotalPages(response.pagination?.total_pages || 1)
       setTotalCount(response.pagination?.total_count || 0)
 
-      // For Table 205, disable infinite scroll since we load everything at once
-      if (isTable205 && !append) {
+      // For Price Books, disable infinite scroll since we load everything at once
+      if (isPriceBooks && !append) {
         setHasMore(false)
       } else {
         setHasMore(page < (response.pagination?.total_pages || 1))
       }
 
-      // Wait for parallel view loading to complete (Option 3)
-      if (viewsPromise && !append) {
-        console.log('[Progressive Loading] ⏳ Waiting for parallel view load to complete...')
-        const viewsData = await viewsPromise
-        if (viewsData && viewsData.success && viewsData.views) {
-          console.log('[Progressive Loading] ✅ Storing', viewsData.views.length, 'preloaded views')
-          setPreloadedViews(viewsData.views)
-        }
-      }
+      // Views were already loaded by loadViewsFirst() - they're ready to use
 
       // Data is loaded - clean up
       if (!append) {
@@ -543,9 +543,9 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
-  // Background loader for full data (Table 205)
+  // Background loader for full data (Price Books)
   const loadFullDataInBackground = async () => {
-    if (id !== '205' || fullDataLoading || fullDataLoaded) return
+    if ((id !== '205' && id !== 'price-books') || fullDataLoading || fullDataLoaded) return
 
     setFullDataLoading(true)
     console.log('[Progressive Loading] Starting background load of full data...')
@@ -724,7 +724,7 @@ export default function TablePage({ embedded = false }) {
   }
 
   // Debug: Log records count before render
-  if (id === '205') {
+  if (id === '205' || id === 'price-books') {
     console.log('[Progressive Loading] Render state:', {
       recordsCount: records.length,
       totalCount,
@@ -792,197 +792,7 @@ export default function TablePage({ embedded = false }) {
 
       {/* TrapidTableView - The Gold Standard */}
       <div className="flex-1 min-h-0 overflow-auto">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center w-full max-w-lg px-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-
-              {/* Phase Breakdown */}
-              <div className="mt-6 space-y-3">
-                {/* Phase 1: Initializing */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress > 0 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-blue-500 rounded-full animate-pulse"></div>
-                    )}
-                    <span className={loadingProgress > 0 ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300 font-medium'}>
-                      Initializing
-                    </span>
-                  </div>
-                  {loadingProgress === 0 && <span className="text-xs text-gray-500">...</span>}
-                </div>
-
-                {/* Phase 2: Downloading */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 70 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'loading' && loadingProgress > 0 ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 70 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'loading' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Downloading records
-                    </span>
-                  </div>
-                  {loadingPhase === 'loading' && loadingProgress > 0 && loadingProgress < 70 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round((loadingProgress / 70) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 70 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 3: Processing */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 80 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'processing' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 80 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'processing' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Processing data
-                    </span>
-                  </div>
-                  {loadingPhase === 'processing' && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 70) / 10) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 80 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 4: Rendering table */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 90 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'rendering' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 90 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'rendering' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Rendering table
-                    </span>
-                  </div>
-                  {loadingPhase === 'rendering' && loadingProgress < 90 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 80) / 10) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 90 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 5: Setting up table */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 95 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'setup' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 95 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'setup' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Setting up table
-                    </span>
-                  </div>
-                  {loadingPhase === 'setup' && loadingProgress < 95 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 90) / 5) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 95 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 6: Loading views */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 98 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'views' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 98 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'views' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Loading views
-                    </span>
-                  </div>
-                  {loadingPhase === 'views' && loadingProgress < 98 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {Math.round(((loadingProgress - 95) / 3) * 100)}%
-                    </span>
-                  )}
-                  {loadingProgress >= 98 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-
-                {/* Phase 7: Finalizing */}
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    {loadingProgress >= 100 ? (
-                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : loadingPhase === 'finalizing' ? (
-                      <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <div className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-full"></div>
-                    )}
-                    <span className={loadingProgress >= 100 ? 'text-gray-500 dark:text-gray-400' : loadingPhase === 'finalizing' ? 'text-gray-700 dark:text-gray-300 font-medium' : 'text-gray-400 dark:text-gray-500'}>
-                      Finalizing
-                    </span>
-                  </div>
-                  {loadingPhase === 'finalizing' && loadingProgress < 100 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {loadingProgress}%
-                    </span>
-                  )}
-                  {loadingProgress >= 100 && <span className="text-xs text-green-500">100%</span>}
-                </div>
-              </div>
-
-              {/* Overall Progress Bar */}
-              <div className="mt-6">
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all duration-300 ease-out"
-                    style={{ width: `${loadingProgress}%` }}
-                  ></div>
-                </div>
-                <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-                  Overall Progress: {Math.round(loadingProgress)}%
-                </p>
-              </div>
-
-              {/* Record count estimate for large tables */}
-              {id === '205' && loadingProgress < 100 && (
-                <p className="mt-4 text-xs text-gray-400 dark:text-gray-500">
-                  Loading 5,285 items with all columns
-                </p>
-              )}
-            </div>
-          </div>
-        ) : (
+        {trapidColumns.length > 0 ? (
           <TrapidTableView
             tableId={`table-${table.slug || id}`}
             tableIdNumeric={table.id}
@@ -1061,7 +871,7 @@ export default function TablePage({ embedded = false }) {
               </div>
             }
           />
-        )}
+        ) : null}
       </div>
 
       {/* Infinite Scroll Status */}
