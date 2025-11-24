@@ -373,12 +373,8 @@ export default function TablePage({ embedded = false }) {
         loadInProgressRef.current = true
         // Now clear any existing timers
         clearAllTimers()
-        // Only show loading screen for table 205 (large dataset)
-        if (isTable205) {
-          setLoading(true)
-        } else {
-          setLoading(false) // Explicitly hide loading screen for small tables
-        }
+        // Don't show loading screen - data loads fast enough
+        setLoading(false)
       }
       const perPage = isTable205 && !append ? 10000 : PAGE_SIZE // Load all items for table 205
       const fieldsParam = '' // Always load full fields
@@ -528,21 +524,11 @@ export default function TablePage({ embedded = false }) {
         }
       }
 
-      // Quick completion for all tables (data is already loaded)
+      // Data is loaded - clean up
       if (!append) {
-        console.log('[PROGRESS SYNC] 🎨 Starting render phase - Progress: 80%, Phase: rendering')
-        setLoadingProgress(80)
-        setLoadingPhase('rendering')
-
-        // Fast loading for all tables - data is already fetched, just wait for React to render
-        setLoadingProgress(100)
-        const quickTimeout = setTimeout(() => {
-          const totalTime = Date.now() - startTime
-          console.log(`[PROGRESS SYNC] 🎉 Load complete in ${totalTime}ms, dismissing loading screen`)
-          setLoading(false)
-          loadInProgressRef.current = false
-        }, 500) // Just 500ms to allow React rendering to complete
-        activeTimersRef.current.timeouts.push(quickTimeout)
+        const totalTime = Date.now() - startTime
+        console.log(`[PROGRESS SYNC] 🎉 Load complete in ${totalTime}ms`)
+        loadInProgressRef.current = false
       } else {
         setLoadingMore(false)
       }
