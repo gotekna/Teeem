@@ -398,19 +398,17 @@ export default function SavedViewsKanban({
                                   .length
                               : 0)
 
-                        // Debug logging for active view
+                        // Debug logging for active view (only log if there are invalid columns)
                         if (isActive && visibleColumns) {
                           const allTrueColumns = Object.entries(visibleColumns).filter(([k, v]) => v === true).map(([k]) => k)
-                          const validTrueColumns = allTrueColumns.filter(key => validColumnKeys.includes(key))
                           const invalidColumns = allTrueColumns.filter(key => !validColumnKeys.includes(key))
 
-                          console.log('[SavedViewsKanban] Active view column count (FILTERED):', {
-                            viewName: view.name,
-                            count,
-                            validTrueColumns,
-                            invalidColumns: invalidColumns.length > 0 ? invalidColumns : 'none',
-                            validColumnKeys: validColumnKeys.slice(0, 5) + '... (' + validColumnKeys.length + ' total)'
-                          })
+                          if (invalidColumns.length > 0) {
+                            console.warn('[SavedViewsKanban] Invalid columns detected in view:', {
+                              viewName: view.name,
+                              invalidColumns: invalidColumns
+                            })
+                          }
                         }
 
                         return count

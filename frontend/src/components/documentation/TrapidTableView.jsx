@@ -300,7 +300,12 @@ export default function TrapidTableView({
             })
           }
         } catch (error) {
-          console.error(`❌ Failed to fetch choices for column ${column.id}:`, error)
+          // Silently skip "Column not found" errors - expected during table transitions
+          if (error.message && error.message.includes('Column not found')) {
+            console.debug(`⏭️ Skipping column ${column.id} (from previous table)`)
+          } else {
+            console.error(`❌ Failed to fetch choices for column ${column.id}:`, error)
+          }
         }
       }
     }
@@ -575,10 +580,17 @@ export default function TrapidTableView({
           return existingDefault
         }
 
+        // IMPORTANT: Fetch fresh columns from API to avoid stale state during table transitions
+        const freshColumnsData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+        const freshColumns = freshColumnsData.columns || []
+
         const allColumnsVisible = {}
-        COLUMNS.forEach(col => {
-          if (col.key !== 'select' && col.key !== 'actions') {
-            allColumnsVisible[col.key] = true
+        const columnOrder = ['select', 'actions']
+
+        freshColumns.forEach(col => {
+          if (col.column_name && col.column_name !== 'select' && col.column_name !== 'actions') {
+            allColumnsVisible[col.column_name] = true
+            columnOrder.push(col.column_name)
           }
         })
 
@@ -588,7 +600,7 @@ export default function TrapidTableView({
           filterGroups: [{ id: 'default', logic: 'AND' }],
           interGroupLogic: 'OR',
           visibleColumns: allColumnsVisible,
-          columnOrder: COLUMNS.map(c => c.key),
+          columnOrder: columnOrder,
           sortColumns: [],
           isDefault: true // Mark as system default view
         })
