@@ -5652,6 +5652,7 @@ export default function TrapidTableView({
                 {/* END PADDING WRAPPER */}
                 </div>
                 {/* END MODAL WRAPPER */}
+              </>
             )}
           </div>
 
