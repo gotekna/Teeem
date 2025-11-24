@@ -74,7 +74,7 @@ const navigation = [
   { name: 'Xest', href: '/xest', icon: BeakerIcon },
   { name: 'Price Books', href: '/tables/205', icon: BookOpenIcon },
   { name: 'Contacts', href: '/tables/214', icon: UsersIcon },
-  { name: 'Suppliers', href: '/tables/215', icon: UserGroupIcon },
+  // { name: 'Suppliers', href: '/tables/215', icon: UserGroupIcon },
   { name: 'Purchase Orders', href: '/tables/217', icon: DocumentTextIcon },
   { name: 'Accounts', href: '/accounts', icon: BanknotesIcon },
   { name: 'Corporate', href: '/corporate/companies', icon: BuildingOfficeIcon },
