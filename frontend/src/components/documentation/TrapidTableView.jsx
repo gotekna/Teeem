@@ -519,6 +519,76 @@ export default function TrapidTableView({
     setEditingDefaultSetup(false)
   }
 
+  // Helper to load a view's state (consolidated to avoid duplication)
+  const loadViewState = (view, options = {}) => {
+    const {
+      skipFilters = false,
+      skipColumns = false,
+      skipSort = false,
+      skipGroup = false,
+      setActive = true
+    } = options
+
+    // CRITICAL: Validate table_id to prevent cross-table contamination
+    // Use loose equality (!=) to handle Integer vs String type mismatch
+    if (view.table_id != null && tableIdNumeric != null && view.table_id != tableIdNumeric) {
+      console.error('[loadViewState] ❌ BLOCKED: Attempted to load view from wrong table:', {
+        viewId: view.id,
+        viewName: view.name,
+        viewTableId: view.table_id,
+        currentTableId: tableIdNumeric
+      })
+      return // ABORT - do not load view from wrong table
+    }
+
+    // Load filters
+    if (!skipFilters) {
+      setCascadeFilters(view.filters?.map(f => ({
+        id: Date.now() + Math.random(),
+        column: f.column,
+        value: f.value,
+        operator: f.operator || '=',
+        label: f.label,
+        groupId: f.groupId || 'default'
+      })) || [])
+      setFilterGroups(view.filterGroups || [{ id: 'default', logic: 'AND' }])
+      setInterGroupLogic(view.interGroupLogic || 'OR')
+    }
+
+    // Load columns
+    if (!skipColumns && view.visibleColumns) {
+      setVisibleColumns(view.visibleColumns)
+    }
+    if (!skipColumns && view.columnOrder) {
+      const dedupedColumnOrder = [...new Set(view.columnOrder)]
+      setVisibilityColumnOrder(dedupedColumnOrder)
+      setColumnOrder(dedupedColumnOrder)
+    }
+
+    // Load sort (defensive validation)
+    if (!skipSort) {
+      setSortColumns(
+        Array.isArray(view.sortColumns) && view.sortColumns.length > 0
+          ? view.sortColumns
+          : []
+      )
+    }
+
+    // Load group by (defensive validation)
+    if (!skipGroup) {
+      setGroupByColumn(
+        typeof view.groupByColumn === 'string' && view.groupByColumn.trim() !== ''
+          ? view.groupByColumn
+          : null
+      )
+    }
+
+    // Set as active view
+    if (setActive && view.id) {
+      setActiveViewId(view.id)
+    }
+  }
+
   // Helper to clear all cascade filters (separate from closing popup)
   const clearCascadeFilters = () => {
     setCascadeFilters([])
@@ -645,34 +715,7 @@ export default function TrapidTableView({
           // Auto-apply if: table just changed OR no active view yet
           if (defaultView && (tableChanged || !activeViewId)) {
             console.log('[Load Views] Auto-applying view with display_order = 0:', defaultView.name)
-
-            // Apply the view's filters
-            setCascadeFilters(defaultView.filters || [])
-            setFilterGroups(defaultView.filterGroups || [{ id: 'default', logic: 'AND' }])
-            setInterGroupLogic(defaultView.interGroupLogic || 'AND')
-
-            // Apply the view's column visibility
-            if (defaultView.visibleColumns && Object.keys(defaultView.visibleColumns).length > 0) {
-              setVisibleColumns(defaultView.visibleColumns)
-            }
-
-            // Apply the view's column order (deduplicate to prevent duplicate key errors)
-            if (defaultView.columnOrder && defaultView.columnOrder.length > 0) {
-              setColumnOrder([...new Set(defaultView.columnOrder)])
-            }
-
-            // Apply the view's sort columns
-            if (defaultView.sortColumns && defaultView.sortColumns.length > 0) {
-              setSortColumns(defaultView.sortColumns)
-            }
-
-            // Apply the view's group by column
-            if (defaultView.groupByColumn) {
-              setGroupByColumn(defaultView.groupByColumn)
-            }
-
-            // Mark this view as active
-            setActiveViewId(defaultView.id)
+            loadViewState(defaultView)
           }
 
           // Auto-create "Setup" view if it doesn't exist
@@ -781,30 +824,7 @@ export default function TrapidTableView({
 
       console.log('[TrapidTableView] URL view search result:', { viewParam, view: view?.name, found: !!view })
       if (view && activeViewId !== view.id) {
-        // Load the view's filters
-        setCascadeFilters(view.filters.map(f => ({
-          id: Date.now() + Math.random(),
-          column: f.column,
-          value: f.value,
-          operator: f.operator || '=',
-          label: f.label,
-          groupId: f.groupId || 'default'
-        })))
-        // Load visible columns
-        if (view.visibleColumns) {
-          setVisibleColumns(view.visibleColumns)
-        }
-        // Load column order (deduplicate to prevent duplicate key errors)
-        if (view.columnOrder) {
-          const dedupedColumnOrder = [...new Set(view.columnOrder)]
-          setVisibilityColumnOrder(dedupedColumnOrder)
-          setColumnOrder(dedupedColumnOrder)
-        }
-        // Load sort columns (clear if view doesn't have any)
-        setSortColumns(view.sortColumns || [])
-        // Load group by column
-        setGroupByColumn(view.groupByColumn || null)
-        setActiveViewId(view.id)
+        loadViewState(view)
       }
     }
     // Note: We don't clear activeViewId when there's no URL param anymore
@@ -832,37 +852,7 @@ export default function TrapidTableView({
     const defaultView = savedFilters.find(view => view.isDefault)
     if (defaultView) {
       hasLoadedDefaultView.current = true
-      // Load default view's filters
-      setCascadeFilters(defaultView.filters.map(f => ({
-        id: Date.now() + Math.random(),
-        column: f.column,
-        value: f.value,
-        operator: f.operator || '=',
-        label: f.label,
-        groupId: f.groupId || 'default'
-      })))
-      // Restore filter groups and inter-group logic
-      if (defaultView.filterGroups) {
-        setFilterGroups(defaultView.filterGroups)
-      }
-      if (defaultView.interGroupLogic) {
-        setInterGroupLogic(defaultView.interGroupLogic)
-      }
-      // Load default view's column visibility
-      if (defaultView.visibleColumns) {
-        setVisibleColumns(defaultView.visibleColumns)
-      }
-      // Load column order (deduplicate to prevent duplicate key errors)
-      if (defaultView.columnOrder) {
-        const dedupedColumnOrder = [...new Set(defaultView.columnOrder)]
-        setVisibilityColumnOrder(dedupedColumnOrder)
-        setColumnOrder(dedupedColumnOrder)
-      }
-      // Load sort columns
-      setSortColumns(defaultView.sortColumns || [])
-      // Load group by column
-      setGroupByColumn(defaultView.groupByColumn || null)
-      setActiveViewId(defaultView.id)
+      loadViewState(defaultView)
       // Update URL with default view
       const viewSlug = defaultView.name.toLowerCase().replace(/\s+/g, '-')
       const newParams = new URLSearchParams(searchParams)
@@ -1941,6 +1931,12 @@ export default function TrapidTableView({
   // Helper function to save a new view via API
   const saveNewView = async (viewData) => {
     try {
+      // Defensive validation: ensure correct data types before saving
+      const sortColumns = Array.isArray(viewData.sortColumns) ? viewData.sortColumns : []
+      const groupByColumn = typeof viewData.groupByColumn === 'string' && viewData.groupByColumn.trim() !== ''
+        ? viewData.groupByColumn
+        : null
+
       const response = await api.post('/api/v1/table_views', {
         table_view: {
           table_id: tableIdNumeric,
@@ -1955,8 +1951,8 @@ export default function TrapidTableView({
             visible: viewData.visibleColumns || {},
             order: viewData.columnOrder || []
           },
-          sort_order: viewData.sortColumns || {},
-          group_by_column: viewData.groupByColumn || null,
+          sort_order: sortColumns,
+          group_by_column: groupByColumn,
           is_default: viewData.isDefault || false
         }
       })
@@ -1998,6 +1994,13 @@ export default function TrapidTableView({
   const updateView = async (viewId, viewData) => {
     try {
       console.log('[Update View] Sending column order to API:', viewData.columnOrder)
+
+      // Defensive validation: ensure correct data types before saving
+      const sortColumns = Array.isArray(viewData.sortColumns) ? viewData.sortColumns : []
+      const groupByColumn = typeof viewData.groupByColumn === 'string' && viewData.groupByColumn.trim() !== ''
+        ? viewData.groupByColumn
+        : null
+
       const response = await api.put(`/api/v1/table_views/${viewId}`, {
         table_view: {
           name: viewData.name,
@@ -2010,8 +2013,8 @@ export default function TrapidTableView({
             visible: viewData.visibleColumns || {},
             order: viewData.columnOrder || []
           },
-          sort_order: viewData.sortColumns || {},
-          group_by_column: viewData.groupByColumn || null,
+          sort_order: sortColumns,
+          group_by_column: groupByColumn,
           is_default: viewData.isDefault || false
         }
       })
@@ -4862,39 +4865,7 @@ export default function TrapidTableView({
             <button
               key={view.id}
               onClick={() => {
-                setCascadeFilters(view.filters.map(f => ({
-                  id: Date.now() + Math.random(),
-                  column: f.column,
-                  value: f.value,
-                  operator: f.operator || '=',
-                  label: f.label,
-                  groupId: f.groupId || 'default'
-                })))
-                // Restore filter groups and inter-group logic
-                if (view.filterGroups) {
-                  setFilterGroups(view.filterGroups)
-                } else {
-                  setFilterGroups([{ id: 'default', logic: 'AND' }])
-                }
-                if (view.interGroupLogic) {
-                  setInterGroupLogic(view.interGroupLogic)
-                } else {
-                  setInterGroupLogic('OR')
-                }
-                if (view.visibleColumns) {
-                  setVisibleColumns(view.visibleColumns)
-                }
-                // Restore column order for both visibility panel and table (deduplicate to prevent duplicate key errors)
-                if (view.columnOrder) {
-                  const dedupedColumnOrder = [...new Set(view.columnOrder)]
-                  setVisibilityColumnOrder(dedupedColumnOrder)
-                  setColumnOrder(dedupedColumnOrder)
-                }
-                // Restore sort columns (clear if view doesn't have any)
-                setSortColumns(view.sortColumns || [])
-                // Restore group by column
-                setGroupByColumn(view.groupByColumn || null)
-                setActiveViewId(view.id)
+                loadViewState(view)
                 // Update URL with view name (URL-friendly slug)
                 const viewSlug = view.name.toLowerCase().replace(/\s+/g, '-')
                 const newParams = new URLSearchParams(searchParams)
@@ -5289,12 +5260,8 @@ export default function TrapidTableView({
                                 )
                                 if (setupView) {
                                   // Load Setup view's configuration
-                                  setCascadeFilters(setupView.filters || [])
-                                  setFilterGroups(setupView.filterGroups || [{ id: 'default', logic: 'AND' }])
-                                  setInterGroupLogic(setupView.interGroupLogic || 'OR')
-                                  setSortColumns(setupView.sortColumns || [])
-                                  setVisibleColumns(setupView.visibleColumns || {})
-                                  setColumnOrder(setupView.columnOrder ? [...new Set(setupView.columnOrder)] : COLUMNS.map(c => c.key))
+                                  loadViewState(setupView)
+                                  // Setup view should never have grouping, ensure it's cleared
                                   setGroupByColumn(null)
                                 } else {
                                   // Fallback if Setup view doesn't exist (shouldn't happen)
