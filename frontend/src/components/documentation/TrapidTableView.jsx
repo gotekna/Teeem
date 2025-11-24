@@ -6098,7 +6098,9 @@ export default function TrapidTableView({
                       isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : ''
                     } ${column.sortable ? 'cursor-pointer hover:bg-blue-400/20 dark:hover:bg-blue-600/20' : ''} ${
                       isFirst ? 'rounded-tl-lg' : ''
-                    } ${isLast ? 'rounded-tr-lg' : ''}`}
+                    } ${isLast ? 'rounded-tr-lg' : ''} ${
+                      column.header_align === 'center' ? 'text-center' : column.header_align === 'right' ? 'text-right' : 'text-left'
+                    }`}
                   >
                     {/* Select All Checkbox (Chapter 20.1) */}
                     {colKey === 'select' ? (
@@ -6565,7 +6567,7 @@ export default function TrapidTableView({
                                     !editModeActive && !isCellValid(entry, colKey, column) ? 'bg-red-600 text-white dark:bg-red-600 dark:text-white' :
                                     editModeActive && column.isComputed ? 'text-gray-400 dark:text-gray-600' : 'text-gray-900 dark:text-white'
                                   } ${
-                                    colKey === 'select' ? 'text-center' : ['price', 'quantity', 'total_cost'].includes(colKey) ? 'text-right' : ''
+                                    colKey === 'select' ? 'text-center' : column.data_align === 'center' ? 'text-center' : column.data_align === 'right' ? 'text-right' : 'text-left'
                                   } ${
                                     ['title', 'content'].includes(colKey) && !editModeActive ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
                                   } ${
@@ -6697,7 +6699,7 @@ export default function TrapidTableView({
                         // Gray out computed columns when in edit mode
                         editModeActive && column.isComputed ? 'text-gray-400 dark:text-gray-600' : 'text-gray-900 dark:text-white'
                       } ${
-                        colKey === 'select' ? 'text-center' : ['price', 'quantity', 'total_cost'].includes(colKey) ? 'text-right' : ''
+                        colKey === 'select' ? 'text-center' : column.data_align === 'center' ? 'text-center' : column.data_align === 'right' ? 'text-right' : 'text-left'
                       } ${
                         // Non-edit mode: highlight clickable title/content cells
                         ['title', 'content'].includes(colKey) && !editModeActive ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''

@@ -17,7 +17,9 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   const [editedColumn, setEditedColumn] = useState({
     name: column?.name || '',
     column_name: column?.column_name || '',
-    data_type: column?.column_type || column?.data_type || 'single_line_text'
+    data_type: column?.column_type || column?.data_type || 'single_line_text',
+    header_align: column?.header_align || 'left',
+    data_align: column?.data_align || 'left'
   });
   const [saving, setSaving] = useState(false);
   const [availableColumns, setAvailableColumns] = useState([]);
@@ -71,7 +73,9 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
       setEditedColumn({
         name: column.name || '',
         column_name: column.column_name || '',
-        data_type: column.column_type || column.data_type || 'single_line_text'
+        data_type: column.column_type || column.data_type || 'single_line_text',
+        header_align: column.header_align || 'left',
+        data_align: column.data_align || 'left'
       });
     }
   }, [column]);
@@ -164,7 +168,9 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
           column: {
             name: editedColumn.name,
             // column_name is NEVER sent - database column names cannot be changed after creation
-            column_type: editedColumn.data_type
+            column_type: editedColumn.data_type,
+            header_align: editedColumn.header_align,
+            data_align: editedColumn.data_align
           }
         }
       );
@@ -200,7 +206,9 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   };
 
   const hasChanges = () => {
-    return editedColumn.name !== column.name;
+    return editedColumn.name !== column.name ||
+           editedColumn.header_align !== (column.header_align || 'left') ||
+           editedColumn.data_align !== (column.data_align || 'left');
   };
 
   // Check if this is a system-generated column
@@ -348,7 +356,108 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
                 </div>
               </div>
 
-              {/* SECTION 2: Column Type - Read Only */}
+              {/* SECTION 2: Column Alignment */}
+              <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-xl p-6 border-2 border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="text-3xl">⚡</div>
+                  <div>
+                    <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-100">Column Alignment</h3>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300">Control text alignment for headers and data cells</p>
+                  </div>
+                </div>
+
+                {/* Header Alignment */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Header Alignment
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditedColumn(prev => ({ ...prev, header_align: 'left' }))}
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all
+                        ${editedColumn.header_align === 'left'
+                          ? 'bg-blue-500 text-white border-blue-600 shadow-lg'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                        }`}
+                    >
+                      <span className="mr-2">⬅️</span> Left
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditedColumn(prev => ({ ...prev, header_align: 'center' }))}
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all
+                        ${editedColumn.header_align === 'center'
+                          ? 'bg-blue-500 text-white border-blue-600 shadow-lg'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                        }`}
+                    >
+                      <span className="mr-2">↔️</span> Center
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditedColumn(prev => ({ ...prev, header_align: 'right' }))}
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all
+                        ${editedColumn.header_align === 'right'
+                          ? 'bg-blue-500 text-white border-blue-600 shadow-lg'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                        }`}
+                    >
+                      <span className="mr-2">➡️</span> Right
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Controls how the column header text is aligned
+                  </p>
+                </div>
+
+                {/* Data Alignment */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Data Alignment
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditedColumn(prev => ({ ...prev, data_align: 'left' }))}
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all
+                        ${editedColumn.data_align === 'left'
+                          ? 'bg-green-500 text-white border-green-600 shadow-lg'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-green-400'
+                        }`}
+                    >
+                      <span className="mr-2">⬅️</span> Left
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditedColumn(prev => ({ ...prev, data_align: 'center' }))}
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all
+                        ${editedColumn.data_align === 'center'
+                          ? 'bg-green-500 text-white border-green-600 shadow-lg'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-green-400'
+                        }`}
+                    >
+                      <span className="mr-2">↔️</span> Center
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditedColumn(prev => ({ ...prev, data_align: 'right' }))}
+                      className={`flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all
+                        ${editedColumn.data_align === 'right'
+                          ? 'bg-green-500 text-white border-green-600 shadow-lg'
+                          : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-green-400'
+                        }`}
+                    >
+                      <span className="mr-2">➡️</span> Right
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Controls how the data cell content is aligned (currency columns default to right)
+                  </p>
+                </div>
+              </div>
+
+              {/* SECTION 3: Column Type - Read Only */}
               <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-700">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="text-3xl">🎯</div>
@@ -373,7 +482,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
                 </div>
               </div>
 
-              {/* SECTION 3: SQL Type & Metadata */}
+              {/* SECTION 4: SQL Type & Metadata */}
               <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl p-6 border-2 border-green-200 dark:border-green-700">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="text-3xl">🗄️</div>

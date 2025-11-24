@@ -548,7 +548,9 @@ module Api
           :validation_message,
           :lookup_table_id,
           :lookup_display_column,
-          :is_multiple
+          :is_multiple,
+          :header_align,
+          :data_align
         )
       end
 
@@ -573,7 +575,9 @@ module Api
           lookup_table_id: column.lookup_table_id,
           lookup_display_column: column.lookup_display_column,
           is_multiple: column.is_multiple,
-          has_cross_table_refs: column.has_cross_table_refs
+          has_cross_table_refs: column.has_cross_table_refs,
+          header_align: column.header_align || 'left',
+          data_align: column.data_align || 'left'
         }
       end
     end
