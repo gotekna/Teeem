@@ -60,7 +60,7 @@ module Api
 
       # POST /api/v1/sm_field/checkin
       def checkin
-        construction = Construction.find(params[:construction_id])
+        construction = Job.find(params[:job_id])
         resource = SmResource.find(params[:resource_id])
 
         checkin = SmSiteCheckin.create!(
@@ -89,7 +89,7 @@ module Api
         checkins = SmSiteCheckin.includes(:resource, :construction, :task)
 
         # Filters
-        checkins = checkins.where(construction_id: params[:construction_id]) if params[:construction_id]
+        checkins = checkins.where(construction_id: params[:job_id]) if params[:job_id]
         checkins = checkins.where(resource_id: params[:resource_id]) if params[:resource_id]
         checkins = checkins.for_date(Date.parse(params[:date])) if params[:date]
         checkins = checkins.today if params[:today] == 'true'
@@ -102,9 +102,9 @@ module Api
         }
       end
 
-      # GET /api/v1/sm_field/site_status/:construction_id
+      # GET /api/v1/sm_field/site_status/:job_id
       def site_status
-        construction = Construction.find(params[:construction_id])
+        construction = Job.find(params[:job_id])
         today_checkins = SmSiteCheckin.where(construction: construction).today.includes(:resource)
 
         # Find who's currently on site (arrived but not departed)
@@ -219,7 +219,7 @@ module Api
         # Sync checkins
         (params[:checkins] || []).each do |checkin_data|
           checkin = SmSiteCheckin.new(
-            construction_id: checkin_data[:construction_id],
+            construction_id: checkin_data[:job_id],
             resource_id: checkin_data[:resource_id],
             latitude: checkin_data[:latitude],
             longitude: checkin_data[:longitude],

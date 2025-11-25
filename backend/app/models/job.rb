@@ -1,4 +1,7 @@
-class Construction < ApplicationRecord
+class Job < ApplicationRecord
+  # Explicitly set table name since it was renamed from 'constructions' to 'jobs'
+  self.table_name = 'jobs'
+
   # Associations
   has_many :purchase_orders, dependent: :destroy
   has_many :schedule_tasks, dependent: :destroy
@@ -7,9 +10,9 @@ class Construction < ApplicationRecord
   belongs_to :design, optional: true
   has_many :chat_messages, dependent: :nullify
   has_many :emails, dependent: :nullify
-  has_many :construction_documentation_tabs, dependent: :destroy
-  has_many :construction_contacts, dependent: :destroy
-  has_many :contacts, through: :construction_contacts
+  has_many :job_documentation_tabs, dependent: :destroy
+  has_many :job_contacts, dependent: :destroy
+  has_many :contacts, through: :job_contacts
   has_many :rain_logs, dependent: :destroy
 
   # SM Gantt associations (Schedule Master v2)
@@ -107,12 +110,12 @@ class Construction < ApplicationRecord
 
   # Get primary contact
   def primary_contact
-    construction_contacts.primary.first&.contact
+    job_contacts.primary.first&.contact
   end
 
   # Get all contacts with their relationship info
   def contacts_with_details
-    construction_contacts.includes(contact: :outgoing_relationships).map do |cc|
+    job_contacts.includes(contact: :outgoing_relationships).map do |cc|
       {
         id: cc.id,
         contact_id: cc.contact_id,
@@ -127,7 +130,7 @@ class Construction < ApplicationRecord
   private
 
   def must_have_at_least_one_contact
-    if construction_contacts.empty?
+    if job_contacts.empty?
       errors.add(:base, "Job must have at least one contact")
     end
   end
@@ -135,7 +138,7 @@ class Construction < ApplicationRecord
   # Create job-specific documentation tabs from global categories
   def create_documentation_tabs_from_categories
     DocumentationCategory.active.ordered.each do |category|
-      construction_documentation_tabs.create!(
+      job_documentation_tabs.create!(
         name: category.name,
         icon: category.icon,
         color: category.color,

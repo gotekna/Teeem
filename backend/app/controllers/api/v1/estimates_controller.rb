@@ -24,7 +24,7 @@ module Api
       end
 
       def match
-        construction_id = params[:construction_id]
+        construction_id = params[:job_id]
 
         if construction_id.blank?
           render json: {
@@ -34,7 +34,7 @@ module Api
           return
         end
 
-        construction = Construction.find_by(id: construction_id)
+        construction = Job.find_by(id: construction_id)
 
         if construction.nil?
           render json: {

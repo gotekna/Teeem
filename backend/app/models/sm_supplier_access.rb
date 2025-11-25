@@ -7,14 +7,14 @@
 #
 class SmSupplierAccess < ApplicationRecord
   belongs_to :contact # The supplier contact
-  belongs_to :construction
+  belongs_to :job
   belongs_to :created_by, class_name: 'User', optional: true
 
   # Generate secure token
   has_secure_token :access_token
 
   # Validations
-  validates :contact_id, uniqueness: { scope: :construction_id }
+  validates :contact_id, uniqueness: { scope: :job_id }
   validates :expires_at, presence: true
 
   # Scopes

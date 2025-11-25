@@ -1,11 +1,11 @@
 class OneDriveCredential < ApplicationRecord
-  belongs_to :construction
+  belongs_to :job
 
   # Encrypt sensitive tokens
   encrypts :access_token
   encrypts :refresh_token
 
-  validates :construction_id, uniqueness: true
+  validates :job_id, uniqueness: true
 
   # Check if token is expired or about to expire (within 5 minutes)
   def token_expired?

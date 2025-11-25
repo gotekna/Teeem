@@ -54,7 +54,7 @@ module Api
       def job_profitability
         service = FinancialExportService.new(company: @company)
 
-        construction_ids = params[:construction_ids]&.split(',')&.map(&:to_i)
+        construction_ids = params[:job_ids]&.split(',')&.map(&:to_i)
         from_date = params[:from_date] ? Date.parse(params[:from_date]) : nil
         to_date = params[:to_date] ? Date.parse(params[:to_date]) : Date.current
 
@@ -124,7 +124,7 @@ module Api
         filters[:transaction_type] = params[:transaction_type] if params[:transaction_type].present?
         filters[:category] = params[:category] if params[:category].present?
         filters[:status] = params[:status] if params[:status].present?
-        filters[:construction_id] = params[:construction_id] if params[:construction_id].present?
+        filters[:job_id] = params[:job_id] if params[:job_id].present?
         filters[:from_date] = Date.parse(params[:from_date]) if params[:from_date].present?
         filters[:to_date] = Date.parse(params[:to_date]) if params[:to_date].present?
         filters

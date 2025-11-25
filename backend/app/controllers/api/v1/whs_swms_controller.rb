@@ -3,8 +3,8 @@ class Api::V1::WHSSWMSController < ApplicationController
 
   # GET /api/v1/whs_swms
   def index
-    swms = if params[:construction_id].present?
-      WhsSwms.for_construction(params[:construction_id])
+    swms = if params[:job_id].present?
+      WhsSwms.for_construction(params[:job_id])
     else
       WhsSwms.all
     end
@@ -202,7 +202,7 @@ class Api::V1::WHSSWMSController < ApplicationController
 
   def whs_swms_params
     params.require(:whs_swms).permit(
-      :title, :description, :construction_id, :version, :status,
+      :title, :description, :job_id, :version, :status,
       :high_risk_work, :high_risk_type, :company_wide, :expiry_date,
       ppe_requirements: [],
       required_qualifications: [],

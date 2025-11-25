@@ -5,8 +5,8 @@ class Api::V1::WHSInductionsController < ApplicationController
   def index
     inductions = if params[:user_id].present?
       WhsInduction.for_user(params[:user_id])
-    elsif params[:construction_id].present?
-      WhsInduction.for_construction(params[:construction_id])
+    elsif params[:job_id].present?
+      WhsInduction.for_construction(params[:job_id])
     else
       WhsInduction.all
     end
@@ -149,7 +149,7 @@ class Api::V1::WHSInductionsController < ApplicationController
   def whs_induction_params
     params.require(:whs_induction).permit(
       :certificate_number, :whs_induction_template_id, :user_id,
-      :construction_id, :inducted_by_user_id, :completion_date,
+      :job_id, :inducted_by_user_id, :completion_date,
       :expiry_date, :status, :quiz_score, :passed, :signature_data,
       :notes
     )

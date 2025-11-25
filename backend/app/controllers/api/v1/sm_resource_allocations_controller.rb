@@ -145,7 +145,7 @@ module Api
       # GET /api/v1/sm_resource_allocations/gantt_data
       # Returns data formatted for resource Gantt view
       def gantt_data
-        construction_id = params[:construction_id]
+        construction_id = params[:job_id]
 
         tasks = SmTask.where(construction_id: construction_id)
           .includes(resource_allocations: :resource)

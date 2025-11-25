@@ -6,7 +6,7 @@
 # actual progress against planned progress.
 #
 class SmBaseline < ApplicationRecord
-  belongs_to :construction
+  belongs_to :job
   belongs_to :created_by, class_name: 'User', optional: true
 
   has_many :baseline_tasks, class_name: 'SmBaselineTask', dependent: :destroy

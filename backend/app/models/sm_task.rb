@@ -21,7 +21,7 @@ class SmTask < ApplicationRecord
   }, prefix: true, default: nil
 
   # Associations
-  belongs_to :construction
+  belongs_to :job
   belongs_to :template_row, class_name: 'ScheduleTemplateRow', optional: true
   belongs_to :parent_task, class_name: 'SmTask', optional: true
   has_many :children, class_name: 'SmTask', foreign_key: :parent_task_id, dependent: :nullify

@@ -61,7 +61,7 @@ class Api::V1::ChatMessagesController < ApplicationController
   # POST /api/v1/chat_messages/:id/save_to_job
   def save_to_job
     @message = ChatMessage.find(params[:id])
-    construction_id = params[:construction_id]
+    construction_id = params[:job_id]
 
     if construction_id.blank?
       render json: { error: 'construction_id is required' }, status: :unprocessable_entity
@@ -74,7 +74,7 @@ class Api::V1::ChatMessagesController < ApplicationController
 
   # POST /api/v1/chat_messages/save_conversation_to_job
   def save_conversation_to_job
-    construction_id = params[:construction_id]
+    construction_id = params[:job_id]
     message_ids = params[:message_ids]
 
     if construction_id.blank?

@@ -1,6 +1,6 @@
 class QuoteRequest < ApplicationRecord
   # Associations
-  belongs_to :construction
+  belongs_to :job
   belongs_to :created_by, class_name: 'User'
   belongs_to :selected_quote_response, class_name: 'QuoteResponse', optional: true
   has_many :quote_responses, dependent: :destroy
@@ -19,7 +19,7 @@ class QuoteRequest < ApplicationRecord
   # Validations
   validates :title, presence: true
   validates :status, presence: true
-  validates :construction_id, presence: true
+  validates :job_id, presence: true
   validates :created_by_id, presence: true
   validates :budget_min, numericality: { greater_than: 0, allow_nil: true }
   validates :budget_max, numericality: { greater_than: 0, allow_nil: true }

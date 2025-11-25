@@ -12,7 +12,7 @@
 # - Schedule changes
 #
 class SmActivity < ApplicationRecord
-  belongs_to :construction
+  belongs_to :job
   belongs_to :user, optional: true
   belongs_to :resource, class_name: 'SmResource', optional: true
   belongs_to :task, class_name: 'SmTask', foreign_key: 'sm_task_id', optional: true

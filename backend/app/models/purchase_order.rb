@@ -1,6 +1,6 @@
 class PurchaseOrder < ApplicationRecord
   # Associations
-  belongs_to :construction, counter_cache: true
+  belongs_to :job, counter_cache: true
   belongs_to :supplier, optional: true, counter_cache: true
   belongs_to :contact, foreign_key: :supplier_id, optional: true
   belongs_to :estimate, optional: true
@@ -21,7 +21,7 @@ class PurchaseOrder < ApplicationRecord
 
   # Validations
   validates :purchase_order_number, presence: true, uniqueness: true
-  validates :construction_id, presence: true
+  validates :job_id, presence: true
   validates :status, presence: true, inclusion: {
     in: %w[draft pending approved sent received invoiced paid cancelled]
   }

@@ -8,7 +8,7 @@
 class SmHoldLog < ApplicationRecord
   EVENT_TYPES = %w[hold_started hold_released].freeze
 
-  belongs_to :construction
+  belongs_to :job
   belongs_to :hold_task, class_name: 'SmTask'
   belongs_to :hold_reason, class_name: 'SmHoldReason', optional: true
   belongs_to :hold_started_by, class_name: 'User', optional: true

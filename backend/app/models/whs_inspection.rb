@@ -1,6 +1,6 @@
 class WHSInspection < ApplicationRecord
   # Associations
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   belongs_to :whs_inspection_template, optional: true
   belongs_to :inspector_user, class_name: 'User', optional: true
   belongs_to :created_by, class_name: 'User'

@@ -1,6 +1,6 @@
 class WHSSWMS < ApplicationRecord
   # Associations (belongs_to first, then has_many)
-  belongs_to :construction, optional: true  # Nullable for company-wide SWMS
+  belongs_to :job, optional: true  # Nullable for company-wide SWMS
   belongs_to :created_by, class_name: 'User'
   belongs_to :approved_by, class_name: 'User', optional: true
   belongs_to :superseded_by, class_name: 'WHSSWMS', optional: true

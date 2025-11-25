@@ -3,8 +3,8 @@ class Api::V1::WHSIncidentsController < ApplicationController
 
   # GET /api/v1/whs_incidents
   def index
-    incidents = if params[:construction_id].present?
-      WhsIncident.for_construction(params[:construction_id])
+    incidents = if params[:job_id].present?
+      WhsIncident.for_construction(params[:job_id])
     else
       WhsIncident.all
     end
@@ -173,7 +173,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
       :incident_number, :incident_date, :report_date, :status,
       :incident_category, :incident_type, :severity_level,
       :what_happened, :where_it_happened, :who_was_involved,
-      :immediate_action_taken, :construction_id, :location,
+      :immediate_action_taken, :job_id, :location,
       :investigation_findings, :root_cause, :contributing_factors,
       :corrective_actions_summary, :lessons_learned,
       witnesses: [],

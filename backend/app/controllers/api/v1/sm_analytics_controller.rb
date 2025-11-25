@@ -3,25 +3,25 @@
 module Api
   module V1
     class SmAnalyticsController < ApplicationController
-      before_action :set_construction
+      before_action :set_job
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/critical_path
+      # GET /api/v1/constructions/:job_id/sm_analytics/critical_path
       def critical_path
-        result = SmCriticalPathService.calculate(@construction)
+        result = SmCriticalPathService.calculate(@job)
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           critical_path: result
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/delay_impact
+      # GET /api/v1/constructions/:job_id/sm_analytics/delay_impact
       def delay_impact
         task_id = params[:task_id].to_i
         delay_days = params[:delay_days].to_i
 
-        result = SmCriticalPathService.delay_impact(@construction, task_id, delay_days)
+        result = SmCriticalPathService.delay_impact(@job, task_id, delay_days)
 
         render json: {
           success: true,
@@ -31,33 +31,33 @@ module Api
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/evm
+      # GET /api/v1/constructions/:job_id/sm_analytics/evm
       def evm
         as_of = params[:as_of_date] ? Date.parse(params[:as_of_date]) : Date.current
-        result = SmEvmService.calculate(@construction, as_of_date: as_of)
+        result = SmEvmService.calculate(@job, as_of_date: as_of)
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           evm: result
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/s_curve
+      # GET /api/v1/constructions/:job_id/sm_analytics/s_curve
       def s_curve
         as_of = params[:as_of_date] ? Date.parse(params[:as_of_date]) : Date.current
-        result = SmEvmService.s_curve(@construction, as_of_date: as_of)
+        result = SmEvmService.s_curve(@job, as_of_date: as_of)
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           s_curve: result
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/baselines
+      # GET /api/v1/constructions/:job_id/sm_analytics/baselines
       def baselines
-        baselines = @construction.sm_baselines.recent.includes(:created_by)
+        baselines = @job.sm_baselines.recent.includes(:created_by)
 
         render json: {
           success: true,
@@ -65,10 +65,10 @@ module Api
         }
       end
 
-      # POST /api/v1/constructions/:construction_id/sm_analytics/baselines
+      # POST /api/v1/constructions/:job_id/sm_analytics/baselines
       def create_baseline
         baseline = SmBaseline.create_snapshot(
-          @construction,
+          @job,
           name: params[:name] || "Baseline #{Date.current}",
           created_by: current_user
         )
@@ -79,9 +79,9 @@ module Api
         }, status: :created
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/baselines/:id/compare
+      # GET /api/v1/constructions/:job_id/sm_analytics/baselines/:id/compare
       def compare_baseline
-        baseline = @construction.sm_baselines.find(params[:id])
+        baseline = @job.sm_baselines.find(params[:id])
         comparison = baseline.compare_to_current
 
         render json: {
@@ -90,9 +90,9 @@ module Api
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/variance
+      # GET /api/v1/constructions/:job_id/sm_analytics/variance
       def variance
-        active_baseline = @construction.sm_baselines.active.first
+        active_baseline = @job.sm_baselines.active.first
 
         unless active_baseline
           return render json: {
@@ -110,16 +110,16 @@ module Api
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_analytics/summary
+      # GET /api/v1/constructions/:job_id/sm_analytics/summary
       def summary
-        critical_path = SmCriticalPathService.calculate(@construction)
-        evm = SmEvmService.calculate(@construction)
-        active_baseline = @construction.sm_baselines.active.first
+        critical_path = SmCriticalPathService.calculate(@job)
+        evm = SmEvmService.calculate(@job)
+        active_baseline = @job.sm_baselines.active.first
         variance = active_baseline&.compare_to_current
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           summary: {
             critical_path: {
               duration_days: critical_path[:project_duration],
@@ -144,8 +144,8 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id])
+      def set_job
+        @job = Job.find(params[:job_id])
       end
 
       def baseline_json(baseline)

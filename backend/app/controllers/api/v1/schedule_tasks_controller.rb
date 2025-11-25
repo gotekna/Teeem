@@ -1,20 +1,20 @@
 module Api
   module V1
     class ScheduleTasksController < ApplicationController
-      before_action :set_construction, only: [:index, :import, :gantt_data, :create, :copy_from_template]
+      before_action :set_job, only: [:index, :import, :gantt_data, :create, :copy_from_template]
       before_action :set_schedule_task, only: [:show, :update, :destroy, :match_po, :unmatch_po]
 
-      # GET /api/v1/constructions/:construction_id/schedule_tasks
+      # GET /api/v1/constructions/:job_id/schedule_tasks
       # Returns all schedule tasks for a construction job
       def index
-        @schedule_tasks = @construction.schedule_tasks.by_sequence
+        @schedule_tasks = @job.schedule_tasks.by_sequence
 
         render json: {
           success: true,
           schedule_tasks: @schedule_tasks.map { |task| task_to_json(task) },
-          matched_count: @construction.schedule_tasks.matched.count,
-          unmatched_count: @construction.schedule_tasks.unmatched.count,
-          total_count: @construction.schedule_tasks.count
+          matched_count: @job.schedule_tasks.matched.count,
+          unmatched_count: @job.schedule_tasks.unmatched.count,
+          total_count: @job.schedule_tasks.count
         }
       end
 
@@ -26,13 +26,13 @@ module Api
         }
       end
 
-      # POST /api/v1/constructions/:construction_id/schedule_tasks
+      # POST /api/v1/constructions/:job_id/schedule_tasks
       # Create a single schedule task manually
       def create
-        @schedule_task = @construction.schedule_tasks.new(schedule_task_params)
+        @schedule_task = @job.schedule_tasks.new(schedule_task_params)
 
         # Set sequence order to be last + 1
-        max_sequence = @construction.schedule_tasks.maximum(:sequence_order) || 0
+        max_sequence = @job.schedule_tasks.maximum(:sequence_order) || 0
         @schedule_task.sequence_order = max_sequence + 1
 
         if @schedule_task.save
@@ -49,7 +49,7 @@ module Api
         end
       end
 
-      # POST /api/v1/constructions/:construction_id/schedule_tasks/copy_from_template
+      # POST /api/v1/constructions/:job_id/schedule_tasks/copy_from_template
       # Copy a task template to create a new schedule task
       def copy_from_template
         unless params[:template_id].present?
@@ -69,10 +69,10 @@ module Api
         end
 
         # Get the next sequence order
-        max_sequence = @construction.schedule_tasks.maximum(:sequence_order) || 0
+        max_sequence = @job.schedule_tasks.maximum(:sequence_order) || 0
 
         # Create schedule task from template
-        @schedule_task = @construction.schedule_tasks.new(
+        @schedule_task = @job.schedule_tasks.new(
           title: template.name,
           status: 'Not Started',
           duration: "#{template.default_duration_days}d",
@@ -94,7 +94,7 @@ module Api
         end
       end
 
-      # POST /api/v1/constructions/:construction_id/schedule_tasks/import
+      # POST /api/v1/constructions/:job_id/schedule_tasks/import
       # Import schedule tasks from Excel file
       def import
         unless params[:file].present?
@@ -141,10 +141,10 @@ module Api
         end
       end
 
-      # GET /api/v1/constructions/:construction_id/schedule_tasks/gantt_data
+      # GET /api/v1/constructions/:job_id/schedule_tasks/gantt_data
       # Returns only matched tasks formatted for Gantt chart
       def gantt_data
-        matched_tasks = @construction.schedule_tasks.for_gantt
+        matched_tasks = @job.schedule_tasks.for_gantt
 
         render json: {
           success: true,
@@ -228,8 +228,8 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id])
+      def set_job
+        @job = Job.find(params[:job_id])
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
@@ -283,7 +283,7 @@ module Api
           next unless row['title'].present? || row['Title'].present?
 
           task_attributes = parse_schedule_row(row, index)
-          @construction.schedule_tasks.create!(task_attributes)
+          @job.schedule_tasks.create!(task_attributes)
           imported_count += 1
         rescue => e
           Rails.logger.error("Failed to import row #{index + 1}: #{e.message}")

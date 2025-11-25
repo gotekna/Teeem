@@ -3,39 +3,39 @@
 module Api
   module V1
     class SmAiController < ApplicationController
-      before_action :set_construction, except: [:estimate_duration]
+      before_action :set_job, except: [:estimate_duration]
 
-      # GET /api/v1/constructions/:construction_id/sm_ai/suggestions
+      # GET /api/v1/constructions/:job_id/sm_ai/suggestions
       def suggestions
-        result = SmAiService.suggestions(@construction)
+        result = SmAiService.suggestions(@job)
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           suggestions: result,
           generated_at: Time.current
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_ai/predictions
+      # GET /api/v1/constructions/:job_id/sm_ai/predictions
       def predictions
-        result = SmAiService.predictions(@construction)
+        result = SmAiService.predictions(@job)
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           predictions: result,
           generated_at: Time.current
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_ai/resource_optimization
+      # GET /api/v1/constructions/:job_id/sm_ai/resource_optimization
       def resource_optimization
-        result = SmAiService.optimize_resources(@construction)
+        result = SmAiService.optimize_resources(@job)
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           optimization: result,
           generated_at: Time.current
         }
@@ -55,13 +55,13 @@ module Api
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_ai/summary
+      # GET /api/v1/constructions/:job_id/sm_ai/summary
       def summary
-        service = SmAiService.new(@construction)
+        service = SmAiService.new(@job)
 
         render json: {
           success: true,
-          construction_id: @construction.id,
+          construction_id: @job.id,
           suggestions: service.scheduling_suggestions.first(5),
           predictions: service.delay_predictions.first(5),
           resource_issues: service.resource_optimization.first(5),
@@ -71,8 +71,8 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id])
+      def set_job
+        @job = Job.find(params[:job_id])
       end
     end
   end

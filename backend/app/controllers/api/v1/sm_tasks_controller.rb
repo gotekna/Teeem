@@ -3,16 +3,16 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_construction, only: [:index, :create, :gantt_data, :copy_from_template]
+      before_action :set_job, only: [:index, :create, :gantt_data, :copy_from_template]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category
       ]
 
-      # GET /api/v1/constructions/:construction_id/sm_tasks
+      # GET /api/v1/constructions/:job_id/sm_tasks
       def index
-        @tasks = @construction.sm_tasks.ordered.includes(
+        @tasks = @job.sm_tasks.ordered.includes(
           :hold_reason, :purchase_order, :assigned_user, :supplier,
           :predecessor_dependencies, :successor_dependencies
         )
@@ -26,10 +26,10 @@ module Api
           success: true,
           sm_tasks: @tasks.map { |task| task_to_json(task) },
           meta: {
-            total_count: @construction.sm_tasks.count,
-            active_count: @construction.sm_tasks.active.count,
-            hold_count: @construction.sm_tasks.hold_tasks.where(status: 'not_started').count,
-            completed_count: @construction.sm_tasks.status_completed.count
+            total_count: @job.sm_tasks.count,
+            active_count: @job.sm_tasks.active.count,
+            hold_count: @job.sm_tasks.hold_tasks.where(status: 'not_started').count,
+            completed_count: @job.sm_tasks.status_completed.count
           }
         }
       end
@@ -42,13 +42,13 @@ module Api
         }
       end
 
-      # POST /api/v1/constructions/:construction_id/sm_tasks
+      # POST /api/v1/constructions/:job_id/sm_tasks
       def create
-        @task = @construction.sm_tasks.new(sm_task_params)
+        @task = @job.sm_tasks.new(sm_task_params)
         @task.created_by = current_user
 
         # Set sequence order to be last + 1
-        max_sequence = @construction.sm_tasks.maximum(:sequence_order) || 0
+        max_sequence = @job.sm_tasks.maximum(:sequence_order) || 0
         @task.sequence_order = max_sequence + 1
 
         if @task.save
@@ -65,7 +65,7 @@ module Api
         end
       end
 
-      # POST /api/v1/constructions/:construction_id/sm_tasks/copy_from_template
+      # POST /api/v1/constructions/:job_id/sm_tasks/copy_from_template
       def copy_from_template
         unless params[:template_row_id].present?
           return render json: {
@@ -84,10 +84,10 @@ module Api
         end
 
         # Get the next sequence order
-        max_sequence = @construction.sm_tasks.maximum(:sequence_order) || 0
+        max_sequence = @job.sm_tasks.maximum(:sequence_order) || 0
 
         # Create task from template row
-        @task = @construction.sm_tasks.new(
+        @task = @job.sm_tasks.new(
           name: template_row.title,
           status: 'not_started',
           duration_days: template_row.duration,
@@ -112,9 +112,9 @@ module Api
         end
       end
 
-      # GET /api/v1/constructions/:construction_id/sm_tasks/gantt_data
+      # GET /api/v1/constructions/:job_id/sm_tasks/gantt_data
       def gantt_data
-        tasks = @construction.sm_tasks.ordered.includes(
+        tasks = @job.sm_tasks.ordered.includes(
           :hold_reason, :predecessor_dependencies, :successor_dependencies
         )
 
@@ -125,7 +125,7 @@ module Api
             dependencies: tasks.flat_map { |task| dependencies_to_gantt_format(task) }
           },
           meta: {
-            construction_id: @construction.id,
+            construction_id: @job.id,
             task_count: tasks.count,
             settings: SmSetting.instance.slice(:rollover_time, :rollover_timezone, :rollover_enabled)
           }
@@ -466,8 +466,8 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id])
+      def set_job
+        @job = Job.find(params[:job_id])
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,

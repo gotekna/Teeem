@@ -2215,11 +2215,10 @@ export default function TrapidTableView({
           <div
             className="flex items-center justify-center"
             onMouseDown={(e) => {
-              // Only start drag selection on shift+click, otherwise let checkbox handle it
-              if (e.shiftKey) {
-                e.preventDefault()
-                handleDragSelectStart(entry.id)
-              }
+              // Start drag selection when clicking in the select column
+              // Checkbox's stopPropagation prevents this when clicking checkbox directly
+              e.preventDefault()
+              handleDragSelectStart(entry.id)
             }}
             onMouseEnter={() => {
               if (isDragging) {
@@ -2232,6 +2231,7 @@ export default function TrapidTableView({
               checked={selectedRows.has(entry.id)}
               onChange={() => handleSelectRow(entry.id)}
               onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
             />
           </div>

@@ -283,8 +283,8 @@ module Api
       # POST /api/v1/organization_onedrive/create_job_folders
       # Create folder structure for a specific job
       def create_job_folders
-        construction_id = params[:construction_id]
-        construction = Construction.find(construction_id)
+        construction_id = params[:job_id]
+        construction = Job.find(construction_id)
 
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -345,8 +345,8 @@ module Api
       # GET /api/v1/organization_onedrive/job_folders
       # List folders and files for a specific job
       def list_job_items
-        construction_id = params[:construction_id]
-        construction = Construction.find(construction_id)
+        construction_id = params[:job_id]
+        construction = Job.find(construction_id)
 
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -392,8 +392,8 @@ module Api
       # POST /api/v1/organization_onedrive/upload
       # Upload file to OneDrive
       def upload
-        construction_id = params[:construction_id]
-        construction = Construction.find(construction_id)
+        construction_id = params[:job_id]
+        construction = Job.find(construction_id)
 
         credential = OrganizationOneDriveCredential.active_credential
 
