@@ -17,15 +17,15 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 Run BOTH in a SINGLE message (parallel):
 ```bash
 # Backend
-cd /Users/robertharder/GitHub/trapid/backend && nohup /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3000 > /tmp/rails-server.log 2>&1 & echo "Backend started (PID: $!)"
+cd backend && nohup /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3000 > /tmp/rails-server.log 2>&1 & echo "Backend started (PID: $!)"
 
 # Frontend
-cd /Users/robertharder/GitHub/trapid/frontend && nohup npm run dev > /tmp/vite-server.log 2>&1 & echo "Frontend started (PID: $!)"
+cd frontend && nohup npm run dev > /tmp/vite-server.log 2>&1 & echo "Frontend started (PID: $!)"
 ```
 
 **Step 3: Git Operations (Sequential - Required)**
 ```bash
-cd /Users/robertharder/GitHub/trapid && git add -A && git commit -m "chore: Auto-commit from /r" || echo "No changes to commit"
+git add -A && git commit -m "chore: Auto-commit from /r" || echo "No changes to commit"
 ```
 
 Then separately:
@@ -42,7 +42,7 @@ git add . && git rebase --continue && git push origin rob
 
 **Step 4: Deploy to Heroku (Sequential - Required)**
 ```bash
-cd /Users/robertharder/GitHub/trapid && git subtree push --prefix backend heroku main
+git subtree push --prefix backend heroku main
 ```
 
 **Step 5: Verify Everything**
@@ -92,7 +92,8 @@ Breakdown:
 
 ## Notes
 - All bash commands are pre-approved
-- Use absolute paths to avoid directory issues
+- Uses relative paths (cd backend, cd frontend) which are pre-approved
+- Working directory must be /Users/robertharder/GitHub/trapid
 - Use rbenv shims path for Rails to avoid bundler conflicts
 - nohup keeps servers running after command completes
 - Conflicts in package.json version are normal (always take HEAD)
