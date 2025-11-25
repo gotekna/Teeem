@@ -27,7 +27,7 @@ class WHSSWMS < ApplicationRecord
   validates :company_wide, inclusion: { in: [true, false] }
 
   # Custom validations
-  validate :must_have_construction_or_be_company_wide
+  validate :must_have_job_or_be_company_wide
   validate :cannot_approve_own_swms, on: :update
 
   # Callbacks
@@ -44,7 +44,8 @@ class WHSSWMS < ApplicationRecord
   scope :superseded, -> { where(status: 'superseded') }
   scope :company_wide, -> { where(company_wide: true) }
   scope :job_specific, -> { where(company_wide: false) }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept method name for backward compatibility
+  scope :for_job, ->(job_id) { where(job_id: job_id) }
   scope :by_high_risk_type, ->(type) { where(high_risk_type: type) }
   scope :active, -> { where.not(status: ['superseded', 'rejected']) }
 
@@ -202,13 +203,13 @@ class WHSSWMS < ApplicationRecord
   end
 
   def create_swms_approval_task
-    return unless construction.present?
+    return unless job.present?
 
     # Find WPHS Appointees
     wphs_appointee = User.where(wphs_appointee: true).first
     return unless wphs_appointee.present?
 
-    construction.project_tasks.create!(
+    job.project_tasks.create!(
       name: "Approve SWMS: #{title}",
       description: "Review and approve SWMS #{swms_number}",
       task_type: 'whs_approval',
@@ -224,8 +225,8 @@ class WHSSWMS < ApplicationRecord
     # Don't fail SWMS creation if task creation fails
   end
 
-  def must_have_construction_or_be_company_wide
-    if construction_id.blank? && !company_wide
+  def must_have_job_or_be_company_wide
+    if job_id.blank? && !company_wide
       errors.add(:base, 'SWMS must be either linked to a job or marked as company-wide')
     end
   end
