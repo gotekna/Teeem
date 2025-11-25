@@ -34,16 +34,16 @@ tables.each do |table|
     # Rename Default to Setup and update settings
     all_columns = table.columns.pluck(:column_name)
 
+    # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
     visible_columns = {
-      'select' => true,
-      'actions' => true
+      'id' => true
     }
 
     all_columns.each do |col|
       visible_columns[col] = true
     end
 
-    column_order = ['select', 'actions'] + all_columns
+    column_order = ['select', 'id', 'actions'] + all_columns
 
     default_view.update!(
       name: 'Setup',
@@ -64,16 +64,16 @@ tables.each do |table|
     begin
       all_columns = table.columns.pluck(:column_name)
 
+      # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
       visible_columns = {
-        'select' => true,
-        'actions' => true
+        'id' => true
       }
 
       all_columns.each do |col|
         visible_columns[col] = true
       end
 
-      column_order = ['select', 'actions'] + all_columns
+      column_order = ['select', 'id', 'actions'] + all_columns
 
       setup_view = TableView.create!(
         table_id: table.id,
