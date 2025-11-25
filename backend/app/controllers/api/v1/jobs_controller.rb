@@ -160,7 +160,9 @@ module Api
           :site_supervisor_email,
           :site_supervisor_phone,
           :design_id,
-          :design_name
+          :design_name,
+          :job_type_id,
+          :job_status_id
         )
       end
 

@@ -84,7 +84,7 @@ function isSystemOrHiddenColumn(columnName) {
 
   if (systemColumns.includes(columnName)) return true
   if (columnName.endsWith('$type')) return true
-  if (columnName.endsWith('_id') && !['product_id', 'contact_id', 'job_id'].includes(columnName)) return true
+  if (columnName.endsWith('_id') && !['product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id'].includes(columnName)) return true
 
   return false
 }

@@ -5849,7 +5849,7 @@ export default function TrapidTableView({
                         <span className="flex-1">Column</span>
                       </div>
                       {/* Combined column list */}
-                      <div className="space-y-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1">
+                      <div className="space-y-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100vh-220px)] overflow-y-auto cascade-popup-scroll">
                         {(() => {
                           const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
 
