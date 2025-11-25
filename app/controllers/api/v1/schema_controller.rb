@@ -498,8 +498,9 @@ module Api
           'FinancialTransaction' => 'financial_transactions',
           'GoldStandardItem' => 'gold_standard_items',
           'TrinityEntry' => 'trinity_entries',
+          'Trinity' => 'trinity',
           'Construction' => 'constructions',
-          'PricebookItem' => 'pricebook_items',
+          'PricebookItem' => 'pricebook',
           'WhsSwms' => 'whs_swms',
           'WhsActionItem' => 'whs_action_items',
           'WhsInduction' => 'whs_inductions',
@@ -514,7 +515,9 @@ module Api
           'SmTask' => 'sm_tasks',
           'SmResource' => 'sm_resources',
           'SmTimeEntry' => 'sm_time_entries',
-          'PriceHistory' => 'price_histories'
+          'PriceHistory' => 'price_histories',
+          'Job' => 'jobs',
+          'Supplier' => 'suppliers'
         }
 
         table_mapping[model_class] || model_class.underscore.pluralize
