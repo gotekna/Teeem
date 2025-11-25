@@ -118,6 +118,8 @@
       "Bash(bin/rails s:*)",
       "Bash(cd backend &&:*)",
       "Bash(cd frontend &&:*)",
+      "Bash(cd backend && nohup:*)",
+      "Bash(cd frontend && nohup:*)",
       "Bash(cd /Users/robertharder/GitHub/trapid &&:*)",
       "Bash(cd /Users/robertharder/GitHub/trapid/backend &&:*)",
       "Bash(cd /Users/robertharder/GitHub/trapid/frontend &&:*)",

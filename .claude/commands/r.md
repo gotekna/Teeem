@@ -16,11 +16,11 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 **Step 2: Start BOTH Servers Simultaneously**
 Run BOTH in a SINGLE message (parallel):
 ```bash
-# Backend
-cd backend && nohup /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3000 > /tmp/rails-server.log 2>&1 & echo "Backend started (PID: $!)"
+# Backend (use subshell to isolate directory change)
+(cd backend && nohup /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3000 > /tmp/rails-server.log 2>&1 &)
 
-# Frontend
-cd frontend && nohup npm run dev > /tmp/vite-server.log 2>&1 & echo "Frontend started (PID: $!)"
+# Frontend (use subshell to isolate directory change)
+(cd frontend && nohup npm run dev > /tmp/vite-server.log 2>&1 &)
 ```
 
 **Step 3: Git Operations (Sequential - Required)**
