@@ -34,6 +34,13 @@ module Api
 
       # POST /api/v1/table_views
       def create
+        unless current_user
+          return render json: {
+            success: false,
+            error: "Authentication required to save views"
+          }, status: :unauthorized
+        end
+
         @table_view = current_user.table_views.build(table_view_params)
 
         if @table_view.save
@@ -125,6 +132,13 @@ module Api
       private
 
       def set_table_view
+        unless current_user
+          return render json: {
+            success: false,
+            error: "Authentication required"
+          }, status: :unauthorized
+        end
+
         @table_view = current_user.table_views.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: {
