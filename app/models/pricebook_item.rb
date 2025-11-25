@@ -1,4 +1,6 @@
 class PricebookItem < ApplicationRecord
+  self.table_name = 'pricebook'
+
   # Associations
   belongs_to :supplier, class_name: 'Contact', foreign_key: 'supplier_id', optional: true
   belongs_to :default_supplier, class_name: 'Contact', foreign_key: 'default_supplier_id', optional: true
@@ -30,7 +32,7 @@ class PricebookItem < ApplicationRecord
     # 1. The default supplier (default_supplier_id)
     # 2. OR appears in the price history (price_histories.supplier_id)
     left_joins(:price_histories)
-      .where('pricebook_items.default_supplier_id = :supplier_id OR price_histories.supplier_id = :supplier_id',
+      .where('pricebook.default_supplier_id = :supplier_id OR price_histories.supplier_id = :supplier_id',
              supplier_id: supplier_id)
       .distinct
   }
@@ -80,7 +82,7 @@ class PricebookItem < ApplicationRecord
     # Note: Using distinct is important because left_joins can create duplicates if multiple suppliers match
     left_joins(:supplier)
       .where(
-        "pricebook_items.searchable_text @@ plainto_tsquery('english', :query) OR contacts.full_name ILIKE :like_query",
+        "pricebook.searchable_text @@ plainto_tsquery('english', :query) OR contacts.full_name ILIKE :like_query",
         query: query,
         like_query: "%#{sanitized_query}%"
       )
