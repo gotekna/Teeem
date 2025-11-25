@@ -14,8 +14,6 @@ import Login from './pages/Login'
 const XestPage = lazy(() => import('./pages/XestPage'))
 const JobDetailPage = lazy(() => import('./pages/JobDetailPage'))
 const JobSetupPage = lazy(() => import('./pages/JobSetupPage'))
-const PriceBooksPage = lazy(() => import('./pages/PriceBooksPage'))
-const PriceBooksPageWithTabs = lazy(() => import('./pages/PriceBooksPageWithTabs'))
 const PriceBookItemDetailPage = lazy(() => import('./pages/PriceBookItemDetailPage'))
 const ContactsPage = lazy(() => import('./pages/ContactsPage'))
 const ContactDetailPage = lazy(() => import('./pages/ContactDetailPage'))
@@ -179,7 +177,7 @@ function App() {
         <Route path="/financial/transactions" element={<Navigate to="/financial" replace />} />
         <Route path="/financial/reports" element={<AppLayout><FinancialReportsPage /></AppLayout>} />
         <Route path="/sam" element={<AppLayout><SamPage /></AppLayout>} />
-        <Route path="/price-books" element={<Navigate to="/tables/205/price-books" replace />} />
+        <Route path="/price-books" element={<Navigate to="/tables/205/pricebook" replace />} />
         <Route path="/price-books/:id" element={<AppLayout><PriceBookItemDetailPage /></AppLayout>} />
         <Route path="/contacts" element={<Navigate to="/tables/214/contacts" replace />} />
         <Route path="/contacts/:id" element={<AppLayout><ContactDetailPage /></AppLayout>} />

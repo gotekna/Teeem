@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_25_010758) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_25_035640) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1278,21 +1278,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_010758) do
     t.index ["supplier_id"], name: "index_price_histories_on_supplier_id"
   end
 
-  create_table "pricebook_categories", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "display_name"
-    t.string "color", default: "#6B7280"
-    t.string "icon"
-    t.integer "position", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
-    t.index ["name"], name: "index_pricebook_categories_on_name", unique: true
-    t.index ["position"], name: "index_pricebook_categories_on_position"
-  end
-
-  create_table "pricebook_items", force: :cascade do |t|
+  create_table "pricebook", force: :cascade do |t|
     t.string "item_code", null: false
     t.string "item_name", null: false
     t.string "category"
@@ -1324,16 +1310,30 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_010758) do
     t.string "qr_code_file_id"
     t.integer "category_id"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
-    t.index ["category"], name: "index_pricebook_items_on_category"
-    t.index ["category_id"], name: "index_pricebook_items_on_category_id"
-    t.index ["default_supplier_id"], name: "index_pricebook_items_on_default_supplier_id"
-    t.index ["image_fetch_status"], name: "index_pricebook_items_on_image_fetch_status"
-    t.index ["is_active"], name: "index_pricebook_items_on_is_active"
-    t.index ["item_code"], name: "index_pricebook_items_on_item_code", unique: true
-    t.index ["needs_pricing_review"], name: "index_pricebook_items_on_needs_pricing_review"
-    t.index ["price_last_updated_at"], name: "index_pricebook_items_on_price_last_updated_at"
+    t.index ["category"], name: "index_pricebook_on_category"
+    t.index ["category_id"], name: "index_pricebook_on_category_id"
+    t.index ["default_supplier_id"], name: "index_pricebook_on_default_supplier_id"
+    t.index ["image_fetch_status"], name: "index_pricebook_on_image_fetch_status"
+    t.index ["is_active"], name: "index_pricebook_on_is_active"
+    t.index ["item_code"], name: "index_pricebook_on_item_code", unique: true
+    t.index ["needs_pricing_review"], name: "index_pricebook_on_needs_pricing_review"
+    t.index ["price_last_updated_at"], name: "index_pricebook_on_price_last_updated_at"
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
-    t.index ["supplier_id"], name: "index_pricebook_items_on_supplier_id"
+    t.index ["supplier_id"], name: "index_pricebook_on_supplier_id"
+  end
+
+  create_table "pricebook_categories", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_pricebook_categories_on_is_active"
+    t.index ["name"], name: "index_pricebook_categories_on_name", unique: true
+    t.index ["position"], name: "index_pricebook_categories_on_position"
   end
 
   create_table "project_task_checklist_items", force: :cascade do |t|
@@ -3166,10 +3166,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_010758) do
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
-  add_foreign_key "price_histories", "pricebook_items"
-  add_foreign_key "pricebook_items", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
-  add_foreign_key "pricebook_items", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
-  add_foreign_key "pricebook_items", "pricebook_categories", column: "category_id", on_delete: :nullify
+  add_foreign_key "price_histories", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "pricebook", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
+  add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
+  add_foreign_key "pricebook", "pricebook_categories", column: "category_id", on_delete: :nullify
   add_foreign_key "project_task_checklist_items", "project_tasks"
   add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
   add_foreign_key "project_tasks", "projects"
@@ -3182,7 +3182,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_010758) do
   add_foreign_key "projects", "users", column: "project_manager_id"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"
-  add_foreign_key "purchase_order_line_items", "pricebook_items"
+  add_foreign_key "purchase_order_line_items", "pricebook", column: "pricebook_item_id"
   add_foreign_key "purchase_order_line_items", "purchase_orders"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
   add_foreign_key "purchase_orders", "estimates"

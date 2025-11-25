@@ -51,8 +51,8 @@ export const TABLE_ROUTES = [
   },
   {
     tableId: 205,
-    slug: 'price-books',
-    name: 'Price Books',
+    slug: 'pricebook',
+    name: 'Pricebook',
     legacyRoute: '/price-books',
     hasCustomDetailPage: true, // /price-books/:id uses PriceBookItemDetailPage
     description: 'Product pricing and supplier information'

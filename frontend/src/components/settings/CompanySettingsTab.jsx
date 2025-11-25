@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import { Link } from 'react-router-dom'
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
+import { ArrowTopRightOnSquareIcon, ShieldCheckIcon, KeyIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 import PublicHolidaysPage from '../../pages/PublicHolidaysPage'
 import { setCompanySettings } from '../../utils/timezoneUtils'
@@ -17,6 +17,8 @@ const ContactRolesManagement = lazy(() => import('./ContactRolesManagement'))
 const WorkflowAdminPage = lazy(() => import('../../pages/WorkflowAdminPage'))
 const FolderTemplatesTab = lazy(() => import('./FolderTemplatesTab'))
 const CompaniesPage = lazy(() => import('../../pages/CompaniesPage'))
+const RolesAndGroupsTab = lazy(() => import('./RolesAndGroupsTab'))
+const PermissionsPage = lazy(() => import('../../pages/PermissionsPage'))
 
 const TIMEZONES = [
   { value: 'Australia/Brisbane', label: 'Brisbane (AEST/AEDT)' },
@@ -136,6 +138,30 @@ export default function CompanySettingsTab() {
               }
             >
               Info
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2.5 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              Security
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2.5 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              Permissions
             </Tab>
             <Tab
               className={({ selected }) =>
@@ -377,6 +403,20 @@ export default function CompanySettingsTab() {
             </button>
           </div>
         </form>
+            </TabPanel>
+
+            {/* Security Tab */}
+            <TabPanel>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
+                <RolesAndGroupsTab />
+              </Suspense>
+            </TabPanel>
+
+            {/* Permissions Tab */}
+            <TabPanel>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
+                <PermissionsPage />
+              </Suspense>
             </TabPanel>
 
             {/* Corporate Tab */}

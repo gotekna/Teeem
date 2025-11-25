@@ -211,7 +211,7 @@ export default function TablesTab() {
   // Filter out system tables from the top section (they're shown in the System Tables section below)
   const nonSystemTables = tables.filter(t => t.type !== 'system')
 
-  // Filter tables based on search query and type filter
+  // Filter tables based on search query and type filter, then sort by ID
   const filteredTables = nonSystemTables.filter(table => {
     // Apply search filter
     const matchesSearch = !searchQuery ||
@@ -223,7 +223,7 @@ export default function TablesTab() {
     const matchesType = activeFilter === 'all' || table.type === activeFilter
 
     return matchesSearch && matchesType
-  })
+  }).sort((a, b) => a.id - b.id)
 
   // Calculate counts for each filter (excluding system tables since they're in separate section)
   const allCount = nonSystemTables.length
@@ -537,7 +537,7 @@ export default function TablesTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
-                {inMemoryTables.map((table, index) => (
+                {[...inMemoryTables].sort((a, b) => a.table_id - b.table_id).map((table, index) => (
                   <tr key={table.table_id || index} className="hover:bg-indigo-50 dark:hover:bg-indigo-900/10">
                     <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
                       <code className="text-xs bg-indigo-100 dark:bg-indigo-900/30 px-2 py-1 rounded text-indigo-700 dark:text-indigo-300 font-mono font-bold">

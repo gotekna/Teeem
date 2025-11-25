@@ -16,7 +16,6 @@ import {
   BookOpenIcon,
   SparklesIcon,
   ChartBarIcon,
-  KeyIcon,
   ExclamationTriangleIcon,
   AcademicCapIcon,
   CheckCircleIcon,
@@ -29,7 +28,6 @@ import { api } from '../api'
 // Lazy load tab components to reduce initial bundle size
 const ScheduleMasterTabs = lazy(() => import('../components/schedule-master/ScheduleMasterTabs'))
 const DocumentationCategoriesTab = lazy(() => import('../components/settings/DocumentationCategoriesTab'))
-const RolesAndGroupsTab = lazy(() => import('../components/settings/RolesAndGroupsTab'))
 const SupervisorChecklistTab = lazy(() => import('../components/settings/SupervisorChecklistTab'))
 const CompanySettingsTab = lazy(() => import('../components/settings/CompanySettingsTab'))
 const AgentShortcutsTab = lazy(() => import('../components/settings/AgentShortcutsTab'))
@@ -37,7 +35,6 @@ const UserManualTab = lazy(() => import('../components/settings/UserManualTab'))
 const InspiringQuotesTab = lazy(() => import('../components/settings/InspiringQuotesTab'))
 const GoldStandardTabs = lazy(() => import('../components/settings/GoldStandardTabs'))
 const SystemPerformancePage = lazy(() => import('./SystemPerformancePage'))
-const PermissionsPage = lazy(() => import('./PermissionsPage'))
 const MeetingTypesPage = lazy(() => import('./MeetingTypesPage'))
 const TablesTab = lazy(() => import('../components/settings/TablesTab'))
 const SchemaPage = lazy(() => import('./SchemaPage'))
@@ -51,74 +48,6 @@ function TabLoadingFallback() {
   return (
     <div className="flex items-center justify-center h-64">
       <div className="text-gray-500 dark:text-gray-400">Loading...</div>
-    </div>
-  )
-}
-
-// Security Tab Component with nested sub-tabs
-function SecurityTab() {
-  return (
-    <div className="px-4 sm:px-6 lg:px-8 py-10">
-      <div className="max-w-4xl">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-6">Security Settings</h2>
-
-        <TabGroup>
-          <TabList className="flex space-x-1 rounded-xl bg-indigo-900/20 p-1 mb-6">
-            <Tab
-              className={({ selected }) =>
-                `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
-                ${
-                  selected
-                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
-                }`
-              }
-            >
-              Users & Permissions
-            </Tab>
-            <Tab
-              className={({ selected }) =>
-                `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all
-                ${
-                  selected
-                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
-                }`
-              }
-            >
-              Permissions Management
-            </Tab>
-          </TabList>
-
-          <TabPanels>
-            {/* Users & Permissions Tab */}
-            <TabPanel>
-              <Suspense fallback={<TabLoadingFallback />}>
-                <RolesAndGroupsTab />
-              </Suspense>
-            </TabPanel>
-
-            {/* Permissions Management Tab */}
-            <TabPanel>
-              <div className="rounded-lg bg-white dark:bg-gray-800 shadow-sm ring-1 ring-gray-900/5 dark:ring-white/10 p-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">Advanced Permissions</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                  Manage detailed permission settings and access controls for your organization.
-                </p>
-                <Link
-                  to="/admin/system?tab=permissions"
-                  className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                >
-                  Go to Permissions Tab
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                  </svg>
-                </Link>
-              </div>
-            </TabPanel>
-          </TabPanels>
-        </TabGroup>
-      </div>
     </div>
   )
 }
@@ -264,10 +193,9 @@ export default function SettingsPage() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  // Map tab names to indices - REORGANIZED: 18 tabs (added pricebook)
+  // Map tab names to indices - REORGANIZED: 16 tabs (Security and Permissions moved inside Company tab)
   const tabs = [
     'company',
-    'security',
     'schedule-master',
     'sm-gantt-v2',
     'meeting-types',
@@ -282,7 +210,6 @@ export default function SettingsPage() {
     'user-manual',
     'inspiring-quotes',
     'performance',
-    'permissions',
     'deployment'
   ]
 
@@ -399,19 +326,6 @@ export default function SettingsPage() {
             >
               <BuildingOfficeIcon className="h-4 w-4" />
               Company
-            </Tab>
-            <Tab
-              className={({ selected }) =>
-                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
-                ${
-                  selected
-                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
-                }`
-              }
-            >
-              <ShieldCheckIcon className="h-4 w-4" />
-              Security
             </Tab>
             <Tab
               className={({ selected }) =>
@@ -605,19 +519,6 @@ export default function SettingsPage() {
                 }`
               }
             >
-              <KeyIcon className="h-4 w-4" />
-              Permissions
-            </Tab>
-            <Tab
-              className={({ selected }) =>
-                `rounded-lg py-2 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap flex items-center gap-1.5
-                ${
-                  selected
-                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
-                }`
-              }
-            >
               <RocketLaunchIcon className="h-4 w-4" />
               Deployment
             </Tab>
@@ -625,35 +526,28 @@ export default function SettingsPage() {
         </div>
 
         <TabPanels>
-          {/* 1. Company Tab with nested sub-tabs */}
+          {/* 1. Company Tab with nested sub-tabs (includes Security and Permissions) */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <CompanyTab />
             </Suspense>
           </TabPanel>
 
-          {/* 2. Security Tab with nested sub-tabs */}
-          <TabPanel>
-            <Suspense fallback={<TabLoadingFallback />}>
-              <SecurityTab />
-            </Suspense>
-          </TabPanel>
-
-          {/* 3. Schedule Master Tab with nested sub-tabs */}
+          {/* 2. Schedule Master Tab with nested sub-tabs */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <ScheduleMasterTabs />
             </Suspense>
           </TabPanel>
 
-          {/* 4. SM Gantt v2 Setup Tab */}
+          {/* 3. SM Gantt v2 Setup Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <SmGanttSetupTab />
             </Suspense>
           </TabPanel>
 
-          {/* 5. Meeting Types Tab */}
+          {/* 4. Meeting Types Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <MeetingTypesPage />
@@ -848,63 +742,56 @@ export default function SettingsPage() {
             </Suspense>
           </TabPanel>
 
-          {/* 7. Supervisor Checklist Tab */}
+          {/* 9. Supervisor Checklist Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <SupervisorChecklistTab />
             </Suspense>
           </TabPanel>
 
-          {/* 8. Gold Standard View Tab */}
+          {/* 10. Gold Standard View Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <GoldStandardTabs />
             </Suspense>
           </TabPanel>
 
-          {/* 9. Developer Tools Tab with nested sub-tabs */}
+          {/* 11. Developer Tools Tab with nested sub-tabs */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <DeveloperToolsTab />
             </Suspense>
           </TabPanel>
 
-          {/* 10. Claude Shortcuts Tab */}
+          {/* 12. Claude Shortcuts Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <AgentShortcutsTab />
             </Suspense>
           </TabPanel>
 
-          {/* 11. User Manual Tab */}
+          {/* 13. User Manual Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <UserManualTab />
             </Suspense>
           </TabPanel>
 
-          {/* 12. Inspiring Quotes Tab */}
+          {/* 14. Inspiring Quotes Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <InspiringQuotesTab />
             </Suspense>
           </TabPanel>
 
-          {/* 13. Performance Tab */}
+          {/* 15. Performance Tab */}
           <TabPanel>
             <Suspense fallback={<TabLoadingFallback />}>
               <SystemPerformancePage />
             </Suspense>
           </TabPanel>
 
-          {/* 14. Permissions Tab */}
-          <TabPanel>
-            <Suspense fallback={<TabLoadingFallback />}>
-              <PermissionsPage />
-            </Suspense>
-          </TabPanel>
-
-          {/* 15. Deployment Tab */}
+          {/* 16. Deployment Tab */}
           <TabPanel>
             <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 md:grid-cols-3">
               <div>
