@@ -100,34 +100,13 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
     }
   }
 
-  const handleDeleteColumn = async (column, forceDelete = false) => {
-    if (!forceDelete && !confirm(`Are you sure you want to delete the column "${column.name}"? This cannot be undone.`)) {
+  const handleDeleteColumn = async (column) => {
+    if (!confirm(`Are you sure you want to delete the column "${column.name}"? This cannot be undone.`)) {
       return
     }
 
     try {
-      // First check for references (unless forcing)
-      const url = forceDelete
-        ? `/api/v1/tables/${table.id}/columns/${column.id}?force=true`
-        : `/api/v1/tables/${table.id}/columns/${column.id}`
-
-      const response = await api.delete(url)
-
-      // Handle warning response - column is referenced by lookups/formulas
-      if (response.requires_confirmation && response.warnings) {
-        const warningMessages = response.warnings.map(w => `• ${w.message}`).join('\n')
-        const confirmForce = confirm(
-          `Warning: This column is referenced elsewhere:\n\n${warningMessages}\n\n` +
-          `Deleting it may break these references.\n\n` +
-          `Do you still want to delete "${column.name}"?`
-        )
-
-        if (confirmForce) {
-          // Retry with force=true
-          return handleDeleteColumn(column, true)
-        }
-        return
-      }
+      const response = await api.delete(`/api/v1/tables/${table.id}/columns/${column.id}`)
 
       if (response.success) {
         // Remove from UI after successful delete
@@ -139,18 +118,13 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
     } catch (err) {
       console.error('Failed to delete column:', err)
 
-      // Check if the error response contains warnings
-      if (err.response?.requires_confirmation && err.response?.warnings) {
-        const warningMessages = err.response.warnings.map(w => `• ${w.message}`).join('\n')
-        const confirmForce = confirm(
-          `Warning: This column is referenced elsewhere:\n\n${warningMessages}\n\n` +
-          `Deleting it may break these references.\n\n` +
-          `Do you still want to delete "${column.name}"?`
+      // Check if deletion was blocked due to references
+      if (err.response?.blocked && err.response?.references) {
+        const refMessages = err.response.references.map(r => `• ${r.message}`).join('\n')
+        alert(
+          `Cannot delete "${column.name}" because it is referenced by:\n\n${refMessages}\n\n` +
+          `Please remove these references first before deleting this column.`
         )
-
-        if (confirmForce) {
-          return handleDeleteColumn(column, true)
-        }
         return
       }
 

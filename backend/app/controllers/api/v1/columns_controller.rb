@@ -100,16 +100,15 @@ module Api
 
       # DELETE /api/v1/tables/:table_id/columns/:id
       def destroy
-        # Check for references before deleting
-        warnings = check_column_references(@column)
+        # Check for references before deleting - block if any exist
+        references = check_column_references(@column)
 
-        # If force param is not set and there are warnings, return them
-        if warnings.any? && !params[:force]
+        if references.any?
           return render json: {
             success: false,
-            requires_confirmation: true,
-            warnings: warnings,
-            message: "This column is referenced by other columns. Are you sure you want to delete it?"
+            blocked: true,
+            references: references,
+            message: "Cannot delete this column because it is referenced by other columns. Remove these references first."
           }, status: :conflict
         end
 
@@ -121,7 +120,7 @@ module Api
         result = builder.create_database_table
 
         if result[:success]
-          render json: { success: true, warnings_acknowledged: warnings }
+          render json: { success: true }
         else
           render json: {
             success: false,
