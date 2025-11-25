@@ -918,8 +918,18 @@ export default function AppLayout({ children }) {
                   />
                   <span className="hidden lg:flex lg:items-center">
                     <span aria-hidden="true" className="ml-4 text-sm/6 font-semibold text-gray-900 dark:text-white">
-                      User
+                      {user ? user.name || user.email : 'Guest'}
                     </span>
+                    {user && user.role && (
+                      <span className="ml-2 inline-flex items-center rounded-md bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-700/10 dark:bg-indigo-400/10 dark:text-indigo-400 dark:ring-indigo-400/30">
+                        {user.role}
+                      </span>
+                    )}
+                    {!user && (
+                      <span className="ml-2 inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/20">
+                        Not logged in
+                      </span>
+                    )}
                     <ChevronDownIcon aria-hidden="true" className="ml-2 size-5 text-gray-400 dark:text-gray-500" />
                   </span>
                 </MenuButton>
@@ -927,6 +937,17 @@ export default function AppLayout({ children }) {
                   transition
                   className="absolute right-0 z-10 mt-2.5 w-56 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg outline outline-1 outline-black/5 transition data-[closed]:scale-95 data-[closed]:transform data-[closed]:opacity-0 data-[enter]:duration-100 data-[leave]:duration-75 data-[enter]:ease-out data-[leave]:ease-in dark:divide-white/10 dark:bg-gray-800 dark:shadow-none dark:-outline-offset-1 dark:outline-white/10"
                 >
+                  {user && (
+                    <div className="px-4 py-3">
+                      <p className="text-sm text-gray-900 dark:text-white font-medium">{user.name || 'User'}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                    </div>
+                  )}
+                  {!user && (
+                    <div className="px-4 py-3">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Not logged in</p>
+                    </div>
+                  )}
                   <div className="py-1">
                     <MenuItem>
                       <Link

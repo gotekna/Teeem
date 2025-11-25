@@ -7,6 +7,7 @@ import SavedViewsKanban from './SavedViewsKanban'
 import LocationMapCard from '../job-detail/LocationMapCard'
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, COLUMN_TYPES } from '../../constants/columnTypes'
 import { api } from '../../api'
+import { useAuth } from '../../contexts/AuthContext'
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -123,6 +124,7 @@ export default function TrapidTableView({
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const { isAuthenticated } = useAuth()
 
   // Use custom columns if provided, otherwise use default Trinity columns
   // Memoize to prevent recreating on every render (performance optimization)
@@ -734,6 +736,12 @@ export default function TrapidTableView({
 
     // Helper function to create the Setup view with all columns selected
     const createDefaultView = async () => {
+      // Check if user is authenticated before attempting to save view
+      if (!isAuthenticated) {
+        console.log('[Load Views] User not authenticated, skipping Setup view creation')
+        return
+      }
+
       // Prevent concurrent calls from React strict mode or rapid navigation
       if (creatingDefaultViewRef.current) {
         console.log('[Load Views] Already creating Setup view, skipping duplicate call')
@@ -1991,7 +1999,12 @@ export default function TrapidTableView({
       }
     } catch (error) {
       console.error('Error saving view:', error)
-      alert('Failed to save view: ' + (error.response?.data?.error || error.message))
+      // Don't show alert for authentication errors (user is not logged in)
+      if (error.response?.status === 401) {
+        console.log('[Save View] Authentication required - user not logged in')
+      } else {
+        alert('Failed to save view: ' + (error.response?.data?.error || error.message))
+      }
       return null
     }
   }
@@ -2055,7 +2068,12 @@ export default function TrapidTableView({
       }
     } catch (error) {
       console.error('Error updating view:', error)
-      alert('Failed to update view: ' + (error.response?.data?.error || error.message))
+      // Don't show alert for authentication errors (user is not logged in)
+      if (error.response?.status === 401) {
+        console.log('[Update View] Authentication required - user not logged in')
+      } else {
+        alert('Failed to update view: ' + (error.response?.data?.error || error.message))
+      }
       return false
     }
   }
