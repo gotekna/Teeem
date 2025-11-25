@@ -118,89 +118,93 @@ module Api
 
       # GET /api/v1/schema/tables
       def tables
+        # Rails internal tables that should never be shown as "user" tables
+        rails_internal_tables = %w[
+          ar_internal_metadata schema_migrations versions
+          active_storage_attachments active_storage_blobs active_storage_variant_records
+          solid_queue_blocked_executions solid_queue_claimed_executions solid_queue_failed_executions
+          solid_queue_jobs solid_queue_pauses solid_queue_processes solid_queue_ready_executions
+          solid_queue_recurring_executions solid_queue_recurring_tasks solid_queue_scheduled_executions
+          solid_queue_semaphores
+        ]
+
+        # Core Trapid system tables (columns/tables metadata)
+        trapid_core_tables = %w[tables columns]
+
         # Get all user-defined tables from the tables table
         user_tables = Table.includes(:columns).all.map do |table|
+          db_name = table.database_table_name.to_s
+
+          # Get column count - prefer columns table, fall back to actual DB columns
+          col_count = table.columns.count
+          has_column_metadata = col_count > 0
+
+          if col_count == 0 && db_name.present?
+            # Fall back to actual database column count for tables without column metadata
+            col_count = begin
+              ActiveRecord::Base.connection.columns(db_name).count
+            rescue
+              0
+            end
+          end
+
+          # Determine table type and usage status
+          type = if table.table_type == 'system'
+                   'system'
+                 elsif db_name.include?('_import_')
+                   'import'
+                 else
+                   'user'
+                 end
+
+          # Determine usage_status for better categorization
+          usage_status = if table.table_type == 'system' && has_column_metadata
+                           'TrapidTableView'
+                         elsif table.table_type == 'system'
+                           'Rails System'
+                         elsif rails_internal_tables.include?(db_name)
+                           'Needs Deleting'  # Rails internal wrongly added to tables
+                         elsif trapid_core_tables.include?(db_name)
+                           'Needs Deleting'  # Core tables shouldn't be in tables table
+                         elsif !has_column_metadata && type == 'user'
+                           # User table without column metadata - likely orphaned
+                           'Needs Deleting'
+                         elsif type == 'import'
+                           'Import'
+                         elsif has_column_metadata
+                           'User Table'
+                         else
+                           'Unknown'
+                         end
+
           {
             id: table.id,
             name: table.name,
             slug: table.slug,
-            database_table_name: table.database_table_name,
+            database_table_name: db_name,
             plural_name: table.plural_name,
             icon: table.icon,
             is_live: table.is_live,
-            columns_count: table.columns.count,
+            columns_count: col_count,
+            has_column_metadata: has_column_metadata,
             record_count: begin
               table.dynamic_model.count
             rescue
               0
             end,
-            type: if table.table_type == 'system'
-                    'system'
-                  elsif table.database_table_name.include?('_import_')
-                    'import'
-                  else
-                    'user'
-                  end,
+            type: type,
+            usage_status: usage_status,
             created_at: table.created_at,
             updated_at: table.updated_at
           }
         end
 
-        # Get system tables (exclude Rails internal and SolidQueue tables)
-        excluded_tables = [
-          'ar_internal_metadata',
-          'schema_migrations',
-          'solid_queue_blocked_executions',
-          'solid_queue_claimed_executions',
-          'solid_queue_failed_executions',
-          'solid_queue_jobs',
-          'solid_queue_pauses',
-          'solid_queue_processes',
-          'solid_queue_ready_executions',
-          'solid_queue_recurring_executions',
-          'solid_queue_recurring_tasks',
-          'solid_queue_scheduled_executions',
-          'solid_queue_semaphores',
-          'tables',
-          'columns',
-          'versions'
-        ]
+        # Tables already registered in the tables table - don't duplicate them
+        registered_table_names = Table.pluck(:database_table_name).compact
 
-        all_db_tables = ActiveRecord::Base.connection.tables
-        system_tables = all_db_tables.reject { |t| t.start_with?('user_') || excluded_tables.include?(t) }
-
-        system_table_data = system_tables.map do |table_name|
-          # Get column count
-          columns_count = begin
-            ActiveRecord::Base.connection.columns(table_name).count
-          rescue
-            0
-          end
-
-          # Get record count
-          record_count = begin
-            ActiveRecord::Base.connection.select_value("SELECT COUNT(*) FROM #{table_name}")
-          rescue
-            0
-          end
-
-          {
-            id: "system_#{table_name}",
-            name: table_name.titleize,
-            slug: table_name.parameterize,
-            database_table_name: table_name,
-            plural_name: table_name.titleize,
-            icon: nil,
-            is_live: true,
-            columns_count: columns_count,
-            record_count: record_count,
-            type: 'system',
-            created_at: nil,
-            updated_at: nil
-          }
-        end
-
-        all_tables = user_tables + system_table_data
+        # Skip database introspection entirely - all tables should be registered in the tables table
+        # The old system of adding "system_" prefixed tables from DB introspection created confusing duplicates
+        all_tables = user_tables
 
         render json: {
           success: true,
@@ -300,6 +304,54 @@ module Api
       rescue => e
         Rails.logger.error "Failed to fetch columns for #{table_name}: #{e.message}"
         render json: { error: 'Failed to fetch table columns' }, status: :internal_server_error
+      end
+
+      # GET /api/v1/schema/columns
+      # Returns all columns across all user tables for Developer Tools view
+      def all_columns
+        columns = Column.includes(:table, :lookup_table).order(:table_id, :position)
+
+        columns_data = columns.map do |col|
+          {
+            id: col.id,
+            table_id: col.table_id,
+            table_name: col.table&.name,
+            table_slug: col.table&.slug,
+            name: col.name,
+            column_name: col.column_name,
+            column_type: col.column_type,
+            max_length: col.max_length,
+            min_length: col.min_length,
+            default_value: col.default_value,
+            description: col.description,
+            searchable: col.searchable,
+            is_title: col.is_title,
+            is_unique: col.is_unique,
+            required: col.required,
+            min_value: col.min_value,
+            max_value: col.max_value,
+            validation_message: col.validation_message,
+            position: col.position,
+            lookup_table_id: col.lookup_table_id,
+            lookup_table_name: col.lookup_table&.name,
+            lookup_display_column: col.lookup_display_column,
+            is_multiple: col.is_multiple,
+            has_cross_table_refs: col.has_cross_table_refs,
+            header_align: col.header_align,
+            data_align: col.data_align,
+            created_at: col.created_at,
+            updated_at: col.updated_at
+          }
+        end
+
+        render json: {
+          success: true,
+          columns: columns_data,
+          count: columns_data.length
+        }
+      rescue => e
+        Rails.logger.error "Failed to fetch all columns: #{e.message}"
+        render json: { error: 'Failed to fetch columns' }, status: :internal_server_error
       end
 
       private

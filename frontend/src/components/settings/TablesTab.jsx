@@ -320,6 +320,9 @@ export default function TablesTab() {
                     Type
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    Usage Status
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Columns
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
@@ -388,6 +391,24 @@ export default function TablesTab() {
                         <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${typeColor}`}>
                           {tableType}
                         </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                        {(() => {
+                          const status = table.usage_status || 'Unknown'
+                          const statusColors = {
+                            'TrapidTableView': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400 ring-indigo-600/20',
+                            'Rails System': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 ring-purple-600/20',
+                            'User Table': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 ring-blue-600/20',
+                            'Import': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 ring-green-600/20',
+                            'Needs Deleting': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 ring-red-600/20',
+                            'Unknown': 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400 ring-gray-600/20'
+                          }
+                          return (
+                            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${statusColors[status] || statusColors['Unknown']}`}>
+                              {status}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
                         {table.columns_count || table.columns?.length || 0}

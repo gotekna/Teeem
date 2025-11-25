@@ -6075,7 +6075,7 @@ export default function TrapidTableView({
           <table className="border-collapse" style={{
             width: (() => {
               // Calculate total width from all visible columns
-              const visibleCols = columnOrder.filter(key => key === 'select' || key === 'id' || key === 'actions' || visibleColumns[key])
+              const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
               const totalWidth = visibleCols.reduce((sum, key) => {
                 return sum + (columnWidths[key] || 200)
               }, 0)
@@ -6085,7 +6085,7 @@ export default function TrapidTableView({
             <thead className="sticky top-0 z-10 backdrop-blur-sm">
             <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800">
               {(() => {
-                const visibleCols = columnOrder.filter(key => key === 'select' || key === 'id' || key === 'actions' || visibleColumns[key])
+                const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
                 return visibleCols.map((colKey, index) => {
                 const column = COLUMNS.find(c => c.key === colKey)
                 if (!column) return null
@@ -6462,7 +6462,7 @@ export default function TrapidTableView({
 
                 // Sort group keys alphabetically
                 const sortedGroupKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b))
-                const visibleColCount = columnOrder.filter(key => key === 'select' || key === 'id' || key === 'actions' || visibleColumns[key]).length
+                const visibleColCount = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).length
 
                 let rowIndex = 0
                 return sortedGroupKeys.map(groupKey => {
@@ -6527,7 +6527,7 @@ export default function TrapidTableView({
                                       : 'bg-blue-50 dark:bg-blue-900/20'
                             } ${!editModeActive ? 'cursor-pointer' : ''} ${editModeActive ? 'hover:bg-orange-100 dark:hover:bg-orange-800/30' : 'hover:bg-blue-100 dark:hover:bg-blue-800/30'} transition-colors duration-150`}
                           >
-                            {columnOrder.filter(key => key === 'select' || key === 'id' || key === 'actions' || visibleColumns[key]).map(colKey => {
+                            {columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).map(colKey => {
                               const column = COLUMNS.find(c => c.key === colKey)
                               if (!column) return null
 
@@ -6640,7 +6640,7 @@ export default function TrapidTableView({
                           : 'bg-blue-50 dark:bg-blue-900/20'
                 } ${!editModeActive ? 'cursor-pointer' : ''} ${editModeActive ? 'hover:bg-orange-100 dark:hover:bg-orange-800/30' : 'hover:bg-blue-100 dark:hover:bg-blue-800/30'} transition-colors duration-150`}
               >
-                {columnOrder.filter(key => key === 'select' || key === 'id' || key === 'actions' || visibleColumns[key]).map(colKey => {
+                {columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).map(colKey => {
                   const column = COLUMNS.find(c => c.key === colKey)
                   if (!column) return null
 

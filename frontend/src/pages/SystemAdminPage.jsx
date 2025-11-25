@@ -37,6 +37,7 @@ const GoldStandardTabs = lazy(() => import('../components/settings/GoldStandardT
 const SystemPerformancePage = lazy(() => import('./SystemPerformancePage'))
 const MeetingTypesPage = lazy(() => import('./MeetingTypesPage'))
 const TablesTab = lazy(() => import('../components/settings/TablesTab'))
+const ColumnsTab = lazy(() => import('../components/settings/ColumnsTab'))
 const SchemaPage = lazy(() => import('./SchemaPage'))
 const GitBranchVisualization = lazy(() => import('../components/settings/GitBranchVisualization'))
 const AgentStatus = lazy(() => import('../components/settings/AgentStatus'))
@@ -58,7 +59,7 @@ function DeveloperToolsTab() {
   const navigate = useNavigate()
 
   // Map sub-tab names to indices
-  const devSubTabs = ['tables', 'schema', 'branches', 'agents']
+  const devSubTabs = ['tables', 'columns', 'schema', 'branches', 'agents']
 
   // Get initial sub-tab index from URL query parameter
   const getInitialSubTabIndex = () => {
@@ -116,6 +117,18 @@ function DeveloperToolsTab() {
                 }`
               }
             >
+              Columns
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-all whitespace-nowrap
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
               Database Schema
             </Tab>
             <Tab
@@ -149,6 +162,13 @@ function DeveloperToolsTab() {
             <TabPanel>
               <Suspense fallback={<TabLoadingFallback />}>
                 <TablesTab />
+              </Suspense>
+            </TabPanel>
+
+            {/* Columns Tab */}
+            <TabPanel>
+              <Suspense fallback={<TabLoadingFallback />}>
+                <ColumnsTab />
               </Suspense>
             </TabPanel>
 
