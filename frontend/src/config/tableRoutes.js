@@ -73,6 +73,14 @@ export const TABLE_ROUTES = [
     hasCustomDetailPage: false,
     description: 'System users and permissions'
   },
+  {
+    tableId: 204,
+    slug: 'jobs',
+    name: 'Jobs',
+    legacyRoute: '/jobs',
+    hasCustomDetailPage: true, // /jobs/:id uses JobDetailPage
+    description: 'Active construction jobs and projects'
+  },
   // WHS (Workplace Health & Safety) Tables
   {
     tableId: 206,
