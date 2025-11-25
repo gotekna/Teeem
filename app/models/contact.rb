@@ -34,8 +34,8 @@ class Contact < ApplicationRecord
   has_many :employees, class_name: 'Contact', foreign_key: :primary_company_id, dependent: :nullify
 
   # Construction/Job associations
-  has_many :construction_contacts, dependent: :destroy
-  has_many :constructions, through: :construction_contacts
+  has_many :job_contacts, dependent: :destroy
+  has_many :jobs, through: :job_contacts
 
   # Portal-related associations
   has_one :portal_user, dependent: :destroy
@@ -166,17 +166,17 @@ class Contact < ApplicationRecord
 
   # Job/Construction helpers
   def all_jobs_with_roles
-    construction_contacts.includes(:construction).map do |cc|
+    job_contacts.includes(:job).map do |jc|
       {
-        construction: cc.construction,
-        role: cc.role,
-        primary: cc.primary
+        job: jc.job,
+        role: jc.role,
+        primary: jc.primary
       }
     end
   end
 
   def primary_jobs
-    construction_contacts.where(primary: true).includes(:construction).map(&:construction)
+    job_contacts.where(primary: true).includes(:job).map(&:job)
   end
 
   # Supplier-specific helper methods
