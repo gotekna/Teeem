@@ -159,10 +159,27 @@ export default function GoldStandardTableTab() {
   // Fetch column IDs from API and merge with static config
   const fetchColumnIds = async () => {
     try {
+      console.log('🔍 fetchColumnIds: Starting fetch from /api/v1/tables/1')
       const response = await fetch('/api/v1/tables/1')
-      if (!response.ok) return
+      if (!response.ok) {
+        console.log('❌ fetchColumnIds: Response not OK', response.status)
+        return
+      }
       const result = await response.json()
       const dbColumns = result.table?.columns || []
+      console.log('📥 fetchColumnIds: Received', dbColumns.length, 'columns from API')
+
+      // Log a sample column to see what data we're getting
+      const idColumn = dbColumns.find(dc => dc.column_name === 'id')
+      if (idColumn) {
+        console.log('🔎 Sample column (id):', {
+          id: idColumn.id,
+          name: idColumn.name,
+          column_name: idColumn.column_name,
+          header_align: idColumn.header_align,
+          data_align: idColumn.data_align
+        })
+      }
 
       // Merge database column data with static column config
       const updatedColumns = GOLD_STANDARD_COLUMNS.map(col => {
@@ -170,7 +187,7 @@ export default function GoldStandardTableTab() {
         const dbCol = dbColumns.find(dc => dc.column_name === col.key)
         if (dbCol) {
           // Merge ALL database column properties (id, lookup_table_id, lookup_display_column, header_align, data_align, etc.)
-          return {
+          const merged = {
             ...col,
             id: dbCol.id,
             lookup_table_id: dbCol.lookup_table_id,
@@ -178,12 +195,26 @@ export default function GoldStandardTableTab() {
             header_align: dbCol.header_align,
             data_align: dbCol.data_align
           }
+
+          // Log the first few merges for debugging
+          if (col.key === 'id' || col.key === 'single_line_text') {
+            console.log(`🔀 Merged column ${col.key}:`, {
+              key: col.key,
+              header_align: merged.header_align,
+              data_align: merged.data_align,
+              from_db: { header_align: dbCol.header_align, data_align: dbCol.data_align }
+            })
+          }
+
+          return merged
         }
         return col
       })
+
+      console.log('✅ fetchColumnIds: Setting', updatedColumns.length, 'columns with IDs')
       setColumnsWithIds(updatedColumns)
     } catch (err) {
-      console.debug('Column IDs unavailable:', err?.message || 'Unknown error')
+      console.error('❌ fetchColumnIds error:', err?.message || 'Unknown error')
       // Keep using static columns without IDs
     }
   }
