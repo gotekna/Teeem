@@ -32,7 +32,7 @@ export default function JobMessagesTab({ constructionId }) {
   const loadMessages = async () => {
     try {
       if (loading) setLoading(true)
-      const response = await api.get(`/api/v1/constructions/${constructionId}/saved_messages`)
+      const response = await api.get(`/api/v1/jobs/${constructionId}/saved_messages`)
       setMessages(Array.isArray(response) ? response : [])
     } catch (error) {
       console.error('Failed to load messages:', error)

@@ -29,7 +29,7 @@ export default function RainLogTab({ constructionId }) {
   const loadRainLogs = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/constructions/${constructionId}/rain_logs`)
+      const response = await api.get(`/api/v1/jobs/${constructionId}/rain_logs`)
       setRainLogs(response.rain_logs || [])
     } catch (err) {
       console.error('Failed to load rain logs:', err)
@@ -45,13 +45,13 @@ export default function RainLogTab({ constructionId }) {
       if (editingLog) {
         // Update existing log
         await api.put(
-          `/api/v1/constructions/${constructionId}/rain_logs/${editingLog.id}`,
+          `/api/v1/jobs/${constructionId}/rain_logs/${editingLog.id}`,
           { rain_log: formData }
         )
       } else {
         // Create new log
         await api.post(
-          `/api/v1/constructions/${constructionId}/rain_logs`,
+          `/api/v1/jobs/${constructionId}/rain_logs`,
           { rain_log: formData }
         )
       }
@@ -71,7 +71,7 @@ export default function RainLogTab({ constructionId }) {
     if (!confirm('Are you sure you want to delete this rain log?')) return
 
     try {
-      await api.delete(`/api/v1/constructions/${constructionId}/rain_logs/${logId}`)
+      await api.delete(`/api/v1/jobs/${constructionId}/rain_logs/${logId}`)
       await loadRainLogs()
     } catch (err) {
       console.error('Failed to delete rain log:', err)

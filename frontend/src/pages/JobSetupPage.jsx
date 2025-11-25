@@ -75,7 +75,7 @@ export default function JobSetupPage() {
 
   const loadJob = async () => {
     try {
-      const response = await api.get(`/api/v1/constructions/${id}`)
+      const response = await api.get(`/api/v1/jobs/${id}`)
       setJob(response.construction)
       setDetailsForm({
         site_supervisor_name: response.construction.site_supervisor_name || '',
@@ -110,7 +110,7 @@ export default function JobSetupPage() {
 
   const handleRetryOneDrive = async () => {
     try {
-      await api.post(`/api/v1/constructions/${id}/retry_onedrive_folders`)
+      await api.post(`/api/v1/jobs/${id}/retry_onedrive_folders`)
       loadJob()
     } catch (error) {
       console.error('Error retrying OneDrive creation:', error)
@@ -121,7 +121,7 @@ export default function JobSetupPage() {
   const handleSaveDetails = async (e) => {
     e.preventDefault()
     try {
-      await api.put(`/api/v1/constructions/${id}`, {
+      await api.put(`/api/v1/jobs/${id}`, {
         construction: detailsForm,
       })
       await loadJob()

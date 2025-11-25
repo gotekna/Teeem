@@ -17,7 +17,7 @@ export default function BudgetTab({ jobId }) {
     try {
       setLoading(true)
       setError(null)
-      const response = await api.get(`/api/v1/constructions/${jobId}/budget_tracking`)
+      const response = await api.get(`/api/v1/jobs/${jobId}/budget_tracking`)
       setBudgetData(response)
     } catch (err) {
       console.error('Failed to load budget data:', err)

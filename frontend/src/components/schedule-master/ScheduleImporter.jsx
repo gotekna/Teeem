@@ -62,7 +62,7 @@ export default function ScheduleImporter({ constructionId, onImportSuccess, comp
       formData.append('file', file)
 
       const response = await api.postFormData(
-        `/api/v1/constructions/${constructionId}/schedule_tasks/import`,
+        `/api/v1/jobs/${constructionId}/schedule_tasks/import`,
         formData
       )
 

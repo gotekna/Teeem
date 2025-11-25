@@ -238,11 +238,11 @@ export default function SmGanttPage() {
       setError(null)
 
       // Load construction details
-      const constructionResponse = await api.get(`/api/v1/constructions/${id}`)
+      const constructionResponse = await api.get(`/api/v1/jobs/${id}`)
       setConstruction(constructionResponse.construction)
 
       // Load SM tasks and dependencies using gantt_data endpoint
-      const ganttResponse = await api.get(`/api/v1/constructions/${id}/sm_tasks/gantt_data`)
+      const ganttResponse = await api.get(`/api/v1/jobs/${id}/sm_tasks/gantt_data`)
       setTasks(ganttResponse.gantt_data?.tasks || [])
       setDependencies(ganttResponse.gantt_data?.dependencies || [])
     } catch (err) {
@@ -380,7 +380,7 @@ export default function SmGanttPage() {
 
   const handleTaskCreate = async (taskData) => {
     try {
-      await api.post(`/api/v1/constructions/${id}/sm_tasks`, { sm_task: taskData })
+      await api.post(`/api/v1/jobs/${id}/sm_tasks`, { sm_task: taskData })
       setToast({ type: 'success', message: 'Task created successfully' })
       await loadData() // Refresh
     } catch (err) {
@@ -392,7 +392,7 @@ export default function SmGanttPage() {
 
   const handleCopyFromTemplate = async (templateRowId) => {
     try {
-      await api.post(`/api/v1/constructions/${id}/sm_tasks/copy_from_template`, {
+      await api.post(`/api/v1/jobs/${id}/sm_tasks/copy_from_template`, {
         template_row_id: templateRowId
       })
       setToast({ type: 'success', message: 'Task copied from template' })

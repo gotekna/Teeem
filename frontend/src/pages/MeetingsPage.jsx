@@ -38,7 +38,7 @@ export default function MeetingsPage() {
     try {
       setLoading(true)
       const url = constructionId
-        ? `/api/v1/constructions/${constructionId}/meetings`
+        ? `/api/v1/jobs/${constructionId}/meetings`
         : `/api/v1/meetings`
       const response = await api.get(url)
 
@@ -58,7 +58,7 @@ export default function MeetingsPage() {
   const handleCreateMeeting = async (meetingData) => {
     try {
       const url = constructionId
-        ? `/api/v1/constructions/${constructionId}/meetings`
+        ? `/api/v1/jobs/${constructionId}/meetings`
         : `/api/v1/meetings`
 
       const response = await api.post(url, { meeting: meetingData })

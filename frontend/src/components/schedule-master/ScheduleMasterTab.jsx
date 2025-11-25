@@ -31,7 +31,7 @@ export default function ScheduleMasterTab({ constructionId }) {
   const loadScheduleTasks = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/constructions/${constructionId}/schedule_tasks`)
+      const response = await api.get(`/api/v1/jobs/${constructionId}/schedule_tasks`)
       setScheduleTasks(response.schedule_tasks || [])
       setMatchedCount(response.matched_count || 0)
       setUnmatchedCount(response.unmatched_count || 0)
@@ -84,7 +84,7 @@ export default function ScheduleMasterTab({ constructionId }) {
 
   const handleAddTask = async (taskData) => {
     try {
-      await api.post(`/api/v1/constructions/${constructionId}/schedule_tasks`, {
+      await api.post(`/api/v1/jobs/${constructionId}/schedule_tasks`, {
         schedule_task: taskData
       })
       showToast('Task added successfully!', 'success')
@@ -98,7 +98,7 @@ export default function ScheduleMasterTab({ constructionId }) {
 
   const handleCopyFromTemplate = async (templateId) => {
     try {
-      await api.post(`/api/v1/constructions/${constructionId}/schedule_tasks/copy_from_template`, {
+      await api.post(`/api/v1/jobs/${constructionId}/schedule_tasks/copy_from_template`, {
         template_id: templateId
       })
       showToast('Task created from template successfully!', 'success')

@@ -28,7 +28,7 @@ export default function MasterSchedulePage() {
       setLoading(true)
 
       // Load construction/job details
-      const constructionResponse = await api.get(`/api/v1/constructions/${id}`)
+      const constructionResponse = await api.get(`/api/v1/jobs/${id}`)
       setConstruction(constructionResponse.construction)
 
       // Find the project for this construction

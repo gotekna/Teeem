@@ -29,8 +29,8 @@ export default function SmAnalyticsPage() {
     const fetchData = async () => {
       try {
         const [constructionRes, summaryRes] = await Promise.all([
-          api.get(`/api/v1/constructions/${constructionId}`),
-          api.get(`/api/v1/constructions/${constructionId}/sm_analytics/summary`)
+          api.get(`/api/v1/jobs/${constructionId}`),
+          api.get(`/api/v1/jobs/${constructionId}/sm_analytics/summary`)
         ])
         setConstruction(constructionRes.data.construction || constructionRes.data)
         setSummary(summaryRes.data.summary)

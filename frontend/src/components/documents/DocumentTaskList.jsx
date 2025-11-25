@@ -25,7 +25,7 @@ export default function DocumentTaskList({ jobId, category }) {
     try {
       setLoading(true)
       setError(null)
-      const response = await api.get(`/api/v1/constructions/${jobId}/document_tasks?category=${category.id}`)
+      const response = await api.get(`/api/v1/jobs/${jobId}/document_tasks?category=${category.id}`)
       setTasks(response.tasks || [])
     } catch (err) {
       console.error('Failed to load document tasks:', err)
@@ -95,7 +95,7 @@ export default function DocumentTaskList({ jobId, category }) {
       formData.append('construction_id', jobId)
       formData.append('category', category.id)
 
-      const response = await api.post(`/api/v1/constructions/${jobId}/document_tasks/${taskId}/upload`, formData, {
+      const response = await api.post(`/api/v1/jobs/${jobId}/document_tasks/${taskId}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -120,7 +120,7 @@ export default function DocumentTaskList({ jobId, category }) {
   const handleValidate = async (taskId) => {
     try {
       setError(null)
-      const response = await api.post(`/api/v1/constructions/${jobId}/document_tasks/${taskId}/validate`)
+      const response = await api.post(`/api/v1/jobs/${jobId}/document_tasks/${taskId}/validate`)
 
       // Update task in list
       setTasks(prevTasks =>

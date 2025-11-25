@@ -67,7 +67,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
     try {
       setLoadingJobs(true)
       // Load actual construction jobs with Active status
-      const response = await api.get('/api/v1/constructions?status=Active&per_page=50')
+      const response = await api.get('/api/v1/jobs?status=Active&per_page=50')
       setActiveJobs(response.constructions || [])
     } catch (err) {
       console.error('Failed to load active jobs:', err)

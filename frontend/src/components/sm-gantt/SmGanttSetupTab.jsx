@@ -1305,7 +1305,7 @@ function QuickLinksSubTab() {
     const loadRecentJobs = async () => {
       try {
         setLoading(true)
-        const response = await api.get('/api/v1/constructions?status=active&limit=6')
+        const response = await api.get('/api/v1/jobs?status=active&limit=6')
         setJobs(response.constructions || [])
       } catch (err) {
         console.error('Failed to load jobs:', err)

@@ -113,7 +113,7 @@ export default function JobDetailPage() {
   const loadJob = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/constructions/${id}`)
+      const response = await api.get(`/api/v1/jobs/${id}`)
       // API returns the construction object directly, not wrapped
       setJob(response)
       setEditedJob(response)
@@ -139,7 +139,7 @@ export default function JobDetailPage() {
     try {
       setSaving(true)
       console.log('Saving job with data:', editedJob)
-      await api.put(`/api/v1/constructions/${id}`, {
+      await api.put(`/api/v1/jobs/${id}`, {
         construction: editedJob
       })
       await loadJob()
@@ -761,7 +761,7 @@ export default function JobDetailPage() {
               onSave={async (teamData) => {
                 try {
                   setSaving(true)
-                  await api.put(`/api/v1/constructions/${id}`, {
+                  await api.put(`/api/v1/jobs/${id}`, {
                     construction: teamData
                   })
                   await loadJob()

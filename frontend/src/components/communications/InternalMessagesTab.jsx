@@ -36,7 +36,7 @@ export default function InternalMessagesTab({ entityType, entityId }) {
       if (loading) setLoading(true)
       // Adjust API endpoint based on entity type
       const endpoint = entityType === 'job'
-        ? `/api/v1/constructions/${entityId}/saved_messages`
+        ? `/api/v1/jobs/${entityId}/saved_messages`
         : `/api/v1/contacts/${entityId}/internal_messages`
 
       const response = await api.get(endpoint)
@@ -56,7 +56,7 @@ export default function InternalMessagesTab({ entityType, entityId }) {
     try {
       setSending(true)
       const endpoint = entityType === 'job'
-        ? `/api/v1/constructions/${entityId}/saved_messages`
+        ? `/api/v1/jobs/${entityId}/saved_messages`
         : `/api/v1/contacts/${entityId}/internal_messages`
 
       await api.post(endpoint, {

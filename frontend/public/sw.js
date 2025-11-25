@@ -14,7 +14,7 @@ const STATIC_ASSETS = [
 
 // API routes to cache for offline use
 const CACHEABLE_API_ROUTES = [
-  '/api/v1/constructions',
+  '/api/v1/jobs',
   '/api/v1/sm_tasks'
 ]
 

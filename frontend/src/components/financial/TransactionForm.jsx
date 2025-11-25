@@ -69,7 +69,7 @@ export default function TransactionForm({ isOpen, onClose, onSuccess, transactio
 
   const loadJobs = async () => {
     try {
-      const response = await api.get('/api/v1/constructions?per_page=100')
+      const response = await api.get('/api/v1/jobs?per_page=100')
       if (response.success) {
         setJobs(response.constructions || [])
       }

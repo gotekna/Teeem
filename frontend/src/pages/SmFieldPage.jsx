@@ -147,11 +147,11 @@ export default function SmFieldPage() {
     setLoading(true)
     try {
       // Fetch construction details
-      const constructionRes = await api.get(`/api/v1/constructions/${constructionId}`)
+      const constructionRes = await api.get(`/api/v1/jobs/${constructionId}`)
       setConstruction(constructionRes.data.construction || constructionRes.data)
 
       // Fetch tasks
-      const tasksRes = await api.get(`/api/v1/constructions/${constructionId}/sm_tasks`)
+      const tasksRes = await api.get(`/api/v1/jobs/${constructionId}/sm_tasks`)
       const todaysTasks = (tasksRes.data.tasks || []).filter(t =>
         t.status !== 'completed' || new Date(t.completed_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
       )

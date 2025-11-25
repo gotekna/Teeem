@@ -8,7 +8,7 @@
  *   import { logError, logWarning, logInfo } from '@/utils/errorLogger'
  *
  *   logError('API call failed', {
- *     endpoint: '/api/v1/constructions',
+ *     endpoint: '/api/v1/jobs',
  *     status: 500,
  *     userId: user.id
  *   })

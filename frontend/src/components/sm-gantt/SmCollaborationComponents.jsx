@@ -98,7 +98,7 @@ export const ActivityFeed = ({
       if (taskId) {
         url = `/api/v1/sm_tasks/${taskId}/activities`
       } else if (constructionId) {
-        url = `/api/v1/constructions/${constructionId}/sm_activities`
+        url = `/api/v1/jobs/${constructionId}/sm_activities`
       } else {
         url = '/api/v1/sm_activities/my_activity'
       }

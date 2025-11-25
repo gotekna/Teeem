@@ -26,7 +26,7 @@ export const CriticalPathView = ({ constructionId }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get(`/api/v1/constructions/${constructionId}/sm_analytics/critical_path`)
+        const res = await api.get(`/api/v1/jobs/${constructionId}/sm_analytics/critical_path`)
         setData(res.data.critical_path)
       } catch (err) {
         console.error('Failed to fetch critical path:', err)
@@ -98,7 +98,7 @@ export const EvmDashboard = ({ constructionId }) => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await api.get(`/api/v1/constructions/${constructionId}/sm_analytics/evm`)
+        const res = await api.get(`/api/v1/jobs/${constructionId}/sm_analytics/evm`)
         setData(res.data.evm)
       } catch (err) {
         console.error('Failed to fetch EVM:', err)
@@ -212,8 +212,8 @@ export const AiSuggestionsPanel = ({ constructionId }) => {
     const fetchData = async () => {
       try {
         const [suggestionsRes, predictionsRes] = await Promise.all([
-          api.get(`/api/v1/constructions/${constructionId}/sm_ai/suggestions`),
-          api.get(`/api/v1/constructions/${constructionId}/sm_ai/predictions`)
+          api.get(`/api/v1/jobs/${constructionId}/sm_ai/suggestions`),
+          api.get(`/api/v1/jobs/${constructionId}/sm_ai/predictions`)
         ])
         setSuggestions(suggestionsRes.data.suggestions || [])
         setPredictions(predictionsRes.data.predictions || [])
@@ -319,7 +319,7 @@ export const BaselineComparison = ({ constructionId }) => {
 
   const fetchBaselines = useCallback(async () => {
     try {
-      const res = await api.get(`/api/v1/constructions/${constructionId}/sm_analytics/baselines`)
+      const res = await api.get(`/api/v1/jobs/${constructionId}/sm_analytics/baselines`)
       setBaselines(res.data.baselines || [])
     } catch (err) {
       console.error('Failed to fetch baselines:', err)
@@ -330,7 +330,7 @@ export const BaselineComparison = ({ constructionId }) => {
 
   const fetchComparison = async (baselineId) => {
     try {
-      const res = await api.get(`/api/v1/constructions/${constructionId}/sm_analytics/baselines/${baselineId}/compare`)
+      const res = await api.get(`/api/v1/jobs/${constructionId}/sm_analytics/baselines/${baselineId}/compare`)
       setComparison(res.data.comparison)
     } catch (err) {
       console.error('Failed to fetch comparison:', err)
@@ -343,7 +343,7 @@ export const BaselineComparison = ({ constructionId }) => {
       const name = prompt('Baseline name:', `Baseline ${new Date().toLocaleDateString()}`)
       if (!name) return
 
-      await api.post(`/api/v1/constructions/${constructionId}/sm_analytics/baselines`, { name })
+      await api.post(`/api/v1/jobs/${constructionId}/sm_analytics/baselines`, { name })
       fetchBaselines()
     } catch (err) {
       console.error('Failed to create baseline:', err)

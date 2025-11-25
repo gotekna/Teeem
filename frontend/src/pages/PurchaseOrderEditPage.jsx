@@ -114,7 +114,7 @@ export default function PurchaseOrderEditPage() {
 
   const loadScheduleTasks = async (constructionId) => {
     try {
-      const response = await api.get(`/api/v1/constructions/${constructionId}/schedule_tasks`)
+      const response = await api.get(`/api/v1/jobs/${constructionId}/schedule_tasks`)
       setScheduleTasks(response.schedule_tasks || [])
     } catch (err) {
       console.error('Failed to load schedule tasks:', err)

@@ -48,7 +48,7 @@ export default function PurchaseOrderModal({ isOpen, onClose, onSave, purchaseOr
   const loadScheduleTasks = async () => {
     try {
       setLoadingTasks(true)
-      const response = await api.get(`/api/v1/constructions/${constructionId}/schedule_tasks`)
+      const response = await api.get(`/api/v1/jobs/${constructionId}/schedule_tasks`)
       // Show unmatched tasks OR the task currently assigned to this PO (if editing)
       const currentPoTaskId = purchaseOrder?.schedule_task_id
       const filtered = (response.schedule_tasks || []).filter(task =>

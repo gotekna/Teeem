@@ -100,7 +100,7 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
     if (!validateForm()) return
     setIsSaving(true)
     try {
-      await api.put(`/api/v1/constructions/${job.id}`, { construction: formData })
+      await api.put(`/api/v1/jobs/${job.id}`, { construction: formData })
       if (onSuccess) await onSuccess()
       onClose()
     } catch (err) {
@@ -114,7 +114,7 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
   const handleDelete = async () => {
     setIsDeleting(true)
     try {
-      await api.delete(`/api/v1/constructions/${job.id}`)
+      await api.delete(`/api/v1/jobs/${job.id}`)
       if (onSuccess) await onSuccess()
       onClose()
     } catch (err) {

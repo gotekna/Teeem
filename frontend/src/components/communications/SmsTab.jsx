@@ -44,7 +44,7 @@ export default function SmsTab({ entityType, entityId, contact }) {
       if (loading) setLoading(true)
       // Adjust API endpoint based on entity type
       const endpoint = entityType === 'job'
-        ? `/api/v1/constructions/${entityId}/sms_messages`
+        ? `/api/v1/jobs/${entityId}/sms_messages`
         : `/api/v1/contacts/${entityId}/sms_messages`
 
       const response = await api.get(endpoint)
@@ -65,7 +65,7 @@ export default function SmsTab({ entityType, entityId, contact }) {
     try {
       setSending(true)
       const endpoint = entityType === 'job'
-        ? `/api/v1/constructions/${entityId}/sms_messages`
+        ? `/api/v1/jobs/${entityId}/sms_messages`
         : `/api/v1/contacts/${entityId}/sms_messages`
 
       await api.post(endpoint, {

@@ -49,7 +49,7 @@ export default function NewMeetingModal({ isOpen, onClose, onSubmit, constructio
 
   const loadConstructions = async () => {
     try {
-      const response = await api.get('/api/v1/constructions')
+      const response = await api.get('/api/v1/jobs')
       if (response.success) {
         setConstructions(response.data || [])
       }

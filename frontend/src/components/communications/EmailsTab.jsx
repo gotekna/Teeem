@@ -42,7 +42,7 @@ export default function EmailsTab({ entityType, entityId }) {
       setLoading(true)
       // Adjust API endpoint based on entity type
       const endpoint = entityType === 'job'
-        ? `/api/v1/constructions/${entityId}/emails`
+        ? `/api/v1/jobs/${entityId}/emails`
         : `/api/v1/contacts/${entityId}/emails`
 
       const response = await api.get(endpoint)
@@ -62,7 +62,7 @@ export default function EmailsTab({ entityType, entityId }) {
     try {
       setSending(true)
       const endpoint = entityType === 'job'
-        ? `/api/v1/constructions/${entityId}/emails`
+        ? `/api/v1/jobs/${entityId}/emails`
         : `/api/v1/contacts/${entityId}/emails`
 
       await api.post(endpoint, {

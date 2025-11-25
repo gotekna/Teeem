@@ -19,7 +19,7 @@ export default function DocumentCategoryTabs({ jobId, onCategoryChange, children
   const fetchDocumentationTabs = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/constructions/${jobId}/documentation_tabs`)
+      const response = await api.get(`/api/v1/jobs/${jobId}/documentation_tabs`)
       setDocumentCategories(response)
     } catch (error) {
       console.error('Failed to fetch documentation tabs:', error)

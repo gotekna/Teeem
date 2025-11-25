@@ -422,7 +422,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
         console.log('Also updating job title to:', newTitle)
       }
 
-      const response = await api.patch(`/api/v1/constructions/${jobId}`, {
+      const response = await api.patch(`/api/v1/jobs/${jobId}`, {
         construction: updateData
       })
       console.log('Save successful, response:', response)
@@ -655,7 +655,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
       // Manual pin placement without address selection - just save coordinates
       setSaving(true)
       try {
-        await api.patch(`/api/v1/constructions/${jobId}`, {
+        await api.patch(`/api/v1/jobs/${jobId}`, {
           construction: {
             latitude: tempPosition[0],
             longitude: tempPosition[1]

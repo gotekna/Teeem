@@ -61,7 +61,7 @@ export default function ChatBox({ channel = 'general', projectId = null, userId 
   const loadConstructions = async () => {
     try {
       console.log('Loading constructions for job selector...')
-      const response = await api.get('/api/v1/constructions', {
+      const response = await api.get('/api/v1/jobs', {
         params: { status: 'Active', per_page: 100 }
       })
       console.log('Constructions loaded:', response.constructions?.length || 0, 'jobs')

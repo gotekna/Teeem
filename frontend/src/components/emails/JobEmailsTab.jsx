@@ -19,7 +19,7 @@ export default function JobEmailsTab({ constructionId }) {
   const loadEmails = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/constructions/${constructionId}/emails`)
+      const response = await api.get(`/api/v1/jobs/${constructionId}/emails`)
       setEmails(Array.isArray(response) ? response : [])
     } catch (error) {
       console.error('Failed to load emails:', error)

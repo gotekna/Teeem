@@ -233,7 +233,7 @@ export default function AppLayout({ children }) {
   useEffect(() => {
     const loadActiveJobs = async () => {
       try {
-        const response = await api.get('/api/v1/constructions?status=Active&per_page=20')
+        const response = await api.get('/api/v1/jobs?status=Active&per_page=20')
         setActiveJobs(response.constructions || [])
       } catch (err) {
         // Silently fail - sidebar will just show empty, user can still navigate

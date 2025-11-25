@@ -290,7 +290,7 @@ export default function SmResourcesPage() {
 
       // If we have a construction context, fetch task-related data
       if (constructionId) {
-        const tasksRes = await api.get(`/api/v1/constructions/${constructionId}/sm_tasks`)
+        const tasksRes = await api.get(`/api/v1/jobs/${constructionId}/sm_tasks`)
         setTasks(tasksRes.data.tasks || [])
       }
 
