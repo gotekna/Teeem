@@ -3,8 +3,8 @@ class Api::V1::WHSInspectionsController < ApplicationController
 
   # GET /api/v1/whs_inspections
   def index
-    inspections = if params[:construction_id].present?
-      WhsInspection.for_construction(params[:construction_id])
+    inspections = if params[:job_id].present?
+      WhsInspection.for_construction(params[:job_id])
     else
       WhsInspection.all
     end
@@ -131,7 +131,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
 
   def whs_inspection_params
     params.require(:whs_inspection).permit(
-      :inspection_number, :inspection_type, :status, :construction_id,
+      :inspection_number, :inspection_type, :status, :job_id,
       :whs_inspection_template_id, :inspector_user_id, :scheduled_date,
       :location, :weather_conditions, :notes, :meeting_id
     )

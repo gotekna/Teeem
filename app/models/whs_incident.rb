@@ -1,6 +1,6 @@
 class WHSIncident < ApplicationRecord
   # Associations
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   belongs_to :reported_by_user, class_name: 'User'
   belongs_to :investigated_by_user, class_name: 'User', optional: true
 

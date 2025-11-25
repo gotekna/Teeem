@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/sm_reports/dashboard
       # Main dashboard summary
       def dashboard
-        service = SmDashboardService.new(construction_id: params[:construction_id])
+        service = SmDashboardService.new(construction_id: params[:job_id])
 
         render json: {
           success: true,
@@ -18,7 +18,7 @@ module Api
       # GET /api/v1/sm_reports/utilization
       # Resource utilization report
       def utilization
-        service = SmDashboardService.new(construction_id: params[:construction_id])
+        service = SmDashboardService.new(construction_id: params[:job_id])
         start_date = parse_date(params[:start_date])
         end_date = parse_date(params[:end_date])
 
@@ -33,7 +33,7 @@ module Api
       # GET /api/v1/sm_reports/costs
       # Cost tracking report
       def costs
-        service = SmDashboardService.new(construction_id: params[:construction_id])
+        service = SmDashboardService.new(construction_id: params[:job_id])
         start_date = parse_date(params[:start_date])
         end_date = parse_date(params[:end_date])
 
@@ -48,7 +48,7 @@ module Api
       # GET /api/v1/sm_reports/trends
       # Weekly trend data for charts
       def trends
-        service = SmDashboardService.new(construction_id: params[:construction_id])
+        service = SmDashboardService.new(construction_id: params[:job_id])
         weeks = (params[:weeks] || 8).to_i.clamp(1, 52)
 
         render json: {
@@ -60,7 +60,7 @@ module Api
       # GET /api/v1/sm_reports/forecast
       # Upcoming work forecast
       def forecast
-        service = SmDashboardService.new(construction_id: params[:construction_id])
+        service = SmDashboardService.new(construction_id: params[:job_id])
         days = (params[:days] || 14).to_i.clamp(1, 90)
 
         render json: {
@@ -71,7 +71,7 @@ module Api
       # GET /api/v1/sm_reports/export
       # Export report data (CSV/JSON)
       def export
-        service = SmDashboardService.new(construction_id: params[:construction_id])
+        service = SmDashboardService.new(construction_id: params[:job_id])
         report_type = params[:type] || 'utilization'
         format = params[:format] || 'json'
 

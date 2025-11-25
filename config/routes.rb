@@ -51,18 +51,18 @@ Rails.application.routes.draw do
       get 'health/pricebook/missing_items', to: 'health#missing_items'
       get 'pricebook/price_health_check', to: 'pricebook_items#price_health_check'
 
-      # Construction jobs management
-      resources :constructions do
+      # Jobs management
+      resources :jobs do
         member do
           get :saved_messages
           get :emails
           get :documentation_tabs
         end
 
-        # Construction contacts (nested under constructions)
-        resources :construction_contacts, only: [:index, :create, :update, :destroy]
+        # Job contacts (nested under jobs)
+        resources :job_contacts, only: [:index, :create, :update, :destroy]
 
-        # Schedule tasks (nested under constructions)
+        # Schedule tasks (nested under jobs)
         resources :schedule_tasks, only: [:index, :create] do
           collection do
             post :import
@@ -71,7 +71,7 @@ Rails.application.routes.draw do
           end
         end
 
-        # Document tasks (nested under constructions)
+        # Document tasks (nested under jobs)
         resources :document_tasks, only: [:index] do
           member do
             post :upload
@@ -79,10 +79,10 @@ Rails.application.routes.draw do
           end
         end
 
-        # Rain logs (nested under constructions)
+        # Rain logs (nested under jobs)
         resources :rain_logs, only: [:index, :show, :create, :update, :destroy]
 
-        # Meetings (nested under constructions)
+        # Meetings (nested under jobs)
         resources :meetings, only: [:index, :create]
 
       end
@@ -436,8 +436,8 @@ Rails.application.routes.draw do
       # SM Gantt (Schedule Master v2)
       # ============================================
 
-      # SM Tasks (nested under constructions)
-      resources :constructions, only: [] do
+      # SM Tasks (nested under jobs)
+      resources :jobs, only: [] do
         resources :sm_tasks, only: [:index, :create] do
           collection do
             get :gantt_data
@@ -585,7 +585,7 @@ Rails.application.routes.draw do
           # GPS Check-ins
           post :checkin
           get :checkins
-          get 'site_status/:construction_id', action: :site_status
+          get 'site_status/:job_id', action: :site_status
 
           # Voice Notes
           post :record_voice_note
@@ -617,8 +617,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Activities nested under constructions
-      resources :constructions, only: [] do
+      # Activities nested under jobs
+      resources :jobs, only: [] do
         resources :sm_activities, only: [:index], controller: 'sm_activities'
       end
 
@@ -647,7 +647,7 @@ Rails.application.routes.draw do
       # SM Gantt - Advanced Analytics
       # ============================================
 
-      resources :constructions, only: [] do
+      resources :jobs, only: [] do
         scope module: :sm do
           # Analytics endpoints
           resources :sm_analytics, only: [], controller: '/api/v1/sm_analytics' do

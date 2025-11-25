@@ -1,6 +1,6 @@
 class FinancialTransaction < ApplicationRecord
   # Associations
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   belongs_to :user
   belongs_to :company
   belongs_to :keepr_journal, class_name: 'Keepr::Journal', optional: true

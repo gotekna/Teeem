@@ -1,31 +1,31 @@
 module Api
   module V1
-    class ConstructionsController < ApplicationController
-      before_action :set_construction, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs]
+    class JobsController < ApplicationController
+      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs]
 
       # GET /api/v1/constructions
       # GET /api/v1/constructions?status=Active
       def index
-        @constructions = Construction.all
+        @jobs = Job.all
 
         # Filter by status if provided (default to Active jobs)
         status_filter = params[:status] || "Active"
-        @constructions = @constructions.where(status: status_filter) if status_filter.present?
+        @jobs = @jobs.where(status: status_filter) if status_filter.present?
 
         # Pagination
         page = params[:page]&.to_i || 1
         per_page = params[:per_page]&.to_i || 50
 
         # Get total count before limiting results to avoid separate COUNT query
-        total_count = @constructions.count
+        total_count = @jobs.count
         total_pages = (total_count.to_f / per_page).ceil
 
-        @constructions = @constructions.order(created_at: :desc)
+        @jobs = @jobs.order(created_at: :desc)
                                        .limit(per_page)
                                        .offset((page - 1) * per_page)
 
         render json: {
-          constructions: @constructions,
+          jobs: @jobs,
           pagination: {
             current_page: page,
             total_pages: total_pages,
@@ -38,8 +38,8 @@ module Api
       # GET /api/v1/constructions/:id
       def show
         # Include contacts with their relationships in the response
-        construction_json = @construction.as_json
-        construction_json[:contacts] = @construction.construction_contacts
+        construction_json = @job.as_json
+        construction_json[:contacts] = @job.construction_contacts
                                                      .includes(contact: :outgoing_relationships)
                                                      .order(primary: :desc, created_at: :asc)
                                                      .map do |cc|
@@ -60,13 +60,13 @@ module Api
 
       # POST /api/v1/constructions
       def create
-        @construction = Construction.new(construction_params)
+        @job = Job.new(job_params)
 
-        if @construction.save
+        if @job.save
           # Enqueue OneDrive folder creation if requested
           folder_creation_enqueued = false
           if params[:create_onedrive_folders] == true || params[:create_onedrive_folders] == "true"
-            @construction.create_folders_if_needed!(params[:template_id])
+            @job.create_folders_if_needed!(params[:template_id])
             folder_creation_enqueued = true
           end
 
@@ -76,7 +76,7 @@ module Api
             template_instantiation_result = instantiate_schedule_template(params[:template_id])
           end
 
-          response_data = @construction.as_json.merge(
+          response_data = @job.as_json.merge(
             folder_creation_enqueued: folder_creation_enqueued
           )
 
@@ -87,28 +87,28 @@ module Api
 
           render json: response_data, status: :created
         else
-          render json: { errors: @construction.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
         end
       end
 
       # PUT/PATCH /api/v1/constructions/:id
       def update
-        if @construction.update(construction_params)
-          render json: @construction
+        if @job.update(job_params)
+          render json: @job
         else
-          render json: { errors: @construction.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
         end
       end
 
       # DELETE /api/v1/constructions/:id
       def destroy
-        @construction.destroy
+        @job.destroy
         head :no_content
       end
 
       # GET /api/v1/constructions/:id/saved_messages
       def saved_messages
-        @messages = @construction.chat_messages
+        @messages = @job.chat_messages
                                   .where(saved_to_job: true)
                                   .includes(:user)
                                   .order(created_at: :desc)
@@ -121,7 +121,7 @@ module Api
 
       # GET /api/v1/constructions/:id/emails
       def emails
-        @emails = @construction.emails
+        @emails = @job.emails
                               .includes(:user)
                               .order(received_at: :desc)
 
@@ -130,7 +130,7 @@ module Api
 
       # GET /api/v1/constructions/:id/documentation_tabs
       def documentation_tabs
-        @tabs = @construction.construction_documentation_tabs
+        @tabs = @job.construction_documentation_tabs
                             .active
                             .ordered
 
@@ -139,11 +139,11 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:id])
+      def set_job
+        @job = Job.find(params[:id])
       end
 
-      def construction_params
+      def job_params
         params.require(:construction).permit(
           :title,
           :contract_value,
@@ -168,18 +168,18 @@ module Api
         # Find the template
         template = ScheduleTemplate.find_by(id: template_id)
         unless template
-          Rails.logger.warn("Template #{template_id} not found for construction #{@construction.id}")
+          Rails.logger.warn("Template #{template_id} not found for construction #{@job.id}")
           return { success: false, error: "Template not found" }
         end
 
         # Get or create the project for this construction
         # The project is needed for the template instantiation service
-        project = @construction.project
+        project = @job.project
         unless project
           # Create a project using the construction's helper method
-          project = @construction.create_project!(
+          project = @job.create_project!(
             project_manager: current_user,
-            name: "#{@construction.title} - Master Schedule"
+            name: "#{@job.title} - Master Schedule"
           )
         end
 
@@ -190,7 +190,7 @@ module Api
         ).call
 
         if result[:success]
-          Rails.logger.info("Successfully instantiated template #{template.name} for construction #{@construction.id}")
+          Rails.logger.info("Successfully instantiated template #{template.name} for construction #{@job.id}")
           {
             success: true,
             template_name: template.name,

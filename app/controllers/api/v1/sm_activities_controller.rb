@@ -3,13 +3,13 @@
 module Api
   module V1
     class SmActivitiesController < ApplicationController
-      before_action :set_construction, only: [:index, :feed]
+      before_action :set_job, only: [:index, :feed]
 
-      # GET /api/v1/constructions/:construction_id/activities
+      # GET /api/v1/constructions/:job_id/activities
       # GET /api/v1/sm_activities
       def index
         activities = SmActivityService.feed(
-          construction_id: @construction&.id || params[:construction_id],
+          construction_id: @job&.id || params[:job_id],
           filters: activity_filters
         )
 
@@ -27,7 +27,7 @@ module Api
         since = params[:since] ? Time.parse(params[:since]) : 1.hour.ago
 
         activities = SmActivity
-                     .for_construction(@construction.id)
+                     .for_construction(@job.id)
                      .where('created_at > ?', since)
                      .recent
                      .limit(50)
@@ -68,7 +68,7 @@ module Api
 
       # GET /api/v1/sm_activities/summary
       def summary
-        construction_id = params[:construction_id]
+        construction_id = params[:job_id]
 
         today_count = SmActivity.for_construction(construction_id).today.count
         week_count = SmActivity.for_construction(construction_id).this_week.count
@@ -106,8 +106,8 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id]) if params[:construction_id]
+      def set_job
+        @job = Job.find(params[:job_id]) if params[:job_id]
       end
 
       def activity_filters

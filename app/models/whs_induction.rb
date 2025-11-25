@@ -1,7 +1,7 @@
 class WHSInduction < ApplicationRecord
   # Associations
   belongs_to :whs_induction_template, foreign_key: :whs_induction_template_id
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   belongs_to :user, optional: true
   belongs_to :conducted_by_user, class_name: 'User'
 

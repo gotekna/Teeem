@@ -135,7 +135,7 @@ module Api
           :client_name,
           :site_address,
           :project_manager_id,
-          :construction_id
+          :job_id
         )
       end
     end

@@ -1,15 +1,15 @@
 module Api
   module V1
     class DocumentTasksController < ApplicationController
-      before_action :set_construction
+      before_action :set_job
 
-      # GET /api/v1/constructions/:construction_id/document_tasks
+      # GET /api/v1/constructions/:job_id/document_tasks
       def index
         category = params[:category]
 
         # Get or create document tasks for this construction and category
         tasks = DocumentTask.where(
-          construction_id: @construction.id,
+          construction_id: @job.id,
           category: category
         )
 
@@ -23,11 +23,11 @@ module Api
         }
       end
 
-      # POST /api/v1/constructions/:construction_id/document_tasks/:id/upload
+      # POST /api/v1/constructions/:job_id/document_tasks/:id/upload
       def upload
         task = DocumentTask.find_or_create_by(
           id: params[:id],
-          construction_id: @construction.id,
+          construction_id: @job.id,
           category: params[:category]
         )
 
@@ -52,7 +52,7 @@ module Api
         render json: { error: e.message }, status: :unprocessable_entity
       end
 
-      # POST /api/v1/constructions/:construction_id/document_tasks/:id/validate
+      # POST /api/v1/constructions/:job_id/document_tasks/:id/validate
       def validate
         task = DocumentTask.find(params[:id])
 
@@ -77,8 +77,8 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id])
+      def set_job
+        @job = Job.find(params[:job_id])
       end
 
       def task_json(task)
@@ -102,7 +102,7 @@ module Api
 
         tasks_data.map do |task_data|
           DocumentTask.create!(
-            construction_id: @construction.id,
+            construction_id: @job.id,
             category: category,
             name: task_data[:name],
             description: task_data[:description],

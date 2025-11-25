@@ -189,8 +189,8 @@ module Api
         entries = entries.where(resource_id: params[:resource_id]) if params[:resource_id].present?
 
         # Filter by construction if specified
-        if params[:construction_id].present?
-          entries = entries.joins(:task).where(sm_tasks: { construction_id: params[:construction_id] })
+        if params[:job_id].present?
+          entries = entries.joins(:task).where(sm_tasks: { construction_id: params[:job_id] })
         end
 
         # Group by date

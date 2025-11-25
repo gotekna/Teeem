@@ -1,6 +1,6 @@
 class Project < ApplicationRecord
   belongs_to :project_manager, class_name: 'User'
-  belongs_to :construction
+  belongs_to :job
   has_many :project_tasks, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :purchase_orders, through: :construction

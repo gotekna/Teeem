@@ -60,7 +60,7 @@ module Api
       def job_profitability
         service = FinancialReportingService.new(company: @company)
 
-        construction_ids = params[:construction_ids]&.split(',')&.map(&:to_i)
+        construction_ids = params[:job_ids]&.split(',')&.map(&:to_i)
         from_date = params[:from_date] ? Date.parse(params[:from_date]) : nil
         to_date = params[:to_date] ? Date.parse(params[:to_date]) : Date.current
 

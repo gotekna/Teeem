@@ -17,7 +17,7 @@ module Api
           tasks = tasks.where(status: params[:status]) if params[:status].present?
 
           # Filter by construction
-          tasks = tasks.where(construction_id: params[:construction_id]) if params[:construction_id].present?
+          tasks = tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
 
           # Categorize
           render json: {

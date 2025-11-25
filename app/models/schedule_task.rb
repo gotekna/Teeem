@@ -1,12 +1,12 @@
 class ScheduleTask < ApplicationRecord
   # Associations
-  belongs_to :construction
+  belongs_to :job
   belongs_to :purchase_order, optional: true
   has_many :schedule_task_checklist_items, dependent: :destroy
 
   # Validations
   validates :title, presence: true
-  validates :construction_id, presence: true
+  validates :job_id, presence: true
 
   # Scopes
   scope :matched, -> { where(matched_to_po: true) }

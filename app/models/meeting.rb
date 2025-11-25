@@ -1,6 +1,6 @@
 class Meeting < ApplicationRecord
   # Associations
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   belongs_to :created_by, class_name: 'User'
   belongs_to :meeting_type
   has_many :meeting_participants, dependent: :destroy

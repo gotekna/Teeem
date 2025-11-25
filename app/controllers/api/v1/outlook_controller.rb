@@ -183,7 +183,7 @@ class Api::V1::OutlookController < ApplicationController
   # POST /api/v1/outlook/import_for_job
   # Import emails for a specific construction job
   def import_for_job
-    construction = Construction.find(params[:construction_id])
+    construction = Job.find(params[:job_id])
     outlook = OutlookService.new
 
     # Build search query based on job details

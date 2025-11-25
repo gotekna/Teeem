@@ -186,7 +186,7 @@ module Api
           :transaction_date,
           :description,
           :category,
-          :construction_id,
+          :job_id,
           :auto_post,
           :receipt
         )
@@ -203,7 +203,7 @@ module Api
         scope = scope.where(category: params[:category]) if params[:category].present?
 
         # Filter by job
-        scope = scope.for_job(params[:construction_id]) if params[:construction_id].present?
+        scope = scope.for_job(params[:job_id]) if params[:job_id].present?
 
         # Filter by date range
         if params[:from_date].present?

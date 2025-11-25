@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmIntegrationsController < ApplicationController
-      before_action :set_construction, only: [:export_ms_project, :sync_calendar, :calendar_events]
+      before_action :set_job, only: [:export_ms_project, :sync_calendar, :calendar_events]
 
       # ==========================================
       # MS PROJECT INTEGRATION
@@ -11,7 +11,7 @@ module Api
 
       # POST /api/v1/sm_integrations/import_ms_project
       def import_ms_project
-        construction = Construction.find(params[:construction_id])
+        construction = Job.find(params[:job_id])
 
         unless params[:file].present?
           return render json: { success: false, error: 'No file provided' }, status: :bad_request
@@ -33,10 +33,10 @@ module Api
 
       # GET /api/v1/sm_integrations/export_ms_project
       def export_ms_project
-        xml_content = SmMsProjectService.export(@construction)
+        xml_content = SmMsProjectService.export(@job)
 
         send_data xml_content,
-                  filename: "#{@construction.name.parameterize}-schedule.xml",
+                  filename: "#{@job.name.parameterize}-schedule.xml",
                   type: 'application/xml',
                   disposition: 'attachment'
       end
@@ -48,17 +48,17 @@ module Api
       # POST /api/v1/sm_integrations/sync_calendar
       def sync_calendar
         provider = params[:provider] # 'google' or 'outlook'
-        tasks = @construction.sm_tasks.where.not(status: 'completed')
+        tasks = @job.sm_tasks.where.not(status: 'completed')
 
         events_synced = 0
 
         tasks.each do |task|
           event_data = {
             title: task.name,
-            description: "#{task.trade} - #{@construction.name}",
+            description: "#{task.trade} - #{@job.name}",
             start_time: task.start_date&.beginning_of_day,
             end_time: task.end_date&.end_of_day,
-            location: @construction.address
+            location: @job.address
           }
 
           case provider
@@ -80,7 +80,7 @@ module Api
 
       # GET /api/v1/sm_integrations/calendar_events
       def calendar_events
-        tasks = @construction.sm_tasks.includes(:supplier)
+        tasks = @job.sm_tasks.includes(:supplier)
 
         events = tasks.map do |task|
           {
@@ -165,8 +165,8 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id])
+      def set_job
+        @job = Job.find(params[:job_id])
       end
 
       def notification_settings_params

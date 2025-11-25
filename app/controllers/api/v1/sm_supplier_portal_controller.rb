@@ -190,7 +190,7 @@ module Api
       # Generate access for supplier
       def generate_access
         contact = Contact.find(params[:contact_id])
-        construction = Construction.find(params[:construction_id])
+        construction = Job.find(params[:job_id])
 
         # Check if access already exists
         existing = SmSupplierAccess.active
@@ -227,7 +227,7 @@ module Api
       def list_access
         accesses = SmSupplierAccess.includes(:contact, :construction)
 
-        accesses = accesses.for_construction(params[:construction_id]) if params[:construction_id]
+        accesses = accesses.for_construction(params[:job_id]) if params[:job_id]
         accesses = accesses.active if params[:active_only] == 'true'
 
         render json: {

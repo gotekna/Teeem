@@ -4,8 +4,8 @@ class Api::V1::EmailsController < ApplicationController
   # GET /api/v1/emails
   # Get all emails, optionally filtered by construction
   def index
-    if params[:construction_id].present?
-      @emails = Email.for_construction(params[:construction_id])
+    if params[:job_id].present?
+      @emails = Email.for_construction(params[:job_id])
     elsif params[:unassigned]
       @emails = Email.unassigned
     else
@@ -66,7 +66,7 @@ class Api::V1::EmailsController < ApplicationController
   # Assign an email to a specific construction job
   def assign_to_job
     @email = Email.find(params[:id])
-    construction_id = params[:construction_id]
+    construction_id = params[:job_id]
 
     if construction_id.blank?
       render json: { error: 'construction_id is required' }, status: :unprocessable_entity
@@ -124,7 +124,7 @@ class Api::V1::EmailsController < ApplicationController
   end
 
   def update_params
-    params.require(:email).permit(:construction_id, :user_id)
+    params.require(:email).permit(:job_id, :user_id)
   end
 
   def set_current_user

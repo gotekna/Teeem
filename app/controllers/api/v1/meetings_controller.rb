@@ -3,8 +3,8 @@ class Api::V1::MeetingsController < ApplicationController
 
   # GET /api/v1/meetings
   def index
-    meetings = if params[:construction_id].present?
-      Meeting.for_construction(params[:construction_id])
+    meetings = if params[:job_id].present?
+      Meeting.for_construction(params[:job_id])
     elsif params[:user_id].present?
       Meeting.for_user(params[:user_id])
     else
@@ -143,7 +143,7 @@ class Api::V1::MeetingsController < ApplicationController
   def meeting_params
     params.require(:meeting).permit(
       :title, :description, :start_time, :end_time, :location,
-      :meeting_type, :status, :construction_id, :notes, :video_url
+      :meeting_type, :status, :job_id, :notes, :video_url
     )
   end
 

@@ -10,8 +10,8 @@ module Api
                                     .order(created_at: :desc)
 
         # Filter by construction if provided
-        if params[:construction_id].present?
-          quote_requests = quote_requests.where(construction_id: params[:construction_id])
+        if params[:job_id].present?
+          quote_requests = quote_requests.where(construction_id: params[:job_id])
         end
 
         # Filter by status if provided
@@ -262,7 +262,7 @@ module Api
 
       def quote_request_params
         params.require(:quote_request).permit(
-          :construction_id,
+          :job_id,
           :title,
           :description,
           :trade_category,

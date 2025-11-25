@@ -15,7 +15,7 @@ module Api
         ).all
 
         # Filters
-        @purchase_orders = @purchase_orders.by_construction(params[:construction_id])
+        @purchase_orders = @purchase_orders.by_construction(params[:job_id])
         @purchase_orders = @purchase_orders.by_status(params[:status])
         @purchase_orders = @purchase_orders.where(supplier_id: params[:supplier_id]) if params[:supplier_id].present?
 
@@ -214,7 +214,7 @@ module Api
       # Smart lookup for PO auto-population
       # Params: { construction_id, task_description, category, quantity, supplier_preference }
       def smart_lookup
-        service = SmartPoLookupService.new(construction_id: params[:construction_id])
+        service = SmartPoLookupService.new(construction_id: params[:job_id])
         result = service.lookup(
           task_description: params[:task_description],
           category: params[:category],
@@ -228,7 +228,7 @@ module Api
       # POST /api/v1/purchase_orders/smart_create
       # Create PO with smart auto-population
       def smart_create
-        service = SmartPoLookupService.new(construction_id: params[:construction_id])
+        service = SmartPoLookupService.new(construction_id: params[:job_id])
         lookup_result = service.lookup(
           task_description: params[:task_description],
           category: params[:category],
@@ -243,7 +243,7 @@ module Api
 
         # Build PO from lookup result
         @purchase_order = PurchaseOrder.new(
-          construction_id: params[:construction_id],
+          construction_id: params[:job_id],
           supplier_id: lookup_result[:supplier].id,
           description: params[:task_description],
           delivery_address: lookup_result[:metadata][:delivery_address],
@@ -275,7 +275,7 @@ module Api
       # Create multiple POs from JSON array
       # Params: { construction_id, purchase_orders: [{task_description, category, quantity, supplier_preference}] }
       def bulk_create
-        service = SmartPoLookupService.new(construction_id: params[:construction_id])
+        service = SmartPoLookupService.new(construction_id: params[:job_id])
         po_requests = params[:purchase_orders] || []
 
         results = []
@@ -291,7 +291,7 @@ module Api
 
           if lookup_result[:success]
             purchase_order = PurchaseOrder.new(
-              construction_id: params[:construction_id],
+              construction_id: params[:job_id],
               supplier_id: lookup_result[:supplier].id,
               description: po_request[:task_description],
               delivery_address: lookup_result[:metadata][:delivery_address],
@@ -411,7 +411,7 @@ module Api
 
       def purchase_order_params
         params.require(:purchase_order).permit(
-          :construction_id,
+          :job_id,
           :supplier_id,
           :status,
           :description,
