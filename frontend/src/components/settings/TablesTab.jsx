@@ -437,6 +437,9 @@ export default function TablesTab() {
                     Columns
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    Virtual
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Records
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
@@ -529,6 +532,27 @@ export default function TablesTab() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
                         {table.columns_count || table.columns?.length || 0}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        {(() => {
+                          // Find sync result for this table
+                          const syncResult = syncResults?.results?.find(r => r.table_id === table.id)
+                          if (syncResult && syncResult.db_exists) {
+                            const virtualCount = syncResult.registered_columns_count - syncResult.db_columns_count
+                            if (virtualCount > 0) {
+                              return (
+                                <span className="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-500/20">
+                                  {virtualCount}
+                                </span>
+                              )
+                            } else {
+                              return (
+                                <span className="text-gray-400 dark:text-gray-600">0</span>
+                              )
+                            }
+                          }
+                          return <span className="text-gray-400 dark:text-gray-600">-</span>
+                        })()}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
                         {table.record_count?.toLocaleString() || 0}
