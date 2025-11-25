@@ -240,9 +240,123 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
   )
 }
 
+// Cascade Sort Configuration Component
+function CascadeSortConfig({ config, onUpdate }) {
+  const [draggedIndex, setDraggedIndex] = useState(null)
+  const [items, setItems] = useState(config || [
+    { key: 'job_type', label: 'Job Type', enabled: true },
+    { key: 'job_status', label: 'Job Status', enabled: true }
+  ])
+
+  useEffect(() => {
+    if (config) setItems(config)
+  }, [config])
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault()
+    if (draggedIndex === null || draggedIndex === index) return
+
+    const newItems = [...items]
+    const draggedItem = newItems[draggedIndex]
+    newItems.splice(draggedIndex, 1)
+    newItems.splice(index, 0, draggedItem)
+
+    setItems(newItems)
+    setDraggedIndex(index)
+  }
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null)
+    onUpdate(items)
+  }
+
+  const toggleEnabled = (key) => {
+    const newItems = items.map(item =>
+      item.key === key ? { ...item, enabled: !item.enabled } : item
+    )
+    setItems(newItems)
+    onUpdate(newItems)
+  }
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+      <div className="mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cascade Sort Order</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Select which fields to group jobs by and drag to set the order. The first enabled field is the primary grouping.
+        </p>
+      </div>
+
+      <div className="flex gap-4">
+        {items.map((item, index) => (
+          <div
+            key={item.key}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={(e) => handleDragOver(e, index)}
+            onDragEnd={handleDragEnd}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 cursor-grab transition-all ${
+              draggedIndex === index
+                ? 'bg-indigo-50 border-indigo-400 dark:bg-indigo-900/30 dark:border-indigo-500 scale-105'
+                : item.enabled
+                  ? 'bg-indigo-50 border-indigo-300 dark:bg-indigo-900/20 dark:border-indigo-600'
+                  : 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600'
+            }`}
+          >
+            <div className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+              <Bars3Icon className="h-5 w-5" />
+            </div>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={item.enabled}
+                onChange={() => toggleEnabled(item.key)}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 dark:border-gray-600 dark:bg-gray-700"
+              />
+              <span className={`font-medium ${
+                item.enabled
+                  ? 'text-gray-900 dark:text-white'
+                  : 'text-gray-400 dark:text-gray-500'
+              }`}>
+                {item.label}
+              </span>
+            </label>
+
+            <span className={`text-xs px-2 py-0.5 rounded-full ${
+              item.enabled && index === items.findIndex(i => i.enabled)
+                ? 'bg-indigo-600 text-white'
+                : item.enabled
+                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
+                  : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'
+            }`}>
+              {!item.enabled ? 'Off' : index === items.findIndex(i => i.enabled) ? '1st' : '2nd'}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        {items.filter(i => i.enabled).length === 0
+          ? 'No cascade sorting - jobs will show in default order'
+          : items.filter(i => i.enabled).length === 1
+            ? `Jobs grouped by ${items.find(i => i.enabled)?.label}`
+            : `Jobs grouped by ${items.find(i => i.enabled)?.label}, then by ${items.filter(i => i.enabled)[1]?.label}`
+        }
+      </p>
+    </div>
+  )
+}
+
 export default function JobSetupTab() {
   const [jobTypes, setJobTypes] = useState([])
   const [jobStatuses, setJobStatuses] = useState([])
+  const [cascadeConfig, setCascadeConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -259,11 +373,42 @@ export default function JobSetupTab() {
       ])
       setJobTypes(typesRes.job_types || [])
       setJobStatuses(statusesRes.job_statuses || [])
+
+      // Load cascade config from company settings or use default
+      try {
+        const settingsRes = await api.get('/api/v1/company_settings')
+        if (settingsRes.company_settings?.job_cascade_sort) {
+          setCascadeConfig(settingsRes.company_settings.job_cascade_sort)
+        } else {
+          // Default config
+          setCascadeConfig([
+            { key: 'job_type', label: 'Job Type', enabled: true },
+            { key: 'job_status', label: 'Job Status', enabled: true }
+          ])
+        }
+      } catch {
+        // Default if settings not available
+        setCascadeConfig([
+          { key: 'job_type', label: 'Job Type', enabled: true },
+          { key: 'job_status', label: 'Job Status', enabled: true }
+        ])
+      }
     } catch (err) {
       console.error('Failed to load job setup data:', err)
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleCascadeConfigUpdate = async (newConfig) => {
+    setCascadeConfig(newConfig)
+    try {
+      await api.patch('/api/v1/company_settings', {
+        company_setting: { job_cascade_sort: newConfig }
+      })
+    } catch (err) {
+      console.error('Failed to save cascade config:', err)
     }
   }
 
@@ -386,6 +531,12 @@ export default function JobSetupTab() {
           Configure job types and statuses. Drag items to reorder them.
         </p>
       </div>
+
+      {/* Cascade Sort Configuration */}
+      <CascadeSortConfig
+        config={cascadeConfig}
+        onUpdate={handleCascadeConfigUpdate}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <SortableList
