@@ -836,6 +836,9 @@ export default function ContactDetailPage() {
             <div>
               <h1 className="text-base font-bold text-gray-900 dark:text-white">
                 {contact.full_name || contact.first_name || 'Unnamed Contact'}
+                {contact.entity_type && (
+                  <span className="text-gray-500 dark:text-gray-400 font-normal"> - {contact.entity_type}</span>
+                )}
               </h1>
               {contact.parent && (
                 <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -1014,6 +1017,17 @@ export default function ContactDetailPage() {
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Contact Information</h2>
 
             <div className="space-y-4">
+              {/* Entity Type */}
+              {contact.entity_type && (
+                <div className="flex items-start gap-3">
+                  <BuildingOfficeIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Entity Type</p>
+                    <p className="text-gray-900 dark:text-white font-medium">{contact.entity_type}</p>
+                  </div>
+                </div>
+              )}
+
               {/* Email with inline editing */}
               <div className="flex items-start gap-3">
                 <EnvelopeIcon className="h-5 w-5 text-gray-400 mt-0.5" />

@@ -38,6 +38,11 @@ export default function AdditionalCompaniesSection({ contact }) {
                   >
                     {company.name}
                   </button>
+                  {company.entity_type && (
+                    <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                      {company.entity_type}
+                    </span>
+                  )}
                   <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200">
                     {formatRelationshipType(company.relationship_type)}
                   </span>
