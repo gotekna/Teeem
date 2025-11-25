@@ -227,6 +227,7 @@ Rails.application.routes.draw do
         end
         member do
           get :categories
+          get :internal_messages
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices

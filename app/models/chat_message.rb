@@ -2,7 +2,7 @@ class ChatMessage < ApplicationRecord
   belongs_to :user
   belongs_to :project, optional: true
   belongs_to :recipient_user, class_name: 'User', optional: true
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
 
   validates :content, presence: true
 
@@ -21,7 +21,7 @@ class ChatMessage < ApplicationRecord
     super(options.merge(
       include: {
         user: { only: [:id, :email, :name] },
-        construction: { only: [:id, :title] }
+        job: { only: [:id, :title] }
       },
       methods: [:formatted_timestamp]
     ))
