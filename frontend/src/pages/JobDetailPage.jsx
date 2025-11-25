@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   BriefcaseIcon,
   CurrencyDollarIcon,
@@ -14,6 +14,7 @@ import {
   ArrowsPointingInIcon,
   ExclamationTriangleIcon,
   UserGroupIcon,
+  ArrowLeftIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
@@ -52,6 +53,7 @@ function classNames(...classes) {
 export default function JobDetailPage() {
   const { id, tab } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -60,6 +62,7 @@ export default function JobDetailPage() {
   const [saving, setSaving] = useState(false)
 
   const activeTab = tab || 'overview'
+  const returnTo = searchParams.get('returnTo') || sessionStorage.getItem('jobsTableView') || '/tables/204/jobs'
 
   // Purchase Orders state
   const [purchaseOrders, setPurchaseOrders] = useState([])
@@ -319,6 +322,15 @@ export default function JobDetailPage() {
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
           <div className="px-8 py-6">
+            {/* Back to Jobs Button */}
+            <button
+              onClick={() => navigate(returnTo)}
+              className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-2 transition-colors"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back to Jobs
+            </button>
+
             <div className="flex items-center gap-4 mb-6">
               <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-600">
                 <BriefcaseIcon className="h-6 w-6 text-white" />

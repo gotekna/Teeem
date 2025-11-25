@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :create_portal_user, :update_portal_user, :delete_portal_user]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
 
       # GET /api/v1/contacts
       def index
@@ -1134,6 +1134,21 @@ module Api
           success: true,
           message: "Portal user deleted successfully"
         }
+      end
+
+      # GET /api/v1/contacts/:id/internal_messages
+      def internal_messages
+        # TODO: Implement internal messages functionality
+        # For now, return an empty array to prevent frontend errors
+        render json: {
+          success: true,
+          messages: []
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fetch messages: #{e.message}"
+        }, status: :internal_server_error
       end
 
       private
