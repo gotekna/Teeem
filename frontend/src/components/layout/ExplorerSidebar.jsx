@@ -237,7 +237,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
             <Link
               to="/jobs"
               className={`flex items-center justify-center p-2.5 mx-2 mb-2 rounded-lg transition-colors ${
-                isActiveRoute('/active-jobs')
+                isActiveRoute('/jobs')
                   ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
@@ -251,13 +251,13 @@ export default function ExplorerSidebar({ onUploadClick }) {
                 <Link
                   to="/jobs"
                   className={`flex items-center gap-3 flex-1 ${
-                    isActiveRoute('/active-jobs')
+                    isActiveRoute('/jobs')
                       ? 'text-indigo-700 dark:text-indigo-400'
                       : 'text-gray-900 dark:text-white'
                   }`}
                 >
                   <BriefcaseIcon className={`h-5 w-5 ${
-                    isActiveRoute('/active-jobs')
+                    isActiveRoute('/jobs')
                       ? 'text-indigo-600 dark:text-indigo-400'
                       : 'text-gray-500 dark:text-gray-400'
                   }`} />

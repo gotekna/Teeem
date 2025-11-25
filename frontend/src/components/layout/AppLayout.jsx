@@ -67,7 +67,7 @@ const jobTabs = [
 // Main navigation items
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Jobs', href: '/tables/active-jobs', icon: BriefcaseIcon },
+  { name: 'Jobs', href: '/tables/jobs', icon: BriefcaseIcon },
   { name: 'Meetings', href: '/meetings', icon: CalendarIcon },
   { name: 'WHS', href: '/whs', icon: ShieldCheckIcon },
   { name: 'Financial', href: '/financial', icon: BanknotesIcon },
@@ -110,7 +110,6 @@ const getRouteKey = (pathname) => {
 
 // Default sidebar state for routes (collapsed = true means sidebar is closed by default)
 const defaultSidebarState = {
-  '/active-jobs': true,   // Collapsed
   '/jobs': true,          // Collapsed
   '/settings': true,      // Collapsed
   '/dashboard': false,    // Expanded
@@ -213,7 +212,6 @@ export default function AppLayout({ children }) {
   })
   const [backendVersion, setBackendVersion] = useState('loading...')
   const [unreadCount, setUnreadCount] = useState(0)
-  const [priceBooksPreloadStatus, setPriceBooksPreloadStatus] = useState('idle') // 'idle', 'loading', 'complete'
   const frontendVersion = packageJson.version
 
   useEffect(() => {
@@ -241,46 +239,6 @@ export default function AppLayout({ children }) {
       }
     }
     loadActiveJobs()
-  }, [])
-
-  // Preload Price Books (Table: price-books) for all users
-  useEffect(() => {
-    console.log('[Preload] Starting background preload for Price Books (price-books)...')
-    setPriceBooksPreloadStatus('loading')
-
-    // Wait 3 seconds after app loads to not interfere with initial render
-    const timer = setTimeout(async () => {
-      try {
-        const startTime = Date.now()
-        console.log('[Preload] Fetching price-books table data...')
-
-        const response = await api.get('/api/v1/tables/price-books/records', {
-          params: {
-            per_page: 10000,
-            page: 1
-          }
-        })
-
-        const loadTime = Date.now() - startTime
-        console.log(`[Preload] ✅ price-books table preloaded in ${loadTime}ms:`, {
-          recordCount: response.records?.length,
-          totalCount: response.pagination?.total_count
-        })
-
-        // Store in sessionStorage for TablePage to use
-        sessionStorage.setItem('preloaded_table_price_books', JSON.stringify({
-          data: response,
-          timestamp: Date.now()
-        }))
-
-        setPriceBooksPreloadStatus('complete')
-      } catch (error) {
-        console.error('[Preload] Failed to preload price-books table:', error)
-        setPriceBooksPreloadStatus('idle')
-      }
-    }, 3000) // 3 second delay
-
-    return () => clearTimeout(timer)
   }, [])
 
   // Auto-expand job if we're on a job detail page
@@ -370,13 +328,13 @@ export default function AppLayout({ children }) {
 
   const isCurrentPath = (href) => {
     // Check Jobs first (before Dashboard) to avoid false matches
-    if (href === '/tables/active-jobs') {
-      return location.pathname === '/tables/active-jobs' ||
-             location.pathname.match(/^\/tables\/\d+\/active-jobs/)
+    if (href === '/tables/jobs') {
+      return location.pathname === '/tables/jobs' ||
+             location.pathname.match(/^\/tables\/\d+\/jobs/)
     }
     if (href === '/dashboard') {
-      // Exclude active-jobs paths from Dashboard matching
-      if (location.pathname.match(/\/active-jobs/)) {
+      // Exclude jobs paths from Dashboard matching
+      if (location.pathname.match(/\/jobs/)) {
         return false
       }
       return location.pathname === '/dashboard' || location.pathname.startsWith('/tables/')
@@ -449,19 +407,7 @@ export default function AppLayout({ children }) {
                                   'size-6 shrink-0',
                                 )}
                               />
-                              <span className="flex items-center gap-2 flex-1">
-                                {item.name}
-                                {item.name === 'Price Books' && priceBooksPreloadStatus === 'loading' && (
-                                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-normal">
-                                    Loading...
-                                  </span>
-                                )}
-                                {item.name === 'Price Books' && priceBooksPreloadStatus === 'complete' && (
-                                  <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded font-normal">
-                                    ✓ Ready
-                                  </span>
-                                )}
-                              </span>
+                              {item.name}
                             </Link>
                           </li>
                         )
@@ -796,7 +742,7 @@ export default function AppLayout({ children }) {
                                   return (
                                     <li className="pl-6">
                                       <Link
-                                        to="/tables/204/active-jobs"
+                                        to="/tables/204/jobs"
                                         className="text-xs text-gray-500 hover:text-indigo-600 dark:text-gray-400"
                                       >
                                         +{remaining} more...
@@ -835,21 +781,7 @@ export default function AppLayout({ children }) {
                               'size-6 shrink-0',
                             )}
                           />
-                          {!sidebarCollapsed && (
-                            <span className="flex items-center gap-2 flex-1">
-                              {item.name}
-                              {item.name === 'Price Books' && priceBooksPreloadStatus === 'loading' && (
-                                <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-normal">
-                                  Loading...
-                                </span>
-                              )}
-                              {item.name === 'Price Books' && priceBooksPreloadStatus === 'complete' && (
-                                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded font-normal">
-                                  ✓ Ready
-                                </span>
-                              )}
-                            </span>
-                          )}
+                          {!sidebarCollapsed && item.name}
                         </Link>
                       </li>
                     )
