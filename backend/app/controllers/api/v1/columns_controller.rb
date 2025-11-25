@@ -52,11 +52,19 @@ module Api
 
       # PATCH/PUT /api/v1/tables/:table_id/columns/:id
       def update
+        Rails.logger.info "🔴 COLUMN UPDATE - Before: header_align=#{@column.header_align}, data_align=#{@column.data_align}"
+        Rails.logger.info "📥 COLUMN UPDATE - Params received: #{column_params.inspect}"
+
         # Track if structural changes are being made (require table rebuild)
         structural_change = column_params[:column_name].present? && column_params[:column_name] != @column.column_name ||
                            column_params[:column_type].present? && column_params[:column_type] != @column.column_type
 
-        if @column.update(column_params)
+        update_result = @column.update(column_params)
+        Rails.logger.info "📊 COLUMN UPDATE - Update result: #{update_result}"
+        Rails.logger.info "🔵 COLUMN UPDATE - After: header_align=#{@column.header_align}, data_align=#{@column.data_align}"
+        Rails.logger.info "❌ COLUMN UPDATE - Errors: #{@column.errors.full_messages.inspect}" unless update_result
+
+        if update_result
           # Only rebuild database table if structural changes were made
           # Display name changes don't require a rebuild
           if structural_change

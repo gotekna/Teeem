@@ -136,11 +136,19 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   };
 
   const handleSaveColumnInfo = async () => {
+    console.log('🔴 handleSaveColumnInfo CALLED', {
+      columnId: column.id,
+      columnName: column.name,
+      editedColumn,
+      hasChanges: hasChanges()
+    });
+
     try {
       setSaving(true);
 
       // Validate display name
       if (!editedColumn.name.trim()) {
+        console.log('❌ Validation failed: Column name is empty');
         alert('Column name cannot be empty');
         setSaving(false);
         return;
@@ -162,6 +170,18 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
         }
       }
 
+      console.log('📤 About to send PATCH request:', {
+        url: `/api/v1/tables/${tableId}/columns/${column.id}`,
+        payload: {
+          column: {
+            name: editedColumn.name,
+            column_type: editedColumn.data_type,
+            header_align: editedColumn.header_align,
+            data_align: editedColumn.data_align
+          }
+        }
+      });
+
       const result = await api.patch(
         `/api/v1/tables/${tableId}/columns/${column.id}`,
         {
@@ -175,12 +195,16 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
         }
       );
 
+      console.log('📥 PATCH response received:', result);
+
       // api.patch returns the data directly, not wrapped in response.data
       if (result.success) {
+        console.log('✅ Save successful, showing alert');
         alert('✅ Column updated successfully!');
         handleUpdate();
         handleClose();
       } else {
+        console.log('❌ Save failed:', result);
         alert('❌ Failed to update column: ' + (result.errors?.join(', ') || 'Unknown error'));
       }
     } catch (error) {
