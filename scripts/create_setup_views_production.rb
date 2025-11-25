@@ -23,9 +23,10 @@ tables.each do |table|
 
   if default_view
     all_columns = table.columns.pluck(:column_name)
-    visible_columns = { "select" => true, "actions" => true }
+    # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
+    visible_columns = { "id" => true }
     all_columns.each { |col| visible_columns[col] = true }
-    column_order = ["select", "actions"] + all_columns
+    column_order = ["select", "id", "actions"] + all_columns
 
     # Use update_columns to skip validations (view already exists)
     default_view.update_columns(
@@ -40,9 +41,10 @@ tables.each do |table|
   else
     begin
       all_columns = table.columns.pluck(:column_name)
-      visible_columns = { "select" => true, "actions" => true }
+      # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
+      visible_columns = { "id" => true }
       all_columns.each { |col| visible_columns[col] = true }
-      column_order = ["select", "actions"] + all_columns
+      column_order = ["select", "id", "actions"] + all_columns
 
       TableView.create!(
         table_id: table.id,
