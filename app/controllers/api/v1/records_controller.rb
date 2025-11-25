@@ -183,7 +183,9 @@ module Api
           view = TableView.find_by(id: view_id, table_id: table.id)
           if view && view.visible_columns.present?
             Rails.logger.info "[Progressive Loading] Using view #{view.name} visible columns: #{view.visible_columns.inspect}"
-            return [:id, :created_at, :updated_at] + view.visible_columns.map(&:to_sym)
+            # Filter out UI-only pseudo-columns (select, actions) that don't exist in database
+            db_columns = view.visible_columns.reject { |col| ['select', 'actions'].include?(col) }
+            return [:id, :created_at, :updated_at] + db_columns.map(&:to_sym)
           end
         end
 
