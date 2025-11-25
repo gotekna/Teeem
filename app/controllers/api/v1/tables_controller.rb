@@ -221,12 +221,11 @@ module Api
         # Build visible columns hash (all columns visible by default)
         visible_columns = {}
         all_columns.each { |col| visible_columns[col] = true }
-        # Add system columns (select, id, actions)
-        visible_columns['select'] = true
+        # Note: 'select' and 'actions' are UI-only pseudo-columns, not database columns
+        # Only add 'id' to visible columns as it's a real database column
         visible_columns['id'] = true
-        visible_columns['actions'] = true
 
-        # Build column order array
+        # Build column order array (includes UI-only columns for frontend display)
         column_order = ['select', 'id', 'actions'] + all_columns
 
         # Create the Setup view
