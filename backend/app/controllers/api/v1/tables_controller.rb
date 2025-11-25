@@ -221,12 +221,13 @@ module Api
         # Build visible columns hash (all columns visible by default)
         visible_columns = {}
         all_columns.each { |col| visible_columns[col] = true }
-        # Add system columns
+        # Add system columns (select, id, actions)
         visible_columns['select'] = true
+        visible_columns['id'] = true
         visible_columns['actions'] = true
 
         # Build column order array
-        column_order = ['select', 'actions'] + all_columns
+        column_order = ['select', 'id', 'actions'] + all_columns
 
         # Create the Setup view
         current_user.table_views.create!(

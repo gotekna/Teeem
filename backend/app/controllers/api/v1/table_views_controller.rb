@@ -16,6 +16,16 @@ module Api
 
         if params[:table_id].present?
           views = views.where(table_id: params[:table_id])
+
+          # Auto-create "Setup" view if no views exist for this user/table combination
+          if current_user && views.empty?
+            table = Table.find_by(id: params[:table_id])
+            if table
+              create_default_setup_view(table, current_user)
+              # Reload views to include the newly created Setup view
+              views = current_user.table_views.where(table_id: params[:table_id])
+            end
+          end
         end
 
         render json: {
@@ -166,6 +176,49 @@ module Api
           },
           sort_order: []
         )
+      end
+
+      # Auto-create the "Setup" view for tables without saved views
+      # This view serves as the default template with all columns visible
+      def create_default_setup_view(table, user)
+        # Get all columns for the table
+        all_columns = table.columns.pluck(:column_name)
+
+        # Build visible columns hash (all columns visible by default)
+        visible_columns = {}
+        all_columns.each { |col| visible_columns[col] = true }
+        # Add system columns (select, id, actions)
+        visible_columns['select'] = true
+        visible_columns['id'] = true
+        visible_columns['actions'] = true
+
+        # Build column order array
+        column_order = ['select', 'id', 'actions'] + all_columns
+
+        # Create the Setup view
+        user.table_views.create!(
+          table_id: table.id,
+          name: 'Setup',
+          view_type: 'custom',
+          filters: {
+            interGroupLogic: 'OR',
+            cascadeFilters: [],
+            filterGroups: []
+          },
+          columns: {
+            visible: visible_columns,
+            order: column_order
+          },
+          sort_order: [],
+          group_by_column: nil,
+          is_default: true,
+          display_order: 0
+        )
+
+        Rails.logger.info "Created default 'Setup' view for user #{user.id}, table #{table.id} (#{table.name})"
+      rescue => e
+        Rails.logger.error "Failed to create Setup view for table #{table.id}: #{e.message}"
+        # Don't fail the request if view creation fails
       end
     end
   end
