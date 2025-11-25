@@ -301,7 +301,9 @@ module Api
                 position: col.position,
                 lookup_table_id: col.lookup_table_id,
                 lookup_display_column: col.lookup_display_column,
-                is_multiple: col.is_multiple
+                is_multiple: col.is_multiple,
+                header_align: col.header_align,
+                data_align: col.data_align
               }
 
               # Add relationship information
