@@ -114,7 +114,14 @@
       "Bash(pg_restore:*)",
       "Bash(git stash:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(bin/rails s:*)",
+      "Bash(cd backend &&:*)",
+      "Bash(cd frontend &&:*)",
+      "Bash(cd /Users/robertharder/Documents/Documents:*)",
+      "Bash(cd *trapid/backend &&:*)",
+      "Bash(cd *trapid/frontend &&:*)",
+      "Bash(cd /Users/robertharder/Documents/Documents\\ -\\ Robert:*)"
     ],
     "deny": [],
     "ask": []
