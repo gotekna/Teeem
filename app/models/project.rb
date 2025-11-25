@@ -2,6 +2,7 @@ class Project < ApplicationRecord
   belongs_to :project_manager, class_name: 'User'
   belongs_to :construction
   has_many :project_tasks, dependent: :destroy
+  has_many :chat_messages, dependent: :destroy
   has_many :purchase_orders, through: :construction
 
   validates :name, presence: true
