@@ -23,29 +23,31 @@ Run BOTH in a SINGLE message (parallel):
 (cd frontend && nohup npm run dev > /tmp/vite-server.log 2>&1 &)
 ```
 
-**Step 3: Git Operations (Sequential - Required)**
+**Step 3: Conditional Git & Deploy (Only if Changes Exist)**
+
+First, check if there are changes:
 ```bash
-git add -A && git commit -m "chore: Auto-commit from /r" || echo "No changes to commit"
+git add -A && git diff --cached --quiet && echo "No changes" || echo "Has changes"
 ```
 
-Then separately:
+**If there are changes** (output: "Has changes"):
 ```bash
+git commit -m "chore: Auto-commit from /r"
 git push origin rob
-```
-
-If rejected, handle conflict:
-```bash
-git pull origin rob --rebase
-# Resolve conflicts (accept HEAD for package.json version)
-git add . && git rebase --continue && git push origin rob
-```
-
-**Step 4: Deploy to Heroku (Sequential - Required)**
-```bash
 git subtree push --prefix backend heroku main
 ```
 
-**Step 5: Verify Everything**
+**If no changes** (output: "No changes"):
+Skip git push and deployment entirely - servers are already restarted!
+
+If git push rejected, handle conflict:
+```bash
+git pull origin rob --rebase
+git add . && git rebase --continue && git push origin rob
+git subtree push --prefix backend heroku main
+```
+
+**Step 4: Verify Everything**
 Run ALL THREE in a SINGLE message (parallel):
 ```bash
 sleep 3
@@ -74,21 +76,27 @@ Logs:
 
 ## Performance Optimization
 
-**Target Time: ~10-15 seconds** (down from ~25-30 seconds)
-
+**Fast Path (No Changes): ~5-8 seconds** 🚀
 Breakdown:
 - Step 1 (kill servers): ~1s (parallel)
 - Step 2 (start servers): ~2s (parallel, background mode)
-- Step 3 (git commit + push): ~2-3s (sequential, required)
-- Step 4 (Heroku deploy): ~5-10s (sequential, required - slowest step)
-- Step 5 (verify): ~3s (parallel)
+- Step 3 (check for changes): ~1s
+- Step 4 (verify): ~3s (parallel)
+
+**Full Path (With Changes): ~10-15 seconds**
+Breakdown:
+- Step 1 (kill servers): ~1s (parallel)
+- Step 2 (start servers): ~2s (parallel, background mode)
+- Step 3 (git commit + push + deploy): ~5-10s (Heroku is bottleneck)
+- Step 4 (verify): ~3s (parallel)
 
 **Key Speed Improvements:**
 1. ✅ Kill both ports in single message (parallel)
 2. ✅ Start both servers in single message (parallel)
 3. ✅ Use nohup + background mode (don't wait for server startup)
 4. ✅ Verify all 3 checks in single message (parallel)
-5. ⏱️ Heroku deployment is unavoidable bottleneck (~5-10s)
+5. 🚀 NEW: Skip git/deploy if no changes (saves ~7s on fast path)
+6. ⏱️ Heroku deployment is unavoidable bottleneck (~5-10s when needed)
 
 ## Notes
 - All bash commands are pre-approved
