@@ -11,7 +11,6 @@ import AutoLoginPage from './pages/AutoLoginPage'
 import Login from './pages/Login'
 
 // Lazy load: Everything else (loads on-demand)
-const ActiveJobsPage = lazy(() => import('./pages/ActiveJobsPage'))
 const XestPage = lazy(() => import('./pages/XestPage'))
 const JobDetailPage = lazy(() => import('./pages/JobDetailPage'))
 const JobSetupPage = lazy(() => import('./pages/JobSetupPage'))
@@ -26,7 +25,6 @@ const SystemAdminPage = lazy(() => import('./pages/SystemAdminPage'))
 const HealthPage = lazy(() => import('./pages/HealthPage'))
 const PurchaseOrderDetailPage = lazy(() => import('./pages/PurchaseOrderDetailPage'))
 const PurchaseOrderEditPage = lazy(() => import('./pages/PurchaseOrderEditPage'))
-const PurchaseOrdersPage = lazy(() => import('./pages/PurchaseOrdersPage'))
 const SupplierDetailPage = lazy(() => import('./pages/SupplierDetailPage'))
 const SupplierEditPage = lazy(() => import('./pages/SupplierEditPage'))
 const SupplierNewPage = lazy(() => import('./pages/SupplierNewPage'))
@@ -145,8 +143,8 @@ function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
         <Route path="/chat" element={<AppLayout><ChatPage /></AppLayout>} />
-        <Route path="/jobs" element={<AppLayout><ActiveJobsPage /></AppLayout>} />
-        <Route path="/active-jobs" element={<Navigate to="/jobs" replace />} />
+        <Route path="/jobs" element={<Navigate to="/tables/204/jobs" replace />} />
+        <Route path="/active-jobs" element={<Navigate to="/tables/204/jobs" replace />} />
         <Route path="/xest" element={<AppLayout><XestPage /></AppLayout>} />
         <Route path="/documents" element={<AppLayout><DocumentsPage /></AppLayout>} />
         <Route path="/trinity" element={<AppLayout><TrinityPage /></AppLayout>} />
