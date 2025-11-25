@@ -580,8 +580,8 @@ module Api
           db_columns_count = ActiveRecord::Base.connection.columns(actual_table_name).count
 
           # Get registered columns count (from columns table)
-          # Force reload to avoid cached association data
-          registered_columns_count = table.columns.reload.count
+          # Query directly to bypass all caching layers
+          registered_columns_count = Column.where(table_id: table.id).count
 
           # Get record count
           record_count = ActiveRecord::Base.connection.select_value(
