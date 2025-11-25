@@ -419,7 +419,7 @@ export default function ActiveJobsPage() {
     id: job.id,
     category: 'jobs',
     chapter_number: 0,
-    chapter_name: 'Active Jobs',
+    chapter_name: 'Jobs',
     section_number: String(index + 1),
     title: job.job_title,
     entry_type: job.stage,
@@ -671,7 +671,7 @@ export default function ActiveJobsPage() {
               <BriefcaseIcon className="h-6 w-6 text-blue-600 dark:text-blue-400" />
               <div className="flex items-baseline gap-2">
                 <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Active Jobs
+                  Jobs
                 </h1>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   {filteredJobs.length} {filteredJobs.length === 1 ? 'job' : 'jobs'}

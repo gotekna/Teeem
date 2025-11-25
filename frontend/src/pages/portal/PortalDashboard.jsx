@@ -66,7 +66,7 @@ export default function PortalDashboard() {
 
   const statCards = [
     {
-      name: 'Active Jobs',
+      name: 'Jobs',
       value: stats?.activeJobs || 0,
       icon: BriefcaseIcon,
       link: '/portal/jobs',
@@ -177,12 +177,12 @@ export default function PortalDashboard() {
         </div>
       )}
 
-      {/* Active Jobs */}
+      {/* Jobs */}
       {recentJobs.length > 0 && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900">Active Jobs</h2>
+              <h2 className="text-lg font-medium text-gray-900">Jobs</h2>
               <Link
                 to="/portal/jobs"
                 className="text-sm font-medium text-indigo-600 hover:text-indigo-500"

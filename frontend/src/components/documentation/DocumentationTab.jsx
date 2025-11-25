@@ -27,7 +27,7 @@ const documentationSections = [
         {
           title: 'Creating Your First Job',
           content: [
-            'Navigate to the Active Jobs page and click "New Job" button',
+            'Navigate to the Jobs page and click "New Job" button',
             'Fill in the essential details: Job title, Location, and Client',
             'Add optional information like contract value, start/end dates, and site supervisor',
             'Set the project stage and status to track progress',
@@ -309,7 +309,7 @@ const documentationSections = [
           title: 'Global Shortcuts',
           content: [
             'Ctrl/Cmd + K: Quick search (coming soon)',
-            'Ctrl/Cmd + N: Create new job (from Active Jobs page)',
+            'Ctrl/Cmd + N: Create new job (from Jobs page)',
             '?: Open this help guide',
             'Esc: Close modals and dialogs',
           ]

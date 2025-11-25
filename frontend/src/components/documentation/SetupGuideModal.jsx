@@ -249,7 +249,7 @@ export default function SetupGuideModal({ isOpen, onClose }) {
                                   </h4>
                                 </div>
                                 <p className="text-gray-600 dark:text-gray-400 mb-3">
-                                  Start by creating a new construction job from the Active Jobs page. Fill in basic details
+                                  Start by creating a new construction job from the Jobs page. Fill in basic details
                                   like job title, location, client information, and contract value.
                                 </p>
                                 <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">

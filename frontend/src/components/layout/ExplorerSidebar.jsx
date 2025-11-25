@@ -231,7 +231,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
           <div className="border-t border-gray-200 dark:border-gray-800 my-2"></div>
         )}
 
-        {/* Active Jobs Section */}
+        {/* Jobs Section */}
         <div>
           {sidebarCollapsed ? (
             <Link
@@ -241,7 +241,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
                   ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400'
                   : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
-              title="Active Jobs"
+              title="Jobs"
             >
               <BriefcaseIcon className="h-5 w-5 flex-shrink-0" />
             </Link>
@@ -262,7 +262,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
                       : 'text-gray-500 dark:text-gray-400'
                   }`} />
                   <span className="font-medium text-sm">
-                    Active Jobs
+                    Jobs
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
                     {activeJobs.length}

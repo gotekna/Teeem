@@ -67,7 +67,7 @@ const jobTabs = [
 // Main navigation items
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Active Jobs', href: '/tables/active-jobs', icon: BriefcaseIcon },
+  { name: 'Jobs', href: '/tables/active-jobs', icon: BriefcaseIcon },
   { name: 'Meetings', href: '/meetings', icon: CalendarIcon },
   { name: 'WHS', href: '/whs', icon: ShieldCheckIcon },
   { name: 'Financial', href: '/financial', icon: BanknotesIcon },
@@ -295,7 +295,7 @@ export default function AppLayout({ children }) {
         }
         return prevId
       })
-      // Also expand the Active Jobs section
+      // Also expand the Jobs section
       if (!activeJobsExpanded) {
         setActiveJobsExpanded(true)
         localStorage.setItem('activeJobsExpanded', 'true')
@@ -369,7 +369,7 @@ export default function AppLayout({ children }) {
   }
 
   const isCurrentPath = (href) => {
-    // Check Active Jobs first (before Dashboard) to avoid false matches
+    // Check Jobs first (before Dashboard) to avoid false matches
     if (href === '/tables/active-jobs') {
       return location.pathname === '/tables/active-jobs' ||
              location.pathname.match(/^\/tables\/\d+\/active-jobs/)
@@ -582,11 +582,11 @@ export default function AppLayout({ children }) {
                   {navigation.map((item) => {
                     const current = isCurrentPath(item.href)
 
-                    // Special handling for Active Jobs - make it expandable
-                    if (item.name === 'Active Jobs') {
+                    // Special handling for Jobs - make it expandable
+                    if (item.name === 'Jobs') {
                       return (
                         <li key={item.name}>
-                          {/* Active Jobs header with expand toggle */}
+                          {/* Jobs header with expand toggle */}
                           <div className="flex items-center">
                             <Link
                               to={item.href}
