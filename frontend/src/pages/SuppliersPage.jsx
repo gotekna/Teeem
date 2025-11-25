@@ -40,6 +40,7 @@ export default function SuppliersPage() {
     const saved = localStorage.getItem('suppliers_table_visibleColumns')
     return saved ? JSON.parse(saved) : {
       checkbox: true,
+      id: true,
       supplier: true,
       rating: true,
       items: true,
@@ -54,6 +55,7 @@ export default function SuppliersPage() {
     const saved = localStorage.getItem('suppliers_table_columnWidths')
     return saved ? JSON.parse(saved) : {
       checkbox: 50,
+      id: 80,
       supplier: 200,
       rating: 100,
       items: 100,
@@ -66,7 +68,7 @@ export default function SuppliersPage() {
   // Column order state with localStorage persistence
   const [columnOrder, setColumnOrder] = useState(() => {
     const saved = localStorage.getItem('suppliers_table_columnOrder')
-    return saved ? JSON.parse(saved) : ['checkbox', 'supplier', 'rating', 'items', 'contact', 'status', 'actions']
+    return saved ? JSON.parse(saved) : ['checkbox', 'id', 'supplier', 'rating', 'items', 'contact', 'status', 'actions']
   })
 
   // Column resize state
@@ -90,6 +92,7 @@ export default function SuppliersPage() {
   // Define all available columns
   const availableColumns = [
     { key: 'checkbox', label: 'Select', searchable: false },
+    { key: 'id', label: 'ID', searchable: false },
     { key: 'supplier', label: 'Supplier Name', searchable: true, filterType: 'search' },
     { key: 'rating', label: 'Rating', searchable: false },
     { key: 'items', label: 'Items Count', searchable: false },
@@ -719,6 +722,13 @@ export default function SuppliersPage() {
                               onChange={() => handleSelectItem(supplier.id)}
                               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                             />
+                          </td>
+                        )
+
+                      case 'id':
+                        return (
+                          <td key={columnKey} style={cellStyle} className="px-4 py-3 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                            <span className="text-sm text-gray-500 dark:text-gray-400">{supplier.id}</span>
                           </td>
                         )
 

@@ -64,7 +64,7 @@ export default function ContactsPage() {
   // Column order state for Contacts tab with localStorage persistence
   const [contactColumnOrder, setContactColumnOrder] = useState(() => {
     const saved = localStorage.getItem('contacts_columnOrder')
-    return saved ? JSON.parse(saved) : ['name', 'type', 'email', 'phone', 'website', 'xero', 'actions']
+    return saved ? JSON.parse(saved) : ['id', 'name', 'type', 'email', 'phone', 'website', 'xero', 'actions']
   })
 
   // Column order state for Suppliers tab with localStorage persistence
@@ -87,6 +87,7 @@ export default function ContactsPage() {
   const [columnWidths, setColumnWidths] = useState(() => {
     const saved = localStorage.getItem('contacts_columnWidths')
     return saved ? JSON.parse(saved) : {
+      id: 80,
       name: 200,
       type: 150,
       email: 250,
@@ -104,6 +105,7 @@ export default function ContactsPage() {
 
   // Column visibility state for Contacts tab
   const [visibleContactColumns, setVisibleContactColumns] = useState({
+    id: true,
     name: true,
     type: true,
     email: true,
@@ -126,6 +128,7 @@ export default function ContactsPage() {
 
   // Define available columns for each tab
   const contactColumnsConfig = {
+    id: { key: 'id', label: 'ID', searchable: false },
     name: { key: 'name', label: 'Contact Name', searchable: true, filterType: 'search' },
     type: { key: 'type', label: 'Contact Type', searchable: true, filterType: 'dropdown' },
     email: { key: 'email', label: 'Email', searchable: true, filterType: 'search' },
@@ -589,6 +592,13 @@ export default function ContactsPage() {
     const cellStyle = { width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }
 
     switch (columnKey) {
+      case 'id':
+        return (
+          <td key="id" style={cellStyle} className="px-6 py-4 whitespace-nowrap">
+            <span className="text-sm text-gray-500 dark:text-gray-400">{contact.id}</span>
+          </td>
+        )
+
       case 'name':
         return (
           <td key="name" style={cellStyle} className="px-6 py-4 whitespace-nowrap">
