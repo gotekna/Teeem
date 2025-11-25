@@ -5,13 +5,13 @@ export default function AutoLoginPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Set the JWT token
-    const token = 'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozNCwiZXhwIjoxNzYzMzQ4MzE5fQ.zjPEfX3IDd5o4GRBMgA0JvhisOIof7aV09vc9t4NRnw';
+    // Set the JWT token (valid for staging environment)
+    const token = 'eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozNCwiZXhwIjoxNzY0MTMwMzAyfQ.V6yD2vtQm_Ew2rhUbbI4AnCFe1XW_7zFhjU3wmObQ2k';
     localStorage.setItem('token', token);
 
     console.log('✅ Token saved to localStorage!');
     console.log('🔐 Logged in as: Robert Harder (Admin)');
-    console.log('📅 Token expires: November 16, 2026');
+    console.log('📅 Token expires: November 25, 2027');
 
     // Redirect to dashboard after a short delay
     setTimeout(() => {
