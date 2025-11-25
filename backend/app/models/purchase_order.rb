@@ -53,12 +53,12 @@ class PurchaseOrder < ApplicationRecord
   before_validation :generate_po_number, if: :new_record?
   before_save :calculate_totals
   before_save :calculate_variances
-  after_save :update_construction_profit
-  after_destroy :update_construction_profit
+  after_save :update_job_profit
+  after_destroy :update_job_profit
 
   # Scopes
   scope :by_status, ->(status) { where(status: status) if status.present? }
-  scope :by_construction, ->(construction_id) { where(construction_id: construction_id) if construction_id.present? }
+  scope :by_construction, ->(job_id) { where(job_id: job_id) if job_id.present? }
   scope :recent, -> { order(created_at: :desc) }
   scope :overdue, -> { where('required_date < ? AND status NOT IN (?)', CompanySetting.today, ['received', 'cancelled']) }
   scope :pending_approval, -> { where(status: 'pending') }
@@ -314,8 +314,8 @@ class PurchaseOrder < ApplicationRecord
     end
   end
 
-  # Update the construction's live profit when this PO changes
-  def update_construction_profit
-    construction&.calculate_and_update_profit!
+  # Update the job's live profit when this PO changes
+  def update_job_profit
+    job&.calculate_and_update_profit!
   end
 end
