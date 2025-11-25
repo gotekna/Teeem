@@ -4,7 +4,7 @@ module Api
       before_action :set_job
       before_action :set_job_contact, only: [:update, :destroy]
 
-      # GET /api/v1/constructions/:job_id/job_contacts
+      # GET /api/v1/jobs/:job_id/job_contacts
       def index
         @job_contacts = @job.job_contacts
                                               .includes(contact: :outgoing_relationships)
@@ -26,7 +26,7 @@ module Api
         render json: { job_contacts: contacts_data }
       end
 
-      # POST /api/v1/constructions/:job_id/job_contacts
+      # POST /api/v1/jobs/:job_id/job_contacts
       def create
         @job_contact = @job.job_contacts.build(job_contact_params)
 
@@ -54,7 +54,7 @@ module Api
         end
       end
 
-      # PATCH/PUT /api/v1/constructions/:job_id/job_contacts/:id
+      # PATCH/PUT /api/v1/jobs/:job_id/job_contacts/:id
       def update
         # If changing to primary, unmark all other primary contacts first
         if job_contact_params[:primary] == true || job_contact_params[:primary] == "true"
@@ -80,7 +80,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/constructions/:job_id/job_contacts/:id
+      # DELETE /api/v1/jobs/:job_id/job_contacts/:id
       def destroy
         # Prevent deleting the last contact
         if @job.job_contacts.count <= 1

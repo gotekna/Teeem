@@ -3,8 +3,8 @@ module Api
     class JobsController < ApplicationController
       before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs]
 
-      # GET /api/v1/constructions
-      # GET /api/v1/constructions?status=Active
+      # GET /api/v1/jobs
+      # GET /api/v1/jobs?status=Active
       def index
         @jobs = Job.all
 
@@ -35,11 +35,11 @@ module Api
         }
       end
 
-      # GET /api/v1/constructions/:id
+      # GET /api/v1/jobs/:id
       def show
         # Include contacts with their relationships in the response
-        construction_json = @job.as_json
-        construction_json[:contacts] = @job.construction_contacts
+        job_json = @job.as_json
+        job_json[:contacts] = @job.job_contacts
                                                      .includes(contact: :outgoing_relationships)
                                                      .order(primary: :desc, created_at: :asc)
                                                      .map do |cc|
@@ -55,10 +55,10 @@ module Api
           }
         end
 
-        render json: construction_json
+        render json: job_json
       end
 
-      # POST /api/v1/constructions
+      # POST /api/v1/jobs
       def create
         @job = Job.new(job_params)
 
@@ -91,7 +91,7 @@ module Api
         end
       end
 
-      # PUT/PATCH /api/v1/constructions/:id
+      # PUT/PATCH /api/v1/jobs/:id
       def update
         if @job.update(job_params)
           render json: @job
@@ -100,13 +100,13 @@ module Api
         end
       end
 
-      # DELETE /api/v1/constructions/:id
+      # DELETE /api/v1/jobs/:id
       def destroy
         @job.destroy
         head :no_content
       end
 
-      # GET /api/v1/constructions/:id/saved_messages
+      # GET /api/v1/jobs/:id/saved_messages
       def saved_messages
         @messages = @job.chat_messages
                                   .where(saved_to_job: true)
@@ -119,7 +119,7 @@ module Api
         )
       end
 
-      # GET /api/v1/constructions/:id/emails
+      # GET /api/v1/jobs/:id/emails
       def emails
         @emails = @job.emails
                               .includes(:user)
@@ -128,9 +128,9 @@ module Api
         render json: @emails
       end
 
-      # GET /api/v1/constructions/:id/documentation_tabs
+      # GET /api/v1/jobs/:id/documentation_tabs
       def documentation_tabs
-        @tabs = @job.construction_documentation_tabs
+        @tabs = @job.job_documentation_tabs
                             .active
                             .ordered
 
@@ -144,7 +144,7 @@ module Api
       end
 
       def job_params
-        params.require(:construction).permit(
+        params.require(:job).permit(
           :title,
           :contract_value,
           # live_profit and profit_percentage are calculated fields, not user-editable
@@ -168,15 +168,15 @@ module Api
         # Find the template
         template = ScheduleTemplate.find_by(id: template_id)
         unless template
-          Rails.logger.warn("Template #{template_id} not found for construction #{@job.id}")
+          Rails.logger.warn("Template #{template_id} not found for job #{@job.id}")
           return { success: false, error: "Template not found" }
         end
 
-        # Get or create the project for this construction
+        # Get or create the project for this job
         # The project is needed for the template instantiation service
         project = @job.project
         unless project
-          # Create a project using the construction's helper method
+          # Create a project using the job's helper method
           project = @job.create_project!(
             project_manager: current_user,
             name: "#{@job.title} - Master Schedule"
@@ -190,7 +190,7 @@ module Api
         ).call
 
         if result[:success]
-          Rails.logger.info("Successfully instantiated template #{template.name} for construction #{@job.id}")
+          Rails.logger.info("Successfully instantiated template #{template.name} for job #{@job.id}")
           {
             success: true,
             template_name: template.name,
