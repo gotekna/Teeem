@@ -793,6 +793,7 @@ Rails.application.routes.draw do
       get 'schema/in_memory_tables', to: 'schema#in_memory_tables'
       get 'schema/system_table_columns/:table_name', to: 'schema#system_table_columns'
       get 'schema/columns', to: 'schema#all_columns'  # All columns across all tables for Developer Tools
+      post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
 
       # Table management
       resources :tables do
