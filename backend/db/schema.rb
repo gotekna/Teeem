@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_25_105916) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_25_124202) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -329,6 +329,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_105916) do
     t.boolean "twilio_enabled", default: false
     t.string "timezone", default: "Australia/Brisbane"
     t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
+    t.jsonb "job_cascade_sort"
   end
 
   create_table "company_xero_accounts", force: :cascade do |t|
