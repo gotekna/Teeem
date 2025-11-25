@@ -309,7 +309,7 @@ module Api
       # POST /api/v1/schema/sync_system_tables
       # Audits all system tables and returns sync status
       def sync_system_tables
-        system_tables = Table.where(table_type: 'system').includes(:columns).order(:name)
+        system_tables = Table.where(table_type: 'system').order(:name)
 
         results = system_tables.map do |table|
           audit_system_table(table)
@@ -580,7 +580,8 @@ module Api
           db_columns_count = ActiveRecord::Base.connection.columns(actual_table_name).count
 
           # Get registered columns count (from columns table)
-          registered_columns_count = table.columns.count
+          # Force reload to avoid cached association data
+          registered_columns_count = table.columns.reload.count
 
           # Get record count
           record_count = ActiveRecord::Base.connection.select_value(
