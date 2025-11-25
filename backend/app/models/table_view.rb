@@ -24,6 +24,12 @@ class TableView < ApplicationRecord
   scope :for_table, ->(table_id) { where(table_id: table_id) }
   scope :defaults, -> { where(is_default: true) }
 
+  # Method to get visible columns from the columns JSON
+  def visible_columns
+    return [] unless columns.is_a?(Hash) && columns['visible'].is_a?(Hash)
+    columns['visible'].select { |_k, v| v == true }.keys
+  end
+
   # GOLD STANDARD RULE: display_order = 0 is always the default view
   # The first view in the list (position 0) is the default view for that table
   after_save :ensure_first_view_is_default
