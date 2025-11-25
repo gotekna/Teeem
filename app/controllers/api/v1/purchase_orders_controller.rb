@@ -55,7 +55,7 @@ module Api
           purchase_orders: @purchase_orders.as_json(
             include: {
               supplier: { only: [:id, :name] },
-              construction: {
+              job: {
                 only: [:id, :title],
                 methods: [:site_supervisor_info]
               },
@@ -83,7 +83,7 @@ module Api
           **@purchase_order.as_json(
             include: {
               supplier: { only: [:id, :name, :contact_person, :email, :phone, :address] },
-              construction: {
+              job: {
                 only: [:id, :title],
                 methods: [:site_supervisor_info]
               },
@@ -343,7 +343,7 @@ module Api
       # GET /api/v1/purchase_orders/:id/available_documents
       # Get all documents from the associated job that can be attached to this PO
       def available_documents
-        documents = DocumentTask.where(construction_id: @purchase_order.construction_id)
+        documents = DocumentTask.where(construction_id: @purchase_order.job_id)
                                  .order(:category, :name)
 
         render json: {
@@ -372,7 +372,7 @@ module Api
         # Validate that all document tasks belong to the same construction
         if document_task_ids.any?
           invalid_docs = DocumentTask.where(id: document_task_ids)
-                                     .where.not(construction_id: @purchase_order.construction_id)
+                                     .where.not(construction_id: @purchase_order.job_id)
 
           if invalid_docs.any?
             return render json: {
