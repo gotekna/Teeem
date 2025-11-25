@@ -81,7 +81,7 @@ module Api
 
             if include_jobs
               # Count jobs
-              contact_json['jobs_count'] = contact.construction_contacts.count
+              contact_json['jobs_count'] = contact.job_contacts.count
             end
           end
         end
@@ -190,17 +190,17 @@ module Api
           end
 
         # Add jobs/constructions
-        contact_json[:jobs] = @contact.construction_contacts
-          .includes(:construction)
-          .map do |cc|
+        contact_json[:jobs] = @contact.job_contacts
+          .includes(:job)
+          .map do |jc|
             {
-              construction_id: cc.construction_id,
-              construction_title: cc.construction.title,
-              location: cc.construction.location,
-              role: cc.role,
-              primary: cc.primary,
-              status: cc.construction.status,
-              stage: cc.construction.stage
+              job_id: jc.job_id,
+              job_title: jc.job.title,
+              location: jc.job.location,
+              role: jc.role,
+              primary: jc.primary,
+              status: jc.job.status,
+              stage: jc.job.stage
             }
           end
 
