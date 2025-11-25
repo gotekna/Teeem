@@ -31,18 +31,6 @@ Rails.application.routes.draw do
       # CSV Import routes
       post 'csv_imports/job_with_pos', to: 'csv_imports#import_job_with_pos'
 
-      # Jobs management
-      resources :jobs do
-        member do
-          get :saved_messages
-          get :emails
-          get :documentation_tabs
-        end
-
-        # Job contacts (nested under jobs)
-        resources :job_contacts, only: [:index, :create, :update, :destroy]
-      end
-
       # Grok AI integration
       post 'grok/chat', to: 'grok#chat'
       get 'grok/suggest-features', to: 'grok#suggest_features'
