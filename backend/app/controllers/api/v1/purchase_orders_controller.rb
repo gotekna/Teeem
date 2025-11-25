@@ -8,7 +8,7 @@ module Api
       def index
         @purchase_orders = PurchaseOrder.includes(
           :supplier,
-          :construction,
+          :job,
           :project_tasks,
           :schedule_tasks,
           line_items: :pricebook_item
@@ -406,7 +406,7 @@ module Api
       private
 
       def set_purchase_order
-        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :construction).find(params[:id])
+        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find(params[:id])
       end
 
       def purchase_order_params
