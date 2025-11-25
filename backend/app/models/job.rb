@@ -8,6 +8,8 @@ class Job < ApplicationRecord
   has_one :project, dependent: :destroy
   has_one :one_drive_credential, dependent: :destroy
   belongs_to :design, optional: true
+  belongs_to :job_type, optional: true
+  belongs_to :job_status, optional: true
   has_many :chat_messages, dependent: :nullify
   has_many :emails, dependent: :nullify
   has_many :job_documentation_tabs, dependent: :destroy

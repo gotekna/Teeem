@@ -232,7 +232,7 @@ export default function AppLayout({ children }) {
     const loadActiveJobs = async () => {
       try {
         const response = await api.get('/api/v1/jobs?status=Active&per_page=20')
-        setActiveJobs(response.constructions || [])
+        setActiveJobs(response.jobs || response.constructions || [])
       } catch (err) {
         // Silently fail - sidebar will just show empty, user can still navigate
         console.debug('Active jobs unavailable:', err?.message || 'Unknown error')

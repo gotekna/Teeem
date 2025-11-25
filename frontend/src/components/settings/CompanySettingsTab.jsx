@@ -19,6 +19,8 @@ const FolderTemplatesTab = lazy(() => import('./FolderTemplatesTab'))
 const CompaniesPage = lazy(() => import('../../pages/CompaniesPage'))
 const RolesAndGroupsTab = lazy(() => import('./RolesAndGroupsTab'))
 const PermissionsPage = lazy(() => import('../../pages/PermissionsPage'))
+const JobSetupTab = lazy(() => import('./JobSetupTab'))
+const DocumentationCategoriesTab = lazy(() => import('./DocumentationCategoriesTab'))
 
 const TIMEZONES = [
   { value: 'Australia/Brisbane', label: 'Brisbane (AEST/AEDT)' },
@@ -113,7 +115,7 @@ export default function CompanySettingsTab() {
 
   return (
     <div>
-      <div className="max-w-4xl">
+      <div>
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white">Company Settings</h2>
           <Link
@@ -246,6 +248,30 @@ export default function CompanySettingsTab() {
               }
             >
               Folders
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2.5 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              Job Setup
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2.5 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              Doc Setup
             </Tab>
           </TabList>
 
@@ -467,6 +493,20 @@ export default function CompanySettingsTab() {
             <TabPanel>
               <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
                 <FolderTemplatesTab />
+              </Suspense>
+            </TabPanel>
+
+            {/* Job Setup Tab */}
+            <TabPanel>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
+                <JobSetupTab />
+              </Suspense>
+            </TabPanel>
+
+            {/* Doc Setup Tab */}
+            <TabPanel>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
+                <DocumentationCategoriesTab />
               </Suspense>
             </TabPanel>
           </TabPanels>

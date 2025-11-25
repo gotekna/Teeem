@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_25_035640) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_25_105916) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -328,7 +328,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_035640) do
     t.string "twilio_phone_number"
     t.boolean "twilio_enabled", default: false
     t.string "timezone", default: "Australia/Brisbane"
-    t.jsonb "working_days", default: {"friday" => true, "monday" => true, "sunday" => false, "tuesday" => true, "saturday" => false, "thursday" => true, "wednesday" => true}, null: false
+    t.jsonb "working_days", default: {"friday"=>true, "monday"=>true, "sunday"=>false, "tuesday"=>true, "saturday"=>false, "thursday"=>true, "wednesday"=>true}, null: false
   end
 
   create_table "company_xero_accounts", force: :cascade do |t|
@@ -926,6 +926,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_035640) do
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
   end
 
+  create_table "job_statuses", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_statuses_on_is_active"
+    t.index ["position"], name: "index_job_statuses_on_position"
+  end
+
+  create_table "job_types", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_types_on_is_active"
+    t.index ["position"], name: "index_job_types_on_position"
+  end
+
   create_table "jobs", force: :cascade do |t|
     t.string "title"
     t.decimal "contract_value", precision: 15, scale: 2
@@ -949,9 +970,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_035640) do
     t.decimal "latitude", precision: 10, scale: 6
     t.decimal "longitude", precision: 10, scale: 6
     t.string "location"
+    t.bigint "job_type_id"
+    t.bigint "job_status_id"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["design_id"], name: "index_jobs_on_design_id"
     t.index ["design_name"], name: "index_jobs_on_design_name"
+    t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
+    t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
     t.index ["status"], name: "index_jobs_on_status"
   end
@@ -2533,123 +2558,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_035640) do
     t.index ["variable_name"], name: "index_unreal_variables_on_variable_name", unique: true
   end
 
-  create_table "user_gold_standard_reference_1511df1e", force: :cascade do |t|
-    t.string "item_code"
-    t.string "email"
-    t.string "phone"
-    t.boolean "is_active"
-    t.decimal "discount", precision: 15, scale: 2
-    t.decimal "price", precision: 15, scale: 2
-    t.decimal "quantity", precision: 15, scale: 2
-    t.string "status"
-    t.text "notes"
-    t.date "date_field"
-    t.datetime "date_and_time"
-    t.integer "whole_number"
-    t.integer "lookup_field"
-    t.integer "user_field"
-    t.string "url"
-    t.string "mobile"
-    t.string "location_coords"
-    t.string "color_code"
-    t.text "file_attachment"
-    t.text "multiple_category_ids"
-    t.datetime "last_modified_at"
-    t.string "computed_total"
-    t.string "actions"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["created_at"], name: "index_user_gold_standard_reference_1511df1e_on_created_at"
-    t.index ["lookup_field"], name: "index_user_gold_standard_reference_1511df1e_on_lookup_field"
-    t.index ["updated_at"], name: "index_user_gold_standard_reference_1511df1e_on_updated_at"
-  end
-
-  create_table "user_import_1761885699_f0f78b8e7fc2f1fc_78992af1", force: :cascade do |t|
-    t.date "sys_type_id"
-    t.string "deleted"
-    t.string "parent_id"
-    t.string "parent"
-    t.string "parenttype"
-    t.string "drive_id"
-    t.date "folder_id"
-    t.string "code"
-    t.string "description"
-    t.string "unit"
-    t.decimal "range_id", precision: 15, scale: 2
-    t.string "range"
-    t.decimal "rangetype", precision: 15, scale: 2
-    t.date "colour_spec_id"
-    t.string "colour_spec"
-    t.date "colour_spectype"
-    t.decimal "tedmodel_id", precision: 15, scale: 2
-    t.string "tedmodel"
-    t.date "tedmodeltype"
-    t.decimal "price", precision: 15, scale: 2
-    t.string "default_supplier"
-    t.string "brand_linked"
-    t.string "budget_zone"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_import_1762054183_c576571c2be177ce_c59dc239", force: :cascade do |t|
-    t.date "sys_type_id"
-    t.string "deleted"
-    t.string "parent_id"
-    t.string "parent"
-    t.string "parenttype"
-    t.string "drive_id"
-    t.date "folder_id"
-    t.string "code"
-    t.string "description"
-    t.string "unit"
-    t.decimal "range_id", precision: 15, scale: 2
-    t.string "range"
-    t.decimal "rangetype", precision: 15, scale: 2
-    t.date "colour_spec_id"
-    t.string "colour_spec"
-    t.date "colour_spectype"
-    t.decimal "tedmodel_id", precision: 15, scale: 2
-    t.string "tedmodel"
-    t.date "tedmodeltype"
-    t.decimal "price", precision: 15, scale: 2
-    t.string "default_supplier"
-    t.string "brand_linked"
-    t.string "budget_zone"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_import_1762157582_8e8e2d2b69a47e74_4b7d5585", force: :cascade do |t|
-    t.string "item_code"
-    t.string "item_name"
-    t.string "category"
-    t.string "unit_of_measure"
-    t.decimal "current_price", precision: 15, scale: 2
-    t.string "supplier_name"
-    t.string "brand"
-    t.string "notes"
-    t.date "last_updated"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
-  create_table "user_import_1762215941_806ddfcf23a9a9f4_b7b8c8ac", force: :cascade do |t|
-    t.decimal "price", precision: 15, scale: 2
-    t.date "effective_date"
-    t.string "display_field"
-    t.string "pricebook_id"
-    t.string "pricebook"
-    t.string "pricebooktype"
-    t.boolean "default_supplier"
-    t.string "supplier_trade_id"
-    t.string "supplier_trade"
-    t.string "product_id"
-    t.string "contact_region"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-  end
-
   create_table "user_permissions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "permission_id", null: false
@@ -3135,6 +3043,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_035640) do
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "jobs", "designs"
+  add_foreign_key "jobs", "job_statuses", on_delete: :nullify
+  add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"

@@ -41,17 +41,20 @@ export default function PermissionsPage() {
         api.get('/api/v1/permissions/roles')
       ])
 
-      if (usersRes.data.success) {
-        setUsers(usersRes.data.users || [])
+      // Users endpoint returns array directly, not wrapped
+      if (Array.isArray(usersRes)) {
+        setUsers(usersRes)
+      } else if (usersRes.success) {
+        setUsers(usersRes.users || [])
       }
 
-      if (permissionsRes.data.success) {
-        setPermissions(permissionsRes.data.permissions || {})
-        setCategories(permissionsRes.data.categories || {})
+      if (permissionsRes.success) {
+        setPermissions(permissionsRes.permissions || {})
+        setCategories(permissionsRes.categories || {})
       }
 
-      if (rolesRes.data.success) {
-        setRoles(rolesRes.data.roles || [])
+      if (rolesRes.success) {
+        setRoles(rolesRes.roles || [])
       }
     } catch (err) {
       console.error('Failed to load permissions data:', err)
@@ -64,10 +67,10 @@ export default function PermissionsPage() {
   const loadUserPermissions = async (userId) => {
     try {
       const response = await api.get(`/api/v1/permissions/user/${userId}`)
-      if (response.data.success) {
-        setSelectedUser(response.data.user)
-        setUserPermissions(response.data.permissions || [])
-        setRolePermissions(response.data.role_permissions || [])
+      if (response.success) {
+        setSelectedUser(response.user)
+        setUserPermissions(response.permissions || [])
+        setRolePermissions(response.role_permissions || [])
       }
     } catch (err) {
       console.error('Failed to load user permissions:', err)
@@ -86,7 +89,7 @@ export default function PermissionsPage() {
         granted: !currentlyGranted
       })
 
-      if (response.data.success) {
+      if (response.success) {
         // Reload user permissions
         await loadUserPermissions(selectedUser.id)
       }
