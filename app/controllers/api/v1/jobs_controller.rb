@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
       def index
-        @jobs = Job.all
+        @jobs = Job.includes(:job_type, :job_status).all
 
         # Filter by status if provided (default to Active jobs)
         status_filter = params[:status] || "Active"
@@ -24,8 +24,16 @@ module Api
                                        .limit(per_page)
                                        .offset((page - 1) * per_page)
 
+        # Include job_type and job_status in response
+        jobs_with_associations = @jobs.map do |job|
+          job.as_json.merge(
+            job_type: job.job_type&.as_json(only: [:id, :name]),
+            job_status: job.job_status&.as_json(only: [:id, :name, :color])
+          )
+        end
+
         render json: {
-          jobs: @jobs,
+          jobs: jobs_with_associations,
           pagination: {
             current_page: page,
             total_pages: total_pages,
