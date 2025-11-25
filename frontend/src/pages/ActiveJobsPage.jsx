@@ -23,7 +23,7 @@ import TrapidTableView from '../components/documentation/TrapidTableView'
 
 export default function ActiveJobsPage() {
   const navigate = useNavigate()
-  const [selectedTab, setSelectedTab] = useState(0) // 0 = Custom, 1 = Trinity
+  const [selectedTab, setSelectedTab] = useState(1) // 0 = Custom, 1 = Trinity (default to Trinity/TrapidTableView)
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
