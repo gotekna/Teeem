@@ -1,5 +1,3 @@
-require 'creek'
-
 class CompanyImportService
   def initialize(file_path)
     @file_path = file_path
