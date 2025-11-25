@@ -306,6 +306,34 @@ module Api
         render json: { error: 'Failed to fetch table columns' }, status: :internal_server_error
       end
 
+      # POST /api/v1/schema/sync_system_tables
+      # Audits all system tables and returns sync status
+      def sync_system_tables
+        system_tables = Table.where(table_type: 'system').includes(:columns).order(:name)
+
+        results = system_tables.map do |table|
+          audit_system_table(table)
+        end
+
+        # Calculate summary
+        total = results.length
+        synced = results.count { |r| r[:status] == 'synced' }
+        warnings = results.count { |r| r[:status] == 'warning' }
+        errors = results.count { |r| r[:status] == 'error' }
+
+        render json: {
+          success: true,
+          summary: {
+            total: total,
+            synced: synced,
+            warnings: warnings,
+            errors: errors
+          },
+          results: results,
+          timestamp: Time.current.iso8601
+        }
+      end
+
       # GET /api/v1/schema/columns
       # Returns all columns across all user tables for Developer Tools view
       def all_columns
@@ -510,6 +538,85 @@ module Api
       rescue => e
         Rails.logger.error "Failed to get record count for #{table_name}: #{e.message}"
         0
+      end
+
+      # Audit a single system table for sync status
+      def audit_system_table(table)
+        issues = []
+        warnings = []
+
+        # Get actual database table name
+        actual_table_name = get_actual_table_name(table.model_class)
+
+        # Check 1: Database table exists
+        db_exists = actual_table_name.present? && ActiveRecord::Base.connection.table_exists?(actual_table_name)
+        unless db_exists
+          issues << "Database table '#{actual_table_name || 'unknown'}' does not exist"
+        end
+
+        # Check 2: Model class is valid
+        model_valid = false
+        if table.model_class.present?
+          begin
+            table.model_class.constantize
+            model_valid = true
+          rescue NameError
+            issues << "Model class '#{table.model_class}' not found"
+          end
+        else
+          warnings << "No model_class defined"
+        end
+
+        # Get counts if DB exists
+        db_columns_count = 0
+        registered_columns_count = 0
+        record_count = 0
+
+        if db_exists
+          # Get actual DB column count
+          db_columns_count = ActiveRecord::Base.connection.columns(actual_table_name).count
+
+          # Get registered columns count (from columns table)
+          registered_columns_count = table.columns.count
+
+          # Get record count
+          record_count = ActiveRecord::Base.connection.select_value(
+            "SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(actual_table_name)}"
+          ).to_i
+
+          # Check 3: Column count match (warning if different)
+          if registered_columns_count > 0 && registered_columns_count != db_columns_count
+            warnings << "Column count mismatch: #{registered_columns_count} registered vs #{db_columns_count} in database"
+          elsif registered_columns_count == 0
+            warnings << "No columns registered in columns table"
+          end
+        end
+
+        # Determine overall status
+        status = if issues.any?
+                   'error'
+                 elsif warnings.any?
+                   'warning'
+                 else
+                   'synced'
+                 end
+
+        {
+          table_id: table.id,
+          name: table.name,
+          slug: table.slug,
+          icon: table.icon,
+          model_class: table.model_class,
+          database_table_name: actual_table_name,
+          status: status,
+          db_exists: db_exists,
+          model_valid: model_valid,
+          db_columns_count: db_columns_count,
+          registered_columns_count: registered_columns_count,
+          record_count: record_count,
+          issues: issues,
+          warnings: warnings
+        }
       end
     end
   end

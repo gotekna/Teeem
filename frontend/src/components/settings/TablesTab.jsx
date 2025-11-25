@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../api'
-import { TableCellsIcon, PencilIcon, EyeIcon, XMarkIcon, PlusIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline'
+import { TableCellsIcon, PencilIcon, EyeIcon, XMarkIcon, PlusIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon, ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import TableColumnManager from './TableColumnManager'
 
 export default function TablesTab() {
@@ -23,6 +23,8 @@ export default function TablesTab() {
   const [newTableName, setNewTableName] = useState('')
   const [creating, setCreating] = useState(false)
   const [managingTable, setManagingTable] = useState(null)
+  const [syncResults, setSyncResults] = useState(null)
+  const [syncing, setSyncing] = useState(false)
 
   const fetchTables = async () => {
     try {
@@ -55,6 +57,20 @@ export default function TablesTab() {
     fetchTables()
     fetchInMemoryTables()
   }, [])
+
+  const handleSyncSystemTables = async () => {
+    try {
+      setSyncing(true)
+      setSyncResults(null)
+      const response = await api.post('/api/v1/schema/sync_system_tables')
+      setSyncResults(response)
+    } catch (err) {
+      console.error('Failed to sync system tables:', err)
+      alert(err.message || 'Failed to sync system tables')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleNavigateToTable = (table) => {
     // Use combined ID/slug format for better URLs
@@ -517,7 +533,147 @@ export default function TablesTab() {
               and are registered in the tables database for unified management.
             </p>
           </div>
+          <button
+            onClick={handleSyncSystemTables}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ArrowPathIcon className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Check'}
+          </button>
         </div>
+
+        {/* Sync Results Panel */}
+        {syncResults && (
+          <div className="mb-6 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* Summary Header */}
+            <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Sync Results</h3>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                      <CheckCircleIcon className="h-4 w-4" />
+                      {syncResults.summary?.synced || 0} Synced
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                      <ExclamationTriangleIcon className="h-4 w-4" />
+                      {syncResults.summary?.warnings || 0} Warnings
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
+                      <XCircleIcon className="h-4 w-4" />
+                      {syncResults.summary?.errors || 0} Errors
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSyncResults(null)}
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Results Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-800/50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Table</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Model</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">DB Table</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Columns (Reg/DB)</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Records</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Issues/Warnings</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                  {syncResults.results?.map((result) => (
+                    <tr
+                      key={result.table_id}
+                      className={
+                        result.status === 'error'
+                          ? 'bg-red-50 dark:bg-red-900/10'
+                          : result.status === 'warning'
+                          ? 'bg-amber-50 dark:bg-amber-900/10'
+                          : ''
+                      }
+                    >
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {result.status === 'synced' && (
+                          <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                        )}
+                        {result.status === 'warning' && (
+                          <ExclamationTriangleIcon className="h-5 w-5 text-amber-500" />
+                        )}
+                        {result.status === 'error' && (
+                          <XCircleIcon className="h-5 w-5 text-red-500" />
+                        )}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        <span className="mr-1">{result.icon}</span>
+                        {result.name}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm">
+                        <code className={`text-xs px-2 py-1 rounded ${
+                          result.model_valid
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                        }`}>
+                          {result.model_class || 'N/A'}
+                        </code>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm">
+                        <code className={`text-xs px-2 py-1 rounded ${
+                          result.db_exists
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                        }`}>
+                          {result.database_table_name || 'N/A'}
+                        </code>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <span className={
+                          result.registered_columns_count !== result.db_columns_count && result.registered_columns_count > 0
+                            ? 'text-amber-600 dark:text-amber-400 font-medium'
+                            : ''
+                        }>
+                          {result.registered_columns_count} / {result.db_columns_count}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {result.record_count?.toLocaleString()}
+                      </td>
+                      <td className="px-3 py-2 text-sm">
+                        {result.issues?.length > 0 && (
+                          <ul className="text-red-600 dark:text-red-400 text-xs space-y-1">
+                            {result.issues.map((issue, i) => (
+                              <li key={i}>{issue}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {result.warnings?.length > 0 && (
+                          <ul className="text-amber-600 dark:text-amber-400 text-xs space-y-1">
+                            {result.warnings.map((warning, i) => (
+                              <li key={i}>{warning}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+              Last synced: {syncResults.timestamp ? new Date(syncResults.timestamp).toLocaleString() : 'Unknown'}
+            </div>
+          </div>
+        )}
 
         {loadingInMemory ? (
           <div className="flex justify-center items-center py-12">
