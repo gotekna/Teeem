@@ -15,7 +15,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     # Apply company_wide filter
     swms = swms.company_wide if params[:company_wide] == 'true'
 
-    swms = swms.includes(:construction, :created_by, :approved_by, :superseded_by, :whs_swms_hazards)
+    swms = swms.includes(:job, :created_by, :approved_by, :superseded_by, :whs_swms_hazards)
                 .order(created_at: :desc)
 
     # Following B01.003: API response format
@@ -218,7 +218,7 @@ class Api::V1::WHSSWMSController < ApplicationController
 
   def serialization_includes
     {
-      construction: { only: [:id, :name, :construction_number] },
+      job: { only: [:id, :title, :ted_number] },
       created_by: { only: [:id, :name, :email] },
       approved_by: { only: [:id, :name, :email] },
       superseded_by: { only: [:id, :swms_number, :version] },
