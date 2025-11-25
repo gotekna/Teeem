@@ -61,7 +61,7 @@ export default function PurchaseOrdersPage() {
         </div>
         <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
           <Link
-            to="/active-jobs"
+            to="/jobs"
             className="inline-flex items-center gap-x-1.5 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400"
           >
             <PlusIcon className="-ml-0.5 h-5 w-5" />

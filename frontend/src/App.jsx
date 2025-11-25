@@ -145,7 +145,7 @@ function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />
         <Route path="/chat" element={<AppLayout><ChatPage /></AppLayout>} />
-        <Route path="/active-jobs" element={<AppLayout><ActiveJobsPage /></AppLayout>} />
+        <Route path="/jobs" element={<AppLayout><ActiveJobsPage /></AppLayout>} />
         <Route path="/xest" element={<AppLayout><XestPage /></AppLayout>} />
         <Route path="/documents" element={<AppLayout><DocumentsPage /></AppLayout>} />
         <Route path="/trinity" element={<AppLayout><TrinityPage /></AppLayout>} />

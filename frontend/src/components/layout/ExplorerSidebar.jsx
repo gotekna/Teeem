@@ -235,7 +235,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
         <div>
           {sidebarCollapsed ? (
             <Link
-              to="/active-jobs"
+              to="/jobs"
               className={`flex items-center justify-center p-2.5 mx-2 mb-2 rounded-lg transition-colors ${
                 isActiveRoute('/active-jobs')
                   ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400'
@@ -249,7 +249,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
             <>
               <div className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Link
-                  to="/active-jobs"
+                  to="/jobs"
                   className={`flex items-center gap-3 flex-1 ${
                     isActiveRoute('/active-jobs')
                       ? 'text-indigo-700 dark:text-indigo-400'
@@ -348,7 +348,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
                   )}
 
                   <Link
-                    to="/active-jobs"
+                    to="/jobs"
                     className="flex items-center gap-2 px-4 pl-12 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   >
                     <PlusIcon className="h-4 w-4" />

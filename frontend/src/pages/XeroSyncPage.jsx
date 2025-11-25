@@ -261,7 +261,7 @@ export default function XeroSyncPage() {
               </Link>
 
               <Link
-                to="/active-jobs"
+                to="/jobs"
                 className="relative flex items-center space-x-3 rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm hover:border-indigo-400 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-indigo-500"
               >
                 <div className="flex-shrink-0">
