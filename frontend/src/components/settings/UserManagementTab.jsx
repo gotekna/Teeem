@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../../api'
 import TrapidTableView from '../documentation/TrapidTableView'
 import {
@@ -19,7 +20,8 @@ import {
   KeyIcon,
   PhoneIcon,
   EyeIcon,
-  EyeSlashIcon
+  EyeSlashIcon,
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline'
 
 export default function UserManagementTab() {
@@ -109,11 +111,29 @@ export default function UserManagementTab() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Link to full table view */}
+      <div className="mb-4 flex items-center justify-between bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div>
+          <p className="text-sm font-medium text-blue-900 dark:text-blue-200">Quick View</p>
+          <p className="text-xs text-blue-700 dark:text-blue-300 mt-0.5">
+            This is a lightweight view embedded in System Admin. For the full table interface with advanced features, open the dedicated page.
+          </p>
+        </div>
+        <Link
+          to="/tables/212/user-management"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm transition-colors whitespace-nowrap"
+        >
+          Open Full Table
+          <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+        </Link>
+      </div>
+
       <TrapidTableView
         entries={users}
         onEdit={handleEdit}
         onDelete={handleDelete}
         category="users"
+        tableId="users-quick-view"
       />
 
       {/* Toast Notification */}
