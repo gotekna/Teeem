@@ -74,7 +74,7 @@ class ScheduleTask < ApplicationRecord
 
   # Suggest matching purchase orders based on title and supplier
   def suggested_purchase_orders(limit = 5)
-    construction.purchase_orders.where.not(id: purchase_order_id).where(
+    job.purchase_orders.where.not(id: purchase_order_id).where(
       'LOWER(description) LIKE ? OR LOWER(ted_task) LIKE ?',
       "%#{title.downcase}%",
       "%#{title.downcase}%"
