@@ -1,4 +1,5 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// Trim the API URL to remove any whitespace/newlines from environment variables
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').trim();
 
 const getAuthHeaders = () => {
   const headers = {

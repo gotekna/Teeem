@@ -19,7 +19,8 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(localStorage.getItem('token'))
 
   // Configure axios defaults
-  axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+  // Trim the API URL to remove any whitespace/newlines from environment variables
+  axios.defaults.baseURL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').trim()
   if (token) {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
   }
