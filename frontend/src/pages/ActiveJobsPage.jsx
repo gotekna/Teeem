@@ -143,9 +143,9 @@ export default function ActiveJobsPage() {
     try {
       setLoading(true)
       const response = await api.get(
-        `/api/v1/constructions?status=Active&per_page=1000`
+        `/api/v1/jobs?status=Active&per_page=1000`
       )
-      setJobs(response.constructions || [])
+      setJobs(response.jobs || [])
     } catch (err) {
       setError('Failed to load active jobs')
       console.error(err)
@@ -167,8 +167,8 @@ export default function ActiveJobsPage() {
 
     if (editValue !== originalJob[field]) {
       try {
-        await api.put(`/api/v1/constructions/${jobId}`, {
-          construction: {
+        await api.put(`/api/v1/jobs/${jobId}`, {
+          job: {
             [field]: editValue
           }
         })
@@ -191,10 +191,10 @@ export default function ActiveJobsPage() {
 
   const handleCreateJob = async (jobData) => {
     try {
-      const { createOneDriveFolders, ...constructionData } = jobData
+      const { createOneDriveFolders, ...jobDataFields } = jobData
 
-      const response = await api.post('/api/v1/constructions', {
-        construction: constructionData,
+      const response = await api.post('/api/v1/jobs', {
+        job: jobDataFields,
         create_onedrive_folders: createOneDriveFolders,
         template_id: null
       })
@@ -205,8 +205,8 @@ export default function ActiveJobsPage() {
         alert('Job created successfully! OneDrive folders are being created in the background.')
       }
 
-      if (response.construction && response.construction.id) {
-        navigate(`/jobs/${response.construction.id}/setup`)
+      if (response.job && response.job.id) {
+        navigate(`/jobs/${response.job.id}/setup`)
       }
     } catch (err) {
       console.error('Failed to create job:', err)
