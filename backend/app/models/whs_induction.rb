@@ -29,7 +29,7 @@ class WHSInduction < ApplicationRecord
     where(status: 'valid')
       .where('expiry_date IS NOT NULL AND expiry_date <= ?', CompanySetting.today + days.days)
   }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_type, ->(type) { where(induction_type: type) }
   scope :by_worker, ->(name) { where('worker_name ILIKE ?', "%#{name}%") }
   scope :recent, -> { order(completion_date: :desc) }

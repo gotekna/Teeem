@@ -39,7 +39,7 @@ class WHSIncident < ApplicationRecord
   scope :under_investigation, -> { where(status: 'under_investigation') }
   scope :actions_required, -> { where(status: 'actions_required') }
   scope :closed, -> { where(status: 'closed') }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_category, ->(category) { where(incident_category: category) }
   scope :by_severity, ->(severity) { where(severity_level: severity) }
   scope :lti, -> { where(incident_category: 'lti') }
