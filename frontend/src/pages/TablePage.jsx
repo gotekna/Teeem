@@ -818,7 +818,7 @@ export default function TablePage({ embedded = false }) {
               // Navigate to detail page based on table type
               if (table.slug === 'contacts' || table.database_table_name === 'contacts') {
                 navigate(`/contacts/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'jobs' || table.database_table_name === 'jobs') {
+              } else if (table.slug === 'jobs' || table.slug === 'active-jobs' || table.database_table_name === 'jobs' || table.database_table_name === 'constructions') {
                 navigate(`/jobs/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
               } else if (table.slug === 'pricebook-items' || table.database_table_name === 'pricebook_items') {
                 navigate(`/price-books/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
@@ -833,7 +833,7 @@ export default function TablePage({ embedded = false }) {
               // View button navigates to detail page
               if (table.slug === 'contacts' || table.database_table_name === 'contacts') {
                 navigate(`/contacts/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'jobs' || table.database_table_name === 'jobs') {
+              } else if (table.slug === 'jobs' || table.slug === 'active-jobs' || table.database_table_name === 'jobs' || table.database_table_name === 'constructions') {
                 navigate(`/jobs/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
               } else if (table.slug === 'pricebook-items' || table.database_table_name === 'pricebook_items') {
                 navigate(`/price-books/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)

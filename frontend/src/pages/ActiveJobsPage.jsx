@@ -886,6 +886,11 @@ export default function ActiveJobsPage() {
         <div className="flex-1 overflow-hidden">
           <TrapidTableView
             entries={trinityJobs}
+            onView={(entry) => {
+              // Eye icon and row double-click handler - navigate to job tabs
+              console.log('View job:', entry._original)
+              navigate(`/jobs/${entry._original.id}`)
+            }}
             onEdit={(entry) => {
               console.log('Edit job:', entry._original)
               navigate(`/jobs/${entry._original.id}`)
