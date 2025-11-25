@@ -51,6 +51,18 @@ Rails.application.routes.draw do
       get 'health/pricebook/missing_items', to: 'health#missing_items'
       get 'pricebook/price_health_check', to: 'pricebook_items#price_health_check'
 
+      # Job setup (types and statuses)
+      resources :job_types do
+        collection do
+          post :reorder
+        end
+      end
+      resources :job_statuses do
+        collection do
+          post :reorder
+        end
+      end
+
       # Jobs management
       resources :jobs do
         member do
