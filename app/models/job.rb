@@ -34,7 +34,8 @@ class Job < ApplicationRecord
   validates :title, presence: true
   validates :status, presence: true
   validates :site_supervisor_name, presence: true
-  validate :must_have_at_least_one_contact, on: :update
+  # TODO: Re-enable once jobs have contacts assigned
+  # validate :must_have_at_least_one_contact, on: :update
 
   # Callbacks
   after_create :create_documentation_tabs_from_categories
