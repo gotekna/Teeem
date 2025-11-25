@@ -333,12 +333,14 @@ export default function AppLayout({ children }) {
              location.pathname.match(/^\/tables\/\d+\/jobs/)
     }
     if (href === '/dashboard') {
-      // Exclude jobs paths from Dashboard matching
-      if (location.pathname.match(/\/jobs/)) {
-        return false
-      }
-      return location.pathname === '/dashboard' || location.pathname.startsWith('/tables/')
+      // Dashboard only matches its exact path, not all tables
+      return location.pathname === '/dashboard'
     }
+    // For table routes, check exact match or detail pages
+    if (href.startsWith('/tables/')) {
+      return location.pathname === href || location.pathname.startsWith(href + '/')
+    }
+    // For other routes with potential child paths
     return location.pathname === href || location.pathname.startsWith(href + '/')
   }
 
