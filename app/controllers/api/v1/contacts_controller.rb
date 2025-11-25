@@ -102,6 +102,7 @@ module Api
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
+            :entity_type, :primary_role, :employment_status,
             # Xero fields
             :bank_bsb, :bank_account_number, :bank_account_name,
             :default_purchase_account, :default_sales_account,
@@ -177,6 +178,7 @@ module Api
             {
               id: rel.related_contact.id,
               name: rel.related_contact.display_name,
+              entity_type: rel.related_contact.entity_type,
               relationship_type: rel.relationship_type,
               role_in_relationship: rel.role_in_relationship,
               ownership_percentage: rel.ownership_percentage,
