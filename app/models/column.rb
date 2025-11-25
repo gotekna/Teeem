@@ -41,6 +41,9 @@ class Column < ApplicationRecord
   before_validation :detect_cross_table_refs, if: -> { column_type == 'computed' }
   validate :lookup_configuration_valid, if: -> { column_type.in?(['lookup', 'multiple_lookups']) }
 
+  # Clean up saved views when a column is deleted
+  before_destroy :remove_from_saved_views
+
   # Map column types to database column types
   # NOTE: This maps to Rails types. For actual SQL types with limits, see COLUMN_SQL_TYPE_MAP
   COLUMN_TYPE_MAP = {
@@ -141,5 +144,45 @@ class Column < ApplicationRecord
     unless target.columns.exists?(column_name: lookup_display_column)
       errors.add(:lookup_display_column, "column '#{lookup_display_column}' not found in table '#{target.name}'")
     end
+  end
+
+  # Remove this column from all saved views for this table
+  def remove_from_saved_views
+    views = TableView.where(table_id: table_id)
+    return if views.empty?
+
+    views.find_each do |view|
+      next unless view.columns.is_a?(Hash)
+
+      changed = false
+
+      # Remove from column order array
+      if view.columns['order'].is_a?(Array) && view.columns['order'].include?(column_name)
+        view.columns['order'].delete(column_name)
+        changed = true
+      end
+
+      # Remove from visible hash
+      if view.columns['visible'].is_a?(Hash) && view.columns['visible'].key?(column_name)
+        view.columns['visible'].delete(column_name)
+        changed = true
+      end
+
+      # Remove from filters if present
+      if view.filters.is_a?(Hash) && view.filters.key?(column_name)
+        view.filters.delete(column_name)
+        changed = true
+      end
+
+      # Remove from sort order if present
+      if view.sort_order.is_a?(Hash) && view.sort_order['column'] == column_name
+        view.sort_order = {}
+        changed = true
+      end
+
+      view.save! if changed
+    end
+
+    Rails.logger.info "[Column] Removed column '#{column_name}' from #{views.count} saved views for table #{table_id}"
   end
 end
