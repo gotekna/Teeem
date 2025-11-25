@@ -1,5 +1,6 @@
 {
   "permissions": {
+    "defaultMode": "dontAsk",
     "allow": [
       "Bash(gh auth status:*)",
       "Bash(heroku auth:whoami:*)",
