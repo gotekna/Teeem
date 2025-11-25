@@ -250,9 +250,9 @@ export default function TablesTab() {
     <div className="grid max-w-7xl grid-cols-1 gap-x-8 gap-y-10 px-4 py-10 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base/7 font-semibold text-gray-900 dark:text-white">User & Import Tables</h2>
+          <h2 className="text-base/7 font-semibold text-gray-900 dark:text-white">Heroku Backend Table View</h2>
           <p className="mt-1 text-sm/6 text-gray-500 dark:text-gray-400">
-            Custom tables created by users and imported data tables. System tables are shown separately below.
+            All database tables from the Heroku backend, including user-created tables and imported data. System tables are shown separately below.
           </p>
         </div>
         <button
