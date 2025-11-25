@@ -29,7 +29,7 @@ class WHSInspection < ApplicationRecord
   scope :in_progress, -> { where(status: 'in_progress') }
   scope :completed, -> { where(status: 'completed') }
   scope :requires_action, -> { where(status: 'requires_action') }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id) }
+  scope :for_construction, ->(job_id) { where(job_id: job_id) }  # Kept for backward compatibility
   scope :by_type, ->(type) { where(inspection_type: type) }
   scope :overdue, -> { where('scheduled_date < ? AND status NOT IN (?)', CompanySetting.today, ['completed', 'cancelled']) }
   scope :upcoming, -> { where('scheduled_date >= ?', CompanySetting.today).order(:scheduled_date) }

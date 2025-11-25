@@ -4,11 +4,11 @@ class Api::V1::WHSInductionsController < ApplicationController
   # GET /api/v1/whs_inductions
   def index
     inductions = if params[:user_id].present?
-      WhsInduction.for_user(params[:user_id])
+      WHSInduction.for_user(params[:user_id])
     elsif params[:job_id].present?
-      WhsInduction.for_construction(params[:job_id])
+      WHSInduction.for_construction(params[:job_id])
     else
-      WhsInduction.all
+      WHSInduction.all
     end
 
     # Apply status filter
@@ -43,7 +43,7 @@ class Api::V1::WHSInductionsController < ApplicationController
 
   # POST /api/v1/whs_inductions
   def create
-    induction = WhsInduction.new(whs_induction_params)
+    induction = WHSInduction.new(whs_induction_params)
 
     if induction.save
       render json: {
@@ -143,7 +143,7 @@ class Api::V1::WHSInductionsController < ApplicationController
   private
 
   def set_whs_induction
-    @whs_induction = WhsInduction.find(params[:id])
+    @whs_induction = WHSInduction.find(params[:id])
   end
 
   def whs_induction_params
@@ -159,7 +159,7 @@ class Api::V1::WHSInductionsController < ApplicationController
     {
       whs_induction_template: { only: [:id, :name, :version, :has_quiz] },
       user: { only: [:id, :name, :email] },
-      construction: { only: [:id, :name, :construction_number] },
+      job: { only: [:id, :name, :construction_number] },
       inducted_by_user: { only: [:id, :name, :email] }
     }
   end

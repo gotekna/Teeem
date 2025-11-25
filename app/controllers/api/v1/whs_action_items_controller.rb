@@ -3,7 +3,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
 
   # GET /api/v1/whs_action_items
   def index
-    action_items = WhsActionItem.all
+    action_items = WHSActionItem.all
 
     # Apply actionable filter (polymorphic)
     if params[:actionable_type].present? && params[:actionable_id].present?
@@ -54,7 +54,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
 
   # POST /api/v1/whs_action_items
   def create
-    action_item = WhsActionItem.new(whs_action_item_params)
+    action_item = WHSActionItem.new(whs_action_item_params)
     action_item.created_by = current_user
 
     if action_item.save
@@ -150,7 +150,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
   private
 
   def set_whs_action_item
-    @whs_action_item = WhsActionItem.find(params[:id])
+    @whs_action_item = WHSActionItem.find(params[:id])
   end
 
   def whs_action_item_params

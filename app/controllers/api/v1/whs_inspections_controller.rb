@@ -4,9 +4,9 @@ class Api::V1::WHSInspectionsController < ApplicationController
   # GET /api/v1/whs_inspections
   def index
     inspections = if params[:job_id].present?
-      WhsInspection.for_construction(params[:job_id])
+      WHSInspection.for_construction(params[:job_id])
     else
-      WhsInspection.all
+      WHSInspection.all
     end
 
     # Apply status filter
@@ -24,7 +24,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
     # Apply critical issues filter
     inspections = inspections.with_critical_issues if params[:critical_issues] == 'true'
 
-    inspections = inspections.includes(:construction, :whs_inspection_template, :inspector_user, :created_by, :whs_inspection_items)
+    inspections = inspections.includes(:job, :whs_inspection_template, :inspector_user, :created_by, :whs_inspection_items)
                              .order(scheduled_date: :desc)
 
     # Following B01.003: API response format
@@ -44,7 +44,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
 
   # POST /api/v1/whs_inspections
   def create
-    inspection = WhsInspection.new(whs_inspection_params)
+    inspection = WHSInspection.new(whs_inspection_params)
     inspection.created_by = current_user
 
     if inspection.save
@@ -126,7 +126,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
   private
 
   def set_whs_inspection
-    @whs_inspection = WhsInspection.find(params[:id])
+    @whs_inspection = WHSInspection.find(params[:id])
   end
 
   def whs_inspection_params
@@ -139,7 +139,7 @@ class Api::V1::WHSInspectionsController < ApplicationController
 
   def serialization_includes
     {
-      construction: { only: [:id, :name, :construction_number] },
+      job: { only: [:id, :name, :construction_number] },
       whs_inspection_template: { only: [:id, :name, :inspection_type] },
       inspector_user: { only: [:id, :name, :email] },
       created_by: { only: [:id, :name, :email] },

@@ -4,9 +4,9 @@ class Api::V1::WHSIncidentsController < ApplicationController
   # GET /api/v1/whs_incidents
   def index
     incidents = if params[:job_id].present?
-      WhsIncident.for_construction(params[:job_id])
+      WHSIncident.for_construction(params[:job_id])
     else
-      WhsIncident.all
+      WHSIncident.all
     end
 
     # Apply status filter
@@ -30,7 +30,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
     # Apply this month filter
     incidents = incidents.this_month if params[:this_month] == 'true'
 
-    incidents = incidents.includes(:construction, :reported_by_user, :investigated_by_user, :whs_action_items)
+    incidents = incidents.includes(:job, :reported_by_user, :investigated_by_user, :whs_action_items)
                          .recent
 
     # Following B01.003: API response format
@@ -50,7 +50,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
 
   # POST /api/v1/whs_incidents
   def create
-    incident = WhsIncident.new(whs_incident_params)
+    incident = WHSIncident.new(whs_incident_params)
     incident.reported_by_user = current_user
 
     if incident.save
@@ -165,7 +165,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
   private
 
   def set_whs_incident
-    @whs_incident = WhsIncident.find(params[:id])
+    @whs_incident = WHSIncident.find(params[:id])
   end
 
   def whs_incident_params
@@ -184,7 +184,7 @@ class Api::V1::WHSIncidentsController < ApplicationController
 
   def serialization_includes
     {
-      construction: { only: [:id, :name, :construction_number] },
+      job: { only: [:id, :name, :construction_number] },
       reported_by_user: { only: [:id, :name, :email] },
       investigated_by_user: { only: [:id, :name, :email] },
       whs_action_items: {
