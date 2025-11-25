@@ -169,12 +169,14 @@ export default function GoldStandardTableTab() {
         // Find matching database column by column_name (key)
         const dbCol = dbColumns.find(dc => dc.column_name === col.key)
         if (dbCol) {
-          // Merge ALL database column properties (id, lookup_table_id, lookup_display_column, etc.)
+          // Merge ALL database column properties (id, lookup_table_id, lookup_display_column, header_align, data_align, etc.)
           return {
             ...col,
             id: dbCol.id,
             lookup_table_id: dbCol.lookup_table_id,
-            lookup_display_column: dbCol.lookup_display_column
+            lookup_display_column: dbCol.lookup_display_column,
+            header_align: dbCol.header_align,
+            data_align: dbCol.data_align
           }
         }
         return col
