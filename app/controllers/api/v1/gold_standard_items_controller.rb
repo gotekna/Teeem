@@ -11,16 +11,25 @@ class Api::V1::GoldStandardItemsController < ApplicationController
     # Calculate offset
     offset = (page - 1) * per_page
 
+    # Start with base query
+    query = GoldStandardItem.all
+
+    # Apply filters if provided
+    if params[:filters].present?
+      query = apply_filters(query, params[:filters])
+    end
+
+    # Apply sorting
+    query = query.order(created_at: :desc)
+
+    # Get total count AFTER filtering
+    total_count = query.count
+
     # Fetch paginated items
-    items = GoldStandardItem.order(created_at: :desc)
-                             .limit(per_page)
-                             .offset(offset)
+    items = query.limit(per_page).offset(offset)
 
-    # Get total count for pagination metadata
-    total_count = GoldStandardItem.count
-
-    # Set caching headers (5 minutes cache)
-    expires_in 5.minutes, public: true
+    # Set caching headers (5 minutes cache) - disable if filters present
+    expires_in 5.minutes, public: true unless params[:filters].present?
 
     render json: {
       success: true,
@@ -32,7 +41,8 @@ class Api::V1::GoldStandardItemsController < ApplicationController
         total_pages: (total_count.to_f / per_page).ceil,
         has_next_page: offset + per_page < total_count,
         has_prev_page: page > 1
-      }
+      },
+      filters_applied: params[:filters].present?
     }
   end
 
@@ -90,6 +100,43 @@ class Api::V1::GoldStandardItemsController < ApplicationController
     @item = GoldStandardItem.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: { success: false, error: "Item not found" }, status: :not_found
+  end
+
+  # Apply filters to the query
+  # Supports filtering by any column with appropriate matching strategy
+  def apply_filters(query, filters)
+    filters.each do |key, value|
+      next if value.blank?
+
+      column_name = key.to_s
+
+      # Skip invalid column names for security
+      next unless GoldStandardItem.column_names.include?(column_name)
+
+      # Determine filter type based on column type
+      column = GoldStandardItem.columns_hash[column_name]
+
+      case column.type
+      when :string, :text
+        # Text fields: case-insensitive partial match
+        query = query.where("LOWER(#{column_name}) LIKE ?", "%#{value.to_s.downcase}%")
+      when :integer, :decimal, :float
+        # Numeric fields: exact match (or could extend to support ranges)
+        query = query.where(column_name => value)
+      when :boolean
+        # Boolean fields: exact match
+        bool_value = ActiveModel::Type::Boolean.new.cast(value)
+        query = query.where(column_name => bool_value)
+      when :date, :datetime
+        # Date fields: exact match (or could extend to support ranges)
+        query = query.where(column_name => value)
+      else
+        # Default: exact match
+        query = query.where(column_name => value)
+      end
+    end
+
+    query
   end
 
   def item_params

@@ -62,11 +62,11 @@ module Api
         # Get count before applying select (to avoid COUNT() column issues)
         total_count = query.count
 
-        # For minimal mode, select only specific columns for faster queries
+        # For minimal mode, select only essential columns for faster queries
         # IMPORTANT: Apply select AFTER count to avoid PostgreSQL COUNT() errors
-        if fields_mode == 'minimal' && @table.id == 205 # Price Books
-          # Include timestamps as they're always needed by record_to_json
-          query = query.select(:id, :item_code, :item_name, :category, :created_at, :updated_at)
+        if fields_mode == 'minimal'
+          essential_columns = determine_essential_columns(@table, params[:view_id])
+          query = query.select(*essential_columns) if essential_columns.any?
         end
 
         # Paginate
@@ -83,7 +83,9 @@ module Api
             per_page: per_page,
             total_count: total_count,
             total_pages: (total_count.to_f / per_page).ceil
-          }
+          },
+          fields_mode: fields_mode || 'full', # Indicate which mode was used
+          progressive_loading: fields_mode == 'minimal' # Flag for frontend
         }
       rescue => e
         render json: { error: e.message }, status: :internal_server_error
@@ -169,6 +171,43 @@ module Api
         end
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Table not found' }, status: :not_found
+      end
+
+      # PHASE 2 & 3: Determine essential columns for minimal loading
+      # Supports view-based selection (Phase 3) and smart defaults (Phase 2)
+      def determine_essential_columns(table, view_id = nil)
+        essential = []
+
+        # PHASE 3: Use saved view's visible columns if provided
+        if view_id.present?
+          view = TableView.find_by(id: view_id, table_id: table.id)
+          if view && view.visible_columns.present?
+            Rails.logger.info "[Progressive Loading] Using view #{view.name} visible columns: #{view.visible_columns.inspect}"
+            return [:id, :created_at, :updated_at] + view.visible_columns.map(&:to_sym)
+          end
+        end
+
+        # PHASE 2: Smart defaults based on column metadata
+        if table.table_type == 'system'
+          # For system tables, use model introspection
+          model = table.dynamic_model
+          # Get first 5 non-system columns
+          essential = model.column_names
+            .reject { |col| ['created_at', 'updated_at', 'id'].include?(col) }
+            .first(5)
+            .map(&:to_sym)
+        else
+          # For user tables, use column metadata
+          essential = table.columns
+            .where("is_title = ? OR position <= ?", true, 4)
+            .order(:position)
+            .limit(5)
+            .pluck(:column_name)
+            .map(&:to_sym)
+        end
+
+        # Always include id and timestamps (required for record operations)
+        [:id, :created_at, :updated_at] + essential
       end
 
       def record_params
