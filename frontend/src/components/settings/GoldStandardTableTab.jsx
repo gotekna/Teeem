@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { PlusIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import TrapidTableView from '../documentation/TrapidTableView'
 import Toast from '../Toast'
 import GoldStandardFormModal from './GoldStandardFormModal'
@@ -135,22 +135,26 @@ export default function GoldStandardTableTab() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [columnsWithIds, setColumnsWithIds] = useState(GOLD_STANDARD_COLUMNS)
   const [toast, setToast] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
 
   // Fetch gold standard items and columns from API
   useEffect(() => {
-    fetchGoldStandardItems()
+    fetchGoldStandardItems(currentPage)
     fetchColumnIds()
-  }, [])
+  }, [currentPage])
 
-  const fetchGoldStandardItems = async () => {
+  const fetchGoldStandardItems = async (page = 1) => {
     try {
       setLoading(true)
-      const result = await goldStandardApi.fetchItems()
+      const result = await goldStandardApi.fetchItems({ page, per_page: 250 })
       setData(result.items || [])
+      setPagination(result.pagination)
     } catch (err) {
       console.debug('Gold standard items unavailable:', err?.message || 'Unknown error')
       // Show empty table if API fails - no fallback to sample data
       setData([])
+      setPagination(null)
     } finally {
       setLoading(false)
     }
@@ -349,6 +353,46 @@ export default function GoldStandardTableTab() {
         }
       />
       </div>
+
+      {/* Pagination Controls */}
+      {pagination && pagination.total_pages > 1 && (
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Showing <span className="font-medium">{((pagination.current_page - 1) * pagination.per_page) + 1}</span> to{' '}
+              <span className="font-medium">
+                {Math.min(pagination.current_page * pagination.per_page, pagination.total_count)}
+              </span>{' '}
+              of <span className="font-medium">{pagination.total_count}</span> records
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={!pagination.has_prev_page}
+                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeftIcon className="h-4 w-4" />
+                Previous
+              </button>
+
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                Page <span className="font-medium">{pagination.current_page}</span> of{' '}
+                <span className="font-medium">{pagination.total_pages}</span>
+              </span>
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(pagination.total_pages, prev + 1))}
+                disabled={!pagination.has_next_page}
+                className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <ChevronRightIcon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add New Item Modal */}
       {showAddModal && (

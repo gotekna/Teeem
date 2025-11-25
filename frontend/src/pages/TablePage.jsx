@@ -434,7 +434,14 @@ export default function TablePage({ embedded = false }) {
         setLoading(false)
       }
       const perPage = isPriceBooks && !append ? 10000 : PAGE_SIZE // Load all items for Price Books
-      const fieldsParam = '' // Always load full fields
+
+      // PHASE 2/3: Use minimal fields on initial load for better performance
+      const useMinimalFields = !append && page === 1 // First page only
+      const fieldsParam = useMinimalFields ? '&fields=minimal' : ''
+
+      // PHASE 3: Pass view_id if we have a default view
+      const defaultView = preloadedViews?.find(v => v.display_order === 0)
+      const viewParam = useMinimalFields && defaultView ? `&view_id=${defaultView.id}` : ''
 
       console.log('[Progressive Loading] loadRecords called:', {
         id,
@@ -443,7 +450,9 @@ export default function TablePage({ embedded = false }) {
         append,
         isPriceBooks,
         perPage,
-        fieldsParam
+        fieldsMode: useMinimalFields ? 'minimal' : 'full',
+        viewId: defaultView?.id,
+        viewName: defaultView?.name
       })
 
       // No loading screen for Price Books - preload handles it or loads fast
@@ -451,7 +460,7 @@ export default function TablePage({ embedded = false }) {
 
       // Views are already loaded by loadViewsFirst() - no need to load them here
 
-      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}`, {
+      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}`, {
         onDownloadProgress: (progressEvent) => {
           // Just update progress if we have real data
           if (progressEvent.total) {
@@ -531,6 +540,14 @@ export default function TablePage({ embedded = false }) {
         const totalTime = Date.now() - startTime
         console.log(`[PROGRESS SYNC] 🎉 Load complete in ${totalTime}ms`)
         loadInProgressRef.current = false
+
+        // PHASE 4: Background load full fields if we just loaded minimal
+        if (response.progressive_loading && useMinimalFields) {
+          console.log('[Progressive Loading] 🔄 Minimal load complete, scheduling background full load...')
+          setTimeout(() => {
+            loadFullFieldsInBackground(page, perPage)
+          }, 500) // Small delay to let UI render
+        }
       } else {
         setLoadingMore(false)
       }
@@ -575,6 +592,68 @@ export default function TablePage({ embedded = false }) {
       console.error('[Progressive Loading] Failed to load full data:', err)
     } finally {
       setFullDataLoading(false)
+    }
+  }
+
+  // PHASE 4: Background loader for full fields (all tables)
+  const loadFullFieldsInBackground = async (page, perPage) => {
+    console.log('[Progressive Loading] 🔄 Starting background load of full fields...')
+
+    try {
+      // Save current scroll position and focused element
+      const scrollY = window.scrollY
+      const activeElement = document.activeElement
+
+      // Load full fields (no fields=minimal param)
+      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}`)
+
+      if (response.records && response.records.length > 0) {
+        console.log('[Progressive Loading] ✅ Full fields loaded:', {
+          recordCount: response.records.length,
+          sampleColumns: Object.keys(response.records[0])
+        })
+
+        // INTELLIGENT MERGE: Preserve any user edits that happened during background load
+        startTransition(() => {
+          setRecords(prevRecords => {
+            // Create a map of current records by ID for fast lookup
+            const currentMap = new Map(prevRecords.map(r => [r.id, r]))
+
+            // Merge full data with current state
+            return response.records.map(fullRecord => {
+              const currentRecord = currentMap.get(fullRecord.id)
+
+              // If record doesn't exist in current state, use full record
+              if (!currentRecord) return fullRecord
+
+              // If record exists, merge: preserve any fields that might have changed
+              // during background load, but add missing fields from full record
+              return {
+                ...fullRecord, // Full record with all fields
+                ...Object.fromEntries(
+                  Object.entries(currentRecord).filter(([key, value]) => {
+                    // Keep user-modified fields (if updated_at is newer)
+                    return currentRecord.updated_at > fullRecord.updated_at
+                  })
+                )
+              }
+            })
+          })
+        })
+
+        // Restore scroll position and focus
+        setTimeout(() => {
+          window.scrollTo(0, scrollY)
+          if (activeElement && activeElement.tagName === 'INPUT') {
+            activeElement.focus()
+          }
+        }, 0)
+
+        console.log('[Progressive Loading] 🎉 Full fields merged successfully!')
+      }
+    } catch (err) {
+      console.error('[Progressive Loading] ❌ Failed to load full fields:', err)
+      // Fail silently - user already has minimal data
     }
   }
 

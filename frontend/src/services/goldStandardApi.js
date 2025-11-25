@@ -12,14 +12,25 @@
 const BASE_URL = '/api/v1/gold_standard_items'
 
 /**
- * Fetch all gold standard items with optional pagination
+ * Fetch all gold standard items with optional pagination and filtering
  * @param {Object} options - Query options
  * @param {number} options.page - Page number (default: 1)
  * @param {number} options.per_page - Items per page (default: 250, max: 250)
- * @returns {Promise<{success: boolean, items: Array, pagination: Object}>}
+ * @param {Object} options.filters - Filter object (key-value pairs for server-side filtering)
+ * @returns {Promise<{success: boolean, items: Array, pagination: Object, filters_applied: boolean}>}
  */
-export async function fetchItems({ page = 1, per_page = 250 } = {}) {
+export async function fetchItems({ page = 1, per_page = 250, filters = null } = {}) {
   const params = new URLSearchParams({ page, per_page })
+
+  // Add filters as nested parameters if provided
+  if (filters && Object.keys(filters).length > 0) {
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== '') {
+        params.append(`filters[${key}]`, value)
+      }
+    })
+  }
+
   const response = await fetch(`${BASE_URL}?${params}`)
 
   if (!response.ok) {
