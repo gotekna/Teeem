@@ -225,7 +225,11 @@ export default function TablesTab() {
   }
 
   // Combine regular tables and system tables into one unified list
-  const allTables = [...tables, ...inMemoryTables.map(t => ({
+  // Filter out system tables from the tables array since we'll get them from inMemoryTables
+  const nonSystemTables = tables.filter(t => t.type !== 'system')
+
+  // Add system tables from inMemoryTables (the authoritative source)
+  const systemTables = inMemoryTables.map(t => ({
     id: t.table_id,
     name: t.name,
     plural_name: t.name,
@@ -239,7 +243,10 @@ export default function TablesTab() {
     slug: t.slug || t.legacy_id,
     api_endpoint: t.api_endpoint,
     model: t.model
-  }))]
+  }))
+
+  // Combine them
+  const allTables = [...nonSystemTables, ...systemTables]
 
   // Filter tables based on search query and type filter, then sort by ID
   const filteredTables = allTables.filter(table => {
@@ -270,13 +277,23 @@ export default function TablesTab() {
             All database tables from the Heroku backend, including user-created tables, imported data, and system tables.
           </p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-        >
-          <PlusIcon className="h-5 w-5" />
-          Create Table
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSyncSystemTables}
+            disabled={syncing}
+            className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <ArrowPathIcon className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Check'}
+          </button>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Create Table
+          </button>
+        </div>
       </div>
 
       <div className="md:col-span-2">
@@ -334,6 +351,59 @@ export default function TablesTab() {
             className="block w-full rounded-md bg-white px-3 py-2 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10"
           />
         </div>
+
+        {/* Sync Results Panel */}
+        {syncResults && (
+          <div className="mb-6 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* Summary Header */}
+            <div className="bg-gray-50 dark:bg-gray-800 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">System Tables Sync Results</h3>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                      <CheckCircleIcon className="h-4 w-4" />
+                      {syncResults.summary?.synced || 0} Synced
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                      <ExclamationTriangleIcon className="h-4 w-4" />
+                      {syncResults.summary?.warnings || 0} Warnings
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
+                      <XCircleIcon className="h-4 w-4" />
+                      {syncResults.summary?.errors || 0} Errors
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSyncResults(null)}
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Results Details */}
+            <div className="bg-white dark:bg-gray-900 px-4 py-3">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                {syncResults.results?.map((result, idx) => (
+                  <div key={idx} className="mb-2">
+                    <span className="font-medium">{result.icon} {result.name}:</span>{' '}
+                    {result.status === 'synced' && <span className="text-green-600 dark:text-green-400">✓ Synced</span>}
+                    {result.status === 'warning' && <span className="text-amber-600 dark:text-amber-400">⚠ {result.warnings?.join(', ')}</span>}
+                    {result.status === 'error' && <span className="text-red-600 dark:text-red-400">✗ {result.issues?.join(', ')}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+              Last synced: {syncResults.timestamp ? new Date(syncResults.timestamp).toLocaleString() : 'Unknown'}
+            </div>
+          </div>
+        )}
 
         {filteredTables.length === 0 ? (
           <div className="text-center py-12">
@@ -476,16 +546,30 @@ export default function TablesTab() {
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                         {isSystemTable ? (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handlePreviewTable(table)
-                            }}
-                            className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
-                            title="Preview table columns"
-                          >
-                            <EyeIcon className="h-5 w-5" />
-                          </button>
+                          <div className="flex items-center gap-2 justify-end">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handlePreviewTable(table)
+                              }}
+                              className="text-purple-600 hover:text-purple-900 dark:text-purple-400 dark:hover:text-purple-300"
+                              title="Preview table columns"
+                            >
+                              <EyeIcon className="h-5 w-5" />
+                            </button>
+                            {table.slug && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  navigate(`/tables/${table.id}/${table.slug}`)
+                                }}
+                                className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                title="Open table"
+                              >
+                                <ArrowTopRightOnSquareIcon className="h-5 w-5" />
+                              </button>
+                            )}
+                          </div>
                         ) : editingId === table.id ? (
                           <div className="flex items-center gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
                             <button
