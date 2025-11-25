@@ -3,6 +3,14 @@ import { useParams, Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
 import TrapidTableView from '../components/documentation/TrapidTableView'
 import { PlusIcon } from '@heroicons/react/24/outline'
+import {
+  progressiveLoadLog,
+  progressiveSyncLog,
+  preloadLog,
+  infiniteScrollLog,
+  loadingProgressLog,
+  progressiveLoadError
+} from '../utils/debugLogger'
 
 // Default width mappings for column types
 const COLUMN_TYPE_DEFAULTS = {
@@ -151,14 +159,14 @@ export default function TablePage({ embedded = false }) {
           searchInput.focus()
           searchInput.select() // Also select any existing text
           hasAutoFocusedRef.current = true
-          console.log(`[Progressive Loading] ✅ Search bar focused (attempt ${attempt + 1})`)
+          progressiveLoadLog(`✅ Search bar focused (attempt ${attempt + 1})`)
         } else if (attempt < 10) {
           // Retry up to 10 times with exponential backoff (100ms, 200ms, 400ms, ...)
           const delay = Math.min(100 * Math.pow(1.5, attempt), 1000)
           setTimeout(() => tryFocus(attempt + 1), delay)
-          console.log(`[Progressive Loading] 🔍 Retrying search focus in ${delay}ms (attempt ${attempt + 1})`)
+          progressiveLoadLog(`🔍 Retrying search focus in ${delay}ms (attempt ${attempt + 1})`)
         } else {
-          console.log('[Progressive Loading] ❌ Failed to focus search after 10 attempts')
+          progressiveLoadLog('❌ Failed to focus search after 10 attempts')
         }
       }
 
@@ -183,7 +191,7 @@ export default function TablePage({ embedded = false }) {
           const activeTag = document.activeElement?.tagName
           if (!activeTag || activeTag === 'BODY' || activeTag === 'HTML') {
             searchInput.focus()
-            console.log('[Progressive Loading] 🔄 Restored search focus')
+            progressiveLoadLog('🔄 Restored search focus')
           }
         }
       }, 150)
@@ -198,7 +206,7 @@ export default function TablePage({ embedded = false }) {
 
   // Cleanup function to clear all active timers (but preserve loadInProgress flag)
   const clearAllTimers = useCallback(() => {
-    console.log('[PROGRESS SYNC] 🧹 Cleaning up timers:', {
+    progressiveSyncLog('🧹 Cleaning up timers:', {
       intervals: activeTimersRef.current.intervals.length,
       timeouts: activeTimersRef.current.timeouts.length,
       loadInProgress: loadInProgressRef.current
@@ -213,12 +221,12 @@ export default function TablePage({ embedded = false }) {
   // PROGRESSIVE LOADING: Load views FIRST, then records in background
   useEffect(() => {
     if (table) {
-      console.log('[Progressive Loading] 🚀 Step 1: Loading views first...')
+      progressiveLoadLog('🚀 Step 1: Loading views first...')
       loadViewsFirst()
     }
     // Cleanup timers on unmount or when table/id changes
     return () => {
-      console.log('[PROGRESS SYNC] 🧹 useEffect cleanup running')
+      progressiveSyncLog('🧹 useEffect cleanup running')
       clearAllTimers()
       // Reset flag to allow fresh load on remount
       loadInProgressRef.current = false
@@ -232,20 +240,20 @@ export default function TablePage({ embedded = false }) {
   // Step 2: Load records after views are loaded
   useEffect(() => {
     if (viewsLoaded && table && records.length === 0) {
-      console.log('[Progressive Loading] 📊 Step 2: Loading records in background...')
+      progressiveLoadLog('📊 Step 2: Loading records in background...')
       loadRecords()
     }
   }, [viewsLoaded, table]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track when loading state changes
   useEffect(() => {
-    console.log(`[PROGRESS SYNC] 🔄 Loading state changed: ${loading}`)
+    progressiveSyncLog(`🔄 Loading state changed: ${loading}`)
   }, [loading])
 
   // Track when records are actually rendered
   useEffect(() => {
     if (!loading && records.length > 0) {
-      console.log(`[PROGRESS SYNC] ✅ Component rendered with ${records.length} records`)
+      progressiveSyncLog(`✅ Component rendered with ${records.length} records`)
     }
   }, [loading, records.length])
 
@@ -258,7 +266,7 @@ export default function TablePage({ embedded = false }) {
       const endTime = performance.now()
 
       if (id === '205' || id === 'price-books') {
-        console.log('[Progressive Loading] Column conversion:', {
+        progressiveLoadLog('Column conversion:', {
           columnCount: converted.length,
           conversionTime: `${(endTime - startTime).toFixed(2)}ms`,
           viewMode
@@ -272,7 +280,7 @@ export default function TablePage({ embedded = false }) {
   // Load more records when scrolling near bottom
   const loadMoreRecords = useCallback(() => {
     if (!loadingMore && !loading && hasMore) {
-      console.log('[Infinite Scroll] Loading more records, next page:', currentPage + 1)
+      infiniteScrollLog('Loading more records, next page:', currentPage + 1)
       loadRecords(currentPage + 1, true).finally(() => {
         if (isLoadingRef.current) {
           isLoadingRef.current = false
@@ -346,7 +354,7 @@ export default function TablePage({ embedded = false }) {
     if (viewsLoading || viewsLoaded || !table?.id) return
 
     setViewsLoading(true)
-    console.log('[Progressive Loading] 🎯 Loading views for table:', table.id)
+    progressiveLoadLog('🎯 Loading views for table:', table.id)
 
     try {
       const data = await api.get(`/api/v1/table_views`, {
@@ -354,14 +362,14 @@ export default function TablePage({ embedded = false }) {
       })
 
       if (data && data.success && data.views) {
-        console.log('[Progressive Loading] ✅ Views loaded!', data.views.length, 'views')
+        progressiveLoadLog('✅ Views loaded!', data.views.length, 'views')
         setPreloadedViews(data.views)
         setViewsLoaded(true)
         // Views are ready - users can now interact with saved views
         // while records load in the background
       }
     } catch (error) {
-      console.error('[Progressive Loading] ❌ Error loading views:', error)
+      progressiveLoadError('❌ Error loading views:', error)
       // Even if views fail, continue loading - don't block the page
       setViewsLoaded(true) // Set to true anyway so records can start loading
     } finally {
@@ -375,13 +383,13 @@ export default function TablePage({ embedded = false }) {
     const timeSinceLastLoad = now - lastLoadStartTimeRef.current
 
     if (!append && loadInProgressRef.current) {
-      console.log('[PROGRESS SYNC] ⚠️ Load already in progress, skipping duplicate call')
+      progressiveSyncLog('⚠️ Load already in progress, skipping duplicate call')
       return
     }
 
     // Also prevent rapid duplicate loads within 100ms (React Strict Mode double-mount)
     if (!append && timeSinceLastLoad < 100 && timeSinceLastLoad > 0) {
-      console.log(`[PROGRESS SYNC] ⚠️ Duplicate load detected within ${timeSinceLastLoad}ms, skipping`)
+      progressiveSyncLog(`⚠️ Duplicate load detected within ${timeSinceLastLoad}ms, skipping`)
       return
     }
 
@@ -402,7 +410,7 @@ export default function TablePage({ embedded = false }) {
             const maxAge = 5 * 60 * 1000 // 5 minutes
 
             if (age < maxAge) {
-              console.log(`[Preload] ✅ Using preloaded data (age: ${Math.round(age / 1000)}s)`)
+              preloadLog(`✅ Using preloaded data (age: ${Math.round(age / 1000)}s)`)
               setRecords(data.records || [])
               setCurrentPage(data.pagination?.page || 1)
               setTotalPages(data.pagination?.total_pages || 1)
@@ -412,11 +420,11 @@ export default function TablePage({ embedded = false }) {
               loadInProgressRef.current = false
               return // Skip API call entirely!
             } else {
-              console.log(`[Preload] ⚠️ Preloaded data expired (age: ${Math.round(age / 1000)}s), loading fresh data`)
+              preloadLog(`⚠️ Preloaded data expired (age: ${Math.round(age / 1000)}s), loading fresh data`)
               sessionStorage.removeItem('preloaded_table_price_books')
             }
           } catch (error) {
-            console.error('[Preload] Failed to parse preloaded data:', error)
+            progressiveLoadError('Failed to parse preloaded data:', error)
             sessionStorage.removeItem('preloaded_table_price_books')
           }
         }
@@ -443,7 +451,7 @@ export default function TablePage({ embedded = false }) {
       const defaultView = preloadedViews?.find(v => v.display_order === 0)
       const viewParam = useMinimalFields && defaultView ? `&view_id=${defaultView.id}` : ''
 
-      console.log('[Progressive Loading] loadRecords called:', {
+      progressiveLoadLog('loadRecords called:', {
         id,
         viewMode,
         page,
@@ -467,7 +475,7 @@ export default function TablePage({ embedded = false }) {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
             const downloadProgress = Math.min(Math.round(percentCompleted * 0.7), 70)
             setLoadingProgress(Math.max(simulatedProgress, downloadProgress))
-            console.log(`[Loading Progress] ${percentCompleted}% (mapped to ${downloadProgress}%)`)
+            loadingProgressLog(`${percentCompleted}% (mapped to ${downloadProgress}%)`)
           }
         }
       })
@@ -479,7 +487,7 @@ export default function TablePage({ embedded = false }) {
       }
 
       const loadEndTime = performance.now()
-      console.log('[Progressive Loading] Response received:', {
+      progressiveLoadLog('Response received:', {
         recordCount: response.records?.length,
         totalCount: response.pagination?.total_count,
         totalPages: response.pagination?.total_pages,
@@ -489,7 +497,7 @@ export default function TablePage({ embedded = false }) {
 
       // Log sample record to see column structure
       if ((id === '205' || id === 'price-books') && response.records?.length > 0 && !append) {
-        console.log('[Progressive Loading] Sample record:', {
+        progressiveLoadLog('Sample record:', {
           columns: Object.keys(response.records[0]),
           firstRecord: response.records[0]
         })
@@ -505,7 +513,7 @@ export default function TablePage({ embedded = false }) {
       } else {
         // When not appending, use startTransition to make render non-blocking
         const recordsSetStartTime = Date.now()
-        console.log(`[PROGRESS SYNC] 📊 Setting ${response.records?.length} records in state (non-blocking)...`)
+        progressiveSyncLog(`📊 Setting ${response.records?.length} records in state (non-blocking)...`)
 
         // startTransition marks this update as non-urgent, keeping UI responsive
         startTransition(() => {
@@ -513,10 +521,10 @@ export default function TablePage({ embedded = false }) {
         })
 
         const recordsSetTime = Date.now() - recordsSetStartTime
-        console.log(`[PROGRESS SYNC] 📊 startTransition() call completed in ${recordsSetTime}ms (render will happen in background)`)
+        progressiveSyncLog(`📊 startTransition() call completed in ${recordsSetTime}ms (render will happen in background)`)
       }
 
-      console.log('[Progressive Loading] Records state updated:', {
+      progressiveLoadLog('Records state updated:', {
         append,
         responseCount: response.records?.length,
         totalInState: append ? 'appended' : response.records?.length
@@ -538,12 +546,12 @@ export default function TablePage({ embedded = false }) {
       // Data is loaded - clean up
       if (!append) {
         const totalTime = Date.now() - startTime
-        console.log(`[PROGRESS SYNC] 🎉 Load complete in ${totalTime}ms`)
+        progressiveSyncLog(`🎉 Load complete in ${totalTime}ms`)
         loadInProgressRef.current = false
 
         // PHASE 4: Background load full fields if we just loaded minimal
         if (response.progressive_loading && useMinimalFields) {
-          console.log('[Progressive Loading] 🔄 Minimal load complete, scheduling background full load...')
+          progressiveLoadLog('🔄 Minimal load complete, scheduling background full load...')
           setTimeout(() => {
             loadFullFieldsInBackground(page, perPage)
           }, 500) // Small delay to let UI render
@@ -567,7 +575,7 @@ export default function TablePage({ embedded = false }) {
     if ((id !== '205' && id !== 'price-books') || fullDataLoading || fullDataLoaded) return
 
     setFullDataLoading(true)
-    console.log('[Progressive Loading] Starting background load of full data...')
+    progressiveLoadLog('Starting background load of full data...')
 
     try {
       // Save current focused element before state updates
@@ -579,17 +587,17 @@ export default function TablePage({ embedded = false }) {
       setFullRecords(response.records || [])
       setFullDataLoaded(true)
       setShowNotification(true)
-      console.log('[Progressive Loading] Full data loaded! ', response.records?.length, 'items')
+      progressiveLoadLog('Full data loaded! ', response.records?.length, 'items')
 
       // Restore focus to search input if it was focused
       setTimeout(() => {
         if (activeElement && activeElement.tagName === 'INPUT' && activeElement.type === 'text') {
           activeElement.focus()
-          console.log('[Progressive Loading] Restored focus to search input')
+          progressiveLoadLog('Restored focus to search input')
         }
       }, 50)
     } catch (err) {
-      console.error('[Progressive Loading] Failed to load full data:', err)
+      progressiveLoadError('Failed to load full data:', err)
     } finally {
       setFullDataLoading(false)
     }
@@ -597,7 +605,7 @@ export default function TablePage({ embedded = false }) {
 
   // PHASE 4: Background loader for full fields (all tables)
   const loadFullFieldsInBackground = async (page, perPage) => {
-    console.log('[Progressive Loading] 🔄 Starting background load of full fields...')
+    progressiveLoadLog('🔄 Starting background load of full fields...')
 
     try {
       // Save current scroll position and focused element
@@ -608,7 +616,7 @@ export default function TablePage({ embedded = false }) {
       const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}`)
 
       if (response.records && response.records.length > 0) {
-        console.log('[Progressive Loading] ✅ Full fields loaded:', {
+        progressiveLoadLog('✅ Full fields loaded:', {
           recordCount: response.records.length,
           sampleColumns: Object.keys(response.records[0])
         })
@@ -649,10 +657,10 @@ export default function TablePage({ embedded = false }) {
           }
         }, 0)
 
-        console.log('[Progressive Loading] 🎉 Full fields merged successfully!')
+        progressiveLoadLog('🎉 Full fields merged successfully!')
       }
     } catch (err) {
-      console.error('[Progressive Loading] ❌ Failed to load full fields:', err)
+      progressiveLoadError('❌ Failed to load full fields:', err)
       // Fail silently - user already has minimal data
     }
   }
@@ -663,7 +671,7 @@ export default function TablePage({ embedded = false }) {
       setRecords(fullRecords)
       setViewMode('full')
       setShowNotification(false)
-      console.log('[Progressive Loading] Switched to full view')
+      progressiveLoadLog('Switched to full view')
     }
   }
 
@@ -672,7 +680,7 @@ export default function TablePage({ embedded = false }) {
     if (minimalRecords.length > 0) {
       setRecords(minimalRecords)
       setViewMode('minimal')
-      console.log('[Progressive Loading] Switched to minimal view')
+      progressiveLoadLog('Switched to minimal view')
     }
   }
 
@@ -806,7 +814,7 @@ export default function TablePage({ embedded = false }) {
 
   // Debug: Log records count before render
   if (id === '205' || id === 'price-books') {
-    console.log('[Progressive Loading] Render state:', {
+    progressiveLoadLog('Render state:', {
       recordsCount: records.length,
       totalCount,
       viewMode,
