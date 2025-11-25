@@ -75,6 +75,9 @@ gem "lograge", "~> 0.14"
 # gem "keepr", "~> 0.9.0"  # REMOVED: Keepr integration never implemented
 
 group :development, :test do
+  # Spring speeds up development by keeping your application running in the background
+  gem "spring"
+
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: [ :mri, :windows ], require: "debug/prelude"
 
