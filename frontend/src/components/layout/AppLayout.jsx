@@ -67,15 +67,15 @@ const jobTabs = [
 // Main navigation items
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Jobs', href: '/tables/jobs', icon: BriefcaseIcon },
+  { name: 'Jobs', href: '/tables/204/jobs', icon: BriefcaseIcon },
   { name: 'Meetings', href: '/meetings', icon: CalendarIcon },
   { name: 'WHS', href: '/whs', icon: ShieldCheckIcon },
   { name: 'Financial', href: '/financial', icon: BanknotesIcon },
   { name: 'Xest', href: '/xest', icon: BeakerIcon },
-  { name: 'Price Books', href: '/tables/205', icon: BookOpenIcon },
-  { name: 'All Contacts', href: '/tables/214', icon: UsersIcon },
+  { name: 'Price Books', href: '/tables/205/pricebook', icon: BookOpenIcon },
+  { name: 'All Contacts', href: '/tables/214/contacts', icon: UsersIcon },
   //{ name: 'Suppliers', href: '/tables/215', icon: UserGroupIcon },
-  { name: 'Purchase Orders', href: '/tables/217', icon: DocumentTextIcon },
+  { name: 'Purchase Orders', href: '/tables/217/purchase-orders', icon: DocumentTextIcon },
   { name: 'Accounts', href: '/accounts', icon: BanknotesIcon },
   { name: 'Corporate', href: '/corporate/companies', icon: BuildingOfficeIcon },
   { name: 'Documents', href: '/documents', icon: DocumentTextIcon },
@@ -327,10 +327,11 @@ export default function AppLayout({ children }) {
   }
 
   const isCurrentPath = (href) => {
-    // Check Jobs first (before Dashboard) to avoid false matches
-    if (href === '/tables/jobs') {
-      return location.pathname === '/tables/jobs' ||
-             location.pathname.match(/^\/tables\/\d+\/jobs/)
+    // Check Jobs first - matches /tables/204/jobs and also /jobs/:id paths
+    if (href === '/tables/204/jobs') {
+      return location.pathname === '/tables/204/jobs' ||
+             location.pathname.startsWith('/tables/204/jobs/') ||
+             location.pathname.match(/^\/jobs\/\d+/)
     }
     if (href === '/dashboard') {
       // Dashboard only matches its exact path, not all tables
