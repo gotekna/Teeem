@@ -4,40 +4,49 @@
 
 All commands below are pre-approved and should run automatically.
 
-## Step 1: Kill Existing Servers (Parallel)
+## CRITICAL: Use Parallel Execution
+
+**Step 1: Kill Existing Servers**
+Run BOTH in a SINGLE message (parallel):
 ```bash
 lsof -ti:5173 | xargs kill -9 2>/dev/null || true
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 ```
 
-## Step 2: Start Backend Server (Background)
+**Step 2: Start BOTH Servers Simultaneously**
+Run BOTH in a SINGLE message (parallel):
 ```bash
+# Backend
 cd /Users/robertharder/GitHub/trapid/backend && nohup /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3000 > /tmp/rails-server.log 2>&1 & echo "Backend started (PID: $!)"
-```
 
-## Step 3: Start Frontend Server (Background)
-```bash
+# Frontend
 cd /Users/robertharder/GitHub/trapid/frontend && nohup npm run dev > /tmp/vite-server.log 2>&1 & echo "Frontend started (PID: $!)"
 ```
 
-## Step 4: Git Commit and Push to rob Branch
+**Step 3: Git Operations (Sequential - Required)**
 ```bash
 cd /Users/robertharder/GitHub/trapid && git add -A && git commit -m "chore: Auto-commit from /r" || echo "No changes to commit"
+```
+
+Then separately:
+```bash
 git push origin rob
 ```
 
-If there's a merge conflict or rejected push:
-- Pull with rebase: `git pull origin rob --rebase`
-- Resolve any conflicts (typically package.json version)
-- Accept HEAD version for version numbers
-- Continue: `git add . && git rebase --continue && git push origin rob`
+If rejected, handle conflict:
+```bash
+git pull origin rob --rebase
+# Resolve conflicts (accept HEAD for package.json version)
+git add . && git rebase --continue && git push origin rob
+```
 
-## Step 5: Deploy Backend to Heroku
+**Step 4: Deploy to Heroku (Sequential - Required)**
 ```bash
 cd /Users/robertharder/GitHub/trapid && git subtree push --prefix backend heroku main
 ```
 
-## Step 6: Verify Everything (Parallel)
+**Step 5: Verify Everything**
+Run ALL THREE in a SINGLE message (parallel):
 ```bash
 sleep 3
 lsof -i:3000 | head -2
@@ -63,9 +72,28 @@ Logs:
 - Frontend: /tmp/vite-server.log
 ```
 
+## Performance Optimization
+
+**Target Time: ~10-15 seconds** (down from ~25-30 seconds)
+
+Breakdown:
+- Step 1 (kill servers): ~1s (parallel)
+- Step 2 (start servers): ~2s (parallel, background mode)
+- Step 3 (git commit + push): ~2-3s (sequential, required)
+- Step 4 (Heroku deploy): ~5-10s (sequential, required - slowest step)
+- Step 5 (verify): ~3s (parallel)
+
+**Key Speed Improvements:**
+1. ✅ Kill both ports in single message (parallel)
+2. ✅ Start both servers in single message (parallel)
+3. ✅ Use nohup + background mode (don't wait for server startup)
+4. ✅ Verify all 3 checks in single message (parallel)
+5. ⏱️ Heroku deployment is unavoidable bottleneck (~5-10s)
+
 ## Notes
 - All bash commands are pre-approved
 - Use absolute paths to avoid directory issues
 - Use rbenv shims path for Rails to avoid bundler conflicts
 - nohup keeps servers running after command completes
 - Conflicts in package.json version are normal (always take HEAD)
+- **MUST run independent operations in parallel** (single message, multiple tool calls)
