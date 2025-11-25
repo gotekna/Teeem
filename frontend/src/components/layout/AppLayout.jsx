@@ -115,6 +115,22 @@ const defaultSidebarState = {
   '/dashboard': false,    // Expanded
 }
 
+// Helper function to get Tailwind color classes for job status badges
+const getStatusColorClass = (color) => {
+  const colorMap = {
+    'gray': 'bg-gray-400',
+    'yellow': 'bg-yellow-400',
+    'orange': 'bg-orange-400',
+    'blue': 'bg-blue-400',
+    'purple': 'bg-purple-400',
+    'indigo': 'bg-indigo-400',
+    'green': 'bg-green-400',
+    'teal': 'bg-teal-400',
+    'slate': 'bg-slate-400',
+  }
+  return colorMap[color] || 'bg-gray-400'
+}
+
 export default function AppLayout({ children }) {
   const location = useLocation()
   const { user } = useAuth()
@@ -633,11 +649,25 @@ export default function AppLayout({ children }) {
                                         location.pathname.startsWith(`/jobs/${job.id}`)
                                           ? 'text-indigo-600 dark:text-indigo-400'
                                           : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
-                                        'flex-1 px-2 py-1 text-xs truncate rounded hover:bg-gray-50 dark:hover:bg-white/5'
+                                        'flex-1 px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-1'
                                       )}
-                                      title={job.title}
+                                      title={`${job.title}${job.job_type ? ` • ${job.job_type.name}` : ''}${job.job_status ? ` • ${job.job_status.name}` : ''}`}
                                     >
-                                      {job.title || `Job #${job.id}`}
+                                      {/* Job Type Badge */}
+                                      {job.job_type && (
+                                        <span
+                                          className="w-2 h-2 rounded-sm bg-blue-500 dark:bg-blue-400 flex-shrink-0"
+                                          title={job.job_type.name}
+                                        />
+                                      )}
+                                      {/* Job Status Badge */}
+                                      {job.job_status && (
+                                        <span
+                                          className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_status.color)} flex-shrink-0`}
+                                          title={job.job_status.name}
+                                        />
+                                      )}
+                                      <span className="truncate">{job.title || `Job #${job.id}`}</span>
                                     </Link>
                                   </div>
 
@@ -718,11 +748,25 @@ export default function AppLayout({ children }) {
                                                   location.pathname.startsWith(`/jobs/${job.id}`)
                                                     ? 'text-indigo-600 dark:text-indigo-400'
                                                     : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
-                                                  'block px-2 py-1 text-xs truncate rounded hover:bg-gray-50 dark:hover:bg-white/5'
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-1'
                                                 )}
-                                                title={job.title}
+                                                title={`${job.title}${job.job_type ? ` • ${job.job_type.name}` : ''}${job.job_status ? ` • ${job.job_status.name}` : ''}`}
                                               >
-                                                {job.title || `Job #${job.id}`}
+                                                {/* Job Type Badge */}
+                                                {job.job_type && (
+                                                  <span
+                                                    className="w-2 h-2 rounded-sm bg-blue-500 dark:bg-blue-400 flex-shrink-0"
+                                                    title={job.job_type.name}
+                                                  />
+                                                )}
+                                                {/* Job Status Badge */}
+                                                {job.job_status && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_status.color)} flex-shrink-0`}
+                                                    title={job.job_status.name}
+                                                  />
+                                                )}
+                                                <span className="truncate">{job.title || `Job #${job.id}`}</span>
                                               </Link>
                                             </li>
                                           ))}

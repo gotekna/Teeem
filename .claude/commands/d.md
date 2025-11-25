@@ -2,76 +2,64 @@
 
 Complete deployment workflow: commit changes, deploy to rob branch, update Heroku in correct order.
 
-**Execute these steps immediately without asking:**
+**Run from trapid root. Use 'cd backend &&' for Rails commands. Auto-generate commit messages.**
 
-## 0. CRITICAL SAFEGUARDS
+## Parallel Execution Strategy
 
-**NEVER merge main into rob branch!**
-- Rob is staging (ahead of main with experimental features)
-- Main is production (stable, tested code)
-- Flow: rob → main (via PR), NEVER main → rob
-
+### Step 1 - Pre-Flight Checks (RUN IN PARALLEL)
 ```bash
-# Check if we're about to merge main into rob (BLOCK THIS)
-if git branch --show-current | grep -q "rob"; then
-  if git log HEAD..main --oneline | grep -q .; then
-    echo "❌ BLOCKED: Main has commits not in rob. Do NOT merge main into rob!"
-    echo "Proper flow: Create PR from rob → main instead"
-    exit 1
-  fi
-fi
-```
-
-## 1. Pre-Flight Checks
-
-```bash
-# Check current branch
 git branch --show-current
-
-# Verify we're on rob branch
-if ! git branch --show-current | grep -q "rob"; then
-  echo "⚠️  Not on rob branch. Switch to rob? (yes/no)"
-  # Wait for user confirmation
-fi
-
-# Check for uncommitted changes
 git status --short
-
-# Check for pending migrations
 cd backend && bin/rails db:migrate:status
 ```
 
-## 2. Commit Changes
+### Step 2 - Verify No Main Merge (ONLY check if recent merge from main)
 
-If uncommitted changes exist:
-- Ask user for commit message (one-line summary)
-- Create commit using conventional format:
-  ```bash
-  git add .
-  git commit -m "$(cat <<'COMMIT_EOF'
-  [user's message]
-  
-  🤖 Generated with [Claude Code](https://claude.com/claude-code)
-  
-  Co-Authored-By: Claude <noreply@anthropic.com>
-  COMMIT_EOF
-  )"
-  ```
-
-## 3. Push to Rob Branch
-
+**ONLY block if someone just merged main into rob:**
 ```bash
-# DON'T pull from main - rob should stay independent
-git pull origin rob --rebase
+# Check if last commit is a merge from main
+git log -1 --merges --oneline | grep -i "merge.*main"
+```
 
-# Push changes
+If this returns a result, STOP and warn:
+```
+❌ BLOCKED: Rob branch has a merge commit from main!
+This violates the branch strategy. Rob should stay independent.
+Proper flow: rob → main (via PR), NEVER main → rob
+```
+
+**Otherwise, proceed with deployment** (ignore if main and rob have different commits - that's normal)
+
+### Step 3 - Auto-Generate Commit Message and Commit
+
+**Analyze git status and auto-generate message:**
+
+Rules (in priority order):
+1. Only `package.json` version → `chore: Bump version to X.X.X`
+2. `.claude/commands/*` → `chore: Update slash commands`
+3. `db/migrate/*` → `feat: Add migration`
+4. Backend `.rb` → `feat: Update backend`
+5. Frontend `.tsx/.jsx` → `feat: Update frontend`
+6. Multiple types → Combine appropriately
+7. Default → `chore: Update project files`
+
+**Auto-commit:**
+```bash
+git add .
+git commit -m "[auto-generated message]
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+### Step 4 - Push to Rob
+```bash
+git pull origin rob --rebase
 git push origin rob
 ```
 
-## 4. Deploy Backend to Heroku
-
-**CRITICAL ORDER - Use exact commands:**
-
+### Step 5 - Deploy Backend to Heroku
 ```bash
 export GIT_HTTP_USER_AGENT="git/2.51.2"
 /opt/homebrew/bin/git subtree split --prefix=backend -b backend-deploy-rob
@@ -79,67 +67,73 @@ export GIT_HTTP_USER_AGENT="git/2.51.2"
 git branch -D backend-deploy-rob
 ```
 
-## 5. Verify Deployment
-
-### Backend (Heroku)
+### Step 6 - Verify Deployment (RUN IN PARALLEL)
 ```bash
-# Check Heroku status
 heroku ps
-
-# Check for migration errors in logs (last 50 lines)
-heroku logs --tail --num 50 | grep -i "migrat\|error\|fail"
-
-# Test health check endpoint
 curl -s https://trapid-backend-447058022b51.herokuapp.com/ | head -5
+heroku pg:info
+heroku logs --tail --num 50 | grep -i "migrat\|error\|fail" | head -20
 ```
 
-### Frontend (Vercel)
+### Step 7 - Report Status
+- ✅ Branch: rob
+- ✅ Commit: [hash + message]
+- ✅ Backend: [dyno status]
+- ✅ Frontend: Auto-deploys via GitHub
+- ✅ Migrations: [status]
+- ✅ Health check: [response]
+- 🔴 Warnings (if any)
+
+### Step 8 - Maintenance (IF WARNINGS)
+
+**Use AskUserQuestion if warnings detected:**
+
+Options:
+- "Yes - Update Ruby and dependencies"
+- "No - Skip for now"
+
+**If Yes:**
 ```bash
-# Check Vercel authentication
-vercel whoami
+rbenv install 3.3.10 && rbenv global 3.3.10
+cd backend && bundle update && bundle audit --update
+git add backend/Gemfile.lock
+git commit -m "chore: Update dependencies
 
-# List recent deployments (shows status of rob branch)
-vercel ls
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
-# Wait 30 seconds for Vercel to trigger, then check again
-sleep 30 && vercel ls
+Co-Authored-By: Claude <noreply@anthropic.com>"
+git push origin rob
+
+# Redeploy
+export GIT_HTTP_USER_AGENT="git/2.51.2"
+/opt/homebrew/bin/git subtree split --prefix=backend -b backend-deploy-rob
+/opt/homebrew/bin/git push heroku backend-deploy-rob:main --force
+git branch -D backend-deploy-rob
 ```
 
-## 6. Report Status
-
-Provide comprehensive summary:
-- ✅ Branch: rob (confirmed not merged with main)
-- ✅ Commit: [commit hash + message]
-- ✅ Backend deployed to Heroku: [dyno status]
-- ✅ Frontend deploying via Vercel: [deployment status]
-- ✅ Migrations: [status from logs]
-- ✅ Health check: [API response]
-- 🔴 Any errors or warnings
-
-## Branch Strategy (IMPORTANT)
+## Branch Strategy
 
 ```
-Feature Branch → rob (staging) → main (production)
-                  ↓                    ↑
-              Deploy to              Create PR
-              Heroku Staging         when ready
+Feature → rob (staging) → main (production)
+          ↓                   ↑
+       Deploy              Create PR
 ```
 
-**DO:**
-- ✅ Develop on feature branches
-- ✅ Merge features into rob for testing
-- ✅ Create PR from rob → main when stable
-- ✅ Keep rob ahead of main
+**Critical Rule:** Rob and main are independent. NEVER merge main → rob.
 
-**DON'T:**
-- ❌ Merge main into rob
-- ❌ Deploy main directly to staging
-- ❌ Skip testing on rob before main
+## Implementation Notes
 
-## Notes
+**Pre-Approved Patterns:**
+- ✅ `cd backend && bin/rails [cmd]`
+- ✅ `cd frontend && npm run dev`
+- ✅ `git add .` / `git commit` / `git push`
+- ✅ `heroku ps` / `heroku pg:info`
 
-- Frontend deploys automatically via Vercel when rob branch is pushed
-- Vercel deployment takes ~30-60 seconds after git push
-- Migrations run automatically on Heroku during deployment
-- If migrations fail, check logs and rollback if needed
-- Use `heroku releases:rollback` if critical issues occur
+**Key Rules:**
+1. Run from trapid root
+2. Auto-generate commit message (never ask)
+3. Only block if actual merge from main detected
+4. Ignore if main has different commits (that's normal)
+5. Use parallel execution where possible
+
+**Performance:** ~35-45 seconds (or ~2-3 min with maintenance)
