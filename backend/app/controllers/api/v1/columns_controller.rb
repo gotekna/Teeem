@@ -100,6 +100,19 @@ module Api
 
       # DELETE /api/v1/tables/:table_id/columns/:id
       def destroy
+        # Check for references before deleting
+        warnings = check_column_references(@column)
+
+        # If force param is not set and there are warnings, return them
+        if warnings.any? && !params[:force]
+          return render json: {
+            success: false,
+            requires_confirmation: true,
+            warnings: warnings,
+            message: "This column is referenced by other columns. Are you sure you want to delete it?"
+          }, status: :conflict
+        end
+
         @column.destroy
 
         # Rebuild the database table without this column
@@ -108,7 +121,7 @@ module Api
         result = builder.create_database_table
 
         if result[:success]
-          render json: { success: true }
+          render json: { success: true, warnings_acknowledged: warnings }
         else
           render json: {
             success: false,
@@ -587,6 +600,61 @@ module Api
           header_align: column.header_align || 'left',
           data_align: column.data_align || 'left'
         }
+      end
+
+      # Check if column is referenced by lookups or formulas
+      def check_column_references(column)
+        warnings = []
+
+        # Check if this column is used as a lookup display column by other tables
+        lookup_refs = Column.where(lookup_table_id: column.table_id, lookup_display_column: column.column_name)
+        if lookup_refs.any?
+          lookup_refs.each do |ref|
+            ref_table = ref.table
+            warnings << {
+              type: 'lookup',
+              message: "Column '#{ref.name}' in table '#{ref_table&.name || 'Unknown'}' uses this column as its display value",
+              column_id: ref.id,
+              column_name: ref.name,
+              table_id: ref_table&.id,
+              table_name: ref_table&.name
+            }
+          end
+        end
+
+        # Check if this column is referenced in computed/formula columns (same table)
+        formula_refs = @table.columns.where(column_type: 'computed')
+        formula_refs.each do |formula_col|
+          # Check if the formula references this column name
+          # Formulas typically reference columns by name like {column_name} or column_name
+          formula = formula_col.default_value.to_s
+          if formula.include?(column.column_name) || formula.include?("{#{column.column_name}}")
+            warnings << {
+              type: 'formula',
+              message: "Formula column '#{formula_col.name}' references this column",
+              column_id: formula_col.id,
+              column_name: formula_col.name,
+              table_id: @table.id,
+              table_name: @table.name
+            }
+          end
+        end
+
+        # Check if this column is used as a lookup display column within the same table
+        same_table_lookups = @table.columns.where(column_type: ['lookup', 'multiple_lookups'])
+          .where(lookup_display_column: column.column_name)
+        same_table_lookups.each do |lookup_col|
+          warnings << {
+            type: 'lookup_display',
+            message: "Lookup column '#{lookup_col.name}' uses this column as its display value",
+            column_id: lookup_col.id,
+            column_name: lookup_col.name,
+            table_id: @table.id,
+            table_name: @table.name
+          }
+        end
+
+        warnings
       end
     end
   end
