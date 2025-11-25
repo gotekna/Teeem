@@ -5,7 +5,7 @@ class Api::V1::GoldStandardItemsController < ApplicationController
   def index
     # Pagination parameters
     page = (params[:page] || 1).to_i
-    per_page = [(params[:per_page] || 100).to_i, 500].min  # Cap at 500 max
+    per_page = [(params[:per_page] || 250).to_i, 250].min  # Default 250, cap at 250 max
     page = [page, 1].max  # Ensure page is at least 1
 
     # Calculate offset

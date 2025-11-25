@@ -15,10 +15,10 @@ const BASE_URL = '/api/v1/gold_standard_items'
  * Fetch all gold standard items with optional pagination
  * @param {Object} options - Query options
  * @param {number} options.page - Page number (default: 1)
- * @param {number} options.per_page - Items per page (default: 100)
+ * @param {number} options.per_page - Items per page (default: 250, max: 250)
  * @returns {Promise<{success: boolean, items: Array, pagination: Object}>}
  */
-export async function fetchItems({ page = 1, per_page = 100 } = {}) {
+export async function fetchItems({ page = 1, per_page = 250 } = {}) {
   const params = new URLSearchParams({ page, per_page })
   const response = await fetch(`${BASE_URL}?${params}`)
 
