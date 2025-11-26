@@ -184,6 +184,7 @@ module Api
             database_table_name: db_name,
             plural_name: table.plural_name,
             icon: table.icon,
+            feature: table.feature,
             is_live: table.is_live,
             columns_count: col_count,
             has_column_metadata: has_column_metadata,
