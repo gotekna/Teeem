@@ -1,6 +1,6 @@
 # Grok AI Integration Setup
 
-Your Trapid application now includes Grok AI for real-time team collaboration!
+Your TEEEM application now includes Grok AI for real-time team collaboration!
 
 ## Features
 
@@ -31,7 +31,7 @@ XAI_API_KEY=your_api_key_here
 #### Production (Heroku)
 
 ```bash
-heroku config:set XAI_API_KEY=your_api_key_here -a trapid-backend
+heroku config:set XAI_API_KEY=your_api_key_here -a teeem-backend
 ```
 
 ### 3. Restart Your Servers

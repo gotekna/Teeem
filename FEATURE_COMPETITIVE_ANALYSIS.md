@@ -14,7 +14,7 @@
 
 ### 3. **Feature Comparison Challenges**
 - Hard to compare "like with like" across competitors
-- Some Trapid features don't exist in competitors (AI focus)
+- Some TEEEM features don't exist in competitors (AI focus)
 - Missing features that all competitors have (e.g., Pre-Construction Workflow)
 
 ---
@@ -342,10 +342,10 @@
 - Can now accurately compare "Xero Integration" vs "Xero Integration"
 - Missing features become immediately obvious
 
-### 4. **Trapid Differentiators Highlighted**
+### 4. **TEEEM Differentiators Highlighted**
 - AI features grouped in Chapter 13 (Integrations & Automation)
-- "Free Subcontractor Access" remains unique to Trapid
-- Can easily identify where Trapid leads vs. follows
+- "Free Subcontractor Access" remains unique to TEEEM
+- Can easily identify where TEEEM leads vs. follows
 
 ### 5. **Added Missing Categories**
 - Pre-Construction Workflow (ClickHome has this, we don't)
@@ -360,7 +360,7 @@
 
 ### Step 1: Create New Feature Structure
 - Add 91 new features across 13 chapters (7 features per chapter average)
-- Set all `trapid_has` based on current implementation
+- Set all `teeem_has` based on current implementation
 - Mark competitor features based on research above
 
 ### Step 2: Migrate Existing Data
@@ -382,7 +382,7 @@
 
 ## Immediate Benefits
 
-1. **Better Sales Tool**: Can show exactly what Trapid has vs. competitors
+1. **Better Sales Tool**: Can show exactly what TEEEM has vs. competitors
 2. **Clear Roadmap**: Missing features become obvious priorities
 3. **Accurate Marketing**: Can claim specific competitive advantages
 4. **Development Focus**: Shows which features have most ROI

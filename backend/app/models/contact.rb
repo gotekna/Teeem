@@ -222,12 +222,12 @@ class Contact < ApplicationRecord
   end
 
   def average_rating
-    trapid_rating&.round(2)
+    teeem_rating&.round(2)
   end
 
   def rating_summary
     {
-      average: trapid_rating&.round(2),
+      average: teeem_rating&.round(2),
       total_ratings: total_ratings_count,
       recent_ratings: supplier_ratings.recent.limit(5)
     }

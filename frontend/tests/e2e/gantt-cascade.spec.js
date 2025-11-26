@@ -98,7 +98,7 @@ test.describe('Gantt Cascade Functionality', () => {
     await loginInput.waitFor({ state: 'visible', timeout: 10000 });
 
     // Fill in credentials (use env vars or defaults)
-    const email = process.env.TEST_EMAIL || 'admin@trapid.com';
+    const email = process.env.TEST_EMAIL || 'admin@teeem.com';
     const password = process.env.TEST_PASSWORD || 'password';
 
     await page.fill('input[type="email"], input[name="email"]', email);

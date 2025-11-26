@@ -401,8 +401,8 @@ export const getColumnTypeEmoji = (columnType) => {
 // API INTEGRATION - Single Source of Truth from Gold Standard Table
 // ============================================================================
 
-const CACHE_KEY = 'trapid_column_types_cache'
-const CACHE_TIMESTAMP_KEY = 'trapid_column_types_timestamp'
+const CACHE_KEY = 'teeem_column_types_cache'
+const CACHE_TIMESTAMP_KEY = 'teeem_column_types_timestamp'
 const CACHE_TTL = 3600000 // 1 hour in milliseconds
 
 /**

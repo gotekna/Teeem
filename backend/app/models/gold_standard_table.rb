@@ -3,7 +3,7 @@ class GoldStandardTable < ApplicationRecord
   self.table_name = 'gold_standard_table'
 
   # This model serves as a live reference implementation
-  # for the TrapidTableView component
+  # for the TEEEMTableView component
 
   # Email validation
   validates :email,

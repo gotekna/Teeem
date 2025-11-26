@@ -38,7 +38,7 @@
 
 ## TABLE STANDARDS
 
-**CRITICAL:** The `DataTable` component (`/Users/jakebaird/trapid/frontend/src/components/DataTable.jsx`) is THE standard for ALL data tables in Trapid.
+**CRITICAL:** The `DataTable` component (`/Users/jakebaird/teeem/frontend/src/components/DataTable.jsx`) is THE standard for ALL data tables in TEEEM.
 
 ### When to Use DataTable
 
@@ -269,7 +269,7 @@ For non-standard sorting (e.g., priority order):
 
 ### Examples Reference
 
-See `/Users/jakebaird/trapid/frontend/src/components/DataTableExample.jsx` for comprehensive examples including:
+See `/Users/jakebaird/teeem/frontend/src/components/DataTableExample.jsx` for comprehensive examples including:
 - User table with avatars and two-line cells
 - Project table with status badges
 - Empty state handling
@@ -282,11 +282,11 @@ See `/Users/jakebaird/trapid/frontend/src/components/DataTableExample.jsx` for c
 The following files use custom table implementations and should be evaluated for migration to DataTable:
 
 1. **KEEP AS-IS** (specialized inline editing):
-   - `/Users/jakebaird/trapid/frontend/src/pages/TablePage.jsx` - Google Sheets-style grid
-   - `/Users/jakebaird/trapid/frontend/src/components/gantt/TaskTable.jsx` - Gantt task table with inline editing
+   - `/Users/jakebaird/teeem/frontend/src/pages/TablePage.jsx` - Google Sheets-style grid
+   - `/Users/jakebaird/teeem/frontend/src/components/gantt/TaskTable.jsx` - Gantt task table with inline editing
 
 2. **CONSIDER REFACTORING** (can use DataTable):
-   - `/Users/jakebaird/trapid/frontend/src/components/purchase-orders/POTable.jsx` - Purchase order listing
+   - `/Users/jakebaird/teeem/frontend/src/components/purchase-orders/POTable.jsx` - Purchase order listing
    - Any new list views or data grids
 
 ### Migration Checklist
@@ -322,5 +322,5 @@ DataTable follows Tailwind UI Application UI patterns:
 - Consistent spacing (py-5 for cells, py-3.5 for headers)
 - Typography hierarchy (font-semibold for headers, font-medium for primary text)
 - Full dark mode support throughout
-- whenever anything gets deployed, i only want it to give me the URL trapid.vercel.app. Anything else should be excluded as it's then deploying to the incorrect location Please consult the delpoy agent
+- whenever anything gets deployed, i only want it to give me the URL teeem.vercel.app. Anything else should be excluded as it's then deploying to the incorrect location Please consult the delpoy agent
 - whenever a deploy happens, in the following chat please specify the deploy number

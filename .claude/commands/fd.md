@@ -4,7 +4,7 @@
 
 Commits ALL pending changes and deploys to staging. Use this when you want to deploy everything.
 
-**Run from trapid root. Use 'cd backend &&' for Rails commands. Auto-generate commit messages.**
+**Run from teeem root. Use 'cd backend &&' for Rails commands. Auto-generate commit messages.**
 
 ## Parallel Execution Strategy
 
@@ -72,9 +72,9 @@ git branch -D backend-deploy-rob
 ### Step 6 - Verify Deployment (RUN IN PARALLEL)
 ```bash
 heroku ps
-curl -s https://trapid-backend-447058022b51.herokuapp.com/ | head -5
-curl -s -o /dev/null -w "%{http_code}" https://trapidtest.vercel.app/
-curl -s https://trapid-backend-447058022b51.herokuapp.com/version
+curl -s https://teeem-backend-447058022b51.herokuapp.com/ | head -5
+curl -s -o /dev/null -w "%{http_code}" https://teeemtest.vercel.app/
+curl -s https://teeem-backend-447058022b51.herokuapp.com/version
 cat frontend/package.json | grep '"version"' | head -1
 heroku pg:info
 heroku logs --tail --num 50 | grep -i "migrat\|error\|fail" | head -20
@@ -83,9 +83,9 @@ heroku logs --tail --num 50 | grep -i "migrat\|error\|fail" | head -20
 ### Step 7 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
-- ✅ Backend: [version from /version endpoint] - https://trapid-backend-447058022b51.herokuapp.com/
+- ✅ Backend: [version from /version endpoint] - https://teeem-backend-447058022b51.herokuapp.com/
   - Dyno status: [web/worker status]
-- ✅ Frontend: [version from package.json] - https://trapidtest.vercel.app/
+- ✅ Frontend: [version from package.json] - https://teeemtest.vercel.app/
   - Status: [HTTP status code]
 - ✅ Migrations: [status]
 - ✅ Database: [connection info]

@@ -1,4 +1,4 @@
-# Trapid Price Book - Production Deployment Guide
+# TEEEM Price Book - Production Deployment Guide
 
 ## Summary
 
@@ -40,7 +40,7 @@ The CSV files are already in the GitHub repository and will auto-deploy to Herok
 Just run:
 
 ```bash
-heroku run rails pricebook:deploy_to_production --app trapid-backend
+heroku run rails pricebook:deploy_to_production --app teeem-backend
 ```
 
 That's it! The command will:
@@ -85,7 +85,7 @@ Data successfully deployed to production!
 After deployment, verify the data:
 
 ```bash
-heroku run rails runner "puts 'Suppliers: ' + Supplier.count.to_s; puts 'Items: ' + PricebookItem.count.to_s; puts 'Histories: ' + PriceHistory.count.to_s" --app trapid-backend
+heroku run rails runner "puts 'Suppliers: ' + Supplier.count.to_s; puts 'Items: ' + PricebookItem.count.to_s; puts 'Histories: ' + PriceHistory.count.to_s" --app teeem-backend
 ```
 
 Expected output:
@@ -97,7 +97,7 @@ Histories: 3626
 
 ### View in Browser
 
-Once deployed, visit https://trapid.vercel.app/price-books to see your complete price book with:
+Once deployed, visit https://teeem.vercel.app/price-books to see your complete price book with:
 - All 5,285 items listed
 - Risk scoring and status badges
 - Clickable rows to view item details
@@ -149,10 +149,10 @@ bundle exec rails pricebook:deploy_to_production
 
 ## Next Steps
 
-1. Run the deployment command: `heroku run rails pricebook:deploy_to_production --app trapid-backend`
+1. Run the deployment command: `heroku run rails pricebook:deploy_to_production --app teeem-backend`
 2. Wait 2-3 minutes for import to complete
 3. Verify data counts match expected values
-4. Visit https://trapid.vercel.app/price-books
+4. Visit https://teeem.vercel.app/price-books
 5. Click on any item to see the detail page with full price history
 
 All 3,626 price history records will now be displayed on their respective item detail pages! 🎉

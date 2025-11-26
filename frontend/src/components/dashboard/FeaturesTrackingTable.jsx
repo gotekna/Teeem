@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import TrapidTableView from '../documentation/TrapidTableView'
+import TeeemTableView from '../documentation/TeeemTableView'
 import { api } from '../../api'
 
 /**
- * FeaturesTrackingTable - Uses TrapidTableView to display feature tracking data
+ * FeaturesTrackingTable - Uses TeeemTableView to display feature tracking data
  * Shows competitor comparison with percentage bars in header
  */
 export default function FeaturesTrackingTable() {
@@ -13,7 +13,7 @@ export default function FeaturesTrackingTable() {
   const [error, setError] = useState(null)
   const [stats, setStats] = useState(null)
 
-  // Define columns for TrapidTableView - chapter is now a lookup column for grouping
+  // Define columns for TeeemTableView - chapter is now a lookup column for grouping
   const COLUMNS = [
     {
       key: 'feature_chapter',
@@ -32,7 +32,7 @@ export default function FeaturesTrackingTable() {
     { key: 'detail_point_2', label: 'Detail 2', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
     { key: 'detail_point_3', label: 'Detail 3', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
     { key: 'dev_progress', label: 'Progress', column_type: 'percentage', resizable: true, sortable: true, filterable: false, width: 100 },
-    { key: 'trapid_has', label: 'Trapid', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
+    { key: 'teeem_has', label: 'TEEEM', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
     { key: 'simpro_has', label: 'Simpro', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
     { key: 'buildertrend_has', label: 'BuilderTrend', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
     { key: 'buildexact_has', label: 'BuildExact', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
@@ -57,7 +57,7 @@ export default function FeaturesTrackingTable() {
         // Transform feature_chapter to lookup format { id, display }
         const processedFeatures = response.feature_trackers.map(f => ({
           ...f,
-          // Convert feature_chapter to lookup column format for TrapidTableView
+          // Convert feature_chapter to lookup column format for TeeemTableView
           feature_chapter: f.feature_chapter ? {
             id: f.feature_chapter.id,
             display: f.feature_chapter.display_name
@@ -78,7 +78,7 @@ export default function FeaturesTrackingTable() {
   }
 
   // Get color classes for competitor bars
-  const getColorClasses = (color, isTrapid = false) => {
+  const getColorClasses = (color, isTEEEM = false) => {
     const colors = {
       blue: { bg: 'bg-blue-500', light: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300' },
       purple: { bg: 'bg-purple-500', light: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-700 dark:text-purple-300' },
@@ -122,13 +122,13 @@ export default function FeaturesTrackingTable() {
               <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
             </div>
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800 p-4">
-              <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">Trapid Progress</div>
+              <div className="text-xs text-blue-600 dark:text-blue-400 mb-1">TEEEM Progress</div>
               <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{stats.avg_progress}%</div>
             </div>
             <div className="bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800 p-4">
-              <div className="text-xs text-green-600 dark:text-green-400 mb-1">Trapid Features</div>
+              <div className="text-xs text-green-600 dark:text-green-400 mb-1">TEEEM Features</div>
               <div className="text-2xl font-bold text-green-900 dark:text-green-100">
-                {stats.competitors?.find(c => c.key === 'trapid')?.count || 0}/{stats.total}
+                {stats.competitors?.find(c => c.key === 'teeem')?.count || 0}/{stats.total}
               </div>
             </div>
             <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800 p-4">
@@ -148,7 +148,7 @@ export default function FeaturesTrackingTable() {
               <div className="space-y-2">
                 {stats.competitors.map((competitor, index) => {
                   const colors = getColorClasses(competitor.color)
-                  const isTrapid = competitor.key === 'trapid'
+                  const isTEEEM = competitor.key === 'teeem'
                   const isLeader = index === 0
 
                   return (
@@ -159,25 +159,25 @@ export default function FeaturesTrackingTable() {
                       </div>
 
                       {/* Name */}
-                      <div className={`w-28 text-sm font-medium truncate ${isTrapid ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
+                      <div className={`w-28 text-sm font-medium truncate ${isTEEEM ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
                         {competitor.name}
                       </div>
 
                       {/* Progress Bar */}
                       <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                         <div
-                          className={`h-full ${isTrapid ? 'bg-blue-500' : colors.bg} transition-all duration-500`}
+                          className={`h-full ${isTEEEM ? 'bg-blue-500' : colors.bg} transition-all duration-500`}
                           style={{ width: `${competitor.percentage}%` }}
                         />
                       </div>
 
                       {/* Stats */}
-                      <div className={`w-20 text-right text-sm font-medium ${isTrapid ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                      <div className={`w-20 text-right text-sm font-medium ${isTEEEM ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
                         {competitor.count}/{competitor.total}
                       </div>
 
                       {/* Percentage */}
-                      <div className={`w-16 text-right text-sm font-bold ${isTrapid ? 'text-blue-600 dark:text-blue-400' : isLeader ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                      <div className={`w-16 text-right text-sm font-bold ${isTEEEM ? 'text-blue-600 dark:text-blue-400' : isLeader ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-300'}`}>
                         {competitor.percentage}%
                       </div>
                     </div>
@@ -189,8 +189,8 @@ export default function FeaturesTrackingTable() {
         </div>
       )}
 
-      {/* TrapidTableView */}
-      <TrapidTableView
+      {/* TeeemTableView */}
+      <TeeemTableView
         tableName="Feature Tracking"
         tableId="feature_tracking"
         tableIdNumeric={454}

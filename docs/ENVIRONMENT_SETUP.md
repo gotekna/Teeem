@@ -1,6 +1,6 @@
 # Environment Setup Guide
 
-Complete guide for setting up the Trapid development environment, including all integrations and API keys.
+Complete guide for setting up the TEEEM development environment, including all integrations and API keys.
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@ Complete guide for setting up the Trapid development environment, including all 
 
 ## Quick Start
 
-Minimal setup to run Trapid locally without integrations:
+Minimal setup to run TEEEM locally without integrations:
 
 ### Backend
 
@@ -68,7 +68,7 @@ npm run dev
 
 ### 1. Database (PostgreSQL)
 
-Trapid uses PostgreSQL for all data storage.
+TEEEM uses PostgreSQL for all data storage.
 
 #### Installation
 
@@ -92,12 +92,12 @@ Download installer from: https://www.postgresql.org/download/windows/
 
 The default `DATABASE_URL` in `.env.example` works for local development:
 ```bash
-DATABASE_URL=postgresql://localhost/trapid_development
+DATABASE_URL=postgresql://localhost/teeem_development
 ```
 
 If you need custom credentials:
 ```bash
-DATABASE_URL=postgresql://username:password@localhost:5432/trapid_development
+DATABASE_URL=postgresql://username:password@localhost:5432/teeem_development
 ```
 
 #### Create Database
@@ -238,12 +238,12 @@ OneDrive integration enables document storage and management for construction jo
    - Navigate to: **Azure Active Directory** → **App registrations** → **New registration**
 
 2. **Configure App**
-   - **Name:** `Trapid OneDrive Integration`
+   - **Name:** `TEEEM OneDrive Integration`
    - **Supported account types:** "Accounts in any organizational directory and personal Microsoft accounts (multitenant)"
    - **Redirect URI:**
      - Type: Web
      - URL: `http://localhost:3000/api/v1/onedrive/callback` (development)
-     - For production, add: `https://trapid-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback`
+     - For production, add: `https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback`
    - Click **Register**
 
 3. **Get Client ID**
@@ -253,7 +253,7 @@ OneDrive integration enables document storage and management for construction jo
 4. **Create Client Secret**
    - Go to **Certificates & secrets**
    - Click **New client secret**
-   - Description: "Trapid Backend"
+   - Description: "TEEEM Backend"
    - Expires: 24 months (or custom)
    - Click **Add**
    - **IMPORTANT:** Copy the **Value** immediately (it won't be shown again)
@@ -294,7 +294,7 @@ OneDrive integration enables document storage and management for construction jo
 Xero integration syncs invoices, purchase orders, and payment tracking.
 
 #### Why You Need It
-- Sync invoices from Xero to Trapid
+- Sync invoices from Xero to TEEEM
 - Match purchase orders to Xero bills
 - Track payment status automatically
 - Generate reports with live accounting data
@@ -310,10 +310,10 @@ Xero integration syncs invoices, purchase orders, and payment tracking.
    - Go to https://developer.xero.com/app/manage
    - Click **New app** → **OAuth 2.0**
    - Fill in details:
-     - **App name:** `Trapid`
-     - **Company or application URL:** `https://trapid.vercel.app`
+     - **App name:** `TEEEM`
+     - **Company or application URL:** `https://teeem.vercel.app`
      - **OAuth 2.0 redirect URI:** `http://localhost:5173/settings/xero/callback` (development)
-       - For production, add: `https://trapid.vercel.app/settings/xero/callback`
+       - For production, add: `https://teeem.vercel.app/settings/xero/callback`
    - Click **Create app**
 
 3. **Get Credentials**
@@ -371,7 +371,7 @@ Claude powers AI-driven features like plan review and intelligent image selectio
 2. **Create API Key**
    - Go to **Settings** → **API Keys**
    - Click **Create Key**
-   - Name: "Trapid Development"
+   - Name: "TEEEM Development"
    - Copy the key (starts with `sk-ant-...`)
    - **IMPORTANT:** Save it immediately (won't be shown again)
 
@@ -445,7 +445,7 @@ Google Custom Search API improves product image search results.
 
 1. **Create Google Cloud Project**
    - Go to https://console.cloud.google.com
-   - Create new project: "Trapid"
+   - Create new project: "TEEEM"
 
 2. **Enable Custom Search API**
    - In project dashboard, go to **APIs & Services** → **Library**
@@ -462,7 +462,7 @@ Google Custom Search API improves product image search results.
    - Go to https://programmablesearchengine.google.com
    - Click **Add** or **Create new search engine**
    - **Sites to search:** Leave empty and select "Search the entire web"
-   - **Name:** "Trapid Product Images"
+   - **Name:** "TEEEM Product Images"
    - Turn on **Image search**
    - Click **Create**
 
@@ -502,7 +502,7 @@ Google Custom Search API improves product image search results.
 
 ```bash
 # backend/.env
-DATABASE_URL=postgresql://localhost/trapid_development
+DATABASE_URL=postgresql://localhost/teeem_development
 FRONTEND_URL=http://localhost:5173
 ONEDRIVE_REDIRECT_URI=http://localhost:3000/api/v1/onedrive/callback
 XERO_REDIRECT_URI=http://localhost:5173/settings/xero/callback
@@ -517,15 +517,15 @@ Backend environment variables are set via Heroku:
 
 ```bash
 # Set via Heroku Dashboard or CLI
-heroku config:set DATABASE_URL=<heroku_postgres_url> --app trapid-backend
-heroku config:set FRONTEND_URL=https://trapid.vercel.app --app trapid-backend
-heroku config:set ONEDRIVE_REDIRECT_URI=https://trapid-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback --app trapid-backend
-heroku config:set XERO_REDIRECT_URI=https://trapid.vercel.app/settings/xero/callback --app trapid-backend
+heroku config:set DATABASE_URL=<heroku_postgres_url> --app teeem-backend
+heroku config:set FRONTEND_URL=https://teeem.vercel.app --app teeem-backend
+heroku config:set ONEDRIVE_REDIRECT_URI=https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback --app teeem-backend
+heroku config:set XERO_REDIRECT_URI=https://teeem.vercel.app/settings/xero/callback --app teeem-backend
 ```
 
 Frontend environment variables in Vercel:
 - Go to Vercel Dashboard → Project Settings → Environment Variables
-- Add: `VITE_API_URL=https://trapid-backend-447058022b51.herokuapp.com`
+- Add: `VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com`
 
 ---
 
@@ -587,7 +587,7 @@ Set up usage alerts:
 
 3. Test connection:
    ```bash
-   psql postgresql://localhost/trapid_development
+   psql postgresql://localhost/teeem_development
    ```
 
 ### Frontend Can't Connect to Backend
@@ -658,7 +658,7 @@ If you're still stuck:
    - Frontend: Browser console (F12)
 
 2. **Search issues:**
-   - GitHub: https://github.com/yourusername/trapid/issues
+   - GitHub: https://github.com/yourusername/teeem/issues
    - Stack Overflow with error message
 
 3. **Ask for help:**

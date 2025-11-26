@@ -239,7 +239,7 @@ class AssetReminderService
       Please arrange renewal to ensure continuous coverage.
 
       ---
-      This is an automated reminder from Trapid Corporate Management System
+      This is an automated reminder from TEEEM Corporate Management System
     EMAIL
   end
 
@@ -262,7 +262,7 @@ class AssetReminderService
       ⚠️ IMMEDIATE ACTION REQUIRED - Asset is currently uninsured.
 
       ---
-      This is an automated reminder from Trapid Corporate Management System
+      This is an automated reminder from TEEEM Corporate Management System
     EMAIL
   end
 
@@ -288,7 +288,7 @@ class AssetReminderService
       Please arrange service to maintain asset in good condition.
 
       ---
-      This is an automated reminder from Trapid Corporate Management System
+      This is an automated reminder from TEEEM Corporate Management System
     EMAIL
   end
 
@@ -310,7 +310,7 @@ class AssetReminderService
       ⚠️ IMMEDIATE ATTENTION REQUIRED
 
       ---
-      This is an automated reminder from Trapid Corporate Management System
+      This is an automated reminder from TEEEM Corporate Management System
     EMAIL
   end
 

@@ -12,14 +12,14 @@ This command creates a new Bible rule with corresponding Teacher implementation 
 1. Drafts Bible rule content (MUST/NEVER/ALWAYS format)
 2. Reviews with you for approval
 3. Creates rule in database via Rails runner
-4. Exports to `TRAPID_BIBLE.md`
+4. Exports to `TEEEM_BIBLE.md`
 5. Verifies rule appears correctly
 
 ### Phase 2: Teacher Guide Creation
 6. Drafts Teacher implementation guide with full code examples
 7. Reviews with you for approval
 8. Creates Teacher entry in database via Rails runner
-9. Exports to `TRAPID_TEACHER.md`
+9. Exports to `TEEEM_TEACHER.md`
 10. Verifies Teacher entry appears correctly
 
 ### Phase 3: Finalization

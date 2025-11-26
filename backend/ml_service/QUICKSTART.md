@@ -5,12 +5,12 @@
 ## Prerequisites
 
 - Python 3.9+
-- Access to Trapid PostgreSQL database
+- Access to TEEEM PostgreSQL database
 
 ## Step 1: Setup (2 minutes)
 
 ```bash
-cd /Users/jakebaird/trapid/backend/ml_service
+cd /Users/jakebaird/teeem/backend/ml_service
 ./setup.sh
 ```
 
@@ -25,12 +25,12 @@ This automatically:
 
 Edit `.env` file:
 ```bash
-DATABASE_URL=postgresql://user:password@localhost:5432/trapid_development
+DATABASE_URL=postgresql://user:password@localhost:5432/teeem_development
 ```
 
 For Heroku production, get the URL:
 ```bash
-heroku config:get DATABASE_URL --app trapid-backend
+heroku config:get DATABASE_URL --app teeem-backend
 ```
 
 ## Step 3: Verify Setup (1 minute)
@@ -175,7 +175,7 @@ Wait for more historical data or reduce `MIN_SAMPLES_FOR_TRAINING` in `config.py
 ## Need Help?
 
 - See full documentation: `README.md`
-- Check summary: `/Users/jakebaird/trapid/ML_SERVICE_SUMMARY.md`
+- Check summary: `/Users/jakebaird/teeem/ML_SERVICE_SUMMARY.md`
 - Run tests: `python test_setup.py`
 
 ---

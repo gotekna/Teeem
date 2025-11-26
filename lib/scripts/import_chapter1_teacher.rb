@@ -39,7 +39,7 @@ entries = [
         render json: { error: 'Unauthorized' }, status: :unauthorized
       end
     CODE
-    related_rules: 'TRAPID_BIBLE.md RULE #1.1'
+    related_rules: 'TEEEM_BIBLE.md RULE #1.1'
   },
   {
     section_number: '1.2',
@@ -77,7 +77,7 @@ entries = [
         password_digest.nil? || password.present?
       end
     CODE
-    related_rules: 'TRAPID_BIBLE.md RULE #1.2'
+    related_rules: 'TEEEM_BIBLE.md RULE #1.2'
   },
   {
     section_number: '1.3',
@@ -110,7 +110,7 @@ entries = [
         end
       end
     CODE
-    related_rules: 'TRAPID_BIBLE.md RULE #1.3'
+    related_rules: 'TEEEM_BIBLE.md RULE #1.3'
   },
   {
     section_number: '1.4',
@@ -134,7 +134,7 @@ entries = [
         req.ip
       end
     CODE
-    related_rules: 'TRAPID_BIBLE.md RULE #1.4'
+    related_rules: 'TEEEM_BIBLE.md RULE #1.4'
   },
   {
     section_number: '1.5',
@@ -162,7 +162,7 @@ entries = [
         end
       end
     CODE
-    related_rules: 'TRAPID_BIBLE.md RULE #1.5'
+    related_rules: 'TEEEM_BIBLE.md RULE #1.5'
   },
   {
     section_number: '1.6',
@@ -198,7 +198,7 @@ entries = [
         end
       end
     CODE
-    related_rules: 'TRAPID_BIBLE.md RULE #1.6'
+    related_rules: 'TEEEM_BIBLE.md RULE #1.6'
   },
   {
     section_number: '1.7',
@@ -243,7 +243,7 @@ entries = [
         )
       end
     CODE
-    related_rules: 'TRAPID_BIBLE.md RULE #1.7'
+    related_rules: 'TEEEM_BIBLE.md RULE #1.7'
   }
 ]
 

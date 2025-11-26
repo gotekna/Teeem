@@ -37,7 +37,7 @@ class OrganizationOneDriveCredential < ApplicationRecord
 
   # Get the root folder path for all jobs
   def jobs_root_folder_path
-    root_folder_path || "Trapid Jobs"
+    root_folder_path || "TEEEM Jobs"
   end
 
   # Get folder path for a specific construction/job

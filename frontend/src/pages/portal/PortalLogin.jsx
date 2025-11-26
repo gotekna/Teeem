@@ -45,7 +45,7 @@ export default function PortalLogin() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h1 className="text-center text-4xl font-extrabold text-gray-900">
-            Trapid Portal
+            TEEEM Portal
           </h1>
           <p className="mt-2 text-center text-sm text-gray-600">
             Subcontractor Access
@@ -130,7 +130,7 @@ export default function PortalLogin() {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white text-gray-500">
-                  New to Trapid?
+                  New to TEEEM?
                 </span>
               </div>
             </div>
@@ -142,7 +142,7 @@ export default function PortalLogin() {
         </div>
 
         <div className="text-center text-xs text-gray-500">
-          <p>Powered by Trapid Construction Management</p>
+          <p>Powered by TEEEM Construction Management</p>
         </div>
       </div>
     </div>

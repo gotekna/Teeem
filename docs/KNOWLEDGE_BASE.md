@@ -1,12 +1,12 @@
-# Trapid Knowledge Base
+# TEEEM Knowledge Base
 
-> **For AI Assistants:** This document contains comprehensive information about the Trapid project - a custom Airtable/Rapid Platform replacement for construction management. Use this to understand the project's architecture, current status, and technical decisions.
+> **For AI Assistants:** This document contains comprehensive information about the TEEEM project - a custom Airtable/Rapid Platform replacement for construction management. Use this to understand the project's architecture, current status, and technical decisions.
 
 ---
 
 ## Project Overview
 
-**Project Name:** Trapid (Tekna + Rapid)
+**Project Name:** TEEEM (Tekna + Rapid)
 
 **What It Is:** A custom-built database application builder (like Airtable/Rapid Platform) specifically designed for construction management, with a focus on spreadsheet imports and dynamic table creation.
 
@@ -25,7 +25,7 @@
 - **File Processing:** Roo (Excel/CSV parsing), Caxlsx (Excel generation)
 - **Formula Engine:** Dentaku gem (safe mathematical expression evaluation)
 - **Deployment:** Heroku (currently v38)
-- **URL:** https://trapid-backend-447058022b51.herokuapp.com
+- **URL:** https://teeem-backend-447058022b51.herokuapp.com
 
 ### Frontend (Vercel)
 - **Framework:** React 18 (standalone SPA)
@@ -47,7 +47,7 @@
 ## Core Concepts
 
 ### 1. Dynamic Tables
-Unlike traditional databases where schema is fixed at development time, Trapid creates actual PostgreSQL tables at runtime based on user input.
+Unlike traditional databases where schema is fixed at development time, TEEEM creates actual PostgreSQL tables at runtime based on user input.
 
 **How it works:**
 - User uploads CSV/Excel or manually creates table
@@ -522,7 +522,7 @@ SECRET_KEY_BASE=<rails secret>
 
 ### Frontend (Vercel)
 ```bash
-VITE_API_URL=https://trapid-backend-447058022b51.herokuapp.com
+VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com
 ```
 
 ---
@@ -555,7 +555,7 @@ npm run dev  # Port 5173
 
 **Backend to Heroku:**
 ```bash
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git add -A
 git commit -m "Description"
 git subtree push --prefix backend heroku main
@@ -618,7 +618,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ### Migration Strategy
 1. Export all tables from Rapid as CSV
-2. Import into Trapid one by one
+2. Import into TEEEM one by one
 3. Recreate relationships (lookups)
 4. Test critical workflows
 5. Train team
@@ -763,7 +763,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ## Glossary
 
-**Trapid:** Project name (Tekna + Rapid)
+**TEEEM:** Project name (Tekna + Rapid)
 
 **Rapid Platform:** Original no-code platform being replaced
 
@@ -823,10 +823,10 @@ heroku run rails runner "p SolidQueue::Job.count"
 
 ## Contact & Resources
 
-**Project Location:** `/Users/jakebaird/trapid`
+**Project Location:** `/Users/jakebaird/teeem`
 
 **Git Repository:** Local git repo, deploying to:
-- Heroku: trapid-backend
+- Heroku: teeem-backend
 - Vercel: frontend project
 
 **Documentation:**

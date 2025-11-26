@@ -38,27 +38,27 @@ Before performing any audit, the agent MUST gather the latest rules from all thr
 
 ### 1. Fetch Chapter 19 (UI/UX Standards) - Bible
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
 ```
 
 ### 2. Fetch Chapter 19 (UI/UX Standards) - Teacher
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
 ```
 
 ### 3. Fetch Chapter 20 (Agent System) - Bible
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=20'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=20'
 ```
 
 ### 4. Fetch Chapter 20 (Agent System) - Teacher
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=20'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=20'
 ```
 
 ### 5. Fetch UI/UX Related Lexicon Entries (Excluding Tables)
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("ui|ux|component|dark|mode|icon|button|form|modal|navigation"; "i")) | select(.title | test("table"; "i") | not)'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("ui|ux|component|dark|mode|icon|button|form|modal|navigation"; "i")) | select(.title | test("table"; "i") | not)'
 ```
 
 **Why all sources?**
@@ -276,7 +276,7 @@ After presenting the audit report, the agent CAN:
 - ✅ Defer to ui-table-auditor for table components
 
 ### DON'T:
-- ❌ Read TRAPID_BIBLE.md or TRAPID_TEACHER.md files directly
+- ❌ Read TEEEM_BIBLE.md or TEEEM_TEACHER.md files directly
 - ❌ Skip any non-table components (scan everything except tables)
 - ❌ Audit table components (use ui-table-auditor instead)
 - ❌ Make fixes without presenting audit first

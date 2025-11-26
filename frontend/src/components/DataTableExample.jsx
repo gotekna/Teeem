@@ -4,7 +4,7 @@ import DataTable from './DataTable'
  * DataTableExample - Demonstrates the standard DataTable component
  *
  * This file shows how to use the DataTable component with various configurations.
- * Use these examples as reference when implementing tables throughout Trapid.
+ * Use these examples as reference when implementing tables throughout TEEEM.
  */
 
 // Example 1: Basic User Table (from the reference template)

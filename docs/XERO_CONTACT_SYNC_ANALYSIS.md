@@ -4,7 +4,7 @@
 
 ### ✅ Currently Synced Fields
 
-| Xero Field | Trapid Field | Type | Notes |
+| Xero Field | TEEEM Field | Type | Notes |
 |------------|--------------|------|-------|
 | ContactID | xero_id | string | Primary Xero identifier |
 | Name | full_name | string | Contact display name |
@@ -32,7 +32,7 @@ Xero supports multiple addresses per contact with these fields:
 - Country
 - AttentionTo
 
-**Current Trapid:** Only has single `address` text field
+**Current TEEEM:** Only has single `address` text field
 
 #### 2. **ContactPersons** (Array) - CRITICAL MISSING
 Xero allows multiple people under one contact:
@@ -41,7 +41,7 @@ Xero allows multiple people under one contact:
 - EmailAddress
 - IncludeInEmails (boolean)
 
-**Current Trapid:** No support for multiple contact persons
+**Current TEEEM:** No support for multiple contact persons
 
 #### 3. **ContactGroups** (Array) - MISSING
 Xero contact group memberships:
@@ -49,42 +49,42 @@ Xero contact group memberships:
 - Name
 - Status
 
-**Current Trapid:** No contact groups
+**Current TEEEM:** No contact groups
 
 #### 4. **ContactNumber** - MISSING
 Xero's internal reference number
 
-**Current Trapid:** No equivalent field
+**Current TEEEM:** No equivalent field
 
 #### 5. **ContactStatus** - MISSING
 Values: ACTIVE, ARCHIVED, GDPRREQUEST
-**Current Trapid:** Has `is_active` boolean but doesn't sync from Xero
+**Current TEEEM:** Has `is_active` boolean but doesn't sync from Xero
 
 #### 6. **AccountNumber** - MISSING
 Optional account reference
 
-**Current Trapid:** No field
+**Current TEEEM:** No field
 
 #### 7. **CompanyNumber** - MISSING
 Company registration number (different from ABN)
 
-**Current Trapid:** No field
+**Current TEEEM:** No field
 
 #### 8. **Phones** (Additional Types) - PARTIAL
 Xero supports: DEFAULT, DDI, FAX, MOBILE
-**Current Trapid:** Only supports MOBILE and DEFAULT (as office_phone), missing FAX
+**Current TEEEM:** Only supports MOBILE and DEFAULT (as office_phone), missing FAX
 
 #### 9. **PaymentTerms.Sales** - MISSING
 We sync Bills but not Sales payment terms:
 - Day
 - Type
 
-**Current Trapid:** Only bill payment terms
+**Current TEEEM:** Only bill payment terms
 
 #### 10. **Discount** - MISSING
 Default discount percentage
 
-**Current Trapid:** No field
+**Current TEEEM:** No field
 
 #### 11. **Balances** - READ-ONLY
 - AccountsReceivable.Outstanding
@@ -92,32 +92,32 @@ Default discount percentage
 - AccountsPayable.Outstanding
 - AccountsPayable.Overdue
 
-**Current Trapid:** No fields (these are calculated by Xero)
+**Current TEEEM:** No fields (these are calculated by Xero)
 
 #### 12. **SalesDefaultAccountCode** - MISSING
 Default sales account code
 
-**Current Trapid:** Has `default_purchase_account` but not sales
+**Current TEEEM:** Has `default_purchase_account` but not sales
 
 #### 13. **SalesTrackingCategories** - MISSING
 Array of tracking category assignments for sales
 
-**Current Trapid:** No tracking categories
+**Current TEEEM:** No tracking categories
 
 #### 14. **PurchaseTrackingCategories** - MISSING
 Array of tracking category assignments for purchases
 
-**Current Trapid:** No tracking categories
+**Current TEEEM:** No tracking categories
 
 #### 15. **BrandingThemeID** - MISSING
 Default branding theme for invoices
 
-**Current Trapid:** No field
+**Current TEEEM:** No field
 
 #### 16. **BatchPayments** - READ-ONLY
 Batch payment settings
 
-**Current Trapid:** No field
+**Current TEEEM:** No field
 
 ---
 
@@ -170,7 +170,7 @@ Batch payment settings
 
 10. **Tracking Categories**
     - Add JSONB fields for tracking categories
-    - Consider if needed for Trapid use case
+    - Consider if needed for TEEEM use case
 
 11. **Balances** (Read-only)
     - Consider adding for display purposes
@@ -405,4 +405,4 @@ end
 2. Should we migrate existing address data to the new structure automatically?
 3. Do you need contact groups functionality?
 4. Do you want to display account balances (read-only) from Xero?
-5. Should fax numbers be editable in Trapid, or just displayed from Xero?
+5. Should fax numbers be editable in TEEEM, or just displayed from Xero?

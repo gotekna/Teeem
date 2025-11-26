@@ -355,7 +355,7 @@ has_many :pay_now_requests, dependent: :destroy
 
 ## Trinity Bible Compliance ✅
 
-All implementation follows Trapid Bible rules:
+All implementation follows TEEEM Bible rules:
 
 | Rule | Requirement | Implementation |
 |------|-------------|----------------|
@@ -366,7 +366,7 @@ All implementation follows Trapid Bible rules:
 | 1.13 | Single source | Database is authority, no cached calculations |
 | 18.1 | Background jobs | Uses SolidQueue for notifications |
 | 16.2 | Payment status | Uses existing Payment callbacks for auto-update |
-| 20.1 | UI standards | (Frontend to follow TrapidTableView patterns) |
+| 20.1 | UI standards | (Frontend to follow TEEEMTableView patterns) |
 
 ---
 
@@ -450,7 +450,7 @@ All implementation follows Trapid Bible rules:
 **Location:** `frontend/src/components/admin/`
 
 - **`PayNowApprovalQueue.jsx`** - Pending requests table
-  - TrapidTableView with approve/reject actions
+  - TEEEMTableView with approve/reject actions
   - Filter by supplier, amount, date
   - Quick approve button with notes modal
 

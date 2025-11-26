@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { api } from '../api'
 import DataTable from '../components/DataTable'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import { PlusIcon } from '@heroicons/react/24/outline'
 
 export default function TableStandardTest() {
@@ -26,7 +26,7 @@ export default function TableStandardTest() {
     }
   }
 
-  // Transform quotes for TrapidTableView with dummy currency/number data
+  // Transform quotes for TeeemTableView with dummy currency/number data
   const trinityQuotes = quotes.map((quote, index) => ({
     id: quote.id,
     category: 'inspiring_quotes',
@@ -72,19 +72,19 @@ export default function TableStandardTest() {
             Table Standard Comparison
           </h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Compare different table implementations to decide on THE standard for TRAPID
+            Compare different table implementations to decide on THE standard for TEEEM
           </p>
         </div>
 
         {/* Comparison Grid */}
         <div className="space-y-12">
-          {/* Option B: TrapidTableView (Current Advanced) */}
+          {/* Option B: TeeemTableView (Current Advanced) */}
           <section className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 border-4 border-blue-500 dark:border-blue-400">
             <div className="mb-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Option B: TrapidTableView (Advanced)
+                    Option B: TeeemTableView (Advanced)
                   </h2>
                   <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
                     Current enterprise table - 1,739 lines, blue header, all advanced features
@@ -130,7 +130,7 @@ export default function TableStandardTest() {
               </div>
             </div>
             <div className="border-2 border-dashed border-blue-300 dark:border-blue-600 rounded-lg p-4 h-[800px] overflow-auto">
-              <TrapidTableView
+              <TeeemTableView
                 category="inspiring_quotes"
                 entries={trinityQuotes}
                 onEdit={handleEdit}
@@ -197,7 +197,7 @@ export default function TableStandardTest() {
           {/* Decision Helper */}
           <section className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl shadow-lg p-8 border-2 border-purple-300 dark:border-purple-600">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-              ✅ TrapidTableView Features
+              ✅ TeeemTableView Features
             </h2>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow">
               <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">

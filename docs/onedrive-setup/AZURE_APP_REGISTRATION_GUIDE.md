@@ -1,6 +1,6 @@
 # OneDrive Integration Setup Guide - Azure App Registration
 
-This guide will walk you through setting up a Microsoft Azure App Registration for Trapid's OneDrive integration.
+This guide will walk you through setting up a Microsoft Azure App Registration for TEEEM's OneDrive integration.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ This guide will walk you through setting up a Microsoft Azure App Registration f
 
 **Name:**
 ```
-Trapid Document Management
+TEEEM Document Management
 ```
 
 **Supported account types:**
@@ -45,7 +45,7 @@ Trapid Document Management
 
 For **Production** (Heroku):
 ```
-https://trapid-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
+https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
 ```
 
 For **Local Development**:
@@ -82,7 +82,7 @@ After registration, you'll see the app overview page.
 2. Click the **"+ New client secret"** button
 3. Add a description:
    ```
-   Trapid Production Secret
+   TEEEM Production Secret
    ```
 4. Set expiration: **"24 months"** (recommended)
    - ⚠️ You'll need to rotate this secret before it expires
@@ -146,7 +146,7 @@ If you need to support both local development and production:
    ```
 4. If you're using Vercel for frontend:
    ```
-   https://trapid.vercel.app/settings/onedrive/callback
+   https://teeem.vercel.app/settings/onedrive/callback
    ```
 5. Click **"Save"** at the bottom
 
@@ -175,7 +175,7 @@ Send the following information **SECURELY** to the development team:
 ```
 ONEDRIVE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ONEDRIVE_CLIENT_SECRET=abc123~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-ONEDRIVE_REDIRECT_URI=https://trapid-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
+ONEDRIVE_REDIRECT_URI=https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
 ```
 
 ⚠️ **Security Notes:**
@@ -191,11 +191,11 @@ ONEDRIVE_REDIRECT_URI=https://trapid-backend-447058022b51.herokuapp.com/api/v1/o
 
 Once the development team has configured the credentials:
 
-1. Go to Trapid Settings → Integrations
+1. Go to TEEEM Settings → Integrations
 2. You should see a "Connect to OneDrive" button
 3. Click it and sign in with your Microsoft account
 4. Authorize the app to access your files
-5. You should be redirected back to Trapid with a success message
+5. You should be redirected back to TEEEM with a success message
 
 ---
 
@@ -250,7 +250,7 @@ If you encounter issues during setup:
 1. Check the Troubleshooting section above
 2. Verify all steps were followed exactly
 3. Check Azure Portal for any error messages
-4. Contact the Trapid development team
+4. Contact the TEEEM development team
 
 ---
 

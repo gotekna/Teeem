@@ -1,4 +1,4 @@
-# Claude Code Instructions for Trapid Project
+# Claude Code Instructions for TEEEM Project
 
 ## 🔴 CRITICAL: Efficient Documentation Access
 
@@ -13,7 +13,7 @@ The Trinity system uses a **database-first architecture** with three categories:
 - **Teacher (HOW-TO):** Step-by-step implementation patterns and code examples
 - **Lexicon (KNOWLEDGE):** Bug history, architecture decisions, test catalog
 
-**Base API:** `https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity`
+**Base API:** `https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity`
 
 ---
 
@@ -46,7 +46,7 @@ Each entry has a `dense_index` field containing ultra-compressed keywords for fa
 
 **Example:**
 ```
-"191 trapidtableviewtheonetablestandard component teacher trapidtableview the only table component for trapid frontend src components documentation"
+"191 teeemtableviewtheonetablestandard component teacher teeemtableview the only table component for teeem frontend src components documentation"
 ```
 
 ### Step 2: Read ONLY Relevant Chapter Files
@@ -54,16 +54,16 @@ Each entry has a `dense_index` field containing ultra-compressed keywords for fa
 Once you identify the relevant chapter from Step 1, read the specific chapter file:
 
 **Teacher Chapters:**
-- `TRAPID_DOCS/TEACHER/CHAPTER_XX_TOPIC_NAME.md` (XX = chapter number with leading zero)
+- `TEEEM_DOCS/TEACHER/CHAPTER_XX_TOPIC_NAME.md` (XX = chapter number with leading zero)
 - Average size: ~8KB per chapter (vs 770KB monolithic file)
-- Example: `TRAPID_DOCS/TEACHER/CHAPTER_19_UI_UX.md`
+- Example: `TEEEM_DOCS/TEACHER/CHAPTER_19_UI_UX.md`
 
 **Bible & Lexicon:**
-- `TRAPID_DOCS/TRAPID_BIBLE.md` (~56KB total, organized by chapters)
-- `TRAPID_DOCS/TRAPID_LEXICON.md` (~107KB total, organized by chapters)
+- `TEEEM_DOCS/TEEEM_BIBLE.md` (~56KB total, organized by chapters)
+- `TEEEM_DOCS/TEEEM_LEXICON.md` (~107KB total, organized by chapters)
 
 **User Manual:**
-- `TRAPID_DOCS/TRAPID_USER_MANUAL.md` (end-user facing documentation)
+- `TEEEM_DOCS/TEEEM_USER_MANUAL.md` (end-user facing documentation)
 
 ---
 
@@ -85,7 +85,7 @@ Once you identify the relevant chapter from Step 1, read the specific chapter fi
 
 **Access:**
 1. Search dense index: `/api/v1/trinity?category=bible&search=table`
-2. Read relevant Bible section from `TRAPID_DOCS/TRAPID_BIBLE.md`
+2. Read relevant Bible section from `TEEEM_DOCS/TEEEM_BIBLE.md`
 
 ### 🔧 Teacher (HOW-TO)
 **What it contains:** Step-by-step implementation patterns
@@ -102,9 +102,9 @@ Once you identify the relevant chapter from Step 1, read the specific chapter fi
 - When following Bible rules (Teacher shows HOW)
 
 **Access:**
-1. Search dense index: `/api/v1/trinity?category=teacher&search=trapidtableview`
+1. Search dense index: `/api/v1/trinity?category=teacher&search=teeemtableview`
 2. Identify chapter number from results
-3. Read specific chapter: `TRAPID_DOCS/TEACHER/CHAPTER_XX_TOPIC.md`
+3. Read specific chapter: `TEEEM_DOCS/TEACHER/CHAPTER_XX_TOPIC.md`
 
 ### 📕 Lexicon (KNOWLEDGE)
 **What it contains:** Historical knowledge and decisions
@@ -122,14 +122,14 @@ Once you identify the relevant chapter from Step 1, read the specific chapter fi
 
 **Access:**
 1. Search dense index: `/api/v1/trinity?category=lexicon&search=performance`
-2. Read relevant Lexicon section from `TRAPID_DOCS/TRAPID_LEXICON.md`
+2. Read relevant Lexicon section from `TEEEM_DOCS/TEEEM_LEXICON.md`
 
 ---
 
 ## 🚫 What NOT to Do
 
 **NEVER:**
-- ❌ Read entire TRAPID_TEACHER.md (770KB - will fail or waste tokens)
+- ❌ Read entire TEEEM_TEACHER.md (770KB - will fail or waste tokens)
 - ❌ Skip the dense index search step
 - ❌ Assume you know the right chapter without searching
 - ❌ Ignore Bible rules because they're "too strict"
@@ -149,7 +149,7 @@ Once you identify the relevant chapter from Step 1, read the specific chapter fi
 ## 📊 Token Efficiency
 
 **Old Approach (WRONG):**
-- Read entire TRAPID_TEACHER.md: ~553,000 tokens ❌ (file too large, fails)
+- Read entire TEEEM_TEACHER.md: ~553,000 tokens ❌ (file too large, fails)
 - Read all three docs: ~716,000 tokens ❌ (exceeds limits)
 
 **New Approach (CORRECT):**
@@ -177,16 +177,16 @@ GET /api/v1/trinity/search?q=table
       "id": 200,
       "chapter_number": 19,
       "section_number": "19.1",
-      "title": "TrapidTableView - The One Table Standard",
+      "title": "TEEEMTableView - The One Table Standard",
       "category": "teacher",
-      "dense_index": "191 trapidtableviewtheonetablestandard component teacher..."
+      "dense_index": "191 teeemtableviewtheonetablestandard component teacher..."
     }
   ]
 }
 ```
 
 **Step 2 - Read Specific Chapter:**
-Read `TRAPID_DOCS/TEACHER/CHAPTER_19_UI_UX.md` (Chapter 19 identified from search)
+Read `TEEEM_DOCS/TEACHER/CHAPTER_19_UI_UX.md` (Chapter 19 identified from search)
 
 **Step 3 - Check Bible Rules:**
 Search `/api/v1/trinity?category=bible&search=table` for any related rules
@@ -226,11 +226,11 @@ Follow Teacher patterns while adhering to Bible rules
 ## 📁 File Structure Reference
 
 ```
-TRAPID_DOCS/
-├── TRAPID_BIBLE.md              # All Bible rules (~56KB)
-├── TRAPID_LEXICON.md            # All Lexicon entries (~107KB)
-├── TRAPID_TEACHER.md            # Full Teacher index (DO NOT READ - too large)
-├── TRAPID_USER_MANUAL.md        # End-user documentation
+TEEEM_DOCS/
+├── TEEEM_BIBLE.md              # All Bible rules (~56KB)
+├── TEEEM_LEXICON.md            # All Lexicon entries (~107KB)
+├── TEEEM_TEACHER.md            # Full Teacher index (DO NOT READ - too large)
+├── TEEEM_USER_MANUAL.md        # End-user documentation
 └── TEACHER/                     # Split Teacher chapters (READ THESE)
     ├── CHAPTER_19_UI_UX.md                    # ~8KB
     ├── CHAPTER_19_CUSTOM_TABLES_FORMULAS.md   # ~9KB
@@ -242,22 +242,22 @@ TRAPID_DOCS/
 ## 🔄 Keeping Documentation in Sync
 
 **Database is Source of Truth:**
-- All edits happen in the Trapid UI (Documentation page)
+- All edits happen in the TEEEM UI (Documentation page)
 - Markdown files are auto-generated exports for git history
 
 **To Export Latest Changes:**
 ```bash
 # Export all Teacher chapters to split files
-cd backend && bin/rails trapid:export_teacher_split
+cd backend && bin/rails teeem:export_teacher_split
 
 # Or use the Ruby script (works without local DB)
 ruby scripts/generate_teacher_chapters.rb
 
 # Export Bible
-cd backend && bin/rails trapid:export_bible
+cd backend && bin/rails teeem:export_bible
 
 # Export Lexicon
-cd backend && bin/rails trapid:export_lexicon
+cd backend && bin/rails teeem:export_lexicon
 ```
 
 **Commit Message Format:**
@@ -351,7 +351,7 @@ GET https://sentry.io/api/0/issues/{issue_id}/
 - Checking error frequency
 
 #### **2. Frontend Console Capture (~100-300 tokens)**
-**Location:** `/Users/jakebaird/trapid/frontend/src/utils/consoleCapture.js`
+**Location:** `/Users/jakebaird/teeem/frontend/src/utils/consoleCapture.js`
 
 **Features:**
 - Already capturing last 1,000 log entries in memory

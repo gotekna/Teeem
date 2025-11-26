@@ -1,6 +1,6 @@
-# Trapid Table Architecture
+# TEEEM Table Architecture
 
-This document provides a visual overview of the table component architecture in Trapid.
+This document provides a visual overview of the table component architecture in TEEEM.
 
 ## Component Hierarchy
 
@@ -239,7 +239,7 @@ useEffect(() => {
 ## File Structure
 
 ```
-trapid/
+teeem/
 ├── frontend/
 │   └── src/
 │       ├── components/
@@ -299,7 +299,7 @@ trapid/
 ## Questions?
 
 See:
-- `/Users/jakebaird/trapid/frontend/src/components/DataTable.README.md` - Quick reference
-- `/Users/jakebaird/trapid/frontend/src/components/DataTableExample.jsx` - Working examples
-- `/Users/jakebaird/trapid/CLAUDE.md` - Full TABLE STANDARDS section
+- `/Users/jakebaird/teeem/frontend/src/components/DataTable.README.md` - Quick reference
+- `/Users/jakebaird/teeem/frontend/src/components/DataTableExample.jsx` - Working examples
+- `/Users/jakebaird/teeem/CLAUDE.md` - Full TABLE STANDARDS section
 - https://tailwindui.com (Application UI → Tables) - Design inspiration

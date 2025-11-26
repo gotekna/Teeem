@@ -24,7 +24,7 @@ rm .claude/agents/frontend-developer.md         # 1.9K - Replaced by Code Guardi
 
 ### 2. Duplicate Documentation Files
 
-**Delete duplicates (keep canonical versions in TRAPID_DOCS/):**
+**Delete duplicates (keep canonical versions in TEEEM_DOCS/):**
 ```bash
 # Gantt documentation duplicated across 4 locations
 rm public/GANTT_BIBLE.md                        # Keep in frontend/public/
@@ -91,14 +91,14 @@ rm backend/tmp/restart.txt                # Temp file
 
 ### 5. Old Chapter 19 Research Files (Consolidated)
 
-**Delete (consolidated into TRAPID_DOCS):**
+**Delete (consolidated into TEEEM_DOCS):**
 ```bash
 # Chapter 19 research is complete and in Trinity Bible now
-rm TRAPID_DOCS/CHAPTER_19_CODE_EXAMPLES.md
-rm TRAPID_DOCS/CHAPTER_19_IMPACT_ANALYSIS.md
-rm TRAPID_DOCS/CHAPTER_19_LEXICON_RESEARCH.md
-rm TRAPID_DOCS/CHAPTER_19_RESEARCH_SUMMARY.md
-rm TRAPID_DOCS/CONTINUATION_INSTRUCTIONS_CHAPTER_19.md
+rm TEEEM_DOCS/CHAPTER_19_CODE_EXAMPLES.md
+rm TEEEM_DOCS/CHAPTER_19_IMPACT_ANALYSIS.md
+rm TEEEM_DOCS/CHAPTER_19_LEXICON_RESEARCH.md
+rm TEEEM_DOCS/CHAPTER_19_RESEARCH_SUMMARY.md
+rm TEEEM_DOCS/CONTINUATION_INSTRUCTIONS_CHAPTER_19.md
 ```
 
 **Rationale:** Chapter 19 is complete and in Trinity system, research files no longer needed
@@ -111,8 +111,8 @@ rm TRAPID_DOCS/CONTINUATION_INSTRUCTIONS_CHAPTER_19.md
 
 **Keep the main files, delete backups:**
 ```bash
-rm TRAPID_DOCS/TRAPID_TEACHER_OLD.md      # Old version (keep current)
-rm TRAPID_DOCS/TRAPID_BIBLE.md.bak        # If it exists (backup)
+rm TEEEM_DOCS/TEEEM_TEACHER_OLD.md      # Old version (keep current)
+rm TEEEM_DOCS/TEEEM_BIBLE.md.bak        # If it exists (backup)
 ```
 
 **Rationale:** Old versions superseded by current Trinity docs
@@ -174,14 +174,14 @@ mv docs/archive/GANTT_SCHEDULE_RULES_OLD.md ARCHIVE/
 
 ### Documentation (Active):
 ```
-✅ TRAPID_DOCS/TRAPID_BIBLE.md
-✅ TRAPID_DOCS/TRAPID_TEACHER.md
-✅ TRAPID_DOCS/TRAPID_LEXICON.md
-✅ TRAPID_DOCS/TRAPID_USER_MANUAL.md
-✅ TRAPID_DOCS/PATTERN_LIBRARY.md          # NEW (Week 2)
-✅ TRAPID_DOCS/DETECTION_RULES.md          # NEW (Week 2)
-✅ TRAPID_DOCS/AGENT_SAFEGUARD_SYSTEM_COMPLETE.md  # NEW (Week 3)
-✅ TRAPID_DOCS/WEEKS_4_5_FINAL_CONSOLIDATION.md    # NEW (Week 4-5)
+✅ TEEEM_DOCS/TEEEM_BIBLE.md
+✅ TEEEM_DOCS/TEEEM_TEACHER.md
+✅ TEEEM_DOCS/TEEEM_LEXICON.md
+✅ TEEEM_DOCS/TEEEM_USER_MANUAL.md
+✅ TEEEM_DOCS/PATTERN_LIBRARY.md          # NEW (Week 2)
+✅ TEEEM_DOCS/DETECTION_RULES.md          # NEW (Week 2)
+✅ TEEEM_DOCS/AGENT_SAFEGUARD_SYSTEM_COMPLETE.md  # NEW (Week 3)
+✅ TEEEM_DOCS/WEEKS_4_5_FINAL_CONSOLIDATION.md    # NEW (Week 4-5)
 ```
 
 ### Gantt Documentation (Keep in frontend/public/):
@@ -234,7 +234,7 @@ mv docs/archive/GANTT_SCHEDULE_RULES_OLD.md ARCHIVE/
 #!/bin/bash
 # cleanup.sh - Execute cleanup based on audit
 
-echo "🗑️  Trapid Cleanup Script"
+echo "🗑️  TEEEM Cleanup Script"
 echo "========================"
 echo ""
 
@@ -266,11 +266,11 @@ rm -f public/GANTT_*.md
 rm -f backend/public/GANTT_*.md
 
 echo "🗑️  Step 5: Delete old Chapter 19 research..."
-rm -f TRAPID_DOCS/CHAPTER_19_*.md
-rm -f TRAPID_DOCS/CONTINUATION_INSTRUCTIONS_CHAPTER_19.md
+rm -f TEEEM_DOCS/CHAPTER_19_*.md
+rm -f TEEEM_DOCS/CONTINUATION_INSTRUCTIONS_CHAPTER_19.md
 
 echo "🗑️  Step 6: Delete old Trinity backups..."
-rm -f TRAPID_DOCS/TRAPID_TEACHER_OLD.md
+rm -f TEEEM_DOCS/TEEEM_TEACHER_OLD.md
 
 echo ""
 echo "✅ Cleanup complete!"
@@ -318,9 +318,9 @@ rm backend/public/GANTT_*.md
 # Run conservative cleanup first, then:
 
 # Delete old research (consolidated in Trinity)
-rm TRAPID_DOCS/CHAPTER_19_*.md
-rm TRAPID_DOCS/CONTINUATION_INSTRUCTIONS_CHAPTER_19.md
-rm TRAPID_DOCS/TRAPID_TEACHER_OLD.md
+rm TEEEM_DOCS/CHAPTER_19_*.md
+rm TEEEM_DOCS/CONTINUATION_INSTRUCTIONS_CHAPTER_19.md
+rm TEEEM_DOCS/TEEEM_TEACHER_OLD.md
 
 # Delete archived implementations (if confident)
 rm -rf ARCHIVE/old-implementations/

@@ -1,13 +1,13 @@
-# Import Chapter 19 Teacher sections from TRAPID_TEACHER.md into database
+# Import Chapter 19 Teacher sections from TEEEM_TEACHER.md into database
 
-teacher_file = Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_TEACHER.md')
+teacher_file = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md')
 content = File.read(teacher_file)
 
 # Find Chapter 19
 chapter_match = content.match(/# Chapter 19: (.+?)\n(.+?)(?=\n# Chapter|\z)/m)
 
 unless chapter_match
-  puts "❌ Chapter 19 not found in TRAPID_TEACHER.md"
+  puts "❌ Chapter 19 not found in TEEEM_TEACHER.md"
   exit 1
 end
 

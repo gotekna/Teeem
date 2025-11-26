@@ -85,8 +85,8 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # Create root folder for all jobs
-          Rails.logger.info "Creating root folder 'Trapid Jobs'..."
-          root_folder = client.create_jobs_root_folder("Trapid Jobs")
+          Rails.logger.info "Creating root folder 'TEEEM Jobs'..."
+          root_folder = client.create_jobs_root_folder("TEEEM Jobs")
           Rails.logger.info "Root folder created successfully"
 
           Rails.logger.info "=== OneDrive Connection Completed Successfully ==="
@@ -126,7 +126,7 @@ module Api
 
       # PATCH /api/v1/organization_onedrive/change_root_folder
       # Change the root folder for organization OneDrive
-      # Supports nested folder paths like "00 - Trapid/Photos for Price Book"
+      # Supports nested folder paths like "00 - TEEEM/Photos for Price Book"
       def change_root_folder
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -679,7 +679,7 @@ module Api
         end
 
         # Final fallback to environment variable
-        frontend_url = ENV['FRONTEND_URL'] || 'https://trapid.vercel.app'
+        frontend_url = ENV['FRONTEND_URL'] || 'https://teeem.vercel.app'
         Rails.logger.info "Using frontend URL from ENV (fallback): #{frontend_url}"
         frontend_url
       end

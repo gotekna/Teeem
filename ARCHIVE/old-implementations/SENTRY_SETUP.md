@@ -1,4 +1,4 @@
-# Sentry Setup Guide for Trapid
+# Sentry Setup Guide for TEEEM
 
 This guide will help you set up Sentry error tracking and monitoring for both the Rails backend and React frontend.
 
@@ -26,7 +26,7 @@ This is sufficient for development and small production deployments.
 
 1. Go to https://sentry.io/signup/
 2. Sign up with your email or GitHub account
-3. Create your organization (e.g., "Trapid")
+3. Create your organization (e.g., "TEEEM")
 
 ## Step 2: Create Projects
 
@@ -37,7 +37,7 @@ You'll need to create two separate projects - one for the backend and one for th
 1. Click "Create Project"
 2. Select platform: **Rails**
 3. Set alert frequency: Choose your preference (default is fine)
-4. Project name: `trapid-backend`
+4. Project name: `teeem-backend`
 5. Click "Create Project"
 6. Copy the **DSN** (Data Source Name) - you'll need this for configuration
    - It looks like: `https://abc123@o123456.ingest.sentry.io/7654321`
@@ -47,7 +47,7 @@ You'll need to create two separate projects - one for the backend and one for th
 1. Click "Create Project" again
 2. Select platform: **React**
 3. Set alert frequency: Choose your preference
-4. Project name: `trapid-frontend`
+4. Project name: `teeem-frontend`
 5. Click "Create Project"
 6. Copy the **DSN** - you'll need a different one for the frontend
 
@@ -68,7 +68,7 @@ You'll need to create two separate projects - one for the backend and one for th
 
 3. For production (Heroku), set the environment variable:
    ```bash
-   heroku config:set SENTRY_DSN=https://your-backend-dsn@o123456.ingest.sentry.io/7654321 --app trapid-backend
+   heroku config:set SENTRY_DSN=https://your-backend-dsn@o123456.ingest.sentry.io/7654321 --app teeem-backend
    ```
 
 ### Frontend Configuration

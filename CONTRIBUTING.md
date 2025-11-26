@@ -1,6 +1,6 @@
-# Contributing to Trapid
+# Contributing to TEEEM
 
-This document outlines the development workflow and guidelines for contributing to Trapid.
+This document outlines the development workflow and guidelines for contributing to TEEEM.
 
 ## Table of Contents
 - [Development Workflow](#development-workflow)
@@ -15,7 +15,7 @@ This document outlines the development workflow and guidelines for contributing 
 
 ## Development Workflow
 
-Trapid uses a feature branch workflow with PR reviews before merging to `main`.
+TEEEM uses a feature branch workflow with PR reviews before merging to `main`.
 
 ### For Rob (Developer Branch)
 
@@ -32,8 +32,8 @@ Rob has a dedicated `rob` branch for development work. This workflow ensures:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/abodable-dev/trapid.git
-cd trapid
+git clone https://github.com/abodable-dev/teeem.git
+cd teeem
 ```
 
 ### 2. Switch to Your Branch
@@ -62,7 +62,7 @@ cp .env.example .env
 
 **Pull Heroku Config (requires Heroku CLI access):**
 ```bash
-heroku config -a trapid-backend --shell > backend/.env
+heroku config -a teeem-backend --shell > backend/.env
 ```
 
 ### 4. Install Dependencies
@@ -199,7 +199,7 @@ The deploy-manager agent will:
 
 If UI/UX issues are found, the agent will:
 - Suggest fixes to match existing design patterns
-- Update code to follow Trapid design guidelines
+- Update code to follow TEEEM design guidelines
 - Request changes before merging
 
 ### 4. Merge to Main
@@ -208,7 +208,7 @@ Once approved by Jake:
 1. PR is merged to `main`
 2. Automatic deployment triggers
 3. Backend deploys to Heroku
-4. Frontend deploys to Vercel (trapid.vercel.app)
+4. Frontend deploys to Vercel (teeem.vercel.app)
 
 ---
 
@@ -216,7 +216,7 @@ Once approved by Jake:
 
 ### Core Principles
 
-**Consistency is key.** Trapid uses a cohesive design system across all pages.
+**Consistency is key.** TEEEM uses a cohesive design system across all pages.
 
 ### Color Palette
 
@@ -520,19 +520,19 @@ When changes are merged to `main`:
 2. Runs `bundle install`
 3. Runs database migrations: `bin/rails db:migrate`
 4. Restarts dynos
-5. Live at: `https://trapid-backend-447058022b51.herokuapp.com`
+5. Live at: `https://teeem-backend-447058022b51.herokuapp.com`
 
 **Frontend (Vercel):**
 1. Vercel detects changes in `frontend/` directory
 2. Runs `npm install` and `npm run build`
 3. Deploys to production
-4. Live at: `https://trapid.vercel.app`
+4. Live at: `https://teeem.vercel.app`
 
 ### Manual Deployments
 
 **Deploy Backend to Heroku:**
 ```bash
-# From trapid root directory
+# From teeem root directory
 git subtree push --prefix backend heroku main
 ```
 
@@ -545,8 +545,8 @@ git subtree push --prefix backend heroku main
 **Check Deployment Status:**
 ```bash
 # Backend (Heroku)
-heroku ps -a trapid-backend
-heroku logs --tail -a trapid-backend
+heroku ps -a teeem-backend
+heroku logs --tail -a teeem-backend
 
 # Frontend (Vercel)
 vercel ls
@@ -565,10 +565,10 @@ vercel ls
 
 **Questions?** Ask Jake or check these resources:
 
-- **Backend docs:** `/Users/jakebaird/trapid/backend/README.md`
-- **API docs:** `/Users/jakebaird/trapid/JOB_ESTIMATION_WORKFLOW.md`
-- **Environment setup:** `/Users/jakebaird/trapid/backend/.env.example`
-- **Heroku logs:** `heroku logs --tail -a trapid-backend`
+- **Backend docs:** `/Users/jakebaird/teeem/backend/README.md`
+- **API docs:** `/Users/jakebaird/teeem/JOB_ESTIMATION_WORKFLOW.md`
+- **Environment setup:** `/Users/jakebaird/teeem/backend/.env.example`
+- **Heroku logs:** `heroku logs --tail -a teeem-backend`
 
 **Common Issues:**
 

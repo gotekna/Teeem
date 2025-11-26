@@ -6,7 +6,7 @@
 
 set -e
 
-echo "🔒 TRAPID SECURITY CHECK"
+echo "🔒 TEEEM SECURITY CHECK"
 echo "================================================"
 echo "Scanning entire codebase for leaked secrets..."
 echo ""

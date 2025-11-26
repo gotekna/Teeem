@@ -1,5 +1,5 @@
 # ===================================================================
-# TRAPID PERMISSIONS SEED DATA
+# TEEEM PERMISSIONS SEED DATA
 # ===================================================================
 # This file defines all available permissions in the system
 # Permissions are organized by category for easy management

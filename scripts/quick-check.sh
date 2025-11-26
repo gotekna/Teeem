@@ -24,13 +24,13 @@ echo ""
 
 # Development servers
 echo "=== Development Servers ==="
-ps aux | grep -E "(vite|node.*trapid|rails s)" | grep -v grep | awk '{printf "%-20s CPU: %5s%% MEM: %5s%%\n", $11, $3, $4}'
+ps aux | grep -E "(vite|node.*teeem|rails s)" | grep -v grep | awk '{printf "%-20s CPU: %5s%% MEM: %5s%%\n", $11, $3, $4}'
 echo ""
 
 # File system
 echo "=== File System ==="
-echo "Temp files: $(find /Users/rob/Projects/trapid/tmp -type f 2>/dev/null | wc -l | xargs)"
-echo "Modified files: $(cd /Users/rob/Projects/trapid && git status --short 2>/dev/null | wc -l | xargs)"
+echo "Temp files: $(find /Users/rob/Projects/teeem/tmp -type f 2>/dev/null | wc -l | xargs)"
+echo "Modified files: $(cd /Users/rob/Projects/teeem && git status --short 2>/dev/null | wc -l | xargs)"
 echo ""
 
 # Recommendations

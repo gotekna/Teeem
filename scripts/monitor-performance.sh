@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Performance Monitor Script for Trapid Development
+# Performance Monitor Script for TEEEM Development
 # Monitors VS Code, Node, Ruby processes and logs performance data
 
-LOG_DIR="/Users/rob/Projects/trapid/tmp/performance-logs"
+LOG_DIR="/Users/rob/Projects/teeem/tmp/performance-logs"
 mkdir -p "$LOG_DIR"
 
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
@@ -52,12 +52,12 @@ while [ $(date +%s) -lt $END_TIME ]; do
     # File watcher stats
     echo "" | tee -a "$LOG_FILE"
     echo "--- File System ---" | tee -a "$LOG_FILE"
-    echo "  Temp files: $(find /Users/rob/Projects/trapid/tmp -type f 2>/dev/null | wc -l | xargs)" | tee -a "$LOG_FILE"
-    echo "  Git status: $(cd /Users/rob/Projects/trapid && git status --short | wc -l | xargs) modified files" | tee -a "$LOG_FILE"
+    echo "  Temp files: $(find /Users/rob/Projects/teeem/tmp -type f 2>/dev/null | wc -l | xargs)" | tee -a "$LOG_FILE"
+    echo "  Git status: $(cd /Users/rob/Projects/teeem && git status --short | wc -l | xargs) modified files" | tee -a "$LOG_FILE"
 
     # Disk usage
-    echo "  Project size: $(du -sh /Users/rob/Projects/trapid 2>/dev/null | awk '{print $1}')" | tee -a "$LOG_FILE"
-    echo "  node_modules: $(du -sh /Users/rob/Projects/trapid/frontend/node_modules 2>/dev/null | awk '{print $1}')" | tee -a "$LOG_FILE"
+    echo "  Project size: $(du -sh /Users/rob/Projects/teeem 2>/dev/null | awk '{print $1}')" | tee -a "$LOG_FILE"
+    echo "  node_modules: $(du -sh /Users/rob/Projects/teeem/frontend/node_modules 2>/dev/null | awk '{print $1}')" | tee -a "$LOG_FILE"
 
     # Analysis: Flag issues
     echo "" | tee -a "$LOG_FILE"

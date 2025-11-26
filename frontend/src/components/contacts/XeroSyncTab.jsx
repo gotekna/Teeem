@@ -27,72 +27,72 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [deleteOriginal, setDeleteOriginal] = useState(false)
 
-  // Define the field mappings between Xero and Trapid
+  // Define the field mappings between Xero and TEEEM
   const fieldMappings = [
     {
       section: 'Basic Information',
       fields: [
-        { xeroField: 'Name', trapidField: 'full_name', value: contact?.full_name, syncStatus: 'synced' },
-        { xeroField: 'FirstName', trapidField: 'first_name', value: contact?.first_name, syncStatus: 'synced' },
-        { xeroField: 'LastName', trapidField: 'last_name', value: contact?.last_name, syncStatus: 'synced' },
-        { xeroField: 'EmailAddress', trapidField: 'email', value: contact?.email, syncStatus: 'synced' },
-        { xeroField: 'ContactID', trapidField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked' }
+        { xeroField: 'Name', teeemField: 'full_name', value: contact?.full_name, syncStatus: 'synced' },
+        { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: 'synced' },
+        { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: 'synced' },
+        { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced' },
+        { xeroField: 'ContactID', teeemField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked' }
       ]
     },
     {
       section: 'Contact Details',
       fields: [
-        { xeroField: 'PhoneNumber (Mobile)', trapidField: 'mobile_phone', value: contact?.mobile_phone, syncStatus: 'synced' },
-        { xeroField: 'PhoneNumber (Office)', trapidField: 'office_phone', value: contact?.office_phone, syncStatus: 'synced' },
-        { xeroField: 'PhoneNumber (Fax)', trapidField: 'fax_phone', value: contact?.fax_phone, syncStatus: 'synced' },
-        { xeroField: 'Website', trapidField: 'website', value: contact?.website, syncStatus: 'synced' }
+        { xeroField: 'PhoneNumber (Mobile)', teeemField: 'mobile_phone', value: contact?.mobile_phone, syncStatus: 'synced' },
+        { xeroField: 'PhoneNumber (Office)', teeemField: 'office_phone', value: contact?.office_phone, syncStatus: 'synced' },
+        { xeroField: 'PhoneNumber (Fax)', teeemField: 'fax_phone', value: contact?.fax_phone, syncStatus: 'synced' },
+        { xeroField: 'Website', teeemField: 'website', value: contact?.website, syncStatus: 'synced' }
       ]
     },
     {
       section: 'Tax & Registration',
       fields: [
-        { xeroField: 'TaxNumber', trapidField: 'tax_number', value: contact?.tax_number, syncStatus: 'synced' },
-        { xeroField: 'AccountNumber', trapidField: 'xero_account_number', value: contact?.xero_account_number, syncStatus: 'synced' },
-        { xeroField: 'ContactNumber', trapidField: 'xero_contact_number', value: contact?.xero_contact_number, syncStatus: 'synced' },
-        { xeroField: 'ContactStatus', trapidField: 'xero_contact_status', value: contact?.xero_contact_status, syncStatus: 'synced' },
-        { xeroField: 'CompanyNumber', trapidField: 'company_number', value: contact?.company_number, syncStatus: 'synced' }
+        { xeroField: 'TaxNumber', teeemField: 'tax_number', value: contact?.tax_number, syncStatus: 'synced' },
+        { xeroField: 'AccountNumber', teeemField: 'xero_account_number', value: contact?.xero_account_number, syncStatus: 'synced' },
+        { xeroField: 'ContactNumber', teeemField: 'xero_contact_number', value: contact?.xero_contact_number, syncStatus: 'synced' },
+        { xeroField: 'ContactStatus', teeemField: 'xero_contact_status', value: contact?.xero_contact_status, syncStatus: 'synced' },
+        { xeroField: 'CompanyNumber', teeemField: 'company_number', value: contact?.company_number, syncStatus: 'synced' }
       ]
     },
     {
       section: 'Purchase (Accounts Payable)',
       fields: [
-        { xeroField: 'DefaultPurchaseAccount', trapidField: 'default_purchase_account', value: contact?.default_purchase_account, syncStatus: 'synced' },
-        { xeroField: 'PurchaseTerms (Days)', trapidField: 'bill_due_day', value: contact?.bill_due_day, syncStatus: 'synced' },
-        { xeroField: 'PurchaseTerms (Type)', trapidField: 'bill_due_type', value: contact?.bill_due_type, syncStatus: 'synced' },
-        { xeroField: 'AccountsPayable Outstanding', trapidField: 'accounts_payable_outstanding', value: contact?.accounts_payable_outstanding, syncStatus: 'read_only', type: 'currency' },
-        { xeroField: 'AccountsPayable Overdue', trapidField: 'accounts_payable_overdue', value: contact?.accounts_payable_overdue, syncStatus: 'read_only', type: 'currency' }
+        { xeroField: 'DefaultPurchaseAccount', teeemField: 'default_purchase_account', value: contact?.default_purchase_account, syncStatus: 'synced' },
+        { xeroField: 'PurchaseTerms (Days)', teeemField: 'bill_due_day', value: contact?.bill_due_day, syncStatus: 'synced' },
+        { xeroField: 'PurchaseTerms (Type)', teeemField: 'bill_due_type', value: contact?.bill_due_type, syncStatus: 'synced' },
+        { xeroField: 'AccountsPayable Outstanding', teeemField: 'accounts_payable_outstanding', value: contact?.accounts_payable_outstanding, syncStatus: 'read_only', type: 'currency' },
+        { xeroField: 'AccountsPayable Overdue', teeemField: 'accounts_payable_overdue', value: contact?.accounts_payable_overdue, syncStatus: 'read_only', type: 'currency' }
       ]
     },
     {
       section: 'Sales (Accounts Receivable)',
       fields: [
-        { xeroField: 'DefaultSalesAccount', trapidField: 'default_sales_account', value: contact?.default_sales_account, syncStatus: 'synced' },
-        { xeroField: 'DefaultDiscount', trapidField: 'default_discount', value: contact?.default_discount, syncStatus: 'synced', type: 'percentage' },
-        { xeroField: 'SalesTerms (Days)', trapidField: 'sales_due_day', value: contact?.sales_due_day, syncStatus: 'synced' },
-        { xeroField: 'SalesTerms (Type)', trapidField: 'sales_due_type', value: contact?.sales_due_type, syncStatus: 'synced' },
-        { xeroField: 'AccountsReceivable Outstanding', trapidField: 'accounts_receivable_outstanding', value: contact?.accounts_receivable_outstanding, syncStatus: 'read_only', type: 'currency' },
-        { xeroField: 'AccountsReceivable Overdue', trapidField: 'accounts_receivable_overdue', value: contact?.accounts_receivable_overdue, syncStatus: 'read_only', type: 'currency' }
+        { xeroField: 'DefaultSalesAccount', teeemField: 'default_sales_account', value: contact?.default_sales_account, syncStatus: 'synced' },
+        { xeroField: 'DefaultDiscount', teeemField: 'default_discount', value: contact?.default_discount, syncStatus: 'synced', type: 'percentage' },
+        { xeroField: 'SalesTerms (Days)', teeemField: 'sales_due_day', value: contact?.sales_due_day, syncStatus: 'synced' },
+        { xeroField: 'SalesTerms (Type)', teeemField: 'sales_due_type', value: contact?.sales_due_type, syncStatus: 'synced' },
+        { xeroField: 'AccountsReceivable Outstanding', teeemField: 'accounts_receivable_outstanding', value: contact?.accounts_receivable_outstanding, syncStatus: 'read_only', type: 'currency' },
+        { xeroField: 'AccountsReceivable Overdue', teeemField: 'accounts_receivable_overdue', value: contact?.accounts_receivable_overdue, syncStatus: 'read_only', type: 'currency' }
       ]
     },
     {
       section: 'Bank Details',
       fields: [
-        { xeroField: 'BankAccountBSB', trapidField: 'bank_bsb', value: contact?.bank_bsb, syncStatus: 'synced' },
-        { xeroField: 'BankAccountNumber', trapidField: 'bank_account_number', value: contact?.bank_account_number, syncStatus: 'synced' },
-        { xeroField: 'BankAccountName', trapidField: 'bank_account_name', value: contact?.bank_account_name, syncStatus: 'synced' }
+        { xeroField: 'BankAccountBSB', teeemField: 'bank_bsb', value: contact?.bank_bsb, syncStatus: 'synced' },
+        { xeroField: 'BankAccountNumber', teeemField: 'bank_account_number', value: contact?.bank_account_number, syncStatus: 'synced' },
+        { xeroField: 'BankAccountName', teeemField: 'bank_account_name', value: contact?.bank_account_name, syncStatus: 'synced' }
       ]
     },
     {
       section: 'Sync Status',
       fields: [
-        { xeroField: 'SyncEnabled', trapidField: 'sync_with_xero', value: contact?.sync_with_xero ? 'Yes' : 'No', syncStatus: contact?.sync_with_xero ? 'enabled' : 'disabled' },
-        { xeroField: 'LastSyncedAt', trapidField: 'last_synced_at', value: contact?.last_synced_at ? new Date(contact.last_synced_at).toLocaleString() : 'Never', syncStatus: contact?.last_synced_at ? 'synced' : 'never' },
-        { xeroField: 'SyncError', trapidField: 'xero_sync_error', value: contact?.xero_sync_error || 'None', syncStatus: contact?.xero_sync_error ? 'error' : 'ok' }
+        { xeroField: 'SyncEnabled', teeemField: 'sync_with_xero', value: contact?.sync_with_xero ? 'Yes' : 'No', syncStatus: contact?.sync_with_xero ? 'enabled' : 'disabled' },
+        { xeroField: 'LastSyncedAt', teeemField: 'last_synced_at', value: contact?.last_synced_at ? new Date(contact.last_synced_at).toLocaleString() : 'Never', syncStatus: contact?.last_synced_at ? 'synced' : 'never' },
+        { xeroField: 'SyncError', teeemField: 'xero_sync_error', value: contact?.xero_sync_error || 'None', syncStatus: contact?.xero_sync_error ? 'error' : 'ok' }
       ]
     }
   ]
@@ -109,19 +109,19 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     setTransactionsError(null)
 
     try {
-      // Fetch Purchase Orders from Trapid
+      // Fetch Purchase Orders from TEEEM
       const poResponse = await api.get(`/api/v1/purchase_orders?supplier_id=${contact.id}`)
       if (poResponse.success) {
         setPurchaseOrders(poResponse.purchase_orders || [])
       }
 
-      // Fetch Contact Persons from Trapid
+      // Fetch Contact Persons from TEEEM
       const personsResponse = await api.get(`/api/v1/contacts/${contact.id}/contact_persons`)
       if (personsResponse.success) {
         setContactPersons(personsResponse.contact_persons || [])
       }
 
-      // Fetch Contact Groups from Trapid
+      // Fetch Contact Groups from TEEEM
       const groupsResponse = await api.get(`/api/v1/contacts/${contact.id}/contact_groups`)
       if (groupsResponse.success) {
         setContactGroups(groupsResponse.contact_groups || [])
@@ -354,7 +354,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Xero Sync</h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            Field mappings between Xero and Trapid
+            Field mappings between Xero and TEEEM
           </p>
         </div>
         <button
@@ -446,7 +446,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       {/* Connection Guide */}
       <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          📋 How Trapid Connects to Xero
+          📋 How TEEEM Connects to Xero
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
@@ -459,7 +459,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
             <div>
               <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-1">📝 Purchase Orders</h4>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Trapid POs link to Xero Bills/Invoices via <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">xero_invoice_id</code>. Payment status syncs from Xero.
+                TEEEM POs link to Xero Bills/Invoices via <code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">xero_invoice_id</code>. Payment status syncs from Xero.
               </p>
             </div>
             <div>
@@ -516,10 +516,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
             </div>
           ) : (
             <>
-              {/* Trapid Purchase Orders */}
+              {/* TEEEM Purchase Orders */}
               <div className="mb-6">
                 <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
-                  Purchase Orders in Trapid ({purchaseOrders.length})
+                  Purchase Orders in TEEEM ({purchaseOrders.length})
                 </h4>
                 {purchaseOrders.length > 0 ? (
                   <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -721,7 +721,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               {contactPersons.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
-                    Contact Persons in Trapid ({contactPersons.length})
+                    Contact Persons in TEEEM ({contactPersons.length})
                   </h4>
                   <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -754,7 +754,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               {contactGroups.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
-                    Contact Groups in Trapid ({contactGroups.length})
+                    Contact Groups in TEEEM ({contactGroups.length})
                   </h4>
                   <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                     <div className="flex flex-wrap gap-2">
@@ -792,7 +792,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                     Xero Field
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Trapid Field
+                    TEEEM Field
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Current Value
@@ -809,7 +809,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                       {field.xeroField}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
-                      {field.trapidField}
+                      {field.teeemField}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                       {formatValue(field)}

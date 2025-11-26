@@ -23,7 +23,7 @@
 
 ## Overview
 
-SM Gantt is a comprehensive construction scheduling system built into TRAPID. It provides:
+SM Gantt is a comprehensive construction scheduling system built into TEEEM. It provides:
 
 - Interactive Gantt chart visualization
 - Task management with dependencies
@@ -753,4 +753,4 @@ For questions about SM Gantt implementation, refer to:
 
 ---
 
-*Generated for TRAPID SM Gantt System*
+*Generated for TEEEM SM Gantt System*

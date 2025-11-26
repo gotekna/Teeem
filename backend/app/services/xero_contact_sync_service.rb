@@ -10,7 +10,7 @@ class XeroContactSyncService
     @xero_client = XeroApiClient.new
     @stats = {
       matched: 0,
-      created_in_trapid: 0,
+      created_in_teeem: 0,
       created_in_xero: 0,
       updated: 0,
       errors: [],
@@ -26,12 +26,12 @@ class XeroContactSyncService
     begin
       # Fetch all contacts from both systems
       xero_contacts = fetch_xero_contacts
-      trapid_contacts = Contact.all.to_a
+      teeem_contacts = Contact.all.to_a
 
-      Rails.logger.info("Fetched #{xero_contacts.length} Xero contacts and #{trapid_contacts.length} Trapid contacts")
+      Rails.logger.info("Fetched #{xero_contacts.length} Xero contacts and #{teeem_contacts.length} TEEEM contacts")
 
       # Process contacts
-      process_contacts(xero_contacts, trapid_contacts)
+      process_contacts(xero_contacts, teeem_contacts)
 
       Rails.logger.info("Xero contact sync completed: #{@stats.inspect}")
 
@@ -72,41 +72,41 @@ class XeroContactSyncService
     end
   end
 
-  def process_contacts(xero_contacts, trapid_contacts)
+  def process_contacts(xero_contacts, teeem_contacts)
     # Track which contacts have been matched
-    matched_trapid_ids = Set.new
+    matched_teeem_ids = Set.new
     matched_xero_ids = Set.new
 
     # Build lookup maps for efficient matching
-    trapid_by_xero_id = trapid_contacts.select { |c| c.xero_id.present? }
+    teeem_by_xero_id = teeem_contacts.select { |c| c.xero_id.present? }
                                        .index_by(&:xero_id)
-    trapid_by_tax_number = trapid_contacts.select { |c| c.tax_number.present? }
+    teeem_by_tax_number = teeem_contacts.select { |c| c.tax_number.present? }
                                           .group_by(&:tax_number)
-    trapid_by_email = trapid_contacts.select { |c| c.email.present? }
+    teeem_by_email = teeem_contacts.select { |c| c.email.present? }
                                      .index_by { |c| c.email.downcase.strip }
 
     # Process each Xero contact
     xero_contacts.each do |xero_contact|
       begin
-        trapid_contact = find_matching_trapid_contact(
+        teeem_contact = find_matching_teeem_contact(
           xero_contact,
-          trapid_by_xero_id,
-          trapid_by_tax_number,
-          trapid_by_email,
-          trapid_contacts - matched_trapid_ids.map { |id| trapid_contacts.find { |c| c.id == id } }.compact
+          teeem_by_xero_id,
+          teeem_by_tax_number,
+          teeem_by_email,
+          teeem_contacts - matched_teeem_ids.map { |id| teeem_contacts.find { |c| c.id == id } }.compact
         )
 
-        if trapid_contact
+        if teeem_contact
           # Match found - update both systems
-          matched_trapid_ids.add(trapid_contact.id)
+          matched_teeem_ids.add(teeem_contact.id)
           matched_xero_ids.add(xero_contact['ContactID'])
-          sync_matched_contact(trapid_contact, xero_contact)
+          sync_matched_contact(teeem_contact, xero_contact)
           @stats[:matched] += 1
         else
-          # No match - create in Trapid
-          create_trapid_contact_from_xero(xero_contact)
+          # No match - create in TEEEM
+          create_teeem_contact_from_xero(xero_contact)
           matched_xero_ids.add(xero_contact['ContactID'])
-          @stats[:created_in_trapid] += 1
+          @stats[:created_in_teeem] += 1
         end
 
         # Small delay to avoid rate limits
@@ -118,34 +118,34 @@ class XeroContactSyncService
       end
     end
 
-    # ONE-WAY SYNC: Xero → Trapid only (disabled Trapid → Xero push)
-    # This prevents changes in Trapid from affecting Xero data
+    # ONE-WAY SYNC: Xero → TEEEM only (disabled TEEEM → Xero push)
+    # This prevents changes in TEEEM from affecting Xero data
     # To re-enable two-way sync, uncomment the code below
     #
-    # Process unmatched Trapid contacts that should sync to Xero
-    # unmatched_trapid = trapid_contacts.reject { |c| matched_trapid_ids.include?(c.id) }
-    # unmatched_trapid.select { |c| c.sync_with_xero }.each do |trapid_contact|
+    # Process unmatched TEEEM contacts that should sync to Xero
+    # unmatched_teeem = teeem_contacts.reject { |c| matched_teeem_ids.include?(c.id) }
+    # unmatched_teeem.select { |c| c.sync_with_xero }.each do |teeem_contact|
     #   begin
-    #     create_xero_contact_from_trapid(trapid_contact)
+    #     create_xero_contact_from_teeem(teeem_contact)
     #     @stats[:created_in_xero] += 1
     #     sleep(RATE_LIMIT_SLEEP / 1000.0)
     #   rescue StandardError => e
-    #     error_msg = "Error creating Xero contact for #{trapid_contact.display_name}: #{e.message}"
+    #     error_msg = "Error creating Xero contact for #{teeem_contact.display_name}: #{e.message}"
     #     Rails.logger.error(error_msg)
     #     @stats[:errors] << error_msg
     #   end
     # end
     #
-    # # Count skipped contacts (Trapid contacts not synced because sync_with_xero is false)
-    # @stats[:skipped] = unmatched_trapid.reject { |c| c.sync_with_xero }.count
+    # # Count skipped contacts (TEEEM contacts not synced because sync_with_xero is false)
+    # @stats[:skipped] = unmatched_teeem.reject { |c| c.sync_with_xero }.count
 
-    # Count Trapid-only contacts that won't be pushed to Xero
-    unmatched_trapid = trapid_contacts.reject { |c| matched_trapid_ids.include?(c.id) }
-    @stats[:skipped] = unmatched_trapid.count
-    Rails.logger.info("ONE-WAY SYNC MODE: #{@stats[:skipped]} Trapid contacts not pushed to Xero")
+    # Count TEEEM-only contacts that won't be pushed to Xero
+    unmatched_teeem = teeem_contacts.reject { |c| matched_teeem_ids.include?(c.id) }
+    @stats[:skipped] = unmatched_teeem.count
+    Rails.logger.info("ONE-WAY SYNC MODE: #{@stats[:skipped]} TEEEM contacts not pushed to Xero")
   end
 
-  def find_matching_trapid_contact(xero_contact, by_xero_id, by_tax_number, by_email, remaining_contacts)
+  def find_matching_teeem_contact(xero_contact, by_xero_id, by_tax_number, by_email, remaining_contacts)
     xero_id = xero_contact['ContactID']
     xero_tax = xero_contact['TaxNumber']
     xero_email = extract_xero_email(xero_contact)
@@ -202,27 +202,27 @@ class XeroContactSyncService
     matched_name ? contact_names[matched_name] : nil
   end
 
-  def sync_matched_contact(trapid_contact, xero_contact)
-    Rails.logger.info("Syncing matched contact: Trapid ##{trapid_contact.id} <-> Xero #{xero_contact['Name']}")
+  def sync_matched_contact(teeem_contact, xero_contact)
+    Rails.logger.info("Syncing matched contact: TEEEM ##{teeem_contact.id} <-> Xero #{xero_contact['Name']}")
 
     # Determine which system has newer data (or if we should update both)
-    # For simplicity, we'll update Trapid with Xero data and mark as synced
+    # For simplicity, we'll update TEEEM with Xero data and mark as synced
     # In production, you might want more sophisticated conflict resolution
 
-    update_trapid_from_xero(trapid_contact, xero_contact)
+    update_teeem_from_xero(teeem_contact, xero_contact)
 
     # If the data differs significantly, we might also want to update Xero
     # For now, we'll just ensure the link is established
   end
 
-  def update_trapid_from_xero(trapid_contact, xero_contact)
+  def update_teeem_from_xero(teeem_contact, xero_contact)
     updates = {
       xero_id: xero_contact['ContactID'],
       last_synced_at: @sync_timestamp,
       xero_sync_error: nil
     }
 
-    # Update fields if Xero has data and Trapid doesn't, or if explicitly syncing
+    # Update fields if Xero has data and TEEEM doesn't, or if explicitly syncing
     updates[:full_name] = xero_contact['Name'] if xero_contact['Name'].present?
     updates[:first_name] = xero_contact['FirstName'] if xero_contact['FirstName'].present?
     updates[:last_name] = xero_contact['LastName'] if xero_contact['LastName'].present?
@@ -279,32 +279,32 @@ class XeroContactSyncService
     # Track changes for activity logging
     changed_fields = updates.keys - [:xero_id, :last_synced_at, :xero_sync_error]
     changes_made = changed_fields.each_with_object({}) do |field, hash|
-      old_value = trapid_contact.send(field)
+      old_value = teeem_contact.send(field)
       new_value = updates[field]
       hash[field] = { from: old_value, to: new_value } if old_value != new_value
     end
 
-    trapid_contact.update!(updates)
+    teeem_contact.update!(updates)
     @stats[:updated] += 1
-    Rails.logger.info("Updated Trapid contact ##{trapid_contact.id}")
+    Rails.logger.info("Updated TEEEM contact ##{teeem_contact.id}")
 
     # Log activity if there were changes
     if changes_made.any?
       ContactActivity.log_xero_sync(
-        contact: trapid_contact,
+        contact: teeem_contact,
         action: 'updated',
         changes: changes_made,
         xero_data: xero_contact
       )
     end
   rescue StandardError => e
-    error_msg = "Failed to update Trapid contact: #{e.message}"
-    trapid_contact.update(xero_sync_error: error_msg)
+    error_msg = "Failed to update TEEEM contact: #{e.message}"
+    teeem_contact.update(xero_sync_error: error_msg)
     raise
   end
 
-  def create_trapid_contact_from_xero(xero_contact)
-    Rails.logger.info("Creating Trapid contact from Xero: #{xero_contact['Name']}")
+  def create_teeem_contact_from_xero(xero_contact)
+    Rails.logger.info("Creating TEEEM contact from Xero: #{xero_contact['Name']}")
 
     contact_data = {
       xero_id: xero_contact['ContactID'],
@@ -330,7 +330,7 @@ class XeroContactSyncService
     end
 
     new_contact = Contact.create!(contact_data.compact)
-    Rails.logger.info("Created Trapid contact from Xero: #{xero_contact['Name']}")
+    Rails.logger.info("Created TEEEM contact from Xero: #{xero_contact['Name']}")
 
     # Log activity for new contact creation
     ContactActivity.log_xero_sync(
@@ -340,18 +340,18 @@ class XeroContactSyncService
       xero_data: xero_contact
     )
   rescue StandardError => e
-    error_msg = "Failed to create Trapid contact from Xero: #{e.message}"
+    error_msg = "Failed to create TEEEM contact from Xero: #{e.message}"
     Rails.logger.error(error_msg)
     raise
   end
 
-  def create_xero_contact_from_trapid(trapid_contact)
-    Rails.logger.info("Creating Xero contact from Trapid: #{trapid_contact.display_name}")
+  def create_xero_contact_from_teeem(teeem_contact)
+    Rails.logger.info("Creating Xero contact from TEEEM: #{teeem_contact.display_name}")
 
     # Build Xero contact payload
     xero_payload = {
       Contacts: [
-        build_xero_contact_payload(trapid_contact)
+        build_xero_contact_payload(teeem_contact)
       ]
     }
 
@@ -360,7 +360,7 @@ class XeroContactSyncService
     if result[:success]
       created_contact = result[:data]['Contacts']&.first
       if created_contact
-        trapid_contact.update!(
+        teeem_contact.update!(
           xero_id: created_contact['ContactID'],
           last_synced_at: @sync_timestamp,
           xero_sync_error: nil
@@ -372,32 +372,32 @@ class XeroContactSyncService
     end
   rescue StandardError => e
     error_msg = "Failed to create Xero contact: #{e.message}"
-    trapid_contact.update(xero_sync_error: error_msg)
+    teeem_contact.update(xero_sync_error: error_msg)
     raise
   end
 
-  def build_xero_contact_payload(trapid_contact)
+  def build_xero_contact_payload(teeem_contact)
     payload = {
-      Name: trapid_contact.full_name || "#{trapid_contact.first_name} #{trapid_contact.last_name}".strip
+      Name: teeem_contact.full_name || "#{teeem_contact.first_name} #{teeem_contact.last_name}".strip
     }
 
-    payload[:FirstName] = trapid_contact.first_name if trapid_contact.first_name.present?
-    payload[:LastName] = trapid_contact.last_name if trapid_contact.last_name.present?
-    payload[:EmailAddress] = trapid_contact.email if trapid_contact.email.present?
-    payload[:TaxNumber] = trapid_contact.tax_number if trapid_contact.tax_number.present?
+    payload[:FirstName] = teeem_contact.first_name if teeem_contact.first_name.present?
+    payload[:LastName] = teeem_contact.last_name if teeem_contact.last_name.present?
+    payload[:EmailAddress] = teeem_contact.email if teeem_contact.email.present?
+    payload[:TaxNumber] = teeem_contact.tax_number if teeem_contact.tax_number.present?
 
     # Add phone numbers
     phones = []
-    if trapid_contact.mobile_phone.present?
+    if teeem_contact.mobile_phone.present?
       phones << {
         PhoneType: 'MOBILE',
-        PhoneNumber: trapid_contact.mobile_phone
+        PhoneNumber: teeem_contact.mobile_phone
       }
     end
-    if trapid_contact.office_phone.present?
+    if teeem_contact.office_phone.present?
       phones << {
         PhoneType: 'DEFAULT',
-        PhoneNumber: trapid_contact.office_phone
+        PhoneNumber: teeem_contact.office_phone
       }
     end
     payload[:Phones] = phones if phones.any?

@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :features do
     desc "Restructure features based on competitive analysis - creates new industry-standard feature set"
     task restructure: :environment do
@@ -13,7 +13,7 @@ namespace :trapid do
           feature_name: f.feature_name,
           dev_progress: f.dev_progress,
           system_complete: f.system_complete,
-          trapid_has: f.trapid_has
+          teeem_has: f.teeem_has
         }
       end
 
@@ -162,7 +162,7 @@ namespace :trapid do
           tester_checked: false,
           ui_checked: false,
           user_checked: false,
-          trapid_has: false,
+          teeem_has: false,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -187,8 +187,8 @@ namespace :trapid do
 
       puts "\n" + "=" * 80
       puts "🎯 Next Steps:"
-      puts "   1. Run: bin/rails trapid:features:mark_implemented"
-      puts "      (This will mark features with dev_progress > 0 as trapid_has = true)"
+      puts "   1. Run: bin/rails teeem:features:mark_implemented"
+      puts "      (This will mark features with dev_progress > 0 as teeem_has = true)"
       puts ""
       puts "   2. Manually review and set competitor checkmarks"
       puts "      (Use the Features Tracking Table in the UI)"

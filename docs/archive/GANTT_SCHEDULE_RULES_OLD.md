@@ -4,8 +4,8 @@
 **Status:** Production-ready with DHtmlx trial
 **Authority Level:** ABSOLUTE - This is The Bible for all Gantt development
 **File Locations:**
-- Source: `/Users/rob/Projects/trapid/GANTT_SCHEDULE_RULES.md`
-- Public: `/Users/rob/Projects/trapid/frontend/public/GANTT_SCHEDULE_RULES.md`
+- Source: `/Users/rob/Projects/teeem/GANTT_SCHEDULE_RULES.md`
+- Public: `/Users/rob/Projects/teeem/frontend/public/GANTT_SCHEDULE_RULES.md`
 
 ---
 
@@ -101,11 +101,11 @@ When you update either Bible or Lexicon, you MUST sync to frontend/public/:
 
 ```bash
 # After updating source files, ALWAYS run:
-cp /Users/rob/Projects/trapid/GANTT_SCHEDULE_RULES.md \
-   /Users/rob/Projects/trapid/frontend/public/GANTT_SCHEDULE_RULES.md
+cp /Users/rob/Projects/teeem/GANTT_SCHEDULE_RULES.md \
+   /Users/rob/Projects/teeem/frontend/public/GANTT_SCHEDULE_RULES.md
 
-cp /Users/rob/Projects/trapid/GANTT_BUGS_AND_FIXES.md \
-   /Users/rob/Projects/trapid/frontend/public/GANTT_BUGS_AND_FIXES.md
+cp /Users/rob/Projects/teeem/GANTT_BUGS_AND_FIXES.md \
+   /Users/rob/Projects/teeem/frontend/public/GANTT_BUGS_AND_FIXES.md
 ```
 
 ✅ **MUST sync after EVERY edit**
@@ -185,11 +185,11 @@ After updating either document, MUST verify:
 
 ```bash
 # 1. Check files are synced
-ls -lh /Users/rob/Projects/trapid/frontend/public/GANTT*.md
+ls -lh /Users/rob/Projects/teeem/frontend/public/GANTT*.md
 
 # 2. Check timestamps match
-head -3 /Users/rob/Projects/trapid/GANTT_SCHEDULE_RULES.md
-head -3 /Users/rob/Projects/trapid/frontend/public/GANTT_SCHEDULE_RULES.md
+head -3 /Users/rob/Projects/teeem/GANTT_SCHEDULE_RULES.md
+head -3 /Users/rob/Projects/teeem/frontend/public/GANTT_SCHEDULE_RULES.md
 
 # 3. Test UI buttons in browser
 # - Navigate to Settings → Schedule Master
@@ -281,12 +281,12 @@ CONSEQUENCES: [What breaks if this rule is violated]
 When CC updates this Bible file, CC MUST ensure the UI buttons in Settings > Schedule Master tab work correctly:
 
 **File Sync Process (MANDATORY):**
-Every time CC modifies the source file at `/Users/rob/Projects/trapid/GANTT_SCHEDULE_RULES.md`, CC MUST:
+Every time CC modifies the source file at `/Users/rob/Projects/teeem/GANTT_SCHEDULE_RULES.md`, CC MUST:
 1. **Update the version number** (increment patch: 1.0.0 → 1.0.1, minor for new features: 1.0.0 → 1.1.0, major for breaking changes: 1.0.0 → 2.0.0)
 2. **Update the timestamp** to current date and time
 3. **Run the sync script:** `./scripts/sync-gantt-rules.sh` OR manually copy:
    ```bash
-   cp /Users/rob/Projects/trapid/GANTT_SCHEDULE_RULES.md /Users/rob/Projects/trapid/frontend/public/GANTT_SCHEDULE_RULES.md
+   cp /Users/rob/Projects/teeem/GANTT_SCHEDULE_RULES.md /Users/rob/Projects/teeem/frontend/public/GANTT_SCHEDULE_RULES.md
    ```
 4. **Verify sync:** Check that both files have the same version number and timestamp
 

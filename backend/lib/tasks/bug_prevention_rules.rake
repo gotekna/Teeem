@@ -188,18 +188,18 @@ namespace :trinity do
       section_number: "19.0"
     ) do |rule|
       rule.chapter_name = "UI/UX"
-      rule.title = "ONLY Use TrapidTableView for ALL Tables"
+      rule.title = "ONLY Use TEEEMTableView for ALL Tables"
       rule.entry_type = "MUST"
-      rule.component = "TrapidTableView"
+      rule.component = "TEEEMTableView"
       rule.bible_entry = true
       rule.lexicon_entry = false
       rule.teacher_entry = false
 
-      rule.description = "MUST use TrapidTableView for ALL tables. NEVER use deprecated TablePage.jsx or DataTable.jsx. Pattern ID: PATTERN-004. Severity: MEDIUM."
-      rule.details = "Multiple table components created inconsistent UX, feature duplication, maintenance overhead. TrapidTableView is THE ONE STANDARD. Gold Standard: /settings?tab=gold-standard"
-      rule.code_example = "DEPRECATED: import TablePage from './TablePage'. CORRECT: import TrapidTableView from './TrapidTableView'"
+      rule.description = "MUST use TEEEMTableView for ALL tables. NEVER use deprecated TablePage.jsx or DataTable.jsx. Pattern ID: PATTERN-004. Severity: MEDIUM."
+      rule.details = "Multiple table components created inconsistent UX, feature duplication, maintenance overhead. TEEEMTableView is THE ONE STANDARD. Gold Standard: /settings?tab=gold-standard"
+      rule.code_example = "DEPRECATED: import TablePage from './TablePage'. CORRECT: import TEEEMTableView from './TEEEMTableView'"
       rule.common_mistakes = "Copying from old files; assuming TablePage has unique features; avoiding migration effort"
-      rule.recommendations = "Always use TrapidTableView; reference Gold Standard demo; follow Teacher §19.1; test all features"
+      rule.recommendations = "Always use TEEEMTableView; reference Gold Standard demo; follow Teacher §19.1; test all features"
       rule.related_rules = "Lexicon §19.0: Table Consolidation; Teacher §19.1; Pattern Library PATTERN-004"
 
       rules_added += 1
@@ -217,8 +217,8 @@ namespace :trinity do
     puts ""
     puts "🔗 These rules integrate with:"
     puts "   - Pre-Commit Guardian: scripts/safeguard-checker.js"
-    puts "   - Pattern Library: TRAPID_DOCS/PATTERN_LIBRARY.md"
-    puts "   - Detection Rules: TRAPID_DOCS/DETECTION_RULES.md"
+    puts "   - Pattern Library: TEEEM_DOCS/PATTERN_LIBRARY.md"
+    puts "   - Detection Rules: TEEEM_DOCS/DETECTION_RULES.md"
     puts ""
     puts "🎯 Next steps:"
     puts "   - Trinity sync will auto-generate dense_index for each rule"

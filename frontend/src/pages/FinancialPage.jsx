@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PlusIcon, BanknotesIcon, CreditCardIcon } from '@heroicons/react/24/outline'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import TransactionForm from '../components/financial/TransactionForm'
 import api from '../api'
 
@@ -118,7 +118,7 @@ export default function FinancialPage() {
       setLoading(true)
       const response = await api.get('/api/v1/financial_transactions')
       if (response.success) {
-        // Transform data to include computed fields for TrapidTableView
+        // Transform data to include computed fields for TeeemTableView
         const transformedData = response.transactions.map(t => ({
           ...t,
           construction_name: t.construction?.name || 'N/A',
@@ -146,7 +146,7 @@ export default function FinancialPage() {
   }
 
   const handleEdit = async (entry) => {
-    // For inline edits from TrapidTableView
+    // For inline edits from TeeemTableView
     try {
       const response = await api.put(`/api/v1/financial_transactions/${entry.id}`, {
         transaction: {
@@ -316,7 +316,7 @@ export default function FinancialPage() {
       </div>
 
       {/* Transactions Table */}
-      <TrapidTableView
+      <TeeemTableView
         tableId="financial-transactions"
         tableName="Financial Transactions"
         entries={transactions}

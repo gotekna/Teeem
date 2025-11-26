@@ -15,7 +15,7 @@ class XeroBankSyncTest
     puts "="*80
 
     test_1_check_auth
-    test_2_create_trapid_contact
+    test_2_create_teeem_contact
     test_3_format_bank_details_to_xero
     test_4_parse_bank_details_from_xero
 
@@ -40,8 +40,8 @@ class XeroBankSyncTest
     end
   end
 
-  def test_2_create_trapid_contact
-    puts "\n[Test 2] Creating test contact in Trapid..."
+  def test_2_create_teeem_contact
+    puts "\n[Test 2] Creating test contact in TEEEM..."
 
     @test_contact = Contact.create!(
       full_name: "Test Bank Sync #{Time.current.to_i}",
@@ -91,7 +91,7 @@ class XeroBankSyncTest
       puts "  - Xero ID: #{@xero_contact_id}"
       puts "  - Bank Details in Xero: #{xero_contact['BankAccountDetails']}"
 
-      # Update Trapid contact with Xero ID
+      # Update TEEEM contact with Xero ID
       @test_contact.update!(xero_id: @xero_contact_id)
     else
       puts "✗ Failed to create in Xero: #{result[:error]}"
@@ -111,7 +111,7 @@ class XeroBankSyncTest
       puts "✓ Fetched from Xero:"
       puts "  Raw string: \"#{bank_details_string}\""
 
-      # Parse using the regex patterns from XeroContactSyncJob#update_trapid_from_xero
+      # Parse using the regex patterns from XeroContactSyncJob#update_teeem_from_xero
       parsed = {}
 
       if bank_details_string.present?
@@ -168,10 +168,10 @@ class XeroBankSyncTest
 
     # Cleanup
     puts "\n[Cleanup]"
-    print "Delete test contact from Trapid? (y/n): "
+    print "Delete test contact from TEEEM? (y/n): "
     if gets.chomp.downcase == 'y'
       @test_contact.destroy
-      puts "✓ Deleted test contact from Trapid"
+      puts "✓ Deleted test contact from TEEEM"
       puts "  Note: Contact still exists in Xero (ID: #{@xero_contact_id})"
       puts "  You can delete it manually from Xero if needed"
     else

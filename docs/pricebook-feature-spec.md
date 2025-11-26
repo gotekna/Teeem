@@ -1,5 +1,5 @@
 # Feature Specification: Price Book Management System
-## Trapid - Tekna Homes Migration
+## TEEEM - Tekna Homes Migration
 
 **Feature Owner:** Jake Baird (Tekna Homes)  
 **Dev Lead:** [TBD]  
@@ -11,7 +11,7 @@
 
 ## 🎯 Problem Statement
 
-Tekna Homes needs to migrate their 5,000+ item price book from the deprecated Rapid Platform to Trapid. The current data requires significant cleanup and the new system needs to support construction-specific workflows including supplier management, quote collection, and price tracking.
+Tekna Homes needs to migrate their 5,000+ item price book from the deprecated Rapid Platform to TEEEM. The current data requires significant cleanup and the new system needs to support construction-specific workflows including supplier management, quote collection, and price tracking.
 
 **Business Impact:**
 - **Risk:** $500K+ project estimates depend on accurate pricing data
@@ -24,7 +24,7 @@ Tekna Homes needs to migrate their 5,000+ item price book from the deprecated Ra
 
 ### Epic: Price Book Migration
 **As a** construction estimator  
-**I want to** access our complete price book in Trapid  
+**I want to** access our complete price book in TEEEM  
 **So that** I can continue creating accurate project estimates without disruption
 
 #### Story 1: Bulk Price Book Import
@@ -420,4 +420,4 @@ Feature: Price Book Import
 
 ---
 
-*This feature specification provides the complete technical and business requirements for implementing the Price Book Management System in Trapid, supporting Tekna Homes' critical migration from Rapid Platform.*
+*This feature specification provides the complete technical and business requirements for implementing the Price Book Management System in TEEEM, supporting Tekna Homes' critical migration from Rapid Platform.*

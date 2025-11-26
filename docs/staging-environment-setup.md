@@ -4,8 +4,8 @@ This document explains how to set up the dedicated staging environment for the `
 
 ## Overview
 
-- **Production**: `main` branch → https://trapid.vercel.app
-- **Staging**: `rob` branch → https://trapid-staging.vercel.app (or custom domain)
+- **Production**: `main` branch → https://teeem.vercel.app
+- **Staging**: `rob` branch → https://teeem-staging.vercel.app (or custom domain)
 
 ## Architecture
 
@@ -25,9 +25,9 @@ You have two options:
 
 1. Go to https://vercel.com/jakes-projects-b6cf0fcb
 2. Click "Add New" → "Project"
-3. Choose "Import Git Repository" and select the trapid repository
+3. Choose "Import Git Repository" and select the teeem repository
 4. Configure the project:
-   - **Project Name**: `trapid-staging`
+   - **Project Name**: `teeem-staging`
    - **Framework Preset**: Vite
    - **Root Directory**: `frontend`
    - **Build Command**: `npm run build`
@@ -41,10 +41,10 @@ You have two options:
 #### Option B: Via Vercel CLI
 
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 
 # Create new project linked to 'rob' branch
-vercel link --project trapid-staging
+vercel link --project teeem-staging
 
 # Get the project ID
 vercel inspect --scope jakes-projects-b6cf0fcb
@@ -57,7 +57,7 @@ vercel --prod
 
 After creating the project, get the Project ID:
 
-1. Go to https://vercel.com/jakes-projects-b6cf0fcb/trapid-staging
+1. Go to https://vercel.com/jakes-projects-b6cf0fcb/teeem-staging
 2. Click "Settings" → "General"
 3. Copy the "Project ID" (format: `prj_xxxxxxxxxxxxxxxxxxxxx`)
 
@@ -70,9 +70,9 @@ You need to decide: Should staging use the production backend or a separate stag
 Set the same API URL as production:
 
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 vercel env add VITE_API_URL production
-# When prompted, enter: https://trapid-backend-447058022b51.herokuapp.com
+# When prompted, enter: https://teeem-backend-447058022b51.herokuapp.com
 ```
 
 Also add other required variables:
@@ -88,21 +88,21 @@ vercel env add VITE_XERO_CLIENT_ID production
 
 If you want to create a separate staging backend:
 
-1. Create new Heroku app: `trapid-backend-staging`
+1. Create new Heroku app: `teeem-backend-staging`
 2. Deploy backend to staging
 3. Set different API URL:
 
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 vercel env add VITE_API_URL production
-# When prompted, enter: https://trapid-backend-staging.herokuapp.com
+# When prompted, enter: https://teeem-backend-staging.herokuapp.com
 ```
 
 ### Step 4: Add GitHub Secret
 
 Add the staging project ID to GitHub secrets:
 
-1. Go to https://github.com/YOUR_USERNAME/trapid/settings/secrets/actions
+1. Go to https://github.com/YOUR_USERNAME/teeem/settings/secrets/actions
 2. Click "New repository secret"
 3. Name: `VERCEL_STAGING_PROJECT_ID`
 4. Value: `prj_xxxxxxxxxxxxxxxxxxxxx` (from Step 2)
@@ -125,7 +125,7 @@ Add the staging project ID to GitHub secrets:
    ```
 
 3. Check GitHub Actions:
-   - Go to https://github.com/YOUR_USERNAME/trapid/actions
+   - Go to https://github.com/YOUR_USERNAME/teeem/actions
    - You should see "Deploy Staging (Rob's Branch) to Vercel" running
 
 4. Once deployed, visit your staging URL
@@ -143,17 +143,17 @@ The staging deployment workflow (`.github/workflows/deploy-staging.yml`) automat
 | Feature | Production | Staging |
 |---------|-----------|---------|
 | Branch | `main` | `rob` |
-| URL | https://trapid.vercel.app | https://trapid-staging.vercel.app |
+| URL | https://teeem.vercel.app | https://teeem-staging.vercel.app |
 | Project ID | `prj_mQk4ClT5cVPRAcmEDigB3LBAb0Gl` | `${{ secrets.VERCEL_STAGING_PROJECT_ID }}` |
-| Backend API | https://trapid-backend-447058022b51.herokuapp.com | (Your choice - same or separate) |
+| Backend API | https://teeem-backend-447058022b51.herokuapp.com | (Your choice - same or separate) |
 | Deployment | Manual or on push to main | Automatic on push to rob |
 
 ## Custom Domain (Optional)
 
 To use a custom domain for staging:
 
-1. Go to Vercel Dashboard → trapid-staging → Settings → Domains
-2. Add domain: `staging.trapid.com` (or your preferred subdomain)
+1. Go to Vercel Dashboard → teeem-staging → Settings → Domains
+2. Add domain: `staging.teeem.com` (or your preferred subdomain)
 3. Update DNS records as instructed by Vercel
 4. Update the workflow file to reflect the new URL
 
@@ -182,7 +182,7 @@ If staging connects to production backend, you may need to update CORS:
 1. Edit `backend/config/initializers/cors.rb`
 2. Add staging domain to allowed origins:
    ```ruby
-   origins /https:\/\/trapid(-staging)?(-.*)?\.vercel\.app$/
+   origins /https:\/\/teeem(-staging)?(-.*)?\.vercel\.app$/
    ```
 3. Deploy backend changes
 

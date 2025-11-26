@@ -1,5 +1,5 @@
 class PayNowMailer < ApplicationMailer
-  default from: 'noreply@trapid.app'
+  default from: 'noreply@teeem.app'
 
   # Sent to supervisors when a new Pay Now request is submitted
   def supervisor_review_needed(request, supervisor)

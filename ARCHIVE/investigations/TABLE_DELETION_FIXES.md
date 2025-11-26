@@ -4,7 +4,7 @@
 
 ### Issue: No Authentication/Authorization
 
-**File**: `/Users/rob/Projects/trapid/backend/app/controllers/api/v1/tables_controller.rb`
+**File**: `/Users/rob/Projects/teeem/backend/app/controllers/api/v1/tables_controller.rb`
 
 **Current Code**:
 ```ruby
@@ -54,7 +54,7 @@ end
 
 ### Issue: Table can be deleted while live or with records
 
-**File**: `/Users/rob/Projects/trapid/backend/app/controllers/api/v1/tables_controller.rb`
+**File**: `/Users/rob/Projects/teeem/backend/app/controllers/api/v1/tables_controller.rb`
 
 **Current Code**:
 ```ruby
@@ -160,7 +160,7 @@ end
 
 ### Issue: Can't distinguish retryable from permanent errors
 
-**File**: `/Users/rob/Projects/trapid/backend/app/services/table_builder.rb`
+**File**: `/Users/rob/Projects/teeem/backend/app/services/table_builder.rb`
 
 **Current Code**:
 ```ruby
@@ -251,7 +251,7 @@ end
 
 ### Issue: Inconsistent error response formats
 
-**File**: `/Users/rob/Projects/trapid/backend/app/controllers/api/v1/tables_controller.rb`
+**File**: `/Users/rob/Projects/teeem/backend/app/controllers/api/v1/tables_controller.rb`
 
 **Current Code**:
 ```ruby
@@ -303,7 +303,7 @@ end
 
 ### Issue: Poor network error messages and no retry
 
-**File**: `/Users/rob/Projects/trapid/frontend/src/api.js`
+**File**: `/Users/rob/Projects/teeem/frontend/src/api.js`
 
 **Current Code**:
 ```javascript
@@ -389,7 +389,7 @@ async delete(endpoint, { timeout = 30000, maxRetries = 0 } = {}) {
 
 ### Issue: No loading state, generic alerts
 
-**File**: `/Users/rob/Projects/trapid/frontend/src/components/settings/TablesTab.jsx`
+**File**: `/Users/rob/Projects/teeem/frontend/src/components/settings/TablesTab.jsx`
 
 **Current Code**:
 ```javascript
@@ -526,7 +526,7 @@ const handleDeleteTable = async (table) => {
 
 ### New File: Add Audit Logging
 
-**File**: `/Users/rob/Projects/trapid/backend/app/models/audit_log.rb`
+**File**: `/Users/rob/Projects/teeem/backend/app/models/audit_log.rb`
 
 ```ruby
 class AuditLog < ApplicationRecord
@@ -548,7 +548,7 @@ class AuditLog < ApplicationRecord
 end
 ```
 
-**File**: `/Users/rob/Projects/trapid/backend/app/controllers/api/v1/tables_controller.rb`
+**File**: `/Users/rob/Projects/teeem/backend/app/controllers/api/v1/tables_controller.rb`
 
 ```ruby
 def destroy
@@ -592,7 +592,7 @@ end
 
 ### Add Tests
 
-**File**: `/Users/rob/Projects/trapid/backend/test/controllers/api/v1/tables_controller_test.rb`
+**File**: `/Users/rob/Projects/teeem/backend/test/controllers/api/v1/tables_controller_test.rb`
 
 ```ruby
 require 'test_helper'

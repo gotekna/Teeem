@@ -16,36 +16,36 @@ export default function XeroFieldMappingTab() {
 
   // Define field mappings for Contacts
   const contactFieldMappings = [
-    { xeroField: 'Name', trapidField: 'full_name', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'EmailAddress', trapidField: 'email', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'ContactNumber', trapidField: 'supplier_code', syncDirection: 'two-way', enabled: false },
-    { xeroField: 'FirstName', trapidField: 'first_name', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'LastName', trapidField: 'last_name', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'Phones[DDI].PhoneNumber', trapidField: 'mobile_phone', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'Phones[DEFAULT].PhoneNumber', trapidField: 'office_phone', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'Addresses[POBOX].AddressLine1', trapidField: 'address', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'Addresses[POBOX].City', trapidField: 'city', syncDirection: 'two-way', enabled: false },
-    { xeroField: 'Addresses[POBOX].Region', trapidField: 'state', syncDirection: 'two-way', enabled: false },
-    { xeroField: 'Addresses[POBOX].PostalCode', trapidField: 'postcode', syncDirection: 'two-way', enabled: false },
-    { xeroField: 'TaxNumber', trapidField: 'tax_number (ABN/GST)', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'AccountNumber', trapidField: 'xero_account_number', syncDirection: 'xero-to-trapid', enabled: false },
-    { xeroField: 'BankAccountDetails.BSB', trapidField: 'bank_bsb', syncDirection: 'xero-to-trapid', enabled: true },
-    { xeroField: 'BankAccountDetails.AccountNumber', trapidField: 'bank_account_number', syncDirection: 'xero-to-trapid', enabled: true },
-    { xeroField: 'BankAccountDetails.AccountName', trapidField: 'bank_account_name', syncDirection: 'xero-to-trapid', enabled: true },
-    { xeroField: 'Website', trapidField: 'website', syncDirection: 'two-way', enabled: true },
-    { xeroField: 'PurchaseDetails.AccountCode', trapidField: 'default_purchase_account', syncDirection: 'xero-to-trapid', enabled: true },
-    { xeroField: 'PaymentTerms.Bills.Day', trapidField: 'bill_due_day', syncDirection: 'xero-to-trapid', enabled: true },
-    { xeroField: 'PaymentTerms.Bills.Type', trapidField: 'bill_due_type', syncDirection: 'xero-to-trapid', enabled: true },
+    { xeroField: 'Name', teeemField: 'full_name', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'EmailAddress', teeemField: 'email', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'ContactNumber', teeemField: 'supplier_code', syncDirection: 'two-way', enabled: false },
+    { xeroField: 'FirstName', teeemField: 'first_name', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'LastName', teeemField: 'last_name', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'Phones[DDI].PhoneNumber', teeemField: 'mobile_phone', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'Phones[DEFAULT].PhoneNumber', teeemField: 'office_phone', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'Addresses[POBOX].AddressLine1', teeemField: 'address', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'Addresses[POBOX].City', teeemField: 'city', syncDirection: 'two-way', enabled: false },
+    { xeroField: 'Addresses[POBOX].Region', teeemField: 'state', syncDirection: 'two-way', enabled: false },
+    { xeroField: 'Addresses[POBOX].PostalCode', teeemField: 'postcode', syncDirection: 'two-way', enabled: false },
+    { xeroField: 'TaxNumber', teeemField: 'tax_number (ABN/GST)', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'AccountNumber', teeemField: 'xero_account_number', syncDirection: 'xero-to-teeem', enabled: false },
+    { xeroField: 'BankAccountDetails.BSB', teeemField: 'bank_bsb', syncDirection: 'xero-to-teeem', enabled: true },
+    { xeroField: 'BankAccountDetails.AccountNumber', teeemField: 'bank_account_number', syncDirection: 'xero-to-teeem', enabled: true },
+    { xeroField: 'BankAccountDetails.AccountName', teeemField: 'bank_account_name', syncDirection: 'xero-to-teeem', enabled: true },
+    { xeroField: 'Website', teeemField: 'website', syncDirection: 'two-way', enabled: true },
+    { xeroField: 'PurchaseDetails.AccountCode', teeemField: 'default_purchase_account', syncDirection: 'xero-to-teeem', enabled: true },
+    { xeroField: 'PaymentTerms.Bills.Day', teeemField: 'bill_due_day', syncDirection: 'xero-to-teeem', enabled: true },
+    { xeroField: 'PaymentTerms.Bills.Type', teeemField: 'bill_due_type', syncDirection: 'xero-to-teeem', enabled: true },
   ]
 
   // Define field mappings for Price Book Items
   const priceBookFieldMappings = [
-    { xeroField: 'Item.Code', trapidField: 'item_code', syncDirection: 'two-way', enabled: false },
-    { xeroField: 'Item.Name', trapidField: 'item_name', syncDirection: 'two-way', enabled: false },
-    { xeroField: 'Item.Description', trapidField: 'notes', syncDirection: 'two-way', enabled: false },
-    { xeroField: 'Item.SalesDetails.UnitPrice', trapidField: 'current_price', syncDirection: 'xero-to-trapid', enabled: false },
-    { xeroField: 'Item.SalesDetails.TaxType', trapidField: 'gst_code', syncDirection: 'xero-to-trapid', enabled: true },
-    { xeroField: 'Item.PurchaseDetails.UnitPrice', trapidField: 'supplier_price', syncDirection: 'xero-to-trapid', enabled: false },
+    { xeroField: 'Item.Code', teeemField: 'item_code', syncDirection: 'two-way', enabled: false },
+    { xeroField: 'Item.Name', teeemField: 'item_name', syncDirection: 'two-way', enabled: false },
+    { xeroField: 'Item.Description', teeemField: 'notes', syncDirection: 'two-way', enabled: false },
+    { xeroField: 'Item.SalesDetails.UnitPrice', teeemField: 'current_price', syncDirection: 'xero-to-teeem', enabled: false },
+    { xeroField: 'Item.SalesDetails.TaxType', teeemField: 'gst_code', syncDirection: 'xero-to-teeem', enabled: true },
+    { xeroField: 'Item.PurchaseDetails.UnitPrice', teeemField: 'supplier_price', syncDirection: 'xero-to-teeem', enabled: false },
   ]
 
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function XeroFieldMappingTab() {
       <div>
         <h2 className="text-base/7 font-semibold text-gray-900 dark:text-white">Xero Field Mapping</h2>
         <p className="mt-1 text-sm/6 text-gray-500 dark:text-gray-400">
-          Configure which fields sync between Xero and Trapid. Enable two-way sync to keep data in sync across both platforms.
+          Configure which fields sync between Xero and TEEEM. Enable two-way sync to keep data in sync across both platforms.
         </p>
       </div>
 
@@ -234,7 +234,7 @@ export default function XeroFieldMappingTab() {
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-medium text-gray-900 dark:text-white">Contact Field Mappings</h3>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Configure which fields sync between Xero contacts and Trapid contacts.
+              Configure which fields sync between Xero contacts and TEEEM contacts.
             </p>
           </div>
 
@@ -249,7 +249,7 @@ export default function XeroFieldMappingTab() {
                     Sync Direction
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Trapid Field
+                    TEEEM Field
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Enabled
@@ -269,19 +269,19 @@ export default function XeroFieldMappingTab() {
                             <ArrowsRightLeftIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                             <span className="text-xs text-gray-600 dark:text-gray-400">Two-way</span>
                           </>
-                        ) : mapping.syncDirection === 'xero-to-trapid' ? (
+                        ) : mapping.syncDirection === 'xero-to-teeem' ? (
                           <>
-                            <span className="text-xs text-gray-600 dark:text-gray-400">Xero → Trapid</span>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">Xero → TEEEM</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-xs text-gray-600 dark:text-gray-400">Trapid → Xero</span>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">TEEEM → Xero</span>
                           </>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {mapping.trapidField}
+                      {mapping.teeemField}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <input
@@ -299,7 +299,7 @@ export default function XeroFieldMappingTab() {
 
           <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              <strong>Note:</strong> Field mappings are currently configured in code. Enabled fields sync automatically when you run "Sync Now" above. Bank account details, purchase accounts, and payment terms are now syncing from Xero to Trapid.
+              <strong>Note:</strong> Field mappings are currently configured in code. Enabled fields sync automatically when you run "Sync Now" above. Bank account details, purchase accounts, and payment terms are now syncing from Xero to TEEEM.
             </p>
           </div>
         </div>
@@ -391,7 +391,7 @@ export default function XeroFieldMappingTab() {
                     Sync Direction
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Trapid Field
+                    TEEEM Field
                   </th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Enabled
@@ -411,19 +411,19 @@ export default function XeroFieldMappingTab() {
                             <ArrowsRightLeftIcon className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                             <span className="text-xs text-gray-600 dark:text-gray-400">Two-way</span>
                           </>
-                        ) : mapping.syncDirection === 'xero-to-trapid' ? (
+                        ) : mapping.syncDirection === 'xero-to-teeem' ? (
                           <>
-                            <span className="text-xs text-gray-600 dark:text-gray-400">Xero → Trapid</span>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">Xero → TEEEM</span>
                           </>
                         ) : (
                           <>
-                            <span className="text-xs text-gray-600 dark:text-gray-400">Trapid → Xero</span>
+                            <span className="text-xs text-gray-600 dark:text-gray-400">TEEEM → Xero</span>
                           </>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {mapping.trapidField}
+                      {mapping.teeemField}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <input

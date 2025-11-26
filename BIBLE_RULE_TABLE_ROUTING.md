@@ -4,13 +4,13 @@
 **Chapter:** 20 (UI/UX Standards & Patterns)
 **Section:** 20.37
 **Type:** rule
-**Title:** TrapidTableView - The One Table Standard
+**Title:** TEEEMTableView - The One Table Standard
 
 ---
 
 ## Rule
 
-**ALL data tables in Trapid MUST use `TablePage` with `TrapidTableView` component.**
+**ALL data tables in TEEEM MUST use `TablePage` with `TEEEMTableView` component.**
 
 **NEVER create custom table page components** (e.g., `ContactsPage.jsx`, `PurchaseOrdersPage.jsx`) for list/grid views.
 
@@ -27,13 +27,13 @@ Developers created 10+ custom table pages:
 
 **Result:**
 - ❌ No schema editor (users couldn't create/edit/delete columns)
-- ❌ Missing TrapidTableView features (filters, saved views, kanban)
+- ❌ Missing TEEEMTableView features (filters, saved views, kanban)
 - ❌ Inconsistent UI/UX across tables
 - ❌ Bug fixes needed in 10 places instead of 1
 - ❌ 5,000+ lines of duplicate code
 
 ### The Solution (2025-11-25)
-One component: `TrapidTableView`
+One component: `TEEEMTableView`
 - All tables route through `/tables/:id/:slug`
 - Legacy routes redirect automatically
 - Schema editor enabled everywhere
@@ -69,11 +69,11 @@ One component: `TrapidTableView`
 **3. TablePage Implementation:**
 ```javascript
 // TablePage.jsx already has this:
-<TrapidTableView
+<TEEEMTableView
   tableIdNumeric={table.id}
   tableName={table.name}
   entries={records}
-  columns={trapidColumns}
+  columns={teeemColumns}
   enableSchemaEditor={true}  // ← The magic
   enableImport={true}
   enableExport={true}
@@ -95,7 +95,7 @@ const ContactsPage = () => {
   // 800 lines of custom table implementation
   // Reinventing the wheel
   // Missing schema editor
-  // Missing TrapidTableView features
+  // Missing TEEEMTableView features
   return <CustomTable data={contacts} />
 }
 
@@ -104,7 +104,7 @@ const ContactsPage = () => {
 ```
 
 **Why this is wrong:**
-1. Duplicates TrapidTableView functionality
+1. Duplicates TEEEMTableView functionality
 2. Missing schema editor (users can't manage columns)
 3. Missing filters, saved views, kanban, bulk actions
 4. Inconsistent with other tables
@@ -137,12 +137,12 @@ const ContactsPage = () => {
 
 ### ❌ NO - Custom pages for these:
 
-- List/grid views → Use TrapidTableView
-- Simple CRUD tables → Use TrapidTableView
-- "I need filters" → TrapidTableView has this
-- "I need to edit columns" → TrapidTableView has this
-- "I need saved views" → TrapidTableView has this
-- "I need kanban" → TrapidTableView has this
+- List/grid views → Use TEEEMTableView
+- Simple CRUD tables → Use TEEEMTableView
+- "I need filters" → TEEEMTableView has this
+- "I need to edit columns" → TEEEMTableView has this
+- "I need saved views" → TEEEMTableView has this
+- "I need kanban" → TEEEMTableView has this
 
 ---
 
@@ -179,7 +179,7 @@ When creating a new table:
 
 | Table | Status | Notes |
 |-------|--------|-------|
-| Gold Standard | ✅ Always used TrapidTableView | |
+| Gold Standard | ✅ Always used TEEEMTableView | |
 | Contacts | ✅ Migrated 2025-11-25 | Redirect added |
 | Price Books | ✅ Migrated 2025-11-25 | Redirect added |
 | Purchase Orders | ✅ Migrated 2025-11-25 | Redirect added |
@@ -191,7 +191,7 @@ When creating a new table:
 ## Related Rules
 
 - **Bible #19.37** - Column Types Single Source of Truth
-- **Teacher T19.001** - TrapidTableView Component Documentation
+- **Teacher T19.001** - TEEEMTableView Component Documentation
 - **Lexicon L20.001** - Custom Table Page Anti-Pattern Bug History
 
 ---
@@ -200,7 +200,7 @@ When creating a new table:
 
 - Configuration: `frontend/src/config/tableRoutes.js`
 - Documentation: `frontend/src/config/README.md`
-- Component: `frontend/src/components/documentation/TrapidTableView.jsx`
+- Component: `frontend/src/components/documentation/TEEEMTableView.jsx`
 - Routes: `frontend/src/App.jsx`
 
 ---
@@ -208,7 +208,7 @@ When creating a new table:
 ## Summary
 
 **One sentence rule:**
-> All data tables use TrapidTableView via /tables/:id/:slug route with enableSchemaEditor=true.
+> All data tables use TEEEMTableView via /tables/:id/:slug route with enableSchemaEditor=true.
 
 **One sentence why:**
 > Custom table pages duplicate code, lack schema editing, and create inconsistent UX.

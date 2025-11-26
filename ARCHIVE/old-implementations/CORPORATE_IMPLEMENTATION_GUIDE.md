@@ -482,4 +482,4 @@ For issues or questions:
 **Authentication:** JWT
 **File Storage:** Active Storage / OneDrive
 
-Built following existing Trapid patterns and conventions.
+Built following existing TEEEM patterns and conventions.

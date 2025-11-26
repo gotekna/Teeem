@@ -17,7 +17,7 @@ setup('authenticate', async ({ page }) => {
   await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 10000 });
 
   // Fill in credentials
-  const email = process.env.TEST_EMAIL || 'admin@trapid.com';
+  const email = process.env.TEST_EMAIL || 'admin@teeem.com';
   const password = process.env.TEST_PASSWORD || 'password';
 
   await page.fill('input[type="email"], input[name="email"]', email);

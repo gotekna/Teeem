@@ -6,7 +6,7 @@ Successfully enhanced the NewJobModal component with comprehensive fields for be
 ## Changes Made
 
 ### File Modified
-**`/Users/jakebaird/trapid/frontend/src/components/jobs/NewJobModal.jsx`**
+**`/Users/jakebaird/teeem/frontend/src/components/jobs/NewJobModal.jsx`**
 
 ### New Imports Added
 - `useEffect` from React (for debounced search)
@@ -256,13 +256,13 @@ end
 
 1. **Start backend:**
    ```bash
-   cd /Users/jakebaird/trapid/backend
+   cd /Users/jakebaird/teeem/backend
    bin/rails server
    ```
 
 2. **Start frontend:**
    ```bash
-   cd /Users/jakebaird/trapid/frontend
+   cd /Users/jakebaird/teeem/frontend
    npm run dev
    # Opens on http://localhost:5173
    ```
@@ -319,11 +319,11 @@ heroku run rails db:migrate
 ## Files Changed
 
 ### Modified
-- `/Users/jakebaird/trapid/frontend/src/components/jobs/NewJobModal.jsx` (enhanced with new fields)
+- `/Users/jakebaird/teeem/frontend/src/components/jobs/NewJobModal.jsx` (enhanced with new fields)
 
 ### Created
-- `/Users/jakebaird/trapid/NEWJOBMODAL_ENHANCEMENT_SPEC.md` (specification)
-- `/Users/jakebaird/trapid/NEWJOBMODAL_IMPLEMENTATION_SUMMARY.md` (this file)
+- `/Users/jakebaird/teeem/NEWJOBMODAL_ENHANCEMENT_SPEC.md` (specification)
+- `/Users/jakebaird/teeem/NEWJOBMODAL_IMPLEMENTATION_SUMMARY.md` (this file)
 
 ## Summary
 

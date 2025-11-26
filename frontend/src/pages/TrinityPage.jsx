@@ -15,7 +15,7 @@ import KnowledgeEntryModal from '../components/KnowledgeEntryModal'
 import LoadingSkeleton from '../components/documentation/LoadingSkeleton'
 import Breadcrumb from '../components/documentation/Breadcrumb'
 import UserManualTableView from '../components/documentation/UserManualTableView'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 
 export default function TrinityPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -479,7 +479,7 @@ export default function TrinityPage() {
               <button
                 onClick={handleExportLexicon}
                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                title="Export Lexicon to TRAPID_LEXICON.md"
+                title="Export Lexicon to TEEEM_LEXICON.md"
               >
                 <ArrowDownTrayIcon className="w-4 h-4" />
                 Export
@@ -641,7 +641,7 @@ export default function TrinityPage() {
           {/* Header */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              📖 TRAPID Bible - Table View
+              📖 TEEEM Bible - Table View
             </h1>
             <div className="flex items-center gap-2">
               {/* View Mode Toggle */}
@@ -676,7 +676,7 @@ export default function TrinityPage() {
 
           {/* Table View */}
           <div className="flex-1 min-h-0">
-            <TrapidTableView
+            <TeeemTableView
               category="bible"
               entries={entries}
               onEdit={handleEditEntry}
@@ -722,7 +722,7 @@ export default function TrinityPage() {
           {/* Header */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              📕 TRAPID Lexicon - Table View
+              📕 TEEEM Lexicon - Table View
             </h1>
             <div className="flex items-center gap-2">
               {/* View Mode Toggle */}
@@ -756,7 +756,7 @@ export default function TrinityPage() {
               <button
                 onClick={handleExportLexicon}
                 className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-600 text-white text-xs font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                title="Export Lexicon to TRAPID_LEXICON.md"
+                title="Export Lexicon to TEEEM_LEXICON.md"
               >
                 <ArrowDownTrayIcon className="w-4 h-4" />
                 Export
@@ -773,7 +773,7 @@ export default function TrinityPage() {
 
           {/* Table View */}
           <div className="flex-1 min-h-0">
-            <TrapidTableView
+            <TeeemTableView
               category="lexicon"
               entries={entries}
               onEdit={handleEditEntry}
@@ -832,7 +832,7 @@ export default function TrinityPage() {
           {/* Header */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              🔧 Trapid Teacher - Table View
+              🔧 TEEEM Teacher - Table View
             </h1>
             <div className="flex items-center gap-2">
               {/* View Mode Toggle */}
@@ -867,7 +867,7 @@ export default function TrinityPage() {
 
           {/* Table View */}
           <div className="flex-1 overflow-hidden">
-            <TrapidTableView
+            <TeeemTableView
               category="teacher"
               entries={entries}
               onEdit={handleEditEntry}
@@ -1003,7 +1003,7 @@ export default function TrinityPage() {
 
           {/* Table View */}
           <div className="flex-1 min-h-0">
-            <TrapidTableView
+            <TeeemTableView
               entries={entries}
               onEdit={handleEditEntry}
               onDelete={handleDeleteEntry}

@@ -2,7 +2,7 @@
 
 ## Overview
 
-A comprehensive quote letter generation system that allows Trapid users to create professional, branded quote PDFs with document attachments, electronic acceptance, customer feedback, and calendar integration.
+A comprehensive quote letter generation system that allows TEEEM users to create professional, branded quote PDFs with document attachments, electronic acceptance, customer feedback, and calendar integration.
 
 ## Business Problem
 
@@ -369,4 +369,4 @@ GET         /quotes/:share_token/availability
 
 ---
 
-This specification provides everything needed to implement the Quote Letter Generation system for Trapid.
+This specification provides everything needed to implement the Quote Letter Generation system for TEEEM.

@@ -45,7 +45,7 @@ export default function UserManualTab() {
           📘 User Manual
         </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          End-user guides and step-by-step instructions for using Trapid features
+          End-user guides and step-by-step instructions for using TEEEM features
         </p>
       </div>
       <div className="flex-1 min-h-0">

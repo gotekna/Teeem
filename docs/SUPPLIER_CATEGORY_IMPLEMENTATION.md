@@ -107,7 +107,7 @@ Your `suppliers` table already has:
 ### Step 1: Run the Rake Task (5 minutes)
 
 ```bash
-cd /Users/jakebaird/trapid/backend
+cd /Users/jakebaird/teeem/backend
 rails suppliers:populate_categories
 ```
 
@@ -158,7 +158,7 @@ rails suppliers:export_mapping
 
 ### Step 3: Add Model Methods (5 minutes)
 
-Add these helper methods to `/Users/jakebaird/trapid/backend/app/models/supplier.rb`:
+Add these helper methods to `/Users/jakebaird/teeem/backend/app/models/supplier.rb`:
 
 ```ruby
 class Supplier < ApplicationRecord
@@ -401,9 +401,9 @@ categories_with_competition = Supplier.group(:is_default_for_trades)
 - ✅ `supplier_category_relationships.json` - Simple flat list (162 relationships)
 
 ### 2. Implementation Files (created)
-- ✅ `/Users/jakebaird/trapid/backend/lib/tasks/populate_supplier_categories.rake` - Rake tasks
-- ✅ `/Users/jakebaird/trapid/SUPPLIER_CATEGORY_ANALYSIS.md` - Detailed analysis report
-- ✅ `/Users/jakebaird/trapid/SUPPLIER_CATEGORY_IMPLEMENTATION.md` - This file (quick guide)
+- ✅ `/Users/jakebaird/teeem/backend/lib/tasks/populate_supplier_categories.rake` - Rake tasks
+- ✅ `/Users/jakebaird/teeem/SUPPLIER_CATEGORY_ANALYSIS.md` - Detailed analysis report
+- ✅ `/Users/jakebaird/teeem/SUPPLIER_CATEGORY_IMPLEMENTATION.md` - This file (quick guide)
 
 ### 3. Next Steps Files (you create)
 - Add model methods to `app/models/supplier.rb`
@@ -447,7 +447,7 @@ Supplier.where("(trade_categories::jsonb->0->>'percentage')::float >= 95").count
 
 ### Local Testing
 ```bash
-cd /Users/jakebaird/trapid/backend
+cd /Users/jakebaird/teeem/backend
 rails suppliers:populate_categories
 rails console
 # Run test queries above
@@ -455,7 +455,7 @@ rails console
 
 ### Deploy to Heroku
 ```bash
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git add -A
 git commit -m "Add supplier category relationships from EasyBuild data
 

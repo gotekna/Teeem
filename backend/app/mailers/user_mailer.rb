@@ -6,7 +6,7 @@ class UserMailer < ApplicationMailer
 
     mail(
       to: @user.email,
-      subject: 'Welcome to Trapid - Your Account Has Been Created'
+      subject: 'Welcome to TEEEM - Your Account Has Been Created'
     )
   end
 end

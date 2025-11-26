@@ -38,7 +38,7 @@ An automated agent that handles the entire quote collection workflow from trigge
 ## Key Features
 
 ### 1. Automatic Trigger on New Job
-- Monitors for new job creation in Trapid
+- Monitors for new job creation in TEEEM
 - Analyzes job requirements and specifications
 - Identifies required materials, equipment, or services
 - Triggers quote collection workflow automatically
@@ -89,7 +89,7 @@ An automated agent that handles the entire quote collection workflow from trigge
 
 ## Data Model
 
-### Required Tables in Trapid
+### Required Tables in TEEEM
 
 **Jobs** (may already exist):
 - id
@@ -172,17 +172,17 @@ An automated agent that handles the entire quote collection workflow from trigge
 - Supports conditional logic
 
 **Lindy Agent Configuration**:
-- **Trigger**: Webhook from Trapid when new job created
+- **Trigger**: Webhook from TEEEM when new job created
 - **Actions**:
-  - Query Trapid API for job details and required items
-  - Query Trapid API for supplier contacts
+  - Query TEEEM API for job details and required items
+  - Query TEEEM API for supplier contacts
   - Generate personalized emails using AI
   - Send emails via integrated email service
   - Monitor email inbox for responses
   - Parse email responses using NLP
-  - Send parsed data back to Trapid via webhook
+  - Send parsed data back to TEEEM via webhook
 
-#### 2. Trapid Backend (Rails)
+#### 2. TEEEM Backend (Rails)
 **New API Endpoints Needed**:
 
 ```ruby
@@ -389,7 +389,7 @@ end
          │
          ▼
 ┌─────────────────┐
-│  Trapid Backend │
+│  TEEEM Backend │
 │  - Creates job  │
 │  - Triggers     │
 │    webhook      │
@@ -404,7 +404,7 @@ end
          │
          ▼
 ┌─────────────────┐
-│  Query Trapid   │
+│  Query TEEEM   │
 │  - Get job data │
 │  - Get items    │
 │  - Get suppliers│
@@ -440,7 +440,7 @@ end
          │
          ▼
 ┌─────────────────┐
-│  Send to Trapid │
+│  Send to TEEEM │
 │  via Webhook    │
 └────────┬────────┘
          │
@@ -471,7 +471,7 @@ end
 - ✅ Set up Lindy.ai account and basic agent
 
 ### Phase 2: Lindy Integration (1 week)
-- Configure Lindy agent with Trapid webhook triggers
+- Configure Lindy agent with TEEEM webhook triggers
 - Build email template generation logic
 - Test email sending to real suppliers
 - Implement response monitoring
@@ -629,7 +629,7 @@ Before starting implementation:
 - [ ] Create dedicated email account for agent
 - [ ] Design database schema for jobs, pricebook, contacts, quotes
 - [ ] Build basic CRUD interfaces for new tables
-- [ ] Create webhook endpoints in Trapid backend
+- [ ] Create webhook endpoints in TEEEM backend
 - [ ] Configure Lindy agent with test workflow
 - [ ] Send test emails to friendly suppliers
 - [ ] Build quote parsing logic

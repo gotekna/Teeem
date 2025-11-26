@@ -17,7 +17,7 @@ Phase 1 (Database & Models) has been successfully completed!
    - Password reset tokens
    - Supports both supplier and customer portal types
 
-2. **supplier_ratings** - Trapid rating system for suppliers
+2. **supplier_ratings** - TEEEM rating system for suppliers
    - 5 rating categories (Quality, Timeliness, Communication, Professionalism, Value)
    - Automatic overall rating calculation
    - Links to specific projects and purchase orders
@@ -38,7 +38,7 @@ Phase 1 (Database & Models) has been successfully completed!
 1. **contacts**
    - `portal_enabled` - Flag for portal access
    - `portal_welcome_sent_at` - Track welcome email
-   - `trapid_rating` - Calculated average rating (updated automatically)
+   - `teeem_rating` - Calculated average rating (updated automatically)
    - `total_ratings_count` - Number of ratings received
 
 2. **purchase_orders**
@@ -73,14 +73,14 @@ Phase 1 (Database & Models) has been successfully completed!
 **Features**:
 - 5 rating categories (1-5 stars each)
 - Automatic overall rating calculation (before_save)
-- Updates contact's trapid_rating automatically (after_save/destroy)
+- Updates contact's teeem_rating automatically (after_save/destroy)
 - Validates all ratings are between 1-5
 
 **Key Methods**:
 - `rating_categories` - Hash of all ratings
 - `has_all_ratings?` - Check if all categories rated
 - `rating_summary` - Complete rating breakdown
-- Auto-updates Contact model's `trapid_rating` field
+- Auto-updates Contact model's `teeem_rating` field
 
 #### MaintenanceRequest Model
 **Location**: [backend/app/models/maintenance_request.rb](backend/app/models/maintenance_request.rb)
@@ -130,7 +130,7 @@ Phase 1 (Database & Models) has been successfully completed!
 - `has_portal_access?` - Check if portal is enabled and active
 - `enable_portal!(portal_type, email:, password:)` - Create portal account
 - `disable_portal!` - Deactivate portal access
-- `average_rating` - Get trapid rating
+- `average_rating` - Get teeem rating
 - `rating_summary` - Detailed rating breakdown
 - `open_maintenance_requests_count` - Count active maintenance requests
 
@@ -256,7 +256,7 @@ rating = SupplierRating.create!(
 )
 
 # Overall rating is automatically calculated: 4.6
-# Contact's trapid_rating is automatically updated
+# Contact's teeem_rating is automatically updated
 ```
 
 ### Creating a Maintenance Request
@@ -320,7 +320,7 @@ Portal users have their own authentication table (portal_users) separate from in
 - Ability to lock/unlock portal accounts without affecting internal users
 
 ### 2. Automatic Rating Calculations
-Supplier ratings automatically update the contact's trapid_rating field. This means:
+Supplier ratings automatically update the contact's teeem_rating field. This means:
 - No need to manually calculate averages
 - Real-time rating updates
 - Easy to display current rating

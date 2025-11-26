@@ -804,16 +804,16 @@ export default function AppLayout({ children }) {
             <div className="relative flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-4 dark:bg-gray-900 dark:ring dark:ring-white/10 dark:before:pointer-events-none dark:before:absolute dark:before:inset-0 dark:before:bg-black/10">
               <div className="relative flex h-16 shrink-0 items-center">
                 <img
-                  alt="Trapid"
+                  alt="TEEEM"
                   src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
                   className="h-8 w-auto dark:hidden"
                 />
                 <img
-                  alt="Trapid"
+                  alt="TEEEM"
                   src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
                   className="hidden h-8 w-auto dark:block"
                 />
-                <span className="ml-3 text-xl font-bold text-gray-900 dark:text-white">Trapid</span>
+                <span className="ml-3 text-xl font-bold text-gray-900 dark:text-white">TEEEM</span>
               </div>
               <nav className="relative flex flex-1 flex-col">
                 <ul role="list" className="flex flex-1 flex-col gap-y-7">
@@ -922,21 +922,21 @@ export default function AppLayout({ children }) {
             {!sidebarCollapsed && (
               <>
                 <img
-                  alt="Trapid"
+                  alt="TEEEM"
                   src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
                   className="h-8 w-auto dark:hidden"
                 />
                 <img
-                  alt="Trapid"
+                  alt="TEEEM"
                   src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
                   className="hidden h-8 w-auto dark:block"
                 />
-                <span className="ml-3 text-xl font-bold text-gray-900 dark:text-white">Trapid</span>
+                <span className="ml-3 text-xl font-bold text-gray-900 dark:text-white">TEEEM</span>
               </>
             )}
             {sidebarCollapsed && (
               <img
-                alt="Trapid"
+                alt="TEEEM"
                 src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
                 className="h-8 w-auto dark:hidden"
               />

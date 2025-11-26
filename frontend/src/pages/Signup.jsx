@@ -45,12 +45,12 @@ export default function Signup() {
           <div>
             <img
               src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
-              alt="Trapid"
+              alt="TEEEM"
               className="h-10 w-auto dark:hidden"
             />
             <img
               src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
-              alt="Trapid"
+              alt="TEEEM"
               className="hidden h-10 w-auto dark:block"
             />
             <h2 className="mt-8 text-2xl/9 font-bold tracking-tight text-gray-900 dark:text-white">

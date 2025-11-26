@@ -3,7 +3,7 @@ class OnedrivePricebookSyncService
 
   def initialize(credential, folder_path = nil)
     @credential = credential
-    @folder_path = folder_path || "00 - Trapid/Photos for Price Book"
+    @folder_path = folder_path || "00 - TEEEM/Photos for Price Book"
     @results = {
       matched: 0,
       photos_matched: 0,
@@ -207,7 +207,7 @@ class OnedrivePricebookSyncService
   end
 
   def find_or_create_folder(client, folder_path)
-    # Handle nested folder paths like "00 - Trapid/Photos for Price Book"
+    # Handle nested folder paths like "00 - TEEEM/Photos for Price Book"
     path_parts = folder_path.split('/')
     current_parent_path = "/me/drive/root"
     current_folder = nil

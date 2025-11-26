@@ -16,7 +16,7 @@
 ## ✅ What Changed
 
 ### ❌ REMOVED (399 lines)
-All this manual table code is now handled by TrapidTableView:
+All this manual table code is now handled by TEEEMTableView:
 
 1. **Column State Management** (~60 lines)
    - `visibleColumns` state
@@ -138,9 +138,9 @@ const USER_COLUMNS = [
 ]
 ```
 
-### TrapidTableView Props
+### TEEEMTableView Props
 ```javascript
-<TrapidTableView
+<TEEEMTableView
   category="users"              // Unique ID for localStorage
   tableId="users"              // Table identifier
   tableName="Users"            // Human-readable name
@@ -164,7 +164,7 @@ const USER_COLUMNS = [
 - [ ] "Add User" button works
 - [ ] Loading state shows during fetch
 
-### TrapidTableView Features
+### TEEEMTableView Features
 - [ ] **Column Resize:** Drag column borders to resize
 - [ ] **Column Reorder:** Drag column headers to reorder
 - [ ] **Column Show/Hide:** Click three-dot menu, toggle columns
@@ -209,13 +209,13 @@ diff frontend/src/pages/UsersPage.jsx.backup frontend/src/pages/UsersPage.jsx
 ## 📈 Next Steps
 
 ### If This Works Well:
-1. ✅ Keep UsersPage with TrapidTableView
+1. ✅ Keep UsersPage with TEEEMTableView
 2. 🔄 Convert SuppliersPage next (similar complexity)
 3. 🔄 Convert ContactsPage last (most complex - multi-tab)
 
 ### If Issues Found:
 1. Document the issue
-2. Check TrapidTableView props
+2. Check TEEEMTableView props
 3. Verify column configuration
 4. Test with sample data
 5. Ask for help if needed!
@@ -227,7 +227,7 @@ diff frontend/src/pages/UsersPage.jsx.backup frontend/src/pages/UsersPage.jsx
 - **Conversion Guide:** `CONVERSION_GUIDE.md`
 - **Trinity Docs:** Teacher T19.1 (via API)
 - **Live Example:** `/settings?tab=gold-standard`
-- **Component:** `frontend/src/components/documentation/TrapidTableView.jsx`
+- **Component:** `frontend/src/components/documentation/TEEEMTableView.jsx`
 
 ---
 

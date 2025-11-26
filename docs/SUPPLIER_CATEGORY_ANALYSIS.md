@@ -221,7 +221,7 @@ JSON.parse(supplier.trade_categories)
 ### Step 1: Run the Rake Task
 
 ```bash
-cd /Users/jakebaird/trapid/backend
+cd /Users/jakebaird/teeem/backend
 rails suppliers:populate_categories
 ```
 

@@ -4,7 +4,7 @@
 Enhance the NewJobModal with additional fields for comprehensive job setup while maintaining the existing swipe animations, gradient header, progress bar, and dark mode support.
 
 ## Current File
-`/Users/jakebaird/trapid/frontend/src/components/jobs/NewJobModal.jsx`
+`/Users/jakebaird/teeem/frontend/src/components/jobs/NewJobModal.jsx`
 
 ## New Step Structure (3 steps total)
 

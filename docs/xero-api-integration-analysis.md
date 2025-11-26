@@ -1,4 +1,4 @@
-# Xero API Integration Analysis for Trapid
+# Xero API Integration Analysis for TEEEM
 
 ## Executive Summary
 
@@ -6,7 +6,7 @@
 
 ## Current Situation
 
-### Trapid Data Volume
+### TEEEM Data Volume
 - **209 Suppliers** (confirmed in production)
 - **5,285 Price Book Items**
 - **3,626 Price History Records**
@@ -58,13 +58,13 @@
 
 ### Two-Way Sync with Webhooks
 
-**Xero → Trapid (Using Webhooks)**:
+**Xero → TEEEM (Using Webhooks)**:
 - **Zero polling API calls** - webhooks push changes to you
 - Only requires API calls for fetching full contact details when needed
 - Estimated: 5-10 API calls per day for detail fetching
 
-**Trapid → Xero (Push on Change)**:
-- Only sync when Trapid data changes
+**TEEEM → Xero (Push on Change)**:
+- Only sync when TEEEM data changes
 - Batch multiple changes within a time window (e.g., every 5 minutes)
 - Estimated: 10-20 API calls per day
 
@@ -94,7 +94,7 @@ Initial Sync:
 
 Daily Operations:
 - Use webhooks to receive Xero changes
-- Queue Trapid changes for batch processing
+- Queue TEEEM changes for batch processing
 - Only sync actual changes (delta sync)
 - Use If-Modified-Since header for polling (if needed)
 ```
@@ -135,7 +135,7 @@ Daily Operations:
 ### Phase 1: Basic Sync (Week 1)
 1. Implement batch contact creation/update
 2. Add API call tracking and logging
-3. Build one-way sync (Trapid → Xero)
+3. Build one-way sync (TEEEM → Xero)
 4. Test with subset of suppliers
 
 ### Phase 2: Webhook Integration (Week 2)
@@ -206,5 +206,5 @@ With 209 suppliers and proper implementation:
 ---
 
 *Analysis Date: November 5, 2025*
-*Based on: Xero API v2.0, 209 Trapid suppliers*
-*Prepared for: Trapid Xero Integration Planning*
+*Based on: Xero API v2.0, 209 TEEEM suppliers*
+*Prepared for: TEEEM Xero Integration Planning*

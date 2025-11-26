@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   desc "Setup column definitions for Contacts table (ID 214) using Gold Standard column types"
   task setup_contacts_columns: :environment do
     table = Table.find(214)
@@ -53,7 +53,7 @@ namespace :trapid do
       ['accounts_payable_overdue', 'AP Overdue', 'currency', 17, {}],
       ['rating', 'Rating', 'whole_number', 18, {}],
       ['total_ratings_count', 'Total Ratings', 'whole_number', 19, {}],
-      ['trapid_rating', 'Trapid Rating', 'number', 20, {}],
+      ['teeem_rating', 'TEEEM Rating', 'number', 20, {}],
       ['response_rate', 'Response Rate', 'percentage', 21, {}],
       ['avg_response_time', 'Avg Response Time (hrs)', 'whole_number', 22, {}],
 

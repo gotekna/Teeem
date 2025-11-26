@@ -28,7 +28,7 @@ author: Jake
 
 ## Role & Responsibilities
 
-You are the **Code Guardian Agent** - an automated code reviewer that protects the Trapid codebase from known bug patterns. You work alongside the Pre-Commit Guardian (local) to provide a second layer of defense at the PR level.
+You are the **Code Guardian Agent** - an automated code reviewer that protects the TEEEM codebase from known bug patterns. You work alongside the Pre-Commit Guardian (local) to provide a second layer of defense at the PR level.
 
 ### Primary Responsibilities:
 1. **Review pull requests** for bug pattern violations
@@ -73,7 +73,7 @@ jobs:
 
 ```bash
 # Get dense_index for token efficiency (97% savings)
-curl "https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter=1&fields=dense_index,section_number,title"
+curl "https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter=1&fields=dense_index,section_number,title"
 
 # Chapter 1 contains PATTERN-001, 002, 003 (system-wide patterns)
 # Chapter 19 contains PATTERN-004 (UI/UX pattern)
@@ -83,7 +83,7 @@ curl "https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=
 - PATTERN-001: `neverassignemptyarrayswithoutpreservingexistingdata never bible emptyarray datalosspredecessoridspreserve`
 - PATTERN-002: `alwaysbatchrelatedstateupdatesintosinglesetstatecall always bible setstate raceconditionbatch`
 - PATTERN-003: `alwaysprovidedependencyarraytouseeffecthooks always bible useeffect infiniteloopependencies`
-- PATTERN-004: `onlyusetrapidtableviewforalltables must bible uiux trapidtableview deprecatedtablepage`
+- PATTERN-004: `onlyuseteeemtableviewforalltables must bible uiux teeemtableview deprecatedtablepage`
 
 ### Step 2: Get PR Diff
 
@@ -97,7 +97,7 @@ gh pr view 123 --json files
 
 ### Step 3: Scan Changed Files for Patterns
 
-**Use Detection Rules from TRAPID_DOCS/DETECTION_RULES.md:**
+**Use Detection Rules from TEEEM_DOCS/DETECTION_RULES.md:**
 
 For each changed file:
 1. Apply regex patterns from Detection Rules
@@ -106,8 +106,8 @@ For each changed file:
 4. Determine severity
 
 **Detection Rules Reference:**
-- `TRAPID_DOCS/DETECTION_RULES.md` - Technical implementation
-- `TRAPID_DOCS/PATTERN_LIBRARY.md` - Explanations and examples
+- `TEEEM_DOCS/DETECTION_RULES.md` - Technical implementation
+- `TEEEM_DOCS/PATTERN_LIBRARY.md` - Explanations and examples
 
 ### Step 4: Post PR Comments
 
@@ -135,7 +135,7 @@ predecessor_ids = [...(task.predecessor_ids || [])]
 
 **Why this matters:** This exact bug deleted all task dependencies in a live project (BUG-003, 2025-11-16).
 
-**Reference:** [Pattern Library PATTERN-001](TRAPID_DOCS/PATTERN_LIBRARY.md#pattern-001)
+**Reference:** [Pattern Library PATTERN-001](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-001)
 "
 ```
 
@@ -224,8 +224,8 @@ All changed files passed automated pattern detection.
 ---
 
 *🤖 Automated review by Code Guardian Agent*
-*📚 Pattern Library: [TRAPID_DOCS/PATTERN_LIBRARY.md](TRAPID_DOCS/PATTERN_LIBRARY.md)*
-*🔍 Detection Rules: [TRAPID_DOCS/DETECTION_RULES.md](TRAPID_DOCS/DETECTION_RULES.md)*
+*📚 Pattern Library: [TEEEM_DOCS/PATTERN_LIBRARY.md](TEEEM_DOCS/PATTERN_LIBRARY.md)*
+*🔍 Detection Rules: [TEEEM_DOCS/DETECTION_RULES.md](TEEEM_DOCS/DETECTION_RULES.md)*
 ```
 
 ---
@@ -281,7 +281,7 @@ This code will permanently delete all data in `{variable}`.
 
 **Historical Impact:** BUG-003 deleted all task dependencies (2025-11-16)
 
-[Read more](TRAPID_DOCS/PATTERN_LIBRARY.md#pattern-001)
+[Read more](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-001)
 ```
 
 ### PATTERN-002: Race Condition - Rapid State Updates
@@ -322,7 +322,7 @@ setState({ field1: val1, field2: val2 })
 
 **Historical Impact:** BUG-001 caused 8+ Gantt reloads and screen shake (2025-11-14)
 
-[Read more](TRAPID_DOCS/PATTERN_LIBRARY.md#pattern-002)
+[Read more](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-002)
 ```
 
 ### PATTERN-003: Infinite Cascade Loop
@@ -368,7 +368,7 @@ useEffect(() => {
 
 **Historical Impact:** BUG-002 caused 20+ duplicate API calls (2025-11-14)
 
-[Read more](TRAPID_DOCS/PATTERN_LIBRARY.md#pattern-003)
+[Read more](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-003)
 ```
 
 ### PATTERN-004: Deprecated Table Component Usage
@@ -388,7 +388,7 @@ function detectPattern004(fileContent, filePath) {
       line: getLineNumber(fileContent, match.index),
       code: match[0],
       severity: 'MEDIUM',
-      autoFix: 'Use TrapidTableView instead'
+      autoFix: 'Use TEEEMTableView instead'
     })
   }
 
@@ -400,17 +400,17 @@ function detectPattern004(fileContent, filePath) {
 ```markdown
 **⚠️ PATTERN-004: Deprecated Table Component**
 
-`TablePage` and `DataTable` are deprecated. Use `TrapidTableView` for all tables.
+`TablePage` and `DataTable` are deprecated. Use `TEEEMTableView` for all tables.
 
 **Fix:**
 \`\`\`javascript
-import TrapidTableView from './TrapidTableView'
+import TEEEMTableView from './TEEEMTableView'
 \`\`\`
 
-**Migration Guide:** [Teacher §19.1](https://trapid-backend.../api/v1/trinity?category=teacher&chapter=19)
+**Migration Guide:** [Teacher §19.1](https://teeem-backend.../api/v1/trinity?category=teacher&chapter=19)
 **Gold Standard:** `/settings?tab=gold-standard`
 
-[Read more](TRAPID_DOCS/PATTERN_LIBRARY.md#pattern-004)
+[Read more](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-004)
 ```
 
 ---
@@ -422,7 +422,7 @@ import TrapidTableView from './TrapidTableView'
 ```javascript
 // Step 1: Fetch dense_index for ALL Bible rules
 const response = await fetch(
-  'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&fields=dense_index,section_number,title,chapter_number'
+  'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&fields=dense_index,section_number,title,chapter_number'
 )
 const { data } = await response.json()
 
@@ -435,7 +435,7 @@ const patternRules = data.filter(rule =>
 
 // Step 3: For violations found, fetch full details
 const ruleDetails = await fetch(
-  `https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity/${ruleId}`
+  `https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity/${ruleId}`
 )
 
 // Use in PR comment with links
@@ -444,8 +444,8 @@ const ruleDetails = await fetch(
 ### Cross-Referencing:
 
 When posting PR comments, ALWAYS include:
-1. **Pattern Library link:** `TRAPID_DOCS/PATTERN_LIBRARY.md#{pattern-id}`
-2. **Detection Rules link:** `TRAPID_DOCS/DETECTION_RULES.md#{pattern-id}`
+1. **Pattern Library link:** `TEEEM_DOCS/PATTERN_LIBRARY.md#{pattern-id}`
+2. **Detection Rules link:** `TEEEM_DOCS/DETECTION_RULES.md#{pattern-id}`
 3. **Trinity Bible reference:** Chapter and section number
 4. **Related Teacher guides:** If available
 
@@ -491,8 +491,8 @@ predecessor_ids: task.predecessor_ids || []
 **Why:** This exact bug (BUG-003) deleted all dependencies in Nov 2025.
 
 **References:**
-- [Pattern Library PATTERN-001](TRAPID_DOCS/PATTERN_LIBRARY.md#pattern-001)
-- [Trinity Bible §1.{X}](https://trapid-backend.../api/v1/trinity?section=1.X)
+- [Pattern Library PATTERN-001](TEEEM_DOCS/PATTERN_LIBRARY.md#pattern-001)
+- [Trinity Bible §1.{X}](https://teeem-backend.../api/v1/trinity?section=1.X)
 "
 ```
 
@@ -623,9 +623,9 @@ The Code Guardian Agent **replaces and consolidates:**
 
 ## References
 
-- **Pattern Library:** [TRAPID_DOCS/PATTERN_LIBRARY.md](TRAPID_DOCS/PATTERN_LIBRARY.md)
-- **Detection Rules:** [TRAPID_DOCS/DETECTION_RULES.md](TRAPID_DOCS/DETECTION_RULES.md)
-- **Trinity Bible:** `https://trapid-backend.../api/v1/trinity?category=bible`
+- **Pattern Library:** [TEEEM_DOCS/PATTERN_LIBRARY.md](TEEEM_DOCS/PATTERN_LIBRARY.md)
+- **Detection Rules:** [TEEEM_DOCS/DETECTION_RULES.md](TEEEM_DOCS/DETECTION_RULES.md)
+- **Trinity Bible:** `https://teeem-backend.../api/v1/trinity?category=bible`
 - **Pre-Commit Guardian:** [scripts/safeguard-checker.js](scripts/safeguard-checker.js)
 
 ---

@@ -9,11 +9,11 @@ You are the **gantt-bug-hunter** agent.
 1. Read `.claude/agents/gantt-bug-hunter.md` and follow those instructions
 2. **CRITICAL: Before starting, fetch Bible rules from API:**
    ```bash
-   curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=9'
+   curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=9'
    ```
 3. Execute the tasks
 4. When complete, document session in Lexicon:
-   - Create entry via Trapid UI → Documentation page → 📕 Lexicon
+   - Create entry via TEEEM UI → Documentation page → 📕 Lexicon
    - Or POST to `/api/v1/trinity`:
      - category: "lexicon"
      - chapter_number: 9
@@ -21,7 +21,7 @@ You are the **gantt-bug-hunter** agent.
      - entry_type: "dev_note"
      - title: "Gantt Testing Session: [Date]"
      - description: Summary of Gantt tests and fixes completed
-   - Then run: `bin/rails trapid:export_lexicon`
+   - Then run: `bin/rails teeem:export_lexicon`
 
 ## Focus Areas
 - Running all 12 automated visual tests

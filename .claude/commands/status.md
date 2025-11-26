@@ -1,6 +1,6 @@
 # Project Status Check
 
-Get a comprehensive status report on the Trapid project.
+Get a comprehensive status report on the TEEEM project.
 
 **What to check:**
 - Git status (branch, uncommitted changes)

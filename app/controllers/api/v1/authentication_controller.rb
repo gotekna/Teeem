@@ -15,7 +15,7 @@ module Api
         end
 
         # Find or create default dev user
-        dev_user = User.find_or_create_by!(email: 'dev@trapid.local') do |user|
+        dev_user = User.find_or_create_by!(email: 'dev@teeem.local') do |user|
           user.name = 'Dev User'
           user.password = 'DevPassword123!'
           user.role = 'admin'  # Give dev user admin access

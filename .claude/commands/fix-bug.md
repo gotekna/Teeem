@@ -1,6 +1,6 @@
 # Fix Bug (with Lexicon Documentation)
 
-Fix a bug following the proper workflow from TRAPID_BIBLE.md RULE #0:
+Fix a bug following the proper workflow from TEEEM_BIBLE.md RULE #0:
 
 **Steps:**
 1. **Fix the bug** - Write the code fix

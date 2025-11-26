@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Trapid workflow engine is a flexible, polymorphic approval system that can be attached to any entity in your system - Purchase Orders, Quotes, Contracts, Jobs, Estimates, Invoices, and more.
+The TEEEM workflow engine is a flexible, polymorphic approval system that can be attached to any entity in your system - Purchase Orders, Quotes, Contracts, Jobs, Estimates, Invoices, and more.
 
 ## Key Features
 

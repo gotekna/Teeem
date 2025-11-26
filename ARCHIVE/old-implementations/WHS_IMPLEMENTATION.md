@@ -204,7 +204,7 @@ PATCH  /api/v1/whs_settings/key/:key
 
 ### Pages Implemented (6)
 
-All pages use **TrapidTableView** (the ONE table standard).
+All pages use **TEEEMTableView** (the ONE table standard).
 
 #### WhsDashboardPage (`/whs`)
 - Statistics cards for all modules
@@ -591,5 +591,5 @@ frontend/
 ---
 
 **Implementation completed in single release as specified.**
-**No breaking changes to existing Trapid functionality.**
+**No breaking changes to existing TEEEM functionality.**
 **Ready for Queensland construction compliance.**

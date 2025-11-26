@@ -1,6 +1,6 @@
 # Airtable-Style Editing Interface Specification
 
-**Project:** Trapid Master Schedule - Editable Interface  
+**Project:** TEEEM Master Schedule - Editable Interface  
 **Approach:** Hybrid in-line + modal editing with real-time collaboration  
 **Team:** 5 users, full edit permissions  
 **Date:** November 4, 2025  

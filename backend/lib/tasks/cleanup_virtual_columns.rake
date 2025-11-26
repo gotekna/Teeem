@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   desc "Clean up registered columns that don't exist in the database (virtual/unused columns)"
   task cleanup_virtual_columns: :environment do
     puts "\n🧹 Cleaning up virtual columns from system table metadata..."
@@ -75,7 +75,7 @@ namespace :trapid do
 
     unless ENV['AUTO_CONFIRM'] == 'true'
       puts "\n⚠️  DRY RUN MODE - No columns were actually deleted."
-      puts "   To perform the cleanup, run: AUTO_CONFIRM=true rails trapid:cleanup_virtual_columns"
+      puts "   To perform the cleanup, run: AUTO_CONFIRM=true rails teeem:cleanup_virtual_columns"
     end
   end
 

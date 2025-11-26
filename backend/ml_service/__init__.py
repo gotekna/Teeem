@@ -1,5 +1,5 @@
 """
-Trapid ML Service
+TEEEM ML Service
 
 Silent ML infrastructure for:
 - Price anomaly detection

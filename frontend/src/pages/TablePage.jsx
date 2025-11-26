@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, startTransition } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { api } from '../api'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import { PlusIcon } from '@heroicons/react/24/outline'
 import {
   progressiveLoadLog,
@@ -38,8 +38,8 @@ const COLUMN_TYPE_DEFAULTS = {
   'computed': { width: 140, filterable: false, showSum: true, sumType: 'number' },
 }
 
-// Convert API column format to TrapidTableView column format
-function convertColumnsToTrapidFormat(apiColumns, tableSlug) {
+// Convert API column format to TeeemTableView column format
+function convertColumnsToTEEEMFormat(apiColumns, tableSlug) {
   // Start with select column for bulk actions
   const columns = [
     { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
@@ -96,7 +96,7 @@ export default function TablePage({ embedded = false }) {
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [trapidColumns, setTrapidColumns] = useState([])
+  const [teeemColumns, setTeeemColumns] = useState([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
@@ -261,7 +261,7 @@ export default function TablePage({ embedded = false }) {
   useEffect(() => {
     if (table && table.columns) {
       const startTime = performance.now()
-      let converted = convertColumnsToTrapidFormat(table.columns, table.slug)
+      let converted = convertColumnsToTEEEMFormat(table.columns, table.slug)
 
       const endTime = performance.now()
 
@@ -273,7 +273,7 @@ export default function TablePage({ embedded = false }) {
         })
       }
 
-      setTrapidColumns(converted)
+      setTeeemColumns(converted)
     }
   }, [table, id, viewMode])
 
@@ -684,7 +684,7 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
-  // CRUD handlers for TrapidTableView
+  // CRUD handlers for TeeemTableView
   const handleEdit = async (entry) => {
     try {
       // Filter out UI-only columns (select, actions, etc.) before sending to backend
@@ -820,7 +820,7 @@ export default function TablePage({ embedded = false }) {
       viewMode,
       hasMore,
       loading,
-      columnsCount: trapidColumns.length
+      columnsCount: teeemColumns.length
     })
   }
 
@@ -879,15 +879,15 @@ export default function TablePage({ embedded = false }) {
         </div>
       )}
 
-      {/* TrapidTableView - The Gold Standard */}
+      {/* TeeemTableView - The Gold Standard */}
       <div className="flex-1 min-h-0 overflow-auto">
-        {trapidColumns.length > 0 ? (
-          <TrapidTableView
+        {teeemColumns.length > 0 ? (
+          <TeeemTableView
             tableId={`table-${table.slug || id}`}
             tableIdNumeric={table.id}
             tableName={table.name}
             entries={records}
-            columns={trapidColumns}
+            columns={teeemColumns}
             preloadedViews={preloadedViews}
             onEdit={handleEdit}
             onDelete={handleDelete}

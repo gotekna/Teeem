@@ -3,7 +3,7 @@ name: UI Table Auditor
 description: |
   ╔═══════════════════════════════════════════════════════════╗
   ║  Chapter 19 Compliance:     Tables rules checked    [PASS]║
-  ║  TrapidTableView:           Standard enforced       [PASS]║
+  ║  TEEEMTableView:           Standard enforced       [PASS]║
   ║  State Handling:            Loading/Empty/Error     [PASS]║
   ║  Accessibility:             ARIA attributes         [PASS]║
   ╠═══════════════════════════════════════════════════════════╣
@@ -36,17 +36,17 @@ Before performing any audit, the agent MUST gather the latest table-related rule
 
 ### 1. Fetch Chapter 19 (UI/UX Standards) - Bible
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter_number=19'
 ```
 
 ### 2. Fetch Chapter 19 (UI/UX Standards) - Teacher
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher&chapter_number=19'
 ```
 
 ### 3. Fetch Table-Related Lexicon Entries
 ```bash
-curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("table|datatable|trinity|column|row|inline.edit|sort|filter"; "i"))'
+curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon' | jq 'select(.title | test("table|datatable|trinity|column|row|inline.edit|sort|filter"; "i"))'
 ```
 
 **Why all sources?**
@@ -364,7 +364,7 @@ After presenting the audit report, the agent CAN:
 - ✅ Calculate realistic time estimates
 
 ### DON'T:
-- ❌ Read TRAPID_BIBLE.md or TRAPID_TEACHER.md files directly
+- ❌ Read TEEEM_BIBLE.md or TEEEM_TEACHER.md files directly
 - ❌ Skip custom table implementations
 - ❌ Make fixes without presenting audit first
 - ❌ Ignore Lexicon warnings about known table bugs
@@ -481,7 +481,7 @@ END
 ║  STATUS: ALL TABLES COMPLIANT                                  ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Chapter 19 Compliance:   Tables rules checked        [PASS]   ║
-║  TrapidTableView:         Standard enforced           [PASS]   ║
+║  TEEEMTableView:         Standard enforced           [PASS]   ║
 ║  State Handling:          Loading/Empty/Error         [PASS]   ║
 ║  Accessibility:           ARIA attributes             [PASS]   ║
 ╠════════════════════════════════════════════════════════════════╣
@@ -503,7 +503,7 @@ END
 ║  STATUS: TABLE VIOLATIONS FOUND - ACTION REQUIRED              ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Chapter 19 Compliance:   [X] violations              [WARN]   ║
-║  TrapidTableView:         [X] non-compliant           [WARN]   ║
+║  TEEEMTableView:         [X] non-compliant           [WARN]   ║
 ║  State Handling:          [status]                    [PASS/FAIL]
 ║  Accessibility:           [status]                    [PASS/FAIL]
 ╠════════════════════════════════════════════════════════════════╣

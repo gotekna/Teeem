@@ -8,16 +8,16 @@ All documentation is stored in the `trinity` table and can be exported to markdo
 **Export Commands:**
 ```bash
 # Export Bible (RULES)
-bin/rails trapid:export_bible
-# Creates: TRAPID_DOCS/TRAPID_BIBLE.md
+bin/rails teeem:export_bible
+# Creates: TEEEM_DOCS/TEEEM_BIBLE.md
 
 # Export Lexicon (KNOWLEDGE)
-bin/rails trapid:export_lexicon
-# Creates: TRAPID_DOCS/TRAPID_LEXICON.md
+bin/rails teeem:export_lexicon
+# Creates: TEEEM_DOCS/TEEEM_LEXICON.md
 
 # Export Teacher (HOW-TO)
-bin/rails trapid:export_teacher
-# Creates: TRAPID_DOCS/TRAPID_TEACHER.md
+bin/rails teeem:export_teacher
+# Creates: TEEEM_DOCS/TEEEM_TEACHER.md
 ```
 
 **Or use the UI:**

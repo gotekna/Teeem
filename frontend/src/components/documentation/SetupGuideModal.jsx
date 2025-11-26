@@ -35,13 +35,13 @@ export default function SetupGuideModal({ isOpen, onClose }) {
 
   const handleClose = () => {
     // Store in localStorage to not show again
-    localStorage.setItem('trapid_setup_guide_shown', 'true')
+    localStorage.setItem('teeem_setup_guide_shown', 'true')
     setStep(1)
     onClose()
   }
 
   const handleSkip = () => {
-    localStorage.setItem('trapid_setup_guide_shown', 'true')
+    localStorage.setItem('teeem_setup_guide_shown', 'true')
     setStep(1)
     onClose()
   }
@@ -88,7 +88,7 @@ export default function SetupGuideModal({ isOpen, onClose }) {
                     </div>
                     <div>
                       <Dialog.Title className="text-2xl font-bold">
-                        {step === 1 && 'Welcome to Trapid'}
+                        {step === 1 && 'Welcome to TEEEM'}
                         {step === 2 && 'Quick Start Guide'}
                         {step === 3 && 'Key Features'}
                         {step === 4 && 'Ready to Go!'}
@@ -137,7 +137,7 @@ export default function SetupGuideModal({ isOpen, onClose }) {
                               <RocketLaunchIcon className="h-10 w-10 text-white" />
                             </div>
                             <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                              Welcome to Trapid
+                              Welcome to TEEEM
                             </h3>
                             <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
                               Your all-in-one construction project management platform designed to streamline
@@ -305,7 +305,7 @@ export default function SetupGuideModal({ isOpen, onClose }) {
                                 <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                                   <p className="text-sm text-gray-700 dark:text-gray-300">
                                     <span className="font-medium">Pro Tip:</span> Review and edit POs before approval,
-                                    then send them directly to suppliers from within Trapid.
+                                    then send them directly to suppliers from within TEEEM.
                                   </p>
                                 </div>
                               </div>
@@ -437,7 +437,7 @@ export default function SetupGuideModal({ isOpen, onClose }) {
                               You're All Set!
                             </h3>
                             <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-                              You're ready to start managing your construction projects efficiently with Trapid.
+                              You're ready to start managing your construction projects efficiently with TEEEM.
                             </p>
                           </div>
 

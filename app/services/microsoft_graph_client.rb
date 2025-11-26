@@ -156,7 +156,7 @@ class MicrosoftGraphClient
   end
 
   # Create root folder for all jobs (organization-level)
-  def create_jobs_root_folder(folder_name = "Trapid Jobs")
+  def create_jobs_root_folder(folder_name = "TEEEM Jobs")
     # Get the drive if we don't have it
     unless @credential.drive_id
       drive = get_default_drive
@@ -166,7 +166,7 @@ class MicrosoftGraphClient
       )
     end
 
-    # Create root folder for all Trapid jobs
+    # Create root folder for all TEEEM jobs
     root_folder = create_folder(folder_name, drive_id: @credential.drive_id)
 
     # Update credential with root folder info

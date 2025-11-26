@@ -110,7 +110,7 @@ First, upload your CSV files to the Heroku dyno:
 
 ```bash
 # Create a temporary directory on Heroku
-heroku run bash --app trapid-backend
+heroku run bash --app teeem-backend
 mkdir -p tmp
 exit
 
@@ -129,7 +129,7 @@ exit
 Or manually copy/paste the content:
 
 ```bash
-heroku run bash --app trapid-backend
+heroku run bash --app teeem-backend
 
 # In the Heroku shell:
 cat > tmp/suppliers.csv << 'EOF'

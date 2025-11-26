@@ -9,9 +9,9 @@ The GitHub Actions workflow (`.github/workflows/deploy-staging.yml`) automatical
 **Deployment Flow:**
 1. Push code to `rob` branch
 2. GitHub Actions triggers automatically
-3. Backend deploys to Heroku (`trapid-backend`)
+3. Backend deploys to Heroku (`teeem-backend`)
 4. Database migrations run automatically
-5. Frontend deploys to Vercel (`trapid-staging`)
+5. Frontend deploys to Vercel (`teeem-staging`)
 
 ---
 
@@ -68,7 +68,7 @@ You need to configure these secrets in your GitHub repository settings.
 
 **How to get it:**
 1. Go to your Vercel project: https://vercel.com/dashboard
-2. Click on your **trapid-staging** project
+2. Click on your **teeem-staging** project
 3. Go to **Settings** → **General**
 4. Scroll down to **Project ID** section
 5. You'll see both **Project ID** and **Organization ID**
@@ -108,7 +108,7 @@ The `.vercel/project.json` file contains:
 
 ## Secret 4: VERCEL_PROJECT_ID
 
-**What it is:** Your Vercel project ID for trapid-staging
+**What it is:** Your Vercel project ID for teeem-staging
 
 **How to get it:**
 1. Same location as above (Vercel project settings)
@@ -152,8 +152,8 @@ Once all secrets are configured:
 3. Go to GitHub → **Actions** tab
 4. Watch the workflow run in real-time
 5. Verify deployments:
-   - Backend: https://trapid-backend-447058022b51.herokuapp.com/
-   - Frontend: https://trapid-staging.vercel.app/
+   - Backend: https://teeem-backend-447058022b51.herokuapp.com/
+   - Frontend: https://teeem-staging.vercel.app/
 
 ---
 
@@ -166,9 +166,9 @@ Once all secrets are configured:
 
 ### Heroku Deployment Failing
 - Verify `HEROKU_API_KEY` is correct
-- Check Heroku app name is `trapid-backend`
+- Check Heroku app name is `teeem-backend`
 - Ensure you have access to the Heroku app
-- Check Heroku logs: `heroku logs --tail --app trapid-backend`
+- Check Heroku logs: `heroku logs --tail --app teeem-backend`
 
 ### Vercel Deployment Failing
 - Verify all three Vercel secrets are correct
@@ -178,8 +178,8 @@ Once all secrets are configured:
 
 ### Database Migrations Not Running
 - Check Heroku logs for migration output
-- Manually run migrations: `heroku run bin/rails db:migrate --app trapid-backend`
-- Verify database is accessible: `heroku pg:info --app trapid-backend`
+- Manually run migrations: `heroku run bin/rails db:migrate --app teeem-backend`
+- Verify database is accessible: `heroku pg:info --app teeem-backend`
 
 ---
 
@@ -187,11 +187,11 @@ Once all secrets are configured:
 
 If you prefer not to use GitHub Actions, you can enable auto-deploy via Heroku dashboard:
 
-1. Go to https://dashboard.heroku.com/apps/trapid-backend
+1. Go to https://dashboard.heroku.com/apps/teeem-backend
 2. Click **Deploy** tab
 3. Under **Deployment method**, click **GitHub**
 4. Connect your GitHub account if not connected
-5. Search for and connect the `trapid` repository
+5. Search for and connect the `teeem` repository
 6. Under **Automatic deploys**, select `rob` branch
 7. Click **Enable Automatic Deploys**
 
@@ -201,9 +201,9 @@ If you prefer not to use GitHub Actions, you can enable auto-deploy via Heroku d
 
 ## Current Deployment URLs
 
-- **Backend (Heroku):** https://trapid-backend-447058022b51.herokuapp.com/
-- **Frontend (Vercel):** https://trapid-staging.vercel.app/
-- **Dashboard:** https://trapid-staging.vercel.app/dashboard
+- **Backend (Heroku):** https://teeem-backend-447058022b51.herokuapp.com/
+- **Frontend (Vercel):** https://teeem-staging.vercel.app/
+- **Dashboard:** https://teeem-staging.vercel.app/dashboard
 
 ---
 
@@ -211,6 +211,6 @@ If you prefer not to use GitHub Actions, you can enable auto-deploy via Heroku d
 
 If you encounter any issues:
 1. Check GitHub Actions logs (Actions tab)
-2. Check Heroku logs: `heroku logs --tail --app trapid-backend`
+2. Check Heroku logs: `heroku logs --tail --app teeem-backend`
 3. Check Vercel deployment logs in Vercel dashboard
 4. Verify all secrets are correctly configured

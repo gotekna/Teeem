@@ -13,7 +13,7 @@ Create separate portals for suppliers and customers to access their specific inf
 5. **Invoice Status** - See when invoices are getting paid
 6. **Payment History** - View what has been paid
 7. **Maintenance Requests** - View outstanding maintenance issues
-8. **Trapid Rating** - Display their performance rating
+8. **TEEEM Rating** - Display their performance rating
 
 ### Customer Portal Features
 1. **Project Dashboard** - View their construction projects
@@ -83,7 +83,7 @@ end
 add_index :supplier_ratings, [:contact_id, :created_at]
 ```
 
-**Purpose**: Track detailed supplier performance ratings (the "Trapid Rating")
+**Purpose**: Track detailed supplier performance ratings (the "TEEEM Rating")
 
 ### 3. Maintenance Requests Table (New)
 ```ruby
@@ -143,7 +143,7 @@ add_index :portal_access_logs, :action
 ```ruby
 add_column :contacts, :portal_enabled, :boolean, default: false
 add_column :contacts, :portal_welcome_sent_at, :datetime
-add_column :contacts, :trapid_rating, :decimal, precision: 3, scale: 2  # Calculated average
+add_column :contacts, :teeem_rating, :decimal, precision: 3, scale: 2  # Calculated average
 add_column :contacts, :total_ratings_count, :integer, default: 0
 ```
 
@@ -177,7 +177,7 @@ add_column :purchase_orders, :payment_schedule, :jsonb  # Array of payment miles
 - [ ] `backend/app/models/supplier_rating.rb`
   - Validations: ratings between 1-5
   - Callbacks: `calculate_overall_rating` (before_save)
-  - Callbacks: Update contact's `trapid_rating` and `total_ratings_count` (after_save)
+  - Callbacks: Update contact's `teeem_rating` and `total_ratings_count` (after_save)
   - Scopes: `recent`, `by_supplier`, `by_construction`
 
 - [ ] `backend/app/models/maintenance_request.rb`
@@ -324,7 +324,7 @@ add_column :purchase_orders, :payment_schedule, :jsonb  # Array of payment miles
 #### Step 6.2: Supplier Portal Layout
 - [ ] `frontend/src/components/portal/supplier/SupplierLayout.jsx`
   - Navigation: Dashboard, Purchase Orders, Payments, Maintenance, Profile
-  - Show trapid rating in header
+  - Show teeem rating in header
   - Logout button
 
 #### Step 6.3: Supplier Dashboard
@@ -372,7 +372,7 @@ add_column :purchase_orders, :payment_schedule, :jsonb  # Array of payment miles
 
 #### Step 6.8: Supplier Rating Display
 - [ ] `frontend/src/pages/portal/supplier/SupplierRating.jsx`
-  - Overall trapid rating (large display)
+  - Overall teeem rating (large display)
   - Breakdown by category (Quality, Timeliness, Communication, etc.)
   - Historical rating chart
   - Recent feedback (excluding internal notes)
@@ -443,7 +443,7 @@ add_column :purchase_orders, :payment_schedule, :jsonb  # Array of payment miles
 
 - [ ] Update `frontend/src/pages/ContactDetailPage.jsx`
   - Add "Rate Supplier" button (if contact is supplier)
-  - Show average trapid rating
+  - Show average teeem rating
   - Show rating history table
 
 #### Step 8.4: Maintenance Request Management
@@ -632,7 +632,7 @@ end
 3. Fills ratings (1-5 for each category)
 4. Submits → `POST /api/v1/admin/supplier_ratings`
 5. Backend calculates `overall_rating` (average)
-6. Updates contact's `trapid_rating` and `total_ratings_count`
+6. Updates contact's `teeem_rating` and `total_ratings_count`
 7. Optional: Sends notification email to supplier
 
 ### Creating Maintenance Request

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PlusIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
-import TrapidTableView from '../documentation/TrapidTableView'
+import TeeemTableView from '../documentation/TeeemTableView'
 import Toast from '../Toast'
 import GoldStandardFormModal from './GoldStandardFormModal'
 import * as goldStandardApi from '../../services/goldStandardApi'
@@ -254,7 +254,7 @@ export default function GoldStandardTableTab() {
     }
   }
 
-  // Bulk delete handler - no confirmation needed (TrapidTableView already confirmed)
+  // Bulk delete handler - no confirmation needed (TeeemTableView already confirmed)
   const handleBulkDelete = async (entries) => {
     try {
       const ids = entries.map(e => e.id)
@@ -316,16 +316,16 @@ export default function GoldStandardTableTab() {
     <div className="flex flex-col h-full">
       <div className="px-6 pt-6 pb-4">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-          Gold Standard - TrapidTableView Reference
+          Gold Standard - TeeemTableView Reference
         </h2>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          Live database table demonstrating all TrapidTableView column types and features.
-          Use this as a reference standard for implementing tables throughout Trapid.
+          Live database table demonstrating all TeeemTableView column types and features.
+          Use this as a reference standard for implementing tables throughout TEEEM.
         </p>
       </div>
 
       <div className="flex-1 min-h-0 px-6">
-      <TrapidTableView
+      <TeeemTableView
         tableId="gold-standard-table"
         tableIdNumeric={1}
         tableName="Gold Standard Reference"

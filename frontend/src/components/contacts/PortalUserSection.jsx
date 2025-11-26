@@ -445,7 +445,7 @@ const PortalUserSection = ({ contact, contactPersons = [], onUpdate, isEditMode 
                 <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
                   <span className="text-blue-600 font-bold text-sm">T</span>
                 </div>
-                <span className="font-semibold">Trapid Portal</span>
+                <span className="font-semibold">TEEEM Portal</span>
               </div>
               <div className="text-sm">
                 {contact.portal_user.email}
@@ -506,10 +506,10 @@ const PortalUserSection = ({ contact, contactPersons = [], onUpdate, isEditMode 
                     </div>
                     <div className="bg-white border border-gray-200 rounded-md p-3">
                       <div className="text-2xl font-bold text-yellow-600">
-                        {contact.trapid_rating ? contact.trapid_rating.toFixed(1) : 'N/A'}
-                        {contact.trapid_rating && <span className="text-sm"> ★</span>}
+                        {contact.teeem_rating ? contact.teeem_rating.toFixed(1) : 'N/A'}
+                        {contact.teeem_rating && <span className="text-sm"> ★</span>}
                       </div>
-                      <div className="text-xs text-gray-600">Trapid Rating</div>
+                      <div className="text-xs text-gray-600">TEEEM Rating</div>
                     </div>
                   </>
                 ) : (
@@ -566,7 +566,7 @@ const PortalUserSection = ({ contact, contactPersons = [], onUpdate, isEditMode 
 
                     <div className="bg-white border border-gray-200 rounded-md p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900 text-sm">Trapid Rating</h3>
+                        <h3 className="font-semibold text-gray-900 text-sm">TEEEM Rating</h3>
                         <span className="text-xs text-yellow-600">★★★★☆</span>
                       </div>
                       <div className="text-xs text-gray-600">

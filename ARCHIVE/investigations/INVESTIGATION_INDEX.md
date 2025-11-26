@@ -1,8 +1,8 @@
-# Trapid Task Management System - Investigation Documentation Index
+# TEEEM Task Management System - Investigation Documentation Index
 
 ## Overview
 
-This directory contains comprehensive documentation of the Trapid application's task management, Gantt chart, and user assignment features.
+This directory contains comprehensive documentation of the TEEEM application's task management, Gantt chart, and user assignment features.
 
 **Investigation Date:** November 6, 2025
 **Status:** Complete and documented
@@ -108,7 +108,7 @@ Proper hierarchy: Construction → Project → Tasks
 ## File Locations Quick Reference
 
 ### Backend Models
-All in `/Users/jakebaird/trapid/backend/app/models/`
+All in `/Users/jakebaird/teeem/backend/app/models/`
 
 | File | Purpose |
 |------|---------|
@@ -122,7 +122,7 @@ All in `/Users/jakebaird/trapid/backend/app/models/`
 | `user.rb` | User accounts |
 
 ### Backend Controllers
-All in `/Users/jakebaird/trapid/backend/app/controllers/api/v1/`
+All in `/Users/jakebaird/teeem/backend/app/controllers/api/v1/`
 
 | File | Routes |
 |------|--------|
@@ -131,7 +131,7 @@ All in `/Users/jakebaird/trapid/backend/app/controllers/api/v1/`
 | `projects_controller.rb` | Project + Gantt data |
 
 ### Frontend Components
-All in `/Users/jakebaird/trapid/frontend/src/components/`
+All in `/Users/jakebaird/teeem/frontend/src/components/`
 
 | Location | Component | Purpose |
 |----------|-----------|---------|
@@ -146,7 +146,7 @@ All in `/Users/jakebaird/trapid/frontend/src/components/`
 | `schedule-master/` | TaskMatchModal.jsx | PO matching dialog |
 
 ### Frontend Pages
-All in `/Users/jakebaird/trapid/frontend/src/pages/`
+All in `/Users/jakebaird/teeem/frontend/src/pages/`
 
 | File | Purpose |
 |------|---------|
@@ -154,7 +154,7 @@ All in `/Users/jakebaird/trapid/frontend/src/pages/`
 | `JobDetailPage.jsx` | Job detail with "Schedule Master" tab |
 
 ### Database Migrations
-All in `/Users/jakebaird/trapid/backend/db/migrate/`
+All in `/Users/jakebaird/teeem/backend/db/migrate/`
 
 | File | Table |
 |------|-------|

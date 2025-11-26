@@ -1,19 +1,19 @@
 # frozen_string_literal: true
-# Clean TRAPID_BIBLE.md to contain ONLY rules (MUST/NEVER/ALWAYS)
+# Clean TEEEM_BIBLE.md to contain ONLY rules (MUST/NEVER/ALWAYS)
 # Remove all code blocks, implementations, and HOW-TO content
-# Add cross-references to TRAPID_TEACHER.md for implementations
+# Add cross-references to TEEEM_TEACHER.md for implementations
 
-bible_path = Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_BIBLE.md')
-backup_path = Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_BIBLE.md.backup')
+bible_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md')
+backup_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md.backup')
 content = File.read(bible_path, encoding: 'UTF-8')
 
-puts "📖 Cleaning TRAPID_BIBLE.md..."
+puts "📖 Cleaning TEEEM_BIBLE.md..."
 puts "📄 Original size: #{content.length} characters (#{content.lines.count} lines)"
 puts ""
 
 # Create backup
 File.write(backup_path, content)
-puts "💾 Backup created: TRAPID_BIBLE.md.backup"
+puts "💾 Backup created: TEEEM_BIBLE.md.backup"
 puts ""
 
 # Clean each RULE section
@@ -48,8 +48,8 @@ cleaned_content = content.gsub(/## RULE #(\d+(?:\.\d+)?[A-Z]?): (.+?)\n(.+?)(?=\
   end
 
   # Add cross-reference to Teacher
-  cleaned_rule += "**📖 Implementation:** See [TRAPID_TEACHER.md §#{rule_num}](TRAPID_TEACHER.md##{rule_num.downcase.tr('.', '')}-)\n"
-  cleaned_rule += "**📕 Bug History:** See [TRAPID_LEXICON.md Chapter #{rule_num.split('.').first}](TRAPID_LEXICON.md)\n"
+  cleaned_rule += "**📖 Implementation:** See [TEEEM_TEACHER.md §#{rule_num}](TEEEM_TEACHER.md##{rule_num.downcase.tr('.', '')}-)\n"
+  cleaned_rule += "**📕 Bug History:** See [TEEEM_LEXICON.md Chapter #{rule_num.split('.').first}](TEEEM_LEXICON.md)\n"
   cleaned_rule += "\n---\n"
 
   cleaned_rule
@@ -80,14 +80,14 @@ cleaned_content = cleaned_content.gsub(/\*\*Example:\*\*.+?(?=\n##|\n\*\*|---|\z
 cleaned_content = cleaned_content.gsub(/\n{3,}/, "\n\n")
 
 # Write cleaned version
-output_path = Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_BIBLE_CLEAN.md')
+output_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE_CLEAN.md')
 File.write(output_path, cleaned_content)
 
-puts "✅ Cleaned Bible written to: TRAPID_BIBLE_CLEAN.md"
+puts "✅ Cleaned Bible written to: TEEEM_BIBLE_CLEAN.md"
 puts "📄 New size: #{cleaned_content.length} characters (#{cleaned_content.lines.count} lines)"
 puts "📉 Reduction: #{((1 - cleaned_content.length.to_f / content.length) * 100).round(1)}%"
 puts ""
-puts "⚠️  Review TRAPID_BIBLE_CLEAN.md before replacing original"
+puts "⚠️  Review TEEEM_BIBLE_CLEAN.md before replacing original"
 puts ""
 puts "To apply changes:"
-puts "  mv TRAPID_DOCS/TRAPID_BIBLE_CLEAN.md TRAPID_DOCS/TRAPID_BIBLE.md"
+puts "  mv TEEEM_DOCS/TEEEM_BIBLE_CLEAN.md TEEEM_DOCS/TEEEM_BIBLE.md"

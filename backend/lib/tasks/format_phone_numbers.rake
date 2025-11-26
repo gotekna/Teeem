@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   desc "Auto-format all phone and mobile numbers in gold_standard_table"
   task format_phone_numbers: :environment do
     puts "🔧 Starting phone number formatting..."

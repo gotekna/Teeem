@@ -11,15 +11,15 @@ Run the following commands to pull the Heroku database to local:
 
 ```bash
 cd backend && bin/rails db:drop db:create
-heroku pg:pull DATABASE_URL trapid_development --app trapid-backend
+heroku pg:pull DATABASE_URL teeem_development --app teeem-backend
 ```
 
 If `pg:pull` fails due to connection issues, use the backup method:
 
 ```bash
-heroku pg:backups:capture --app trapid-backend
-heroku pg:backups:download --app trapid-backend
-pg_restore --verbose --clean --no-acl --no-owner -d trapid_development latest.dump
+heroku pg:backups:capture --app teeem-backend
+heroku pg:backups:download --app teeem-backend
+pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump
 rm latest.dump
 ```
 

@@ -31,7 +31,7 @@ class AccountMapping < ApplicationRecord
     end
   end
 
-  def trapid_account_display
+  def teeem_account_display
     "#{keepr_account.number} - #{keepr_account.name}"
   end
 end

@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-This document summarizes the frontend React implementation for the Financial Tracking & Reporting feature in Trapid.
+This document summarizes the frontend React implementation for the Financial Tracking & Reporting feature in TEEEM.
 
 ---
 
@@ -47,11 +47,11 @@ This document summarizes the frontend React implementation for the Financial Tra
 ### 2. FinancialPage.jsx
 **Location:** `frontend/src/pages/FinancialPage.jsx`
 
-**Purpose:** Main transaction list page using TrapidTableView (mandatory standard per Bible RULE #19.1).
+**Purpose:** Main transaction list page using TEEEMTableView (mandatory standard per Bible RULE #19.1).
 
 **Features:**
 - ✅ Summary cards showing Total Income, Total Expenses, and Net Profit
-- ✅ TrapidTableView with 9 columns (date, type, category, description, job, amount, status, user)
+- ✅ TEEEMTableView with 9 columns (date, type, category, description, job, amount, status, user)
 - ✅ Column features: sorting, filtering (text & dropdown), resizing, reordering
 - ✅ Inline editing support
 - ✅ Bulk delete functionality
@@ -209,11 +209,11 @@ Added "Financial" tab to System Admin page (`/admin/system?tab=financial`):
 
 ## 🎨 Design Patterns Used
 
-### TrapidTableView (Bible RULE #19.1)
-**CRITICAL:** All tables MUST use TrapidTableView component.
+### TEEEMTableView (Bible RULE #19.1)
+**CRITICAL:** All tables MUST use TEEEMTableView component.
 
 ```jsx
-<TrapidTableView
+<TEEEMTableView
   tableId="financial-transactions"
   tableIdNumeric={999}
   tableName="Financial Transactions"
@@ -280,7 +280,7 @@ className="bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
 
 ### Transaction List Flow:
 1. Page loads → fetch transactions and summary
-2. TrapidTableView displays data with all features
+2. TEEEMTableView displays data with all features
 3. User can filter, sort, edit, delete
 4. Changes trigger API calls
 5. Summary updates in real-time
@@ -378,7 +378,7 @@ npm run build
 ```
 
 ### 4. Deploy
-Follow standard Trapid deployment process (Heroku, etc.)
+Follow standard TEEEM deployment process (Heroku, etc.)
 
 ---
 
@@ -433,7 +433,7 @@ To add new categories, create transactions with new category names via the backe
 ### Modifying Chart of Accounts
 Use the backend rake tasks:
 ```bash
-rails trapid:financial:reset_simple  # Reset and recreate accounts
+rails teeem:financial:reset_simple  # Reset and recreate accounts
 ```
 
 Or manage via database (keepr_accounts table).
@@ -459,15 +459,15 @@ To add new report sections, modify the service and update the frontend component
 
 - **Backend Implementation:** `FINANCIAL_TRACKING_IMPLEMENTATION.md`
 - **Testing Guide:** `TESTING_GUIDE.md`
-- **Trinity Bible Rule #19.1:** TrapidTableView - The One Table Standard
-- **User Manual:** To be added to `TRAPID_DOCS/TRAPID_USER_MANUAL.md`
+- **Trinity Bible Rule #19.1:** TEEEMTableView - The One Table Standard
+- **User Manual:** To be added to `TEEEM_DOCS/TEEEM_USER_MANUAL.md`
 
 ---
 
 ## ✅ Completion Checklist
 
 - [x] TransactionForm component created
-- [x] FinancialPage component created (with TrapidTableView)
+- [x] FinancialPage component created (with TEEEMTableView)
 - [x] FinancialReportsPage component created
 - [x] FinancialWidget component created
 - [x] Routes added to App.jsx
@@ -483,8 +483,8 @@ To add new report sections, modify the service and update the frontend component
 
 ## 🎉 Summary
 
-The frontend implementation is **COMPLETE** and ready for testing. All React components follow Trapid's established patterns:
-- ✅ TrapidTableView for all tables (Bible RULE #19.1)
+The frontend implementation is **COMPLETE** and ready for testing. All React components follow TEEEM's established patterns:
+- ✅ TEEEMTableView for all tables (Bible RULE #19.1)
 - ✅ Dark mode support throughout
 - ✅ Consistent API error handling
 - ✅ FormData for file uploads

@@ -1,6 +1,6 @@
 # Gantt Debugging System - Quick Start
 
-**Purpose:** This is your entry point for debugging Gantt chart issues in the Trapid application.
+**Purpose:** This is your entry point for debugging Gantt chart issues in the TEEEM application.
 
 ---
 

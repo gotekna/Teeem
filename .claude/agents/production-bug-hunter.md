@@ -67,7 +67,7 @@ Diagnoses production bugs, analyzes Heroku logs, reproduces errors, and works wi
 
 ```bash
 # Check agent run history
-cat /Users/rob/Projects/trapid/.claude/agents/run-history.json
+cat /Users/rob/Projects/teeem/.claude/agents/run-history.json
 ```
 
 **Decision logic:**
@@ -84,7 +84,7 @@ This ensures:
 
 **For Gantt/Schedule Master bugs:**
 
-1. **ALWAYS fetch Trinity API first:** `curl -s 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter=9'`
+1. **ALWAYS fetch Trinity API first:** `curl -s 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter=9'`
 2. **Run static code analysis:**
    - Verify all 13 RULES compliance
    - Check 3 Protected Code Patterns

@@ -111,13 +111,13 @@ module Api
       # POST /api/v1/implementation_patterns/export_to_markdown
       # Exports Teacher database to markdown file
       def export_to_markdown
-        result = system("cd #{Rails.root} && bundle exec rake trapid:export_teacher")
+        result = system("cd #{Rails.root} && bundle exec rake teeem:export_teacher")
 
         if result
           render json: {
             success: true,
-            message: 'Teacher exported to TRAPID_TEACHER.md successfully',
-            file_path: Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_TEACHER.md').to_s,
+            message: 'Teacher exported to TEEEM_TEACHER.md successfully',
+            file_path: Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md').to_s,
             total_entries: ImplementationPattern.count
           }
         else

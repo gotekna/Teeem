@@ -1,6 +1,6 @@
 # Table Deletion Feature - Error Handling Analysis
 
-Complete analysis of the table deletion feature in Trapid, covering error handling, edge cases, security vulnerabilities, and recommended fixes.
+Complete analysis of the table deletion feature in TEEEM, covering error handling, edge cases, security vulnerabilities, and recommended fixes.
 
 **Analysis Date**: November 7, 2025  
 **Status**: ⚠️ Moderate Risk - Not production ready  
@@ -87,23 +87,23 @@ Complete analysis of the table deletion feature in Trapid, covering error handli
 ## Files Analyzed
 
 ### Frontend
-- `/Users/rob/Projects/trapid/frontend/src/components/settings/TablesTab.jsx` (lines 137-176)
+- `/Users/rob/Projects/teeem/frontend/src/components/settings/TablesTab.jsx` (lines 137-176)
   - handleDeleteTable function
   - Frontend validation logic
   - Error handling
 
-- `/Users/rob/Projects/trapid/frontend/src/api.js` (lines 100-112)
+- `/Users/rob/Projects/teeem/frontend/src/api.js` (lines 100-112)
   - delete() method
   - Error parsing
   - Request handling
 
 ### Backend
-- `/Users/rob/Projects/trapid/backend/app/controllers/api/v1/tables_controller.rb` (lines 70-115)
+- `/Users/rob/Projects/teeem/backend/app/controllers/api/v1/tables_controller.rb` (lines 70-115)
   - destroy action
   - Validation checks
   - Error responses
 
-- `/Users/rob/Projects/trapid/backend/app/services/table_builder.rb` (lines 110-134)
+- `/Users/rob/Projects/teeem/backend/app/services/table_builder.rb` (lines 110-134)
   - drop_database_table method
   - Error handling
   - Database operations

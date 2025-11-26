@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import { UserPlusIcon } from '@heroicons/react/24/outline'
 import AddUserModal from '../components/settings/AddUserModal'
 import Toast from '../components/Toast'
@@ -43,7 +43,7 @@ export default function UsersPage() {
   }
 
   const handleEdit = async (user) => {
-    // TrapidTableView handles inline editing automatically
+    // TeeemTableView handles inline editing automatically
     // When user edits a field and presses Enter or clicks away, this is called
     try {
       const response = await api.patch(`/api/v1/users/${user.id}`, {
@@ -142,9 +142,9 @@ export default function UsersPage() {
           <p className="text-gray-600 dark:text-gray-400">Manage users, roles, and group assignments</p>
         </div>
 
-        {/* TrapidTableView - replaces all the manual table code */}
+        {/* TeeemTableView - replaces all the manual table code */}
         <div className="flex-1">
-          <TrapidTableView
+          <TeeemTableView
             category="users"
             tableId="users"
             tableName="Users"

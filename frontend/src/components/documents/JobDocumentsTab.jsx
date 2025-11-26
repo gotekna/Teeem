@@ -361,8 +361,8 @@ function OneDriveView({
             <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">What is OneDrive Integration?</h4>
             <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
               <li>• Automatically create organized folder structures for each job</li>
-              <li>• Upload and manage documents directly from Trapid</li>
-              <li>• Access files from OneDrive or directly in Trapid</li>
+              <li>• Upload and manage documents directly from TEEEM</li>
+              <li>• Access files from OneDrive or directly in TEEEM</li>
               <li>• One-time setup - works for all jobs automatically</li>
             </ul>
           </div>
@@ -431,7 +431,7 @@ function OneDriveView({
           <div className="mt-8 max-w-md mx-auto text-left">
             <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">What will be created:</h4>
             <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
-              <li>• Job folder in {orgStatus.rootFolderPath || 'Trapid Jobs'}</li>
+              <li>• Job folder in {orgStatus.rootFolderPath || 'TEEEM Jobs'}</li>
               <li>• 29 organized subfolders (Tekna template)</li>
               <li>• Ready for document uploads and management</li>
             </ul>

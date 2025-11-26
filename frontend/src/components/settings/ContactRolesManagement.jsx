@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 import { PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
-import TrapidTableView from '../documentation/TrapidTableView'
+import TeeemTableView from '../documentation/TeeemTableView'
 
 export default function ContactRolesManagement() {
   const [roles, setRoles] = useState([])
@@ -210,7 +210,7 @@ export default function ContactRolesManagement() {
 
     return (
       <div className="h-full flex flex-col">
-        <TrapidTableView
+        <TeeemTableView
           entries={filteredRoles}
           onEdit={handleEdit}
           onDelete={handleDelete}

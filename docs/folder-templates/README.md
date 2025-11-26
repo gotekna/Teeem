@@ -1,10 +1,10 @@
 # OneDrive Folder Templates
 
-This directory contains folder structure templates for automated OneDrive folder creation when new jobs are created in Trapid.
+This directory contains folder structure templates for automated OneDrive folder creation when new jobs are created in TEEEM.
 
 ## Purpose
 
-When a new construction job is created in Trapid, the system can automatically create a standardized folder structure in OneDrive based on these templates. This ensures consistency across projects and reduces manual setup time.
+When a new construction job is created in TEEEM, the system can automatically create a standardized folder structure in OneDrive based on these templates. This ensures consistency across projects and reduces manual setup time.
 
 ## Template Format
 
@@ -130,7 +130,7 @@ These templates will be used to:
 
 1. **Seed default templates** in the database when OneDrive sync feature is deployed
 2. **Allow users to create custom templates** by duplicating and modifying these
-3. **Automatically create folders** when new jobs are created in Trapid
+3. **Automatically create folders** when new jobs are created in TEEEM
 4. **Maintain consistency** across projects within an organization
 
 ## Database Migration
@@ -167,4 +167,4 @@ Additional templates to consider:
 ---
 
 **Last Updated:** 2025-11-05
-**Maintained By:** Trapid Development Team
+**Maintained By:** TEEEM Development Team

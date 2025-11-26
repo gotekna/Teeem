@@ -148,6 +148,6 @@ class QuoteReminderJob < ApplicationJob
   end
 
   def portal_url
-    ENV['PORTAL_URL'] || 'https://portal.trapid.com'
+    ENV['PORTAL_URL'] || 'https://portal.teeem.com'
   end
 end

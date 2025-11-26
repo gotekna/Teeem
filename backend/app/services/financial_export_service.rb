@@ -196,7 +196,7 @@ class FinancialExportService
 
     # Create a comprehensive export for accountants
     CSV.generate(headers: true) do |csv|
-      csv << ['TRAPID FINANCIAL PACKAGE FOR ACCOUNTANT']
+      csv << ['TEEEM FINANCIAL PACKAGE FOR ACCOUNTANT']
       csv << ["Period: #{from_date.strftime('%B %d, %Y')} to #{to_date.strftime('%B %d, %Y')}"]
       csv << ["Generated: #{Time.current.strftime('%B %d, %Y at %I:%M %p')}"]
       csv << []

@@ -12,7 +12,7 @@ This project uses GitHub Actions to automatically deploy to Heroku staging when 
    ```
 
 2. **Add secrets to GitHub:**
-   - Go to: https://github.com/abodable-dev/trapid/settings/secrets/actions
+   - Go to: https://github.com/abodable-dev/teeem/settings/secrets/actions
    - Click "New repository secret"
    - Add these secrets:
      - `HEROKU_API_KEY`: Your Heroku API token from step 1
@@ -36,11 +36,11 @@ git push heroku rob:main
 ### Check Deployment Status
 
 View the deployment in GitHub Actions:
-https://github.com/abodable-dev/trapid/actions
+https://github.com/abodable-dev/teeem/actions
 
 View Heroku logs:
 ```bash
-heroku logs --tail -a trapid-backend
+heroku logs --tail -a teeem-backend
 ```
 
 ### How It Works

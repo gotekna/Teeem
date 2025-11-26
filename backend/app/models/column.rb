@@ -75,7 +75,7 @@ class Column < ApplicationRecord
   # This is the SINGLE SOURCE OF TRUTH for SQL type definitions
   # Matches Trinity database documentation (Teacher §T19.001-T19.021)
   # AUTO-GENERATED from gold_standard_columns.csv
-  # DO NOT EDIT MANUALLY - Run: rails trapid:column_types:sync_from_csv
+  # DO NOT EDIT MANUALLY - Run: rails teeem:column_types:sync_from_csv
   # Last updated: 2025-11-21 20:02:30
   COLUMN_SQL_TYPE_MAP = {
     'single_line_text' => 'VARCHAR(255)',

@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :tables do
     desc "Add system columns (id, created_at, updated_at) to ALL system tables"
     task add_system_columns_to_all: :environment do

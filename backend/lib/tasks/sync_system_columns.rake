@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   desc "Sync system table column metadata with actual database schema"
   task sync_system_columns: :environment do
     puts "\n🔄 Syncing system table columns with database schema..."

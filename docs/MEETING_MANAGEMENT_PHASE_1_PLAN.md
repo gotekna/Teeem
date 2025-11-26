@@ -2,13 +2,13 @@
 
 **Created:** 2025-11-19
 **Status:** DRAFT - Ready for Review
-**Target:** MVP - Basic meeting management with Trapid integration
+**Target:** MVP - Basic meeting management with TEEEM integration
 
 ---
 
 ## Executive Summary
 
-This document outlines the Phase 1 implementation plan for the Trapid Meeting Management System. Phase 1 focuses on delivering core meeting functionality that integrates seamlessly with existing Trapid systems (video meetings, document management, task management).
+This document outlines the Phase 1 implementation plan for the TEEEM Meeting Management System. Phase 1 focuses on delivering core meeting functionality that integrates seamlessly with existing TEEEM systems (video meetings, document management, task management).
 
 ### Phase 1 Scope (MVP)
 
@@ -17,16 +17,16 @@ This document outlines the Phase 1 implementation plan for the Trapid Meeting Ma
 - Basic meeting creation (in-person and virtual)
 - Simple agenda builder
 - Attendee management with roles
-- Integration with Trapid video meetings
+- Integration with TEEEM video meetings
 - Basic email notifications (invites and reminders)
 
 **Deliverable:** Users can create, schedule, and invite people to meetings with agendas
 
 ---
 
-## Compliance with TRAPID BIBLE
+## Compliance with TEEEM BIBLE
 
-This implementation plan follows all relevant TRAPID_BIBLE.md rules:
+This implementation plan follows all relevant TEEEM_BIBLE.md rules:
 
 ### Chapter 1: System-Wide Rules
 - ✅ **RULE #1.2**: Code quality standards (no console.log, descriptive commits, linting)
@@ -1973,7 +1973,7 @@ cd frontend && npm run dev
 ### Step 5: Trinity Documentation Update
 
 ```ruby
-# In Rails console or via Trapid UI
+# In Rails console or via TEEEM UI
 Trinity.create!(
   category: 'bible',
   chapter_number: 22,
@@ -1990,7 +1990,7 @@ Trinity.create!(
 )
 
 # Export to markdown
-bin/rails trapid:export_bible
+bin/rails teeem:export_bible
 ```
 
 ---
@@ -2090,7 +2090,7 @@ bin/rails trapid:export_bible
 3. ✅ Users can build agendas with reorderable items
 4. ✅ Users can start virtual meetings via Jitsi
 5. ✅ Meetings display in job detail pages
-6. ✅ All TRAPID_BIBLE rules followed
+6. ✅ All TEEEM_BIBLE rules followed
 7. ✅ API responses follow standard format
 8. ✅ Dark mode support
 9. ✅ Mobile responsive design

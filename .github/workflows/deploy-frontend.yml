@@ -43,4 +43,4 @@ jobs:
       - name: Comment deployment URL
         if: success()
         run: |
-          echo "✅ Deployed to production: https://trapid.vercel.app"
+          echo "✅ Deployed to production: https://teeem.vercel.app"

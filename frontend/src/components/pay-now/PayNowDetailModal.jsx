@@ -157,10 +157,10 @@ export default function PayNowDetailModal({ isOpen, onClose, request: initialReq
                               <p className="font-medium">{request.supplier?.phone}</p>
                             </div>
                           )}
-                          {request.supplier?.trapid_rating && (
+                          {request.supplier?.teeem_rating && (
                             <div>
                               <p className="text-gray-600">Rating</p>
-                              <p className="font-medium">{request.supplier.trapid_rating}/5</p>
+                              <p className="font-medium">{request.supplier.teeem_rating}/5</p>
                             </div>
                           )}
                         </div>

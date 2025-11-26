@@ -20,7 +20,7 @@ type: diagnostic
 author: Jake
 ---
 
-You are the SSoT (Single Source of Truth) Agent. Your mission is to ensure all documentation and code across the Trapid codebase is consistent with the authoritative source: **Trinity Database**.
+You are the SSoT (Single Source of Truth) Agent. Your mission is to ensure all documentation and code across the TEEEM codebase is consistent with the authoritative source: **Trinity Database**.
 
 ## The SSoT Hierarchy
 
@@ -103,7 +103,7 @@ Compare CLAUDE.md content against Trinity:
 
 Scan these directories for markdown files:
 - `.claude/` (agent definitions, commands)
-- `TRAPID_DOCS/` (documentation)
+- `TEEEM_DOCS/` (documentation)
 - Root directory (`*.md`)
 
 For each `.md` file, check:
@@ -131,14 +131,14 @@ Flag `.md` files for archival if they:
 ╠════════════════════════════════════════════════════════════════╣
 ║  File: [path/to/file.md]                                       ║
 ║  Reason: Duplicates Trinity [entry reference]                  ║
-║  Action: Move to TRAPID_DOCS/ARCHIVE/                          ║
+║  Action: Move to TEEEM_DOCS/ARCHIVE/                          ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Should I archive this file? (Y/N)                             ║
 ╚════════════════════════════════════════════════════════════════╝
 ```
 
 **If user approves archival:**
-1. Move file to `TRAPID_DOCS/ARCHIVE/`
+1. Move file to `TEEEM_DOCS/ARCHIVE/`
 2. Create/update Trinity Lexicon entry documenting the archive:
    - Original file path
    - Archive date

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class SmNotificationMailer < ApplicationMailer
-  default from: 'notifications@trapid.com.au'
+  default from: 'notifications@teeem.com.au'
 
   def task_reminder(to:, task:)
     @task = task

@@ -152,7 +152,7 @@ All backend endpoints are ready and documented:
 
 ### Tailwind CSS & Dark Mode
 - All components fully support dark mode
-- Uses Trapid's standard Badge component for consistency
+- Uses TEEEM's standard Badge component for consistency
 - Responsive design (mobile-first)
 - Consistent spacing and color palette
 
@@ -258,7 +258,7 @@ All backend endpoints are ready and documented:
 
 ### Frontend Build
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 npm install  # Install frappe-gantt
 npm run build  # Verify build succeeds
 vercel --prod  # Deploy to production
@@ -360,7 +360,7 @@ vercel --prod  # Deploy to production
 ### Code Quality
 - Clean component separation
 - Reusable components leveraged
-- Consistent with Trapid design system
+- Consistent with TEEEM design system
 - Comprehensive documentation
 - No console warnings
 - Build succeeds without errors
@@ -370,14 +370,14 @@ vercel --prod  # Deploy to production
 ## Support & Documentation
 
 - **Component Docs**: `/frontend/src/components/schedule-master/README.md`
-- **Knowledge Base**: `/Users/jakebaird/trapid/KNOWLEDGE_BASE.md`
+- **Knowledge Base**: `/Users/jakebaird/teeem/KNOWLEDGE_BASE.md`
 - **Backend Docs**: Check backend API documentation for endpoint details
 
 ---
 
 ## Summary
 
-The Schedule Master tab is now fully implemented and integrated into the Active Job detail page. All 6 components work together to provide a complete workflow from import to visualization. The implementation follows Trapid's design patterns, supports dark mode, and is mobile-responsive.
+The Schedule Master tab is now fully implemented and integrated into the Active Job detail page. All 6 components work together to provide a complete workflow from import to visualization. The implementation follows TEEEM's design patterns, supports dark mode, and is mobile-responsive.
 
 The frontend is ready for testing. Once the user tests the workflow with real data, any adjustments can be made based on feedback. The backend APIs are already in place, so this is a frontend-only deployment.
 

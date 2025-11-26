@@ -22,7 +22,7 @@ const documentationSections = [
     icon: RocketLaunchIcon,
     color: 'indigo',
     content: {
-      description: 'Learn the basics of using Trapid for construction project management.',
+      description: 'Learn the basics of using TEEEM for construction project management.',
       subsections: [
         {
           title: 'Creating Your First Job',
@@ -186,7 +186,7 @@ const documentationSections = [
           title: 'Document Management',
           content: [
             'Navigate to the Documents tab in any job',
-            'Upload files directly to OneDrive from Trapid',
+            'Upload files directly to OneDrive from TEEEM',
             'View and download existing documents',
             'Organize files in the standard folder structure',
             'Share document links with team members',
@@ -216,7 +216,7 @@ const documentationSections = [
         {
           title: 'How It Works',
           content: [
-            'Unreal Engine sends estimates via webhook to Trapid',
+            'Unreal Engine sends estimates via webhook to TEEEM',
             'Estimates include job name, estimator, and line items',
             'System uses fuzzy matching to link to existing jobs',
             'Match threshold is 70% similarity for job names',
@@ -340,7 +340,7 @@ const documentationSections = [
     icon: QuestionMarkCircleIcon,
     color: 'violet',
     content: {
-      description: 'Common questions and answers about using Trapid.',
+      description: 'Common questions and answers about using TEEEM.',
       subsections: [
         {
           title: 'General Questions',
@@ -470,7 +470,7 @@ export default function DocumentationTab() {
             Documentation
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Everything you need to know about using Trapid
+            Everything you need to know about using TEEEM
           </p>
         </div>
       </div>
@@ -588,7 +588,7 @@ export default function DocumentationTab() {
             </p>
             <div className="flex items-center gap-4 text-sm">
               <a
-                href="mailto:support@trapid.com"
+                href="mailto:support@teeem.com"
                 className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium"
               >
                 Contact Support

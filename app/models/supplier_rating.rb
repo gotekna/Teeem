@@ -81,12 +81,12 @@ class SupplierRating < ApplicationRecord
       count = all_ratings.count
 
       contact.update_columns(
-        trapid_rating: average&.round(2),
+        teeem_rating: average&.round(2),
         total_ratings_count: count
       )
     else
       contact.update_columns(
-        trapid_rating: nil,
+        teeem_rating: nil,
         total_ratings_count: 0
       )
     end

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PlusIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import { api } from '../api'
 
 const INCIDENT_COLUMNS = [
@@ -185,7 +185,7 @@ export default function WhsIncidentsPage() {
         </p>
       </div>
 
-      <TrapidTableView
+      <TeeemTableView
         category="whs_incidents"
         entries={data}
         columns={INCIDENT_COLUMNS}

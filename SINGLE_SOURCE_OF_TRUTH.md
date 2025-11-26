@@ -30,7 +30,7 @@ Trinity T19.001-T19.021 (SSoT - RULES)
 - **Location:** `trinities` table, category=teacher, chapter=19
 - **Access:** `GET /api/v1/trinity?category=teacher&chapter_number=19`
 - **Contains:** SQL type, validation rules, examples, usage description
-- **Edit via:** Trapid UI → Documentation page
+- **Edit via:** TEEEM UI → Documentation page
 
 ### columns table (Implementation)
 
@@ -57,7 +57,7 @@ Trinity T19.001-T19.021 (SSoT - RULES)
 ### Adding a New Column Type
 
 1. **Create Trinity Entry**
-   - Go to Trapid UI → Documentation page
+   - Go to TEEEM UI → Documentation page
    - Add new Teacher entry in Chapter 19
    - Section: T19.022 (next available number)
    - Include: SQL type, validation rules, examples, usage

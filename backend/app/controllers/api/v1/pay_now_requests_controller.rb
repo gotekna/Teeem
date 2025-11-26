@@ -254,7 +254,7 @@ module Api
             name: request.contact.full_name,
             email: request.contact.email,
             phone: request.contact.mobile_phone,
-            trapid_rating: request.contact.trapid_rating
+            teeem_rating: request.contact.teeem_rating
           },
           financial_details: {
             original_amount: request.formatted_original_amount,

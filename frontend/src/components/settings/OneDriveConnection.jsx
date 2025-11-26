@@ -22,7 +22,7 @@ export default function OneDriveConnection() {
   const [message, setMessage] = useState(null)
   const [syncingImages, setSyncingImages] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
-  const [folderPath, setFolderPath] = useState('00 - Trapid/Photos for Price Book')
+  const [folderPath, setFolderPath] = useState('00 - TEEEM/Photos for Price Book')
   const [editingRootFolder, setEditingRootFolder] = useState(false)
   const [newRootFolderName, setNewRootFolderName] = useState('')
   const [changingRootFolder, setChangingRootFolder] = useState(false)

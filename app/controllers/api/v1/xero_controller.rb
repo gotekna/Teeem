@@ -307,7 +307,7 @@ module Api
       end
 
       # POST /api/v1/xero/sync_contacts
-      # Queues a background job for full two-way contact sync between Trapid and Xero
+      # Queues a background job for full two-way contact sync between TEEEM and Xero
       def sync_contacts
         begin
           Rails.logger.info("Contact sync job queued via API")

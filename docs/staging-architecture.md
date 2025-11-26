@@ -30,9 +30,9 @@
           ▼                                      ▼
 ┌─────────────────────┐              ┌─────────────────────┐
 │   Vercel Project    │              │   Vercel Project    │
-│   "trapid"          │              │   "trapid-staging"  │
+│   "teeem"          │              │   "teeem-staging"  │
 │                     │              │                     │
-│   trapid.vercel.app │              │   trapid-staging    │
+│   teeem.vercel.app │              │   teeem-staging    │
 │                     │              │   .vercel.app       │
 └─────────┬───────────┘              └─────────┬───────────┘
           │                                      │
@@ -43,34 +43,34 @@
           ▼         ▼                            ▼
     ┌─────────────────────┐          ┌─────────────────────┐
     │  Production Backend │          │  Staging Backend    │
-    │  trapid-backend     │          │  (Optional)         │
-    │  Heroku             │          │  trapid-backend-    │
+    │  teeem-backend     │          │  (Optional)         │
+    │  Heroku             │          │  teeem-backend-    │
     │  .herokuapp.com     │          │  staging            │
     └─────────────────────┘          └─────────────────────┘
 ```
 
 ## Environment Variables
 
-### Production (trapid.vercel.app)
+### Production (teeem.vercel.app)
 
 ```
-VITE_API_URL=https://trapid-backend-447058022b51.herokuapp.com
+VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com
 CLOUDINARY_CLOUD_NAME=<your-cloud-name>
 VITE_XERO_CLIENT_ID=<your-xero-client-id>
 ```
 
-### Staging (trapid-staging.vercel.app)
+### Staging (teeem-staging.vercel.app)
 
 **Option 1: Shared Backend**
 ```
-VITE_API_URL=https://trapid-backend-447058022b51.herokuapp.com
+VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com
 CLOUDINARY_CLOUD_NAME=<your-cloud-name>
 VITE_XERO_CLIENT_ID=<your-xero-client-id>
 ```
 
 **Option 2: Separate Backend**
 ```
-VITE_API_URL=https://trapid-backend-staging.herokuapp.com
+VITE_API_URL=https://teeem-backend-staging.herokuapp.com
 CLOUDINARY_CLOUD_NAME=<your-staging-cloud-name>
 VITE_XERO_CLIENT_ID=<your-staging-xero-client-id>
 ```
@@ -81,13 +81,13 @@ VITE_XERO_CLIENT_ID=<your-staging-xero-client-id>
 - **Trigger**: Push to `main` branch
 - **Path**: `frontend/**` or `.github/workflows/deploy-frontend.yml`
 - **Action**: `.github/workflows/deploy-frontend.yml`
-- **Destination**: https://trapid.vercel.app
+- **Destination**: https://teeem.vercel.app
 
 ### Staging
 - **Trigger**: Push to `rob` branch
 - **Path**: `frontend/**` or `.github/workflows/deploy-staging.yml`
 - **Action**: `.github/workflows/deploy-staging.yml`
-- **Destination**: https://trapid-staging.vercel.app
+- **Destination**: https://teeem-staging.vercel.app
 
 ## Workflow Comparison
 
@@ -95,9 +95,9 @@ VITE_XERO_CLIENT_ID=<your-staging-xero-client-id>
 |---------|-----------|---------|
 | Git Branch | `main` | `rob` |
 | Workflow File | `deploy-frontend.yml` | `deploy-staging.yml` |
-| Vercel Project | trapid | trapid-staging |
+| Vercel Project | teeem | teeem-staging |
 | Project ID Secret | Hardcoded in workflow | `VERCEL_STAGING_PROJECT_ID` |
-| Domain | trapid.vercel.app | trapid-staging.vercel.app |
+| Domain | teeem.vercel.app | teeem-staging.vercel.app |
 | Backend | Production Heroku | Your choice |
 | Auto Deploy | Yes | Yes |
 
@@ -105,12 +105,12 @@ VITE_XERO_CLIENT_ID=<your-staging-xero-client-id>
 
 ### User Visits Production
 ```
-User → trapid.vercel.app → Vite SPA → API calls → trapid-backend.herokuapp.com → PostgreSQL
+User → teeem.vercel.app → Vite SPA → API calls → teeem-backend.herokuapp.com → PostgreSQL
 ```
 
 ### User Visits Staging
 ```
-User → trapid-staging.vercel.app → Vite SPA → API calls → [Backend] → PostgreSQL
+User → teeem-staging.vercel.app → Vite SPA → API calls → [Backend] → PostgreSQL
 ```
 
 Where `[Backend]` is either:
@@ -133,7 +133,7 @@ Where `[Backend]` is either:
    git checkout rob
    git merge feature/my-feature
    git push origin rob
-   # ✅ Auto-deploys to trapid-staging.vercel.app
+   # ✅ Auto-deploys to teeem-staging.vercel.app
    ```
 
 3. **Testing**: Rob tests on staging URL
@@ -145,7 +145,7 @@ Where `[Backend]` is either:
    git checkout main
    git merge rob
    git push origin main
-   # ✅ Auto-deploys to trapid.vercel.app
+   # ✅ Auto-deploys to teeem.vercel.app
    ```
 
 ### Keeping Staging Up to Date
@@ -174,9 +174,9 @@ If staging uses production backend, update CORS:
 Rails.application.config.middleware.insert_before 0, Rack::Cors do
   allow do
     origins(
-      'https://trapid.vercel.app',           # Production
-      'https://trapid-staging.vercel.app',   # Staging
-      /https:\/\/trapid(-staging)?(-.*)?\.vercel\.app$/,  # All Vercel previews
+      'https://teeem.vercel.app',           # Production
+      'https://teeem-staging.vercel.app',   # Staging
+      /https:\/\/teeem(-staging)?(-.*)?\.vercel\.app$/,  # All Vercel previews
       'http://localhost:5173',
       'http://localhost:5176'
     )
@@ -191,21 +191,21 @@ end
 
 ### Check Production Status
 ```bash
-curl -I https://trapid.vercel.app
-curl https://trapid-backend-447058022b51.herokuapp.com/api/v1/tables
+curl -I https://teeem.vercel.app
+curl https://teeem-backend-447058022b51.herokuapp.com/api/v1/tables
 ```
 
 ### Check Staging Status
 ```bash
-curl -I https://trapid-staging.vercel.app
+curl -I https://teeem-staging.vercel.app
 # Backend depends on your setup
 ```
 
 ### View Deployment Logs
 
-**Vercel**: https://vercel.com/jakes-projects-b6cf0fcb/trapid-staging/deployments
+**Vercel**: https://vercel.com/jakes-projects-b6cf0fcb/teeem-staging/deployments
 
-**GitHub Actions**: https://github.com/YOUR_USERNAME/trapid/actions
+**GitHub Actions**: https://github.com/YOUR_USERNAME/teeem/actions
 
 ## Benefits of This Architecture
 

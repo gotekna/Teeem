@@ -10,9 +10,9 @@
 
 ### 2. Create App Registration
 - [ ] Search "App registrations" → New registration
-- [ ] Name: `Trapid Document Management`
+- [ ] Name: `TEEEM Document Management`
 - [ ] Account type: Multitenant + personal accounts
-- [ ] Redirect URI: `https://trapid-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback`
+- [ ] Redirect URI: `https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback`
 - [ ] Click Register
 
 ### 3. Save Application ID
@@ -23,7 +23,7 @@
 
 ### 4. Create Client Secret
 - [ ] Go to "Certificates & secrets"
-- [ ] New client secret → Description: "Trapid Production"
+- [ ] New client secret → Description: "TEEEM Production"
 - [ ] Expiration: 24 months
 - [ ] Copy **Value** immediately (only shown once!) → Save securely
   ```
@@ -51,7 +51,7 @@ After setup, you'll have these three values:
 ```
 ONEDRIVE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ONEDRIVE_CLIENT_SECRET=abc123~xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-ONEDRIVE_REDIRECT_URI=https://trapid-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
+ONEDRIVE_REDIRECT_URI=https://teeem-backend-447058022b51.herokuapp.com/api/v1/onedrive/callback
 ```
 
 ---
@@ -69,9 +69,9 @@ ONEDRIVE_REDIRECT_URI=https://trapid-backend-447058022b51.herokuapp.com/api/v1/o
 
 Once credentials are configured:
 1. Dev team will implement the integration
-2. You'll test by clicking "Connect to OneDrive" in Trapid Settings
+2. You'll test by clicking "Connect to OneDrive" in TEEEM Settings
 3. Sign in with your Microsoft account
-4. Authorize Trapid to access files
+4. Authorize TEEEM to access files
 5. Done! OneDrive folders will auto-create for new jobs
 
 ---

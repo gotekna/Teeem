@@ -12,7 +12,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
       @feature_trackers = @feature_trackers.by_feature_chapter(params[:feature_chapter_id])
     end
 
-    # Include chapter lookup data for TrapidTableView
+    # Include chapter lookup data for TEEEMTableView
     feature_chapters = FeatureChapter.all.map do |fc|
       {
         id: fc.id,
@@ -96,7 +96,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
 
     # Calculate competitor stats
     competitors = {
-      trapid: { field: :trapid_has, name: 'Trapid', color: 'blue' },
+      teeem: { field: :teeem_has, name: 'TEEEM', color: 'blue' },
       simpro: { field: :simpro_has, name: 'Simpro', color: 'purple' },
       buildertrend: { field: :buildertrend_has, name: 'BuilderTrend', color: 'green' },
       buildexact: { field: :buildexact_has, name: 'BuildExact', color: 'orange' },
@@ -157,7 +157,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
       :ui_checked,
       :user_checked,
       :sort_order,
-      :trapid_has,
+      :teeem_has,
       :buildertrend_has,
       :buildexact_has,
       :jacks_has,

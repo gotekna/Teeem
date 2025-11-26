@@ -8,7 +8,7 @@
 
 ## 📋 EXECUTIVE SUMMARY
 
-Successfully migrated the entire Trapid codebase to use timezone-aware date/time operations that respect the company timezone setting (Settings → Company → Timezone) and working days configuration.
+Successfully migrated the entire TEEEM codebase to use timezone-aware date/time operations that respect the company timezone setting (Settings → Company → Timezone) and working days configuration.
 
 **Total Files Updated:** 36 files (13 backend + 23 frontend)
 **Total Lines Changed:** ~500+ lines
@@ -292,10 +292,10 @@ Users can now configure:
 
 ## 🔗 RELATED FILES
 
-- `/Users/rob/Projects/trapid/TIMEZONE_MIGRATION_GUIDE.md`
-- `/Users/rob/Projects/trapid/TIMEZONE_TESTING_GUIDE.md`
-- `/Users/rob/Projects/trapid/frontend/src/utils/timezoneUtils.js`
-- `/Users/rob/Projects/trapid/backend/app/models/company_setting.rb`
+- `/Users/rob/Projects/teeem/TIMEZONE_MIGRATION_GUIDE.md`
+- `/Users/rob/Projects/teeem/TIMEZONE_TESTING_GUIDE.md`
+- `/Users/rob/Projects/teeem/frontend/src/utils/timezoneUtils.js`
+- `/Users/rob/Projects/teeem/backend/app/models/company_setting.rb`
 
 ---
 

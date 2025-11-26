@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   desc "Update validation rules for all column types in Gold Standard table"
   task update_validation_rules: :environment do
     puts "🔧 Updating validation rules for Gold Standard Reference table columns..."

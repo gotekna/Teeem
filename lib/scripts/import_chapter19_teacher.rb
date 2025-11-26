@@ -1,7 +1,7 @@
 # frozen_string_literal: true
-# Import Chapter 19 Teacher sections from TRAPID_TEACHER.md
+# Import Chapter 19 Teacher sections from TEEEM_TEACHER.md
 
-teacher_file = Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_TEACHER.md')
+teacher_file = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md')
 content = File.read(teacher_file, encoding: 'UTF-8')
 
 # Extract Chapter 19 content
@@ -77,5 +77,5 @@ if content =~ /# Chapter 19: (.+?)\n(.+?)(?=\n# Chapter 20:|\z)/m
   puts "\n✅ Import complete!"
   puts "📊 Total Chapter 19 Teacher entries: #{Trinity.teacher_entries.where(chapter_number: 19).count}"
 else
-  puts "❌ Could not find Chapter 19 in TRAPID_TEACHER.md"
+  puts "❌ Could not find Chapter 19 in TEEEM_TEACHER.md"
 end

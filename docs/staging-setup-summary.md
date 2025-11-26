@@ -11,23 +11,23 @@ This workflow:
 - Triggers automatically when code is pushed to the `rob` branch
 - Only deploys when frontend files change
 - Uses the same Vercel token as production
-- Deploys to a separate Vercel project (trapid-staging)
+- Deploys to a separate Vercel project (teeem-staging)
 
 ### 2. Documentation
 Three comprehensive guides have been created:
 
-1. **Quick Start Guide**: `/Users/jakebaird/trapid/docs/staging-quick-start.md`
+1. **Quick Start Guide**: `/Users/jakebaird/teeem/docs/staging-quick-start.md`
    - 5-minute setup checklist
    - Step-by-step instructions
    - Common commands reference
 
-2. **Full Setup Guide**: `/Users/jakebaird/trapid/docs/staging-environment-setup.md`
+2. **Full Setup Guide**: `/Users/jakebaird/teeem/docs/staging-environment-setup.md`
    - Detailed setup instructions
    - Environment variable configuration
    - Troubleshooting guide
    - CORS configuration
 
-3. **Architecture Diagram**: `/Users/jakebaird/trapid/docs/staging-architecture.md`
+3. **Architecture Diagram**: `/Users/jakebaird/teeem/docs/staging-architecture.md`
    - Visual deployment flow
    - Branch strategy recommendations
    - Security considerations
@@ -46,8 +46,8 @@ Three comprehensive guides have been created:
 
 **Option A: Via Vercel Dashboard** (Recommended)
 1. Go to https://vercel.com/jakes-projects-b6cf0fcb/new
-2. Import your trapid repository
-3. Set **Project Name**: `trapid-staging`
+2. Import your teeem repository
+3. Set **Project Name**: `teeem-staging`
 4. Set **Git Branch**: `rob` ⚠️ IMPORTANT
 5. Set **Root Directory**: `frontend`
 6. Framework: Vite (should auto-detect)
@@ -55,14 +55,14 @@ Three comprehensive guides have been created:
 
 **Option B: Via CLI**
 ```bash
-cd /Users/jakebaird/trapid/frontend
-vercel link --project trapid-staging
+cd /Users/jakebaird/teeem/frontend
+vercel link --project teeem-staging
 ```
 
 #### 2. Get Staging Project ID
 
 After creating the project:
-1. Go to Vercel Dashboard → trapid-staging → Settings → General
+1. Go to Vercel Dashboard → teeem-staging → Settings → General
 2. Copy the **Project ID** (format: `prj_xxxxxxxxxxxxxxxxxxxxx`)
 
 #### 3. Add GitHub Secret
@@ -80,11 +80,11 @@ You have two choices for the staging backend:
 
 **Choice 1: Use Production Backend** (Easier, recommended for start)
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 
 # Set to production backend
 vercel env add VITE_API_URL production
-# When prompted: https://trapid-backend-447058022b51.herokuapp.com
+# When prompted: https://teeem-backend-447058022b51.herokuapp.com
 
 # Copy other env vars
 vercel env add CLOUDINARY_CLOUD_NAME production
@@ -95,12 +95,12 @@ vercel env add VITE_XERO_CLIENT_ID production
 ```
 
 **Choice 2: Create Separate Staging Backend** (True isolation)
-1. Create new Heroku app: `heroku create trapid-backend-staging`
+1. Create new Heroku app: `heroku create teeem-backend-staging`
 2. Deploy backend to new app
 3. Set staging API URL:
 ```bash
 vercel env add VITE_API_URL production
-# Enter: https://trapid-backend-staging.herokuapp.com
+# Enter: https://teeem-backend-staging.herokuapp.com
 ```
 
 #### 5. Update CORS (If Using Production Backend)
@@ -108,23 +108,23 @@ vercel env add VITE_API_URL production
 If staging shares the production backend, update CORS configuration:
 
 ```bash
-# Edit: /Users/jakebaird/trapid/backend/config/initializers/cors.rb
+# Edit: /Users/jakebaird/teeem/backend/config/initializers/cors.rb
 # Change the origins line to:
-origins /https:\/\/trapid(-staging)?(-.*)?\.vercel\.app$/
+origins /https:\/\/teeem(-staging)?(-.*)?\.vercel\.app$/
 
 # Then deploy backend:
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git add backend/config/initializers/cors.rb
 git commit -m "Update CORS for staging environment"
 git subtree push --prefix backend heroku main
-heroku restart --app trapid-backend
+heroku restart --app teeem-backend
 ```
 
 #### 6. Test the Deployment
 
 ```bash
 # Make a small test change
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git checkout rob
 echo "// Staging test" >> frontend/src/App.jsx
 git add frontend/src/App.jsx
@@ -133,9 +133,9 @@ git push origin rob
 ```
 
 Then:
-1. Go to https://github.com/YOUR_USERNAME/trapid/actions
+1. Go to https://github.com/YOUR_USERNAME/teeem/actions
 2. Watch the "Deploy Staging (Rob's Branch) to Vercel" workflow run
-3. Once complete, visit https://trapid-staging.vercel.app
+3. Once complete, visit https://teeem-staging.vercel.app
 
 ## How It Works
 
@@ -148,7 +148,7 @@ GitHub Actions triggers (.github/workflows/deploy-staging.yml)
     ↓
 Vercel builds frontend from 'rob' branch
     ↓
-Deploys to https://trapid-staging.vercel.app
+Deploys to https://teeem-staging.vercel.app
     ↓
 Staging app connects to backend (production or staging)
 ```
@@ -165,9 +165,9 @@ feature/my-feature → rob (staging) → main (production)
 
 ## URLs After Setup
 
-- **Production**: https://trapid.vercel.app (from `main` branch)
-- **Staging**: https://trapid-staging.vercel.app (from `rob` branch)
-- **Backend**: https://trapid-backend-447058022b51.herokuapp.com (shared or separate)
+- **Production**: https://teeem.vercel.app (from `main` branch)
+- **Staging**: https://teeem-staging.vercel.app (from `rob` branch)
+- **Backend**: https://teeem-backend-447058022b51.herokuapp.com (shared or separate)
 
 ## Quick Commands
 
@@ -188,7 +188,7 @@ git merge main
 git push origin rob
 
 # View staging logs
-# Visit: https://vercel.com/jakes-projects-b6cf0fcb/trapid-staging
+# Visit: https://vercel.com/jakes-projects-b6cf0fcb/teeem-staging
 ```
 
 ## Important Notes
@@ -207,7 +207,7 @@ git push origin rob
 
 ### CORS errors in staging
 - Update `backend/config/initializers/cors.rb` to allow staging domain
-- Restart Heroku: `heroku restart --app trapid-backend`
+- Restart Heroku: `heroku restart --app teeem-backend`
 
 ### Environment variables not working
 - Ensure vars are set for "Production" environment in Vercel

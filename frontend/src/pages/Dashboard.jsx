@@ -249,10 +249,10 @@ export default function Dashboard() {
       <div className="mb-8 px-3 sm:px-4 lg:px-8">
         <div className="mb-4">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Trapid Features Tracking
+            TEEEM Features Tracking
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Track the completion status of all Trapid features grouped by chapters
+            Track the completion status of all TEEEM features grouped by chapters
           </p>
         </div>
         <FeaturesTrackingTable />

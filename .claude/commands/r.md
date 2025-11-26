@@ -18,8 +18,8 @@ screen -X -S frontend quit 2>/dev/null || true
 **Step 2: Start Both Servers in Screen (Parallel)**
 Run both start commands in a SINGLE message:
 ```bash
-screen -dmS backend bash -c 'cd /Users/robertharder/GitHub/trapid/backend && /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3000'
-screen -dmS frontend bash -c 'cd /Users/robertharder/GitHub/trapid/frontend && npm run dev'
+screen -dmS backend bash -c 'cd /Users/robertharder/GitHub/teeem/backend && /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3000'
+screen -dmS frontend bash -c 'cd /Users/robertharder/GitHub/teeem/frontend && npm run dev'
 ```
 
 **Step 3: Verify Servers Started (Parallel)**
@@ -63,7 +63,7 @@ Breakdown:
 ## Notes
 - All bash commands are pre-approved (defaultMode: "dontAsk")
 - Servers run in detached screen sessions for easy log viewing
-- Working directory: /Users/robertharder/GitHub/trapid
+- Working directory: /Users/robertharder/GitHub/teeem
 - Use rbenv shims path for Rails to avoid bundler conflicts
 - Screen sessions persist after terminal closes
 - **MUST run independent operations in parallel** (single message, multiple tool calls)

@@ -14,8 +14,8 @@ This is your checklist to get the staging environment up and running in 5 minute
 
 Go to: https://vercel.com/jakes-projects-b6cf0fcb/new
 
-1. Import the trapid repository
-2. Set **Project Name**: `trapid-staging`
+1. Import the teeem repository
+2. Set **Project Name**: `teeem-staging`
 3. Set **Git Branch**: `rob` (important!)
 4. Set **Root Directory**: `frontend`
 5. Click "Deploy"
@@ -28,7 +28,7 @@ After deployment:
 
 ## Step 3: Add GitHub Secret (1 minute)
 
-Go to: https://github.com/YOUR_USERNAME/trapid/settings/secrets/actions
+Go to: https://github.com/YOUR_USERNAME/teeem/settings/secrets/actions
 
 1. Click "New repository secret"
 2. **Name**: `VERCEL_STAGING_PROJECT_ID`
@@ -40,17 +40,17 @@ Go to: https://github.com/YOUR_USERNAME/trapid/settings/secrets/actions
 Run these commands:
 
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 
 # Set API URL (choose one):
 
 # Option A: Use production backend (simpler)
 vercel env add VITE_API_URL production
-# Enter: https://trapid-backend-447058022b51.herokuapp.com
+# Enter: https://teeem-backend-447058022b51.herokuapp.com
 
 # Option B: Use staging backend (if you created one)
 vercel env add VITE_API_URL production
-# Enter: https://trapid-backend-staging.herokuapp.com
+# Enter: https://teeem-backend-staging.herokuapp.com
 
 # Copy other required env vars
 vercel env add CLOUDINARY_CLOUD_NAME production
@@ -76,13 +76,13 @@ git checkout -b rob
 git push origin rob
 
 # Watch the deployment
-# Go to: https://github.com/YOUR_USERNAME/trapid/actions
+# Go to: https://github.com/YOUR_USERNAME/teeem/actions
 ```
 
 ## Done!
 
 Your staging environment should now be live at:
-- https://trapid-staging.vercel.app
+- https://teeem-staging.vercel.app
 
 ## Quick Commands Reference
 
@@ -109,7 +109,7 @@ git push origin rob
    - Separate backend: True isolation, requires Heroku staging app
 
 2. **Do you want a custom domain?**
-   - Default: `trapid-staging.vercel.app`
+   - Default: `teeem-staging.vercel.app`
    - Custom: `staging.yourdomain.com` (requires DNS setup)
 
 3. **Should rob branch exist already?**
@@ -117,4 +117,4 @@ git push origin rob
 
 ## Need Help?
 
-See full documentation: `/Users/jakebaird/trapid/docs/staging-environment-setup.md`
+See full documentation: `/Users/jakebaird/teeem/docs/staging-environment-setup.md`

@@ -1,4 +1,4 @@
-# Trapid Development Progress
+# TEEEM Development Progress
 
 ## Session Date: October 29, 2025
 
@@ -133,7 +133,7 @@
 
 ### Backend (Rails 8.0.4 + PostgreSQL)
 - **Hosting**: Heroku
-- **URL**: https://trapid-backend-447058022b51.herokuapp.com
+- **URL**: https://teeem-backend-447058022b51.herokuapp.com
 - **Key Features**:
   - Dynamic table/column generation
   - CSV/Excel import with type detection
@@ -162,7 +162,7 @@
 ## Product Vision & Roadmap
 
 ### Core Concept
-Trapid is a no-code/low-code platform that allows users to:
+TEEEM is a no-code/low-code platform that allows users to:
 1. Define custom data tables with flexible schemas
 2. Import data from spreadsheets (CSV/Excel)
 3. Create custom interfaces to interact with their data
@@ -267,7 +267,7 @@ Trapid is a no-code/low-code platform that allows users to:
 **Technical Approach**:
 - Integration with Lindy.ai for AI orchestration
 - Email API integration (SendGrid, Mailgun, or Gmail API)
-- Webhook endpoints in Trapid to receive updates
+- Webhook endpoints in TEEEM to receive updates
 - Natural language processing for email parsing
 - Automated data entry into pricebook table
 
@@ -415,7 +415,7 @@ vercel --prod
 **Frontend (.env)**:
 ```
 VITE_API_URL=http://localhost:3000  # Local
-VITE_API_URL=https://trapid-backend-447058022b51.herokuapp.com  # Production
+VITE_API_URL=https://teeem-backend-447058022b51.herokuapp.com  # Production
 ```
 
 **Backend (.env)**:

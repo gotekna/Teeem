@@ -1,6 +1,6 @@
-// Service Worker for Trapid Field - Offline Support
+// Service Worker for TEEEM Field - Offline Support
 // Last updated: 2025-11-23 - Clear cached column choices API errors
-const CACHE_VERSION = 'trapid-field-v8'
+const CACHE_VERSION = 'teeem-field-v8'
 const STATIC_CACHE = `${CACHE_VERSION}-static`
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`
 const API_CACHE = `${CACHE_VERSION}-api`
@@ -39,7 +39,7 @@ self.addEventListener('activate', (event) => {
       .then((keys) => {
         return Promise.all(
           keys
-            .filter((key) => key.startsWith('trapid-field-') && key !== STATIC_CACHE && key !== DYNAMIC_CACHE && key !== API_CACHE)
+            .filter((key) => key.startsWith('teeem-field-') && key !== STATIC_CACHE && key !== DYNAMIC_CACHE && key !== API_CACHE)
             .map((key) => {
               console.log('[SW] Removing old cache:', key)
               return caches.delete(key)
@@ -220,7 +220,7 @@ self.addEventListener('push', (event) => {
   }
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Trapid', options)
+    self.registration.showNotification(data.title || 'TEEEM', options)
   )
 })
 

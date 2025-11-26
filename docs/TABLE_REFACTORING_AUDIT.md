@@ -1,12 +1,12 @@
 # DataTable Refactoring Audit
 
-This document tracks all table implementations in Trapid and provides recommendations for standardization using the new `DataTable` component.
+This document tracks all table implementations in TEEEM and provides recommendations for standardization using the new `DataTable` component.
 
 ## Global Standard
 
-**Component**: `/Users/jakebaird/trapid/frontend/src/components/DataTable.jsx`
+**Component**: `/Users/jakebaird/teeem/frontend/src/components/DataTable.jsx`
 
-This is THE standard table component for all data listing views in Trapid. It includes:
+This is THE standard table component for all data listing views in TEEEM. It includes:
 - Sortable headers with visual indicators
 - Full dark mode support
 - Loading and empty states
@@ -17,7 +17,7 @@ This is THE standard table component for all data listing views in Trapid. It in
 ## Current Table Implementations
 
 ### 1. TablePage.jsx - Google Sheets-Style Grid
-**Location**: `/Users/jakebaird/trapid/frontend/src/pages/TablePage.jsx`
+**Location**: `/Users/jakebaird/teeem/frontend/src/pages/TablePage.jsx`
 
 **Status**: KEEP AS-IS
 
@@ -34,7 +34,7 @@ This is THE standard table component for all data listing views in Trapid. It in
 ---
 
 ### 2. TaskTable.jsx - Gantt Task Inline Editing Table
-**Location**: `/Users/jakebaird/trapid/frontend/src/components/gantt/TaskTable.jsx`
+**Location**: `/Users/jakebaird/teeem/frontend/src/components/gantt/TaskTable.jsx`
 
 **Status**: KEEP AS-IS
 
@@ -52,7 +52,7 @@ This is THE standard table component for all data listing views in Trapid. It in
 ---
 
 ### 3. POTable.jsx - Purchase Orders Listing
-**Location**: `/Users/jakebaird/trapid/frontend/src/components/purchase-orders/POTable.jsx`
+**Location**: `/Users/jakebaird/teeem/frontend/src/components/purchase-orders/POTable.jsx`
 
 **Status**: CANDIDATE FOR REFACTORING
 
@@ -170,7 +170,7 @@ const columns = [
 ---
 
 ### 4. ColumnHeader.jsx - Column Type Dropdown
-**Location**: `/Users/jakebaird/trapid/frontend/src/components/table/ColumnHeader.jsx`
+**Location**: `/Users/jakebaird/teeem/frontend/src/components/table/ColumnHeader.jsx`
 
 **Status**: NOT A TABLE (keep as-is)
 
@@ -182,7 +182,7 @@ const columns = [
 
 ### Guidelines for New Tables
 
-When creating a new table/data grid in Trapid:
+When creating a new table/data grid in TEEEM:
 
 1. **Ask: Does this table need inline cell editing?**
    - **YES**: Use custom implementation like TablePage.jsx or TaskTable.jsx
@@ -230,7 +230,7 @@ None currently - existing custom tables serve specialized purposes
 
 ## Success Metrics
 
-After standardizing tables across Trapid, we should see:
+After standardizing tables across TEEEM, we should see:
 
 1. **Consistency**: All data listing views have the same look, feel, and interaction patterns
 2. **Sortability**: Users can sort all appropriate tables by clicking headers
@@ -256,7 +256,7 @@ Before refactoring POTable.jsx:
 - The DataTable component is intentionally flexible to handle various column configurations
 - Custom render functions allow for any cell content (badges, avatars, links, menus, etc.)
 - The component follows Tailwind UI Application UI patterns for consistency
-- See `/Users/jakebaird/trapid/frontend/src/components/DataTableExample.jsx` for usage examples
+- See `/Users/jakebaird/teeem/frontend/src/components/DataTableExample.jsx` for usage examples
 
 ---
 

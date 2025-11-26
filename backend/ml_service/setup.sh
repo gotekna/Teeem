@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 echo "========================================"
-echo "Trapid ML Service Setup"
+echo "TEEEM ML Service Setup"
 echo "========================================"
 echo ""
 

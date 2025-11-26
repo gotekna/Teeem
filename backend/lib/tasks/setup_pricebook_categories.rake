@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :pricebook do
     desc "Seed pricebook_categories from existing pricebook_items.category values"
     task seed_categories: :environment do
@@ -91,7 +91,7 @@ namespace :trapid do
       puts "Backfilling category_id in pricebook_items..."
 
       # First, ensure all categories exist
-      Rake::Task['trapid:pricebook:seed_categories'].invoke
+      Rake::Task['teeem:pricebook:seed_categories'].invoke
 
       # Build a lookup hash for faster processing
       category_lookup = PricebookCategory.pluck(:name, :id).to_h
@@ -140,7 +140,7 @@ namespace :trapid do
       # Find the categories table
       categories_table = Table.find_by(database_table_name: 'pricebook_categories')
       unless categories_table
-        puts "ERROR: pricebook_categories table not found. Run 'rake trapid:pricebook:register_table' first."
+        puts "ERROR: pricebook_categories table not found. Run 'rake teeem:pricebook:register_table' first."
         return
       end
 
@@ -169,24 +169,24 @@ namespace :trapid do
       puts "SETTING UP PRICEBOOK CATEGORIES"
       puts "=" * 60
 
-      Rake::Task['trapid:pricebook:seed_categories'].invoke
+      Rake::Task['teeem:pricebook:seed_categories'].invoke
       puts "\n"
 
-      Rake::Task['trapid:pricebook:register_table'].invoke
+      Rake::Task['teeem:pricebook:register_table'].invoke
       puts "\n"
 
       # Only run backfill if category_id column exists
       if ActiveRecord::Base.connection.column_exists?(:pricebook_items, :category_id)
-        Rake::Task['trapid:pricebook:backfill_category_ids'].invoke
+        Rake::Task['teeem:pricebook:backfill_category_ids'].invoke
         puts "\n"
 
-        Rake::Task['trapid:pricebook:update_category_column'].invoke
+        Rake::Task['teeem:pricebook:update_category_column'].invoke
       else
         puts "NOTE: category_id column doesn't exist yet. Run migration first:"
         puts "  rails db:migrate"
         puts "Then run:"
-        puts "  rake trapid:pricebook:backfill_category_ids"
-        puts "  rake trapid:pricebook:update_category_column"
+        puts "  rake teeem:pricebook:backfill_category_ids"
+        puts "  rake teeem:pricebook:update_category_column"
       end
 
       puts "\n"

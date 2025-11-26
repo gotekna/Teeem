@@ -230,10 +230,10 @@ Then update the service to use: `PurchaseOrder.find_by(normalized_po_number: num
 
 ## Files Modified
 
-1. `/Users/jakebaird/trapid/backend/app/services/invoice_matching_service.rb` - Enhanced matching logic
-2. `/Users/jakebaird/trapid/backend/app/models/purchase_order.rb` - Added payment tracking methods
-3. `/Users/jakebaird/trapid/backend/lib/tasks/test_invoice_matching.rake` - Comprehensive test suite
-4. `/Users/jakebaird/trapid/backend/test/invoice_matching_demo.rb` - Interactive demo
+1. `/Users/jakebaird/teeem/backend/app/services/invoice_matching_service.rb` - Enhanced matching logic
+2. `/Users/jakebaird/teeem/backend/app/models/purchase_order.rb` - Added payment tracking methods
+3. `/Users/jakebaird/teeem/backend/lib/tasks/test_invoice_matching.rake` - Comprehensive test suite
+4. `/Users/jakebaird/teeem/backend/test/invoice_matching_demo.rb` - Interactive demo
 
 ## Next Steps
 
@@ -246,7 +246,7 @@ Then update the service to use: `PurchaseOrder.find_by(normalized_po_number: num
 ## Deployment Instructions
 
 ```bash
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git add -A
 git commit -m "Enhance invoice matching with fuzzy PO number extraction
 

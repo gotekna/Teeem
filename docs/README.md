@@ -1,11 +1,11 @@
-# Trapid
+# TEEEM
 
 A full-stack application with Rails API backend and React frontend.
 
 ## Project Structure
 
 ```
-trapid/
+teeem/
 ├── backend/        # Rails API (PostgreSQL)
 ├── frontend/       # React + Vite
 └── README.md       # This file
@@ -73,7 +73,7 @@ This guide includes:
 1. **Create Heroku app**
 ```bash
 cd backend
-heroku create trapid-api
+heroku create teeem-api
 ```
 
 2. **Add PostgreSQL addon**
@@ -131,7 +131,7 @@ heroku config:set CORS_ORIGINS=https://your-vercel-domain.vercel.app
 git add .
 git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/trapid.git
+git remote add origin https://github.com/YOUR_USERNAME/teeem.git
 git push -u origin main
 ```
 

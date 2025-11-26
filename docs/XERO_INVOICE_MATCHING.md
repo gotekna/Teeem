@@ -2,7 +2,7 @@
 
 ## Overview
 
-This feature integrates Xero invoices with the Trapid PurchaseOrder system, automatically matching supplier invoices to purchase orders and updating payment status based on invoice amounts.
+This feature integrates Xero invoices with the TEEEM PurchaseOrder system, automatically matching supplier invoices to purchase orders and updating payment status based on invoice amounts.
 
 ## Implementation Date
 November 5, 2025
@@ -58,7 +58,7 @@ bin/rails db:migrate
 
 ### PurchaseOrder Model
 
-Located at: `/Users/jakebaird/trapid/backend/app/models/purchase_order.rb`
+Located at: `/Users/jakebaird/teeem/backend/app/models/purchase_order.rb`
 
 #### New Enum
 
@@ -115,7 +115,7 @@ po.payment_percentage  # => 96.0
 
 ### InvoiceMatchingService
 
-Located at: `/Users/jakebaird/trapid/backend/app/services/invoice_matching_service.rb`
+Located at: `/Users/jakebaird/teeem/backend/app/services/invoice_matching_service.rb`
 
 **Purpose:** Matches Xero invoices to PurchaseOrders using intelligent matching strategies.
 
@@ -272,7 +272,7 @@ Receives Xero webhooks (placeholder for future implementation).
 
 ### Test Cases Verified
 
-Located at: `/Users/jakebaird/trapid/backend/test_invoice_matching.rb`
+Located at: `/Users/jakebaird/teeem/backend/test_invoice_matching.rb`
 
 ```ruby
 # Test with real PurchaseOrder
@@ -446,33 +446,33 @@ const ManualReviewWidget = () => {
 ### Backend Files
 
 **Migrations:**
-- `/Users/jakebaird/trapid/backend/db/migrate/20251105010955_add_payment_tracking_to_purchase_orders.rb`
+- `/Users/jakebaird/teeem/backend/db/migrate/20251105010955_add_payment_tracking_to_purchase_orders.rb`
 
 **Models:**
-- `/Users/jakebaird/trapid/backend/app/models/purchase_order.rb` (modified)
+- `/Users/jakebaird/teeem/backend/app/models/purchase_order.rb` (modified)
   - Added `payment_status` enum
   - Added `payment_percentage` method
   - Added `determine_payment_status` method
   - Added `apply_invoice!` method
 
 **Services:**
-- `/Users/jakebaird/trapid/backend/app/services/invoice_matching_service.rb` (new)
+- `/Users/jakebaird/teeem/backend/app/services/invoice_matching_service.rb` (new)
   - Intelligent invoice-to-PO matching
   - Multiple matching strategies
   - Status message generation
 
 **Controllers:**
-- `/Users/jakebaird/trapid/backend/app/controllers/api/v1/xero_controller.rb` (modified)
+- `/Users/jakebaird/teeem/backend/app/controllers/api/v1/xero_controller.rb` (modified)
   - Added `invoices` endpoint
   - Added `match_invoice` endpoint
   - Added `webhook` endpoint (placeholder)
 
 **Routes:**
-- `/Users/jakebaird/trapid/backend/config/routes.rb` (modified)
+- `/Users/jakebaird/teeem/backend/config/routes.rb` (modified)
   - Added routes for new Xero endpoints
 
 **Test Scripts:**
-- `/Users/jakebaird/trapid/backend/test_invoice_matching.rb` (new)
+- `/Users/jakebaird/teeem/backend/test_invoice_matching.rb` (new)
 
 ---
 
@@ -498,7 +498,7 @@ bin/rails server
 ### Production Deployment (Heroku)
 
 ```bash
-# From trapid root directory
+# From teeem root directory
 git add -A
 git commit -m "Add Xero invoice to PO matching feature"
 
@@ -585,8 +585,8 @@ heroku logs --tail
 **Last Updated:** November 5, 2025
 
 **Related Documentation:**
-- Xero API Integration: `/Users/jakebaird/trapid/xero-integration-plan.md`
-- Purchase Order System: Check model at `/Users/jakebaird/trapid/backend/app/models/purchase_order.rb`
+- Xero API Integration: `/Users/jakebaird/teeem/xero-integration-plan.md`
+- Purchase Order System: Check model at `/Users/jakebaird/teeem/backend/app/models/purchase_order.rb`
 
 ---
 

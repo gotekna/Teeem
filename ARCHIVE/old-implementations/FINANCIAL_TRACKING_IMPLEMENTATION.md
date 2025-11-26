@@ -8,7 +8,7 @@
 
 ## 🎯 Overview
 
-A comprehensive financial tracking and reporting system for Trapid that enables users to:
+A comprehensive financial tracking and reporting system for TEEEM that enables users to:
 - Record income and expenses with simple forms
 - Link transactions to specific jobs
 - Generate balance sheets and P&L reports
@@ -16,7 +16,7 @@ A comprehensive financial tracking and reporting system for Trapid that enables 
 - Export data to CSV for accountants
 - (Future) Sync to Xero/MYOB/QuickBooks
 
-**Key Positioning:** This is a project financial tracking tool, NOT a replacement for compliance-grade accounting software. Trapid handles tracking and reporting; external systems handle tax compliance.
+**Key Positioning:** This is a project financial tracking tool, NOT a replacement for compliance-grade accounting software. TEEEM handles tracking and reporting; external systems handle tax compliance.
 
 ---
 
@@ -58,7 +58,7 @@ end
 **Indexes:** 8 composite indexes for query performance
 
 **3. Accounting Integration Extensions (20251120013002)**
-- Added `account_mappings` (jsonb) - Maps Trapid → External accounts
+- Added `account_mappings` (jsonb) - Maps TEEEM → External accounts
 - Added `sync_settings` (jsonb) - Auto-sync preferences
 - Added `sync_error_message` (text) - Error tracking
 
@@ -86,7 +86,7 @@ end
 - **Attachments:** Receipt file via ActiveStorage
 
 **2. AccountMapping** ([account_mapping.rb](backend/app/models/account_mapping.rb))
-- Links Trapid Keepr accounts to external accounting system accounts
+- Links TEEEM Keepr accounts to external accounting system accounts
 - Scopes: `active`, `for_integration`
 - Methods: `activate!`, `deactivate!`, display helpers
 
@@ -97,9 +97,9 @@ end
 ### Chart of Accounts Setup
 
 **Rake Tasks:**
-- `rails trapid:financial:setup_simple` - Creates 20 default accounts (flat structure)
-- `rails trapid:financial:setup_chart_of_accounts` - Creates accounts with groups (complex)
-- `rails trapid:financial:reset_simple` - Resets and recreates (dev only)
+- `rails teeem:financial:setup_simple` - Creates 20 default accounts (flat structure)
+- `rails teeem:financial:setup_chart_of_accounts` - Creates accounts with groups (complex)
+- `rails teeem:financial:reset_simple` - Resets and recreates (dev only)
 
 **Default Accounts Created:**
 
@@ -302,7 +302,7 @@ end
 ### Manual Testing Script
 ```bash
 # 1. Setup chart of accounts
-rails trapid:financial:setup_simple
+rails teeem:financial:setup_simple
 
 # 2. Rails console testing
 rails console
@@ -388,7 +388,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 - Category dropdown (filtered by type)
 
 **2. Transaction List View**
-- Use **TrapidTableView** (mandatory per Bible RULE #19.1)
+- Use **TEEEMTableView** (mandatory per Bible RULE #19.1)
 - Columns: Date, Type, Category, Description, Job, Amount, Status
 - Filters: Type, Status, Category, Job, Date Range, Search
 - Inline editing for draft/posted
@@ -421,7 +421,7 @@ curl -H "Authorization: Bearer $TOKEN" \
   - Export to CSV button
 
 **4. Chart of Accounts Management** (Admin Only)
-- TrapidTableView for account list
+- TEEEMTableView for account list
 - Add/Edit/Delete accounts
 - View account balance
 - Cannot delete accounts with transactions
@@ -451,7 +451,7 @@ const FinancialSettings = lazy(() => import('./pages/FinancialSettingsPage'))
 
 ### Before First Deploy
 - [ ] Run migrations on production
-- [ ] Run `rails trapid:financial:setup_simple RAILS_ENV=production`
+- [ ] Run `rails teeem:financial:setup_simple RAILS_ENV=production`
 - [ ] Verify chart of accounts created (20 accounts)
 - [ ] Test trial balance = 0
 - [ ] Set up permissions for financial features
@@ -535,7 +535,7 @@ const FinancialSettings = lazy(() => import('./pages/FinancialSettingsPage'))
 ### Advanced Features
 - [ ] Recurring transactions
 - [ ] Budget vs Actual reporting
-- [ ] Invoice generation from Trapid
+- [ ] Invoice generation from TEEEM
 - [ ] Payment tracking (pending, partial, paid)
 - [ ] Multi-currency support
 - [ ] Cash flow forecasting

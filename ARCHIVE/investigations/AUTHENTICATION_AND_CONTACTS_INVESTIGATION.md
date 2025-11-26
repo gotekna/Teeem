@@ -1,4 +1,4 @@
-# TRAPID CODEBASE INVESTIGATION REPORT
+# TEEEM CODEBASE INVESTIGATION REPORT
 ## Authentication System, Contacts Management, and Business Logic
 
 **Investigation Date:** November 14, 2025
@@ -37,7 +37,7 @@
 **Authentication Flow:**
 
 1. **JWT Service:** `JsonWebToken` class encodes/decodes tokens
-   - Location: `/Users/rob/Projects/trapid/backend/app/services/json_web_token.rb`
+   - Location: `/Users/rob/Projects/teeem/backend/app/services/json_web_token.rb`
    - Uses Rails credentials (`SECRET_KEY_BASE`) for token signing
    - Tokens expire in 24 hours by default
    - Handles `JWT::DecodeError` and `JWT::ExpiredSignature` exceptions
@@ -68,7 +68,7 @@
 
 ### User Model Schema
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/user.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/user.rb`
 
 **Database Fields:**
 ```ruby
@@ -147,7 +147,7 @@ ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
 
 ### Contact Model
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/contact.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/contact.rb`
 
 **Database Schema:**
 ```ruby
@@ -277,7 +277,7 @@ has_many :price_histories, foreign_key: :supplier_id, dependent: :destroy
 
 ### Contact Persons (Contacts Table Detail)
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/contact_person.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/contact_person.rb`
 
 **Purpose:** Individual contact people within a Contact organization
 
@@ -299,7 +299,7 @@ end
 
 ### Contact Relationships (Network)
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/contact_relationship.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/contact_relationship.rb`
 
 **Purpose:** Track relationships between contacts (customers, suppliers, related projects, family, etc.)
 
@@ -333,7 +333,7 @@ end
 
 ### Contact Roles
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/contact_role.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/contact_role.rb`
 
 **Purpose:** Define custom roles for contacts within constructions (independent of user roles)
 
@@ -365,7 +365,7 @@ end
 
 ### Supplier Model
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/supplier.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/supplier.rb`
 
 **Database Schema:**
 ```ruby
@@ -444,7 +444,7 @@ end
 
 ### Purchase Order
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/purchase_order.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/purchase_order.rb`
 
 **Database Schema:**
 ```ruby
@@ -563,7 +563,7 @@ accepts_nested_attributes_for :line_items, allow_destroy: true
 
 ### Purchase Order Line Items
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/purchase_order_line_item.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/purchase_order_line_item.rb`
 
 **Schema:**
 ```ruby
@@ -598,7 +598,7 @@ end
 
 ### Payment Model
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/payment.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/payment.rb`
 
 **Database Schema:**
 ```ruby
@@ -677,7 +677,7 @@ end
 
 ### Price Item Risk Scoring (Pricebook Items)
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/pricebook_item.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/pricebook_item.rb`
 
 **Risk Level Calculation:**
 
@@ -702,7 +702,7 @@ end
 
 ### Estimate Reviews (AI Plan Analysis)
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/estimate_review.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/estimate_review.rb`
 
 **Purpose:** AI-powered plan review comparing to estimates
 
@@ -741,7 +741,7 @@ enum :status, {
 
 ### Contact Activity Log
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/contact_activity.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/contact_activity.rb`
 
 **Purpose:** Audit trail for contact changes and syncs
 
@@ -777,7 +777,7 @@ end
 
 ### Price History & Tracking
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/price_history.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/price_history.rb`
 
 **Purpose:** Track all price changes for audit trail and trend analysis
 
@@ -807,7 +807,7 @@ end
 
 ### Supplier Contacts (Junction)
 
-**Location:** `/Users/rob/Projects/trapid/backend/app/models/supplier_contact.rb`
+**Location:** `/Users/rob/Projects/teeem/backend/app/models/supplier_contact.rb`
 
 **Purpose:** Link multiple Contact persons to a Supplier
 
@@ -829,7 +829,7 @@ end
 
 ### Authentication Components
 
-**Location:** `/Users/rob/Projects/trapid/frontend/src`
+**Location:** `/Users/rob/Projects/teeem/frontend/src`
 
 | Component | File | Purpose |
 |-----------|------|---------|
@@ -1059,7 +1059,7 @@ estimate_reviews
 
 ### Backend - Models
 ```
-/Users/rob/Projects/trapid/backend/app/models/
+/Users/rob/Projects/teeem/backend/app/models/
 ├─ user.rb                          # User model with roles
 ├─ contact.rb                        # Main contact model
 ├─ contact_person.rb                # Individual contact people
@@ -1079,7 +1079,7 @@ estimate_reviews
 
 ### Backend - Controllers (API v1)
 ```
-/Users/rob/Projects/trapid/backend/app/controllers/api/v1/
+/Users/rob/Projects/teeem/backend/app/controllers/api/v1/
 ├─ authentication_controller.rb      # Login/signup
 ├─ omniauth_callbacks_controller.rb  # OAuth callback
 ├─ contacts_controller.rb            # Contact CRUD
@@ -1093,14 +1093,14 @@ estimate_reviews
 
 ### Backend - Services
 ```
-/Users/rob/Projects/trapid/backend/app/services/
+/Users/rob/Projects/teeem/backend/app/services/
 ├─ json_web_token.rb                # JWT encode/decode
 ├─ invoice_matching_service.rb      # PO-Invoice matching
 ```
 
 ### Backend - Database
 ```
-/Users/rob/Projects/trapid/backend/db/
+/Users/rob/Projects/teeem/backend/db/
 ├─ schema.rb                         # Current schema (auto-generated)
 ├─ migrate/
 │  ├─ 20251029024027_create_users.rb
@@ -1116,7 +1116,7 @@ estimate_reviews
 
 ### Backend - Routes
 ```
-/Users/rob/Projects/trapid/backend/config/routes.rb
+/Users/rob/Projects/teeem/backend/config/routes.rb
 Authentication:
   POST /api/v1/auth/signup
   POST /api/v1/auth/login
@@ -1168,7 +1168,7 @@ Payments:
 
 ### Frontend - Components
 ```
-/Users/rob/Projects/trapid/frontend/src/
+/Users/rob/Projects/teeem/frontend/src/
 ├─ pages/
 │  ├─ Login.jsx
 │  ├─ Signup.jsx

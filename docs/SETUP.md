@@ -1,8 +1,8 @@
-# Trapid - Quick Start Guide
+# TEEEM - Quick Start Guide
 
 ## What's Been Built
 
-Your Trapid application foundation is complete with:
+Your TEEEM application foundation is complete with:
 
 ### Backend (Rails API)
 - Rails 8.0 API-only mode
@@ -45,13 +45,13 @@ Visit [http://localhost:5173](http://localhost:5173) - you should see the React 
 ### 2. Push to GitHub
 
 ```bash
-# From the trapid directory
+# From the teeem directory
 git add .
 git commit -m "Initial commit: Rails + React setup"
 git branch -M main
 
 # Create a new repository on GitHub, then:
-git remote add origin https://github.com/YOUR_USERNAME/trapid.git
+git remote add origin https://github.com/YOUR_USERNAME/teeem.git
 git push -u origin main
 ```
 
@@ -64,7 +64,7 @@ cd backend
 heroku login
 
 # Create app
-heroku create trapid-api
+heroku create teeem-api
 
 # Add PostgreSQL
 heroku addons:create heroku-postgresql:essential-0
@@ -106,7 +106,7 @@ vercel
    - Output Directory: `dist`
 5. Add Environment Variable:
    - Name: `VITE_API_URL`
-   - Value: `https://trapid-api.herokuapp.com` (your Heroku URL)
+   - Value: `https://teeem-api.herokuapp.com` (your Heroku URL)
 6. Deploy
 
 ### 5. Update CORS
@@ -120,7 +120,7 @@ heroku config:set CORS_ORIGINS=https://your-vercel-app.vercel.app
 ## Project Structure
 
 ```
-trapid/
+teeem/
 ├── backend/                # Rails API
 │   ├── app/
 │   │   └── controllers/

@@ -8,7 +8,7 @@ export default function TrainingSessionPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [searchParams] = useSearchParams()
-  const displayName = searchParams.get('displayName') || user?.name || 'Trapid User'
+  const displayName = searchParams.get('displayName') || user?.name || 'TEEEM User'
   const [meetingEnded, setMeetingEnded] = useState(false)
   const [showInviteCard, setShowInviteCard] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -187,7 +187,7 @@ export default function TrainingSessionPage() {
       )}
 
       <JitsiMeeting
-        roomName={`trapid-training-${sessionId}`}
+        roomName={`teeem-training-${sessionId}`}
         configOverwrite={{
           startWithAudioMuted: true,
           startWithVideoMuted: false,

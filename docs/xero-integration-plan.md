@@ -1,9 +1,9 @@
-# Xero API Integration Plan for Trapid
+# Xero API Integration Plan for TEEEM
 
 ## Executive Summary
 
 ### What We're Building
-A comprehensive two-way synchronization system between Trapid and Xero that automatically keeps contacts, suppliers, purchase orders, and construction jobs in sync across both platforms. Using Xero's Tracking Categories, every purchase order is automatically tagged to its construction project, enabling full job cost tracking and profitability analysis. This integration eliminates manual data entry, reduces errors, and provides real-time visibility into both financial operations and job profitability.
+A comprehensive two-way synchronization system between TEEEM and Xero that automatically keeps contacts, suppliers, purchase orders, and construction jobs in sync across both platforms. Using Xero's Tracking Categories, every purchase order is automatically tagged to its construction project, enabling full job cost tracking and profitability analysis. This integration eliminates manual data entry, reduces errors, and provides real-time visibility into both financial operations and job profitability.
 
 ### Business Value
 - **Time Savings**: Eliminate 2-3 hours daily of manual data entry across 209+ suppliers
@@ -29,7 +29,7 @@ A comprehensive two-way synchronization system between Trapid and Xero that auto
 #### Initial Bulk Sync Flow
 1. **Discovery Phase**
    - Fetch all contacts from Xero (batched, 100 per page)
-   - Fetch all suppliers and contacts from Trapid
+   - Fetch all suppliers and contacts from TEEEM
    - Build matching candidates using ABN and email
 
 2. **Matching Strategy**
@@ -40,14 +40,14 @@ A comprehensive two-way synchronization system between Trapid and Xero that auto
 
 3. **Conflict Resolution**
    - **Field-level conflicts**: Show side-by-side comparison
-   - **User decides**: Keep Trapid, Keep Xero, or Merge
+   - **User decides**: Keep TEEEM, Keep Xero, or Merge
    - **Bulk actions**: Apply same resolution to similar conflicts
    - **Audit log**: Track all decisions for compliance
 
 4. **Sync Execution**
    - Create missing contacts in both systems
    - Update matched records based on conflict resolution
-   - Map and store Xero Contact IDs in Trapid database
+   - Map and store Xero Contact IDs in TEEEM database
    - Generate sync report with statistics
 
 #### Ongoing Sync Mechanism
@@ -58,7 +58,7 @@ A comprehensive two-way synchronization system between Trapid and Xero that auto
 
 #### Field Mappings
 ```
-Trapid Supplier → Xero Contact
+TEEEM Supplier → Xero Contact
 - name → Name
 - email → EmailAddress
 - phone → Phones[0].PhoneNumber
@@ -67,7 +67,7 @@ Trapid Supplier → Xero Contact
 - is_active → IsSupplier (true/false)
 - supplier_code → AccountNumber
 
-Trapid Contact → Xero Contact Person
+TEEEM Contact → Xero Contact Person
 - first_name → FirstName
 - last_name → LastName
 - email → EmailAddress
@@ -98,7 +98,7 @@ Use Xero's **Tracking Categories** feature to enable comprehensive job cost trac
 - **Built-in WIP Reports**: Work-in-progress reporting requires custom reports
 
 #### Recommendation
-**Tracking Categories ARE sufficient** for Trapid's construction management needs. They provide all essential financial tracking capabilities while maintaining simplicity and avoiding the overhead of the Projects API.
+**Tracking Categories ARE sufficient** for TEEEM's construction management needs. They provide all essential financial tracking capabilities while maintaining simplicity and avoiding the overhead of the Projects API.
 
 #### Job Naming Convention
 Use construction address as the primary identifier for better readability and searchability in Xero:
@@ -210,29 +210,29 @@ end
 
 3. **Reporting Integration**:
    - Pull P&L by tracking category via API
-   - Display job profitability in Trapid dashboard
+   - Display job profitability in TEEEM dashboard
    - Export detailed cost reports per construction
 
 ### Purchase Order Sync (Two-Way)
 
 #### Immediate Sync on Creation
-1. **Trapid → Xero** (on PO creation/update)
+1. **TEEEM → Xero** (on PO creation/update)
    - Validate supplier has Xero ID
    - Transform PO data to Xero format
    - Create/Update in Xero
    - Store Xero PO ID
    - Update status from Xero response
 
-2. **Xero → Trapid** (via webhook/polling)
+2. **Xero → TEEEM** (via webhook/polling)
    - Receive PO update notification
    - Fetch full PO details from Xero
-   - Match to Trapid PO via Xero ID
+   - Match to TEEEM PO via Xero ID
    - Update payment status and amounts
    - Trigger notifications for status changes
 
 #### Field Mappings
 ```
-Trapid PurchaseOrder → Xero PurchaseOrder
+TEEEM PurchaseOrder → Xero PurchaseOrder
 - purchase_order_number → PurchaseOrderNumber
 - supplier.xero_id → Contact.ContactID
 - ordered_date → Date
@@ -267,7 +267,7 @@ Job Tracking (applied to each line item):
 
 #### Payment Status Updates
 - Pull `AmountPaid` and `AmountDue` from Xero
-- Update `xero_amount_paid` in Trapid
+- Update `xero_amount_paid` in TEEEM
 - Calculate `xero_still_to_be_paid`
 - Set `xero_complete` when fully paid
 - Trigger notifications for payment milestones
@@ -378,9 +378,9 @@ CREATE TABLE xero_sync_conflicts (
   record_type VARCHAR(50) NOT NULL,
   record_id BIGINT NOT NULL,
   field_name VARCHAR(100) NOT NULL,
-  trapid_value TEXT,
+  teeem_value TEXT,
   xero_value TEXT,
-  resolution VARCHAR(50), -- 'keep_trapid', 'keep_xero', 'merge'
+  resolution VARCHAR(50), -- 'keep_teeem', 'keep_xero', 'merge'
   resolved_by_user_id BIGINT,
   resolved_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL
@@ -577,7 +577,7 @@ end
 #### Step 1: Review Matched Contacts
 ```jsx
 // frontend/src/pages/XeroSetup/ContactMatching.jsx
-- Table with columns: Trapid Name | Xero Name | Match Type | Action
+- Table with columns: TEEEM Name | Xero Name | Match Type | Action
 - Match confidence badges (Exact/High/Medium/Review)
 - Bulk actions toolbar (Accept All/Review All)
 - Filters (Matched/Unmatched/Conflicts)
@@ -588,7 +588,7 @@ end
 ```jsx
 // frontend/src/pages/XeroSetup/ConflictResolution.jsx
 - Side-by-side field comparison
-- Radio buttons: Keep Trapid / Keep Xero / Custom Merge
+- Radio buttons: Keep TEEEM / Keep Xero / Custom Merge
 - "Apply to all similar" checkbox
 - Progress indicator (X of Y conflicts resolved)
 - Skip option for later review
@@ -943,11 +943,11 @@ end
 
 ## Conclusion
 
-This Xero integration will transform Trapid's financial and construction management operations by eliminating manual data entry, ensuring data consistency, and providing real-time visibility into both purchase orders and job profitability. The use of Tracking Categories provides comprehensive job cost tracking without the complexity of the Projects API, perfectly suited to Trapid's construction management needs.
+This Xero integration will transform TEEEM's financial and construction management operations by eliminating manual data entry, ensuring data consistency, and providing real-time visibility into both purchase orders and job profitability. The use of Tracking Categories provides comprehensive job cost tracking without the complexity of the Projects API, perfectly suited to TEEEM's construction management needs.
 
 The simultaneous rollout of construction sync alongside purchase order sync ensures that from day one, all costs are properly allocated to jobs, enabling immediate profitability analysis and budget tracking. The phased approach allows for iterative development with early value delivery, while the comprehensive error handling and monitoring ensure production reliability.
 
-The architecture is designed to scale with Trapid's growth and provides a foundation for future financial integrations. With careful attention to user experience and data integrity, this integration will become a core competitive advantage for Trapid in the construction management space.
+The architecture is designed to scale with TEEEM's growth and provides a foundation for future financial integrations. With careful attention to user experience and data integrity, this integration will become a core competitive advantage for TEEEM in the construction management space.
 
 ---
 

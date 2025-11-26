@@ -52,7 +52,7 @@ bin/rails db:migrate
 
 ## Controller Update
 
-Update `/Users/jakebaird/trapid/backend/app/controllers/api/v1/constructions_controller.rb`:
+Update `/Users/jakebaird/teeem/backend/app/controllers/api/v1/constructions_controller.rb`:
 
 ```ruby
 def construction_params
@@ -88,7 +88,7 @@ end
 
 ## Model Update (Optional)
 
-Add validations and associations to `/Users/jakebaird/trapid/backend/app/models/construction.rb`:
+Add validations and associations to `/Users/jakebaird/teeem/backend/app/models/construction.rb`:
 
 ```ruby
 class Construction < ApplicationRecord

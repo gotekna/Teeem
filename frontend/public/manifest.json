@@ -1,7 +1,7 @@
 {
-  "name": "Trapid Field",
+  "name": "TEEEM Field",
   "short_name": "Field",
-  "description": "Trapid Field Worker Mobile App",
+  "description": "TEEEM Field Worker Mobile App",
   "start_url": "/jobs",
   "display": "standalone",
   "background_color": "#ffffff",

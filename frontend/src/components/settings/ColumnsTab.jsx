@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { api } from '../../api'
-import TrapidTableView from '../documentation/TrapidTableView'
+import TeeemTableView from '../documentation/TeeemTableView'
 import { getColumnTypeEmoji } from '../../constants/columnTypes'
 
 // Column definitions for the Columns table view
@@ -43,7 +43,7 @@ export default function ColumnsTab() {
     fetchColumns()
   }, [])
 
-  // Transform columns data for TrapidTableView
+  // Transform columns data for TeeemTableView
   const entries = useMemo(() => {
     return columns.map(col => ({
       id: col.id,
@@ -96,7 +96,7 @@ export default function ColumnsTab() {
         </p>
       </div>
 
-      <TrapidTableView
+      <TeeemTableView
         entries={entries}
         columns={COLUMNS_TABLE_COLUMNS}
         tableId="dev-columns"

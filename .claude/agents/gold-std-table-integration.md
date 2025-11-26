@@ -27,7 +27,7 @@ Compares the current table to Gold Standard and updates all settings to match th
 
 ## Purpose
 
-Tables in Trapid should follow the Gold Standard template for consistency. This agent detects which table you're currently viewing, fetches the matching Gold Standard configuration, compares all settings (columns, filters, buttons, colors, edit modes), and applies updates after user confirmation. It ensures every table adheres to the established UX patterns.
+Tables in TEEEM should follow the Gold Standard template for consistency. This agent detects which table you're currently viewing, fetches the matching Gold Standard configuration, compares all settings (columns, filters, buttons, colors, edit modes), and applies updates after user confirmation. It ensures every table adheres to the established UX patterns.
 
 **Supports both table types:**
 - **Database-backed tables** - Stored in `tables` table with columns in `columns` table, updated via API
@@ -220,7 +220,7 @@ In-memory table indicators:
 - Changes take effect immediately
 
 **For In-memory/Config tables:**
-- Locate source file (e.g., `frontend/src/components/*/TrapidTableView.jsx`)
+- Locate source file (e.g., `frontend/src/components/*/TEEEMTableView.jsx`)
 - Find column definition array (e.g., `DEFAULT_TRINITY_COLUMNS`)
 - Use Edit tool to update column properties:
   ```javascript

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PlusIcon, AcademicCapIcon } from '@heroicons/react/24/outline'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import { api } from '../api'
 
 const INDUCTION_COLUMNS = [
@@ -109,7 +109,7 @@ export default function WhsInductionsPage() {
         </p>
       </div>
 
-      <TrapidTableView
+      <TeeemTableView
         category="whs_inductions"
         entries={data}
         columns={INDUCTION_COLUMNS}

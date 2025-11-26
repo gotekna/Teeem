@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Test script for Supplier-Contact Matching API
-API_URL="https://trapid-backend-447058022b51.herokuapp.com/api/v1"
+API_URL="https://teeem-backend-447058022b51.herokuapp.com/api/v1"
 
 echo "=================================="
 echo "TESTING SUPPLIER-CONTACT API"

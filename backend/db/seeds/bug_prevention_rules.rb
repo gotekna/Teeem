@@ -572,19 +572,19 @@ Trinity.find_or_create_by!(
   section_number: "19.0"  # Table component standards
 ) do |rule|
   rule.chapter_name = "UI/UX"
-  rule.title = "ONLY Use TrapidTableView for ALL Tables (No TablePage, No DataTable)"
+  rule.title = "ONLY Use TEEEMTableView for ALL Tables (No TablePage, No DataTable)"
   rule.entry_type = "MUST"
-  rule.component = "TrapidTableView"
+  rule.component = "TEEEMTableView"
   rule.bible_entry = true
   rule.lexicon_entry = false
   rule.teacher_entry = false
 
   rule.description = <<~DESC
-    ✅ **MUST use TrapidTableView for ALL table components**
+    ✅ **MUST use TEEEMTableView for ALL table components**
     ❌ **NEVER use deprecated TablePage.jsx or DataTable.jsx**
 
     **Why:** Multiple table components created inconsistent UX, feature duplication,
-    and maintenance overhead. TrapidTableView is THE ONE STANDARD.
+    and maintenance overhead. TEEEMTableView is THE ONE STANDARD.
 
     **Pattern ID:** PATTERN-004 (Table Component Consolidation)
     **Severity:** MEDIUM - Architecture Violation
@@ -600,7 +600,7 @@ Trinity.find_or_create_by!(
     Different tables were built at different times:
     1. DataTable.jsx - Early basic tables (deprecated)
     2. TablePage.jsx - Custom dynamic tables (deprecated)
-    3. TrapidTableView - Enterprise-grade standard (OFFICIAL)
+    3. TEEEMTableView - Enterprise-grade standard (OFFICIAL)
 
     **Issues with Multiple Standards:**
     - Inconsistent UX across tables
@@ -611,7 +611,7 @@ Trinity.find_or_create_by!(
 
     ## The Decision (Nov 2024)
 
-    **TrapidTableView declared as THE ONE STANDARD:**
+    **TEEEMTableView declared as THE ONE STANDARD:**
     - Comprehensive features: sort, filter, search, export, pagination
     - Consistent design system compliance
     - Advanced features: inline editing, column visibility, custom formatters
@@ -649,10 +649,10 @@ Trinity.find_or_create_by!(
     }
     ```
 
-    ✅ **CORRECT - Use TrapidTableView:**
+    ✅ **CORRECT - Use TEEEMTableView:**
     ```javascript
-    // NEW STANDARD - TrapidTableView
-    import TrapidTableView from './components/TrapidTableView'
+    // NEW STANDARD - TEEEMTableView
+    import TEEEMTableView from './components/TEEEMTableView'
 
     function MyComponent() {
       const columns = [
@@ -670,7 +670,7 @@ Trinity.find_or_create_by!(
       ]
 
       return (
-        <TrapidTableView
+        <TEEEMTableView
           data={data}
           columns={columns}
           searchable={true}
@@ -699,7 +699,7 @@ Trinity.find_or_create_by!(
 
     // 2. Replace import
     - import TablePage from './TablePage'
-    + import TrapidTableView from './TrapidTableView'
+    + import TEEEMTableView from './TEEEMTableView'
 
     // 3. Convert data format
     const columns = [
@@ -709,7 +709,7 @@ Trinity.find_or_create_by!(
 
     // 4. Replace component
     - <TablePage data={data} />
-    + <TrapidTableView data={data} columns={columns} />
+    + <TEEEMTableView data={data} columns={columns} />
 
     // 5. Test all features
     // - Search works
@@ -726,10 +726,10 @@ Trinity.find_or_create_by!(
     1. **"I copied from an old file"**
        - Older files may use deprecated components
        - Always check if TablePage/DataTable
-       - Replace with TrapidTableView
+       - Replace with TEEEMTableView
 
     2. **"TablePage has features I need"**
-       - TrapidTableView has ALL features from TablePage
+       - TEEEMTableView has ALL features from TablePage
        - Plus many more advanced features
        - Check Gold Standard demo
 
@@ -739,16 +739,16 @@ Trinity.find_or_create_by!(
        - Migration usually takes 15-30 minutes
 
     4. **"This table is unique"**
-       - TrapidTableView handles custom formatters
+       - TEEEMTableView handles custom formatters
        - Supports inline editing, custom actions
        - More flexible than old components
   MISTAKES
 
   rule.recommendations = <<~RECOMMENDATIONS
     ✅ **DO:**
-    1. **Use TrapidTableView for ALL new tables:**
+    1. **Use TEEEMTableView for ALL new tables:**
        ```javascript
-       import TrapidTableView from './components/TrapidTableView'
+       import TEEEMTableView from './components/TEEEMTableView'
        ```
 
     2. **Reference Gold Standard demo:**
@@ -778,7 +778,7 @@ Trinity.find_or_create_by!(
     2. **Build custom table from scratch:**
        ```javascript
        function CustomTable() {
-         return <table>...</table>  // ❌ Use TrapidTableView
+         return <table>...</table>  // ❌ Use TEEEMTableView
        }
        ```
 
@@ -786,7 +786,7 @@ Trinity.find_or_create_by!(
        ```javascript
        // ❌ Don't use different tables in same app
        <TablePage data={data1} />
-       <TrapidTableView data={data2} />
+       <TEEEMTableView data={data2} />
        ```
   RECOMMENDATIONS
 
@@ -801,5 +801,5 @@ puts "   - PATTERN-004: Deprecated Table Component (Chapter 19)"
 puts ""
 puts "🔗 These rules are now integrated with:"
 puts "   - Pre-Commit Guardian (scripts/safeguard-checker.js)"
-puts "   - Pattern Library (TRAPID_DOCS/PATTERN_LIBRARY.md)"
-puts "   - Detection Rules (TRAPID_DOCS/DETECTION_RULES.md)"
+puts "   - Pattern Library (TEEEM_DOCS/PATTERN_LIBRARY.md)"
+puts "   - Detection Rules (TEEEM_DOCS/DETECTION_RULES.md)"

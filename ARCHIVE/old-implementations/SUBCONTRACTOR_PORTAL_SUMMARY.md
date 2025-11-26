@@ -2,7 +2,7 @@
 
 ## 🎉 Project Complete!
 
-A comprehensive subcontractor portal system has been successfully implemented for Trapid, enabling free portal access for suppliers to manage quotes, jobs, invoices, and reputation scores.
+A comprehensive subcontractor portal system has been successfully implemented for TEEEM, enabling free portal access for suppliers to manage quotes, jobs, invoices, and reputation scores.
 
 ---
 
@@ -437,6 +437,6 @@ For questions or issues:
 
 ---
 
-**Built with ❤️ by Claude Code for Trapid Construction Management**
+**Built with ❤️ by Claude Code for TEEEM Construction Management**
 
 *Ready for production deployment after testing!*

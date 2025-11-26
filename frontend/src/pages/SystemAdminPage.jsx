@@ -692,7 +692,7 @@ export default function SettingsPage() {
                           Run this command in your backend terminal to create default accounts:
                         </p>
                         <code className="block bg-gray-900 text-green-400 p-3 rounded font-mono text-xs">
-                          cd backend && bin/rails trapid:financial:setup_simple
+                          cd backend && bin/rails teeem:financial:setup_simple
                         </code>
                         <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
                           This creates 20 essential accounts (Bank, Revenue, Expenses, etc.)
@@ -1106,7 +1106,7 @@ export default function SettingsPage() {
                     </div>
                     <div className="mt-4 flex w-full flex-none gap-x-4 px-6 pb-6">
                       <a
-                        href="https://vercel.com/abodable-dev/trapid"
+                        href="https://vercel.com/abodable-dev/teeem"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"

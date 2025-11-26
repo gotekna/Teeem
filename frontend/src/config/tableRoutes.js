@@ -1,11 +1,11 @@
 /**
  * Table Routes Configuration
  *
- * CRITICAL: This is the single source of truth for table routing in Trapid.
+ * CRITICAL: This is the single source of truth for table routing in TEEEM.
  *
  * WHY THIS EXISTS:
  * - Prevents duplicate custom table implementations
- * - Ensures all tables inherit TrapidTableView features (schema editor, filters, saved views, etc.)
+ * - Ensures all tables inherit TEEEMTableView features (schema editor, filters, saved views, etc.)
  * - Makes table routing easy to maintain and audit
  *
  * RULES:
@@ -21,8 +21,8 @@
  * 4. Users navigate to /your-route → automatically redirected to /tables/:id/:slug
  *
  * RELATED DOCS:
- * - See Trinity Bible Rule #20.XX (TrapidTableView - The One Table Standard)
- * - See TRAPID_DOCS/TEACHER/CHAPTER_19_UI_UX.md
+ * - See Trinity Bible Rule #20.XX (TEEEMTableView - The One Table Standard)
+ * - See TEEEM_DOCS/TEACHER/CHAPTER_19_UI_UX.md
  */
 
 export const TABLE_ROUTES = [

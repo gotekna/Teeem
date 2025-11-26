@@ -4,10 +4,10 @@
 November 7, 2025
 
 ## Files Reviewed
-1. **Frontend**: `/Users/rob/Projects/trapid/frontend/src/components/settings/TablesTab.jsx` (lines 137-176)
-2. **Backend**: `/Users/rob/Projects/trapid/backend/app/controllers/api/v1/tables_controller.rb` (lines 70-115)
-3. **Service**: `/Users/rob/Projects/trapid/backend/app/services/table_builder.rb` (lines 110-134)
-4. **API Client**: `/Users/rob/Projects/trapid/frontend/src/api.js` (lines 100-112)
+1. **Frontend**: `/Users/rob/Projects/teeem/frontend/src/components/settings/TablesTab.jsx` (lines 137-176)
+2. **Backend**: `/Users/rob/Projects/teeem/backend/app/controllers/api/v1/tables_controller.rb` (lines 70-115)
+3. **Service**: `/Users/rob/Projects/teeem/backend/app/services/table_builder.rb` (lines 110-134)
+4. **API Client**: `/Users/rob/Projects/teeem/frontend/src/api.js` (lines 100-112)
 
 ---
 

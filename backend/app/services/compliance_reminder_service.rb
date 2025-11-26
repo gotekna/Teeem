@@ -125,7 +125,7 @@ class ComplianceReminderService
       Please ensure this compliance requirement is completed by the due date.
 
       ---
-      This is an automated reminder from Trapid Corporate Management System
+      This is an automated reminder from TEEEM Corporate Management System
     EMAIL
   end
 
@@ -144,7 +144,7 @@ class ComplianceReminderService
       ⚠️ This compliance item is now OVERDUE. Immediate action is required.
 
       ---
-      This is an automated reminder from Trapid Corporate Management System
+      This is an automated reminder from TEEEM Corporate Management System
     EMAIL
   end
 

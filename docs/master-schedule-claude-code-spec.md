@@ -1,6 +1,6 @@
 # Master Schedule - Claude Code Implementation Spec
 
-**Project:** Trapid Master Schedule Module  
+**Project:** TEEEM Master Schedule Module  
 **Team:** Small (5 internal users, max 8 concurrent jobs)  
 **Implementation:** Claude Code + Web-first + Real-time  
 **Date:** November 4, 2025  
@@ -18,7 +18,7 @@
 
 ### Core Workflow
 ```
-Purchase Orders (Trapid) → Auto-Generate Schedule → Gantt Chart → Progress Tracking
+Purchase Orders (TEEEM) → Auto-Generate Schedule → Gantt Chart → Progress Tracking
 ```
 
 ---

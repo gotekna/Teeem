@@ -8,9 +8,9 @@ The table deletion feature has **partial error handling with significant gaps** 
 
 ## Implementation Overview
 
-**Frontend**: `/Users/rob/Projects/trapid/frontend/src/components/settings/TablesTab.jsx` (lines 137-176)
-**Backend**: `/Users/rob/Projects/trapid/backend/app/controllers/api/v1/tables_controller.rb` (lines 70-115)
-**Database**: `/Users/rob/Projects/trapid/backend/app/services/table_builder.rb` (lines 110-134)
+**Frontend**: `/Users/rob/Projects/teeem/frontend/src/components/settings/TablesTab.jsx` (lines 137-176)
+**Backend**: `/Users/rob/Projects/teeem/backend/app/controllers/api/v1/tables_controller.rb` (lines 70-115)
+**Database**: `/Users/rob/Projects/teeem/backend/app/services/table_builder.rb` (lines 110-134)
 
 ---
 

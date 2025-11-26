@@ -82,7 +82,7 @@ Validates Trinity database integrity and ensures markdown exports are up-to-date
 
 ```bash
 # Check agent run history
-cat /Users/rob/Projects/trapid/.claude/agents/run-history.json
+cat /Users/rob/Projects/teeem/.claude/agents/run-history.json
 ```
 
 **Decision logic:**
@@ -94,14 +94,14 @@ cat /Users/rob/Projects/trapid/.claude/agents/run-history.json
 
 ```bash
 # Check Trinity table counts by category
-psql trapid_development -c "
+psql teeem_development -c "
   SELECT category, COUNT(*) as count,
          COUNT(DISTINCT chapter_number) as chapters
   FROM trinity
   GROUP BY category;"
 
 # Check Bible chapter breakdown
-psql trapid_development -c "
+psql teeem_development -c "
   SELECT chapter_number, chapter_name, COUNT(*) as rule_count
   FROM trinity
   WHERE category = 'bible'
@@ -109,7 +109,7 @@ psql trapid_development -c "
   ORDER BY chapter_number;"
 
 # Verify RULE #1.7 exists
-psql trapid_development -c "
+psql teeem_development -c "
   SELECT section_number, title
   FROM trinity
   WHERE category = 'bible'
@@ -121,16 +121,16 @@ psql trapid_development -c "
 
 ```bash
 # Check Bible chapters in markdown
-grep "^# Chapter" /Users/rob/Projects/trapid/TRAPID_DOCS/TRAPID_BIBLE.md
+grep "^# Chapter" /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_BIBLE.md
 
 # Count rules per chapter
-grep "^## RULE #" /Users/rob/Projects/trapid/TRAPID_DOCS/TRAPID_BIBLE.md | wc -l
+grep "^## RULE #" /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_BIBLE.md | wc -l
 
 # Verify Chapter 21 exists
-grep "^# Chapter 21" /Users/rob/Projects/trapid/TRAPID_DOCS/TRAPID_BIBLE.md
+grep "^# Chapter 21" /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_BIBLE.md
 
 # Check markdown file timestamps
-ls -lah /Users/rob/Projects/trapid/TRAPID_DOCS/TRAPID_*.md
+ls -lah /Users/rob/Projects/teeem/TEEEM_DOCS/TEEEM_*.md
 ```
 
 ### 3. Comparison Phase
@@ -150,10 +150,10 @@ ls -lah /Users/rob/Projects/trapid/TRAPID_DOCS/TRAPID_*.md
 
 ```bash
 # Check export task code
-grep -A 5 "0..21" /Users/rob/Projects/trapid/backend/lib/tasks/bible.rake
+grep -A 5 "0..21" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
 
 # Verify export includes all chapters
-grep "Group rules by chapter" /Users/rob/Projects/trapid/backend/lib/tasks/bible.rake
+grep "Group rules by chapter" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
 ```
 
 **Must verify:**
@@ -165,10 +165,10 @@ grep "Group rules by chapter" /Users/rob/Projects/trapid/backend/lib/tasks/bible
 
 ```bash
 # Check import task uses correct model
-grep "Trinity.create\|BibleRule.create" /Users/rob/Projects/trapid/backend/lib/tasks/bible.rake
+grep "Trinity.create\|BibleRule.create" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
 
 # Verify chapter mapping includes 21
-grep "21 =>" /Users/rob/Projects/trapid/backend/lib/tasks/bible.rake
+grep "21 =>" /Users/rob/Projects/teeem/backend/lib/tasks/bible.rake
 ```
 
 **Must verify:**
@@ -182,21 +182,21 @@ grep "21 =>" /Users/rob/Projects/trapid/backend/lib/tasks/bible.rake
 
 ```bash
 # Export Bible from database to markdown
-cd /Users/rob/Projects/trapid/backend
-bin/rails trapid:export_bible
+cd /Users/rob/Projects/teeem/backend
+bin/rails teeem:export_bible
 ```
 
 ### Fix 2: Database Missing Entries
 
 ```bash
 # Import markdown to database
-cd /Users/rob/Projects/trapid/backend
-bin/rails trapid:import_bible
+cd /Users/rob/Projects/teeem/backend
+bin/rails teeem:import_bible
 ```
 
 ### Fix 3: Export Task Stops at Chapter 20
 
-**Edit:** `/Users/rob/Projects/trapid/backend/lib/tasks/bible.rake`
+**Edit:** `/Users/rob/Projects/teeem/backend/lib/tasks/bible.rake`
 
 Change:
 ```ruby
@@ -210,7 +210,7 @@ To:
 
 ### Fix 4: Import Task References BibleRule
 
-**Edit:** `/Users/rob/Projects/trapid/backend/lib/tasks/bible.rake`
+**Edit:** `/Users/rob/Projects/teeem/backend/lib/tasks/bible.rake`
 
 Change all:
 ```ruby
@@ -345,7 +345,7 @@ Trinity.bible_entries.find_by
 ║  - Entry count mismatch: DB=[X], MD=[Y]                        ║
 ║  - Orphaned entries in [source]                                ║
 ╠════════════════════════════════════════════════════════════════╣
-║  FIX: Run `bin/rails trapid:export_bible` to sync              ║
+║  FIX: Run `bin/rails teeem:export_bible` to sync              ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
 ╚════════════════════════════════════════════════════════════════╝

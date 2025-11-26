@@ -8,7 +8,7 @@ require 'fileutils'
 puts '🔧 Generating Teacher chapter files from API...'
 
 # Fetch data from API
-api_url = 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher'
+api_url = 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=teacher'
 uri = URI(api_url)
 response = Net::HTTP.get(uri)
 data = JSON.parse(response)
@@ -26,7 +26,7 @@ chapters = entries.group_by { |e| [e['chapter_number'], e['chapter_name']] }
                    .sort_by { |k, _v| k[0] }
 
 # Ensure TEACHER directory exists
-teacher_dir = File.join(__dir__, '..', 'TRAPID_DOCS', 'TEACHER')
+teacher_dir = File.join(__dir__, '..', 'TEEEM_DOCS', 'TEACHER')
 FileUtils.mkdir_p(teacher_dir)
 
 generated_files = []
@@ -38,7 +38,7 @@ chapters.each do |(chapter_number, chapter_name), chapter_entries|
 
   # Chapter-specific header
   chapter_name_slug = chapter_name.upcase.gsub(/[^A-Z0-9]+/, '_')
-  content << "# TRAPID TEACHER - Chapter #{chapter_number}: #{chapter_name}"
+  content << "# TEEEM TEACHER - Chapter #{chapter_number}: #{chapter_name}"
   content << ''
   content << "**Last Updated:** #{Time.now.strftime('%Y-%m-%d %H:%M %Z')}"
   content << '**Authority Level:** Reference (HOW to implement Bible rules)'
@@ -49,7 +49,7 @@ chapters.each do |(chapter_number, chapter_name), chapter_entries|
   content << '## 📚 Navigation'
   content << ''
   content << '**Other Teacher Chapters:**'
-  content << '- [Main Teacher Index](../TRAPID_TEACHER.md)'
+  content << '- [Main Teacher Index](../TEEEM_TEACHER.md)'
 
   # Add links to adjacent chapters
   if chapter_number > 0
@@ -68,9 +68,9 @@ chapters.each do |(chapter_number, chapter_name), chapter_entries|
 
   content << ''
   content << '**Related Documentation:**'
-  content << '- 📖 [TRAPID Bible (Rules)](../TRAPID_BIBLE.md)'
-  content << '- 📕 [TRAPID Lexicon (Bug History)](../TRAPID_LEXICON.md)'
-  content << '- 📘 [User Manual](../TRAPID_USER_MANUAL.md)'
+  content << '- 📖 [TEEEM Bible (Rules)](../TEEEM_BIBLE.md)'
+  content << '- 📕 [TEEEM Lexicon (Bug History)](../TEEEM_LEXICON.md)'
+  content << '- 📘 [User Manual](../TEEEM_USER_MANUAL.md)'
   content << ''
   content << '---'
   content << ''
@@ -196,6 +196,6 @@ puts 'Generated files:'
 generated_files.each { |f| puts "  - #{f}" }
 puts ''
 puts '💡 Next steps:'
-puts '  1. Review the generated files in TRAPID_DOCS/TEACHER/'
-puts '  2. Commit to git: git add TRAPID_DOCS/TEACHER/'
+puts '  1. Review the generated files in TEEEM_DOCS/TEACHER/'
+puts '  2. Commit to git: git add TEEEM_DOCS/TEACHER/'
 puts '  3. Git commit message: "docs: Split Teacher into per-chapter files for token efficiency"'

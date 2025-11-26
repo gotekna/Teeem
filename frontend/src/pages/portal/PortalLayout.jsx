@@ -66,7 +66,7 @@ export default function PortalLayout() {
                 <Bars3Icon className="h-6 w-6" />
               )}
             </button>
-            <h1 className="text-lg font-semibold text-gray-900">Trapid Portal</h1>
+            <h1 className="text-lg font-semibold text-gray-900">TEEEM Portal</h1>
           </div>
           <div className="text-sm text-gray-600">
             {portalUser?.contact_name}
@@ -78,7 +78,7 @@ export default function PortalLayout() {
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
         <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6 pb-4">
           <div className="flex h-16 shrink-0 items-center">
-            <h1 className="text-xl font-bold text-indigo-600">Trapid Portal</h1>
+            <h1 className="text-xl font-bold text-indigo-600">TEEEM Portal</h1>
           </div>
 
           {/* User info */}

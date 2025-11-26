@@ -25,7 +25,7 @@ You've already set up your Azure app with **Delegated permissions**, but for org
 
 1. Navigate to https://portal.azure.com
 2. Search for "App registrations"
-3. Click on your app: **Trapid Document Management**
+3. Click on your app: **TEEEM Document Management**
 
 ### 2. Remove Delegated Permissions
 
@@ -71,7 +71,7 @@ Your API permissions should now show:
 
 ## What Happens Next?
 
-1. **In Trapid Settings:**
+1. **In TEEEM Settings:**
    - Admin clicks "Connect OneDrive"
    - Connection happens instantly (no user consent screen!)
    - All jobs immediately have OneDrive access
@@ -114,7 +114,7 @@ Your API permissions should now show:
 - Manage job-specific document structures
 
 ❌ **What your app CANNOT do:**
-- Access personal OneDrive files outside the "Trapid Jobs" folder
+- Access personal OneDrive files outside the "TEEEM Jobs" folder
 - Delete files (not implemented in the app)
 - Access other Microsoft services (not granted)
 
@@ -135,6 +135,6 @@ The app only has `Files.ReadWrite.All`, which is limited to file operations.
 - [ ] Added `Files.ReadWrite.All` as **Application** permission
 - [ ] Clicked "Grant admin consent" button
 - [ ] Verified green checkmark appears
-- [ ] Tested connection in Trapid Settings
+- [ ] Tested connection in TEEEM Settings
 
-Once all boxes are checked, you're ready to connect OneDrive in Trapid!
+Once all boxes are checked, you're ready to connect OneDrive in TEEEM!

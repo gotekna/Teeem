@@ -48,7 +48,7 @@ module Api
         render json: {
           success: true,
           contacts: @contacts.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :trapid_rating],
+            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating],
             include: {
               portal_user: { only: [:id, :email, :portal_type, :active] }
             },
@@ -885,7 +885,7 @@ module Api
       end
 
       # POST /api/v1/contacts/:id/link_xero_contact
-      # Manually link a Trapid contact to a Xero contact
+      # Manually link a TEEEM contact to a Xero contact
       def link_xero_contact
         xero_id = params[:xero_id]
 

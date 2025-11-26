@@ -923,7 +923,7 @@ export default function TablesTab() {
                         {(() => {
                           const status = table.usage_status || 'Unknown'
                           const statusColors = {
-                            'TrapidTableView': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400 ring-indigo-600/20',
+                            'TeeemTableView': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400 ring-indigo-600/20',
                             'Rails System': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 ring-purple-600/20',
                             'User Table': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 ring-blue-600/20',
                             'Import': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 ring-green-600/20',

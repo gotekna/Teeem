@@ -10,7 +10,7 @@ November 6, 2025
 ## Components Created
 
 ### 1. UserAvatar Component
-**File:** `/Users/jakebaird/trapid/frontend/src/components/UserAvatar.jsx`
+**File:** `/Users/jakebaird/teeem/frontend/src/components/UserAvatar.jsx`
 
 - Displays user photo or fallback initials in a circle
 - Supports multiple sizes (xs, sm, md, lg, xl)
@@ -19,7 +19,7 @@ November 6, 2025
 - Dark mode support
 
 ### 2. ProfitSummaryCard Component
-**File:** `/Users/jakebaird/trapid/frontend/src/components/job-detail/ProfitSummaryCard.jsx`
+**File:** `/Users/jakebaird/teeem/frontend/src/components/job-detail/ProfitSummaryCard.jsx`
 
 **Features:**
 - Displays Live Profit prominently at top
@@ -47,7 +47,7 @@ November 6, 2025
 ```
 
 ### 3. ProfitAnalysisPieChart Component
-**File:** `/Users/jakebaird/trapid/frontend/src/components/job-detail/ProfitAnalysisPieChart.jsx`
+**File:** `/Users/jakebaird/teeem/frontend/src/components/job-detail/ProfitAnalysisPieChart.jsx`
 
 **Features:**
 - Recharts-powered donut/pie chart
@@ -66,7 +66,7 @@ November 6, 2025
 - Pending: Amber (#f59e0b / #fbbf24 dark)
 
 ### 4. RecentActivityList Component
-**File:** `/Users/jakebaird/trapid/frontend/src/components/job-detail/RecentActivityList.jsx`
+**File:** `/Users/jakebaird/teeem/frontend/src/components/job-detail/RecentActivityList.jsx`
 
 **Features:**
 - Timeline-style activity feed
@@ -80,7 +80,7 @@ November 6, 2025
 - Empty state with helpful message
 
 ### 5. UpcomingTasksGrid Component
-**File:** `/Users/jakebaird/trapid/frontend/src/components/job-detail/UpcomingTasksGrid.jsx`
+**File:** `/Users/jakebaird/teeem/frontend/src/components/job-detail/UpcomingTasksGrid.jsx`
 
 **Features:**
 - Grid of task cards (2 columns on desktop, 1 on mobile)
@@ -88,7 +88,7 @@ November 6, 2025
   - User avatar (photo or initials)
   - Task/milestone name
   - Optional description (2 line clamp)
-  - Status badge with Trapid's vibrant colors:
+  - Status badge with TEEEM's vibrant colors:
     - RED = Overdue
     - GREEN = Complete
     - YELLOW = Underway
@@ -99,7 +99,7 @@ November 6, 2025
 ## Page Updates
 
 ### JobDetailPage.jsx
-**File:** `/Users/jakebaird/trapid/frontend/src/pages/JobDetailPage.jsx`
+**File:** `/Users/jakebaird/teeem/frontend/src/pages/JobDetailPage.jsx`
 
 **Changes:**
 1. Added imports for all new dashboard components
@@ -136,7 +136,7 @@ November 6, 2025
 - Mobile: Stacks vertically
 
 ### AppLayout.jsx
-**File:** `/Users/jakebaird/trapid/frontend/src/components/layout/AppLayout.jsx`
+**File:** `/Users/jakebaird/teeem/frontend/src/components/layout/AppLayout.jsx`
 
 **Changes:**
 - Added auto-collapse sidebar logic for job detail pages
@@ -248,7 +248,7 @@ Could be sourced from:
 
 ### 1. Local Development
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 npm install  # Installs Recharts
 npm run dev  # Starts dev server on :5173
 ```
@@ -321,21 +321,21 @@ npm run dev  # Starts dev server on :5173
 ## Files Created/Modified
 
 ### Created Files (6)
-1. `/Users/jakebaird/trapid/frontend/src/components/UserAvatar.jsx`
-2. `/Users/jakebaird/trapid/frontend/src/components/job-detail/ProfitSummaryCard.jsx`
-3. `/Users/jakebaird/trapid/frontend/src/components/job-detail/ProfitAnalysisPieChart.jsx`
-4. `/Users/jakebaird/trapid/frontend/src/components/job-detail/RecentActivityList.jsx`
-5. `/Users/jakebaird/trapid/frontend/src/components/job-detail/UpcomingTasksGrid.jsx`
-6. `/Users/jakebaird/trapid/docs/job-dashboard-implementation.md` (this file)
+1. `/Users/jakebaird/teeem/frontend/src/components/UserAvatar.jsx`
+2. `/Users/jakebaird/teeem/frontend/src/components/job-detail/ProfitSummaryCard.jsx`
+3. `/Users/jakebaird/teeem/frontend/src/components/job-detail/ProfitAnalysisPieChart.jsx`
+4. `/Users/jakebaird/teeem/frontend/src/components/job-detail/RecentActivityList.jsx`
+5. `/Users/jakebaird/teeem/frontend/src/components/job-detail/UpcomingTasksGrid.jsx`
+6. `/Users/jakebaird/teeem/docs/job-dashboard-implementation.md` (this file)
 
 ### Modified Files (3)
-1. `/Users/jakebaird/trapid/frontend/src/pages/JobDetailPage.jsx`
+1. `/Users/jakebaird/teeem/frontend/src/pages/JobDetailPage.jsx`
    - Added dashboard component imports
    - Added dashboard state and data loading
    - Replaced Overview tab content
-2. `/Users/jakebaird/trapid/frontend/src/components/layout/AppLayout.jsx`
+2. `/Users/jakebaird/teeem/frontend/src/components/layout/AppLayout.jsx`
    - Added auto-collapse sidebar for job detail routes
-3. `/Users/jakebaird/trapid/frontend/package.json`
+3. `/Users/jakebaird/teeem/frontend/package.json`
    - Added `recharts: ^3.3.0` dependency
 
 ## Build Status
@@ -354,7 +354,7 @@ Note: Bundle size increased due to Recharts library. Consider code-splitting in 
 
 1. **Deploy to Vercel:**
    ```bash
-   cd /Users/jakebaird/trapid/frontend
+   cd /Users/jakebaird/teeem/frontend
    vercel --prod
    ```
 
@@ -375,7 +375,7 @@ Note: Bundle size increased due to Recharts library. Consider code-splitting in 
 
 ## Design Philosophy
 
-This dashboard follows Trapid's design principles:
+This dashboard follows TEEEM's design principles:
 - Clean, professional aesthetic inspired by Airtable/Google Sheets
 - Tailwind CSS utility-first styling
 - Headless UI for accessibility

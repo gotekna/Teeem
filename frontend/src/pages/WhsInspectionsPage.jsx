@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PlusIcon, PlayIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import { api } from '../api'
 
 const INSPECTION_COLUMNS = [
@@ -159,7 +159,7 @@ export default function WhsInspectionsPage() {
         </p>
       </div>
 
-      <TrapidTableView
+      <TeeemTableView
         category="whs_inspections"
         entries={data}
         columns={INSPECTION_COLUMNS}

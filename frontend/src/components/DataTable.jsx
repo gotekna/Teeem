@@ -2,9 +2,9 @@ import { useState, useMemo } from 'react'
 import { ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 
 /**
- * DataTable - Standard table component for Trapid
+ * DataTable - Standard table component for TEEEM
  *
- * This is THE standard table component for all data tables in Trapid.
+ * This is THE standard table component for all data tables in TEEEM.
  * It follows Tailwind UI Application UI patterns with full dark mode support,
  * sortable columns, and responsive design.
  *

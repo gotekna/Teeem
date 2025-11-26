@@ -12,7 +12,7 @@
 
 const https = require('https');
 
-const API_BASE = 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/trinity';
+const API_BASE = 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity';
 
 // Fetch all Trinity entries
 async function fetchAllEntries() {

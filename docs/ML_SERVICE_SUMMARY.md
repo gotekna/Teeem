@@ -5,7 +5,7 @@
 
 ## What Was Built
 
-A complete Python ML microservice for Trapid that runs silently in the background, collecting data and training models without any user-facing features (for now).
+A complete Python ML microservice for TEEEM that runs silently in the background, collecting data and training models without any user-facing features (for now).
 
 ### Directory Structure Created
 
@@ -281,7 +281,7 @@ Total time: 23.4 seconds
 
 ```bash
 # Navigate to ML service
-cd /Users/jakebaird/trapid/backend/ml_service
+cd /Users/jakebaird/teeem/backend/ml_service
 
 # Run automated setup
 ./setup.sh
@@ -582,8 +582,8 @@ After 3 months of silent operation, we should have:
 ## Files Summary
 
 **Documentation**:
-- `/Users/jakebaird/trapid/backend/ml_service/README.md` (13KB)
-- `/Users/jakebaird/trapid/ML_SERVICE_SUMMARY.md` (this file)
+- `/Users/jakebaird/teeem/backend/ml_service/README.md` (13KB)
+- `/Users/jakebaird/teeem/ML_SERVICE_SUMMARY.md` (this file)
 
 **Configuration**:
 - `config.py` - Settings and database connection
@@ -613,7 +613,7 @@ After 3 months of silent operation, we should have:
 
 1. **Run Setup** (5 minutes):
    ```bash
-   cd /Users/jakebaird/trapid/backend/ml_service
+   cd /Users/jakebaird/teeem/backend/ml_service
    ./setup.sh
    ```
 

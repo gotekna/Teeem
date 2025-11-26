@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api'
-import TrapidTableView from '../documentation/TrapidTableView'
+import TeeemTableView from '../documentation/TeeemTableView'
 import {
   UserIcon,
   EnvelopeIcon,
@@ -140,7 +140,7 @@ export default function UserManagementTab() {
         </Link>
       </div>
 
-      <TrapidTableView
+      <TeeemTableView
         entries={users}
         onEdit={handleEdit}
         onDelete={handleDelete}

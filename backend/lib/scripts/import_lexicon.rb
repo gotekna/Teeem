@@ -4,7 +4,7 @@
 # Usage: rails runner lib/scripts/import_lexicon.rb
 
 class LexiconImporter
-  LEXICON_PATH = Rails.root.join('../TRAPID_DOCS/TRAPID_LEXICON.md')
+  LEXICON_PATH = Rails.root.join('../TEEEM_DOCS/TEEEM_LEXICON.md')
 
   def self.import
     new.import

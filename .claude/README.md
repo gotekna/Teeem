@@ -1,4 +1,4 @@
-# Claude Code Setup for Trapid
+# Claude Code Setup for TEEEM
 
 This folder contains configuration for Claude Code, the AI pair programmer used on this project.
 
@@ -24,7 +24,7 @@ The project is already configured in this `.claude/` folder, but you need to all
 **On Mac/Linux:**
 ```bash
 # Clone the repo first
-cd /path/to/trapid
+cd /path/to/teeem
 
 # Claude Code will use the settings.json in this folder automatically
 # No additional setup needed!
@@ -84,7 +84,7 @@ Claude Code has specialized agents for different tasks:
 ### Starting Claude Code
 
 ```bash
-cd /path/to/trapid
+cd /path/to/teeem
 claude  # Opens Claude Code in this directory
 ```
 
@@ -112,10 +112,10 @@ Review this file for bugs: backend/app/models/contact.rb
 
 ## Project Documentation
 
-Read these files to understand how Claude Code works with Trapid:
+Read these files to understand how Claude Code works with TEEEM:
 
-- `TRAPID_DOCS/TRAPID_BIBLE.md` - RULES (absolute authority)
-- `TRAPID_DOCS/TRAPID_LEXICON.md` - Bug history & knowledge base
+- `TEEEM_DOCS/TEEEM_BIBLE.md` - RULES (absolute authority)
+- `TEEEM_DOCS/TEEEM_LEXICON.md` - Bug history & knowledge base
 - `docs/CONTRIBUTING.md` - Development workflow
 
 ## Important Notes
@@ -129,7 +129,7 @@ Read these files to understand how Claude Code works with Trapid:
 ### What Gets Deployed
 
 When you merge to `main`:
-1. GitHub Actions automatically deploys frontend to https://trapid.vercel.app
+1. GitHub Actions automatically deploys frontend to https://teeem.vercel.app
 2. For backend changes, Claude Code will deploy to Heroku
 3. Migrations run automatically
 
@@ -150,7 +150,7 @@ These permissions are **project-wide** and safe for all team members.
 
 Make sure you're running Claude Code from the project root:
 ```bash
-cd /path/to/trapid
+cd /path/to/teeem
 claude
 ```
 

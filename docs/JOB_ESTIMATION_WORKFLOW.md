@@ -104,7 +104,7 @@ POST /api/v1/constructions
 ```
 
 ### Folder Structure
-- Root: `Trapid Jobs/[JOB_CODE] - [PROJECT_NAME]/`
+- Root: `TEEEM Jobs/[JOB_CODE] - [PROJECT_NAME]/`
 - Template: "Tekna Standard Residential" (29 folders)
 - Folders stored in: `folder_templates` and `folder_template_items` tables
 
@@ -247,7 +247,7 @@ API Key: 928102f6b6fc1209d393af83009e26d8043bf2b7a3bed527179c39d4c4a3f929
 
 **Production Endpoint:**
 ```
-https://trapid-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates
+https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates
 ```
 
 ### Documentation
@@ -689,7 +689,7 @@ heroku config:set ANTHROPIC_API_KEY=sk-ant-your-key-here
 
 **1. Commit and Push:**
 ```bash
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git add -A
 git commit -m "Implement complete job estimation workflow (Phases 1-4)
 
@@ -735,7 +735,7 @@ heroku run bin/rails console
 
 **1. Build:**
 ```bash
-cd /Users/jakebaird/trapid/frontend
+cd /Users/jakebaird/teeem/frontend
 npm run build
 ```
 
@@ -746,7 +746,7 @@ vercel --prod
 
 **3. Verify:**
 ```bash
-curl https://trapid.vercel.app
+curl https://teeem.vercel.app
 ```
 
 ---
@@ -758,12 +758,12 @@ curl https://trapid.vercel.app
 **Prerequisites:**
 - Microsoft 365 account with OneDrive access
 - Anthropic API key for Claude AI
-- Access to Trapid backend (Heroku)
-- Access to Trapid frontend (Vercel)
+- Access to TEEEM backend (Heroku)
+- Access to TEEEM frontend (Vercel)
 
 **Step 1: Connect OneDrive (Required for Phases 1 & 4)**
 
-1. Navigate to **Settings → Integrations** in Trapid
+1. Navigate to **Settings → Integrations** in TEEEM
 2. Click **"Connect OneDrive"**
 3. Sign in with your Microsoft 365 account
 4. Grant permissions when prompted:
@@ -816,7 +816,7 @@ Copy the generated key and share securely with Unreal Engine team.
 **Step 5: Configure Unreal Engine Integration**
 
 Share with Unreal Engine developer:
-- API Endpoint: `https://trapid-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates`
+- API Endpoint: `https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates`
 - API Key: `[Generated key from Step 4]`
 - Request format: See "For Unreal Engine Team" section below
 
@@ -884,7 +884,7 @@ Training duration: ~1 hour per role
 
 Option A: Via Unreal Engine API (if integrated)
 ```bash
-curl -X POST https://trapid-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates \
+curl -X POST https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{
@@ -1009,7 +1009,7 @@ You've completed the full workflow from job creation to AI-verified purchase ord
 
 **2. Export Estimate:**
 ```http
-POST https://trapid-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates
+POST https://teeem-backend-447058022b51.herokuapp.com/api/v1/external/unreal_estimates
 Content-Type: application/json
 X-API-Key: 928102f6b6fc1209d393af83009e26d8043bf2b7a3bed527179c39d4c4a3f929
 

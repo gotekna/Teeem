@@ -5,7 +5,7 @@
 ### 1. Setup Chart of Accounts
 ```bash
 cd backend
-rails trapid:financial:setup_simple
+rails teeem:financial:setup_simple
 ```
 
 **Expected Output:**
@@ -201,7 +201,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 ## Common Issues
 
 ### Issue: "No accounts found"
-**Solution:** Run `rails trapid:financial:setup_simple`
+**Solution:** Run `rails teeem:financial:setup_simple`
 
 ### Issue: "NoMethodError: undefined method for Company"
 **Solution:** Make sure you have existing user and company records in database
@@ -271,7 +271,7 @@ puts "P&L generation took: #{time.real.round(3)} seconds"
 
 Once backend testing is complete:
 1. Build frontend transaction entry forms
-2. Build transaction list with TrapidTableView
+2. Build transaction list with TEEEMTableView
 3. Build financial reports page
 4. Add navigation menu items
 5. Create dashboard widget

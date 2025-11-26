@@ -1354,7 +1354,7 @@ All operations trigger immediate save and re-render. Move operations update mult
 
   const handleExport = () => {
     let exportText = '# Schedule Master Column Documentation\n\n'
-    exportText += 'This document provides comprehensive information about all columns in the Trapid Schedule Master Gantt view.\n\n'
+    exportText += 'This document provides comprehensive information about all columns in the TEEEM Schedule Master Gantt view.\n\n'
     exportText += '## Purpose\n'
     exportText += 'Use this document with Claude (AI assistant) to help develop new features for specific columns.\n\n'
     exportText += '---\n\n'
@@ -1370,7 +1370,7 @@ All operations trigger immediate save and re-render. Move operations update mult
         exportText += `**Conditional Display:** ${column.conditional}\n\n`
       }
       exportText += `**Description:**\n${column.description}\n\n`
-      exportText += `**Currently Used in Trapid:**\n${column.currentlyUsed}\n\n`
+      exportText += `**Currently Used in TEEEM:**\n${column.currentlyUsed}\n\n`
       exportText += `**Column Complete:** ${columnComplete[column.name] ? 'Yes ✓' : 'No'}\n\n`
 
       if (ccUpdates[column.name]) {

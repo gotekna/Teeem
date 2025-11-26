@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { PlusIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from '@heroicons/react/24/outline'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TeeemTableView from '../components/documentation/TeeemTableView'
 import { api } from '../api'
 
 const SWMS_COLUMNS = [
@@ -187,7 +187,7 @@ export default function WhsSwmsPage() {
         </p>
       </div>
 
-      <TrapidTableView
+      <TeeemTableView
         category="whs_swms"
         entries={data}
         columns={SWMS_COLUMNS}

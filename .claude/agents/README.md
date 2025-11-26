@@ -1,6 +1,6 @@
 # Claude Code Agents
 
-This directory contains specialized agent definitions for the Trapid project.
+This directory contains specialized agent definitions for the TEEEM project.
 
 ## Agent Attribution
 
@@ -93,11 +93,11 @@ The sync task uses this priority for attribution:
 - Verifies empty/loading states, mobile responsiveness
 - Dark mode compliance for tables
 
-### 10. trapid-table-architect
-**Focus:** TrapidTableView Component Specialist | **Created by:** Jake
-- Creates new table implementations using TrapidTableView
+### 10. teeem-table-architect
+**Focus:** TEEEMTableView Component Specialist | **Created by:** Jake
+- Creates new table implementations using TEEEMTableView
 - Reviews existing tables for standards compliance
-- Migrates legacy tables to TrapidTableView
+- Migrates legacy tables to TEEEMTableView
 - Optimizes table performance (N+1 queries, pagination)
 - Ensures accessibility and mobile responsiveness
 - Enforces the "One Table Standard"
@@ -231,7 +231,7 @@ Agents are automatically synced to the database in two ways:
 **1. Git Post-Commit Hook (Automatic)**
 - Whenever you commit changes to `.claude/agents/*.md` files
 - The hook detects changed agent files
-- Automatically runs `bin/rails trapid:agents:sync`
+- Automatically runs `bin/rails teeem:agents:sync`
 - Agents appear in UI immediately after commit
 
 **2. Manual Sync Command**
@@ -240,7 +240,7 @@ Agents are automatically synced to the database in two ways:
 npm run sync-agents
 
 # Or directly
-cd backend && bin/rails trapid:agents:sync
+cd backend && bin/rails teeem:agents:sync
 ```
 
 ## Run History

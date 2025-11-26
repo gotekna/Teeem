@@ -178,7 +178,7 @@ No migration required - uses existing database columns.
 
 To deploy:
 ```bash
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git add backend/
 git commit -m "Implement automatic live profit calculation"
 git subtree push --prefix backend heroku main
@@ -189,7 +189,7 @@ No API changes required - backend automatically returns calculated values.
 
 To deploy:
 ```bash
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 git add frontend/
 git commit -m "Make profit fields read-only (auto-calculated)"
 git push origin main

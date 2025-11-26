@@ -16,5 +16,5 @@ echo "⬆️  Pushing to Heroku..."
 
 echo "✅ Deployment complete!"
 echo ""
-echo "View logs: heroku logs --tail --app trapid-backend"
-echo "Check status: heroku ps --app trapid-backend"
+echo "View logs: heroku logs --tail --app teeem-backend"
+echo "Check status: heroku ps --app teeem-backend"

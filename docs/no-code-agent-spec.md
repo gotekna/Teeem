@@ -2,7 +2,7 @@
 
 ## Overview
 
-A specialized agent focused on empowering non-technical stakeholders and users to customize, configure, and control their Trapid experience without writing code. This agent works collaboratively with the frontend-developer agent to identify opportunities for user-controlled configuration and suggest intuitive UI patterns that put power in the hands of users.
+A specialized agent focused on empowering non-technical stakeholders and users to customize, configure, and control their TEEEM experience without writing code. This agent works collaboratively with the frontend-developer agent to identify opportunities for user-controlled configuration and suggest intuitive UI patterns that put power in the hands of users.
 
 ---
 
@@ -102,7 +102,7 @@ After implementation:
 
 ---
 
-## Focus Areas for Trapid
+## Focus Areas for TEEEM
 
 ### Table Customization
 **Current State Analysis**:
@@ -313,7 +313,7 @@ Read-only: Grayed out, no hover effect, lock icon
 - Error messages linked via aria-describedby
 - Announce save success/failure
 
-**Example Implementation for Trapid Tables**:
+**Example Implementation for TEEEM Tables**:
 ```
 Pricebook Table:
 - Item Name: Text field with autocomplete from existing items
@@ -943,7 +943,7 @@ Study these for no-code patterns:
 
 ## Next Steps
 
-To integrate the no-code agent into Trapid development:
+To integrate the no-code agent into TEEEM development:
 
 1. **Document Current State**
    - Audit existing features for configuration gaps

@@ -1,8 +1,8 @@
-# TrapidTableView Conversion Guide
+# TEEEMTableView Conversion Guide
 
-## 🎯 Converting Custom Tables to TrapidTableView
+## 🎯 Converting Custom Tables to TEEEMTableView
 
-This guide shows how to convert custom table implementations (UsersPage, SuppliersPage, ContactsPage) to use the standard TrapidTableView component.
+This guide shows how to convert custom table implementations (UsersPage, SuppliersPage, ContactsPage) to use the standard TEEEMTableView component.
 
 ---
 
@@ -19,11 +19,11 @@ const [roleFilter, setRoleFilter] = useState('all')
 // ... hundreds of lines of table rendering code
 ```
 
-### AFTER (TrapidTableView - ~100 lines)
+### AFTER (TEEEMTableView - ~100 lines)
 ```javascript
 import { useState, useEffect } from 'react'
 import { api } from '../api'
-import TrapidTableView from '../components/documentation/TrapidTableView'
+import TEEEMTableView from '../components/documentation/TEEEMTableView'
 import { UserPlusIcon } from '@heroicons/react/24/outline'
 import AddUserModal from '../components/settings/AddUserModal'
 import Toast from '../components/Toast'
@@ -63,7 +63,7 @@ export default function UsersPage() {
   }
 
   const handleEdit = async (user) => {
-    // TrapidTableView handles inline editing automatically
+    // TEEEMTableView handles inline editing automatically
     // Just save the changes
     try {
       await api.patch(`/api/v1/users/${user.id}`, { user })
@@ -92,7 +92,7 @@ export default function UsersPage() {
 
   return (
     <div className="h-screen flex flex-col">
-      <TrapidTableView
+      <TEEEMTableView
         category="users"
         tableId="users"
         tableName="Users"
@@ -174,7 +174,7 @@ export default function SuppliersPage() {
   }
 
   return (
-    <TrapidTableView
+    <TEEEMTableView
       category="suppliers"
       entries={suppliers}
       columns={SUPPLIER_COLUMNS}
@@ -208,7 +208,7 @@ const CONTACT_COLUMNS = [
 
 ## 🔧 What to Remove vs Keep
 
-### ❌ REMOVE (TrapidTableView handles this)
+### ❌ REMOVE (TEEEMTableView handles this)
 - `visibleColumns` state
 - `columnWidths` state
 - `columnOrder` state
@@ -221,7 +221,7 @@ const CONTACT_COLUMNS = [
 - Column drag/drop handlers
 - Filter input rendering
 - Sort indicator rendering
-- ColumnVisibilityModal (built into TrapidTableView)
+- ColumnVisibilityModal (built into TEEEMTableView)
 
 ### ✅ KEEP (Your business logic)
 - Data fetching (`loadUsers`, `loadSuppliers`, etc.)
@@ -237,7 +237,7 @@ const CONTACT_COLUMNS = [
 
 ### Custom Actions Toolbar
 ```javascript
-<TrapidTableView
+<TEEEMTableView
   customActions={
     <>
       <button onClick={handleImport}>Import</button>
@@ -250,14 +250,14 @@ const CONTACT_COLUMNS = [
 
 ### Navigation on Row Double-Click
 ```javascript
-<TrapidTableView
+<TEEEMTableView
   onRowDoubleClick={(entry) => navigate(`/users/${entry.id}`)}
 />
 ```
 
 ### View Button Instead of Edit/Delete
 ```javascript
-<TrapidTableView
+<TEEEMTableView
   viewOnly={true}
   onView={(entry) => navigate(`/users/${entry.id}`)}
 />
@@ -294,7 +294,7 @@ const CONTACT_COLUMNS = [
 
 - [ ] Create `COLUMNS` array with proper configuration
 - [ ] Transform data if needed (flatten nested objects)
-- [ ] Replace table rendering with `<TrapidTableView />`
+- [ ] Replace table rendering with `<TEEEMTableView />`
 - [ ] Keep `onEdit` and `onDelete` handlers
 - [ ] Move "Add" button to `customActions` prop
 - [ ] Remove all manual state management
@@ -317,7 +317,7 @@ const CONTACT_COLUMNS = [
 
 ## 📚 References
 
-- **Trinity Teacher T19.1:** Full TrapidTableView documentation
+- **Trinity Teacher T19.1:** Full TEEEMTableView documentation
 - **Trinity Bible #20.37:** Table component standards
 - **Gold Standard Demo:** `/settings?tab=gold-standard`
 - **Live Example:** `frontend/src/components/settings/GoldStandardTableTab.jsx`
@@ -332,7 +332,7 @@ Want to see it in action? Convert UsersPage first:
 # 1. Backup original
 cp frontend/src/pages/UsersPage.jsx frontend/src/pages/UsersPage.jsx.backup
 
-# 2. Replace with TrapidTableView version (see example above)
+# 2. Replace with TEEEMTableView version (see example above)
 
 # 3. Test it out
 # Navigate to /users in your app

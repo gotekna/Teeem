@@ -82,7 +82,7 @@ export default function XeroSyncPage() {
   }
 
   const handleSyncContacts = async () => {
-    if (!window.confirm('This will sync all contacts from Trapid to Xero. Continue?')) {
+    if (!window.confirm('This will sync all contacts from TEEEM to Xero. Continue?')) {
       return
     }
 
@@ -131,7 +131,7 @@ export default function XeroSyncPage() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Xero Sync</h1>
           <p className="mt-2 text-sm text-gray-700 dark:text-gray-400">
-            Manage your Xero integration and sync data between Trapid and Xero.
+            Manage your Xero integration and sync data between TEEEM and Xero.
           </p>
         </div>
         <div className="mt-4 sm:mt-0">
@@ -344,7 +344,7 @@ export default function XeroSyncPage() {
                   <ul className="list-disc pl-5 space-y-1">
                     <li>Contacts sync automatically when you create or update suppliers</li>
                     <li>Match Xero invoices to purchase orders for automatic payment tracking</li>
-                    <li>Payments recorded in Trapid sync to Xero automatically</li>
+                    <li>Payments recorded in TEEEM sync to Xero automatically</li>
                     <li>Visit the <Link to="/settings" className="font-medium underline">Settings page</Link> for advanced configuration</li>
                   </ul>
                 </div>
