@@ -209,6 +209,10 @@ export default function AppLayout({ children }) {
     const saved = localStorage.getItem('jobGroupByStatus')
     return saved === 'true'
   })
+  const [groupByStage, setGroupByStage] = useState(() => {
+    const saved = localStorage.getItem('jobGroupByStage')
+    return saved === 'false' // Default to false
+  })
   const [expandedTypeGroups, setExpandedTypeGroups] = useState(() => {
     const saved = localStorage.getItem('expandedTypeGroups')
     return saved ? JSON.parse(saved) : {}
@@ -432,6 +436,13 @@ export default function AppLayout({ children }) {
     localStorage.setItem('jobGroupByStatus', String(newValue))
   }
 
+  const toggleGroupByStage = () => {
+    console.log('🟣 Stage grouping clicked! Current:', groupByStage, '→ New:', !groupByStage)
+    const newValue = !groupByStage
+    setGroupByStage(newValue)
+    localStorage.setItem('jobGroupByStage', String(newValue))
+  }
+
   const toggleTypeGroup = (typeName) => {
     const newGroups = { ...expandedTypeGroups, [typeName]: !expandedTypeGroups[typeName] }
     setExpandedTypeGroups(newGroups)
@@ -610,7 +621,8 @@ export default function AppLayout({ children }) {
 
     const byType = {}
     contactsList.forEach(contact => {
-      const typeName = contact.contact_type || contact.type || 'Unknown'
+      // Contact type should be "Supplier" or "Customer"
+      const typeName = contact.contact_type || contact.type || 'Unspecified'
       if (!byType[typeName]) byType[typeName] = []
       byType[typeName].push(contact)
     })
@@ -1448,7 +1460,7 @@ export default function AppLayout({ children }) {
                                 .filter(book => {
                                   if (!priceBookSearchQuery) return true
                                   const query = priceBookSearchQuery.toLowerCase()
-                                  return (book.name || book.title || '').toLowerCase().includes(query)
+                                  return (book.item_code || book.code || '').toLowerCase().includes(query)
                                 })
                                 .slice(0, 20)
                                 .map((book) => (
@@ -1462,7 +1474,7 @@ export default function AppLayout({ children }) {
                                       'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
                                     )}
                                   >
-                                    {book.name || book.title || `Book #${book.id}`}
+                                    {book.item_code || book.code || `Book #${book.id}`}
                                   </Link>
                                 </li>
                               ))}
@@ -1474,7 +1486,7 @@ export default function AppLayout({ children }) {
                                   const filteredBooks = books.filter(book => {
                                     if (!priceBookSearchQuery) return true
                                     const query = priceBookSearchQuery.toLowerCase()
-                                    return (book.name || book.title || '').toLowerCase().includes(query)
+                                    return (book.item_code || book.code || '').toLowerCase().includes(query)
                                   })
                                   if (filteredBooks.length === 0) return null
 
@@ -1514,7 +1526,7 @@ export default function AppLayout({ children }) {
                                                   'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
                                                 )}
                                               >
-                                                {book.name || book.title || `Book #${book.id}`}
+                                                {book.item_code || book.code || `Book #${book.id}`}
                                               </Link>
                                             </li>
                                           ))}
@@ -1607,7 +1619,7 @@ export default function AppLayout({ children }) {
                                 .filter(contact => {
                                   if (!contactSearchQuery) return true
                                   const query = contactSearchQuery.toLowerCase()
-                                  return (contact.name || '').toLowerCase().includes(query)
+                                  return (contact.full_name || contact.name || '').toLowerCase().includes(query)
                                 })
                                 .slice(0, 20)
                                 .map((contact) => (
@@ -1621,7 +1633,7 @@ export default function AppLayout({ children }) {
                                       'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
                                     )}
                                   >
-                                    {contact.name || `Contact #${contact.id}`}
+                                    {contact.full_name || contact.name || `Contact #${contact.id}`}
                                   </Link>
                                 </li>
                               ))}
@@ -1633,7 +1645,7 @@ export default function AppLayout({ children }) {
                                   const filteredContacts = contactsList.filter(contact => {
                                     if (!contactSearchQuery) return true
                                     const query = contactSearchQuery.toLowerCase()
-                                    return (contact.name || '').toLowerCase().includes(query)
+                                    return (contact.full_name || contact.name || '').toLowerCase().includes(query)
                                   })
                                   if (filteredContacts.length === 0) return null
 
@@ -1673,7 +1685,166 @@ export default function AppLayout({ children }) {
                                                   'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
                                                 )}
                                               >
-                                                {contact.name || `Contact #${contact.id}`}
+                                                {contact.full_name || contact.name || `Contact #${contact.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+                            </ul>
+                          )}
+                        </li>
+                      )
+                    }
+
+                    // Special handling for Purchase Orders - make it expandable with grouping
+                    if (item.name === 'Purchase Orders') {
+                      return (
+                        <li key={item.name}>
+                          {/* Purchase Orders header with expand toggle */}
+                          <div className="flex items-center">
+                            <Link
+                              to={item.href}
+                              title={sidebarCollapsed ? item.name : undefined}
+                              className={classNames(
+                                current
+                                  ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold flex-1',
+                                sidebarCollapsed && 'justify-center'
+                              )}
+                            >
+                              <item.icon
+                                aria-hidden="true"
+                                className={classNames(
+                                  current
+                                    ? 'text-indigo-600 dark:text-white'
+                                    : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                  'size-6 shrink-0',
+                                )}
+                              />
+                              {!sidebarCollapsed && item.name}
+                            </Link>
+                            {!sidebarCollapsed && purchaseOrders.length > 0 && (
+                              <button
+                                onClick={togglePurchaseOrdersExpanded}
+                                className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                              >
+                                <ChevronRightIcon
+                                  className={classNames(
+                                    'h-4 w-4 text-gray-400 transition-transform',
+                                    purchaseOrdersExpanded && 'rotate-90'
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Expandable purchase orders list */}
+                          {!sidebarCollapsed && purchaseOrdersExpanded && purchaseOrders.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {/* Search and Job button */}
+                              <li className="px-2 pb-1 flex gap-1">
+                                <div className="relative flex-1">
+                                  <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search purchase orders..."
+                                    value={purchaseOrderSearchQuery}
+                                    onChange={(e) => setPurchaseOrderSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={toggleGroupByPOJob}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer',
+                                    groupByPOJob
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={groupByPOJob ? 'Grouped by Job' : 'Group by Job'}
+                                >
+                                  Job
+                                </button>
+                              </li>
+
+                              {/* List View */}
+                              {groupedPurchaseOrders.mode === 'list' && groupedPurchaseOrders.items
+                                .filter(order => {
+                                  if (!purchaseOrderSearchQuery) return true
+                                  const query = purchaseOrderSearchQuery.toLowerCase()
+                                  return (order.number || order.title || '').toLowerCase().includes(query)
+                                })
+                                .slice(0, 20)
+                                .map((order) => (
+                                <li key={order.id}>
+                                  <Link
+                                    to={`/tables/217/purchase-orders/${order.id}`}
+                                    className={classNames(
+                                      location.pathname.startsWith(`/tables/217/purchase-orders/${order.id}`)
+                                        ? 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                      'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                    )}
+                                  >
+                                    {order.number ? `PO ${order.number}` : `PO #${order.id}`}
+                                  </Link>
+                                </li>
+                              ))}
+
+                              {/* Job Grouped View */}
+                              {groupedPurchaseOrders.mode === 'job' && Object.entries(groupedPurchaseOrders.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([jobName, ordersList]) => {
+                                  const filteredOrders = ordersList.filter(order => {
+                                    if (!purchaseOrderSearchQuery) return true
+                                    const query = purchaseOrderSearchQuery.toLowerCase()
+                                    return (order.number || order.title || '').toLowerCase().includes(query)
+                                  })
+                                  if (filteredOrders.length === 0) return null
+
+                                  return (
+                                    <li key={jobName}>
+                                      {/* Job group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => togglePOJobGroup(jobName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedPOJobGroups[jobName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {jobName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredOrders.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Purchase orders under this job */}
+                                      {(expandedPOJobGroups[jobName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredOrders.slice(0, 20).map((order) => (
+                                            <li key={order.id}>
+                                              <Link
+                                                to={`/tables/217/purchase-orders/${order.id}`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/tables/217/purchase-orders/${order.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                )}
+                                              >
+                                                {order.number ? `PO ${order.number}` : `PO #${order.id}`}
                                               </Link>
                                             </li>
                                           ))}

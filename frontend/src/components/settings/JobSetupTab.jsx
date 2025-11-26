@@ -245,7 +245,8 @@ function CascadeSortConfig({ config, onUpdate }) {
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [items, setItems] = useState(config || [
     { key: 'job_type', label: 'Job Type', enabled: true },
-    { key: 'job_status', label: 'Job Status', enabled: true }
+    { key: 'job_status', label: 'Job Status', enabled: true },
+    { key: 'job_stage', label: 'Job Stage', enabled: false }
   ])
 
   useEffect(() => {
@@ -335,19 +336,25 @@ function CascadeSortConfig({ config, onUpdate }) {
                   ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
                   : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'
             }`}>
-              {!item.enabled ? 'Off' : index === items.findIndex(i => i.enabled) ? '1st' : '2nd'}
+              {(() => {
+                if (!item.enabled) return 'Off'
+                const enabledItems = items.filter(i => i.enabled)
+                const position = enabledItems.findIndex(i => i.key === item.key)
+                return position === 0 ? '1st' : position === 1 ? '2nd' : '3rd'
+              })()}
             </span>
           </div>
         ))}
       </div>
 
       <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-        {items.filter(i => i.enabled).length === 0
-          ? 'No cascade sorting - jobs will show in default order'
-          : items.filter(i => i.enabled).length === 1
-            ? `Jobs grouped by ${items.find(i => i.enabled)?.label}`
-            : `Jobs grouped by ${items.find(i => i.enabled)?.label}, then by ${items.filter(i => i.enabled)[1]?.label}`
-        }
+        {(() => {
+          const enabled = items.filter(i => i.enabled)
+          if (enabled.length === 0) return 'No cascade sorting - jobs will show in default order'
+          if (enabled.length === 1) return `Jobs grouped by ${enabled[0]?.label}`
+          if (enabled.length === 2) return `Jobs grouped by ${enabled[0]?.label}, then by ${enabled[1]?.label}`
+          return `Jobs grouped by ${enabled[0]?.label}, then by ${enabled[1]?.label}, then by ${enabled[2]?.label}`
+        })()}
       </p>
     </div>
   )
@@ -386,14 +393,16 @@ export default function JobSetupTab() {
           // Default config
           setCascadeConfig([
             { key: 'job_type', label: 'Job Type', enabled: true },
-            { key: 'job_status', label: 'Job Status', enabled: true }
+            { key: 'job_status', label: 'Job Status', enabled: true },
+            { key: 'job_stage', label: 'Job Stage', enabled: false }
           ])
         }
       } catch {
         // Default if settings not available
         setCascadeConfig([
           { key: 'job_type', label: 'Job Type', enabled: true },
-          { key: 'job_status', label: 'Job Status', enabled: true }
+          { key: 'job_status', label: 'Job Status', enabled: true },
+          { key: 'job_stage', label: 'Job Stage', enabled: false }
         ])
       }
     } catch (err) {
