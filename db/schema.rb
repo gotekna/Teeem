@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_075429) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_090935) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -201,6 +201,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_075429) do
     t.text "choices_order"
     t.string "header_align", default: "left"
     t.string "data_align", default: "left"
+    t.string "column_group"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
     t.index ["lookup_table_id"], name: "index_columns_on_lookup_table_id"
     t.index ["table_id", "column_name"], name: "index_columns_on_table_id_and_column_name", unique: true
