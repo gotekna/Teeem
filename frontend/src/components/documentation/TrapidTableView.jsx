@@ -3651,15 +3651,14 @@ export default function TrapidTableView({
                 className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select...</option>
-                {isObjectFormat ? (
-                  lookupOptions.map(option => (
-                    <option key={option.id} value={option.id}>{option.display}</option>
-                  ))
-                ) : (
-                  lookupOptions.map(option => (
-                    <option key={option} value={option}>{option}</option>
-                  ))
-                )}
+                {lookupOptions.map((option, idx) => {
+                  // Handle both object format {id, display} and string format
+                  if (option && typeof option === 'object') {
+                    return <option key={option.id ?? idx} value={option.id}>{option.display ?? option.id ?? '-'}</option>
+                  }
+                  // String or primitive format
+                  return <option key={option ?? idx} value={option}>{option}</option>
+                })}
               </select>
             )
           }
@@ -6671,9 +6670,13 @@ export default function TrapidTableView({
                             )}
                             {/* Generic fallback for other dropdown columns - dynamically populate from data */}
                             {!['category', 'chapter', 'type', 'status', 'severity', 'trinity', 'component'].includes(colKey) &&
-                              getUniqueValuesForColumn(colKey).map((value, idx) => (
-                                <option key={`${colKey}-${value}-${idx}`} value={value}>{value}</option>
-                              ))
+                              getUniqueValuesForColumn(colKey).map((value, idx) => {
+                                // Handle both object format {id, display} and string format
+                                if (value && typeof value === 'object') {
+                                  return <option key={`${colKey}-${value.id}-${idx}`} value={value.id}>{value.display ?? value.id ?? '-'}</option>
+                                }
+                                return <option key={`${colKey}-${value}-${idx}`} value={value}>{value}</option>
+                              })
                             }
                           </select>
                         )}
