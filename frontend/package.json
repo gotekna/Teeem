@@ -1,7 +1,7 @@
 {
   "name": "teeem-frontend",
   "private": true,
-  "version": "1.99.1615",
+  "version": "1.99.1616",
   "type": "module",
   "scripts": {
     "dev": "node scripts/increment-version.js && vite",
