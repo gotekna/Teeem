@@ -976,9 +976,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
     t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "job_type_id"
     t.index ["is_active"], name: "index_job_status_on_is_active"
-    t.index ["job_type_id"], name: "index_job_status_on_job_type_id"
     t.index ["position"], name: "index_job_status_on_position"
   end
 
@@ -3129,6 +3127,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
   add_foreign_key "job_status_stages", "job_types"
   add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
+  add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "job_stages"
   add_foreign_key "jobs", "job_status", on_delete: :nullify
