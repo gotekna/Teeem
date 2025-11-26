@@ -141,6 +141,54 @@ export default function AppLayout({ children }) {
     const saved = localStorage.getItem('activeJobsExpanded')
     return saved === null ? true : saved === 'true'
   })
+
+  // Price Books state
+  const [priceBooks, setPriceBooks] = useState([])
+  const [priceBookSearchQuery, setPriceBookSearchQuery] = useState('')
+  const [priceBooksExpanded, setPriceBooksExpanded] = useState(() => {
+    const saved = localStorage.getItem('priceBooksExpanded')
+    return saved === null ? false : saved === 'true'
+  })
+  const [groupByCategory, setGroupByCategory] = useState(() => {
+    const saved = localStorage.getItem('priceBookGroupByCategory')
+    return saved === 'true'
+  })
+  const [expandedCategoryGroups, setExpandedCategoryGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedCategoryGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+
+  // Contacts state
+  const [contacts, setContacts] = useState([])
+  const [contactSearchQuery, setContactSearchQuery] = useState('')
+  const [contactsExpanded, setContactsExpanded] = useState(() => {
+    const saved = localStorage.getItem('contactsExpanded')
+    return saved === null ? false : saved === 'true'
+  })
+  const [groupByContactType, setGroupByContactType] = useState(() => {
+    const saved = localStorage.getItem('contactGroupByType')
+    return saved === 'true'
+  })
+  const [expandedContactTypeGroups, setExpandedContactTypeGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedContactTypeGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+
+  // Purchase Orders state
+  const [purchaseOrders, setPurchaseOrders] = useState([])
+  const [purchaseOrderSearchQuery, setPurchaseOrderSearchQuery] = useState('')
+  const [purchaseOrdersExpanded, setPurchaseOrdersExpanded] = useState(() => {
+    const saved = localStorage.getItem('purchaseOrdersExpanded')
+    return saved === null ? false : saved === 'true'
+  })
+  const [groupByPOJob, setGroupByPOJob] = useState(() => {
+    const saved = localStorage.getItem('poGroupByJob')
+    return saved === 'true'
+  })
+  const [expandedPOJobGroups, setExpandedPOJobGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedPOJobGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
   const [expandedJobId, setExpandedJobId] = useState(() => {
     const saved = localStorage.getItem('expandedJobId')
     return saved ? parseInt(saved, 10) : null
@@ -281,6 +329,51 @@ export default function AppLayout({ children }) {
     loadActiveJobs()
   }, [])
 
+  // Load price books for sidebar
+  useEffect(() => {
+    const loadPriceBooks = async () => {
+      try {
+        const response = await api.get('/api/v1/price_books?per_page=50')
+        const books = response.price_books || response.items || []
+        console.log('📚 Loaded price books for sidebar:', books.length, 'items')
+        setPriceBooks(books)
+      } catch (err) {
+        console.debug('Price books unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadPriceBooks()
+  }, [])
+
+  // Load contacts for sidebar
+  useEffect(() => {
+    const loadContacts = async () => {
+      try {
+        const response = await api.get('/api/v1/contacts?per_page=50')
+        const contactsList = response.contacts || []
+        console.log('👥 Loaded contacts for sidebar:', contactsList.length, 'contacts')
+        setContacts(contactsList)
+      } catch (err) {
+        console.debug('Contacts unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadContacts()
+  }, [])
+
+  // Load purchase orders for sidebar
+  useEffect(() => {
+    const loadPurchaseOrders = async () => {
+      try {
+        const response = await api.get('/api/v1/purchase_orders?per_page=50')
+        const orders = response.purchase_orders || []
+        console.log('📦 Loaded purchase orders for sidebar:', orders.length, 'orders')
+        setPurchaseOrders(orders)
+      } catch (err) {
+        console.debug('Purchase orders unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadPurchaseOrders()
+  }, [])
+
   // Auto-expand job if we're on a job detail page
   useEffect(() => {
     const match = location.pathname.match(/^\/jobs\/(\d+)/)
@@ -379,6 +472,63 @@ export default function AppLayout({ children }) {
     setDraggedButton(null)
   }
 
+  // Price Books toggles
+  const togglePriceBooksExpanded = () => {
+    const newValue = !priceBooksExpanded
+    setPriceBooksExpanded(newValue)
+    localStorage.setItem('priceBooksExpanded', String(newValue))
+  }
+
+  const toggleGroupByCategory = () => {
+    const newValue = !groupByCategory
+    setGroupByCategory(newValue)
+    localStorage.setItem('priceBookGroupByCategory', String(newValue))
+  }
+
+  const toggleCategoryGroup = (categoryName) => {
+    const newGroups = { ...expandedCategoryGroups, [categoryName]: !expandedCategoryGroups[categoryName] }
+    setExpandedCategoryGroups(newGroups)
+    localStorage.setItem('expandedCategoryGroups', JSON.stringify(newGroups))
+  }
+
+  // Contacts toggles
+  const toggleContactsExpanded = () => {
+    const newValue = !contactsExpanded
+    setContactsExpanded(newValue)
+    localStorage.setItem('contactsExpanded', String(newValue))
+  }
+
+  const toggleGroupByContactType = () => {
+    const newValue = !groupByContactType
+    setGroupByContactType(newValue)
+    localStorage.setItem('contactGroupByType', String(newValue))
+  }
+
+  const toggleContactTypeGroup = (typeName) => {
+    const newGroups = { ...expandedContactTypeGroups, [typeName]: !expandedContactTypeGroups[typeName] }
+    setExpandedContactTypeGroups(newGroups)
+    localStorage.setItem('expandedContactTypeGroups', JSON.stringify(newGroups))
+  }
+
+  // Purchase Orders toggles
+  const togglePurchaseOrdersExpanded = () => {
+    const newValue = !purchaseOrdersExpanded
+    setPurchaseOrdersExpanded(newValue)
+    localStorage.setItem('purchaseOrdersExpanded', String(newValue))
+  }
+
+  const toggleGroupByPOJob = () => {
+    const newValue = !groupByPOJob
+    setGroupByPOJob(newValue)
+    localStorage.setItem('poGroupByJob', String(newValue))
+  }
+
+  const togglePOJobGroup = (jobTitle) => {
+    const newGroups = { ...expandedPOJobGroups, [jobTitle]: !expandedPOJobGroups[jobTitle] }
+    setExpandedPOJobGroups(newGroups)
+    localStorage.setItem('expandedPOJobGroups', JSON.stringify(newGroups))
+  }
+
   // Group jobs by Type and/or Status
   const getGroupedJobs = (jobs) => {
     if (!groupByType && !groupByStatus) {
@@ -434,6 +584,57 @@ export default function AppLayout({ children }) {
     acc[stage].push(job)
     return acc
   }, {})
+
+  // Group price books by Category
+  const getGroupedPriceBooks = (books) => {
+    if (!groupByCategory) {
+      return { mode: 'list', items: books }
+    }
+
+    const byCategory = {}
+    books.forEach(book => {
+      const categoryName = book.category || 'Uncategorized'
+      if (!byCategory[categoryName]) byCategory[categoryName] = []
+      byCategory[categoryName].push(book)
+    })
+    return { mode: 'category', groups: byCategory }
+  }
+
+  const groupedPriceBooks = getGroupedPriceBooks(priceBooks)
+
+  // Group contacts by Contact Type
+  const getGroupedContacts = (contactsList) => {
+    if (!groupByContactType) {
+      return { mode: 'list', items: contactsList }
+    }
+
+    const byType = {}
+    contactsList.forEach(contact => {
+      const typeName = contact.contact_type || contact.type || 'Unknown'
+      if (!byType[typeName]) byType[typeName] = []
+      byType[typeName].push(contact)
+    })
+    return { mode: 'type', groups: byType }
+  }
+
+  const groupedContacts = getGroupedContacts(contacts)
+
+  // Group purchase orders by Job
+  const getGroupedPurchaseOrders = (orders) => {
+    if (!groupByPOJob) {
+      return { mode: 'list', items: orders }
+    }
+
+    const byJob = {}
+    orders.forEach(order => {
+      const jobTitle = order.job_title || order.construction?.title || 'No Job'
+      if (!byJob[jobTitle]) byJob[jobTitle] = []
+      byJob[jobTitle].push(order)
+    })
+    return { mode: 'job', groups: byJob }
+  }
+
+  const groupedPurchaseOrders = getGroupedPurchaseOrders(purchaseOrders)
 
   // Poll for unread messages count
   useEffect(() => {
@@ -1163,6 +1364,165 @@ export default function AppLayout({ children }) {
                                 }
                                 return null
                               })()}
+                            </ul>
+                          )}
+                        </li>
+                      )
+                    }
+
+                    // Special handling for Price Books - make it expandable with grouping
+                    if (item.name === 'Price Books') {
+                      return (
+                        <li key={item.name}>
+                          {/* Price Books header with expand toggle */}
+                          <div className="flex items-center">
+                            <Link
+                              to={item.href}
+                              title={sidebarCollapsed ? item.name : undefined}
+                              className={classNames(
+                                current
+                                  ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold flex-1',
+                                sidebarCollapsed && 'justify-center'
+                              )}
+                            >
+                              <item.icon
+                                aria-hidden="true"
+                                className={classNames(
+                                  current
+                                    ? 'text-indigo-600 dark:text-white'
+                                    : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                  'size-6 shrink-0',
+                                )}
+                              />
+                              {!sidebarCollapsed && item.name}
+                            </Link>
+                            {!sidebarCollapsed && priceBooks.length > 0 && (
+                              <button
+                                onClick={togglePriceBooksExpanded}
+                                className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                              >
+                                <ChevronRightIcon
+                                  className={classNames(
+                                    'h-4 w-4 text-gray-400 transition-transform',
+                                    priceBooksExpanded && 'rotate-90'
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Expandable price book list */}
+                          {!sidebarCollapsed && priceBooksExpanded && priceBooks.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {/* Search and Category button */}
+                              <li className="px-2 pb-1 flex gap-1">
+                                <div className="relative flex-1">
+                                  <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search price books..."
+                                    value={priceBookSearchQuery}
+                                    onChange={(e) => setPriceBookSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={toggleGroupByCategory}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer',
+                                    groupByCategory
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={groupByCategory ? 'Grouped by Category' : 'Group by Category'}
+                                >
+                                  Category
+                                </button>
+                              </li>
+
+                              {/* List View */}
+                              {groupedPriceBooks.mode === 'list' && groupedPriceBooks.items
+                                .filter(book => {
+                                  if (!priceBookSearchQuery) return true
+                                  const query = priceBookSearchQuery.toLowerCase()
+                                  return (book.name || book.title || '').toLowerCase().includes(query)
+                                })
+                                .slice(0, 20)
+                                .map((book) => (
+                                <li key={book.id}>
+                                  <Link
+                                    to={`/tables/205/pricebook/${book.id}`}
+                                    className={classNames(
+                                      location.pathname.startsWith(`/tables/205/pricebook/${book.id}`)
+                                        ? 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                      'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                    )}
+                                  >
+                                    {book.name || book.title || `Book #${book.id}`}
+                                  </Link>
+                                </li>
+                              ))}
+
+                              {/* Category Grouped View */}
+                              {groupedPriceBooks.mode === 'category' && Object.entries(groupedPriceBooks.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([categoryName, books]) => {
+                                  const filteredBooks = books.filter(book => {
+                                    if (!priceBookSearchQuery) return true
+                                    const query = priceBookSearchQuery.toLowerCase()
+                                    return (book.name || book.title || '').toLowerCase().includes(query)
+                                  })
+                                  if (filteredBooks.length === 0) return null
+
+                                  return (
+                                    <li key={categoryName}>
+                                      {/* Category group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleCategoryGroup(categoryName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedCategoryGroups[categoryName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {categoryName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredBooks.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Books under this category */}
+                                      {(expandedCategoryGroups[categoryName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredBooks.slice(0, 20).map((book) => (
+                                            <li key={book.id}>
+                                              <Link
+                                                to={`/tables/205/pricebook/${book.id}`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/tables/205/pricebook/${book.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                )}
+                                              >
+                                                {book.name || book.title || `Book #${book.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
                             </ul>
                           )}
                         </li>
