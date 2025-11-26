@@ -120,7 +120,8 @@ export default function TrapidTableView({
   onEditRelationships = null,  // NEW: Custom handler for editing relationships (adds extra action button)
   loadingMore = false,  // NEW: Shows loading indicator when more records are being fetched
   preloadedViews = null,  // NEW: Preloaded views from parent (skips API call if provided)
-  hideUpdateViewButton = false  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)
+  hideUpdateViewButton = false,  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)
+  initialGroupByColumn = null  // NEW: Initial column to group by (for tables that default to grouped view)
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -507,7 +508,7 @@ export default function TrapidTableView({
   const [newViewName, setNewViewName] = useState('') // Name for new view being created
   const [editingFilterId, setEditingFilterId] = useState(null) // Track which filter is being edited
   const [editingFilterValue, setEditingFilterValue] = useState('') // Track the temporary value while editing
-  const [groupByColumn, setGroupByColumn] = useState(null) // Track which column to group by
+  const [groupByColumn, setGroupByColumn] = useState(initialGroupByColumn) // Track which column to group by
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()) // Track which groups are collapsed
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState(() => {
     // Start with all groups collapsed by default
@@ -1942,7 +1943,21 @@ export default function TrapidTableView({
       return availableChoices
     }
 
-    return dataValues.sort()
+    // For numeric columns or columns with numeric values, sort numerically
+    const allNumbers = dataValues.every(v => typeof v === 'number' || !isNaN(parseFloat(v)))
+    if (allNumbers) {
+      return dataValues.sort((a, b) => parseFloat(a) - parseFloat(b))
+    }
+
+    // Default to alphabetical sort with natural number handling
+    return dataValues.sort((a, b) => {
+      const numA = parseInt(String(a).match(/\d+/)?.[0], 10)
+      const numB = parseInt(String(b).match(/\d+/)?.[0], 10)
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB
+      }
+      return String(a).localeCompare(String(b))
+    })
   }
 
   const getColumnLabel = (key) => {
@@ -6745,8 +6760,19 @@ export default function TrapidTableView({
                   groups[groupValue].push(entry)
                 })
 
-                // Sort group keys alphabetically
-                const sortedGroupKeys = Object.keys(groups).sort((a, b) => a.localeCompare(b))
+                // Sort group keys - use natural/numeric sorting for chapter-like keys
+                const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+                  // Extract leading numbers if present (e.g., "Ch 1: ..." or just "1" or "10")
+                  const numA = parseInt(a.match(/\d+/)?.[0], 10)
+                  const numB = parseInt(b.match(/\d+/)?.[0], 10)
+
+                  // If both have numbers, sort numerically
+                  if (!isNaN(numA) && !isNaN(numB)) {
+                    return numA - numB
+                  }
+                  // Otherwise fall back to alphabetical
+                  return a.localeCompare(b)
+                })
                 const visibleColCount = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).length
 
                 let rowIndex = 0

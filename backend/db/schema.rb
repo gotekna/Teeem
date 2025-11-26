@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_110754) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_121601) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -705,6 +705,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_110754) do
     t.index ["name"], name: "index_external_integrations_on_name", unique: true
   end
 
+  create_table "feature_chapters", force: :cascade do |t|
+    t.integer "chapter_number", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chapter_number"], name: "index_feature_chapters_on_chapter_number", unique: true
+    t.index ["sort_order"], name: "index_feature_chapters_on_sort_order"
+  end
+
   create_table "feature_trackers", force: :cascade do |t|
     t.string "chapter", null: false
     t.string "feature_name", null: false
@@ -730,7 +741,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_110754) do
     t.boolean "clickhome_has", default: false, null: false
     t.boolean "trapid_has", default: false, null: false
     t.boolean "clickup_has"
+    t.bigint "feature_chapter_id", null: false
     t.index ["chapter"], name: "index_feature_trackers_on_chapter"
+    t.index ["feature_chapter_id"], name: "index_feature_trackers_on_feature_chapter_id"
     t.index ["sort_order"], name: "index_feature_trackers_on_sort_order"
   end
 
@@ -3096,6 +3109,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_110754) do
   add_foreign_key "estimate_line_items", "estimates"
   add_foreign_key "estimate_reviews", "estimates"
   add_foreign_key "estimates", "jobs"
+  add_foreign_key "feature_trackers", "feature_chapters"
   add_foreign_key "financial_transactions", "companies"
   add_foreign_key "financial_transactions", "jobs"
   add_foreign_key "financial_transactions", "users"

@@ -8,13 +8,26 @@ import { api } from '../../api'
  */
 export default function FeaturesTrackingTable() {
   const [features, setFeatures] = useState([])
+  const [featureChapters, setFeatureChapters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [stats, setStats] = useState(null)
 
-  // Define columns for TrapidTableView - no column_group so user can freely reorder
+  // Define columns for TrapidTableView - chapter is now a lookup column for grouping
   const COLUMNS = [
-    { key: 'chapter_feature', label: 'Chapter / Feature', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 350 },
+    {
+      key: 'feature_chapter',
+      label: 'Chapter',
+      column_type: 'lookup',
+      resizable: true,
+      sortable: true,
+      filterable: true,
+      filterType: 'dropdown',
+      width: 280,
+      lookup_table: 'feature_chapters',
+      lookup_display_field: 'display_name'
+    },
+    { key: 'feature_name', label: 'Feature', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 280 },
     { key: 'detail_point_1', label: 'Detail 1', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
     { key: 'detail_point_2', label: 'Detail 2', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
     { key: 'detail_point_3', label: 'Detail 3', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
@@ -46,12 +59,17 @@ export default function FeaturesTrackingTable() {
       const response = await api.get('/api/v1/feature_trackers')
 
       if (response.success) {
-        // Combine chapter and feature_name into a single column
+        // Transform feature_chapter to lookup format { id, display }
         const processedFeatures = response.feature_trackers.map(f => ({
           ...f,
-          chapter_feature: `${f.chapter} - ${f.feature_name}`
+          // Convert feature_chapter to lookup column format for TrapidTableView
+          feature_chapter: f.feature_chapter ? {
+            id: f.feature_chapter.id,
+            display: f.feature_chapter.display_name
+          } : null
         }))
         setFeatures(processedFeatures)
+        setFeatureChapters(response.feature_chapters || [])
         setStats(response.stats)
       } else {
         setError('Failed to load features')
@@ -124,7 +142,7 @@ export default function FeaturesTrackingTable() {
         columns={COLUMNS}
         viewOnly={true}
         enableExport={true}
-        groupByColumn="chapter"
+        initialGroupByColumn="feature_chapter"
       />
     </div>
   )

@@ -1,12 +1,15 @@
 class FeatureTracker < ApplicationRecord
+  belongs_to :feature_chapter
+
   validates :chapter, presence: true
   validates :feature_name, presence: true
   validates :dev_progress, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   before_save :auto_complete_system
 
-  scope :ordered, -> { order(:sort_order, :chapter, :feature_name) }
+  scope :ordered, -> { joins(:feature_chapter).order('feature_chapters.sort_order', 'feature_chapters.chapter_number', :sort_order, :feature_name) }
   scope :by_chapter, ->(chapter) { where(chapter: chapter) }
+  scope :by_feature_chapter, ->(chapter_id) { where(feature_chapter_id: chapter_id) }
   scope :system_complete, -> { where(system_complete: true) }
   scope :dev_checked, -> { where(dev_checked: true) }
   scope :tester_checked, -> { where(tester_checked: true) }
@@ -15,6 +18,11 @@ class FeatureTracker < ApplicationRecord
 
   def self.chapters
     distinct.pluck(:chapter).sort
+  end
+
+  # For lookup column display
+  def chapter_display
+    feature_chapter&.display_name
   end
 
   def completion_percentage
