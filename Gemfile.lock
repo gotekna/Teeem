@@ -124,6 +124,9 @@ GEM
     docile (1.4.1)
     domain_name (0.6.20240107)
     dotenv (3.1.8)
+    dotenv-rails (3.1.8)
+      dotenv (= 3.1.8)
+      railties (>= 6.1)
     drb (2.2.3)
     ed25519 (1.4.0)
     erb (6.0.0)
@@ -502,6 +505,7 @@ DEPENDENCIES
   creek (~> 2.6)
   debug
   dentaku
+  dotenv-rails
   factory_bot_rails (~> 6.4)
   faker (~> 3.5)
   fuzzy_match (~> 2.1)
