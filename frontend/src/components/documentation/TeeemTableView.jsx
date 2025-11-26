@@ -6498,12 +6498,62 @@ export default function TeeemTableView({
                                   return (
                                     <div
                                       key={column.key}
-                                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg select-none transition-all ${
+                                      draggable="false"
+                                      onDragOver={(e) => {
+                                        e.preventDefault()
+                                        if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
+                                          setDragOverVisibilityColumn(column.key)
+                                        }
+                                      }}
+                                      onDragLeave={() => setDragOverVisibilityColumn(null)}
+                                      onDrop={(e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
+                                          const fullOrder = [...(visibilityColumnOrder || allCols.map(c => c.key))]
+                                          const draggedIndex = fullOrder.indexOf(draggedVisibilityColumn)
+                                          const targetIndex = fullOrder.indexOf(column.key)
+
+                                          if (draggedIndex !== -1 && targetIndex !== -1) {
+                                            fullOrder.splice(draggedIndex, 1)
+                                            fullOrder.splice(targetIndex, 0, draggedVisibilityColumn)
+                                            setVisibilityColumnOrder(fullOrder)
+                                          }
+                                        }
+                                        setDraggedVisibilityColumn(null)
+                                        setDragOverVisibilityColumn(null)
+                                      }}
+                                      className={`relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg select-none transition-all ${
                                         isVisibleTab
-                                          ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800 hover:border-green-300 dark:hover:border-green-700'
-                                          : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                                      }`}
+                                          ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border-2 border-green-200 dark:border-green-800 hover:border-green-300 dark:hover:border-green-700'
+                                          : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                                      } ${draggedVisibilityColumn === column.key ? 'opacity-50 scale-95 border-dashed border-orange-400 bg-orange-50 dark:bg-orange-900/30' : ''} ${dragOverVisibilityColumn === column.key ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50' : ''}`}
                                     >
+                                      {/* Drop indicator line */}
+                                      {dragOverVisibilityColumn === column.key && draggedVisibilityColumn && (
+                                        <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-full shadow-lg shadow-blue-300 z-10">
+                                          <div className="absolute -left-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
+                                          <div className="absolute -right-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
+                                        </div>
+                                      )}
+                                      {/* Drag handle */}
+                                      <span
+                                        draggable="true"
+                                        onDragStart={(e) => {
+                                          e.stopPropagation()
+                                          setDraggedVisibilityColumn(column.key)
+                                          e.dataTransfer.effectAllowed = 'move'
+                                        }}
+                                        onDragEnd={() => {
+                                          setTimeout(() => {
+                                            setDraggedVisibilityColumn(null)
+                                            setDragOverVisibilityColumn(null)
+                                          }, 0)
+                                        }}
+                                        className="text-gray-400 cursor-grab active:cursor-grabbing text-sm hover:text-gray-600 dark:hover:text-gray-300"
+                                        onClick={(e) => e.stopPropagation()}
+                                        title="Drag to reorder"
+                                      >⠿</span>
                                       {/* Order number input - only show for visible columns */}
                                       {isVisibleTab && (
                                         <input

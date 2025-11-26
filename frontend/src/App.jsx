@@ -4,6 +4,36 @@ import ErrorBoundary from './components/ErrorBoundary'
 import AppLayout from './components/layout/AppLayout'
 import CopyConsoleButton from './components/CopyConsoleButton'
 
+// Helper to handle chunk load errors (stale deployment)
+// When Vercel deploys new code, old chunk hashes become invalid
+// This auto-refreshes the page once to get the new chunks
+const lazyWithRetry = (componentImport) => {
+  return lazy(() => {
+    const sessionKey = `chunk_retry_${window.location.pathname}`
+    return componentImport().catch((error) => {
+      // Check if this is a chunk load error
+      const isChunkError = error.message?.includes('Failed to fetch dynamically imported module') ||
+                          error.message?.includes('Loading chunk') ||
+                          error.message?.includes('Loading CSS chunk')
+
+      // Only retry once per session per route to avoid infinite loops
+      const hasRetried = sessionStorage.getItem(sessionKey)
+
+      if (isChunkError && !hasRetried) {
+        sessionStorage.setItem(sessionKey, 'true')
+        console.log('[lazyWithRetry] Chunk load failed, refreshing page to get new deployment...')
+        window.location.reload()
+        // Return a never-resolving promise since we're reloading
+        return new Promise(() => {})
+      }
+
+      // Clear retry flag on successful loads for future deployments
+      sessionStorage.removeItem(sessionKey)
+      throw error
+    })
+  })
+}
+
 // Eager load: Critical pages that should load immediately
 import Dashboard from './pages/Dashboard'
 import AuthCallback from './pages/AuthCallback'
@@ -12,94 +42,95 @@ import Login from './pages/Login'
 import Logout from './pages/Logout'
 
 // Lazy load: Everything else (loads on-demand)
-const XestPage = lazy(() => import('./pages/XestPage'))
-const JobDetailPage = lazy(() => import('./pages/JobDetailPage'))
-const JobSetupPage = lazy(() => import('./pages/JobSetupPage'))
-const PriceBookItemDetailPage = lazy(() => import('./pages/PriceBookItemDetailPage'))
-const ContactsPage = lazy(() => import('./pages/ContactsPage'))
-const ContactDetailPage = lazy(() => import('./pages/ContactDetailPage'))
-const AccountsPage = lazy(() => import('./pages/AccountsPage'))
-const UsersPage = lazy(() => import('./pages/UsersPage'))
-const SystemAdminPage = lazy(() => import('./pages/SystemAdminPage'))
-const HealthPage = lazy(() => import('./pages/HealthPage'))
-const PurchaseOrderDetailPage = lazy(() => import('./pages/PurchaseOrderDetailPage'))
-const PurchaseOrderEditPage = lazy(() => import('./pages/PurchaseOrderEditPage'))
-const SupplierDetailPage = lazy(() => import('./pages/SupplierDetailPage'))
-const SupplierEditPage = lazy(() => import('./pages/SupplierEditPage'))
-const SupplierNewPage = lazy(() => import('./pages/SupplierNewPage'))
-const ImportPage = lazy(() => import('./pages/ImportPage'))
-const TablePage = lazy(() => import('./pages/TablePage'))
-const SchemaPage = lazy(() => import('./pages/SchemaPage'))
-const TableStandardTest = lazy(() => import('./pages/TableStandardTest'))
-const ColumnEditorPage = lazy(() => import('./pages/ColumnEditorPage'))
-const XeroCallbackPage = lazy(() => import('./pages/XeroCallbackPage'))
-const XeroSyncPage = lazy(() => import('./pages/XeroSyncPage'))
-const OutlookPage = lazy(() => import('./pages/OutlookPage'))
-const OneDrivePage = lazy(() => import('./pages/OneDrivePage'))
-const WorkflowsPage = lazy(() => import('./pages/WorkflowsPage'))
-const WorkflowAdminPage = lazy(() => import('./pages/WorkflowAdminPage'))
-const PublicHolidaysPage = lazy(() => import('./pages/PublicHolidaysPage'))
+// Using lazyWithRetry to handle stale chunks after deployments
+const XestPage = lazyWithRetry(() => import('./pages/XestPage'))
+const JobDetailPage = lazyWithRetry(() => import('./pages/JobDetailPage'))
+const JobSetupPage = lazyWithRetry(() => import('./pages/JobSetupPage'))
+const PriceBookItemDetailPage = lazyWithRetry(() => import('./pages/PriceBookItemDetailPage'))
+const ContactsPage = lazyWithRetry(() => import('./pages/ContactsPage'))
+const ContactDetailPage = lazyWithRetry(() => import('./pages/ContactDetailPage'))
+const AccountsPage = lazyWithRetry(() => import('./pages/AccountsPage'))
+const UsersPage = lazyWithRetry(() => import('./pages/UsersPage'))
+const SystemAdminPage = lazyWithRetry(() => import('./pages/SystemAdminPage'))
+const HealthPage = lazyWithRetry(() => import('./pages/HealthPage'))
+const PurchaseOrderDetailPage = lazyWithRetry(() => import('./pages/PurchaseOrderDetailPage'))
+const PurchaseOrderEditPage = lazyWithRetry(() => import('./pages/PurchaseOrderEditPage'))
+const SupplierDetailPage = lazyWithRetry(() => import('./pages/SupplierDetailPage'))
+const SupplierEditPage = lazyWithRetry(() => import('./pages/SupplierEditPage'))
+const SupplierNewPage = lazyWithRetry(() => import('./pages/SupplierNewPage'))
+const ImportPage = lazyWithRetry(() => import('./pages/ImportPage'))
+const TablePage = lazyWithRetry(() => import('./pages/TablePage'))
+const SchemaPage = lazyWithRetry(() => import('./pages/SchemaPage'))
+const TableStandardTest = lazyWithRetry(() => import('./pages/TableStandardTest'))
+const ColumnEditorPage = lazyWithRetry(() => import('./pages/ColumnEditorPage'))
+const XeroCallbackPage = lazyWithRetry(() => import('./pages/XeroCallbackPage'))
+const XeroSyncPage = lazyWithRetry(() => import('./pages/XeroSyncPage'))
+const OutlookPage = lazyWithRetry(() => import('./pages/OutlookPage'))
+const OneDrivePage = lazyWithRetry(() => import('./pages/OneDrivePage'))
+const WorkflowsPage = lazyWithRetry(() => import('./pages/WorkflowsPage'))
+const WorkflowAdminPage = lazyWithRetry(() => import('./pages/WorkflowAdminPage'))
+const PublicHolidaysPage = lazyWithRetry(() => import('./pages/PublicHolidaysPage'))
 
 // Heavy components: Lazy load with priority (biggest bundle impact)
-const MasterSchedulePage = lazy(() => import('./pages/MasterSchedulePage')) // 3,952 lines Gantt!
-const SmGanttPage = lazy(() => import('./pages/SmGanttPage')) // SM Gantt v2 (new system)
-const SmSetupPage = lazy(() => import('./pages/SmSetupPage')) // SM Gantt setup/admin
-const SmResourcesPage = lazy(() => import('./pages/SmResourcesPage')) // SM Gantt Phase 2 - Resources
-const SmDashboardPage = lazy(() => import('./pages/SmDashboardPage')) // SM Gantt Phase 2 - Dashboard
-const SmFieldPage = lazy(() => import('./pages/SmFieldPage')) // SM Gantt Phase 3 - Mobile Field
-const SmAnalyticsPage = lazy(() => import('./pages/SmAnalyticsPage')) // SM Gantt Analytics & AI
-const PDFMeasurementTestPage = lazy(() => import('./pages/PDFMeasurementTestPage')) // PDF library
-const DocumentsPage = lazy(() => import('./pages/DocumentsPage')) // PDF library
-const TrinityPage = lazy(() => import('./pages/TrinityPage')) // Trinity documentation viewer
-const AgentTasksPage = lazy(() => import('./pages/AgentTasksPage')) // Agent task manager
-const ChatPage = lazy(() => import('./pages/ChatPage')) // AI chat
-const TrainingPage = lazy(() => import('./pages/TrainingPage')) // Jitsi video
-const TrainingSessionPage = lazy(() => import('./pages/TrainingSessionPage')) // Jitsi video
-const MeetingsPage = lazy(() => import('./pages/MeetingsPage')) // Meeting management
-const MeetingTypesPage = lazy(() => import('./pages/MeetingTypesPage')) // Meeting types configuration
-const SamPage = lazy(() => import('./pages/SamPage')) // Sam page
+const MasterSchedulePage = lazyWithRetry(() => import('./pages/MasterSchedulePage')) // 3,952 lines Gantt!
+const SmGanttPage = lazyWithRetry(() => import('./pages/SmGanttPage')) // SM Gantt v2 (new system)
+const SmSetupPage = lazyWithRetry(() => import('./pages/SmSetupPage')) // SM Gantt setup/admin
+const SmResourcesPage = lazyWithRetry(() => import('./pages/SmResourcesPage')) // SM Gantt Phase 2 - Resources
+const SmDashboardPage = lazyWithRetry(() => import('./pages/SmDashboardPage')) // SM Gantt Phase 2 - Dashboard
+const SmFieldPage = lazyWithRetry(() => import('./pages/SmFieldPage')) // SM Gantt Phase 3 - Mobile Field
+const SmAnalyticsPage = lazyWithRetry(() => import('./pages/SmAnalyticsPage')) // SM Gantt Analytics & AI
+const PDFMeasurementTestPage = lazyWithRetry(() => import('./pages/PDFMeasurementTestPage')) // PDF library
+const DocumentsPage = lazyWithRetry(() => import('./pages/DocumentsPage')) // PDF library
+const TrinityPage = lazyWithRetry(() => import('./pages/TrinityPage')) // Trinity documentation viewer
+const AgentTasksPage = lazyWithRetry(() => import('./pages/AgentTasksPage')) // Agent task manager
+const ChatPage = lazyWithRetry(() => import('./pages/ChatPage')) // AI chat
+const TrainingPage = lazyWithRetry(() => import('./pages/TrainingPage')) // Jitsi video
+const TrainingSessionPage = lazyWithRetry(() => import('./pages/TrainingSessionPage')) // Jitsi video
+const MeetingsPage = lazyWithRetry(() => import('./pages/MeetingsPage')) // Meeting management
+const MeetingTypesPage = lazyWithRetry(() => import('./pages/MeetingTypesPage')) // Meeting types configuration
+const SamPage = lazyWithRetry(() => import('./pages/SamPage')) // Sam page
 
 // Corporate pages
-const CorporateDashboardPage = lazy(() => import('./pages/CorporateDashboardPage'))
+const CorporateDashboardPage = lazyWithRetry(() => import('./pages/CorporateDashboardPage'))
 
 // Portal pages (subcontractor portal)
-const PortalLayout = lazy(() => import('./pages/portal/PortalLayout'))
-const PortalLogin = lazy(() => import('./pages/portal/PortalLogin'))
-const PortalDashboard = lazy(() => import('./pages/portal/PortalDashboard'))
-const PortalQuotes = lazy(() => import('./pages/portal/PortalQuotes'))
-const PortalJobs = lazy(() => import('./pages/portal/PortalJobs'))
-const PortalSchedule = lazy(() => import('./pages/portal/PortalSchedule'))
-const PortalInvoices = lazy(() => import('./pages/portal/PortalInvoices'))
-const PortalKudos = lazy(() => import('./pages/portal/PortalKudos'))
-const PortalSettings = lazy(() => import('./pages/portal/PortalSettings'))
-const PortalPayNow = lazy(() => import('./pages/portal/PortalPayNow'))
+const PortalLayout = lazyWithRetry(() => import('./pages/portal/PortalLayout'))
+const PortalLogin = lazyWithRetry(() => import('./pages/portal/PortalLogin'))
+const PortalDashboard = lazyWithRetry(() => import('./pages/portal/PortalDashboard'))
+const PortalQuotes = lazyWithRetry(() => import('./pages/portal/PortalQuotes'))
+const PortalJobs = lazyWithRetry(() => import('./pages/portal/PortalJobs'))
+const PortalSchedule = lazyWithRetry(() => import('./pages/portal/PortalSchedule'))
+const PortalInvoices = lazyWithRetry(() => import('./pages/portal/PortalInvoices'))
+const PortalKudos = lazyWithRetry(() => import('./pages/portal/PortalKudos'))
+const PortalSettings = lazyWithRetry(() => import('./pages/portal/PortalSettings'))
+const PortalPayNow = lazyWithRetry(() => import('./pages/portal/PortalPayNow'))
 
 // WHS (Workplace Health & Safety) pages
-const WhsDashboardPage = lazy(() => import('./pages/WhsDashboardPage'))
-const WhsSwmsPage = lazy(() => import('./pages/WhsSwmsPage'))
-const WhsInspectionsPage = lazy(() => import('./pages/WhsInspectionsPage'))
-const WhsIncidentsPage = lazy(() => import('./pages/WhsIncidentsPage'))
-const WhsInductionsPage = lazy(() => import('./pages/WhsInductionsPage'))
-const WhsActionItemsPage = lazy(() => import('./pages/WhsActionItemsPage'))
-const CompaniesPage = lazy(() => import('./pages/CompaniesPage'))
-const CompanyDetailPage = lazy(() => import('./pages/CompanyDetailPage'))
-const DirectorsRegistryPage = lazy(() => import('./pages/DirectorsRegistryPage'))
-const AssetsPage = lazy(() => import('./pages/AssetsPage'))
-const AssetDetailPage = lazy(() => import('./pages/AssetDetailPage'))
-const XeroDashboardPage = lazy(() => import('./pages/XeroDashboardPage'))
+const WhsDashboardPage = lazyWithRetry(() => import('./pages/WhsDashboardPage'))
+const WhsSwmsPage = lazyWithRetry(() => import('./pages/WhsSwmsPage'))
+const WhsInspectionsPage = lazyWithRetry(() => import('./pages/WhsInspectionsPage'))
+const WhsIncidentsPage = lazyWithRetry(() => import('./pages/WhsIncidentsPage'))
+const WhsInductionsPage = lazyWithRetry(() => import('./pages/WhsInductionsPage'))
+const WhsActionItemsPage = lazyWithRetry(() => import('./pages/WhsActionItemsPage'))
+const CompaniesPage = lazyWithRetry(() => import('./pages/CompaniesPage'))
+const CompanyDetailPage = lazyWithRetry(() => import('./pages/CompanyDetailPage'))
+const DirectorsRegistryPage = lazyWithRetry(() => import('./pages/DirectorsRegistryPage'))
+const AssetsPage = lazyWithRetry(() => import('./pages/AssetsPage'))
+const AssetDetailPage = lazyWithRetry(() => import('./pages/AssetDetailPage'))
+const XeroDashboardPage = lazyWithRetry(() => import('./pages/XeroDashboardPage'))
 
 // Financial pages
-const FinancialPage = lazy(() => import('./pages/FinancialPage'))
-const FinancialReportsPage = lazy(() => import('./pages/FinancialReportsPage'))
+const FinancialPage = lazyWithRetry(() => import('./pages/FinancialPage'))
+const FinancialReportsPage = lazyWithRetry(() => import('./pages/FinancialReportsPage'))
 
 // Designer pages (admin tools)
-const DesignerHome = lazy(() => import('./pages/designer/DesignerHome'))
-const TableSettings = lazy(() => import('./pages/designer/TableSettings'))
-const TableBuilder = lazy(() => import('./pages/designer/TableBuilder'))
-const Features = lazy(() => import('./pages/designer/Features'))
-const Menus = lazy(() => import('./pages/designer/Menus'))
-const Pages = lazy(() => import('./pages/designer/Pages'))
-const Experiences = lazy(() => import('./pages/designer/Experiences'))
+const DesignerHome = lazyWithRetry(() => import('./pages/designer/DesignerHome'))
+const TableSettings = lazyWithRetry(() => import('./pages/designer/TableSettings'))
+const TableBuilder = lazyWithRetry(() => import('./pages/designer/TableBuilder'))
+const Features = lazyWithRetry(() => import('./pages/designer/Features'))
+const Menus = lazyWithRetry(() => import('./pages/designer/Menus'))
+const Pages = lazyWithRetry(() => import('./pages/designer/Pages'))
+const Experiences = lazyWithRetry(() => import('./pages/designer/Experiences'))
 
 // Loading fallback component
 const PageLoader = () => (
