@@ -4,9 +4,9 @@ class Api::V1::WHSSWMSController < ApplicationController
   # GET /api/v1/whs_swms
   def index
     swms = if params[:job_id].present?
-      WhsSwms.for_construction(params[:job_id])
+      WHSSWMS.for_construction(params[:job_id])
     else
-      WhsSwms.all
+      WHSSWMS.all
     end
 
     # Apply status filter
@@ -35,7 +35,7 @@ class Api::V1::WHSSWMSController < ApplicationController
 
   # POST /api/v1/whs_swms
   def create
-    swms = WhsSwms.new(whs_swms_params)
+    swms = WHSSWMS.new(whs_swms_params)
     swms.created_by = current_user
 
     if swms.save
@@ -197,7 +197,7 @@ class Api::V1::WHSSWMSController < ApplicationController
   private
 
   def set_whs_swms
-    @whs_swms = WhsSwms.find(params[:id])
+    @whs_swms = WHSSWMS.find(params[:id])
   end
 
   def whs_swms_params
