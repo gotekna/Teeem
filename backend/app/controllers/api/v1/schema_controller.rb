@@ -309,6 +309,11 @@ module Api
       # POST /api/v1/schema/sync_system_tables
       # Audits all system tables and returns sync status
       def sync_system_tables
+        # Prevent caching of sync results
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+
         system_tables = Table.where(table_type: 'system').order(:name)
 
         results = system_tables.map do |table|
