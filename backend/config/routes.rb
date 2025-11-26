@@ -93,6 +93,10 @@ Rails.application.routes.draw do
           get :saved_messages
           get :emails
           get :documentation_tabs
+          # Xero bill import
+          post :import_xero_bills
+          post :link_xero_tracking
+          get :xero_tracking_options
         end
 
         # Job contacts (nested under jobs)

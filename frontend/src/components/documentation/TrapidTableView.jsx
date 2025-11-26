@@ -3613,9 +3613,13 @@ export default function TrapidTableView({
             // Check if lookupOptions are objects {id, display} or just strings (fallback)
             const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
 
+            // Get the current value - handle both object format from API and direct ID
+            const currentValue = editingData[columnKey]
+            const selectValue = typeof currentValue === 'object' ? currentValue?.id : currentValue
+
             return (
               <select
-                value={editingData[columnKey] || ''}
+                value={selectValue || ''}
                 onChange={(e) => {
                   const value = e.target.value
                   setEditingData({ ...editingData, [columnKey]: value })
@@ -3638,16 +3642,27 @@ export default function TrapidTableView({
           }
 
           // Display mode - render lookup value as text
-          // The value stored is the ID, so we need to look up the display value
+          // The API returns lookup values as {id, display} objects
           if (entry[columnKey]) {
+            const entryValue = entry[columnKey]
+
+            // Handle object format from API (e.g., {id: 1, display: "House"})
+            if (typeof entryValue === 'object' && entryValue !== null) {
+              return (
+                <span className="text-gray-900 dark:text-white">
+                  {entryValue.display || entryValue.id || '-'}
+                </span>
+              )
+            }
+
+            // Handle raw ID - look up display value from columnChoices
             const columnDef = COLUMNS.find(c => c.key === columnKey)
             const lookupOptions = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
             const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
 
-            let displayValue = entry[columnKey]
+            let displayValue = entryValue
             if (isObjectFormat) {
-              // Convert both to numbers for comparison to handle type mismatches
-              const entryId = parseInt(entry[columnKey])
+              const entryId = parseInt(entryValue)
               const matchingOption = lookupOptions.find(opt => parseInt(opt.id) === entryId)
               if (matchingOption) {
                 displayValue = matchingOption.display
