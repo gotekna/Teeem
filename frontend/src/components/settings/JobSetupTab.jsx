@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Reusable sortable list component
-function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, description, colorField = false, parentField = null, parentOptions = [] }) {
+function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, description, colorField = false, parentField = null, parentOptions = [], parentLabel = "Status" }) {
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState('')
@@ -151,7 +151,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                 onChange={(e) => setNewItemParentId(e.target.value)}
                 className="rounded-md border-0 px-3 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm dark:bg-white/5 dark:text-white dark:ring-white/10"
               >
-                <option value="">Select Status...</option>
+                <option value="">Select {parentLabel}...</option>
                 {parentOptions.map(opt => (
                   <option key={opt.id} value={opt.id}>{opt.name}</option>
                 ))}
@@ -223,7 +223,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                     onChange={(e) => setEditParentId(e.target.value)}
                     className="rounded-md border-0 px-3 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm dark:bg-white/5 dark:text-white dark:ring-white/10"
                   >
-                    <option value="">No Status</option>
+                    <option value="">No {parentLabel}</option>
                     {parentOptions.map(opt => (
                       <option key={opt.id} value={opt.id}>{opt.name}</option>
                     ))}
@@ -241,7 +241,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                 <span className="flex-1 text-gray-900 dark:text-white font-medium">{item.name}</span>
                 {parentField && parentOptions.length > 0 && (
                   <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                    {parentOptions.find(p => p.id === item[parentField])?.name || 'No Status'}
+                    {parentOptions.find(p => p.id === item[parentField])?.name || `No ${parentLabel}`}
                   </span>
                 )}
                 {colorField && item.color && (
@@ -659,6 +659,9 @@ export default function JobSetupTab() {
           title="Job Statuses"
           description="Workflow stages for jobs (Enquiry to Archived)"
           colorField={true}
+          parentField="job_type_id"
+          parentOptions={jobTypes}
+          parentLabel="Type"
         />
 
         <SortableList
@@ -672,6 +675,7 @@ export default function JobSetupTab() {
           colorField={true}
           parentField="job_status_id"
           parentOptions={jobStatuses}
+          parentLabel="Status"
         />
       </div>
     </div>

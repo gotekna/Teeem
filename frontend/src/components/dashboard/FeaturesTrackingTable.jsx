@@ -12,235 +12,28 @@ export default function FeaturesTrackingTable() {
   const [error, setError] = useState(null)
   const [stats, setStats] = useState(null)
 
-  // Define columns for TrapidTableView
+  // Define columns for TrapidTableView - no column_group so user can freely reorder
   const COLUMNS = [
-    {
-      key: 'chapter',
-      label: 'Chapter',
-      column_type: 'single_line_text',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 200,
-      column_group: 'Basic Info'
-    },
-    {
-      key: 'feature_name',
-      label: 'Feature',
-      column_type: 'single_line_text',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'text',
-      width: 250,
-      column_group: 'Basic Info'
-    },
-    {
-      key: 'detail_point_1',
-      label: 'Detail 1',
-      column_type: 'single_line_text',
-      resizable: true,
-      sortable: false,
-      filterable: false,
-      width: 180,
-      column_group: 'Details'
-    },
-    {
-      key: 'detail_point_2',
-      label: 'Detail 2',
-      column_type: 'single_line_text',
-      resizable: true,
-      sortable: false,
-      filterable: false,
-      width: 180,
-      column_group: 'Details'
-    },
-    {
-      key: 'detail_point_3',
-      label: 'Detail 3',
-      column_type: 'single_line_text',
-      resizable: true,
-      sortable: false,
-      filterable: false,
-      width: 180,
-      column_group: 'Details'
-    },
-    {
-      key: 'dev_progress',
-      label: 'Progress',
-      column_type: 'percentage',
-      resizable: true,
-      sortable: true,
-      filterable: false,
-      width: 100,
-      column_group: 'Progress'
-    },
-    {
-      key: 'system_complete',
-      label: 'System',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 80,
-      column_group: 'Progress'
-    },
-    {
-      key: 'dev_checked',
-      label: 'Dev',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 70,
-      column_group: 'Progress'
-    },
-    {
-      key: 'tester_checked',
-      label: 'Tester',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 70,
-      column_group: 'Progress'
-    },
-    {
-      key: 'ui_checked',
-      label: 'UI',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 60,
-      column_group: 'Progress'
-    },
-    {
-      key: 'user_checked',
-      label: 'User',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 70,
-      column_group: 'Progress'
-    },
-    {
-      key: 'trapid_has',
-      label: 'Trapid',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 80,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'buildertrend_has',
-      label: 'BuilderTrend',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 100,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'buildexact_has',
-      label: 'BuildExact',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 90,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'jacks_has',
-      label: 'Jacks',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 70,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'wunderbuilt_has',
-      label: 'Wunderbuilt',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 100,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'databuild_has',
-      label: 'DataBuild',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 90,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'simpro_has',
-      label: 'Simpro',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 80,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'smarterbuild_has',
-      label: 'SmarterBuild',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 100,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'clickhome_has',
-      label: 'ClickHome',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 90,
-      column_group: 'Competitors'
-    },
-    {
-      key: 'clickup_has',
-      label: 'ClickUp',
-      column_type: 'boolean',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 80,
-      column_group: 'Competitors'
-    }
+    { key: 'chapter_feature', label: 'Chapter / Feature', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 350 },
+    { key: 'detail_point_1', label: 'Detail 1', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
+    { key: 'detail_point_2', label: 'Detail 2', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
+    { key: 'detail_point_3', label: 'Detail 3', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
+    { key: 'dev_progress', label: 'Progress', column_type: 'percentage', resizable: true, sortable: true, filterable: false, width: 100 },
+    { key: 'system_complete', label: 'System', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
+    { key: 'dev_checked', label: 'Dev', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'tester_checked', label: 'Tester', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'ui_checked', label: 'UI', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 60 },
+    { key: 'user_checked', label: 'User', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'trapid_has', label: 'Trapid', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
+    { key: 'buildertrend_has', label: 'BuilderTrend', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+    { key: 'buildexact_has', label: 'BuildExact', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
+    { key: 'jacks_has', label: 'Jacks', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'wunderbuilt_has', label: 'Wunderbuilt', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+    { key: 'databuild_has', label: 'DataBuild', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
+    { key: 'simpro_has', label: 'Simpro', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
+    { key: 'smarterbuild_has', label: 'SmarterBuild', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+    { key: 'clickhome_has', label: 'ClickHome', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
+    { key: 'clickup_has', label: 'ClickUp', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 }
   ]
 
   useEffect(() => {
@@ -253,7 +46,12 @@ export default function FeaturesTrackingTable() {
       const response = await api.get('/api/v1/feature_trackers')
 
       if (response.success) {
-        setFeatures(response.feature_trackers)
+        // Combine chapter and feature_name into a single column
+        const processedFeatures = response.feature_trackers.map(f => ({
+          ...f,
+          chapter_feature: `${f.chapter} - ${f.feature_name}`
+        }))
+        setFeatures(processedFeatures)
         setStats(response.stats)
       } else {
         setError('Failed to load features')

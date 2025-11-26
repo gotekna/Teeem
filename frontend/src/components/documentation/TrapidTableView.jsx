@@ -6036,6 +6036,104 @@ export default function TrapidTableView({
                             setCollapsedColumnGroups(allGroups)
                           }
 
+                          // Check if we should render flat (no group headers)
+                          // Render flat when there's only one group (typically "Other" when no column_group defined)
+                          const renderFlat = sortedGroups.length === 1
+
+                          if (renderFlat) {
+                            // Flat list - no group headers, free drag-and-drop
+                            const allCols = groupedColumns[sortedGroups[0]]
+                            return (
+                              <div className="grid grid-cols-2 gap-0.5">
+                                {allCols.map((column) => (
+                                  <div
+                                    key={column.key}
+                                    draggable="false"
+                                    onDragOver={(e) => {
+                                      e.preventDefault()
+                                      if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
+                                        setDragOverVisibilityColumn(column.key)
+                                      }
+                                    }}
+                                    onDragLeave={() => setDragOverVisibilityColumn(null)}
+                                    onDrop={(e) => {
+                                      e.preventDefault()
+                                      e.stopPropagation()
+                                      if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
+                                        const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                                        let fullOrderedCols
+                                        if (editingDefaultSetup) {
+                                          const orderedCols = visibilityColumnOrder
+                                            ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
+                                            : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
+                                          const orderedKeys = new Set(orderedCols.map(c => c.key))
+                                          const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
+                                          const allColsOrdered = [...orderedCols, ...newCols]
+                                          fullOrderedCols = allColsOrdered.sort((a, b) => {
+                                            const aChecked = defaultColumnsForNewViews[a.key] !== false
+                                            const bChecked = defaultColumnsForNewViews[b.key] !== false
+                                            if (aChecked && !bChecked) return -1
+                                            if (!aChecked && bChecked) return 1
+                                            return 0
+                                          })
+                                        } else {
+                                          const orderedCols = visibilityColumnOrder
+                                            ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
+                                            : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
+                                          const orderedKeys = new Set(orderedCols.map(c => c.key))
+                                          const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
+                                          fullOrderedCols = [...orderedCols, ...newCols]
+                                        }
+                                        const currentOrder = fullOrderedCols.map(c => c.key)
+                                        const draggedIndex = currentOrder.indexOf(draggedVisibilityColumn)
+                                        const targetIndex = currentOrder.indexOf(column.key)
+                                        if (draggedIndex !== -1 && targetIndex !== -1) {
+                                          currentOrder.splice(draggedIndex, 1)
+                                          currentOrder.splice(targetIndex, 0, draggedVisibilityColumn)
+                                          setVisibilityColumnOrder(currentOrder)
+                                        }
+                                      }
+                                    }}
+                                    className={`flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded select-none transition-colors ${
+                                      visibleColumns[column.key] !== false
+                                        ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 border border-green-300 dark:border-green-700'
+                                        : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600'
+                                    } ${draggedVisibilityColumn === column.key ? 'opacity-50' : ''} ${dragOverVisibilityColumn === column.key ? 'border-t-2 border-blue-500' : ''}`}
+                                  >
+                                    <span
+                                      draggable="true"
+                                      onDragStart={(e) => {
+                                        e.stopPropagation()
+                                        setDraggedVisibilityColumn(column.key)
+                                        e.dataTransfer.effectAllowed = 'move'
+                                      }}
+                                      onDragEnd={() => {
+                                        setTimeout(() => {
+                                          setDraggedVisibilityColumn(null)
+                                          setDragOverVisibilityColumn(null)
+                                        }, 0)
+                                      }}
+                                      className="text-gray-400 cursor-grab active:cursor-grabbing text-sm hover:text-gray-600 dark:hover:text-gray-300"
+                                      onClick={(e) => e.stopPropagation()}
+                                      title="Drag to reorder columns"
+                                    >⠿</span>
+                                    <input
+                                      type="checkbox"
+                                      checked={visibleColumns[column.key] !== false}
+                                      onChange={(e) => {
+                                        e.stopPropagation()
+                                        const newVisibleColumns = { ...visibleColumns, [column.key]: e.target.checked }
+                                        setVisibleColumns(newVisibleColumns)
+                                      }}
+                                      className="w-3 h-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="truncate flex-1" title={column.label}>{column.label}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          }
+
                           return sortedGroups.map(groupName => {
                             const groupCols = groupedColumns[groupName]
                             const isCollapsed = collapsedColumnGroups.has(groupName)
