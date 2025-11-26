@@ -73,7 +73,7 @@ jobs:
 
 ```bash
 # Get dense_index for token efficiency (97% savings)
-curl "https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&chapter=1&fields=dense_index,section_number,title"
+curl "https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&chapter=1&fields=dense_index,section_number,title"
 
 # Chapter 1 contains PATTERN-001, 002, 003 (system-wide patterns)
 # Chapter 19 contains PATTERN-004 (UI/UX pattern)
@@ -422,7 +422,7 @@ import TEEEMTableView from './TEEEMTableView'
 ```javascript
 // Step 1: Fetch dense_index for ALL Bible rules
 const response = await fetch(
-  'https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=bible&fields=dense_index,section_number,title,chapter_number'
+  'https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=bible&fields=dense_index,section_number,title,chapter_number'
 )
 const { data } = await response.json()
 
@@ -435,7 +435,7 @@ const patternRules = data.filter(rule =>
 
 // Step 3: For violations found, fetch full details
 const ruleDetails = await fetch(
-  `https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity/${ruleId}`
+  `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity/${ruleId}`
 )
 
 // Use in PR comment with links

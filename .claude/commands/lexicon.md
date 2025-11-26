@@ -9,7 +9,7 @@ Search the Lexicon database for bug history, architecture decisions, and known i
 - "Search Lexicon for Xero sync issues"
 - "Search Lexicon for timezone problems"
 
-**API Endpoint:** `https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity?category=lexicon`
+**API Endpoint:** `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity?category=lexicon`
 
 **Filter by chapter:** Add `&chapter_number=X` to narrow search
 **Filter by type:** Add `&entry_type=bug` (or architecture, test, performance, dev_note, common_issue)

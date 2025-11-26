@@ -71,21 +71,21 @@ git branch -D backend-deploy-rob
 
 ### Step 6 - Verify Deployment (RUN IN PARALLEL)
 ```bash
-heroku ps
-curl -s https://teeem-backend-447058022b51.herokuapp.com/ | head -5
-curl -s -o /dev/null -w "%{http_code}" https://teeemtest.vercel.app/
-curl -s https://teeem-backend-447058022b51.herokuapp.com/version
+heroku ps -a teeem-backend
+curl -s https://teeem-backend-39604ccca45a.herokuapp.com/ | head -5
+curl -s -o /dev/null -w "%{http_code}" https://trapidtest.vercel.app/
+curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 cat frontend/package.json | grep '"version"' | head -1
-heroku pg:info
-heroku logs --tail --num 50 | grep -i "migrat\|error\|fail" | head -20
+heroku pg:info -a teeem-backend
+heroku logs --tail --num 50 -a teeem-backend | grep -i "migrat\|error\|fail" | head -20
 ```
 
 ### Step 7 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
-- ✅ Backend: [version from /version endpoint] - https://teeem-backend-447058022b51.herokuapp.com/
+- ✅ Backend: [version from /version endpoint] - https://teeem-backend-39604ccca45a.herokuapp.com/
   - Dyno status: [web/worker status]
-- ✅ Frontend: [version from package.json] - https://teeemtest.vercel.app/
+- ✅ Frontend: [version from package.json] - https://trapidtest.vercel.app/
   - Status: [HTTP status code]
 - ✅ Migrations: [status]
 - ✅ Database: [connection info]

@@ -70,7 +70,7 @@ agent_definitions
 Verify no agent contradicts the Trinity Dense Index.
 
 **Steps:**
-1. Fetch Trinity dense index: `GET https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity/search?q=agent`
+1. Fetch Trinity dense index: `GET https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity/search?q=agent`
 2. Read all agent files from `.claude/agents/*.md`
 3. Cross-reference agent instructions against Trinity rules
 4. Flag any agent that instructs behavior contradicting Trinity
@@ -120,7 +120,7 @@ Verify agents that modify backend code work correctly with the codebase.
 Verify agent_definitions table is populated and tracking runs.
 
 **Steps:**
-1. Fetch all agents: `GET https://teeem-backend-447058022b51.herokuapp.com/api/v1/agents`
+1. Fetch all agents: `GET https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/agents`
 2. Read all agent markdown files
 3. Compare: Every .md file should have a matching agent_definition record
 4. Check each record has: agent_id, name, last_run_at (if ever run)
@@ -131,7 +131,7 @@ Verify agent_definitions table is populated and tracking runs.
 Flag agents that haven't run in 4+ weeks.
 
 **Steps:**
-1. Fetch agents: `GET https://teeem-backend-447058022b51.herokuapp.com/api/v1/agents`
+1. Fetch agents: `GET https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/agents`
 2. Check `last_run_at` for each agent
 3. Calculate days since last run
 4. Flag any agent with `last_run_at` > 28 days ago OR null
@@ -202,7 +202,7 @@ Verify agent frontmatter description contains test results box.
 
 **After completing validation, you MUST record your run with token usage:**
 ```bash
-curl -X POST "https://teeem-backend-447058022b51.herokuapp.com/api/v1/agent_definitions/agent-validation-checker/record_run" \
+curl -X POST "https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/agent_definitions/agent-validation-checker/record_run" \
   -H "Content-Type: application/json" \
   -d '{
     "status": "success|failure",

@@ -13,7 +13,7 @@ The Trinity system uses a **database-first architecture** with three categories:
 - **Teacher (HOW-TO):** Step-by-step implementation patterns and code examples
 - **Lexicon (KNOWLEDGE):** Bug history, architecture decisions, test catalog
 
-**Base API:** `https://teeem-backend-447058022b51.herokuapp.com/api/v1/trinity`
+**Base API:** `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity`
 
 ---
 
