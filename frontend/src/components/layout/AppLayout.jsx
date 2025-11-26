@@ -153,14 +153,27 @@ export default function AppLayout({ children }) {
     const saved = localStorage.getItem('expandedStages')
     return saved ? JSON.parse(saved) : { 'Construction': true }
   })
-  const [sortByType, setSortByType] = useState(() => {
-    const saved = localStorage.getItem('jobSortByType')
+  const [groupByType, setGroupByType] = useState(() => {
+    const saved = localStorage.getItem('jobGroupByType')
     return saved === 'true'
   })
-  const [sortByStatus, setSortByStatus] = useState(() => {
-    const saved = localStorage.getItem('jobSortByStatus')
+  const [groupByStatus, setGroupByStatus] = useState(() => {
+    const saved = localStorage.getItem('jobGroupByStatus')
     return saved === 'true'
   })
+  const [expandedTypeGroups, setExpandedTypeGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedTypeGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+  const [expandedStatusGroups, setExpandedStatusGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedStatusGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+  const [filterButtonOrder, setFilterButtonOrder] = useState(() => {
+    const saved = localStorage.getItem('jobFilterButtonOrder')
+    return saved ? JSON.parse(saved) : ['type', 'status']
+  })
+  const [draggedButton, setDraggedButton] = useState(null)
 
   // Resizable sidebar state (per-route)
   const getSidebarWidthForRoute = (pathname) => {
@@ -256,7 +269,10 @@ export default function AppLayout({ children }) {
     const loadActiveJobs = async () => {
       try {
         const response = await api.get('/api/v1/jobs?status=Active&per_page=20')
-        setActiveJobs(response.jobs || response.constructions || [])
+        const jobs = response.jobs || response.constructions || []
+        console.log('📋 Loaded jobs for sidebar:', jobs.length, 'jobs')
+        console.log('📋 Job titles:', jobs.map(j => j.title || `Job #${j.id}`))
+        setActiveJobs(jobs)
       } catch (err) {
         // Silently fail - sidebar will just show empty, user can still navigate
         console.debug('Active jobs unavailable:', err?.message || 'Unknown error')
@@ -309,48 +325,110 @@ export default function AppLayout({ children }) {
     localStorage.setItem('expandedStages', JSON.stringify(newStages))
   }
 
-  const toggleSortByType = () => {
-    const newValue = !sortByType
-    setSortByType(newValue)
-    localStorage.setItem('jobSortByType', String(newValue))
+  const toggleGroupByType = () => {
+    console.log('🔵 Type grouping clicked! Current:', groupByType, '→ New:', !groupByType)
+    const newValue = !groupByType
+    setGroupByType(newValue)
+    localStorage.setItem('jobGroupByType', String(newValue))
   }
 
-  const toggleSortByStatus = () => {
-    const newValue = !sortByStatus
-    setSortByStatus(newValue)
-    localStorage.setItem('jobSortByStatus', String(newValue))
+  const toggleGroupByStatus = () => {
+    console.log('🟢 Status grouping clicked! Current:', groupByStatus, '→ New:', !groupByStatus)
+    const newValue = !groupByStatus
+    setGroupByStatus(newValue)
+    localStorage.setItem('jobGroupByStatus', String(newValue))
   }
 
-  // Sort jobs based on active sort toggles
-  const getSortedJobs = (jobs) => {
-    if (!sortByType && !sortByStatus) {
-      return jobs // No sorting
+  const toggleTypeGroup = (typeName) => {
+    const newGroups = { ...expandedTypeGroups, [typeName]: !expandedTypeGroups[typeName] }
+    setExpandedTypeGroups(newGroups)
+    localStorage.setItem('expandedTypeGroups', JSON.stringify(newGroups))
+  }
+
+  const toggleStatusGroup = (typeAndStatus) => {
+    const newGroups = { ...expandedStatusGroups, [typeAndStatus]: !expandedStatusGroups[typeAndStatus] }
+    setExpandedStatusGroups(newGroups)
+    localStorage.setItem('expandedStatusGroups', JSON.stringify(newGroups))
+  }
+
+  const handleButtonDragStart = (buttonType) => {
+    setDraggedButton(buttonType)
+  }
+
+  const handleButtonDragOver = (e) => {
+    e.preventDefault()
+  }
+
+  const handleButtonDrop = (targetButton) => {
+    if (draggedButton && draggedButton !== targetButton) {
+      const newOrder = [...filterButtonOrder]
+      const draggedIndex = newOrder.indexOf(draggedButton)
+      const targetIndex = newOrder.indexOf(targetButton)
+
+      // Swap positions
+      newOrder[draggedIndex] = targetButton
+      newOrder[targetIndex] = draggedButton
+
+      setFilterButtonOrder(newOrder)
+      localStorage.setItem('jobFilterButtonOrder', JSON.stringify(newOrder))
+    }
+    setDraggedButton(null)
+  }
+
+  const handleButtonDragEnd = () => {
+    setDraggedButton(null)
+  }
+
+  // Group jobs by Type and/or Status
+  const getGroupedJobs = (jobs) => {
+    if (!groupByType && !groupByStatus) {
+      // No grouping - return flat list
+      return { mode: 'list', jobs }
     }
 
-    return [...jobs].sort((a, b) => {
-      // Primary sort: Type (if enabled)
-      if (sortByType) {
-        const typeA = a.job_type?.name || ''
-        const typeB = b.job_type?.name || ''
-        const typeCompare = typeA.localeCompare(typeB)
-        if (typeCompare !== 0) return typeCompare
-      }
+    if (groupByType && !groupByStatus) {
+      // Group by type only
+      const byType = {}
+      jobs.forEach(job => {
+        const typeName = job.job_type?.name || 'No Type'
+        if (!byType[typeName]) byType[typeName] = []
+        byType[typeName].push(job)
+      })
+      return { mode: 'type', groups: byType }
+    }
 
-      // Secondary sort: Status (if enabled)
-      if (sortByStatus) {
-        const statusA = a.job_status?.name || ''
-        const statusB = b.job_status?.name || ''
-        return statusA.localeCompare(statusB)
-      }
+    if (!groupByType && groupByStatus) {
+      // Group by status only
+      const byStatus = {}
+      jobs.forEach(job => {
+        const statusName = job.job_status?.name || 'No Status'
+        if (!byStatus[statusName]) byStatus[statusName] = []
+        byStatus[statusName].push(job)
+      })
+      return { mode: 'status', groups: byStatus }
+    }
 
-      return 0
+    // Group by type, then by status within each type
+    const byTypeAndStatus = {}
+    jobs.forEach(job => {
+      const typeName = job.job_type?.name || 'No Type'
+      const statusName = job.job_status?.name || 'No Status'
+
+      if (!byTypeAndStatus[typeName]) {
+        byTypeAndStatus[typeName] = {}
+      }
+      if (!byTypeAndStatus[typeName][statusName]) {
+        byTypeAndStatus[typeName][statusName] = []
+      }
+      byTypeAndStatus[typeName][statusName].push(job)
     })
+    return { mode: 'type-status', groups: byTypeAndStatus }
   }
 
-  const sortedActiveJobs = getSortedJobs(activeJobs)
+  const groupedJobs = getGroupedJobs(activeJobs)
 
   // Group jobs by stage for stage view
-  const jobsByStage = sortedActiveJobs.reduce((acc, job) => {
+  const jobsByStage = activeJobs.reduce((acc, job) => {
     const stage = job.stage || 'Unknown'
     if (!acc[stage]) acc[stage] = []
     acc[stage].push(job)
@@ -653,34 +731,39 @@ export default function AppLayout({ children }) {
                                     className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                                   />
                                 </div>
-                                <button
-                                  onClick={toggleSortByType}
-                                  className={classNames(
-                                    'px-1.5 py-1 text-xs rounded border transition-colors',
-                                    sortByType
-                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
-                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
-                                  )}
-                                  title={sortByType ? 'Sorted by Type' : 'Sort by Type'}
-                                >
-                                  Type
-                                </button>
-                                <button
-                                  onClick={toggleSortByStatus}
-                                  className={classNames(
-                                    'px-1.5 py-1 text-xs rounded border transition-colors',
-                                    sortByStatus
-                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
-                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
-                                  )}
-                                  title={sortByStatus ? 'Sorted by Status' : 'Sort by Status'}
-                                >
-                                  Status
-                                </button>
+                                {filterButtonOrder.map((buttonType) => {
+                                  const isType = buttonType === 'type'
+                                  const isActive = isType ? groupByType : groupByStatus
+                                  const toggleFn = isType ? toggleGroupByType : toggleGroupByStatus
+                                  const label = isType ? 'Type' : 'Status'
+
+                                  return (
+                                    <button
+                                      key={buttonType}
+                                      type="button"
+                                      draggable
+                                      onDragStart={() => handleButtonDragStart(buttonType)}
+                                      onDragOver={handleButtonDragOver}
+                                      onDrop={() => handleButtonDrop(buttonType)}
+                                      onDragEnd={handleButtonDragEnd}
+                                      onClick={toggleFn}
+                                      className={classNames(
+                                        'px-1.5 py-1 text-xs rounded border transition-colors cursor-move',
+                                        isActive
+                                          ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700',
+                                        draggedButton === buttonType && 'opacity-50'
+                                      )}
+                                      title={`${isActive ? 'Grouped by' : 'Group by'} ${label} (drag to reorder)`}
+                                    >
+                                      {label}
+                                    </button>
+                                  )
+                                })}
                               </li>
 
-                              {/* List View */}
-                              {jobViewMode === 'list' && sortedActiveJobs
+                              {/* Grouped/List View */}
+                              {groupedJobs.mode === 'list' && groupedJobs.jobs
                                 .filter(job => {
                                   if (!jobSearchQuery) return true
                                   const query = jobSearchQuery.toLowerCase()
@@ -758,6 +841,227 @@ export default function AppLayout({ children }) {
                                   )}
                                 </li>
                               ))}
+
+                              {/* Type-only Grouped View */}
+                              {groupedJobs.mode === 'type' && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([typeName, jobs]) => {
+                                  const filteredJobs = jobs.filter(job => {
+                                    if (!jobSearchQuery) return true
+                                    const query = jobSearchQuery.toLowerCase()
+                                    return (job.title || '').toLowerCase().includes(query) ||
+                                           String(job.id).includes(query)
+                                  })
+                                  if (filteredJobs.length === 0) return null
+
+                                  return (
+                                    <li key={typeName}>
+                                      {/* Type group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleTypeGroup(typeName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedTypeGroups[typeName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          {typeName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredJobs.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Jobs under this type */}
+                                      {(expandedTypeGroups[typeName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredJobs.slice(0, 20).map((job) => (
+                                            <li key={job.id}>
+                                              <Link
+                                                to={`/jobs/${job.id}/overview`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/jobs/${job.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-1'
+                                                )}
+                                                title={`${job.title}${job.job_status ? ` • ${job.job_status.name}` : ''}`}
+                                              >
+                                                {job.job_status && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_status.color)} flex-shrink-0`}
+                                                    title={job.job_status.name}
+                                                  />
+                                                )}
+                                                <span className="truncate">{job.title || `Job #${job.id}`}</span>
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+
+                              {/* Status-only Grouped View */}
+                              {groupedJobs.mode === 'status' && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([statusName, jobs]) => {
+                                  const filteredJobs = jobs.filter(job => {
+                                    if (!jobSearchQuery) return true
+                                    const query = jobSearchQuery.toLowerCase()
+                                    return (job.title || '').toLowerCase().includes(query) ||
+                                           String(job.id).includes(query)
+                                  })
+                                  if (filteredJobs.length === 0) return null
+
+                                  return (
+                                    <li key={statusName}>
+                                      {/* Status group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleStatusGroup(statusName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedStatusGroups[statusName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          {statusName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredJobs.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Jobs under this status */}
+                                      {(expandedStatusGroups[statusName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredJobs.slice(0, 20).map((job) => (
+                                            <li key={job.id}>
+                                              <Link
+                                                to={`/jobs/${job.id}/overview`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/jobs/${job.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-1'
+                                                )}
+                                                title={`${job.title}${job.job_type ? ` • ${job.job_type.name}` : ''}`}
+                                              >
+                                                {job.job_type && (
+                                                  <span
+                                                    className="w-2 h-2 rounded-sm bg-blue-500 dark:bg-blue-400 flex-shrink-0"
+                                                    title={job.job_type.name}
+                                                  />
+                                                )}
+                                                <span className="truncate">{job.title || `Job #${job.id}`}</span>
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+
+                              {/* Type + Status Nested Grouped View */}
+                              {groupedJobs.mode === 'type-status' && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([typeName, statusGroups]) => (
+                                  <li key={typeName}>
+                                    {/* Type group header */}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTypeGroup(typeName)}
+                                      className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                    >
+                                      <ChevronRightIcon
+                                        className={classNames(
+                                          'h-3 w-3 text-gray-400 transition-transform',
+                                          (expandedTypeGroups[typeName] !== false) && 'rotate-90'
+                                        )}
+                                      />
+                                      <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                        {typeName}
+                                      </span>
+                                      <span className="ml-auto text-xs text-gray-400">
+                                        {Object.values(statusGroups).flat().length}
+                                      </span>
+                                    </button>
+
+                                    {/* Status groups under this type */}
+                                    {(expandedTypeGroups[typeName] !== false) && (
+                                      <ul className="ml-3 space-y-0.5 mt-0.5">
+                                        {Object.entries(statusGroups)
+                                          .sort(([a], [b]) => a.localeCompare(b))
+                                          .map(([statusName, jobs]) => {
+                                            const filteredJobs = jobs.filter(job => {
+                                              if (!jobSearchQuery) return true
+                                              const query = jobSearchQuery.toLowerCase()
+                                              return (job.title || '').toLowerCase().includes(query) ||
+                                                     String(job.id).includes(query)
+                                            })
+                                            if (filteredJobs.length === 0) return null
+
+                                            const groupKey = `${typeName}:${statusName}`
+                                            return (
+                                              <li key={statusName}>
+                                                {/* Status subgroup header */}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => toggleStatusGroup(groupKey)}
+                                                  className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                  <ChevronRightIcon
+                                                    className={classNames(
+                                                      'h-3 w-3 text-gray-400 transition-transform',
+                                                      (expandedStatusGroups[groupKey] !== false) && 'rotate-90'
+                                                    )}
+                                                  />
+                                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                    {statusName}
+                                                  </span>
+                                                  <span className="ml-auto text-xs text-gray-400">
+                                                    {filteredJobs.length}
+                                                  </span>
+                                                </button>
+
+                                                {/* Jobs under this type+status */}
+                                                {(expandedStatusGroups[groupKey] !== false) && (
+                                                  <ul className="ml-4 space-y-0.5">
+                                                    {filteredJobs.slice(0, 20).map((job) => (
+                                                      <li key={job.id}>
+                                                        <Link
+                                                          to={`/jobs/${job.id}/overview`}
+                                                          className={classNames(
+                                                            location.pathname.startsWith(`/jobs/${job.id}`)
+                                                              ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                              : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                            'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                          )}
+                                                          title={job.title}
+                                                        >
+                                                          {job.title || `Job #${job.id}`}
+                                                        </Link>
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
+                                              </li>
+                                            )
+                                          })}
+                                      </ul>
+                                    )}
+                                  </li>
+                                ))}
 
                               {/* Stage View */}
                               {jobViewMode === 'stage' && Object.entries(jobsByStage)
@@ -837,8 +1141,8 @@ export default function AppLayout({ children }) {
                                 })}
 
                               {/* More link for list view */}
-                              {jobViewMode === 'list' && (() => {
-                                const filteredJobs = sortedActiveJobs.filter(job => {
+                              {groupedJobs.mode === 'list' && (() => {
+                                const filteredJobs = groupedJobs.jobs.filter(job => {
                                   if (!jobSearchQuery) return true
                                   const query = jobSearchQuery.toLowerCase()
                                   return (job.title || '').toLowerCase().includes(query) ||
