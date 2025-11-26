@@ -514,6 +514,10 @@ export default function TeeemTableView({
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()) // Track which groups are collapsed
   const [groupByDropdownOpen, setGroupByDropdownOpen] = useState(false) // Track if group by dropdown is open
   const [groupBySearchQuery, setGroupBySearchQuery] = useState('') // Search query for group by dropdown
+  const [sortColumnDropdownOpen, setSortColumnDropdownOpen] = useState(null) // Track which sort column dropdown is open (by index)
+  const [sortColumnSearchQuery, setSortColumnSearchQuery] = useState('') // Search query for sort column dropdown
+  const [filterColumnDropdownOpen, setFilterColumnDropdownOpen] = useState(null) // Track which filter column dropdown is open (by filter id)
+  const [filterColumnSearchQuery, setFilterColumnSearchQuery] = useState('') // Search query for filter column dropdown
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState(() => {
     // Start with all groups collapsed by default
     // Will be populated with actual group names when columns load
@@ -1106,6 +1110,38 @@ export default function TeeemTableView({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [groupByDropdownOpen])
+
+  // Close sort column dropdown when clicking outside
+  useEffect(() => {
+    if (sortColumnDropdownOpen === null) return
+
+    const handleClickOutside = (e) => {
+      const dropdown = e.target.closest('[data-sort-column-dropdown]')
+      if (!dropdown) {
+        setSortColumnDropdownOpen(null)
+        setSortColumnSearchQuery('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [sortColumnDropdownOpen])
+
+  // Close filter column dropdown when clicking outside
+  useEffect(() => {
+    if (filterColumnDropdownOpen === null) return
+
+    const handleClickOutside = (e) => {
+      const dropdown = e.target.closest('[data-filter-column-dropdown]')
+      if (!dropdown) {
+        setFilterColumnDropdownOpen(null)
+        setFilterColumnSearchQuery('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [filterColumnDropdownOpen])
 
   // Save cascade filters to localStorage whenever they change (per table)
   useEffect(() => {
@@ -5718,34 +5754,92 @@ export default function TeeemTableView({
                                           key={filter.id}
                                           className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
                                         >
-                                          {/* Column dropdown */}
-                                          <select
-                                            value={filter.column}
-                                            onChange={(e) => {
-                                              const newColumn = e.target.value
-                                              const columnDef = COLUMNS.find(col => col.key === newColumn)
-                                              const columnLabel = columnDef?.label || newColumn
-                                              const columnType = columnDef?.column_type
+                                          {/* Column dropdown - Searchable */}
+                                          <div className="relative flex-1 min-w-[120px]" data-filter-column-dropdown>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setFilterColumnDropdownOpen(filterColumnDropdownOpen === filter.id ? null : filter.id)
+                                                setFilterColumnSearchQuery('')
+                                              }}
+                                              className={`w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-left flex items-center justify-between ${
+                                                filter.column ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'
+                                              }`}
+                                            >
+                                              <span>{filter.column ? (COLUMNS.find(c => c.key === filter.column)?.label || filter.column) : 'Select column...'}</span>
+                                              <svg className={`w-3 h-3 transition-transform ${filterColumnDropdownOpen === filter.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                              </svg>
+                                            </button>
 
-                                              // For choice columns, always use exact match (=)
-                                              // For other columns, keep existing operator or default to 'contains'
-                                              const newOperator = (columnType === 'choice' || columnType === 'single_select' || columnType === 'dropdown')
-                                                ? '='
-                                                : (filter.operator || 'contains')
+                                            {filterColumnDropdownOpen === filter.id && (
+                                              <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[60vh] overflow-hidden flex flex-col">
+                                                <div className="overflow-y-auto max-h-[50vh] flex-1">
+                                                  {COLUMNS
+                                                    .filter(col => col.key !== 'select' && col.key !== 'id')
+                                                    .filter(col => {
+                                                      if (!filterColumnSearchQuery.trim()) return true
+                                                      const searchLower = filterColumnSearchQuery.toLowerCase()
+                                                      return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
+                                                    })
+                                                    .sort((a, b) => a.label.localeCompare(b.label))
+                                                    .map(col => (
+                                                      <button
+                                                        key={col.key}
+                                                        type="button"
+                                                        onClick={() => {
+                                                          const columnDef = col
+                                                          const columnLabel = columnDef?.label || col.key
+                                                          const columnType = columnDef?.column_type
 
-                                              setCascadeFilters(cascadeFilters.map(f =>
-                                                f.id === filter.id
-                                                  ? { ...f, column: newColumn, operator: newOperator, label: filter.value ? `${columnLabel}: ${filter.value}` : '' }
-                                                  : f
-                                              ))
-                                            }}
-                                            className="flex-1 min-w-[120px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
-                                          >
-                                            <option value="">Select column...</option>
-                                            {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'id').map(col => (
-                                              <option key={col.key} value={col.key}>{col.label}</option>
-                                            ))}
-                                          </select>
+                                                          // For choice columns, always use exact match (=)
+                                                          // For other columns, keep existing operator or default to 'contains'
+                                                          const newOperator = (columnType === 'choice' || columnType === 'single_select' || columnType === 'dropdown')
+                                                            ? '='
+                                                            : (filter.operator || 'contains')
+
+                                                          setCascadeFilters(cascadeFilters.map(f =>
+                                                            f.id === filter.id
+                                                              ? { ...f, column: col.key, operator: newOperator, label: filter.value ? `${columnLabel}: ${filter.value}` : '' }
+                                                              : f
+                                                          ))
+                                                          setFilterColumnDropdownOpen(null)
+                                                          setFilterColumnSearchQuery('')
+                                                        }}
+                                                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                                          filter.column === col.key
+                                                            ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                                                            : 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                                        }`}
+                                                      >
+                                                        {filter.column === col.key && <span className="text-blue-600">✓</span>}
+                                                        <span className={filter.column === col.key ? '' : 'ml-5'}>{col.label}</span>
+                                                      </button>
+                                                    ))
+                                                  }
+                                                  {filterColumnSearchQuery.trim() &&
+                                                    COLUMNS.filter(col => col.key !== 'select' && col.key !== 'id')
+                                                      .filter(col => col.label.toLowerCase().includes(filterColumnSearchQuery.toLowerCase()) || col.key.toLowerCase().includes(filterColumnSearchQuery.toLowerCase()))
+                                                      .length === 0 && (
+                                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                                      No columns found
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+                                                  <input
+                                                    type="text"
+                                                    value={filterColumnSearchQuery}
+                                                    onChange={(e) => setFilterColumnSearchQuery(e.target.value)}
+                                                    placeholder="Search columns..."
+                                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                  />
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
 
                                           {/* Operator dropdown */}
                                           <select
@@ -5867,29 +5961,86 @@ export default function TeeemTableView({
                                     {index + 1}
                                   </span>
 
-                                  {/* Column dropdown */}
-                                  <select
-                                    value={sort.column}
-                                    onChange={(e) => {
-                                      const newColumn = e.target.value
-                                      setSortColumns(sortColumns.map((s, i) =>
-                                        i === index ? { ...s, column: newColumn } : s
-                                      ))
-                                    }}
-                                    className="flex-1 min-w-[120px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
-                                  >
-                                    {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
-                                      .sort((a, b) => a.label.localeCompare(b.label))
-                                      .map(col => (
-                                      <option
-                                        key={col.key}
-                                        value={col.key}
-                                        disabled={sortColumns.some((s, i) => i !== index && s.column === col.key)}
-                                      >
-                                        {col.label}
-                                      </option>
-                                    ))}
-                                  </select>
+                                  {/* Column dropdown - Searchable */}
+                                  <div className="relative flex-1 min-w-[120px]" data-sort-column-dropdown>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSortColumnDropdownOpen(sortColumnDropdownOpen === index ? null : index)
+                                        setSortColumnSearchQuery('')
+                                      }}
+                                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
+                                    >
+                                      <span>{COLUMNS.find(c => c.key === sort.column)?.label || sort.column}</span>
+                                      <svg className={`w-3 h-3 transition-transform ${sortColumnDropdownOpen === index ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </button>
+
+                                    {sortColumnDropdownOpen === index && (
+                                      <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[60vh] overflow-hidden flex flex-col">
+                                        <div className="overflow-y-auto max-h-[50vh] flex-1">
+                                          {COLUMNS
+                                            .filter(col => col.key !== 'select' && col.key !== 'actions')
+                                            .filter(col => {
+                                              if (!sortColumnSearchQuery.trim()) return true
+                                              const searchLower = sortColumnSearchQuery.toLowerCase()
+                                              return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
+                                            })
+                                            .sort((a, b) => a.label.localeCompare(b.label))
+                                            .map(col => {
+                                              const isDisabled = sortColumns.some((s, i) => i !== index && s.column === col.key)
+                                              return (
+                                                <button
+                                                  key={col.key}
+                                                  type="button"
+                                                  disabled={isDisabled}
+                                                  onClick={() => {
+                                                    if (!isDisabled) {
+                                                      setSortColumns(sortColumns.map((s, i) =>
+                                                        i === index ? { ...s, column: col.key } : s
+                                                      ))
+                                                      setSortColumnDropdownOpen(null)
+                                                      setSortColumnSearchQuery('')
+                                                    }
+                                                  }}
+                                                  className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
+                                                    isDisabled
+                                                      ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                                                      : sort.column === col.key
+                                                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                                                        : 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                                  }`}
+                                                >
+                                                  {sort.column === col.key && <span className="text-blue-600">✓</span>}
+                                                  <span className={sort.column === col.key ? '' : 'ml-5'}>{col.label}</span>
+                                                </button>
+                                              )
+                                            })
+                                          }
+                                          {sortColumnSearchQuery.trim() &&
+                                            COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                                              .filter(col => col.label.toLowerCase().includes(sortColumnSearchQuery.toLowerCase()) || col.key.toLowerCase().includes(sortColumnSearchQuery.toLowerCase()))
+                                              .length === 0 && (
+                                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                              No columns found
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+                                          <input
+                                            type="text"
+                                            value={sortColumnSearchQuery}
+                                            onChange={(e) => setSortColumnSearchQuery(e.target.value)}
+                                            placeholder="Search columns..."
+                                            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            autoFocus
+                                            onClick={(e) => e.stopPropagation()}
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
 
                                   {/* Direction toggle */}
                                   <button
