@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_093111) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_101150) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -949,7 +949,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_093111) do
     t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "job_status_id"
     t.index ["is_active"], name: "index_job_stages_on_is_active"
+    t.index ["job_status_id"], name: "index_job_stages_on_job_status_id"
     t.index ["position"], name: "index_job_stages_on_position"
   end
 

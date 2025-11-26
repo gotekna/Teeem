@@ -3901,10 +3901,28 @@ export default function TrapidTableView({
           return <span className="text-gray-400">-</span>
         }
 
-        // Boolean column type - render as toggle switch
+        // Boolean column type - render as tick/cross icons
         if (columnType === 'boolean') {
           const boolValue = editingRowId === entry.id ? editingData[columnKey] : entry[columnKey]
 
+          // View-only mode: just show tick or cross
+          if (viewOnly) {
+            return (
+              <div className="flex justify-center">
+                {boolValue ? (
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
+              </div>
+            )
+          }
+
+          // Editable mode: clickable tick/cross that toggles on click
           return (
             <div className="flex justify-center">
               <button
@@ -3930,16 +3948,18 @@ export default function TrapidTableView({
                     }
                   }
                 }}
-                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors cursor-pointer ${
-                  boolValue
-                    ? 'bg-green-500 dark:bg-green-600 hover:bg-green-600 dark:hover:bg-green-700'
-                    : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
-                }`}
+                className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                 title={boolValue ? 'Click to uncheck' : 'Click to check'}
               >
-                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                  boolValue ? 'translate-x-6' : 'translate-x-1'
-                }`} />
+                {boolValue ? (
+                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-red-500 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                )}
               </button>
             </div>
           )

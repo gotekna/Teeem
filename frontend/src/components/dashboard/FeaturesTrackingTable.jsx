@@ -326,6 +326,7 @@ export default function FeaturesTrackingTable() {
         columns={COLUMNS}
         viewOnly={true}
         enableExport={true}
+        groupByColumn="chapter"
       />
     </div>
   )
