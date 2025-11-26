@@ -91,15 +91,15 @@ module Api
         suppliers_list = if params[:category].present?
           # Get suppliers (contacts) who have items in the selected category
           # Check both as default supplier AND in price history
-          default_supplier_ids = Contact.joins("INNER JOIN pricebook_items ON pricebook_items.default_supplier_id = contacts.id")
-                                        .where(pricebook_items: { category: params[:category], is_active: true })
+          default_supplier_ids = Contact.joins("INNER JOIN pricebook ON pricebook.default_supplier_id = contacts.id")
+                                        .where(pricebook: { category: params[:category], is_active: true })
                                         .where("'supplier' = ANY(contacts.contact_types)")
                                         .distinct
                                         .pluck(:id)
 
           price_history_supplier_ids = Contact.joins("INNER JOIN price_histories ON price_histories.supplier_id = contacts.id")
-                                              .joins("INNER JOIN pricebook_items ON pricebook_items.id = price_histories.pricebook_item_id")
-                                              .where(pricebook_items: { category: params[:category], is_active: true })
+                                              .joins("INNER JOIN pricebook ON pricebook.id = price_histories.pricebook_item_id")
+                                              .where(pricebook: { category: params[:category], is_active: true })
                                               .where("'supplier' = ANY(contacts.contact_types)")
                                               .distinct
                                               .pluck(:id)
@@ -109,8 +109,8 @@ module Api
           Contact.where(id: combined_ids).order(:full_name).pluck(:id, :full_name)
         else
           # Get ALL suppliers (contacts) that appear in either default_supplier_id or price_histories
-          default_supplier_ids = Contact.joins("INNER JOIN pricebook_items ON pricebook_items.default_supplier_id = contacts.id")
-                                        .where(pricebook_items: { is_active: true })
+          default_supplier_ids = Contact.joins("INNER JOIN pricebook ON pricebook.default_supplier_id = contacts.id")
+                                        .where(pricebook: { is_active: true })
                                         .where("'supplier' = ANY(contacts.contact_types)")
                                         .distinct
                                         .pluck(:id)

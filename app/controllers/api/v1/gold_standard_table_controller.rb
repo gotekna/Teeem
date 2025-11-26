@@ -1,13 +1,13 @@
-class Api::V1::GoldStandardItemsController < ApplicationController
+class Api::V1::GoldStandardTableController < ApplicationController
   before_action :set_item, only: [:update, :destroy]
 
   def index
-    items = GoldStandardItem.order(created_at: :desc)
+    items = GoldStandardTable.order(created_at: :desc)
     render json: items
   end
 
   def create
-    item = GoldStandardItem.new(item_params)
+    item = GoldStandardTable.new(item_params)
 
     if item.save
       render json: item, status: :created
@@ -32,11 +32,11 @@ class Api::V1::GoldStandardItemsController < ApplicationController
   private
 
   def set_item
-    @item = GoldStandardItem.find(params[:id])
+    @item = GoldStandardTable.find(params[:id])
   end
 
   def item_params
-    params.require(:gold_standard_item).permit(
+    params.require(:gold_standard_table).permit(
       :section, :email, :phone, :mobile, :title, :category_type, :is_active,
       :discount, :component, :status, :price, :quantity, :whole_number, :unit,
       :severity, :content, :category, :document_link, :updated_at, :created_at

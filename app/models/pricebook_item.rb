@@ -1,4 +1,6 @@
 class PricebookItem < ApplicationRecord
+  self.table_name = 'pricebook'
+
   # Associations
   belongs_to :supplier, class_name: 'Contact', foreign_key: 'supplier_id', optional: true
   belongs_to :default_supplier, class_name: 'Contact', foreign_key: 'default_supplier_id', optional: true

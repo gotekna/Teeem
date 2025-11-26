@@ -51,17 +51,41 @@ Rails.application.routes.draw do
       get 'health/pricebook/missing_items', to: 'health#missing_items'
       get 'pricebook/price_health_check', to: 'pricebook_items#price_health_check'
 
-      # Job setup (types and statuses)
+      # Job setup (types, statuses, and stages)
       resources :job_types do
         collection do
           post :reorder
         end
+        resources :statuses, controller: 'job_type_statuses', only: [:index, :create] do
+          collection do
+            post :reorder
+          end
+        end
       end
-      resources :job_statuses do
+
+      resources :job_status do
         collection do
           post :reorder
         end
       end
+
+      resources :job_stages do
+        collection do
+          post :reorder
+        end
+      end
+
+      # Junction table routes
+      resources :job_type_statuses, only: [:destroy]
+
+      # Nested route for stages within type+status
+      get 'job_types/:job_type_id/statuses/:job_status_id/stages',
+        to: 'job_status_stages#index'
+      post 'job_types/:job_type_id/statuses/:job_status_id/stages',
+        to: 'job_status_stages#create'
+      post 'job_types/:job_type_id/statuses/:job_status_id/stages/reorder',
+        to: 'job_status_stages#reorder'
+      delete 'job_status_stages/:id', to: 'job_status_stages#destroy'
 
       # Jobs management
       resources :jobs do
@@ -200,8 +224,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Gold Standard Items (Demo/Reference Price Book)
-      resources :gold_standard_items, only: [:index, :create, :update, :destroy]
+      # Gold Standard Table (Demo/Reference Price Book)
+      resources :gold_standard_table, only: [:index, :create, :update, :destroy]
 
       # Column Types - Single Source of Truth from Gold Standard Reference Table
       resources :column_types, only: [:index, :show, :update]

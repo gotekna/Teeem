@@ -1,6 +1,6 @@
 module Api
   module V1
-    class JobStatusesController < ApplicationController
+    class JobStatusController < ApplicationController
       before_action :set_job_status, only: [:show, :update, :destroy]
 
       # GET /api/v1/job_statuses

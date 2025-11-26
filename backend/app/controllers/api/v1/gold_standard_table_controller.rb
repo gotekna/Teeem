@@ -1,4 +1,4 @@
-class Api::V1::GoldStandardItemsController < ApplicationController
+class Api::V1::GoldStandardTableController < ApplicationController
   before_action :set_item, only: [:update, :destroy]
   before_action :authenticate_user!, only: [:sync_with_columns]
 
@@ -12,7 +12,7 @@ class Api::V1::GoldStandardItemsController < ApplicationController
     offset = (page - 1) * per_page
 
     # Start with base query
-    query = GoldStandardItem.all
+    query = GoldStandardTable.all
 
     # Apply filters if provided
     if params[:filters].present?
@@ -47,7 +47,7 @@ class Api::V1::GoldStandardItemsController < ApplicationController
   end
 
   def create
-    item = GoldStandardItem.new(item_params)
+    item = GoldStandardTable.new(item_params)
 
     if item.save
       render json: { success: true, item: item }, status: :created
@@ -97,7 +97,7 @@ class Api::V1::GoldStandardItemsController < ApplicationController
   private
 
   def set_item
-    @item = GoldStandardItem.find(params[:id])
+    @item = GoldStandardTable.find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: { success: false, error: "Item not found" }, status: :not_found
   end
@@ -111,10 +111,10 @@ class Api::V1::GoldStandardItemsController < ApplicationController
       column_name = key.to_s
 
       # Skip invalid column names for security
-      next unless GoldStandardItem.column_names.include?(column_name)
+      next unless GoldStandardTable.column_names.include?(column_name)
 
       # Determine filter type based on column type
-      column = GoldStandardItem.columns_hash[column_name]
+      column = GoldStandardTable.columns_hash[column_name]
 
       case column.type
       when :string, :text
@@ -141,7 +141,7 @@ class Api::V1::GoldStandardItemsController < ApplicationController
 
   def item_params
     # SECURITY: Only permit user-editable fields, never system timestamps or IDs
-    params.require(:gold_standard_item).permit(
+    params.require(:gold_standard_table).permit(
       # Contact fields
       :email,
       :phone,

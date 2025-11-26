@@ -16,7 +16,7 @@ Trinity T19.001-T19.021 (SSoT - RULES)
     ├──► columns table (Table ID 1) - IMPLEMENTATION
     │    Must match Trinity rules
     │
-    ├──► gold_standard_items - PROOF
+    ├──► gold_standard_table - PROOF
     │    Sample data demonstrating each type
     │
     └──► Frontend COLUMN_TYPES - CACHE/FALLBACK ONLY
@@ -39,10 +39,10 @@ Trinity T19.001-T19.021 (SSoT - RULES)
 - **Contains:** column_name, column_type, max_length, required, etc.
 - **Must match:** Trinity rules
 
-### gold_standard_items (Proof)
+### gold_standard_table (Proof)
 
-- **Location:** `gold_standard_items` table
-- **Access:** `GET /api/v1/gold_standard_items`
+- **Location:** `gold_standard_table` table
+- **Access:** `GET /api/v1/gold_standard_table`
 - **Contains:** Sample data for each column type
 - **Purpose:** Demonstrates column types work correctly
 
@@ -67,7 +67,7 @@ Trinity T19.001-T19.021 (SSoT - RULES)
    - Column type must match Trinity entry
 
 3. **Add Sample Data**
-   - Add sample value to gold_standard_items
+   - Add sample value to gold_standard_table
 
 4. **Update Backend** (if needed)
    - Add to `Column::COLUMN_TYPE_MAP` in `backend/app/models/column.rb`
@@ -124,7 +124,7 @@ http://localhost:5173/admin/system?tab=gold-standard-sync
 | `GET /api/v1/column_types` | Get all column types from Gold Standard |
 | `GET /api/v1/trinity?category=teacher&chapter_number=19` | Get Trinity entries |
 | `GET /api/v1/gold_table_sync` | Check sync status across all sources |
-| `GET /api/v1/gold_standard_items` | Get sample data |
+| `GET /api/v1/gold_standard_table` | Get sample data |
 
 ## Agent: gold-standard-sst
 
@@ -132,7 +132,7 @@ The `gold-standard-sst` agent validates:
 
 - Trinity T19.xxx entries are complete (SQL type, validation, examples, usage)
 - columns table (Table ID 1) matches Trinity rules
-- gold_standard_items has valid samples for each type
+- gold_standard_table has valid samples for each type
 - No hardcoded duplicates in code
 - Frontend COLUMN_TYPES is marked as cache/fallback only
 

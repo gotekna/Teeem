@@ -1,11 +1,11 @@
 namespace :trapid do
-  desc "Auto-format all phone and mobile numbers in gold_standard_items table"
+  desc "Auto-format all phone and mobile numbers in gold_standard_table"
   task format_phone_numbers: :environment do
     puts "🔧 Starting phone number formatting..."
 
     # Format mobile numbers
     mobile_count = 0
-    GoldStandardItem.where.not(mobile: [nil, '']).find_each do |item|
+    GoldStandardTable.where.not(mobile: [nil, '']).find_each do |item|
       original = item.mobile
       formatted = format_mobile(original)
 
@@ -18,7 +18,7 @@ namespace :trapid do
 
     # Format phone numbers
     phone_count = 0
-    GoldStandardItem.where.not(phone: [nil, '']).find_each do |item|
+    GoldStandardTable.where.not(phone: [nil, '']).find_each do |item|
       original = item.phone
       formatted = format_phone(original)
 

@@ -245,7 +245,8 @@ function CascadeSortConfig({ config, onUpdate }) {
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [items, setItems] = useState(config || [
     { key: 'job_type', label: 'Job Type', enabled: true },
-    { key: 'job_status', label: 'Job Status', enabled: true }
+    { key: 'job_status', label: 'Job Status', enabled: true },
+    { key: 'job_stage', label: 'Job Stage', enabled: false }
   ])
 
   useEffect(() => {
@@ -335,19 +336,25 @@ function CascadeSortConfig({ config, onUpdate }) {
                   ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300'
                   : 'bg-gray-100 text-gray-500 dark:bg-gray-600 dark:text-gray-400'
             }`}>
-              {!item.enabled ? 'Off' : index === items.findIndex(i => i.enabled) ? '1st' : '2nd'}
+              {(() => {
+                if (!item.enabled) return 'Off'
+                const enabledItems = items.filter(i => i.enabled)
+                const position = enabledItems.findIndex(i => i.key === item.key)
+                return position === 0 ? '1st' : position === 1 ? '2nd' : '3rd'
+              })()}
             </span>
           </div>
         ))}
       </div>
 
       <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-        {items.filter(i => i.enabled).length === 0
-          ? 'No cascade sorting - jobs will show in default order'
-          : items.filter(i => i.enabled).length === 1
-            ? `Jobs grouped by ${items.find(i => i.enabled)?.label}`
-            : `Jobs grouped by ${items.find(i => i.enabled)?.label}, then by ${items.filter(i => i.enabled)[1]?.label}`
-        }
+        {(() => {
+          const enabled = items.filter(i => i.enabled)
+          if (enabled.length === 0) return 'No cascade sorting - jobs will show in default order'
+          if (enabled.length === 1) return `Jobs grouped by ${enabled[0]?.label}`
+          if (enabled.length === 2) return `Jobs grouped by ${enabled[0]?.label}, then by ${enabled[1]?.label}`
+          return `Jobs grouped by ${enabled[0]?.label}, then by ${enabled[1]?.label}, then by ${enabled[2]?.label}`
+        })()}
       </p>
     </div>
   )
@@ -356,6 +363,7 @@ function CascadeSortConfig({ config, onUpdate }) {
 export default function JobSetupTab() {
   const [jobTypes, setJobTypes] = useState([])
   const [jobStatuses, setJobStatuses] = useState([])
+  const [jobStages, setJobStages] = useState([])
   const [cascadeConfig, setCascadeConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -367,12 +375,14 @@ export default function JobSetupTab() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [typesRes, statusesRes] = await Promise.all([
+      const [typesRes, statusesRes, stagesRes] = await Promise.all([
         api.get('/api/v1/job_types'),
-        api.get('/api/v1/job_statuses')
+        api.get('/api/v1/job_status'),
+        api.get('/api/v1/job_stages')
       ])
       setJobTypes(typesRes.job_types || [])
       setJobStatuses(statusesRes.job_statuses || [])
+      setJobStages(stagesRes.job_stages || [])
 
       // Load cascade config from company settings or use default
       try {
@@ -383,14 +393,16 @@ export default function JobSetupTab() {
           // Default config
           setCascadeConfig([
             { key: 'job_type', label: 'Job Type', enabled: true },
-            { key: 'job_status', label: 'Job Status', enabled: true }
+            { key: 'job_status', label: 'Job Status', enabled: true },
+            { key: 'job_stage', label: 'Job Stage', enabled: false }
           ])
         }
       } catch {
         // Default if settings not available
         setCascadeConfig([
           { key: 'job_type', label: 'Job Type', enabled: true },
-          { key: 'job_status', label: 'Job Status', enabled: true }
+          { key: 'job_status', label: 'Job Status', enabled: true },
+          { key: 'job_stage', label: 'Job Stage', enabled: false }
         ])
       }
     } catch (err) {
@@ -465,7 +477,7 @@ export default function JobSetupTab() {
     setJobStatuses(reordered)
 
     try {
-      const res = await api.post('/api/v1/job_statuses/reorder', { job_status_ids: ids })
+      const res = await api.post('/api/v1/job_status/reorder', { job_status_ids: ids })
       setJobStatuses(res.job_statuses || reordered)
     } catch (err) {
       console.error('Failed to reorder job statuses:', err)
@@ -475,7 +487,7 @@ export default function JobSetupTab() {
 
   const handleUpdateStatus = async (id, data) => {
     try {
-      const res = await api.patch(`/api/v1/job_statuses/${id}`, { job_status: data })
+      const res = await api.patch(`/api/v1/job_status/${id}`, { job_status: data })
       setJobStatuses(prev => prev.map(s => s.id === id ? res.job_status : s))
     } catch (err) {
       console.error('Failed to update job status:', err)
@@ -486,7 +498,7 @@ export default function JobSetupTab() {
   const handleDeleteStatus = async (id) => {
     if (!confirm('Are you sure you want to delete this job status?')) return
     try {
-      await api.delete(`/api/v1/job_statuses/${id}`)
+      await api.delete(`/api/v1/job_status/${id}`)
       setJobStatuses(prev => prev.filter(s => s.id !== id))
     } catch (err) {
       console.error('Failed to delete job status:', err)
@@ -496,10 +508,56 @@ export default function JobSetupTab() {
 
   const handleCreateStatus = async (data) => {
     try {
-      const res = await api.post('/api/v1/job_statuses', { job_status: data })
+      const res = await api.post('/api/v1/job_status', { job_status: data })
       setJobStatuses(prev => [...prev, res.job_status])
     } catch (err) {
       console.error('Failed to create job status:', err)
+      alert(err.message || 'Failed to create')
+    }
+  }
+
+  // Job Stages handlers
+  const handleReorderStages = async (ids) => {
+    // Optimistic update
+    const reordered = ids.map(id => jobStages.find(s => s.id === id))
+    setJobStages(reordered)
+
+    try {
+      const res = await api.post('/api/v1/job_stages/reorder', { job_stage_ids: ids })
+      setJobStages(res.job_stages || reordered)
+    } catch (err) {
+      console.error('Failed to reorder job stages:', err)
+      loadData() // Reload on error
+    }
+  }
+
+  const handleUpdateStage = async (id, data) => {
+    try {
+      const res = await api.patch(`/api/v1/job_stages/${id}`, { job_stage: data })
+      setJobStages(prev => prev.map(s => s.id === id ? res.job_stage : s))
+    } catch (err) {
+      console.error('Failed to update job stage:', err)
+      alert(err.message || 'Failed to update')
+    }
+  }
+
+  const handleDeleteStage = async (id) => {
+    if (!confirm('Are you sure you want to delete this job stage?')) return
+    try {
+      await api.delete(`/api/v1/job_stages/${id}`)
+      setJobStages(prev => prev.filter(s => s.id !== id))
+    } catch (err) {
+      console.error('Failed to delete job stage:', err)
+      alert(err.message || 'Failed to delete')
+    }
+  }
+
+  const handleCreateStage = async (data) => {
+    try {
+      const res = await api.post('/api/v1/job_stages', { job_stage: data })
+      setJobStages(prev => [...prev, res.job_stage])
+    } catch (err) {
+      console.error('Failed to create job stage:', err)
       alert(err.message || 'Failed to create')
     }
   }
@@ -538,7 +596,7 @@ export default function JobSetupTab() {
         onUpdate={handleCascadeConfigUpdate}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <SortableList
           items={jobTypes}
           onReorder={handleReorderTypes}
@@ -557,6 +615,17 @@ export default function JobSetupTab() {
           onCreate={handleCreateStatus}
           title="Job Statuses"
           description="Workflow stages for jobs (Enquiry to Archived)"
+          colorField={true}
+        />
+
+        <SortableList
+          items={jobStages}
+          onReorder={handleReorderStages}
+          onUpdate={handleUpdateStage}
+          onDelete={handleDeleteStage}
+          onCreate={handleCreateStage}
+          title="Job Stages"
+          description="Sub-steps within statuses (Deposit, Slab, Frame, etc.)"
           colorField={true}
         />
       </div>

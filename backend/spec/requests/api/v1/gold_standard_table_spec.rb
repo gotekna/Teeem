@@ -1,6 +1,6 @@
 require 'rails_helper'
 
-RSpec.describe "Api::V1::GoldStandardItems", type: :request do
+RSpec.describe "Api::V1::GoldStandardTable", type: :request do
   let(:valid_attributes) do
     {
       email: "test@example.com",
@@ -28,7 +28,7 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
   describe "GET /index" do
     context "without pagination params" do
       it "returns http success with default pagination" do
-        get "/api/v1/gold_standard_items"
+        get "/api/v1/gold_standard_table"
         expect(response).to have_http_status(:success)
         json = JSON.parse(response.body)
         expect(json["success"]).to eq(true)
@@ -40,11 +40,11 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
     context "with pagination params" do
       before do
-        create_list(:gold_standard_item, 5)
+        create_list(:gold_standard_table, 5)
       end
 
       it "respects page and per_page parameters" do
-        get "/api/v1/gold_standard_items", params: { page: 1, per_page: 2 }
+        get "/api/v1/gold_standard_table", params: { page: 1, per_page: 2 }
         json = JSON.parse(response.body)
         expect(json["items"].length).to eq(2)
         expect(json["pagination"]["current_page"]).to eq(1)
@@ -52,7 +52,7 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "caps per_page at 500" do
-        get "/api/v1/gold_standard_items", params: { per_page: 1000 }
+        get "/api/v1/gold_standard_table", params: { per_page: 1000 }
         json = JSON.parse(response.body)
         expect(json["pagination"]["per_page"]).to eq(500)
       end
@@ -60,7 +60,7 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
     context "with caching headers" do
       it "includes cache-control headers" do
-        get "/api/v1/gold_standard_items"
+        get "/api/v1/gold_standard_table"
         expect(response.headers["Cache-Control"]).to include("public")
       end
     end
@@ -70,8 +70,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
     context "with valid parameters" do
       it "creates a new gold standard item" do
         expect {
-          post "/api/v1/gold_standard_items", params: { gold_standard_item: valid_attributes }
-        }.to change(GoldStandardItem, :count).by(1)
+          post "/api/v1/gold_standard_table", params: { gold_standard_table: valid_attributes }
+        }.to change(GoldStandardTable, :count).by(1)
 
         expect(response).to have_http_status(:created)
         json = JSON.parse(response.body)
@@ -80,7 +80,7 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "creates item with all field types" do
-        post "/api/v1/gold_standard_items", params: { gold_standard_item: valid_attributes }
+        post "/api/v1/gold_standard_table", params: { gold_standard_table: valid_attributes }
         json = JSON.parse(response.body)
         item = json["item"]
 
@@ -95,8 +95,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
     context "with invalid parameters" do
       it "rejects invalid email format" do
-        post "/api/v1/gold_standard_items", params: {
-          gold_standard_item: { email: "invalid-email" }
+        post "/api/v1/gold_standard_table", params: {
+          gold_standard_table: { email: "invalid-email" }
         }
 
         expect(response).to have_http_status(:unprocessable_entity)
@@ -106,8 +106,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "rejects percentage over 100" do
-        post "/api/v1/gold_standard_items", params: {
-          gold_standard_item: { percentage: 150 }
+        post "/api/v1/gold_standard_table", params: {
+          gold_standard_table: { percentage: 150 }
         }
 
         expect(response).to have_http_status(:unprocessable_entity)
@@ -116,8 +116,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "rejects invalid URL format" do
-        post "/api/v1/gold_standard_items", params: {
-          gold_standard_item: { url: "not-a-url" }
+        post "/api/v1/gold_standard_table", params: {
+          gold_standard_table: { url: "not-a-url" }
         }
 
         expect(response).to have_http_status(:unprocessable_entity)
@@ -126,8 +126,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "rejects invalid GPS coordinates" do
-        post "/api/v1/gold_standard_items", params: {
-          gold_standard_item: { gps_coordinates: "invalid" }
+        post "/api/v1/gold_standard_table", params: {
+          gold_standard_table: { gps_coordinates: "invalid" }
         }
 
         expect(response).to have_http_status(:unprocessable_entity)
@@ -136,8 +136,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "rejects invalid color format" do
-        post "/api/v1/gold_standard_items", params: {
-          gold_standard_item: { color_picker: "red" }
+        post "/api/v1/gold_standard_table", params: {
+          gold_standard_table: { color_picker: "red" }
         }
 
         expect(response).to have_http_status(:unprocessable_entity)
@@ -146,8 +146,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "rejects negative currency" do
-        post "/api/v1/gold_standard_items", params: {
-          gold_standard_item: { currency: -10 }
+        post "/api/v1/gold_standard_table", params: {
+          gold_standard_table: { currency: -10 }
         }
 
         expect(response).to have_http_status(:unprocessable_entity)
@@ -158,8 +158,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
     context "security tests" do
       it "rejects attempts to set system columns" do
-        post "/api/v1/gold_standard_items", params: {
-          gold_standard_item: {
+        post "/api/v1/gold_standard_table", params: {
+          gold_standard_table: {
             email: "test@example.com",
             id: 99999,  # Should be ignored
             created_at: 1.year.ago,  # Should be ignored
@@ -178,12 +178,12 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
   end
 
   describe "PATCH /update" do
-    let!(:item) { GoldStandardItem.create!(valid_attributes) }
+    let!(:item) { GoldStandardTable.create!(valid_attributes) }
 
     context "with valid parameters" do
       it "updates the gold standard item" do
-        patch "/api/v1/gold_standard_items/#{item.id}", params: {
-          gold_standard_item: { email: "updated@example.com" }
+        patch "/api/v1/gold_standard_table/#{item.id}", params: {
+          gold_standard_table: { email: "updated@example.com" }
         }
 
         expect(response).to have_http_status(:success)
@@ -193,8 +193,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
       end
 
       it "updates multiple fields at once" do
-        patch "/api/v1/gold_standard_items/#{item.id}", params: {
-          gold_standard_item: {
+        patch "/api/v1/gold_standard_table/#{item.id}", params: {
+          gold_standard_table: {
             email: "updated@example.com",
             phone: "999-8888",
             percentage: 85.0
@@ -210,8 +210,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
     context "with invalid parameters" do
       it "returns validation errors" do
-        patch "/api/v1/gold_standard_items/#{item.id}", params: {
-          gold_standard_item: { email: "invalid-email" }
+        patch "/api/v1/gold_standard_table/#{item.id}", params: {
+          gold_standard_table: { email: "invalid-email" }
         }
 
         expect(response).to have_http_status(:unprocessable_entity)
@@ -221,8 +221,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
       it "does not update when validation fails" do
         original_email = item.email
-        patch "/api/v1/gold_standard_items/#{item.id}", params: {
-          gold_standard_item: { percentage: 150 }
+        patch "/api/v1/gold_standard_table/#{item.id}", params: {
+          gold_standard_table: { percentage: 150 }
         }
 
         item.reload
@@ -233,8 +233,8 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
     context "edge cases" do
       it "returns 404 for non-existent item" do
-        patch "/api/v1/gold_standard_items/99999", params: {
-          gold_standard_item: { email: "test@example.com" }
+        patch "/api/v1/gold_standard_table/99999", params: {
+          gold_standard_table: { email: "test@example.com" }
         }
 
         expect(response).to have_http_status(:not_found)
@@ -245,12 +245,12 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
   end
 
   describe "DELETE /destroy" do
-    let!(:item) { GoldStandardItem.create!(valid_attributes) }
+    let!(:item) { GoldStandardTable.create!(valid_attributes) }
 
     it "destroys the gold standard item" do
       expect {
-        delete "/api/v1/gold_standard_items/#{item.id}"
-      }.to change(GoldStandardItem, :count).by(-1)
+        delete "/api/v1/gold_standard_table/#{item.id}"
+      }.to change(GoldStandardTable, :count).by(-1)
 
       expect(response).to have_http_status(:success)
       json = JSON.parse(response.body)
@@ -258,7 +258,7 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
     end
 
     it "returns 404 for non-existent item" do
-      delete "/api/v1/gold_standard_items/99999"
+      delete "/api/v1/gold_standard_table/99999"
 
       expect(response).to have_http_status(:not_found)
       json = JSON.parse(response.body)
@@ -267,45 +267,45 @@ RSpec.describe "Api::V1::GoldStandardItems", type: :request do
 
     context "bulk delete scenario" do
       it "successfully deletes multiple items in sequence" do
-        item2 = GoldStandardItem.create!(valid_attributes.merge(email: "item2@example.com"))
-        item3 = GoldStandardItem.create!(valid_attributes.merge(email: "item3@example.com"))
+        item2 = GoldStandardTable.create!(valid_attributes.merge(email: "item2@example.com"))
+        item3 = GoldStandardTable.create!(valid_attributes.merge(email: "item3@example.com"))
 
         expect {
-          delete "/api/v1/gold_standard_items/#{item.id}"
-          delete "/api/v1/gold_standard_items/#{item2.id}"
-          delete "/api/v1/gold_standard_items/#{item3.id}"
-        }.to change(GoldStandardItem, :count).by(-3)
+          delete "/api/v1/gold_standard_table/#{item.id}"
+          delete "/api/v1/gold_standard_table/#{item2.id}"
+          delete "/api/v1/gold_standard_table/#{item3.id}"
+        }.to change(GoldStandardTable, :count).by(-3)
       end
     end
   end
 
   describe "Model validations" do
     it "validates email format" do
-      item = GoldStandardItem.new(email: "invalid")
+      item = GoldStandardTable.new(email: "invalid")
       expect(item).not_to be_valid
       expect(item.errors[:email]).to be_present
     end
 
     it "validates percentage range" do
-      item = GoldStandardItem.new(percentage: 150)
+      item = GoldStandardTable.new(percentage: 150)
       expect(item).not_to be_valid
       expect(item.errors[:percentage]).to include("must be less than or equal to 100")
     end
 
     it "validates URL format" do
-      item = GoldStandardItem.new(url: "not-a-url")
+      item = GoldStandardTable.new(url: "not-a-url")
       expect(item).not_to be_valid
       expect(item.errors[:url]).to be_present
     end
 
     it "validates GPS coordinates format" do
-      item = GoldStandardItem.new(gps_coordinates: "invalid")
+      item = GoldStandardTable.new(gps_coordinates: "invalid")
       expect(item).not_to be_valid
       expect(item.errors[:gps_coordinates]).to be_present
     end
 
     it "validates color picker hex format" do
-      item = GoldStandardItem.new(color_picker: "red")
+      item = GoldStandardTable.new(color_picker: "red")
       expect(item).not_to be_valid
       expect(item.errors[:color_picker]).to be_present
     end

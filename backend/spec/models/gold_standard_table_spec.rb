@@ -1,5 +1,5 @@
 require 'rails_helper'
 
-RSpec.describe GoldStandardItem, type: :model do
+RSpec.describe GoldStandardTable, type: :model do
   pending "add some examples to (or delete) #{__FILE__}"
 end

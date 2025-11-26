@@ -141,6 +141,54 @@ export default function AppLayout({ children }) {
     const saved = localStorage.getItem('activeJobsExpanded')
     return saved === null ? true : saved === 'true'
   })
+
+  // Price Books state
+  const [priceBooks, setPriceBooks] = useState([])
+  const [priceBookSearchQuery, setPriceBookSearchQuery] = useState('')
+  const [priceBooksExpanded, setPriceBooksExpanded] = useState(() => {
+    const saved = localStorage.getItem('priceBooksExpanded')
+    return saved === null ? false : saved === 'true'
+  })
+  const [groupByCategory, setGroupByCategory] = useState(() => {
+    const saved = localStorage.getItem('priceBookGroupByCategory')
+    return saved === 'true'
+  })
+  const [expandedCategoryGroups, setExpandedCategoryGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedCategoryGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+
+  // Contacts state
+  const [contacts, setContacts] = useState([])
+  const [contactSearchQuery, setContactSearchQuery] = useState('')
+  const [contactsExpanded, setContactsExpanded] = useState(() => {
+    const saved = localStorage.getItem('contactsExpanded')
+    return saved === null ? false : saved === 'true'
+  })
+  const [groupByContactType, setGroupByContactType] = useState(() => {
+    const saved = localStorage.getItem('contactGroupByType')
+    return saved === 'true'
+  })
+  const [expandedContactTypeGroups, setExpandedContactTypeGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedContactTypeGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+
+  // Purchase Orders state
+  const [purchaseOrders, setPurchaseOrders] = useState([])
+  const [purchaseOrderSearchQuery, setPurchaseOrderSearchQuery] = useState('')
+  const [purchaseOrdersExpanded, setPurchaseOrdersExpanded] = useState(() => {
+    const saved = localStorage.getItem('purchaseOrdersExpanded')
+    return saved === null ? false : saved === 'true'
+  })
+  const [groupByPOJob, setGroupByPOJob] = useState(() => {
+    const saved = localStorage.getItem('poGroupByJob')
+    return saved === 'true'
+  })
+  const [expandedPOJobGroups, setExpandedPOJobGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedPOJobGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
   const [expandedJobId, setExpandedJobId] = useState(() => {
     const saved = localStorage.getItem('expandedJobId')
     return saved ? parseInt(saved, 10) : null
@@ -153,14 +201,31 @@ export default function AppLayout({ children }) {
     const saved = localStorage.getItem('expandedStages')
     return saved ? JSON.parse(saved) : { 'Construction': true }
   })
-  const [sortByType, setSortByType] = useState(() => {
-    const saved = localStorage.getItem('jobSortByType')
+  const [groupByType, setGroupByType] = useState(() => {
+    const saved = localStorage.getItem('jobGroupByType')
     return saved === 'true'
   })
-  const [sortByStatus, setSortByStatus] = useState(() => {
-    const saved = localStorage.getItem('jobSortByStatus')
+  const [groupByStatus, setGroupByStatus] = useState(() => {
+    const saved = localStorage.getItem('jobGroupByStatus')
     return saved === 'true'
   })
+  const [groupByStage, setGroupByStage] = useState(() => {
+    const saved = localStorage.getItem('jobGroupByStage')
+    return saved === 'false' // Default to false
+  })
+  const [expandedTypeGroups, setExpandedTypeGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedTypeGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+  const [expandedStatusGroups, setExpandedStatusGroups] = useState(() => {
+    const saved = localStorage.getItem('expandedStatusGroups')
+    return saved ? JSON.parse(saved) : {}
+  })
+  const [filterButtonOrder, setFilterButtonOrder] = useState(() => {
+    const saved = localStorage.getItem('jobFilterButtonOrder')
+    return saved ? JSON.parse(saved) : ['type', 'status', 'stage']
+  })
+  const [draggedButton, setDraggedButton] = useState(null)
 
   // Resizable sidebar state (per-route)
   const getSidebarWidthForRoute = (pathname) => {
@@ -256,13 +321,61 @@ export default function AppLayout({ children }) {
     const loadActiveJobs = async () => {
       try {
         const response = await api.get('/api/v1/jobs?status=Active&per_page=20')
-        setActiveJobs(response.jobs || response.constructions || [])
+        const jobs = response.jobs || response.constructions || []
+        console.log('📋 Loaded jobs for sidebar:', jobs.length, 'jobs')
+        console.log('📋 Job titles:', jobs.map(j => j.title || `Job #${j.id}`))
+        setActiveJobs(jobs)
       } catch (err) {
         // Silently fail - sidebar will just show empty, user can still navigate
         console.debug('Active jobs unavailable:', err?.message || 'Unknown error')
       }
     }
     loadActiveJobs()
+  }, [])
+
+  // Load price books for sidebar
+  useEffect(() => {
+    const loadPriceBooks = async () => {
+      try {
+        const response = await api.get('/api/v1/pricebook?per_page=50')
+        const books = response.items || response.pricebook || []
+        console.log('📚 Loaded price books for sidebar:', books.length, 'items')
+        setPriceBooks(books)
+      } catch (err) {
+        console.debug('Price books unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadPriceBooks()
+  }, [])
+
+  // Load contacts for sidebar
+  useEffect(() => {
+    const loadContacts = async () => {
+      try {
+        const response = await api.get('/api/v1/contacts?per_page=50')
+        const contactsList = response.contacts || []
+        console.log('👥 Loaded contacts for sidebar:', contactsList.length, 'contacts')
+        setContacts(contactsList)
+      } catch (err) {
+        console.debug('Contacts unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadContacts()
+  }, [])
+
+  // Load purchase orders for sidebar
+  useEffect(() => {
+    const loadPurchaseOrders = async () => {
+      try {
+        const response = await api.get('/api/v1/purchase_orders?per_page=50')
+        const orders = response.purchase_orders || []
+        console.log('📦 Loaded purchase orders for sidebar:', orders.length, 'orders')
+        setPurchaseOrders(orders)
+      } catch (err) {
+        console.debug('Purchase orders unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadPurchaseOrders()
   }, [])
 
   // Auto-expand job if we're on a job detail page
@@ -309,53 +422,279 @@ export default function AppLayout({ children }) {
     localStorage.setItem('expandedStages', JSON.stringify(newStages))
   }
 
-  const toggleSortByType = () => {
-    const newValue = !sortByType
-    setSortByType(newValue)
-    localStorage.setItem('jobSortByType', String(newValue))
+  const toggleGroupByType = () => {
+    console.log('🔵 Type grouping clicked! Current:', groupByType, '→ New:', !groupByType)
+    const newValue = !groupByType
+    setGroupByType(newValue)
+    localStorage.setItem('jobGroupByType', String(newValue))
   }
 
-  const toggleSortByStatus = () => {
-    const newValue = !sortByStatus
-    setSortByStatus(newValue)
-    localStorage.setItem('jobSortByStatus', String(newValue))
+  const toggleGroupByStatus = () => {
+    console.log('🟢 Status grouping clicked! Current:', groupByStatus, '→ New:', !groupByStatus)
+    const newValue = !groupByStatus
+    setGroupByStatus(newValue)
+    localStorage.setItem('jobGroupByStatus', String(newValue))
   }
 
-  // Sort jobs based on active sort toggles
-  const getSortedJobs = (jobs) => {
-    if (!sortByType && !sortByStatus) {
-      return jobs // No sorting
+  const toggleGroupByStage = () => {
+    console.log('🟣 Stage grouping clicked! Current:', groupByStage, '→ New:', !groupByStage)
+    const newValue = !groupByStage
+    setGroupByStage(newValue)
+    localStorage.setItem('jobGroupByStage', String(newValue))
+  }
+
+  const toggleTypeGroup = (typeName) => {
+    const newGroups = { ...expandedTypeGroups, [typeName]: !expandedTypeGroups[typeName] }
+    setExpandedTypeGroups(newGroups)
+    localStorage.setItem('expandedTypeGroups', JSON.stringify(newGroups))
+  }
+
+  const toggleStatusGroup = (typeAndStatus) => {
+    const newGroups = { ...expandedStatusGroups, [typeAndStatus]: !expandedStatusGroups[typeAndStatus] }
+    setExpandedStatusGroups(newGroups)
+    localStorage.setItem('expandedStatusGroups', JSON.stringify(newGroups))
+  }
+
+  const handleButtonDragStart = (buttonType) => {
+    setDraggedButton(buttonType)
+  }
+
+  const handleButtonDragOver = (e) => {
+    e.preventDefault()
+  }
+
+  const handleButtonDrop = (targetButton) => {
+    if (draggedButton && draggedButton !== targetButton) {
+      const newOrder = [...filterButtonOrder]
+      const draggedIndex = newOrder.indexOf(draggedButton)
+      const targetIndex = newOrder.indexOf(targetButton)
+
+      // Swap positions
+      newOrder[draggedIndex] = targetButton
+      newOrder[targetIndex] = draggedButton
+
+      setFilterButtonOrder(newOrder)
+      localStorage.setItem('jobFilterButtonOrder', JSON.stringify(newOrder))
+    }
+    setDraggedButton(null)
+  }
+
+  const handleButtonDragEnd = () => {
+    setDraggedButton(null)
+  }
+
+  // Price Books toggles
+  const togglePriceBooksExpanded = () => {
+    const newValue = !priceBooksExpanded
+    setPriceBooksExpanded(newValue)
+    localStorage.setItem('priceBooksExpanded', String(newValue))
+  }
+
+  const toggleGroupByCategory = () => {
+    const newValue = !groupByCategory
+    setGroupByCategory(newValue)
+    localStorage.setItem('priceBookGroupByCategory', String(newValue))
+  }
+
+  const toggleCategoryGroup = (categoryName) => {
+    const newGroups = { ...expandedCategoryGroups, [categoryName]: !expandedCategoryGroups[categoryName] }
+    setExpandedCategoryGroups(newGroups)
+    localStorage.setItem('expandedCategoryGroups', JSON.stringify(newGroups))
+  }
+
+  // Contacts toggles
+  const toggleContactsExpanded = () => {
+    const newValue = !contactsExpanded
+    setContactsExpanded(newValue)
+    localStorage.setItem('contactsExpanded', String(newValue))
+  }
+
+  const toggleGroupByContactType = () => {
+    const newValue = !groupByContactType
+    setGroupByContactType(newValue)
+    localStorage.setItem('contactGroupByType', String(newValue))
+  }
+
+  const toggleContactTypeGroup = (typeName) => {
+    const newGroups = { ...expandedContactTypeGroups, [typeName]: !expandedContactTypeGroups[typeName] }
+    setExpandedContactTypeGroups(newGroups)
+    localStorage.setItem('expandedContactTypeGroups', JSON.stringify(newGroups))
+  }
+
+  // Purchase Orders toggles
+  const togglePurchaseOrdersExpanded = () => {
+    const newValue = !purchaseOrdersExpanded
+    setPurchaseOrdersExpanded(newValue)
+    localStorage.setItem('purchaseOrdersExpanded', String(newValue))
+  }
+
+  const toggleGroupByPOJob = () => {
+    const newValue = !groupByPOJob
+    setGroupByPOJob(newValue)
+    localStorage.setItem('poGroupByJob', String(newValue))
+  }
+
+  const togglePOJobGroup = (jobTitle) => {
+    const newGroups = { ...expandedPOJobGroups, [jobTitle]: !expandedPOJobGroups[jobTitle] }
+    setExpandedPOJobGroups(newGroups)
+    localStorage.setItem('expandedPOJobGroups', JSON.stringify(newGroups))
+  }
+
+  // Group jobs by Type, Status, and/or Stage
+  const getGroupedJobs = (jobs) => {
+    if (!groupByType && !groupByStatus && !groupByStage) {
+      return { mode: 'list', jobs }
     }
 
-    return [...jobs].sort((a, b) => {
-      // Primary sort: Type (if enabled)
-      if (sortByType) {
-        const typeA = a.job_type?.name || ''
-        const typeB = b.job_type?.name || ''
-        const typeCompare = typeA.localeCompare(typeB)
-        if (typeCompare !== 0) return typeCompare
-      }
+    // Count active groupings
+    const activeGroupings = [
+      groupByType && 'type',
+      groupByStatus && 'status',
+      groupByStage && 'stage'
+    ].filter(Boolean)
 
-      // Secondary sort: Status (if enabled)
-      if (sortByStatus) {
-        const statusA = a.job_status?.name || ''
-        const statusB = b.job_status?.name || ''
-        return statusA.localeCompare(statusB)
-      }
+    // Single-level grouping
+    if (activeGroupings.length === 1) {
+      const groupType = activeGroupings[0]
+      const grouped = {}
 
-      return 0
-    })
+      jobs.forEach(job => {
+        let groupName
+        if (groupType === 'type') groupName = job.job_type?.name || 'No Type'
+        else if (groupType === 'status') groupName = job.job_status?.name || 'No Status'
+        else groupName = job.job_stage?.name || 'No Stage'
+
+        if (!grouped[groupName]) grouped[groupName] = []
+        grouped[groupName].push(job)
+      })
+      return { mode: groupType, groups: grouped }
+    }
+
+    // Two-level grouping - respect button order
+    if (activeGroupings.length === 2) {
+      // Find which active groupings come first in filterButtonOrder
+      const orderedGroupings = filterButtonOrder.filter(g => activeGroupings.includes(g))
+      const [first, second] = orderedGroupings
+
+      const grouped = {}
+      jobs.forEach(job => {
+        let firstName, secondName
+
+        if (first === 'type') firstName = job.job_type?.name || 'No Type'
+        else if (first === 'status') firstName = job.job_status?.name || 'No Status'
+        else firstName = job.job_stage?.name || 'No Stage'
+
+        if (second === 'type') secondName = job.job_type?.name || 'No Type'
+        else if (second === 'status') secondName = job.job_status?.name || 'No Status'
+        else secondName = job.job_stage?.name || 'No Stage'
+
+        if (!grouped[firstName]) grouped[firstName] = {}
+        if (!grouped[firstName][secondName]) grouped[firstName][secondName] = []
+        grouped[firstName][secondName].push(job)
+      })
+      return { mode: `${first}-${second}`, groups: grouped }
+    }
+
+    // Three-level grouping - respect button order
+    if (activeGroupings.length === 3) {
+      const orderedGroupings = filterButtonOrder.filter(g => activeGroupings.includes(g))
+      const [first, second, third] = orderedGroupings
+
+      const grouped = {}
+      jobs.forEach(job => {
+        const getGroupName = (groupType) => {
+          if (groupType === 'type') return job.job_type?.name || 'No Type'
+          if (groupType === 'status') return job.job_status?.name || 'No Status'
+          return job.job_stage?.name || 'No Stage'
+        }
+
+        const firstName = getGroupName(first)
+        const secondName = getGroupName(second)
+        const thirdName = getGroupName(third)
+
+        if (!grouped[firstName]) grouped[firstName] = {}
+        if (!grouped[firstName][secondName]) grouped[firstName][secondName] = {}
+        if (!grouped[firstName][secondName][thirdName]) grouped[firstName][secondName][thirdName] = []
+        grouped[firstName][secondName][thirdName].push(job)
+      })
+      return { mode: `${first}-${second}-${third}`, groups: grouped }
+    }
+
+    // Fallback - shouldn't reach here
+    return { mode: 'list', jobs }
   }
 
-  const sortedActiveJobs = getSortedJobs(activeJobs)
+  const groupedJobs = getGroupedJobs(activeJobs)
 
   // Group jobs by stage for stage view
-  const jobsByStage = sortedActiveJobs.reduce((acc, job) => {
+  const jobsByStage = activeJobs.reduce((acc, job) => {
     const stage = job.stage || 'Unknown'
     if (!acc[stage]) acc[stage] = []
     acc[stage].push(job)
     return acc
   }, {})
+
+  // Group price books by Category
+  const getGroupedPriceBooks = (books) => {
+    if (!groupByCategory) {
+      return { mode: 'list', items: books }
+    }
+
+    const byCategory = {}
+    books.forEach(book => {
+      const categoryName = book.category || 'Uncategorized'
+      if (!byCategory[categoryName]) byCategory[categoryName] = []
+      byCategory[categoryName].push(book)
+    })
+    return { mode: 'category', groups: byCategory }
+  }
+
+  const groupedPriceBooks = getGroupedPriceBooks(priceBooks)
+
+  // Group contacts by Contact Type
+  const getGroupedContacts = (contactsList) => {
+    if (!groupByContactType) {
+      return { mode: 'list', items: contactsList }
+    }
+
+    const byType = {}
+    contactsList.forEach(contact => {
+      // Contact type should be "Supplier" or "Customer"
+      // API returns contact_types as array like ["supplier", "customer"]
+      let typeName = 'Unspecified'
+      if (contact.contact_types && contact.contact_types.length > 0) {
+        // Capitalize first type in array
+        typeName = contact.contact_types[0].charAt(0).toUpperCase() + contact.contact_types[0].slice(1)
+      } else if (contact.contact_type) {
+        typeName = contact.contact_type
+      } else if (contact.type) {
+        typeName = contact.type
+      }
+
+      if (!byType[typeName]) byType[typeName] = []
+      byType[typeName].push(contact)
+    })
+    return { mode: 'type', groups: byType }
+  }
+
+  const groupedContacts = getGroupedContacts(contacts)
+
+  // Group purchase orders by Job
+  const getGroupedPurchaseOrders = (orders) => {
+    if (!groupByPOJob) {
+      return { mode: 'list', items: orders }
+    }
+
+    const byJob = {}
+    orders.forEach(order => {
+      const jobTitle = order.job_title || order.construction?.title || 'No Job'
+      if (!byJob[jobTitle]) byJob[jobTitle] = []
+      byJob[jobTitle].push(order)
+    })
+    return { mode: 'job', groups: byJob }
+  }
+
+  const groupedPurchaseOrders = getGroupedPurchaseOrders(purchaseOrders)
 
   // Poll for unread messages count
   useEffect(() => {
@@ -653,34 +992,44 @@ export default function AppLayout({ children }) {
                                     className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                                   />
                                 </div>
-                                <button
-                                  onClick={toggleSortByType}
-                                  className={classNames(
-                                    'px-1.5 py-1 text-xs rounded border transition-colors',
-                                    sortByType
-                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
-                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
-                                  )}
-                                  title={sortByType ? 'Sorted by Type' : 'Sort by Type'}
-                                >
-                                  Type
-                                </button>
-                                <button
-                                  onClick={toggleSortByStatus}
-                                  className={classNames(
-                                    'px-1.5 py-1 text-xs rounded border transition-colors',
-                                    sortByStatus
-                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
-                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
-                                  )}
-                                  title={sortByStatus ? 'Sorted by Status' : 'Sort by Status'}
-                                >
-                                  Status
-                                </button>
+                                {filterButtonOrder.map((buttonType) => {
+                                  const isActive = buttonType === 'type' ? groupByType :
+                                                   buttonType === 'status' ? groupByStatus :
+                                                   groupByStage
+                                  const toggleFn = buttonType === 'type' ? toggleGroupByType :
+                                                   buttonType === 'status' ? toggleGroupByStatus :
+                                                   toggleGroupByStage
+                                  const label = buttonType === 'type' ? 'Type' :
+                                                buttonType === 'status' ? 'Status' :
+                                                'Stage'
+
+                                  return (
+                                    <button
+                                      key={buttonType}
+                                      type="button"
+                                      draggable
+                                      onDragStart={() => handleButtonDragStart(buttonType)}
+                                      onDragOver={handleButtonDragOver}
+                                      onDrop={() => handleButtonDrop(buttonType)}
+                                      onDragEnd={handleButtonDragEnd}
+                                      onClick={toggleFn}
+                                      className={classNames(
+                                        'px-1.5 py-1 text-xs rounded border transition-colors cursor-move',
+                                        isActive
+                                          ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700',
+                                        draggedButton === buttonType && 'opacity-50'
+                                      )}
+                                      title={`${isActive ? 'Grouped by' : 'Group by'} ${label} (drag to reorder)`}
+                                    >
+                                      {label}
+                                    </button>
+                                  )
+                                })}
                               </li>
 
-                              {/* List View */}
-                              {jobViewMode === 'list' && sortedActiveJobs
+                              {/* Grouped/List View */}
+                              {groupedJobs.mode === 'list' && groupedJobs.jobs
                                 .filter(job => {
                                   if (!jobSearchQuery) return true
                                   const query = jobSearchQuery.toLowerCase()
@@ -727,6 +1076,13 @@ export default function AppLayout({ children }) {
                                           title={job.job_status.name}
                                         />
                                       )}
+                                      {/* Job Stage Badge */}
+                                      {job.job_stage && (
+                                        <span
+                                          className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                          title={job.job_stage.name}
+                                        />
+                                      )}
                                       <span className="truncate">{job.title || `Job #${job.id}`}</span>
                                     </Link>
                                   </div>
@@ -758,6 +1114,239 @@ export default function AppLayout({ children }) {
                                   )}
                                 </li>
                               ))}
+
+                              {/* Type-only Grouped View */}
+                              {groupedJobs.mode === 'type' && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([typeName, jobs]) => {
+                                  const filteredJobs = jobs.filter(job => {
+                                    if (!jobSearchQuery) return true
+                                    const query = jobSearchQuery.toLowerCase()
+                                    return (job.title || '').toLowerCase().includes(query) ||
+                                           String(job.id).includes(query)
+                                  })
+                                  if (filteredJobs.length === 0) return null
+
+                                  return (
+                                    <li key={typeName}>
+                                      {/* Type group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleTypeGroup(typeName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedTypeGroups[typeName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          {typeName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredJobs.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Jobs under this type */}
+                                      {(expandedTypeGroups[typeName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredJobs.slice(0, 20).map((job) => (
+                                            <li key={job.id}>
+                                              <Link
+                                                to={`/jobs/${job.id}/overview`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/jobs/${job.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-1'
+                                                )}
+                                                title={`${job.title}${job.job_status ? ` • ${job.job_status.name}` : ''}`}
+                                              >
+                                                {job.job_status && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_status.color)} flex-shrink-0`}
+                                                    title={job.job_status.name}
+                                                  />
+                                                )}
+                                                {job.job_stage && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                                    title={job.job_stage.name}
+                                                  />
+                                                )}
+                                                <span className="truncate">{job.title || `Job #${job.id}`}</span>
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+
+                              {/* Status-only Grouped View */}
+                              {groupedJobs.mode === 'status' && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([statusName, jobs]) => {
+                                  const filteredJobs = jobs.filter(job => {
+                                    if (!jobSearchQuery) return true
+                                    const query = jobSearchQuery.toLowerCase()
+                                    return (job.title || '').toLowerCase().includes(query) ||
+                                           String(job.id).includes(query)
+                                  })
+                                  if (filteredJobs.length === 0) return null
+
+                                  return (
+                                    <li key={statusName}>
+                                      {/* Status group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleStatusGroup(statusName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedStatusGroups[statusName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          {statusName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredJobs.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Jobs under this status */}
+                                      {(expandedStatusGroups[statusName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredJobs.slice(0, 20).map((job) => (
+                                            <li key={job.id}>
+                                              <Link
+                                                to={`/jobs/${job.id}/overview`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/jobs/${job.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 flex items-center gap-1'
+                                                )}
+                                                title={`${job.title}${job.job_type ? ` • ${job.job_type.name}` : ''}`}
+                                              >
+                                                {job.job_type && (
+                                                  <span
+                                                    className="w-2 h-2 rounded-sm bg-blue-500 dark:bg-blue-400 flex-shrink-0"
+                                                    title={job.job_type.name}
+                                                  />
+                                                )}
+                                                {job.job_stage && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                                    title={job.job_stage.name}
+                                                  />
+                                                )}
+                                                <span className="truncate">{job.title || `Job #${job.id}`}</span>
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+
+                              {/* Type + Status Nested Grouped View */}
+                              {groupedJobs.mode === 'type-status' && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([typeName, statusGroups]) => (
+                                  <li key={typeName}>
+                                    {/* Type group header */}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTypeGroup(typeName)}
+                                      className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                    >
+                                      <ChevronRightIcon
+                                        className={classNames(
+                                          'h-3 w-3 text-gray-400 transition-transform',
+                                          (expandedTypeGroups[typeName] !== false) && 'rotate-90'
+                                        )}
+                                      />
+                                      <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                        {typeName}
+                                      </span>
+                                      <span className="ml-auto text-xs text-gray-400">
+                                        {Object.values(statusGroups).flat().length}
+                                      </span>
+                                    </button>
+
+                                    {/* Status groups under this type */}
+                                    {(expandedTypeGroups[typeName] !== false) && (
+                                      <ul className="ml-3 space-y-0.5 mt-0.5">
+                                        {Object.entries(statusGroups)
+                                          .sort(([a], [b]) => a.localeCompare(b))
+                                          .map(([statusName, jobs]) => {
+                                            const filteredJobs = jobs.filter(job => {
+                                              if (!jobSearchQuery) return true
+                                              const query = jobSearchQuery.toLowerCase()
+                                              return (job.title || '').toLowerCase().includes(query) ||
+                                                     String(job.id).includes(query)
+                                            })
+                                            if (filteredJobs.length === 0) return null
+
+                                            const groupKey = `${typeName}:${statusName}`
+                                            return (
+                                              <li key={statusName}>
+                                                {/* Status subgroup header */}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => toggleStatusGroup(groupKey)}
+                                                  className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                  <ChevronRightIcon
+                                                    className={classNames(
+                                                      'h-3 w-3 text-gray-400 transition-transform',
+                                                      (expandedStatusGroups[groupKey] !== false) && 'rotate-90'
+                                                    )}
+                                                  />
+                                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                    {statusName}
+                                                  </span>
+                                                  <span className="ml-auto text-xs text-gray-400">
+                                                    {filteredJobs.length}
+                                                  </span>
+                                                </button>
+
+                                                {/* Jobs under this type+status */}
+                                                {(expandedStatusGroups[groupKey] !== false) && (
+                                                  <ul className="ml-4 space-y-0.5">
+                                                    {filteredJobs.slice(0, 20).map((job) => (
+                                                      <li key={job.id}>
+                                                        <Link
+                                                          to={`/jobs/${job.id}/overview`}
+                                                          className={classNames(
+                                                            location.pathname.startsWith(`/jobs/${job.id}`)
+                                                              ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                              : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                            'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                          )}
+                                                          title={job.title}
+                                                        >
+                                                          {job.title || `Job #${job.id}`}
+                                                        </Link>
+                                                      </li>
+                                                    ))}
+                                                  </ul>
+                                                )}
+                                              </li>
+                                            )
+                                          })}
+                                      </ul>
+                                    )}
+                                  </li>
+                                ))}
 
                               {/* Stage View */}
                               {jobViewMode === 'stage' && Object.entries(jobsByStage)
@@ -826,6 +1415,12 @@ export default function AppLayout({ children }) {
                                                     title={job.job_status.name}
                                                   />
                                                 )}
+                                                {job.job_stage && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                                    title={job.job_stage.name}
+                                                  />
+                                                )}
                                                 <span className="truncate">{job.title || `Job #${job.id}`}</span>
                                               </Link>
                                             </li>
@@ -837,8 +1432,8 @@ export default function AppLayout({ children }) {
                                 })}
 
                               {/* More link for list view */}
-                              {jobViewMode === 'list' && (() => {
-                                const filteredJobs = sortedActiveJobs.filter(job => {
+                              {groupedJobs.mode === 'list' && (() => {
+                                const filteredJobs = groupedJobs.jobs.filter(job => {
                                   if (!jobSearchQuery) return true
                                   const query = jobSearchQuery.toLowerCase()
                                   return (job.title || '').toLowerCase().includes(query) ||
@@ -859,6 +1454,483 @@ export default function AppLayout({ children }) {
                                 }
                                 return null
                               })()}
+                            </ul>
+                          )}
+                        </li>
+                      )
+                    }
+
+                    // Special handling for Price Books - make it expandable with grouping
+                    if (item.name === 'Price Books') {
+                      return (
+                        <li key={item.name}>
+                          {/* Price Books header with expand toggle */}
+                          <div className="flex items-center">
+                            <Link
+                              to={item.href}
+                              title={sidebarCollapsed ? item.name : undefined}
+                              className={classNames(
+                                current
+                                  ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold flex-1',
+                                sidebarCollapsed && 'justify-center'
+                              )}
+                            >
+                              <item.icon
+                                aria-hidden="true"
+                                className={classNames(
+                                  current
+                                    ? 'text-indigo-600 dark:text-white'
+                                    : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                  'size-6 shrink-0',
+                                )}
+                              />
+                              {!sidebarCollapsed && item.name}
+                            </Link>
+                            {!sidebarCollapsed && priceBooks.length > 0 && (
+                              <button
+                                onClick={togglePriceBooksExpanded}
+                                className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                              >
+                                <ChevronRightIcon
+                                  className={classNames(
+                                    'h-4 w-4 text-gray-400 transition-transform',
+                                    priceBooksExpanded && 'rotate-90'
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Expandable price book list */}
+                          {!sidebarCollapsed && priceBooksExpanded && priceBooks.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {/* Search and Category button */}
+                              <li className="px-2 pb-1 flex gap-1">
+                                <div className="relative flex-1">
+                                  <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search price books..."
+                                    value={priceBookSearchQuery}
+                                    onChange={(e) => setPriceBookSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={toggleGroupByCategory}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer',
+                                    groupByCategory
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={groupByCategory ? 'Grouped by Category' : 'Group by Category'}
+                                >
+                                  Category
+                                </button>
+                              </li>
+
+                              {/* List View */}
+                              {groupedPriceBooks.mode === 'list' && groupedPriceBooks.items
+                                .filter(book => {
+                                  if (!priceBookSearchQuery) return true
+                                  const query = priceBookSearchQuery.toLowerCase()
+                                  return (book.item_code || book.code || '').toLowerCase().includes(query)
+                                })
+                                .slice(0, 20)
+                                .map((book) => (
+                                <li key={book.id}>
+                                  <Link
+                                    to={`/tables/205/pricebook/${book.id}`}
+                                    className={classNames(
+                                      location.pathname.startsWith(`/tables/205/pricebook/${book.id}`)
+                                        ? 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                      'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                    )}
+                                  >
+                                    {book.item_code || book.code || `Book #${book.id}`}
+                                  </Link>
+                                </li>
+                              ))}
+
+                              {/* Category Grouped View */}
+                              {groupedPriceBooks.mode === 'category' && Object.entries(groupedPriceBooks.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([categoryName, books]) => {
+                                  const filteredBooks = books.filter(book => {
+                                    if (!priceBookSearchQuery) return true
+                                    const query = priceBookSearchQuery.toLowerCase()
+                                    return (book.item_code || book.code || '').toLowerCase().includes(query)
+                                  })
+                                  if (filteredBooks.length === 0) return null
+
+                                  return (
+                                    <li key={categoryName}>
+                                      {/* Category group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleCategoryGroup(categoryName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedCategoryGroups[categoryName] === true) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {categoryName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredBooks.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Books under this category */}
+                                      {(expandedCategoryGroups[categoryName] === true) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredBooks.slice(0, 20).map((book) => (
+                                            <li key={book.id}>
+                                              <Link
+                                                to={`/tables/205/pricebook/${book.id}`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/tables/205/pricebook/${book.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                )}
+                                              >
+                                                {book.item_code || book.code || `Book #${book.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+                            </ul>
+                          )}
+                        </li>
+                      )
+                    }
+
+                    // Special handling for All Contacts - make it expandable with grouping
+                    if (item.name === 'All Contacts') {
+                      return (
+                        <li key={item.name}>
+                          {/* All Contacts header with expand toggle */}
+                          <div className="flex items-center">
+                            <Link
+                              to={item.href}
+                              title={sidebarCollapsed ? item.name : undefined}
+                              className={classNames(
+                                current
+                                  ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold flex-1',
+                                sidebarCollapsed && 'justify-center'
+                              )}
+                            >
+                              <item.icon
+                                aria-hidden="true"
+                                className={classNames(
+                                  current
+                                    ? 'text-indigo-600 dark:text-white'
+                                    : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                  'size-6 shrink-0',
+                                )}
+                              />
+                              {!sidebarCollapsed && item.name}
+                            </Link>
+                            {!sidebarCollapsed && contacts.length > 0 && (
+                              <button
+                                onClick={toggleContactsExpanded}
+                                className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                              >
+                                <ChevronRightIcon
+                                  className={classNames(
+                                    'h-4 w-4 text-gray-400 transition-transform',
+                                    contactsExpanded && 'rotate-90'
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Expandable contacts list */}
+                          {!sidebarCollapsed && contactsExpanded && contacts.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {/* Search and Type button */}
+                              <li className="px-2 pb-1 flex gap-1">
+                                <div className="relative flex-1">
+                                  <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search contacts..."
+                                    value={contactSearchQuery}
+                                    onChange={(e) => setContactSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={toggleGroupByContactType}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer',
+                                    groupByContactType
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={groupByContactType ? 'Grouped by Type' : 'Group by Type'}
+                                >
+                                  Type
+                                </button>
+                              </li>
+
+                              {/* List View */}
+                              {groupedContacts.mode === 'list' && groupedContacts.items
+                                .filter(contact => {
+                                  if (!contactSearchQuery) return true
+                                  const query = contactSearchQuery.toLowerCase()
+                                  return (contact.full_name || contact.name || '').toLowerCase().includes(query)
+                                })
+                                .slice(0, 20)
+                                .map((contact) => (
+                                <li key={contact.id}>
+                                  <Link
+                                    to={`/tables/214/contacts/${contact.id}`}
+                                    className={classNames(
+                                      location.pathname.startsWith(`/tables/214/contacts/${contact.id}`)
+                                        ? 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                      'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                    )}
+                                  >
+                                    {contact.full_name || contact.name || `Contact #${contact.id}`}
+                                  </Link>
+                                </li>
+                              ))}
+
+                              {/* Type Grouped View */}
+                              {groupedContacts.mode === 'type' && Object.entries(groupedContacts.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([typeName, contactsList]) => {
+                                  const filteredContacts = contactsList.filter(contact => {
+                                    if (!contactSearchQuery) return true
+                                    const query = contactSearchQuery.toLowerCase()
+                                    return (contact.full_name || contact.name || '').toLowerCase().includes(query)
+                                  })
+                                  if (filteredContacts.length === 0) return null
+
+                                  return (
+                                    <li key={typeName}>
+                                      {/* Type group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleContactTypeGroup(typeName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedContactTypeGroups[typeName] === true) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {typeName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredContacts.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Contacts under this type */}
+                                      {(expandedContactTypeGroups[typeName] === true) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredContacts.slice(0, 20).map((contact) => (
+                                            <li key={contact.id}>
+                                              <Link
+                                                to={`/tables/214/contacts/${contact.id}`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/tables/214/contacts/${contact.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                )}
+                                              >
+                                                {contact.full_name || contact.name || `Contact #${contact.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+                            </ul>
+                          )}
+                        </li>
+                      )
+                    }
+
+                    // Special handling for Purchase Orders - make it expandable with grouping
+                    if (item.name === 'Purchase Orders') {
+                      return (
+                        <li key={item.name}>
+                          {/* Purchase Orders header with expand toggle */}
+                          <div className="flex items-center">
+                            <Link
+                              to={item.href}
+                              title={sidebarCollapsed ? item.name : undefined}
+                              className={classNames(
+                                current
+                                  ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold flex-1',
+                                sidebarCollapsed && 'justify-center'
+                              )}
+                            >
+                              <item.icon
+                                aria-hidden="true"
+                                className={classNames(
+                                  current
+                                    ? 'text-indigo-600 dark:text-white'
+                                    : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                  'size-6 shrink-0',
+                                )}
+                              />
+                              {!sidebarCollapsed && item.name}
+                            </Link>
+                            {!sidebarCollapsed && purchaseOrders.length > 0 && (
+                              <button
+                                onClick={togglePurchaseOrdersExpanded}
+                                className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                              >
+                                <ChevronRightIcon
+                                  className={classNames(
+                                    'h-4 w-4 text-gray-400 transition-transform',
+                                    purchaseOrdersExpanded && 'rotate-90'
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Expandable purchase orders list */}
+                          {!sidebarCollapsed && purchaseOrdersExpanded && purchaseOrders.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {/* Search and Job button */}
+                              <li className="px-2 pb-1 flex gap-1">
+                                <div className="relative flex-1">
+                                  <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search purchase orders..."
+                                    value={purchaseOrderSearchQuery}
+                                    onChange={(e) => setPurchaseOrderSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={toggleGroupByPOJob}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer',
+                                    groupByPOJob
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={groupByPOJob ? 'Grouped by Job' : 'Group by Job'}
+                                >
+                                  Job
+                                </button>
+                              </li>
+
+                              {/* List View */}
+                              {groupedPurchaseOrders.mode === 'list' && groupedPurchaseOrders.items
+                                .filter(order => {
+                                  if (!purchaseOrderSearchQuery) return true
+                                  const query = purchaseOrderSearchQuery.toLowerCase()
+                                  return (order.number || order.title || '').toLowerCase().includes(query)
+                                })
+                                .slice(0, 20)
+                                .map((order) => (
+                                <li key={order.id}>
+                                  <Link
+                                    to={`/tables/217/purchase-orders/${order.id}`}
+                                    className={classNames(
+                                      location.pathname.startsWith(`/tables/217/purchase-orders/${order.id}`)
+                                        ? 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                      'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                    )}
+                                  >
+                                    {order.number ? `PO ${order.number}` : `PO #${order.id}`}
+                                  </Link>
+                                </li>
+                              ))}
+
+                              {/* Job Grouped View */}
+                              {groupedPurchaseOrders.mode === 'job' && Object.entries(groupedPurchaseOrders.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([jobName, ordersList]) => {
+                                  const filteredOrders = ordersList.filter(order => {
+                                    if (!purchaseOrderSearchQuery) return true
+                                    const query = purchaseOrderSearchQuery.toLowerCase()
+                                    return (order.number || order.title || '').toLowerCase().includes(query)
+                                  })
+                                  if (filteredOrders.length === 0) return null
+
+                                  return (
+                                    <li key={jobName}>
+                                      {/* Job group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => togglePOJobGroup(jobName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedPOJobGroups[jobName] === true) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {jobName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredOrders.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Purchase orders under this job */}
+                                      {(expandedPOJobGroups[jobName] === true) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredOrders.slice(0, 20).map((order) => (
+                                            <li key={order.id}>
+                                              <Link
+                                                to={`/tables/217/purchase-orders/${order.id}`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/tables/217/purchase-orders/${order.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                )}
+                                              >
+                                                {order.number ? `PO ${order.number}` : `PO #${order.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
                             </ul>
                           )}
                         </li>

@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowTopRightOnSquareIcon, ShieldCheckIcon, KeyIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 import PublicHolidaysPage from '../../pages/PublicHolidaysPage'
@@ -20,6 +20,7 @@ const CompaniesPage = lazy(() => import('../../pages/CompaniesPage'))
 const RolesAndGroupsTab = lazy(() => import('./RolesAndGroupsTab'))
 const PermissionsPage = lazy(() => import('../../pages/PermissionsPage'))
 const JobSetupTab = lazy(() => import('./JobSetupTab'))
+const DependencyConfigTab = lazy(() => import('./DependencyConfigTab'))
 const DocumentationCategoriesTab = lazy(() => import('./DocumentationCategoriesTab'))
 
 const TIMEZONES = [
@@ -37,7 +38,30 @@ const TIMEZONES = [
   { value: 'UTC', label: 'UTC' }
 ]
 
+const TAB_NAMES = [
+  'info',
+  'security',
+  'permissions',
+  'corporate',
+  'holidays',
+  'connections',
+  'xero',
+  'contact-roles',
+  'workflows',
+  'folders',
+  'job-setup',
+  'workflow-config',
+  'doc-setup'
+]
+
 export default function CompanySettingsTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selectedTabIndex, setSelectedTabIndex] = useState(() => {
+    const subtab = searchParams.get('subtab')
+    const index = TAB_NAMES.indexOf(subtab)
+    return index >= 0 ? index : 0
+  })
+
   const [settings, setSettings] = useState({
     company_name: '',
     abn: '',
@@ -102,6 +126,12 @@ export default function CompanySettingsTab() {
     setSettings(prev => ({ ...prev, [field]: value }))
   }
 
+  const handleTabChange = (index) => {
+    setSelectedTabIndex(index)
+    const tabName = TAB_NAMES[index]
+    setSearchParams({ tab: 'company', subtab: tabName })
+  }
+
   if (loading) {
     return (
       <div>
@@ -127,7 +157,7 @@ export default function CompanySettingsTab() {
           </Link>
         </div>
 
-        <TabGroup>
+        <TabGroup selectedIndex={selectedTabIndex} onChange={handleTabChange}>
           <TabList className="flex space-x-1 rounded-xl bg-indigo-900/20 p-1 mb-6 overflow-x-auto">
             <Tab
               className={({ selected }) =>
@@ -260,6 +290,18 @@ export default function CompanySettingsTab() {
               }
             >
               Job Setup
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2.5 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
+              Workflow Config
             </Tab>
             <Tab
               className={({ selected }) =>
@@ -500,6 +542,13 @@ export default function CompanySettingsTab() {
             <TabPanel>
               <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
                 <JobSetupTab />
+              </Suspense>
+            </TabPanel>
+
+            {/* Workflow Config Tab */}
+            <TabPanel>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
+                <DependencyConfigTab />
               </Suspense>
             </TabPanel>
 

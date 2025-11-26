@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_25_124202) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -792,7 +792,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_124202) do
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
   end
 
-  create_table "gold_standard_items", force: :cascade do |t|
+  create_table "gold_standard_items", id: :bigint, default: -> { "nextval('gold_standard_table_id_seq'::regclass)" }, force: :cascade do |t|
     t.string "email"
     t.string "phone", limit: 20
     t.datetime "created_at", null: false
@@ -927,15 +927,53 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_124202) do
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
   end
 
-  create_table "job_statuses", force: :cascade do |t|
+  create_table "job_stages", force: :cascade do |t|
     t.string "name", null: false
     t.integer "position", default: 0
     t.boolean "is_active", default: true
     t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_job_statuses_on_is_active"
-    t.index ["position"], name: "index_job_statuses_on_position"
+    t.index ["is_active"], name: "index_job_stages_on_is_active"
+    t.index ["position"], name: "index_job_stages_on_position"
+  end
+
+  create_table "job_status_stages", force: :cascade do |t|
+    t.bigint "job_type_id", null: false
+    t.bigint "job_status_id", null: false
+    t.bigint "job_stage_id", null: false
+    t.integer "position", default: 0
+    t.boolean "is_required", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_stage_id"], name: "index_job_status_stages_on_job_stage_id"
+    t.index ["job_status_id"], name: "index_job_status_stages_on_job_status_id"
+    t.index ["job_type_id", "job_status_id", "job_stage_id"], name: "index_job_status_stages_on_type_status_stage", unique: true
+    t.index ["job_type_id"], name: "index_job_status_stages_on_job_type_id"
+    t.index ["position"], name: "index_job_status_stages_on_position"
+  end
+
+  create_table "job_statuses", id: :bigint, default: -> { "nextval('job_status_id_seq'::regclass)" }, force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_status_on_is_active"
+    t.index ["position"], name: "index_job_status_on_position"
+  end
+
+  create_table "job_type_statuses", force: :cascade do |t|
+    t.bigint "job_type_id", null: false
+    t.bigint "job_status_id", null: false
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_status_id"], name: "index_job_type_statuses_on_job_status_id"
+    t.index ["job_type_id", "job_status_id"], name: "index_job_type_statuses_on_job_type_id_and_job_status_id", unique: true
+    t.index ["job_type_id"], name: "index_job_type_statuses_on_job_type_id"
+    t.index ["position"], name: "index_job_type_statuses_on_position"
   end
 
   create_table "job_types", force: :cascade do |t|
@@ -973,9 +1011,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_124202) do
     t.string "location"
     t.bigint "job_type_id"
     t.bigint "job_status_id"
+    t.bigint "job_stage_id"
+    t.string "xero_tracking_option_id"
+    t.string "xero_tracking_option_name"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["design_id"], name: "index_jobs_on_design_id"
     t.index ["design_name"], name: "index_jobs_on_design_name"
+    t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
@@ -1551,6 +1593,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_124202) do
     t.bigint "quote_response_id"
     t.datetime "arrived_at"
     t.datetime "completed_at"
+    t.string "xero_invoice_number"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
     t.index ["creates_schedule_tasks"], name: "index_purchase_orders_on_creates_schedule_tasks"
@@ -3043,7 +3086,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_25_124202) do
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_status_stages", "job_stages"
+  add_foreign_key "job_status_stages", "job_statuses"
+  add_foreign_key "job_status_stages", "job_types"
+  add_foreign_key "job_type_statuses", "job_statuses"
+  add_foreign_key "job_type_statuses", "job_types"
   add_foreign_key "jobs", "designs"
+  add_foreign_key "jobs", "job_stages"
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "kudos_events", "purchase_orders"

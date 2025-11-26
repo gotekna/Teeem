@@ -1,5 +1,5 @@
 /**
- * Gold Standard Items API Service
+ * Gold Standard Table API Service
  * Centralized API calls for Gold Standard table operations
  *
  * Features:
@@ -9,7 +9,7 @@
  * - Type-safe responses
  */
 
-const BASE_URL = '/api/v1/gold_standard_items'
+const BASE_URL = '/api/v1/gold_standard_table'
 
 /**
  * Fetch all gold standard items with optional pagination and filtering
@@ -49,7 +49,7 @@ export async function createItem(itemData) {
   const response = await fetch(BASE_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gold_standard_item: itemData })
+    body: JSON.stringify({ gold_standard_table: itemData })
   })
 
   if (!response.ok) {
@@ -71,7 +71,7 @@ export async function updateItem(id, itemData) {
   const response = await fetch(`${BASE_URL}/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ gold_standard_item: itemData })
+    body: JSON.stringify({ gold_standard_table: itemData })
   })
 
   if (!response.ok) {
@@ -127,7 +127,7 @@ export async function bulkDeleteItems(ids) {
  * @returns {Promise<{success: boolean, columns: Array}>}
  */
 export async function syncColumns() {
-  const response = await fetch('/api/v1/gold_standard_items/sync_with_columns')
+  const response = await fetch('/api/v1/gold_standard_table/sync_with_columns')
 
   if (!response.ok) {
     throw new Error('Failed to sync columns')
