@@ -24,6 +24,18 @@ import {
   ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline'
 
+// Define user-specific columns for the Quick View table
+const USER_COLUMNS = [
+  { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
+  { key: 'section', label: 'ID', resizable: true, sortable: true, filterable: false, width: 60 },
+  { key: 'title', label: 'Name', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 200 },
+  { key: 'description', label: 'Email', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 250 },
+  { key: 'entry_type', label: 'Role', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 140 },
+  { key: 'component', label: 'Mobile', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 140 },
+  { key: 'status', label: 'Status', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+  { key: 'severity', label: 'Assigned Role', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 140 }
+]
+
 export default function UserManagementTab() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -120,7 +132,7 @@ export default function UserManagementTab() {
           </p>
         </div>
         <Link
-          to="/tables/212/user-management"
+          to="/tables/212"
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm transition-colors whitespace-nowrap"
         >
           Open Full Table
@@ -134,6 +146,7 @@ export default function UserManagementTab() {
         onDelete={handleDelete}
         category="users"
         tableId="users-quick-view"
+        columns={USER_COLUMNS}
       />
 
       {/* Toast Notification */}

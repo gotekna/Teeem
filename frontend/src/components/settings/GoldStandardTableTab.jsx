@@ -121,12 +121,15 @@ const getCurrentUserId = () => {
     const user = localStorage.getItem('user')
     if (user) {
       const userData = JSON.parse(user)
-      return userData.id || 1 // Default to 1 if no ID
+      if (userData.id) {
+        return userData.id
+      }
     }
   } catch (e) {
     console.error('Failed to parse user from localStorage:', e)
   }
-  return 1 // Default user ID
+  // Return null if no authenticated user - caller should handle this
+  return null
 }
 
 export default function GoldStandardTableTab() {

@@ -18,13 +18,13 @@ class ApplicationController < ActionController::API
       decoded = JsonWebToken.decode(header)
       @current_user = User.find(decoded[:user_id]) if decoded
     rescue ActiveRecord::RecordNotFound, JWT::DecodeError => e
-      # In development, allow requests without auth to continue
-      # In production, you should uncomment the line below:
-      # render json: { error: 'Unauthorized' }, status: :unauthorized
+      # Authentication failed - will be handled below
     end
 
-    # In development, use default user if no auth provided
-    @current_user ||= User.find_by(id: 1) if Rails.env.development?
+    # Require authentication - no default user fallback
+    unless @current_user
+      render json: { error: 'Unauthorized' }, status: :unauthorized
+    end
   end
 
   def current_user
