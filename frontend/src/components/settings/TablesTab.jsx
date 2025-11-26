@@ -81,7 +81,11 @@ export default function TablesTab() {
         }
       }
 
+      console.log('🔍 DEBUG: Setting sync results state...')
       setSyncResults(debugResponse)
+
+      // Force component to re-render by updating a timestamp
+      console.log('🔍 DEBUG: Sync complete, component should re-render')
     } catch (err) {
       console.error('Failed to sync system tables:', err)
       alert(err.message || 'Failed to sync system tables')
@@ -584,6 +588,17 @@ export default function TablesTab() {
                           const syncResult = syncResults?.results?.find(r => r.table_id === table.id)
                           if (syncResult && syncResult.db_exists) {
                             const virtualCount = syncResult.registered_columns_count - syncResult.db_columns_count
+
+                            // Debug logging
+                            if (table.id === 221 || table.id === 220) {
+                              console.log(`🔍 Virtual count for ${table.name} (ID ${table.id}):`, {
+                                registered: syncResult.registered_columns_count,
+                                db: syncResult.db_columns_count,
+                                virtual: virtualCount,
+                                syncResult
+                              })
+                            }
+
                             if (virtualCount > 0) {
                               return (
                                 <span className="inline-flex items-center rounded-md bg-amber-50 dark:bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/20 dark:ring-amber-500/20">
