@@ -5703,89 +5703,111 @@ export default function TeeemTableView({
                                           key={filter.id}
                                           className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
                                         >
-                                          {/* Column dropdown - Searchable */}
+                                          {/* Column dropdown - Searchable with smart positioning */}
                                           <div className="relative flex-1 min-w-[120px]" data-filter-column-dropdown>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setFilterColumnDropdownOpen(filterColumnDropdownOpen === filter.id ? null : filter.id)
-                                                setFilterColumnSearchQuery('')
-                                              }}
-                                              className={`w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-left flex items-center justify-between ${
-                                                filter.column ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'
-                                              }`}
-                                            >
-                                              <span>{filter.column ? (COLUMNS.find(c => c.key === filter.column)?.label || filter.column) : 'Select column...'}</span>
-                                              <svg className={`w-3 h-3 transition-transform ${filterColumnDropdownOpen === filter.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                              </svg>
-                                            </button>
+                                            {filterColumnDropdownOpen === filter.id ? (
+                                              // Search input replaces button when open
+                                              <input
+                                                type="text"
+                                                value={filterColumnSearchQuery}
+                                                onChange={(e) => setFilterColumnSearchQuery(e.target.value)}
+                                                placeholder="Type to search..."
+                                                className="w-full px-2 py-1.5 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                  if (e.key === 'Escape') {
+                                                    setFilterColumnDropdownOpen(null)
+                                                    setFilterColumnSearchQuery('')
+                                                  }
+                                                }}
+                                              />
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setFilterColumnDropdownOpen(filter.id)
+                                                  setFilterColumnSearchQuery('')
+                                                }}
+                                                className={`w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-left flex items-center justify-between ${
+                                                  filter.column ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'
+                                                }`}
+                                              >
+                                                <span>{filter.column ? (COLUMNS.find(c => c.key === filter.column)?.label || filter.column) : 'Select column...'}</span>
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                              </button>
+                                            )}
 
                                             {filterColumnDropdownOpen === filter.id && (
-                                              <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[60vh] overflow-hidden flex flex-col">
-                                                <div className="overflow-y-auto max-h-[50vh] flex-1">
-                                                  {COLUMNS
-                                                    .filter(col => col.key !== 'select' && col.key !== 'id')
-                                                    .filter(col => {
-                                                      if (!filterColumnSearchQuery.trim()) return true
-                                                      const searchLower = filterColumnSearchQuery.toLowerCase()
-                                                      return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
-                                                    })
-                                                    .sort((a, b) => a.label.localeCompare(b.label))
-                                                    .map(col => (
-                                                      <button
-                                                        key={col.key}
-                                                        type="button"
-                                                        onClick={() => {
-                                                          const columnDef = col
-                                                          const columnLabel = columnDef?.label || col.key
-                                                          const columnType = columnDef?.column_type
+                                              <div
+                                                className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
+                                                style={{
+                                                  // Smart positioning: check if more space above or below
+                                                  ...((() => {
+                                                    const el = document.querySelector(`[data-filter-column-dropdown]`)
+                                                    if (el) {
+                                                      const rect = el.getBoundingClientRect()
+                                                      const spaceBelow = window.innerHeight - rect.bottom
+                                                      const spaceAbove = rect.top
+                                                      if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+                                                        return { bottom: '100%', marginBottom: '4px' }
+                                                      }
+                                                    }
+                                                    return { top: '100%', marginTop: '4px' }
+                                                  })())
+                                                }}
+                                              >
+                                                {COLUMNS
+                                                  .filter(col => col.key !== 'select' && col.key !== 'id')
+                                                  .filter(col => {
+                                                    if (!filterColumnSearchQuery.trim()) return true
+                                                    const searchLower = filterColumnSearchQuery.toLowerCase()
+                                                    return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
+                                                  })
+                                                  .sort((a, b) => a.label.localeCompare(b.label))
+                                                  .map(col => (
+                                                    <button
+                                                      key={col.key}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        const columnDef = col
+                                                        const columnLabel = columnDef?.label || col.key
+                                                        const columnType = columnDef?.column_type
 
-                                                          // For choice columns, always use exact match (=)
-                                                          // For other columns, keep existing operator or default to 'contains'
-                                                          const newOperator = (columnType === 'choice' || columnType === 'single_select' || columnType === 'dropdown')
-                                                            ? '='
-                                                            : (filter.operator || 'contains')
+                                                        // For choice columns, always use exact match (=)
+                                                        // For other columns, keep existing operator or default to 'contains'
+                                                        const newOperator = (columnType === 'choice' || columnType === 'single_select' || columnType === 'dropdown')
+                                                          ? '='
+                                                          : (filter.operator || 'contains')
 
-                                                          setCascadeFilters(cascadeFilters.map(f =>
-                                                            f.id === filter.id
-                                                              ? { ...f, column: col.key, operator: newOperator, label: filter.value ? `${columnLabel}: ${filter.value}` : '' }
-                                                              : f
-                                                          ))
-                                                          setFilterColumnDropdownOpen(null)
-                                                          setFilterColumnSearchQuery('')
-                                                        }}
-                                                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                                                          filter.column === col.key
-                                                            ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
-                                                            : 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                                                        }`}
-                                                      >
-                                                        {filter.column === col.key && <span className="text-blue-600">✓</span>}
-                                                        <span className={filter.column === col.key ? '' : 'ml-5'}>{col.label}</span>
-                                                      </button>
-                                                    ))
-                                                  }
-                                                  {filterColumnSearchQuery.trim() &&
-                                                    COLUMNS.filter(col => col.key !== 'select' && col.key !== 'id')
-                                                      .filter(col => col.label.toLowerCase().includes(filterColumnSearchQuery.toLowerCase()) || col.key.toLowerCase().includes(filterColumnSearchQuery.toLowerCase()))
-                                                      .length === 0 && (
-                                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                                      No columns found
-                                                    </div>
-                                                  )}
-                                                </div>
-                                                <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                                                  <input
-                                                    type="text"
-                                                    value={filterColumnSearchQuery}
-                                                    onChange={(e) => setFilterColumnSearchQuery(e.target.value)}
-                                                    placeholder="Search columns..."
-                                                    className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                    autoFocus
-                                                    onClick={(e) => e.stopPropagation()}
-                                                  />
-                                                </div>
+                                                        setCascadeFilters(cascadeFilters.map(f =>
+                                                          f.id === filter.id
+                                                            ? { ...f, column: col.key, operator: newOperator, label: filter.value ? `${columnLabel}: ${filter.value}` : '' }
+                                                            : f
+                                                        ))
+                                                        setFilterColumnDropdownOpen(null)
+                                                        setFilterColumnSearchQuery('')
+                                                      }}
+                                                      className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                                                        filter.column === col.key
+                                                          ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                                                          : 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                                      }`}
+                                                    >
+                                                      {filter.column === col.key && <span className="text-blue-600">✓</span>}
+                                                      <span className={filter.column === col.key ? '' : 'ml-5'}>{col.label}</span>
+                                                    </button>
+                                                  ))
+                                                }
+                                                {filterColumnSearchQuery.trim() &&
+                                                  COLUMNS.filter(col => col.key !== 'select' && col.key !== 'id')
+                                                    .filter(col => col.label.toLowerCase().includes(filterColumnSearchQuery.toLowerCase()) || col.key.toLowerCase().includes(filterColumnSearchQuery.toLowerCase()))
+                                                    .length === 0 && (
+                                                  <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                                    No columns found
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
                                           </div>
@@ -5910,83 +5932,108 @@ export default function TeeemTableView({
                                     {index + 1}
                                   </span>
 
-                                  {/* Column dropdown - Searchable */}
-                                  <div className="relative flex-1 min-w-[120px]" data-sort-column-dropdown>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSortColumnDropdownOpen(sortColumnDropdownOpen === index ? null : index)
-                                        setSortColumnSearchQuery('')
-                                      }}
-                                      className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
-                                    >
-                                      <span>{COLUMNS.find(c => c.key === sort.column)?.label || sort.column}</span>
-                                      <svg className={`w-3 h-3 transition-transform ${sortColumnDropdownOpen === index ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                      </svg>
-                                    </button>
+                                  {/* Column dropdown - Searchable with smart positioning */}
+                                  <div className="relative flex-1 min-w-[120px]" data-sort-column-dropdown ref={(el) => {
+                                    // Store ref for position calculation
+                                    if (el) el._dropdownRef = el
+                                  }}>
+                                    {sortColumnDropdownOpen === index ? (
+                                      // Search input replaces button when open
+                                      <input
+                                        type="text"
+                                        value={sortColumnSearchQuery}
+                                        onChange={(e) => setSortColumnSearchQuery(e.target.value)}
+                                        placeholder="Type to search..."
+                                        className="w-full px-2 py-1.5 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Escape') {
+                                            setSortColumnDropdownOpen(null)
+                                            setSortColumnSearchQuery('')
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSortColumnDropdownOpen(index)
+                                          setSortColumnSearchQuery('')
+                                        }}
+                                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
+                                      >
+                                        <span>{COLUMNS.find(c => c.key === sort.column)?.label || sort.column}</span>
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </button>
+                                    )}
 
                                     {sortColumnDropdownOpen === index && (
-                                      <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[60vh] overflow-hidden flex flex-col">
-                                        <div className="overflow-y-auto max-h-[50vh] flex-1">
-                                          {COLUMNS
-                                            .filter(col => col.key !== 'select' && col.key !== 'actions')
-                                            .filter(col => {
-                                              if (!sortColumnSearchQuery.trim()) return true
-                                              const searchLower = sortColumnSearchQuery.toLowerCase()
-                                              return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
-                                            })
-                                            .sort((a, b) => a.label.localeCompare(b.label))
-                                            .map(col => {
-                                              const isDisabled = sortColumns.some((s, i) => i !== index && s.column === col.key)
-                                              return (
-                                                <button
-                                                  key={col.key}
-                                                  type="button"
-                                                  disabled={isDisabled}
-                                                  onClick={() => {
-                                                    if (!isDisabled) {
-                                                      setSortColumns(sortColumns.map((s, i) =>
-                                                        i === index ? { ...s, column: col.key } : s
-                                                      ))
-                                                      setSortColumnDropdownOpen(null)
-                                                      setSortColumnSearchQuery('')
-                                                    }
-                                                  }}
-                                                  className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 ${
-                                                    isDisabled
-                                                      ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                                                      : sort.column === col.key
-                                                        ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
-                                                        : 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                                                  }`}
-                                                >
-                                                  {sort.column === col.key && <span className="text-blue-600">✓</span>}
-                                                  <span className={sort.column === col.key ? '' : 'ml-5'}>{col.label}</span>
-                                                </button>
-                                              )
-                                            })
-                                          }
-                                          {sortColumnSearchQuery.trim() &&
-                                            COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
-                                              .filter(col => col.label.toLowerCase().includes(sortColumnSearchQuery.toLowerCase()) || col.key.toLowerCase().includes(sortColumnSearchQuery.toLowerCase()))
-                                              .length === 0 && (
-                                            <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                              No columns found
-                                            </div>
-                                          )}
-                                        </div>
-                                        <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                                          <input
-                                            type="text"
-                                            value={sortColumnSearchQuery}
-                                            onChange={(e) => setSortColumnSearchQuery(e.target.value)}
-                                            placeholder="Search columns..."
-                                            className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                            autoFocus
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
-                                        </div>
+                                      <div
+                                        className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
+                                        style={{
+                                          // Smart positioning: check if more space above or below
+                                          ...((() => {
+                                            const el = document.querySelector(`[data-sort-column-dropdown]`)
+                                            if (el) {
+                                              const rect = el.getBoundingClientRect()
+                                              const spaceBelow = window.innerHeight - rect.bottom
+                                              const spaceAbove = rect.top
+                                              if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+                                                return { bottom: '100%', marginBottom: '4px' }
+                                              }
+                                            }
+                                            return { top: '100%', marginTop: '4px' }
+                                          })())
+                                        }}
+                                      >
+                                        {COLUMNS
+                                          .filter(col => col.key !== 'select' && col.key !== 'actions')
+                                          .filter(col => {
+                                            if (!sortColumnSearchQuery.trim()) return true
+                                            const searchLower = sortColumnSearchQuery.toLowerCase()
+                                            return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
+                                          })
+                                          .sort((a, b) => a.label.localeCompare(b.label))
+                                          .map(col => {
+                                            const isDisabled = sortColumns.some((s, i) => i !== index && s.column === col.key)
+                                            return (
+                                              <button
+                                                key={col.key}
+                                                type="button"
+                                                disabled={isDisabled}
+                                                onClick={() => {
+                                                  if (!isDisabled) {
+                                                    setSortColumns(sortColumns.map((s, i) =>
+                                                      i === index ? { ...s, column: col.key } : s
+                                                    ))
+                                                    setSortColumnDropdownOpen(null)
+                                                    setSortColumnSearchQuery('')
+                                                  }
+                                                }}
+                                                className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                                                  isDisabled
+                                                    ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                                                    : sort.column === col.key
+                                                      ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                                                      : 'text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                                                }`}
+                                              >
+                                                {sort.column === col.key && <span className="text-blue-600">✓</span>}
+                                                <span className={sort.column === col.key ? '' : 'ml-5'}>{col.label}</span>
+                                              </button>
+                                            )
+                                          })
+                                        }
+                                        {sortColumnSearchQuery.trim() &&
+                                          COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                                            .filter(col => col.label.toLowerCase().includes(sortColumnSearchQuery.toLowerCase()) || col.key.toLowerCase().includes(sortColumnSearchQuery.toLowerCase()))
+                                            .length === 0 && (
+                                          <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                            No columns found
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                   </div>
@@ -6071,100 +6118,119 @@ export default function TeeemTableView({
                         </label>
                         <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
                           <div className="flex items-center gap-2">
-                            {/* Searchable Group By Dropdown */}
+                            {/* Searchable Group By Dropdown - with smart positioning */}
                             <div className="relative flex-1" data-group-by-dropdown>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setGroupByDropdownOpen(!groupByDropdownOpen)
-                                  setGroupBySearchQuery('')
-                                }}
-                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
-                              >
-                                <span className={groupByColumn ? '' : 'text-gray-400 dark:text-gray-500'}>
-                                  {groupByColumn
-                                    ? COLUMNS.find(c => c.key === groupByColumn)?.label || groupByColumn
-                                    : 'No grouping'}
-                                </span>
-                                <svg className={`w-4 h-4 transition-transform ${groupByDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-
-                              {/* Dropdown Menu - Opens UPWARD - uses more vertical space */}
-                              {groupByDropdownOpen && (
-                                <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[70vh] overflow-hidden flex flex-col">
-                                  {/* Options List - generous height before scrolling */}
-                                  <div className="overflow-y-auto max-h-[60vh] flex-1">
-                                    {/* No Grouping Option */}
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setGroupByColumn(null)
-                                        setCollapsedGroups(new Set())
-                                        setGroupByDropdownOpen(false)
-                                        setGroupBySearchQuery('')
-                                      }}
-                                      className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 ${
-                                        !groupByColumn ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
-                                      }`}
-                                    >
-                                      {!groupByColumn && <span className="text-blue-600">✓</span>}
-                                      <span className={!groupByColumn ? '' : 'ml-5'}>No grouping</span>
-                                    </button>
-
-                                    {/* Filtered Column Options */}
-                                    {COLUMNS
-                                      .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
-                                      .filter(col => {
-                                        if (!groupBySearchQuery.trim()) return true
-                                        const searchLower = groupBySearchQuery.toLowerCase()
-                                        return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
-                                      })
-                                      .sort((a, b) => a.label.localeCompare(b.label))
-                                      .map(col => (
-                                        <button
-                                          key={col.key}
-                                          type="button"
-                                          onClick={() => {
-                                            setGroupByColumn(col.key)
-                                            setCollapsedGroups(new Set())
-                                            setGroupByDropdownOpen(false)
-                                            setGroupBySearchQuery('')
-                                          }}
-                                          className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 ${
-                                            groupByColumn === col.key ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
-                                          }`}
-                                        >
-                                          {groupByColumn === col.key && <span className="text-blue-600">✓</span>}
-                                          <span className={groupByColumn === col.key ? '' : 'ml-5'}>{col.label}</span>
-                                        </button>
-                                      ))
+                              {groupByDropdownOpen ? (
+                                // Search input replaces button when open
+                                <input
+                                  type="text"
+                                  value={groupBySearchQuery}
+                                  onChange={(e) => setGroupBySearchQuery(e.target.value)}
+                                  placeholder="Type to search..."
+                                  className="w-full px-3 py-2 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Escape') {
+                                      setGroupByDropdownOpen(false)
+                                      setGroupBySearchQuery('')
                                     }
+                                  }}
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setGroupByDropdownOpen(true)
+                                    setGroupBySearchQuery('')
+                                  }}
+                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
+                                >
+                                  <span className={groupByColumn ? '' : 'text-gray-400 dark:text-gray-500'}>
+                                    {groupByColumn
+                                      ? COLUMNS.find(c => c.key === groupByColumn)?.label || groupByColumn
+                                      : 'No grouping'}
+                                  </span>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              )}
 
-                                    {/* No Results */}
-                                    {groupBySearchQuery.trim() &&
-                                      COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
-                                        .filter(col => col.label.toLowerCase().includes(groupBySearchQuery.toLowerCase()) || col.key.toLowerCase().includes(groupBySearchQuery.toLowerCase()))
-                                        .length === 0 && (
-                                      <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                        No columns found
-                                      </div>
-                                    )}
-                                  </div>
+                              {/* Dropdown Menu - Smart positioning */}
+                              {groupByDropdownOpen && (
+                                <div
+                                  className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
+                                  style={{
+                                    // Smart positioning: check if more space above or below
+                                    ...((() => {
+                                      const el = document.querySelector(`[data-group-by-dropdown]`)
+                                      if (el) {
+                                        const rect = el.getBoundingClientRect()
+                                        const spaceBelow = window.innerHeight - rect.bottom
+                                        const spaceAbove = rect.top
+                                        if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+                                          return { bottom: '100%', marginBottom: '4px' }
+                                        }
+                                      }
+                                      return { top: '100%', marginTop: '4px' }
+                                    })())
+                                  }}
+                                >
+                                  {/* No Grouping Option */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setGroupByColumn(null)
+                                      setCollapsedGroups(new Set())
+                                      setGroupByDropdownOpen(false)
+                                      setGroupBySearchQuery('')
+                                    }}
+                                    className={`w-full px-3 py-1.5 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 ${
+                                      !groupByColumn ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
+                                    }`}
+                                  >
+                                    {!groupByColumn && <span className="text-blue-600">✓</span>}
+                                    <span className={!groupByColumn ? '' : 'ml-5'}>No grouping</span>
+                                  </button>
 
-                                  {/* Search Input - at bottom since dropdown opens upward */}
-                                  <div className="p-2 border-t border-gray-200 dark:border-gray-700">
-                                    <input
-                                      type="text"
-                                      value={groupBySearchQuery}
-                                      onChange={(e) => setGroupBySearchQuery(e.target.value)}
-                                      placeholder="Search columns..."
-                                      className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                      autoFocus
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
-                                  </div>
+                                  {/* Filtered Column Options */}
+                                  {COLUMNS
+                                    .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                                    .filter(col => {
+                                      if (!groupBySearchQuery.trim()) return true
+                                      const searchLower = groupBySearchQuery.toLowerCase()
+                                      return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
+                                    })
+                                    .sort((a, b) => a.label.localeCompare(b.label))
+                                    .map(col => (
+                                      <button
+                                        key={col.key}
+                                        type="button"
+                                        onClick={() => {
+                                          setGroupByColumn(col.key)
+                                          setCollapsedGroups(new Set())
+                                          setGroupByDropdownOpen(false)
+                                          setGroupBySearchQuery('')
+                                        }}
+                                        className={`w-full px-3 py-1.5 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 ${
+                                          groupByColumn === col.key ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
+                                        }`}
+                                      >
+                                        {groupByColumn === col.key && <span className="text-blue-600">✓</span>}
+                                        <span className={groupByColumn === col.key ? '' : 'ml-5'}>{col.label}</span>
+                                      </button>
+                                    ))
+                                  }
+
+                                  {/* No Results */}
+                                  {groupBySearchQuery.trim() &&
+                                    COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                                      .filter(col => col.label.toLowerCase().includes(groupBySearchQuery.toLowerCase()) || col.key.toLowerCase().includes(groupBySearchQuery.toLowerCase()))
+                                      .length === 0 && (
+                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                      No columns found
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
