@@ -158,33 +158,6 @@ export default function Login() {
               </form>
             </div>
 
-            <div className="mt-10">
-              <div className="relative">
-                <div aria-hidden="true" className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
-                </div>
-                <div className="relative flex justify-center text-sm/6 font-medium">
-                  <span className="bg-white px-6 text-gray-900 dark:bg-gray-900 dark:text-gray-300">
-                    Or continue with
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <a
-                  href={`${import.meta.env.VITE_API_URL}/auth/microsoft_office365`}
-                  className="flex w-full items-center justify-center gap-3 rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus-visible:ring-transparent dark:bg-white/10 dark:text-white dark:shadow-none dark:ring-white/5 dark:hover:bg-white/20"
-                >
-                  <svg viewBox="0 0 23 23" fill="none" aria-hidden="true" className="h-5 w-5">
-                    <path d="M11 0H0v11h11V0z" fill="#f25022"/>
-                    <path d="M23 0H12v11h11V0z" fill="#7fba00"/>
-                    <path d="M11 12H0v11h11V12z" fill="#00a4ef"/>
-                    <path d="M23 12H12v11h11V12z" fill="#ffb900"/>
-                  </svg>
-                  <span className="text-sm/6 font-semibold">Sign in with Office 365</span>
-                </a>
-              </div>
-            </div>
           </div>
         </div>
       </div>
