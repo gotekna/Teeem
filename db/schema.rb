@@ -792,7 +792,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_075429) do
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
   end
 
-  create_table "gold_standard_items", id: :bigint, default: -> { "nextval('gold_standard_table_id_seq'::regclass)" }, force: :cascade do |t|
+  create_table "gold_standard_table", force: :cascade do |t|
     t.string "email"
     t.string "phone", limit: 20
     t.datetime "created_at", null: false
