@@ -314,29 +314,32 @@ module Api
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '0'
 
-        system_tables = Table.where(table_type: 'system').order(:name)
+        # Disable ActiveRecord query cache for this request
+        ActiveRecord::Base.uncached do
+          system_tables = Table.where(table_type: 'system').order(:name)
 
-        results = system_tables.map do |table|
-          audit_system_table(table)
+          results = system_tables.map do |table|
+            audit_system_table(table)
+          end
+
+          # Calculate summary
+          total = results.length
+          synced = results.count { |r| r[:status] == 'synced' }
+          warnings = results.count { |r| r[:status] == 'warning' }
+          errors = results.count { |r| r[:status] == 'error' }
+
+          render json: {
+            success: true,
+            summary: {
+              total: total,
+              synced: synced,
+              warnings: warnings,
+              errors: errors
+            },
+            results: results,
+            timestamp: Time.current.iso8601
+          }
         end
-
-        # Calculate summary
-        total = results.length
-        synced = results.count { |r| r[:status] == 'synced' }
-        warnings = results.count { |r| r[:status] == 'warning' }
-        errors = results.count { |r| r[:status] == 'error' }
-
-        render json: {
-          success: true,
-          summary: {
-            total: total,
-            synced: synced,
-            warnings: warnings,
-            errors: errors
-          },
-          results: results,
-          timestamp: Time.current.iso8601
-        }
       end
 
       # GET /api/v1/schema/columns
