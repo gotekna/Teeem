@@ -10,13 +10,15 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Reusable sortable list component
-function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, description, colorField = false }) {
+function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, description, colorField = false, parentField = null, parentOptions = [] }) {
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState('')
   const [editColor, setEditColor] = useState('')
+  const [editParentId, setEditParentId] = useState('')
   const [newItemName, setNewItemName] = useState('')
   const [newItemColor, setNewItemColor] = useState('gray')
+  const [newItemParentId, setNewItemParentId] = useState('')
   const [isAdding, setIsAdding] = useState(false)
 
   const colors = [
@@ -65,27 +67,39 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
     setEditingId(item.id)
     setEditValue(item.name)
     setEditColor(item.color || 'gray')
+    setEditParentId(item[parentField] || '')
   }
 
   const cancelEdit = () => {
     setEditingId(null)
     setEditValue('')
     setEditColor('')
+    setEditParentId('')
   }
 
   const saveEdit = async () => {
     if (!editValue.trim()) return
-    await onUpdate(editingId, { name: editValue, ...(colorField ? { color: editColor } : {}) })
+    await onUpdate(editingId, {
+      name: editValue,
+      ...(colorField ? { color: editColor } : {}),
+      ...(parentField ? { [parentField]: editParentId || null } : {})
+    })
     setEditingId(null)
     setEditValue('')
     setEditColor('')
+    setEditParentId('')
   }
 
   const handleCreate = async () => {
     if (!newItemName.trim()) return
-    await onCreate({ name: newItemName, ...(colorField ? { color: newItemColor } : {}) })
+    await onCreate({
+      name: newItemName,
+      ...(colorField ? { color: newItemColor } : {}),
+      ...(parentField ? { [parentField]: newItemParentId || null } : {})
+    })
     setNewItemName('')
     setNewItemColor('gray')
+    setNewItemParentId('')
     setIsAdding(false)
   }
 
@@ -128,6 +142,18 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
               >
                 {colors.map(color => (
                   <option key={color.value} value={color.value}>{color.label}</option>
+                ))}
+              </select>
+            )}
+            {parentField && parentOptions.length > 0 && (
+              <select
+                value={newItemParentId}
+                onChange={(e) => setNewItemParentId(e.target.value)}
+                className="rounded-md border-0 px-3 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm dark:bg-white/5 dark:text-white dark:ring-white/10"
+              >
+                <option value="">Select Status...</option>
+                {parentOptions.map(opt => (
+                  <option key={opt.id} value={opt.id}>{opt.name}</option>
                 ))}
               </select>
             )}
@@ -191,6 +217,18 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                     ))}
                   </select>
                 )}
+                {parentField && parentOptions.length > 0 && (
+                  <select
+                    value={editParentId}
+                    onChange={(e) => setEditParentId(e.target.value)}
+                    className="rounded-md border-0 px-3 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm dark:bg-white/5 dark:text-white dark:ring-white/10"
+                  >
+                    <option value="">No Status</option>
+                    {parentOptions.map(opt => (
+                      <option key={opt.id} value={opt.id}>{opt.name}</option>
+                    ))}
+                  </select>
+                )}
                 <button onClick={saveEdit} className="p-1.5 text-green-600 hover:text-green-700">
                   <CheckIcon className="h-5 w-5" />
                 </button>
@@ -201,6 +239,11 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
             ) : (
               <>
                 <span className="flex-1 text-gray-900 dark:text-white font-medium">{item.name}</span>
+                {parentField && parentOptions.length > 0 && (
+                  <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    {parentOptions.find(p => p.id === item[parentField])?.name || 'No Status'}
+                  </span>
+                )}
                 {colorField && item.color && (
                   <span className={`px-2 py-1 rounded text-xs font-medium ${getColorClasses(item.color)}`}>
                     {item.color}
@@ -627,6 +670,8 @@ export default function JobSetupTab() {
           title="Job Stages"
           description="Sub-steps within statuses (Deposit, Slab, Frame, etc.)"
           colorField={true}
+          parentField="job_status_id"
+          parentOptions={jobStatuses}
         />
       </div>
     </div>
