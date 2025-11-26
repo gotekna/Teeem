@@ -76,6 +76,17 @@ export default function TablesTab() {
       setSyncing(true)
       setSyncResults(null)
 
+      // Sync has_ui from production first
+      try {
+        const syncResponse = await api.post('/api/v1/schema/sync_has_ui_from_production')
+        if (syncResponse.updated_count > 0) {
+          console.log(`Synced has_ui for ${syncResponse.updated_count} tables from production`)
+        }
+      } catch (syncErr) {
+        // Don't fail the whole refresh if sync fails (e.g., production doesn't have has_ui yet)
+        console.warn('Could not sync has_ui from production:', syncErr.message)
+      }
+
       // Refresh tables data
       await fetchTables()
     } catch (err) {
@@ -261,6 +272,27 @@ export default function TablesTab() {
     }
   }
 
+  const handleToggleHasUi = async (tableId, hasUi) => {
+    try {
+      setSaving(true)
+      await api.patch(`/api/v1/tables/${tableId}`, {
+        table: {
+          has_ui: hasUi
+        }
+      })
+
+      // Update local state
+      setTables(tables.map(t =>
+        t.id === tableId ? { ...t, has_ui: hasUi } : t
+      ))
+    } catch (err) {
+      console.error('Failed to update has_ui:', err)
+      alert(err.message || 'Failed to update has_ui')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDeleteTable = async (table) => {
     // Only allow deletion if table is draft and has no records
     if (table.is_live) {
@@ -364,6 +396,13 @@ export default function TablesTab() {
     }
     if (sortColumn === 'records') {
       return ((a.record_count || 0) - (b.record_count || 0)) * multiplier
+    }
+
+    // Boolean columns
+    if (sortColumn === 'has_ui') {
+      const aVal = a.has_ui ? 1 : 0
+      const bVal = b.has_ui ? 1 : 0
+      return (aVal - bVal) * multiplier
     }
 
     // String columns
@@ -760,6 +799,18 @@ export default function TablesTab() {
                       )}
                     </div>
                   </th>
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('has_ui')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Has UI
+                      {sortColumn === 'has_ui' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                  </th>
                   <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -934,6 +985,18 @@ export default function TablesTab() {
                             Draft
                           </span>
                         )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-center">
+                        <input
+                          type="checkbox"
+                          checked={table.has_ui || false}
+                          onChange={(e) => {
+                            e.stopPropagation()
+                            handleToggleHasUi(table.id, e.target.checked)
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 dark:border-gray-600 dark:bg-gray-700"
+                        />
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                         {isSystemTable ? (

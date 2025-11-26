@@ -822,6 +822,7 @@ Rails.application.routes.draw do
       get 'schema/system_table_columns/:table_name', to: 'schema#system_table_columns'
       get 'schema/columns', to: 'schema#all_columns'  # All columns across all tables for Developer Tools
       post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
+      post 'schema/sync_has_ui_from_production', to: 'schema#sync_has_ui_from_production'  # Sync has_ui from production
 
       # Table management
       resources :tables do
