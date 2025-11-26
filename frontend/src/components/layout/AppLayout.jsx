@@ -304,6 +304,9 @@ export default function AppLayout({ children }) {
   const frontendVersion = packageJson.version
 
   useEffect(() => {
+    // Only fetch version when authenticated
+    if (!user) return
+
     const fetchVersion = async () => {
       try {
         const response = await axios.get('/version')
@@ -314,10 +317,13 @@ export default function AppLayout({ children }) {
       }
     }
     fetchVersion()
-  }, [])
+  }, [user])
 
   // Load active jobs for sidebar
   useEffect(() => {
+    // Only load when authenticated
+    if (!user) return
+
     const loadActiveJobs = async () => {
       try {
         const response = await api.get('/api/v1/jobs?status=Active&per_page=20')
@@ -331,10 +337,13 @@ export default function AppLayout({ children }) {
       }
     }
     loadActiveJobs()
-  }, [])
+  }, [user])
 
   // Load price books for sidebar
   useEffect(() => {
+    // Only load when authenticated
+    if (!user) return
+
     const loadPriceBooks = async () => {
       try {
         const response = await api.get('/api/v1/pricebook?per_page=50')
@@ -346,10 +355,13 @@ export default function AppLayout({ children }) {
       }
     }
     loadPriceBooks()
-  }, [])
+  }, [user])
 
   // Load contacts for sidebar
   useEffect(() => {
+    // Only load when authenticated
+    if (!user) return
+
     const loadContacts = async () => {
       try {
         const response = await api.get('/api/v1/contacts?per_page=50')
@@ -361,10 +373,13 @@ export default function AppLayout({ children }) {
       }
     }
     loadContacts()
-  }, [])
+  }, [user])
 
   // Load purchase orders for sidebar
   useEffect(() => {
+    // Only load when authenticated
+    if (!user) return
+
     const loadPurchaseOrders = async () => {
       try {
         const response = await api.get('/api/v1/purchase_orders?per_page=50')
@@ -376,7 +391,7 @@ export default function AppLayout({ children }) {
       }
     }
     loadPurchaseOrders()
-  }, [])
+  }, [user])
 
   // Auto-expand job if we're on a job detail page
   useEffect(() => {
@@ -698,11 +713,10 @@ export default function AppLayout({ children }) {
 
   // Poll for unread messages count
   useEffect(() => {
-    const fetchUnreadCount = async () => {
-      // Only fetch if user is authenticated
-      const token = localStorage.getItem('token')
-      if (!token) return
+    // Only poll when authenticated
+    if (!user) return
 
+    const fetchUnreadCount = async () => {
       try {
         const response = await axios.get('/api/v1/chat_messages/unread_count')
         setUnreadCount(response.data.count || 0)
@@ -715,7 +729,7 @@ export default function AppLayout({ children }) {
     const interval = setInterval(fetchUnreadCount, 5000) // Poll every 5 seconds
 
     return () => clearInterval(interval)
-  }, [])
+  }, [user])
 
   // Update sidebar state when route changes
   useEffect(() => {
