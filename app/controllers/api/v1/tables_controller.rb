@@ -208,7 +208,8 @@ module Api
           :title_column,
           :searchable,
           :description,
-          :is_live
+          :is_live,
+          :feature
         )
       end
 
@@ -272,6 +273,7 @@ module Api
           description: table.description,
           is_live: table.is_live,
           table_type: table.table_type,
+          feature: table.feature,
           api_endpoint: table.api_endpoint,
           created_at: table.created_at,
           updated_at: table.updated_at

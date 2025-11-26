@@ -178,6 +178,51 @@ module Api
         )
       end
 
+    # POST /api/v1/table_views/create_all_setup_views
+    # Creates Setup views for all tables that don't have one
+    def create_all_setup_views
+      unless current_user
+        return render json: {
+          success: false,
+          error: "Authentication required"
+        }, status: :unauthorized
+      end
+
+      results = {
+        created: [],
+        skipped: [],
+        errors: []
+      }
+
+      # Get all tables
+      tables = Table.all
+
+      tables.each do |table|
+        # Check if user already has a Setup view for this table
+        existing_setup = current_user.table_views.find_by(table_id: table.id, name: 'Setup')
+
+        if existing_setup
+          results[:skipped] << { table_id: table.id, table_name: table.name, reason: 'Setup view already exists' }
+          next
+        end
+
+        begin
+          create_default_setup_view(table, current_user)
+          results[:created] << { table_id: table.id, table_name: table.name }
+        rescue => e
+          results[:errors] << { table_id: table.id, table_name: table.name, error: e.message }
+        end
+      end
+
+      render json: {
+        success: true,
+        message: "Created #{results[:created].length} Setup views, skipped #{results[:skipped].length}, #{results[:errors].length} errors",
+        results: results
+      }
+    end
+
+    private
+
       # Auto-create the "Setup" view for tables without saved views
       # This view serves as the default template with all columns visible
       def create_default_setup_view(table, user)

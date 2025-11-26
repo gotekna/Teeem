@@ -850,6 +850,7 @@ Rails.application.routes.draw do
       resources :table_views, only: [:index, :show, :create, :update, :destroy] do
         collection do
           post :reorder
+          post :create_all_setup_views
         end
       end
 
