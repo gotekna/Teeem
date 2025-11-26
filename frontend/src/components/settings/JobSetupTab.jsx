@@ -407,9 +407,12 @@ export default function JobSetupTab() {
   const [jobTypes, setJobTypes] = useState([])
   const [jobStatuses, setJobStatuses] = useState([])
   const [jobStages, setJobStages] = useState([])
+  const [jobTypeStatuses, setJobTypeStatuses] = useState([])
+  const [jobStatusStages, setJobStatusStages] = useState([])
   const [cascadeConfig, setCascadeConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [showJunctionTables, setShowJunctionTables] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -418,14 +421,18 @@ export default function JobSetupTab() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [typesRes, statusesRes, stagesRes] = await Promise.all([
+      const [typesRes, statusesRes, stagesRes, typeStatusesRes, statusStagesRes] = await Promise.all([
         api.get('/api/v1/job_types'),
         api.get('/api/v1/job_status'),
-        api.get('/api/v1/job_stages')
+        api.get('/api/v1/job_stages'),
+        api.get('/api/v1/records?table_id=385').catch(() => ({ records: [] })),
+        api.get('/api/v1/records?table_id=384').catch(() => ({ records: [] }))
       ])
       setJobTypes(typesRes.job_types || [])
       setJobStatuses(statusesRes.job_statuses || [])
       setJobStages(stagesRes.job_stages || [])
+      setJobTypeStatuses(typeStatusesRes.records || [])
+      setJobStatusStages(statusStagesRes.records || [])
 
       // Load cascade config from company settings or use default
       try {
@@ -677,6 +684,108 @@ export default function JobSetupTab() {
           parentOptions={jobStatuses}
           parentLabel="Status"
         />
+      </div>
+
+      {/* Junction Tables Section */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+        <button
+          onClick={() => setShowJunctionTables(!showJunctionTables)}
+          className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+        >
+          <span className={`transform transition-transform ${showJunctionTables ? 'rotate-90' : ''}`}>▶</span>
+          Junction Tables (Advanced)
+          <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+            {jobTypeStatuses.length + jobStatusStages.length} records
+          </span>
+        </button>
+
+        {showJunctionTables && (
+          <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Job Type Status (Table 385) */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Job Type Status</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Table 385 - Links Job Types to Statuses (many-to-many)</p>
+                </div>
+                <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-2 py-1 rounded">
+                  {jobTypeStatuses.length} records
+                </span>
+              </div>
+              {jobTypeStatuses.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">No records - using direct job_type_id on Job Status instead</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">ID</th>
+                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Job Type</th>
+                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Job Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                      {jobTypeStatuses.map(record => (
+                        <tr key={record.id}>
+                          <td className="px-2 py-1 text-gray-500">{record.id}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-white">{record.job_type_id || record.data?.job_type_id || '-'}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-white">{record.job_status_id || record.data?.job_status_id || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Job Status Stage (Table 384) */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h3 className="font-medium text-gray-900 dark:text-white">Job Status Stage</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Table 384 - Links Statuses to Stages (many-to-many)</p>
+                </div>
+                <span className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 px-2 py-1 rounded">
+                  {jobStatusStages.length} records
+                </span>
+              </div>
+              {jobStatusStages.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">No records - using direct job_status_id on Job Stage instead</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                      <tr>
+                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">ID</th>
+                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Job Status</th>
+                        <th className="px-2 py-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Job Stage</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600">
+                      {jobStatusStages.map(record => (
+                        <tr key={record.id}>
+                          <td className="px-2 py-1 text-gray-500">{record.id}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-white">{record.job_status_id || record.data?.job_status_id || '-'}</td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-white">{record.job_stage_id || record.data?.job_stage_id || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {showJunctionTables && (
+          <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+            <p className="text-sm text-yellow-800 dark:text-yellow-200">
+              <strong>Note:</strong> These junction tables are for many-to-many relationships.
+              Currently we're using direct links (job_type_id on Status, job_status_id on Stage)
+              which is simpler. These tables can be deleted if not needed.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
