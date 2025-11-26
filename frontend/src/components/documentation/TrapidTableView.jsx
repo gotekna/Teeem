@@ -3901,6 +3901,50 @@ export default function TrapidTableView({
           return <span className="text-gray-400">-</span>
         }
 
+        // Boolean column type - render as toggle switch
+        if (columnType === 'boolean') {
+          const boolValue = editingRowId === entry.id ? editingData[columnKey] : entry[columnKey]
+
+          return (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  const newValue = !boolValue
+
+                  if (editingRowId === entry.id) {
+                    // If already in edit mode, just update editingData
+                    setEditingData({ ...editingData, [columnKey]: newValue })
+                  } else {
+                    // Not in edit mode: toggle and save immediately
+                    const updatedEntry = { ...entry, [columnKey]: newValue }
+
+                    // If onEdit callback exists, call it to save the change
+                    if (onEdit) {
+                      try {
+                        await onEdit(updatedEntry)
+                      } catch (error) {
+                        console.error('Failed to update boolean value:', error)
+                      }
+                    }
+                  }
+                }}
+                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors cursor-pointer ${
+                  boolValue
+                    ? 'bg-green-500 dark:bg-green-600 hover:bg-green-600 dark:hover:bg-green-700'
+                    : 'bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500'
+                }`}
+                title={boolValue ? 'Click to uncheck' : 'Click to check'}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
+                  boolValue ? 'translate-x-6' : 'translate-x-1'
+                }`} />
+              </button>
+            </div>
+          )
+        }
+
         // Check if this is a long text field that should have expand button
         const isLongTextField = ['description', 'details', 'summary', 'notes', 'scenario', 'solution', 'examples', 'code_example', 'common_mistakes'].includes(columnKey)
 
