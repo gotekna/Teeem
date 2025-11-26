@@ -35,21 +35,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
       ),
       feature_chapters: feature_chapters,
       chapters: FeatureTracker.chapters,
-      stats: {
-        total: FeatureTracker.count,
-        system_complete: FeatureTracker.system_complete.count,
-        dev_checked: FeatureTracker.dev_checked.count,
-        tester_checked: FeatureTracker.tester_checked.count,
-        ui_checked: FeatureTracker.ui_checked.count,
-        user_checked: FeatureTracker.user_checked.count,
-        fully_complete: FeatureTracker.where(
-          system_complete: true,
-          dev_checked: true,
-          tester_checked: true,
-          ui_checked: true,
-          user_checked: true
-        ).count
-      }
+      stats: feature_stats
     }
   end
 
@@ -102,6 +88,58 @@ class Api::V1::FeatureTrackersController < ApplicationController
       success: false,
       error: 'Feature tracker not found'
     }, status: :not_found
+  end
+
+  def feature_stats
+    total = FeatureTracker.count
+    return {} if total.zero?
+
+    # Calculate competitor stats
+    competitors = {
+      trapid: { field: :trapid_has, name: 'Trapid', color: 'blue' },
+      simpro: { field: :simpro_has, name: 'Simpro', color: 'purple' },
+      buildertrend: { field: :buildertrend_has, name: 'BuilderTrend', color: 'green' },
+      buildexact: { field: :buildexact_has, name: 'BuildExact', color: 'orange' },
+      databuild: { field: :databuild_has, name: 'DataBuild', color: 'teal' },
+      clickhome: { field: :clickhome_has, name: 'ClickHome', color: 'pink' },
+      wunderbuilt: { field: :wunderbuilt_has, name: 'Wunderbuilt', color: 'yellow' },
+      smarterbuild: { field: :smarterbuild_has, name: 'SmarterBuild', color: 'gray' },
+      jacks: { field: :jacks_has, name: 'Jacks', color: 'red' },
+      clickup: { field: :clickup_has, name: 'ClickUp', color: 'indigo' }
+    }
+
+    competitor_stats = competitors.map do |key, config|
+      count = FeatureTracker.where(config[:field] => true).count
+      {
+        key: key,
+        name: config[:name],
+        count: count,
+        total: total,
+        percentage: (count.to_f / total * 100).round(1),
+        color: config[:color]
+      }
+    end.sort_by { |c| -c[:percentage] }
+
+    # Calculate average dev progress
+    avg_progress = FeatureTracker.average(:dev_progress).to_f.round(1)
+
+    {
+      total: total,
+      avg_progress: avg_progress,
+      system_complete: FeatureTracker.system_complete.count,
+      dev_checked: FeatureTracker.dev_checked.count,
+      tester_checked: FeatureTracker.tester_checked.count,
+      ui_checked: FeatureTracker.ui_checked.count,
+      user_checked: FeatureTracker.user_checked.count,
+      fully_complete: FeatureTracker.where(
+        system_complete: true,
+        dev_checked: true,
+        tester_checked: true,
+        ui_checked: true,
+        user_checked: true
+      ).count,
+      competitors: competitor_stats
+    }
   end
 
   def feature_tracker_params
