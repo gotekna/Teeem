@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../api'
-import { TableCellsIcon, PencilIcon, EyeIcon, XMarkIcon, PlusIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon, ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline'
+import { TableCellsIcon, PencilIcon, EyeIcon, XMarkIcon, PlusIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon, ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon, ChevronUpIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import TableColumnManager from './TableColumnManager'
 
 // Feature categories to group related tables
@@ -39,6 +39,8 @@ export default function TablesTab() {
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState('all')
   const [featureFilter, setFeatureFilter] = useState('all')
+  const [sortColumn, setSortColumn] = useState('feature')
+  const [sortDirection, setSortDirection] = useState('asc')
   const [previewTable, setPreviewTable] = useState(null)
   const [previewColumns, setPreviewColumns] = useState([])
   const [loadingPreview, setLoadingPreview] = useState(false)
@@ -322,7 +324,17 @@ export default function TablesTab() {
   // Get unique features for filter dropdown
   const uniqueFeatures = [...new Set(allTables.map(t => t.feature).filter(Boolean))].sort()
 
-  // Filter tables based on search query, type filter, and feature filter, then sort by ID
+  // Handle column sort
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  // Filter tables based on search query, type filter, and feature filter, then sort
   const filteredTables = allTables.filter(table => {
     // Apply search filter
     const matchesSearch = !searchQuery ||
@@ -340,7 +352,29 @@ export default function TablesTab() {
       table.feature === featureFilter
 
     return matchesSearch && matchesType && matchesFeature
-  }).sort((a, b) => a.id - b.id)
+  }).sort((a, b) => {
+    const multiplier = sortDirection === 'asc' ? 1 : -1
+
+    if (sortColumn === 'id') {
+      return (a.id - b.id) * multiplier
+    }
+    if (sortColumn === 'feature') {
+      const aVal = a.feature || ''
+      const bVal = b.feature || ''
+      return aVal.localeCompare(bVal) * multiplier
+    }
+    if (sortColumn === 'name') {
+      const aVal = a.name || ''
+      const bVal = b.name || ''
+      return aVal.localeCompare(bVal) * multiplier
+    }
+    if (sortColumn === 'type') {
+      const aVal = a.type || ''
+      const bVal = b.type || ''
+      return aVal.localeCompare(bVal) * multiplier
+    }
+    return 0
+  })
 
   // Calculate counts for each filter (including all tables now)
   const allCount = allTables.length
@@ -605,20 +639,56 @@ export default function TablesTab() {
             <table className="min-w-full divide-y divide-gray-300 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800">
                 <tr>
-                  <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6 w-12">
-                    ID
+                  <th
+                    scope="col"
+                    className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-white sm:pl-6 w-12 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('id')}
+                  >
+                    <div className="flex items-center gap-1">
+                      ID
+                      {sortColumn === 'id' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Database Table
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Table Name
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Table Name
+                      {sortColumn === 'name' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Feature
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('feature')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Feature
+                      {sortColumn === 'feature' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Type
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('type')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Type
+                      {sortColumn === 'type' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Usage Status
