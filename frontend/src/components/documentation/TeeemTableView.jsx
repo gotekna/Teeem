@@ -6109,7 +6109,8 @@ export default function TeeemTableView({
 
                         return (
                           <div className="flex items-center justify-between px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-4">
+                              {columnVisibilityTab === 'visible' && <span className="w-8 text-center">#</span>}
                               <span>Column</span>
                             </div>
                             {hasMultipleGroups && (
@@ -6220,43 +6221,103 @@ export default function TeeemTableView({
                               <div
                                 className="grid gap-1.5"
                                 style={{
-                                  gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))'
+                                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))'
                                 }}
                               >
-                                {displayCols.map((column) => (
-                                  <label
-                                    key={column.key}
-                                    className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg cursor-pointer select-none transition-all ${
-                                      isVisibleTab
-                                        ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800 hover:border-green-300 dark:hover:border-green-700'
-                                        : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isVisibleTab}
-                                      onChange={(e) => {
-                                        e.stopPropagation()
-                                        setVisibleColumns({ ...visibleColumns, [column.key]: !isVisibleTab })
-                                      }}
-                                      className={`w-3.5 h-3.5 rounded ${
+                                {displayCols.map((column) => {
+                                  // Calculate the position of this column in the visibility order
+                                  const currentOrder = visibilityColumnOrder || allCols.map(c => c.key)
+                                  const visibleOnlyOrder = currentOrder.filter(key => visibleColumns[key] !== false)
+                                  const position = isVisibleTab ? visibleOnlyOrder.indexOf(column.key) + 1 : null
+
+                                  return (
+                                    <div
+                                      key={column.key}
+                                      className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg select-none transition-all ${
                                         isVisibleTab
-                                          ? 'border-green-400 text-green-600 focus:ring-green-500'
-                                          : 'border-gray-300 text-blue-600 focus:ring-blue-500'
-                                      } focus:ring-offset-0`}
-                                    />
-                                    <span
-                                      className={`truncate text-xs font-medium ${
-                                        isVisibleTab
-                                          ? 'text-green-800 dark:text-green-200'
-                                          : 'text-gray-600 dark:text-gray-400'
+                                          ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800 hover:border-green-300 dark:hover:border-green-700'
+                                          : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                                       }`}
-                                      title={column.label}
                                     >
-                                      {column.label}
-                                    </span>
-                                  </label>
-                                ))}
+                                      {/* Order number input - only show for visible columns */}
+                                      {isVisibleTab && (
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          max={visibleOnlyOrder.length}
+                                          value={position || ''}
+                                          onChange={(e) => {
+                                            const newPosition = parseInt(e.target.value, 10)
+                                            if (isNaN(newPosition) || newPosition < 1 || newPosition > visibleOnlyOrder.length) return
+
+                                            // Reorder: remove from current position and insert at new position
+                                            const fullOrder = [...(visibilityColumnOrder || allCols.map(c => c.key))]
+                                            const currentIndex = fullOrder.indexOf(column.key)
+                                            if (currentIndex === -1) return
+
+                                            // Remove from current position
+                                            fullOrder.splice(currentIndex, 1)
+
+                                            // Find where to insert in the full order based on visible-only position
+                                            // We need to find the (newPosition)th visible column's position in the full order
+                                            let visibleCount = 0
+                                            let insertIndex = 0
+                                            for (let i = 0; i < fullOrder.length; i++) {
+                                              if (visibleColumns[fullOrder[i]] !== false) {
+                                                visibleCount++
+                                                if (visibleCount === newPosition) {
+                                                  insertIndex = i
+                                                  break
+                                                }
+                                              }
+                                              if (i === fullOrder.length - 1) {
+                                                insertIndex = fullOrder.length
+                                              }
+                                            }
+
+                                            // If moving to position 1, insert at the beginning of visible columns
+                                            if (newPosition === 1) {
+                                              // Find the first visible column's index
+                                              insertIndex = fullOrder.findIndex(key => visibleColumns[key] !== false)
+                                              if (insertIndex === -1) insertIndex = 0
+                                            }
+
+                                            fullOrder.splice(insertIndex, 0, column.key)
+                                            setVisibilityColumnOrder(fullOrder)
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="w-8 h-5 text-[10px] text-center border border-green-300 dark:border-green-700 rounded bg-white dark:bg-gray-800 text-green-700 dark:text-green-300 focus:outline-none focus:ring-1 focus:ring-green-500"
+                                          title={`Position ${position} - type a number to reorder`}
+                                        />
+                                      )}
+                                      <label className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
+                                        <input
+                                          type="checkbox"
+                                          checked={isVisibleTab}
+                                          onChange={(e) => {
+                                            e.stopPropagation()
+                                            setVisibleColumns({ ...visibleColumns, [column.key]: !isVisibleTab })
+                                          }}
+                                          className={`w-3.5 h-3.5 rounded flex-shrink-0 ${
+                                            isVisibleTab
+                                              ? 'border-green-400 text-green-600 focus:ring-green-500'
+                                              : 'border-gray-300 text-blue-600 focus:ring-blue-500'
+                                          } focus:ring-offset-0`}
+                                        />
+                                        <span
+                                          className={`truncate text-xs font-medium ${
+                                            isVisibleTab
+                                              ? 'text-green-800 dark:text-green-200'
+                                              : 'text-gray-600 dark:text-gray-400'
+                                          }`}
+                                          title={column.label}
+                                        >
+                                          {column.label}
+                                        </span>
+                                      </label>
+                                    </div>
+                                  )
+                                })}
                               </div>
                             )
                           }
