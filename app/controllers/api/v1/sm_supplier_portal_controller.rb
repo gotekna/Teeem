@@ -372,7 +372,7 @@ module Api
 
       def portal_url(access)
         # Generate portal URL with embedded token
-        "#{ENV['FRONTEND_URL'] || 'https://app.trapid.com.au'}/supplier-portal?token=#{access.access_token}"
+        "#{ENV['FRONTEND_URL'] || 'https://app.teeem.com.au'}/supplier-portal?token=#{access.access_token}"
       end
     end
   end

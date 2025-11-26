@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :features do
     desc "Update feature tracker with comprehensive data including competitor comparison"
     task update_all: :environment do
@@ -12,7 +12,7 @@ namespace :trapid do
         # Chapter 1: Project Management
         "Job Management" => {
           dev_progress: 85,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -25,7 +25,7 @@ namespace :trapid do
         },
         "Estimate Management" => {
           dev_progress: 75,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -38,7 +38,7 @@ namespace :trapid do
         },
         "Purchase Order System" => {
           dev_progress: 80,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -53,7 +53,7 @@ namespace :trapid do
         # Chapter 2: Scheduling & Task Management
         "Schedule Master (Gantt Chart)" => {
           dev_progress: 90,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -66,7 +66,7 @@ namespace :trapid do
         },
         "Schedule Templates" => {
           dev_progress: 70,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: false,
@@ -79,7 +79,7 @@ namespace :trapid do
         },
         "Task Automation" => {
           dev_progress: 60,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: false,
           jacks_has: false,
@@ -94,7 +94,7 @@ namespace :trapid do
         # Chapter 3: Financial Management
         "Real-Time Financial Tracking" => {
           dev_progress: 70,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -107,7 +107,7 @@ namespace :trapid do
         },
         "Payment Management" => {
           dev_progress: 65,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -120,7 +120,7 @@ namespace :trapid do
         },
         "Pay Now - Early Payment System" => {
           dev_progress: 40,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -135,7 +135,7 @@ namespace :trapid do
         # Chapter 4: AI Powered Intelligence
         "AI Plan Review (Industry First)" => {
           dev_progress: 50,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -148,7 +148,7 @@ namespace :trapid do
         },
         "Intelligent Matching" => {
           dev_progress: 75,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -161,7 +161,7 @@ namespace :trapid do
         },
         "Real Impact Reporting" => {
           dev_progress: 30,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -176,7 +176,7 @@ namespace :trapid do
         # Chapter 5: Supplier & Contact Management
         "Contact Management" => {
           dev_progress: 90,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -189,7 +189,7 @@ namespace :trapid do
         },
         "Supplier Portal" => {
           dev_progress: 45,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: false,
@@ -202,7 +202,7 @@ namespace :trapid do
         },
         "Quote Request System" => {
           dev_progress: 60,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -217,7 +217,7 @@ namespace :trapid do
         # Chapter 6: Price Book & Cost Intelligence
         "Smart Material Cost Library" => {
           dev_progress: 85,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -230,7 +230,7 @@ namespace :trapid do
         },
         "Bulk Operations" => {
           dev_progress: 80,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: false,
@@ -245,7 +245,7 @@ namespace :trapid do
         # Chapter 7: Integrations Ecosystem
         "Xero Accounting Integration" => {
           dev_progress: 90,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -258,7 +258,7 @@ namespace :trapid do
         },
         "Microsoft OneDrive Integration" => {
           dev_progress: 85,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -271,7 +271,7 @@ namespace :trapid do
         },
         "Microsoft Outlook Integration" => {
           dev_progress: 70,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: false,
           jacks_has: false,
@@ -284,7 +284,7 @@ namespace :trapid do
         },
         "SMS/Twilio Integration" => {
           dev_progress: 85,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -297,7 +297,7 @@ namespace :trapid do
         },
         "Weather API Integration" => {
           dev_progress: 60,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: false,
           jacks_has: false,
@@ -312,7 +312,7 @@ namespace :trapid do
         # Chapter 8: Workplace Health & Safety (WHS)
         "SWMS (Safe Work Method Statements)" => {
           dev_progress: 30,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -325,7 +325,7 @@ namespace :trapid do
         },
         "Inspections" => {
           dev_progress: 25,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -338,7 +338,7 @@ namespace :trapid do
         },
         "Incidents & Near Misses" => {
           dev_progress: 20,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -351,7 +351,7 @@ namespace :trapid do
         },
         "Inductions" => {
           dev_progress: 20,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -364,7 +364,7 @@ namespace :trapid do
         },
         "WHS Dashboard" => {
           dev_progress: 15,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: false,
@@ -379,7 +379,7 @@ namespace :trapid do
         # Chapter 9: Workflow Automation
         "Custom Workflow Designer" => {
           dev_progress: 40,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: false,
           jacks_has: false,
@@ -392,7 +392,7 @@ namespace :trapid do
         },
         "Workflow Features" => {
           dev_progress: 35,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: false,
           jacks_has: false,
@@ -407,7 +407,7 @@ namespace :trapid do
         # Chapter 10: Custom Data Management
         "Table Builder (No-Code Database)" => {
           dev_progress: 95,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -418,9 +418,9 @@ namespace :trapid do
           clickhome_has: false,
           clickup_has: true
         },
-        "TrapidTableView (Enterprise Table Component)" => {
+        "TEEEMTableView (Enterprise Table Component)" => {
           dev_progress: 95,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -433,7 +433,7 @@ namespace :trapid do
         },
         "Saved Views & Advanced Filtering" => {
           dev_progress: 90,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: false,
@@ -448,7 +448,7 @@ namespace :trapid do
         # Chapter 11: Documentation & Knowledge Management
         "Trinity Documentation System" => {
           dev_progress: 90,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -461,7 +461,7 @@ namespace :trapid do
         },
         "User Manual" => {
           dev_progress: 70,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -476,7 +476,7 @@ namespace :trapid do
         # Chapter 12: Corporate & Compliance
         "Company Management" => {
           dev_progress: 85,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -489,7 +489,7 @@ namespace :trapid do
         },
         "Asset Management" => {
           dev_progress: 30,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -504,7 +504,7 @@ namespace :trapid do
         # Chapter 13: User Management & Security
         "Role-Based Access Control" => {
           dev_progress: 90,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -517,7 +517,7 @@ namespace :trapid do
         },
         "Enterprise-Grade Security" => {
           dev_progress: 85,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -532,7 +532,7 @@ namespace :trapid do
         # Chapter 14: Reporting & Analytics
         "Operational Reports" => {
           dev_progress: 60,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -545,7 +545,7 @@ namespace :trapid do
         },
         "Export Capabilities" => {
           dev_progress: 85,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -560,7 +560,7 @@ namespace :trapid do
         # Chapter 15: Communication
         "Team Chat" => {
           dev_progress: 30,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: false,
           jacks_has: false,
@@ -573,7 +573,7 @@ namespace :trapid do
         },
         "Notifications" => {
           dev_progress: 75,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -588,7 +588,7 @@ namespace :trapid do
         # Chapter 16: Mobile & Accessibility
         "Mobile Support" => {
           dev_progress: 80,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: true,
@@ -601,7 +601,7 @@ namespace :trapid do
         },
         "Accessibility" => {
           dev_progress: 70,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: true,
           buildexact_has: true,
           jacks_has: false,
@@ -637,7 +637,7 @@ namespace :trapid do
       if ch6_matching
         ch6_matching.update!(
           dev_progress: 75,
-          trapid_has: true,
+          teeem_has: true,
           buildertrend_has: false,
           buildexact_has: false,
           jacks_has: false,
@@ -666,27 +666,27 @@ namespace :trapid do
       FeatureChapter.order(:chapter_number).each do |chapter|
         features = chapter.feature_trackers
         avg_progress = features.average(:dev_progress).to_f.round(1)
-        trapid_count = features.where(trapid_has: true).count
+        teeem_count = features.where(teeem_has: true).count
         total = features.count
         progress_bar = "█" * (avg_progress / 10).round + "░" * (10 - (avg_progress / 10).round)
-        puts "Ch #{chapter.chapter_number.to_s.rjust(2)}: #{chapter.name.ljust(40)} [#{progress_bar}] #{avg_progress}% (#{trapid_count}/#{total} Trapid)"
+        puts "Ch #{chapter.chapter_number.to_s.rjust(2)}: #{chapter.name.ljust(40)} [#{progress_bar}] #{avg_progress}% (#{teeem_count}/#{total} TEEEM)"
       end
 
       puts "\n📈 OVERALL STATISTICS:"
       puts "-" * 80
       total_features = FeatureTracker.count
       avg_progress = FeatureTracker.average(:dev_progress).to_f.round(1)
-      trapid_total = FeatureTracker.where(trapid_has: true).count
+      teeem_total = FeatureTracker.where(teeem_has: true).count
 
       puts "Total Features: #{total_features}"
       puts "Average Progress: #{avg_progress}%"
-      puts "Trapid Has: #{trapid_total}/#{total_features} (#{(trapid_total.to_f/total_features*100).round(1)}%)"
+      puts "TEEEM Has: #{teeem_total}/#{total_features} (#{(teeem_total.to_f/total_features*100).round(1)}%)"
 
       # Competitor summary
       puts "\n🏆 COMPETITOR COMPARISON:"
       puts "-" * 80
       competitors = {
-        "Trapid" => :trapid_has,
+        "TEEEM" => :teeem_has,
         "BuilderTrend" => :buildertrend_has,
         "BuildExact" => :buildexact_has,
         "Jacks" => :jacks_has,

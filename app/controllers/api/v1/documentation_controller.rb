@@ -15,7 +15,7 @@ module Api
             description: 'Development rules and protected patterns',
             icon: '📖',
             audience: 'Developers',
-            path: 'TRAPID_BIBLE.md',
+            path: 'TEEEM_BIBLE.md',
             chapters: 21
           },
           {
@@ -24,7 +24,7 @@ module Api
             description: 'Code examples and implementation guides',
             icon: '🔧',
             audience: 'Developers',
-            path: 'TRAPID_TEACHER.md',
+            path: 'TEEEM_TEACHER.md',
             chapters: 20,
             has_database: true,
             api_path: '/api/v1/documentation_entries?category=teacher'
@@ -35,7 +35,7 @@ module Api
             description: 'Bug history and knowledge base',
             icon: '📕',
             audience: 'Developers',
-            path: 'TRAPID_LEXICON.md',
+            path: 'TEEEM_LEXICON.md',
             chapters: 20,
             has_database: true,
             api_path: '/api/v1/documentation_entries?category=lexicon'
@@ -56,7 +56,7 @@ module Api
             description: 'Step-by-step user guides',
             icon: '📘',
             audience: 'End Users',
-            path: 'TRAPID_USER_MANUAL.md',
+            path: 'TEEEM_USER_MANUAL.md',
             chapters: 20
           }
         ]
@@ -72,13 +72,13 @@ module Api
 
         file_path = case doc_id
                     when 'bible'
-                      Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_BIBLE.md')
+                      Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md')
                     when 'teacher'
-                      Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_TEACHER.md')
+                      Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md')
                     when 'lexicon'
-                      Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_LEXICON.md')
+                      Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_LEXICON.md')
                     when 'user-manual'
-                      Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_USER_MANUAL.md')
+                      Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_USER_MANUAL.md')
                     else
                       return render json: { success: false, error: 'Documentation not found' }, status: :not_found
                     end
@@ -120,22 +120,22 @@ module Api
         end
 
         results = []
-        docs_path = Rails.root.join('..', 'TRAPID_DOCS')
+        docs_path = Rails.root.join('..', 'TEEEM_DOCS')
 
         # Search in Trinity+1 files
-        ['TRAPID_BIBLE.md', 'TRAPID_TEACHER.md', 'TRAPID_LEXICON.md', 'TRAPID_USER_MANUAL.md'].each do |filename|
+        ['TEEEM_BIBLE.md', 'TEEEM_TEACHER.md', 'TEEEM_LEXICON.md', 'TEEEM_USER_MANUAL.md'].each do |filename|
           file_path = docs_path.join(filename)
           next unless File.exist?(file_path)
 
           content = File.read(file_path)
-          doc_type = filename.gsub('TRAPID_', '').gsub('.md', '').downcase
+          doc_type = filename.gsub('TEEEM_', '').gsub('.md', '').downcase
 
           # Find matching lines
           content.each_line.with_index do |line, index|
             if line.downcase.include?(query)
               results << {
                 doc_type: doc_type,
-                doc_name: filename.gsub('TRAPID_', '').gsub('.md', ''),
+                doc_name: filename.gsub('TEEEM_', '').gsub('.md', ''),
                 line_number: index + 1,
                 content: line.strip,
                 icon: doc_type == 'bible' ? '📖' : (doc_type == 'lexicon' ? '📕' : '📘')
@@ -162,7 +162,7 @@ module Api
       def generate_bible_markdown
         # Generate markdown content from database (matches export_bible rake task format)
         content = <<~HEADER
-          # TRAPID BIBLE - Development Rules
+          # TEEEM BIBLE - Development Rules
 
           **Version:** 2.0.0
           **Last Updated:** #{Time.current.strftime("%Y-%m-%d %H:%M %Z")}
@@ -176,7 +176,7 @@ module Api
 
           ### This Document is "The Bible"
 
-          This file is the **absolute authority** for all Trapid development where chapters exist.
+          This file is the **absolute authority** for all TEEEM development where chapters exist.
 
           **This Bible Contains RULES ONLY:**
           - ✅ MUST do this
@@ -188,13 +188,13 @@ module Api
           **This content is AUTO-GENERATED from the database.**
 
           **For IMPLEMENTATION PATTERNS (code examples, how-to guides):**
-          - 🔧 See [TRAPID_TEACHER.md](TRAPID_TEACHER.md)
+          - 🔧 See [TEEEM_TEACHER.md](TEEEM_TEACHER.md)
 
           **For KNOWLEDGE (how things work, bug history, why we chose X):**
-          - 📕 See [TRAPID_LEXICON.md](TRAPID_LEXICON.md)
+          - 📕 See [TEEEM_LEXICON.md](TEEEM_LEXICON.md)
 
           **For USER GUIDES (how to use features):**
-          - 📘 See [TRAPID_USER_MANUAL.md](TRAPID_USER_MANUAL.md)
+          - 📘 See [TEEEM_USER_MANUAL.md](TEEEM_USER_MANUAL.md)
 
           ---
 
@@ -211,9 +211,9 @@ module Api
             # Chapter #{chapter_num}: #{chapter_name}
 
             ┌─────────────────────────────────────────────────┐
-            │ 🔧 TEACHER (HOW):     TRAPID_TEACHER.md Ch#{chapter_num}    │
-            │ 📕 LEXICON (BUGS):    TRAPID_LEXICON.md Ch#{chapter_num}    │
-            │ 📘 USER MANUAL (USE): TRAPID_USER_MANUAL.md Ch#{chapter_num} │
+            │ 🔧 TEACHER (HOW):     TEEEM_TEACHER.md Ch#{chapter_num}    │
+            │ 📕 LEXICON (BUGS):    TEEEM_LEXICON.md Ch#{chapter_num}    │
+            │ 📘 USER MANUAL (USE): TEEEM_USER_MANUAL.md Ch#{chapter_num} │
             └─────────────────────────────────────────────────┘
 
             **Last Updated:** #{rules.maximum(:updated_at).strftime("%Y-%m-%d %H:%M %Z")}

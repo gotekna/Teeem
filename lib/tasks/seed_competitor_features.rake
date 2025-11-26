@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :features do
     desc "Seed competitor feature checkmarks based on competitive research"
     task competitive_seed: :environment do
@@ -173,18 +173,18 @@ namespace :trapid do
         puts "   #{name.to_s.capitalize.ljust(15)}: #{count.to_s.rjust(2)}/#{total} features (#{percentage}%)"
       end
 
-      puts "\n📈 Trapid Feature Coverage:"
-      trapid_count = FeatureTracker.where(trapid_has: true).count
+      puts "\n📈 TEEEM Feature Coverage:"
+      teeem_count = FeatureTracker.where(teeem_has: true).count
       total = FeatureTracker.count
-      trapid_percentage = (trapid_count.to_f / total * 100).round(1)
-      puts "   Trapid          : #{trapid_count.to_s.rjust(2)}/#{total} features (#{trapid_percentage}%)"
+      teeem_percentage = (teeem_count.to_f / total * 100).round(1)
+      puts "   TEEEM          : #{teeem_count.to_s.rjust(2)}/#{total} features (#{teeem_percentage}%)"
 
       puts "\n" + "=" * 80
       puts "🎯 Next Steps:"
       puts "   1. Review the Features Tracking Table in the UI"
       puts "   2. Verify competitor checkmarks are accurate"
       puts "   3. Research any unclear features for competitors"
-      puts "   4. Update Trapid progress percentages"
+      puts "   4. Update TEEEM progress percentages"
       puts "=" * 80
     end
   end

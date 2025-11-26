@@ -116,7 +116,7 @@ namespace :setup do
 
       # Get first user as creator (or create a system user)
       creator = User.first || User.create!(
-        email: 'system@trapid.com',
+        email: 'system@teeem.com',
         name: 'System',
         password: SecureRandom.hex(20)
       )

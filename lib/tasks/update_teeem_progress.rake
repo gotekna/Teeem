@@ -1,11 +1,11 @@
-namespace :trapid do
+namespace :teeem do
   namespace :features do
-    desc "Update Trapid feature progress percentages based on current implementation"
+    desc "Update TEEEM feature progress percentages based on current implementation"
     task update_progress: :environment do
-      puts "🎯 Updating Trapid feature progress percentages..."
+      puts "🎯 Updating TEEEM feature progress percentages..."
       puts "=" * 80
 
-      # Define progress for each feature based on current Trapid implementation
+      # Define progress for each feature based on current TEEEM implementation
       # Format: { "Feature Name" => progress_percentage }
 
       feature_progress = {
@@ -185,14 +185,14 @@ namespace :trapid do
         puts "   #{chapter.chapter.ljust(45)}: #{avg_progress.to_s.rjust(5)}% #{status}"
       end
 
-      # Overall Trapid progress
+      # Overall TEEEM progress
       total_avg = FeatureTracker.average(:dev_progress).to_f.round(1)
-      puts "\n📈 Overall Trapid Progress: #{total_avg}%"
+      puts "\n📈 Overall TEEEM Progress: #{total_avg}%"
 
       puts "\n" + "=" * 80
       puts "🎯 Next Steps:"
-      puts "   1. Run: bin/rails trapid:features:mark_implemented"
-      puts "      (This will mark features with dev_progress > 0 as trapid_has = true)"
+      puts "   1. Run: bin/rails teeem:features:mark_implemented"
+      puts "      (This will mark features with dev_progress > 0 as teeem_has = true)"
       puts ""
       puts "   2. Refresh the Dashboard to see updated progress bars"
       puts ""

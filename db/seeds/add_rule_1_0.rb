@@ -252,5 +252,5 @@ rule.description = <<~DESC
 rule.save!
 
 puts "✅ RULE #1.0 #{rule.new_record? ? 'created' : 'updated'} successfully!"
-puts "📖 Run: rails trapid:export_bible"
-puts "📝 Then commit TRAPID_BIBLE.md"
+puts "📖 Run: rails teeem:export_bible"
+puts "📝 Then commit TEEEM_BIBLE.md"

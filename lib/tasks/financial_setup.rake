@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :financial do
     desc "Set up default chart of accounts for financial tracking"
     task setup_chart_of_accounts: :environment do
@@ -28,7 +28,7 @@ namespace :trapid do
       Keepr::Group.order('ancestry DESC NULLS LAST').delete_all
       puts "✓ Cleared"
 
-      Rake::Task['trapid:financial:setup_chart_of_accounts'].invoke
+      Rake::Task['teeem:financial:setup_chart_of_accounts'].invoke
     end
 
     def setup_account_groups

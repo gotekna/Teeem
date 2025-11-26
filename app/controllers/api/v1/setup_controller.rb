@@ -218,7 +218,7 @@ module Api
         # Import templates
         template_map = {}
         creator = User.first || User.create!(
-          email: 'system@trapid.com',
+          email: 'system@teeem.com',
           name: 'System',
           password: SecureRandom.hex(20)
         )

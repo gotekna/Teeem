@@ -128,8 +128,8 @@ module Api
           solid_queue_semaphores
         ]
 
-        # Core Trapid system tables (columns/tables metadata)
-        trapid_core_tables = %w[tables columns]
+        # Core TEEEM system tables (columns/tables metadata)
+        teeem_core_tables = %w[tables columns]
 
         # Get all user-defined tables from the tables table
         user_tables = Table.includes(:columns).all.map do |table|
@@ -159,12 +159,12 @@ module Api
 
           # Determine usage_status for better categorization
           usage_status = if table.table_type == 'system' && has_column_metadata
-                           'TrapidTableView'
+                           'TEEEMTableView'
                          elsif table.table_type == 'system'
                            'Rails System'
                          elsif rails_internal_tables.include?(db_name)
                            'Needs Deleting'  # Rails internal wrongly added to tables
-                         elsif trapid_core_tables.include?(db_name)
+                         elsif teeem_core_tables.include?(db_name)
                            'Needs Deleting'  # Core tables shouldn't be in tables table
                          elsif !has_column_metadata && type == 'user'
                            # User table without column metadata - likely orphaned
@@ -350,7 +350,7 @@ module Api
         require 'net/http'
         require 'json'
 
-        production_url = 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/schema/tables'
+        production_url = 'https://teeem-backend-447058022b51.herokuapp.com/api/v1/schema/tables'
 
         begin
           uri = URI(production_url)

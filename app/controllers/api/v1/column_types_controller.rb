@@ -199,7 +199,7 @@ class Api::V1::ColumnTypesController < ApplicationController
   # First tries to get from database column.description field
   # Falls back to hardcoded rules if not set
   def get_validation_rules(column)
-    # Use database description if available (updated by trapid:update_validation_rules rake task)
+    # Use database description if available (updated by teeem:update_validation_rules rake task)
     return column.description if column.description.present?
 
     # Fallback to hardcoded defaults (only used if database not populated)

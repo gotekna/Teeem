@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-namespace :trapid do
+namespace :teeem do
   namespace :agents do
     desc "Migrate run history from JSON file to database (one-time migration)"
     task migrate_history: :environment do

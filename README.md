@@ -1,6 +1,6 @@
-# Trapid Backend API
+# TEEEM Backend API
 
-Rails API backend for Trapid application.
+Rails API backend for TEEEM application.
 
 ## Setup
 

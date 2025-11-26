@@ -209,15 +209,15 @@ module Api
       end
 
       # POST /api/v1/trinity/export_lexicon
-      # Exports Lexicon (bug/architecture/etc) entries to TRAPID_LEXICON.md
+      # Exports Lexicon (bug/architecture/etc) entries to TEEEM_LEXICON.md
       def export_lexicon
-        result = system("cd #{Rails.root} && bundle exec rake trapid:export_lexicon")
+        result = system("cd #{Rails.root} && bundle exec rake teeem:export_lexicon")
 
         if result
           render json: {
             success: true,
-            message: 'Lexicon exported to TRAPID_LEXICON.md successfully',
-            file_path: Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_LEXICON.md').to_s,
+            message: 'Lexicon exported to TEEEM_LEXICON.md successfully',
+            file_path: Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_LEXICON.md').to_s,
             total_entries: Trinity.lexicon_entries.count
           }
         else
@@ -229,15 +229,15 @@ module Api
       end
 
       # POST /api/v1/trinity/export_teacher
-      # Exports Teacher (component/feature/etc) entries to TRAPID_TEACHER.md
+      # Exports Teacher (component/feature/etc) entries to TEEEM_TEACHER.md
       def export_teacher
-        result = system("cd #{Rails.root} && bundle exec rake trapid:export_teacher")
+        result = system("cd #{Rails.root} && bundle exec rake teeem:export_teacher")
 
         if result
           render json: {
             success: true,
-            message: 'Teacher exported to TRAPID_TEACHER.md successfully',
-            file_path: Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_TEACHER.md').to_s,
+            message: 'Teacher exported to TEEEM_TEACHER.md successfully',
+            file_path: Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_TEACHER.md').to_s,
             total_entries: Trinity.teacher_entries.count
           }
         else

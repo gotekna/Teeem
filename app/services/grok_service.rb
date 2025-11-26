@@ -36,7 +36,7 @@ class GrokService
   private
 
   def build_system_message(context)
-    prompt = "You are Grok, an AI assistant helping a development team build Trapid, a database management application."
+    prompt = "You are Grok, an AI assistant helping a development team build TEEEM, a database management application."
 
     # Include project rebuild plan for context
     rebuild_plan = load_project_documentation

@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-# Automated extraction of ALL Teacher content from TRAPID_BIBLE.md
+# Automated extraction of ALL Teacher content from TEEEM_BIBLE.md
 # This script parses the Bible and extracts:
 # - All code blocks (```ruby, ```javascript, ```jsx, etc.)
 # - Implementation sections
@@ -8,10 +8,10 @@
 
 require 'fileutils'
 
-bible_path = Rails.root.join('..', 'TRAPID_DOCS', 'TRAPID_BIBLE.md')
+bible_path = Rails.root.join('..', 'TEEEM_DOCS', 'TEEEM_BIBLE.md')
 content = File.read(bible_path, encoding: 'UTF-8')
 
-puts "📖 Parsing TRAPID_BIBLE.md..."
+puts "📖 Parsing TEEEM_BIBLE.md..."
 puts "📄 File size: #{content.length} characters"
 puts ""
 
@@ -110,7 +110,7 @@ chapters.each do |chapter_num_str, chapter_title, chapter_content|
       difficulty: difficulty,
       summary: summary,
       code_example: combined_code,
-      related_rules: "TRAPID_BIBLE.md RULE ##{rule_num}"
+      related_rules: "TEEEM_BIBLE.md RULE ##{rule_num}"
     )
 
     if entry.save
@@ -131,4 +131,4 @@ puts "✅ Created: #{total_created} new Teacher entries"
 puts "⏭️  Skipped: #{total_skipped} existing entries"
 puts "📚 Total Teacher entries: #{Trinity.teacher_entries.count}"
 puts ""
-puts "Next step: bin/rails trapid:export_teacher"
+puts "Next step: bin/rails teeem:export_teacher"

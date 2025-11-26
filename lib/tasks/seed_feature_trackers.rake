@@ -1,6 +1,6 @@
-namespace :trapid do
+namespace :teeem do
   namespace :features do
-    desc "Seed feature trackers from TRAPID_FEATURES_LIST.md"
+    desc "Seed feature trackers from TEEEM_FEATURES_LIST.md"
     task seed: :environment do
       puts "Seeding feature trackers..."
 
@@ -251,7 +251,7 @@ namespace :trapid do
           feature_name: "Custom Workflow Designer",
           detail_point_1: "Visual workflow builder",
           detail_point_2: "Conditional logic and branching",
-          detail_point_3: "Integration with all Trapid modules",
+          detail_point_3: "Integration with all TEEEM modules",
           sort_order: 290
         },
         {
@@ -274,7 +274,7 @@ namespace :trapid do
         },
         {
           chapter: "10. CUSTOM DATA MANAGEMENT",
-          feature_name: "TrapidTableView (Enterprise Table Component)",
+          feature_name: "TEEEMTableView (Enterprise Table Component)",
           detail_point_1: "Advanced data grid with sorting and filtering",
           detail_point_2: "Column customization and persistence",
           detail_point_3: "Bulk operations and export",

@@ -16,14 +16,14 @@ module Api
 
         # Try to find an existing user (prefer robert@tekna.com.au for local dev)
         dev_user = User.find_by(email: 'robert@tekna.com.au') ||
-                   User.find_by(email: 'rob@trapid.com.au') ||
+                   User.find_by(email: 'rob@teeem.com.au') ||
                    User.where(role: 'admin').first ||
                    User.first
 
         # If no users exist, create a dev user
         unless dev_user
           dev_user = User.create!(
-            email: 'dev@trapid.local',
+            email: 'dev@teeem.local',
             name: 'Dev User',
             password: 'DevPassword123!',
             role: 'admin'

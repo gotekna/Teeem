@@ -1,7 +1,7 @@
 {
-  "name": "trapid-api",
-  "description": "Trapid Rails API Backend",
-  "repository": "https://github.com/YOUR_USERNAME/trapid",
+  "name": "teeem-api",
+  "description": "TEEEM Rails API Backend",
+  "repository": "https://github.com/YOUR_USERNAME/teeem",
   "keywords": ["rails", "api", "postgresql"],
   "addons": [
     {

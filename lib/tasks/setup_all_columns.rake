@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   desc "Setup columns for tables with real database tables (non-interactive)"
   task setup_real_table_columns: :environment do
     # Map virtual tables to their actual database tables
@@ -64,7 +64,7 @@ namespace :trapid do
     table_id = args[:table_id]&.to_i
 
     unless table_id
-      puts "Usage: bin/rails trapid:regenerate_columns[TABLE_ID]"
+      puts "Usage: bin/rails teeem:regenerate_columns[TABLE_ID]"
       puts ""
       puts "Tables with real database tables:"
       Table.all.each do |table|

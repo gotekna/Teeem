@@ -1,9 +1,9 @@
-namespace :trapid do
+namespace :teeem do
   namespace :tables do
     desc "Seed system tables (in-memory tables) with proper IDs in the tables table"
     task seed_system: :environment do
       # System tables that were previously "in-memory" tables
-      # These are Rails models that use TrapidTableView but weren't registered in the tables table
+      # These are Rails models that use TEEEMTableView but weren't registered in the tables table
       # IMPORTANT: IDs are FIXED to match production (199-221) for consistency across environments
       system_tables = [
         {
@@ -173,7 +173,7 @@ namespace :trapid do
           icon: '✨',
           file_location: 'pages/TableStandardTest.jsx',
           model_class: 'InspiringQuote',
-          description: 'Test table for TrapidTableView standard',
+          description: 'Test table for TEEEMTableView standard',
           has_saved_views: true,
           api_endpoint: '/api/v1/inspiring_quotes',
           database_table_name: 'inspiring_quotes'

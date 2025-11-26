@@ -1,13 +1,13 @@
-namespace :trapid do
+namespace :teeem do
   desc "Copy Gold Standard column types to another table"
   task :copy_gold_standard_columns, [:target_table_id] => :environment do |t, args|
     target_id = args[:target_table_id]&.to_i
 
     unless target_id
-      puts "Usage: bin/rails 'trapid:copy_gold_standard_columns[TABLE_ID]'"
+      puts "Usage: bin/rails 'teeem:copy_gold_standard_columns[TABLE_ID]'"
       puts ""
       puts "This copies all 22 Gold Standard column types to the target table."
-      puts "Useful for testing TrapidTableView features on any table."
+      puts "Useful for testing TEEEMTableView features on any table."
       puts ""
       puts "Tables without column definitions:"
       Table.where.not(database_table_name: [nil, '']).each do |table|
@@ -90,7 +90,7 @@ namespace :trapid do
     table_id = args[:table_id]&.to_i
 
     unless table_id
-      puts "Usage: bin/rails 'trapid:setup_basic_columns[TABLE_ID]'"
+      puts "Usage: bin/rails 'teeem:setup_basic_columns[TABLE_ID]'"
       puts ""
       puts "This creates a basic set of columns for any virtual table:"
       puts "  - Actions (action_buttons)"

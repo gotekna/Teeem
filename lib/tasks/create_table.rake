@@ -1,10 +1,10 @@
-namespace :trapid do
+namespace :teeem do
   desc "Create a new table with automatic column setup from database schema"
   task :create_table, [:name, :slug, :db_table] => :environment do |t, args|
     unless args[:name] && args[:slug] && args[:db_table]
-      puts "Usage: bin/rails 'trapid:create_table[Table Name,table-slug,database_table_name]'"
+      puts "Usage: bin/rails 'teeem:create_table[Table Name,table-slug,database_table_name]'"
       puts ""
-      puts "Example: bin/rails 'trapid:create_table[My Items,my-items,my_items]'"
+      puts "Example: bin/rails 'teeem:create_table[My Items,my-items,my_items]'"
       puts ""
       puts "This will:"
       puts "  1. Create a new Table record"

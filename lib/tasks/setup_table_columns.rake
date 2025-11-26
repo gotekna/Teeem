@@ -1,10 +1,10 @@
-namespace :trapid do
+namespace :teeem do
   desc "Auto-generate column definitions for a table from its database schema"
   task :setup_table_columns, [:table_id] => :environment do |t, args|
     table_id = args[:table_id]&.to_i
 
     unless table_id
-      puts "Usage: bin/rails trapid:setup_table_columns[TABLE_ID]"
+      puts "Usage: bin/rails teeem:setup_table_columns[TABLE_ID]"
       puts ""
       puts "Available tables without column definitions:"
       Table.where.not(database_table_name: [nil, '']).each do |table|
@@ -229,8 +229,8 @@ namespace :trapid do
 
     tables_without_columns.each do |table|
       puts "\n" + "="*60
-      Rake::Task['trapid:setup_table_columns'].reenable
-      Rake::Task['trapid:setup_table_columns'].invoke(table.id)
+      Rake::Task['teeem:setup_table_columns'].reenable
+      Rake::Task['teeem:setup_table_columns'].invoke(table.id)
     end
 
     puts "\n" + "="*60

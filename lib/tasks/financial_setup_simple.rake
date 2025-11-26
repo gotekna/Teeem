@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :financial do
     desc "Set up simple default chart of accounts for financial tracking"
     task setup_simple: :environment do
@@ -54,7 +54,7 @@ namespace :trapid do
       Keepr::Account.delete_all
       puts "✓ Cleared"
 
-      Rake::Task['trapid:financial:setup_simple'].invoke
+      Rake::Task['teeem:financial:setup_simple'].invoke
     end
   end
 end

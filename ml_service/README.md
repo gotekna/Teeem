@@ -1,10 +1,10 @@
-# Trapid ML Service
+# TEEEM ML Service
 
 **Silent ML Infrastructure** - Runs in the background for 3 months collecting data and training models before exposing any user-facing features.
 
 ## Overview
 
-This Python microservice provides machine learning capabilities for the Trapid construction management platform:
+This Python microservice provides machine learning capabilities for the TEEEM construction management platform:
 
 1. **Price Anomaly Detection** - Identifies unusual prices in purchase orders (Isolation Forest)
 2. **Supplier Price Predictions** - Forecasts which suppliers are likely to increase prices (Time Series Analysis)
@@ -57,14 +57,14 @@ ml_service/
 ### Prerequisites
 
 - Python 3.9+
-- Access to Trapid PostgreSQL database (same as Rails)
+- Access to TEEEM PostgreSQL database (same as Rails)
 - (Optional) Redis for background job scheduling
 
 ### Installation
 
 ```bash
 # Navigate to ML service directory
-cd /Users/jakebaird/trapid/backend/ml_service
+cd /Users/jakebaird/teeem/backend/ml_service
 
 # Create virtual environment
 python3 -m venv venv
@@ -81,7 +81,7 @@ Create a `.env` file in the `ml_service` directory:
 
 ```bash
 # Database (same as Rails DATABASE_URL)
-DATABASE_URL=postgresql://user:password@localhost:5432/trapid_development
+DATABASE_URL=postgresql://user:password@localhost:5432/teeem_development
 
 # Redis (optional, for Celery)
 REDIS_URL=redis://localhost:6379/0
@@ -537,7 +537,7 @@ heroku config:get DATABASE_URL
 
 ## Contributing
 
-This ML service is part of the Trapid project. When modifying:
+This ML service is part of the TEEEM project. When modifying:
 
 1. **Maintain backward compatibility** - Don't break existing model files
 2. **Version models** - Use `model_version` parameter
@@ -546,7 +546,7 @@ This ML service is part of the Trapid project. When modifying:
 
 ## License
 
-Part of Trapid project - MIT License
+Part of TEEEM project - MIT License
 
 ---
 

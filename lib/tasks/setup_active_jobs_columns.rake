@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   desc "Setup columns for Active Jobs table (ID 204) from constructions database table"
   task setup_active_jobs_columns: :environment do
     table_id = 204

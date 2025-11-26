@@ -367,7 +367,7 @@ class SubcontractorActivationService
   def self.generate_placeholder_email(contact)
     # Generate placeholder email for contacts without email
     sanitized_name = contact.display_name.parameterize
-    "#{sanitized_name}@placeholder.trapid.local"
+    "#{sanitized_name}@placeholder.teeem.local"
   end
 
   def self.activation_summary(portal_user)

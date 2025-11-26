@@ -1,10 +1,10 @@
 require 'csv'
 
-namespace :trapid do
+namespace :teeem do
   namespace :column_types do
     desc 'Sync all column type definitions from CSV to all sources'
     task sync_from_csv: :environment do
-      csv_path = Rails.root.join('..', 'TRAPID_DOCS', 'gold_standard_columns.csv')
+      csv_path = Rails.root.join('..', 'TEEEM_DOCS', 'gold_standard_columns.csv')
 
       unless File.exist?(csv_path)
         puts "❌ CSV file not found at: #{csv_path}"
@@ -163,7 +163,7 @@ namespace :trapid do
 
       backend_code = <<~RUBY
         # AUTO-GENERATED from gold_standard_columns.csv
-        # DO NOT EDIT MANUALLY - Run: rails trapid:column_types:sync_from_csv
+        # DO NOT EDIT MANUALLY - Run: rails teeem:column_types:sync_from_csv
         # Last updated: #{Time.current.strftime('%Y-%m-%d %H:%M:%S')}
 
         COLUMN_SQL_TYPE_MAP = {
@@ -211,7 +211,7 @@ namespace :trapid do
       end
 
       puts "🔄 Importing column types from CSV..."
-      Rake::Task['trapid:column_types:sync_from_csv'].invoke
+      Rake::Task['teeem:column_types:sync_from_csv'].invoke
     end
   end
 end

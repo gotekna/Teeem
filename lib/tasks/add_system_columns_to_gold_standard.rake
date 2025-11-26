@@ -1,4 +1,4 @@
-namespace :trapid do
+namespace :teeem do
   namespace :gold_standard do
     desc "Add system columns (id, created_at, updated_at) to Gold Standard table"
     task add_system_columns: :environment do

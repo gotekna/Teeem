@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-namespace :trapid do
+namespace :teeem do
   namespace :agents do
     desc "Sync agent definitions from .claude/agents/*.md files to database"
     task sync: :environment do
@@ -278,7 +278,7 @@ namespace :trapid do
         "planning-collaborator" => "planning",
         "product-owner-analyst" => "planning",
         # Development
-        "trapid-table-architect" => "development",
+        "teeem-table-architect" => "development",
         "invoke-helper" => "development"
       }
 
@@ -288,7 +288,7 @@ namespace :trapid do
     def determine_priority(agent_id, agent_type)
       # Prioritize agents
       priorities = {
-        "trapid-table-architect" => 90,
+        "teeem-table-architect" => 90,
         "architecture-guardian" => 85,
         "code-guardian" => 85,
         "ui-table-auditor" => 80,
