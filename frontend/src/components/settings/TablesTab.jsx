@@ -58,18 +58,28 @@ export default function TablesTab() {
     fetchInMemoryTables()
   }, [])
 
+  const handleRefreshTables = async () => {
+    try {
+      setSyncing(true)
+      setSyncResults(null)
+
+      // Refresh tables data
+      await fetchTables()
+      await fetchInMemoryTables()
+    } catch (err) {
+      console.error('Failed to refresh tables:', err)
+      alert(err.message || 'Failed to refresh tables')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const handleSyncSystemTables = async () => {
     try {
       setSyncing(true)
       setSyncResults(null)
 
-      console.log('🔍 DEBUG: Fetching sync results from API...')
       const response = await api.post('/api/v1/schema/sync_system_tables')
-
-      console.log('🔍 DEBUG: Raw API Response:', response)
-      console.log('🔍 DEBUG: Summary:', response.summary)
-      console.log('🔍 DEBUG: Gold Standard:', response.results?.find(r => r.name === 'Gold Standard Reference'))
-      console.log('🔍 DEBUG: Timestamp:', new Date().toISOString())
 
       // Add debug metadata to response
       const debugResponse = {
@@ -81,11 +91,7 @@ export default function TablesTab() {
         }
       }
 
-      console.log('🔍 DEBUG: Setting sync results state...')
       setSyncResults(debugResponse)
-
-      // Force component to re-render by updating a timestamp
-      console.log('🔍 DEBUG: Sync complete, component should re-render')
 
       // Refresh tables data after sync check
       await fetchTables()
@@ -305,12 +311,12 @@ export default function TablesTab() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSyncSystemTables}
+            onClick={handleRefreshTables}
             disabled={syncing}
             className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-purple-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <ArrowPathIcon className={`h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync Check'}
+            {syncing ? 'Refreshing...' : 'Refresh'}
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
