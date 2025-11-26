@@ -134,19 +134,6 @@ const getStatusColorClass = (color) => {
 export default function AppLayout({ children }) {
   const location = useLocation()
   const { user, loading } = useAuth()
-
-  // Redirect to login if not authenticated
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />
-  }
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeJobs, setActiveJobs] = useState([])
   const [jobSearchQuery, setJobSearchQuery] = useState('')
@@ -759,6 +746,19 @@ export default function AppLayout({ children }) {
     }
     // For other routes with potential child paths
     return location.pathname === href || location.pathname.startsWith(href + '/')
+  }
+
+  // Redirect to login if not authenticated (after all hooks)
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />
   }
 
   return (
@@ -1383,225 +1383,268 @@ export default function AppLayout({ children }) {
                                 })}
 
                               {/* Two-level Nested Grouped View (handles type-status, status-type, type-stage, etc.) */}
-                              {groupedJobs.mode && groupedJobs.mode.split('-').length === 2 && Object.entries(groupedJobs.groups)
-                                .sort(([a], [b]) => a.localeCompare(b))
-                                .map(([typeName, statusGroups]) => (
-                                  <li key={typeName}>
-                                    {/* Type group header */}
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleTypeGroup(typeName)}
-                                      className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
-                                    >
-                                      <ChevronRightIcon
-                                        className={classNames(
-                                          'h-3 w-3 text-gray-400 transition-transform',
-                                          (expandedTypeGroups[typeName] !== false) && 'rotate-90'
-                                        )}
-                                      />
-                                      <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-                                        {typeName}
-                                      </span>
-                                      <span className="ml-auto text-xs text-gray-400">
-                                        {Object.values(statusGroups).flat().length}
-                                      </span>
-                                    </button>
+                              {groupedJobs.mode && groupedJobs.mode.split('-').length === 2 && (() => {
+                                const [firstGroupType, secondGroupType] = groupedJobs.mode.split('-')
 
-                                    {/* Status groups under this type */}
-                                    {(expandedTypeGroups[typeName] !== false) && (
-                                      <ul className="ml-3 space-y-0.5 mt-0.5">
-                                        {Object.entries(statusGroups)
-                                          .sort(([a], [b]) => a.localeCompare(b))
-                                          .map(([statusName, jobs]) => {
-                                            const filteredJobs = jobs.filter(job => {
-                                              if (!jobSearchQuery) return true
-                                              const query = jobSearchQuery.toLowerCase()
-                                              return (job.title || '').toLowerCase().includes(query) ||
-                                                     String(job.id).includes(query)
-                                            })
-                                            if (filteredJobs.length === 0) return null
+                                // Determine which expanded state to use based on the grouping type
+                                const getFirstLevelExpanded = (name) => {
+                                  if (firstGroupType === 'type') return expandedTypeGroups[name]
+                                  if (firstGroupType === 'status') return expandedStatusGroups[name]
+                                  return expandedStages[name]
+                                }
+                                const toggleFirstLevel = (name) => {
+                                  if (firstGroupType === 'type') toggleTypeGroup(name)
+                                  else if (firstGroupType === 'status') toggleStatusGroup(name)
+                                  else toggleStageExpanded(name)
+                                }
+                                const getSecondLevelExpanded = (key) => {
+                                  // For second level, we use a composite key
+                                  if (secondGroupType === 'type') return expandedTypeGroups[key]
+                                  if (secondGroupType === 'status') return expandedStatusGroups[key]
+                                  return expandedStages[key]
+                                }
+                                const toggleSecondLevel = (key) => {
+                                  if (secondGroupType === 'type') toggleTypeGroup(key)
+                                  else if (secondGroupType === 'status') toggleStatusGroup(key)
+                                  else toggleStageExpanded(key)
+                                }
 
-                                            const groupKey = `${typeName}:${statusName}`
-                                            return (
-                                              <li key={statusName}>
-                                                {/* Status subgroup header */}
-                                                <button
-                                                  type="button"
-                                                  onClick={() => toggleStatusGroup(groupKey)}
-                                                  className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
-                                                >
-                                                  <ChevronRightIcon
-                                                    className={classNames(
-                                                      'h-3 w-3 text-gray-400 transition-transform',
-                                                      (expandedStatusGroups[groupKey] !== false) && 'rotate-90'
-                                                    )}
-                                                  />
-                                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                                    {statusName}
-                                                  </span>
-                                                  <span className="ml-auto text-xs text-gray-400">
-                                                    {filteredJobs.length}
-                                                  </span>
-                                                </button>
+                                return Object.entries(groupedJobs.groups)
+                                  .sort(([a], [b]) => a.localeCompare(b))
+                                  .map(([firstName, secondGroups]) => (
+                                    <li key={firstName}>
+                                      {/* First level group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleFirstLevel(firstName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (getFirstLevelExpanded(firstName) !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {firstName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {Object.values(secondGroups).flat().length}
+                                        </span>
+                                      </button>
 
-                                                {/* Jobs under this type+status */}
-                                                {(expandedStatusGroups[groupKey] !== false) && (
-                                                  <ul className="ml-4 space-y-0.5">
-                                                    {filteredJobs.slice(0, 20).map((job) => (
-                                                      <li key={job.id}>
-                                                        <Link
-                                                          to={`/jobs/${job.id}/overview`}
-                                                          className={classNames(
-                                                            location.pathname.startsWith(`/jobs/${job.id}`)
-                                                              ? 'text-indigo-600 dark:text-indigo-400 font-medium'
-                                                              : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
-                                                            'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
-                                                          )}
-                                                          title={job.title}
-                                                        >
-                                                          {job.title || `Job #${job.id}`}
-                                                        </Link>
-                                                      </li>
-                                                    ))}
-                                                  </ul>
-                                                )}
-                                              </li>
-                                            )
-                                          })}
-                                      </ul>
-                                    )}
-                                  </li>
-                                ))}
+                                      {/* Second level groups */}
+                                      {(getFirstLevelExpanded(firstName) !== false) && (
+                                        <ul className="ml-3 space-y-0.5 mt-0.5">
+                                          {Object.entries(secondGroups)
+                                            .sort(([a], [b]) => a.localeCompare(b))
+                                            .map(([secondName, jobs]) => {
+                                              const filteredJobs = jobs.filter(job => {
+                                                if (!jobSearchQuery) return true
+                                                const query = jobSearchQuery.toLowerCase()
+                                                return (job.title || '').toLowerCase().includes(query) ||
+                                                       String(job.id).includes(query)
+                                              })
+                                              if (filteredJobs.length === 0) return null
+
+                                              const groupKey = `${firstName}:${secondName}`
+                                              return (
+                                                <li key={secondName}>
+                                                  {/* Second level subgroup header */}
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleSecondLevel(groupKey)}
+                                                    className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                                  >
+                                                    <ChevronRightIcon
+                                                      className={classNames(
+                                                        'h-3 w-3 text-gray-400 transition-transform',
+                                                        (getSecondLevelExpanded(groupKey) !== false) && 'rotate-90'
+                                                      )}
+                                                    />
+                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                      {secondName}
+                                                    </span>
+                                                    <span className="ml-auto text-xs text-gray-400">
+                                                      {filteredJobs.length}
+                                                    </span>
+                                                  </button>
+
+                                                  {/* Jobs under this group */}
+                                                  {(getSecondLevelExpanded(groupKey) !== false) && (
+                                                    <ul className="ml-4 space-y-0.5">
+                                                      {filteredJobs.slice(0, 20).map((job) => (
+                                                        <li key={job.id}>
+                                                          <Link
+                                                            to={`/jobs/${job.id}/overview`}
+                                                            className={classNames(
+                                                              location.pathname.startsWith(`/jobs/${job.id}`)
+                                                                ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                                : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                              'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                            )}
+                                                            title={job.title}
+                                                          >
+                                                            {job.title || `Job #${job.id}`}
+                                                          </Link>
+                                                        </li>
+                                                      ))}
+                                                    </ul>
+                                                  )}
+                                                </li>
+                                              )
+                                            })}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  ))
+                              })()}
 
                               {/* Three-level Nested Grouped View (handles type-status-stage, etc.) */}
-                              {groupedJobs.mode && groupedJobs.mode.split('-').length === 3 && Object.entries(groupedJobs.groups)
-                                .sort(([a], [b]) => a.localeCompare(b))
-                                .map(([firstName, secondGroups]) => (
-                                  <li key={firstName}>
-                                    {/* First level group header */}
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleTypeGroup(firstName)}
-                                      className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
-                                    >
-                                      <ChevronRightIcon
-                                        className={classNames(
-                                          'h-3 w-3 text-gray-400 transition-transform',
-                                          (expandedTypeGroups[firstName] !== false) && 'rotate-90'
-                                        )}
-                                      />
-                                      <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
-                                        {firstName}
-                                      </span>
-                                      <span className="ml-auto text-xs text-gray-400">
-                                        {Object.values(secondGroups).reduce((sum, thirdGroups) =>
-                                          sum + Object.values(thirdGroups).flat().length, 0
-                                        )}
-                                      </span>
-                                    </button>
+                              {groupedJobs.mode && groupedJobs.mode.split('-').length === 3 && (() => {
+                                const [firstGroupType, secondGroupType, thirdGroupType] = groupedJobs.mode.split('-')
 
-                                    {/* Second level groups */}
-                                    {(expandedTypeGroups[firstName] !== false) && (
-                                      <ul className="ml-3 space-y-0.5 mt-0.5">
-                                        {Object.entries(secondGroups)
-                                          .sort(([a], [b]) => a.localeCompare(b))
-                                          .map(([secondName, thirdGroups]) => {
-                                            const groupKey = `${firstName}:${secondName}`
-                                            const totalJobs = Object.values(thirdGroups).flat().length
-                                            if (totalJobs === 0) return null
+                                // Helper functions to get the correct expanded state based on group type
+                                const getExpandedState = (groupType, key) => {
+                                  if (groupType === 'type') return expandedTypeGroups[key]
+                                  if (groupType === 'status') return expandedStatusGroups[key]
+                                  return expandedStages[key]
+                                }
+                                const toggleExpanded = (groupType, key) => {
+                                  if (groupType === 'type') toggleTypeGroup(key)
+                                  else if (groupType === 'status') toggleStatusGroup(key)
+                                  else toggleStageExpanded(key)
+                                }
 
-                                            return (
-                                              <li key={secondName}>
-                                                {/* Second level header */}
-                                                <button
-                                                  type="button"
-                                                  onClick={() => toggleStatusGroup(groupKey)}
-                                                  className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
-                                                >
-                                                  <ChevronRightIcon
-                                                    className={classNames(
-                                                      'h-3 w-3 text-gray-400 transition-transform',
-                                                      (expandedStatusGroups[groupKey] !== false) && 'rotate-90'
-                                                    )}
-                                                  />
-                                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                                                    {secondName}
-                                                  </span>
-                                                  <span className="ml-auto text-xs text-gray-400">
-                                                    {totalJobs}
-                                                  </span>
-                                                </button>
+                                return Object.entries(groupedJobs.groups)
+                                  .sort(([a], [b]) => a.localeCompare(b))
+                                  .map(([firstName, secondGroups]) => (
+                                    <li key={firstName}>
+                                      {/* First level group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleExpanded(firstGroupType, firstName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (getExpandedState(firstGroupType, firstName) !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {firstName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {Object.values(secondGroups).reduce((sum, thirdGroups) =>
+                                            sum + Object.values(thirdGroups).flat().length, 0
+                                          )}
+                                        </span>
+                                      </button>
 
-                                                {/* Third level groups */}
-                                                {(expandedStatusGroups[groupKey] !== false) && (
-                                                  <ul className="ml-3 space-y-0.5 mt-0.5">
-                                                    {Object.entries(thirdGroups)
-                                                      .sort(([a], [b]) => a.localeCompare(b))
-                                                      .map(([thirdName, jobs]) => {
-                                                        const filteredJobs = jobs.filter(job => {
-                                                          if (!jobSearchQuery) return true
-                                                          const query = jobSearchQuery.toLowerCase()
-                                                          return (job.title || '').toLowerCase().includes(query) ||
-                                                                 String(job.id).includes(query)
-                                                        })
-                                                        if (filteredJobs.length === 0) return null
+                                      {/* Second level groups */}
+                                      {(getExpandedState(firstGroupType, firstName) !== false) && (
+                                        <ul className="ml-3 space-y-0.5 mt-0.5">
+                                          {Object.entries(secondGroups)
+                                            .sort(([a], [b]) => a.localeCompare(b))
+                                            .map(([secondName, thirdGroups]) => {
+                                              const groupKey = `${firstName}:${secondName}`
+                                              const totalJobs = Object.values(thirdGroups).flat().length
+                                              if (totalJobs === 0) return null
 
-                                                        const thirdKey = `${groupKey}:${thirdName}`
-                                                        return (
-                                                          <li key={thirdName}>
-                                                            {/* Third level header */}
-                                                            <button
-                                                              type="button"
-                                                              onClick={() => toggleStageExpanded(thirdKey)}
-                                                              className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
-                                                            >
-                                                              <ChevronRightIcon
-                                                                className={classNames(
-                                                                  'h-3 w-3 text-gray-400 transition-transform',
-                                                                  (expandedStages[thirdKey] !== false) && 'rotate-90'
-                                                                )}
-                                                              />
-                                                              <span className="text-xs text-gray-500 dark:text-gray-500">
-                                                                {thirdName}
-                                                              </span>
-                                                              <span className="ml-auto text-xs text-gray-400">
-                                                                {filteredJobs.length}
-                                                              </span>
-                                                            </button>
+                                              return (
+                                                <li key={secondName}>
+                                                  {/* Second level header */}
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => toggleExpanded(secondGroupType, groupKey)}
+                                                    className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                                  >
+                                                    <ChevronRightIcon
+                                                      className={classNames(
+                                                        'h-3 w-3 text-gray-400 transition-transform',
+                                                        (getExpandedState(secondGroupType, groupKey) !== false) && 'rotate-90'
+                                                      )}
+                                                    />
+                                                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                      {secondName}
+                                                    </span>
+                                                    <span className="ml-auto text-xs text-gray-400">
+                                                      {totalJobs}
+                                                    </span>
+                                                  </button>
 
-                                                            {/* Jobs */}
-                                                            {(expandedStages[thirdKey] !== false) && (
-                                                              <ul className="ml-4 space-y-0.5">
-                                                                {filteredJobs.slice(0, 20).map((job) => (
-                                                                  <li key={job.id}>
-                                                                    <Link
-                                                                      to={`/jobs/${job.id}/overview`}
-                                                                      className={classNames(
-                                                                        location.pathname.startsWith(`/jobs/${job.id}`)
-                                                                          ? 'text-indigo-600 dark:text-indigo-400 font-medium'
-                                                                          : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
-                                                                        'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
-                                                                      )}
-                                                                      title={job.title}
-                                                                    >
-                                                                      {job.title || `Job #${job.id}`}
-                                                                    </Link>
-                                                                  </li>
-                                                                ))}
-                                                              </ul>
-                                                            )}
-                                                          </li>
-                                                        )
-                                                      })}
-                                                  </ul>
-                                                )}
-                                              </li>
-                                            )
-                                          })}
-                                      </ul>
-                                    )}
-                                  </li>
-                                ))}
+                                                  {/* Third level groups */}
+                                                  {(getExpandedState(secondGroupType, groupKey) !== false) && (
+                                                    <ul className="ml-3 space-y-0.5 mt-0.5">
+                                                      {Object.entries(thirdGroups)
+                                                        .sort(([a], [b]) => a.localeCompare(b))
+                                                        .map(([thirdName, jobs]) => {
+                                                          const filteredJobs = jobs.filter(job => {
+                                                            if (!jobSearchQuery) return true
+                                                            const query = jobSearchQuery.toLowerCase()
+                                                            return (job.title || '').toLowerCase().includes(query) ||
+                                                                   String(job.id).includes(query)
+                                                          })
+                                                          if (filteredJobs.length === 0) return null
+
+                                                          const thirdKey = `${groupKey}:${thirdName}`
+                                                          return (
+                                                            <li key={thirdName}>
+                                                              {/* Third level header */}
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => toggleExpanded(thirdGroupType, thirdKey)}
+                                                                className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                                              >
+                                                                <ChevronRightIcon
+                                                                  className={classNames(
+                                                                    'h-3 w-3 text-gray-400 transition-transform',
+                                                                    (getExpandedState(thirdGroupType, thirdKey) !== false) && 'rotate-90'
+                                                                  )}
+                                                                />
+                                                                <span className="text-xs text-gray-500 dark:text-gray-500">
+                                                                  {thirdName}
+                                                                </span>
+                                                                <span className="ml-auto text-xs text-gray-400">
+                                                                  {filteredJobs.length}
+                                                                </span>
+                                                              </button>
+
+                                                              {/* Jobs */}
+                                                              {(getExpandedState(thirdGroupType, thirdKey) !== false) && (
+                                                                <ul className="ml-4 space-y-0.5">
+                                                                  {filteredJobs.slice(0, 20).map((job) => (
+                                                                    <li key={job.id}>
+                                                                      <Link
+                                                                        to={`/jobs/${job.id}/overview`}
+                                                                        className={classNames(
+                                                                          location.pathname.startsWith(`/jobs/${job.id}`)
+                                                                            ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                                            : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                                          'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                                        )}
+                                                                        title={job.title}
+                                                                      >
+                                                                        {job.title || `Job #${job.id}`}
+                                                                      </Link>
+                                                                    </li>
+                                                                  ))}
+                                                                </ul>
+                                                              )}
+                                                            </li>
+                                                          )
+                                                        })}
+                                                    </ul>
+                                                  )}
+                                                </li>
+                                              )
+                                            })}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  ))
+                              })()}
 
                               {/* Stage View */}
                               {jobViewMode === 'stage' && Object.entries(jobsByStage)

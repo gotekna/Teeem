@@ -89,27 +89,14 @@ export default function JobDetailPage() {
     }
   }, [id, tab, navigate])
 
-  // Check if this is the first time visiting (for setup guide)
+  // Listen for custom event to open setup guide (manual trigger via help button only)
   useEffect(() => {
-    let timer = null
-    const hasSeenGuide = localStorage.getItem('trapid_setup_guide_shown')
-
-    if (!hasSeenGuide) {
-      // Show setup guide for first-time users (with a delay for better UX)
-      timer = setTimeout(() => {
-        setShowSetupGuide(true)
-      }, 1000)
-    }
-
-    // Listen for custom event to open setup guide
     const handleOpenSetupGuide = () => {
       setShowSetupGuide(true)
     }
     window.addEventListener('openSetupGuide', handleOpenSetupGuide)
 
-    // Cleanup both timeout and event listener
     return () => {
-      if (timer) clearTimeout(timer)
       window.removeEventListener('openSetupGuide', handleOpenSetupGuide)
     }
   }, [])
@@ -393,20 +380,7 @@ export default function JobDetailPage() {
                   </div>
                   <div className="mt-4">
                     <button
-                      onClick={() => {
-                        if (activeTab !== 'overview') {
-                          navigate(`/jobs/${id}/overview`)
-                        }
-                        // Trigger the add contact modal
-                        setTriggerAddContact(true)
-                        // Scroll to contacts section after a brief delay
-                        setTimeout(() => {
-                          const contactsSection = document.querySelector('[data-section="job-contacts"]')
-                          if (contactsSection) {
-                            contactsSection.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                          }
-                        }, 100)
-                      }}
+                      onClick={() => navigate(`/jobs/${id}/people`)}
                       className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 dark:bg-yellow-700 dark:hover:bg-yellow-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
                     >
                       <UserGroupIcon className="h-4 w-4 mr-2" />
