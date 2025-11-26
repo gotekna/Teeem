@@ -1,15 +1,56 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
+import { useSearchParams } from 'react-router-dom'
 import UserManagementTab from './UserManagementTab'
 import RolesManagement from './RolesManagement'
 import GroupsManagement from './GroupsManagement'
 import ContactRolesManagement from './ContactRolesManagement'
 
+// Map tab index to table ID for URL sync
+const TAB_TABLE_IDS = {
+  0: 212,  // Users
+  1: 413,  // User Roles
+  2: 364,  // Groups
+  3: 211   // Contact Roles
+}
+
 export default function RolesAndGroupsTab() {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selectedIndex, setSelectedIndex] = useState(() => {
+    // Initialize from URL tableId if present
+    const tableId = searchParams.get('tableId')
+    if (tableId) {
+      const index = Object.entries(TAB_TABLE_IDS).find(([_, id]) => id === parseInt(tableId))?.[0]
+      return index ? parseInt(index) : 0
+    }
+    return 0
+  })
+
+  // Update URL when tab changes
+  const handleTabChange = (index) => {
+    setSelectedIndex(index)
+    const tableId = TAB_TABLE_IDS[index]
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev)
+      newParams.set('tableId', tableId.toString())
+      return newParams
+    })
+  }
+
+  // Set initial tableId in URL if not present
+  useEffect(() => {
+    if (!searchParams.get('tableId')) {
+      const tableId = TAB_TABLE_IDS[selectedIndex]
+      setSearchParams(prev => {
+        const newParams = new URLSearchParams(prev)
+        newParams.set('tableId', tableId.toString())
+        return newParams
+      })
+    }
+  }, [])
 
   return (
-    <TabGroup selectedIndex={selectedIndex} onChange={setSelectedIndex}>
+    <TabGroup selectedIndex={selectedIndex} onChange={handleTabChange}>
       <TabList className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
         <Tab
           className={({ selected }) =>

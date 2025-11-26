@@ -306,7 +306,7 @@ export default function AppLayout({ children }) {
   useEffect(() => {
     const fetchVersion = async () => {
       try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/version`)
+        const response = await axios.get('/version')
         setBackendVersion(response.data.version)
       } catch (error) {
         console.error('Failed to fetch version:', error)
@@ -699,10 +699,12 @@ export default function AppLayout({ children }) {
   // Poll for unread messages count
   useEffect(() => {
     const fetchUnreadCount = async () => {
+      // Only fetch if user is authenticated
+      const token = localStorage.getItem('token')
+      if (!token) return
+
       try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/chat_messages/unread_count`, {
-          withCredentials: true
-        })
+        const response = await axios.get('/api/v1/chat_messages/unread_count')
         setUnreadCount(response.data.count || 0)
       } catch {
         // Silently fail - unread count is not critical

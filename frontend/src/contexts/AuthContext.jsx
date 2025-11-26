@@ -17,6 +17,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [token, setToken] = useState(localStorage.getItem('token'))
+  const [skipNextAuthCheck, setSkipNextAuthCheck] = useState(false)
 
   // Configure axios defaults
   // Trim the API URL to remove any whitespace/newlines from environment variables
@@ -26,6 +27,13 @@ export const AuthProvider = ({ children }) => {
   }
 
   useEffect(() => {
+    // Skip auth check if we just logged in (we already have user data)
+    if (skipNextAuthCheck) {
+      setSkipNextAuthCheck(false)
+      setLoading(false)
+      return
+    }
+
     // Auto-login in dev mode
     if (devModeBypass && !token) {
       devLogin()
@@ -62,12 +70,17 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.get('/api/v1/auth/dev_login')
 
       if (response.data.success) {
-        const { token, user } = response.data
-        localStorage.setItem('token', token)
-        setToken(token)
-        setUser(user)
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-        console.log('✅ Dev Mode: Logged in as', user.name)
+        const { token: newToken, user: userData } = response.data
+        // Set axios header first
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+        // Store in localStorage
+        localStorage.setItem('token', newToken)
+        // Skip the useEffect auth check since we already have user data
+        setSkipNextAuthCheck(true)
+        // Set user first, then token (token change triggers useEffect)
+        setUser(userData)
+        setToken(newToken)
+        console.log('✅ Dev Mode: Logged in as', userData.name)
       }
     } catch (error) {
       console.error('❌ Dev Mode: Auto-login failed:', error)
@@ -84,11 +97,16 @@ export const AuthProvider = ({ children }) => {
       })
 
       if (response.data.success) {
-        const { token, user } = response.data
-        localStorage.setItem('token', token)
-        setToken(token)
-        setUser(user)
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        const { token: newToken, user: userData } = response.data
+        // Set axios header first
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+        // Store in localStorage
+        localStorage.setItem('token', newToken)
+        // Skip the useEffect auth check since we already have user data
+        setSkipNextAuthCheck(true)
+        // Set user first, then token (token change triggers useEffect)
+        setUser(userData)
+        setToken(newToken)
         return { success: true }
       } else {
         return { success: false, error: response.data.error }
@@ -113,11 +131,16 @@ export const AuthProvider = ({ children }) => {
       })
 
       if (response.data.success) {
-        const { token, user } = response.data
-        localStorage.setItem('token', token)
-        setToken(token)
-        setUser(user)
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        const { token: newToken, user: userData } = response.data
+        // Set axios header first
+        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
+        // Store in localStorage
+        localStorage.setItem('token', newToken)
+        // Skip the useEffect auth check since we already have user data
+        setSkipNextAuthCheck(true)
+        // Set user first, then token (token change triggers useEffect)
+        setUser(userData)
+        setToken(newToken)
         return { success: true }
       } else {
         return { success: false, errors: response.data.errors }
