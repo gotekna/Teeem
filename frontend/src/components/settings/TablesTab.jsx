@@ -4,6 +4,18 @@ import { api } from '../../api'
 import { TableCellsIcon, PencilIcon, EyeIcon, XMarkIcon, PlusIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon, ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import TableColumnManager from './TableColumnManager'
 
+// Broad feature categories to group related tables
+const FEATURE_OPTIONS = [
+  '',
+  'Jobs',
+  'Contacts',
+  'Purchasing',
+  'WHS',
+  'Scheduling',
+  'Financial',
+  'System'
+]
+
 export default function TablesTab() {
   const navigate = useNavigate()
   const [tables, setTables] = useState([])
@@ -11,9 +23,12 @@ export default function TablesTab() {
   const [error, setError] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
+  const [editingFeatureId, setEditingFeatureId] = useState(null)
+  const [editingFeature, setEditingFeature] = useState('')
   const [saving, setSaving] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [activeFilter, setActiveFilter] = useState('all')
+  const [featureFilter, setFeatureFilter] = useState('all')
   const [previewTable, setPreviewTable] = useState(null)
   const [previewColumns, setPreviewColumns] = useState([])
   const [loadingPreview, setLoadingPreview] = useState(false)
@@ -23,6 +38,8 @@ export default function TablesTab() {
   const [managingTable, setManagingTable] = useState(null)
   const [syncResults, setSyncResults] = useState(null)
   const [syncing, setSyncing] = useState(false)
+  const [creatingSetupViews, setCreatingSetupViews] = useState(false)
+  const [setupViewResults, setSetupViewResults] = useState(null)
 
   const fetchTables = async () => {
     try {
@@ -86,6 +103,28 @@ export default function TablesTab() {
     }
   }
 
+  const handleCreateAllSetupViews = async () => {
+    try {
+      setCreatingSetupViews(true)
+      setSetupViewResults(null)
+
+      const response = await api.post('/api/v1/table_views/create_all_setup_views')
+
+      if (response.success) {
+        setSetupViewResults(response)
+      } else {
+        alert('Failed to create setup views: ' + (response.error || 'Unknown error'))
+      }
+    } catch (err) {
+      console.error('Failed to create setup views:', err)
+      // Show more detailed error
+      const errorMsg = err.response?.data?.error || err.message || 'Failed to create setup views'
+      alert('Error: ' + errorMsg + '\n\nMake sure you are logged in.')
+    } finally {
+      setCreatingSetupViews(false)
+    }
+  }
+
   const handleNavigateToTable = (table) => {
     // Use combined ID/slug format for better URLs
     navigate(`/tables/${table.id}/${table.slug}`)
@@ -120,6 +159,35 @@ export default function TablesTab() {
     } catch (err) {
       console.error('Failed to rename table:', err)
       alert(err.message || 'Failed to rename table')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleStartEditFeature = (table) => {
+    setEditingFeatureId(table.id)
+    setEditingFeature(table.feature || '')
+  }
+
+  const handleSaveFeature = async (tableId, newFeature) => {
+    try {
+      setSaving(true)
+      await api.patch(`/api/v1/tables/${tableId}`, {
+        table: {
+          feature: newFeature || null
+        }
+      })
+
+      // Update local state
+      setTables(tables.map(t =>
+        t.id === tableId ? { ...t, feature: newFeature || null } : t
+      ))
+
+      setEditingFeatureId(null)
+      setEditingFeature('')
+    } catch (err) {
+      console.error('Failed to update feature:', err)
+      alert(err.message || 'Failed to update feature')
     } finally {
       setSaving(false)
     }
@@ -241,18 +309,27 @@ export default function TablesTab() {
   // Use tables directly from the API - it already has correct type and database_table_name
   const allTables = tables
 
-  // Filter tables based on search query and type filter, then sort by ID
+  // Get unique features for filter dropdown
+  const uniqueFeatures = [...new Set(allTables.map(t => t.feature).filter(Boolean))].sort()
+
+  // Filter tables based on search query, type filter, and feature filter, then sort by ID
   const filteredTables = allTables.filter(table => {
     // Apply search filter
     const matchesSearch = !searchQuery ||
       table.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       table.database_table_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      table.plural_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      table.plural_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      table.feature?.toLowerCase().includes(searchQuery.toLowerCase())
 
     // Apply type filter
     const matchesType = activeFilter === 'all' || table.type === activeFilter
 
-    return matchesSearch && matchesType
+    // Apply feature filter
+    const matchesFeature = featureFilter === 'all' ||
+      (featureFilter === 'none' && !table.feature) ||
+      table.feature === featureFilter
+
+    return matchesSearch && matchesType && matchesFeature
   }).sort((a, b) => a.id - b.id)
 
   // Calculate counts for each filter (including all tables now)
@@ -271,6 +348,15 @@ export default function TablesTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleCreateAllSetupViews}
+            disabled={creatingSetupViews}
+            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Create Setup views for all tables that don't have one"
+          >
+            <CheckCircleIcon className={`h-5 w-5 ${creatingSetupViews ? 'animate-pulse' : ''}`} />
+            {creatingSetupViews ? 'Creating...' : 'Create Setup Views'}
+          </button>
           <button
             onClick={handleRefreshTables}
             disabled={syncing}
@@ -334,15 +420,26 @@ export default function TablesTab() {
           </button>
         </div>
 
-        {/* Search input */}
-        <div className="mb-4">
+        {/* Search and Feature Filter */}
+        <div className="mb-4 flex gap-3">
           <input
             type="text"
-            placeholder="Search tables by name or database table..."
+            placeholder="Search tables by name, database table, or feature..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full rounded-md bg-white px-3 py-2 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10"
+            className="flex-1 rounded-md bg-white px-3 py-2 text-base text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 placeholder:text-gray-400 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 sm:text-sm/6 dark:bg-white/5 dark:text-white dark:outline-white/10"
           />
+          <select
+            value={featureFilter}
+            onChange={(e) => setFeatureFilter(e.target.value)}
+            className="rounded-md bg-white px-3 py-2 text-sm text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-cyan-600 dark:bg-gray-800 dark:text-white dark:outline-white/10"
+          >
+            <option value="all">All Features</option>
+            <option value="none">No Feature</option>
+            {uniqueFeatures.map(feature => (
+              <option key={feature} value={feature}>{feature}</option>
+            ))}
+          </select>
         </div>
 
         {/* Sync Results Panel */}
@@ -422,6 +519,66 @@ export default function TablesTab() {
                 </details>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Setup Views Results Panel */}
+        {setupViewResults && (
+          <div className="mb-6 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {/* Summary Header */}
+            <div className="bg-green-50 dark:bg-green-900/20 px-4 py-3 border-b border-green-200 dark:border-green-700">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">Setup Views Created</h3>
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400">
+                      <CheckCircleIcon className="h-4 w-4" />
+                      {setupViewResults.results?.created?.length || 0} Created
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                      <ExclamationTriangleIcon className="h-4 w-4" />
+                      {setupViewResults.results?.skipped?.length || 0} Skipped
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-red-600 dark:text-red-400">
+                      <XCircleIcon className="h-4 w-4" />
+                      {setupViewResults.results?.errors?.length || 0} Errors
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSetupViewResults(null)}
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Results Details */}
+            <div className="bg-white dark:bg-gray-900 px-4 py-3 max-h-48 overflow-y-auto">
+              <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                {setupViewResults.results?.created?.map((item, idx) => (
+                  <div key={`created-${idx}`} className="text-green-600 dark:text-green-400">
+                    ✓ Created Setup view for: {item.table_name} (ID: {item.table_id})
+                  </div>
+                ))}
+                {setupViewResults.results?.skipped?.map((item, idx) => (
+                  <div key={`skipped-${idx}`} className="text-amber-600 dark:text-amber-400">
+                    ⊘ Skipped: {item.table_name} - {item.reason}
+                  </div>
+                ))}
+                {setupViewResults.results?.errors?.map((item, idx) => (
+                  <div key={`error-${idx}`} className="text-red-600 dark:text-red-400">
+                    ✗ Error: {item.table_name} - {item.error}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Message */}
+            <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+              {setupViewResults.message}
+            </div>
           </div>
         )}
 
@@ -531,12 +688,44 @@ export default function TablesTab() {
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-                        {table.feature ? (
-                          <span className="inline-flex items-center rounded-md bg-cyan-50 dark:bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-700 dark:text-cyan-400 ring-1 ring-inset ring-cyan-600/20 dark:ring-cyan-500/20">
-                            {table.feature}
-                          </span>
+                        {editingFeatureId === table.id ? (
+                          <select
+                            value={editingFeature}
+                            onChange={(e) => {
+                              const newValue = e.target.value
+                              setEditingFeature(newValue)
+                              // Auto-save on change with the new value
+                              handleSaveFeature(table.id, newValue)
+                            }}
+                            onBlur={() => {
+                              setEditingFeatureId(null)
+                              setEditingFeature('')
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="block w-full rounded-md bg-white px-2 py-1 text-sm text-gray-900 outline outline-1 -outline-offset-1 outline-gray-300 focus:outline focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-gray-800 dark:text-white dark:outline-white/10"
+                            autoFocus
+                          >
+                            {FEATURE_OPTIONS.map(opt => (
+                              <option key={opt} value={opt}>{opt || '(none)'}</option>
+                            ))}
+                          </select>
                         ) : (
-                          <span className="text-gray-400 dark:text-gray-600">-</span>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleStartEditFeature(table)
+                            }}
+                            className="group flex items-center gap-1 hover:text-cyan-600 dark:hover:text-cyan-400"
+                          >
+                            {table.feature ? (
+                              <span className="inline-flex items-center rounded-md bg-cyan-50 dark:bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-700 dark:text-cyan-400 ring-1 ring-inset ring-cyan-600/20 dark:ring-cyan-500/20">
+                                {table.feature}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 dark:text-gray-600 group-hover:text-cyan-500">-</span>
+                            )}
+                            <PencilIcon className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">

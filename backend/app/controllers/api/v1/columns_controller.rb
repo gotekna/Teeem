@@ -29,6 +29,9 @@ module Api
             # Reset the connection's schema cache for this table
             ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(@table.database_table_name)
 
+            # Add new column to all existing views for this table
+            add_column_to_existing_views(column)
+
             render json: {
               success: true,
               column: column_json(column)
@@ -601,6 +604,38 @@ module Api
           header_align: column.header_align || 'left',
           data_align: column.data_align || 'left'
         }
+      end
+
+      # Add a new column to all existing views for this table
+      # This ensures views stay in sync when columns are added
+      def add_column_to_existing_views(column)
+        views = TableView.where(table_id: @table.id)
+        updated_count = 0
+
+        views.each do |view|
+          next unless view.columns.is_a?(Hash)
+
+          # Add to visible columns (visible by default for new columns)
+          if view.columns['visible'].is_a?(Hash)
+            view.columns['visible'][column.column_name] = true
+          end
+
+          # Add to column order (at the end)
+          if view.columns['order'].is_a?(Array)
+            unless view.columns['order'].include?(column.column_name)
+              view.columns['order'] << column.column_name
+            end
+          end
+
+          if view.save
+            updated_count += 1
+            Rails.logger.info "[Column Create] Added column '#{column.column_name}' to view '#{view.name}' (ID: #{view.id})"
+          else
+            Rails.logger.error "[Column Create] Failed to update view '#{view.name}': #{view.errors.full_messages.join(', ')}"
+          end
+        end
+
+        Rails.logger.info "[Column Create] Updated #{updated_count} views for table #{@table.id} with new column '#{column.column_name}'"
       end
 
       # Check if column is referenced by lookups or formulas
