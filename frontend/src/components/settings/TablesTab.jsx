@@ -62,8 +62,26 @@ export default function TablesTab() {
     try {
       setSyncing(true)
       setSyncResults(null)
+
+      console.log('🔍 DEBUG: Fetching sync results from API...')
       const response = await api.post('/api/v1/schema/sync_system_tables')
-      setSyncResults(response)
+
+      console.log('🔍 DEBUG: Raw API Response:', response)
+      console.log('🔍 DEBUG: Summary:', response.summary)
+      console.log('🔍 DEBUG: Gold Standard:', response.results?.find(r => r.name === 'Gold Standard Reference'))
+      console.log('🔍 DEBUG: Timestamp:', new Date().toISOString())
+
+      // Add debug metadata to response
+      const debugResponse = {
+        ...response,
+        _debug: {
+          fetchedAt: new Date().toISOString(),
+          goldStandard: response.results?.find(r => r.name === 'Gold Standard Reference'),
+          apiUrl: '/api/v1/schema/sync_system_tables'
+        }
+      }
+
+      setSyncResults(debugResponse)
     } catch (err) {
       console.error('Failed to sync system tables:', err)
       alert(err.message || 'Failed to sync system tables')
@@ -402,6 +420,33 @@ export default function TablesTab() {
             <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
               Last synced: {syncResults.timestamp ? new Date(syncResults.timestamp).toLocaleString() : 'Unknown'}
             </div>
+
+            {/* Debug Panel */}
+            {syncResults._debug && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 px-4 py-3 border-t border-yellow-200 dark:border-yellow-700">
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-semibold text-yellow-800 dark:text-yellow-400 mb-2">
+                    🔍 Debug Info (Click to expand)
+                  </summary>
+                  <div className="space-y-2 text-yellow-900 dark:text-yellow-300 font-mono">
+                    <div>Fetched at: {syncResults._debug.fetchedAt}</div>
+                    <div>API URL: {syncResults._debug.apiUrl}</div>
+                    <div className="mt-2 p-2 bg-white dark:bg-gray-900 rounded">
+                      <div className="font-bold mb-1">Gold Standard Data:</div>
+                      <pre className="text-xs overflow-auto">
+                        {JSON.stringify(syncResults._debug.goldStandard, null, 2)}
+                      </pre>
+                    </div>
+                    <div className="mt-2 p-2 bg-white dark:bg-gray-900 rounded">
+                      <div className="font-bold mb-1">Full Summary:</div>
+                      <pre className="text-xs overflow-auto">
+                        {JSON.stringify(syncResults.summary, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            )}
           </div>
         )}
 
