@@ -187,7 +187,7 @@ GEM
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
     json (2.15.2)
-    jwt (2.10.2)
+    jwt (3.1.2)
       base64
     kamal (2.8.2)
       activesupport (>= 7.0)
@@ -511,7 +511,7 @@ DEPENDENCIES
   fuzzy_match (~> 2.1)
   http (~> 5.1)
   httparty (~> 0.22)
-  jwt (~> 2.7)
+  jwt (~> 3.1)
   kamal
   mini_magick (~> 4.12)
   oauth2 (~> 2.0)

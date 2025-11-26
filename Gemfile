@@ -13,7 +13,7 @@ gem "puma", ">= 5.0"
 gem "bcrypt", "~> 3.1.7"
 
 # JWT for token-based authentication
-gem "jwt", "~> 2.7"
+gem "jwt", "~> 3.1"
 
 # OAuth authentication
 gem "omniauth", "~> 2.1"
