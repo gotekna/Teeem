@@ -7,9 +7,7 @@ import TableColumnManager from './TableColumnManager'
 export default function TablesTab() {
   const navigate = useNavigate()
   const [tables, setTables] = useState([])
-  const [inMemoryTables, setInMemoryTables] = useState([])
   const [loading, setLoading] = useState(true)
-  const [loadingInMemory, setLoadingInMemory] = useState(true)
   const [error, setError] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
@@ -40,22 +38,8 @@ export default function TablesTab() {
     }
   }
 
-  const fetchInMemoryTables = async () => {
-    try {
-      setLoadingInMemory(true)
-      const response = await api.get('/api/v1/schema/in_memory_tables')
-      setInMemoryTables(response.tables || [])
-    } catch (err) {
-      console.error('TablesTab: Failed to fetch in-memory tables:', err)
-      // Don't set error - in-memory tables are supplementary
-    } finally {
-      setLoadingInMemory(false)
-    }
-  }
-
   useEffect(() => {
     fetchTables()
-    fetchInMemoryTables()
   }, [])
 
   const handleRefreshTables = async () => {
@@ -65,7 +49,6 @@ export default function TablesTab() {
 
       // Refresh tables data
       await fetchTables()
-      await fetchInMemoryTables()
     } catch (err) {
       console.error('Failed to refresh tables:', err)
       alert(err.message || 'Failed to refresh tables')
@@ -95,7 +78,6 @@ export default function TablesTab() {
 
       // Refresh tables data after sync check
       await fetchTables()
-      await fetchInMemoryTables()
     } catch (err) {
       console.error('Failed to sync system tables:', err)
       alert(err.message || 'Failed to sync system tables')
@@ -256,29 +238,8 @@ export default function TablesTab() {
     )
   }
 
-  // Combine regular tables and system tables into one unified list
-  // Filter out system tables from the tables array since we'll get them from inMemoryTables
-  const nonSystemTables = tables.filter(t => t.type !== 'system')
-
-  // Add system tables from inMemoryTables (the authoritative source)
-  const systemTables = inMemoryTables.map(t => ({
-    id: t.table_id,
-    name: t.name,
-    plural_name: t.name,
-    database_table_name: t.database_table_name,
-    type: 'system',
-    icon: t.icon,
-    columns_count: t.columns_count,
-    record_count: t.record_count,
-    is_live: t.is_live,
-    usage_status: 'TrapidTableView',
-    slug: t.slug || t.legacy_id,
-    api_endpoint: t.api_endpoint,
-    model: t.model
-  }))
-
-  // Combine them
-  const allTables = [...nonSystemTables, ...systemTables]
+  // Use tables directly from the API - it already has correct type and database_table_name
+  const allTables = tables
 
   // Filter tables based on search query and type filter, then sort by ID
   const filteredTables = allTables.filter(table => {
