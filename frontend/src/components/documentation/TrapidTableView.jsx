@@ -3355,9 +3355,14 @@ export default function TrapidTableView({
             >
               <option value="">Select...</option>
               {availableChoices.length > 0 ? (
-                availableChoices.map(choice => (
-                  <option key={choice} value={choice}>{choice}</option>
-                ))
+                availableChoices.map(choice => {
+                  // Handle both string choices and object choices (from lookups)
+                  const choiceValue = typeof choice === 'object' ? (choice.id || choice.display) : choice
+                  const choiceLabel = typeof choice === 'object' ? choice.display : choice
+                  return (
+                    <option key={choiceValue} value={choiceValue}>{choiceLabel}</option>
+                  )
+                })
               ) : (
                 <>
                   <option value="active">Active</option>
@@ -3846,9 +3851,14 @@ export default function TrapidTableView({
                 className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select...</option>
-                {availableChoices.map(choice => (
-                  <option key={choice} value={choice}>{choice}</option>
-                ))}
+                {availableChoices.map(choice => {
+                  // Handle both string choices and object choices (from lookups)
+                  const choiceValue = typeof choice === 'object' ? (choice.id || choice.display) : choice
+                  const choiceLabel = typeof choice === 'object' ? choice.display : choice
+                  return (
+                    <option key={choiceValue} value={choiceValue}>{choiceLabel}</option>
+                  )
+                })}
               </select>
             )
           }
