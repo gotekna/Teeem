@@ -86,6 +86,10 @@ export default function TablesTab() {
 
       // Force component to re-render by updating a timestamp
       console.log('🔍 DEBUG: Sync complete, component should re-render')
+
+      // Refresh tables data after sync check
+      await fetchTables()
+      await fetchInMemoryTables()
     } catch (err) {
       console.error('Failed to sync system tables:', err)
       alert(err.message || 'Failed to sync system tables')

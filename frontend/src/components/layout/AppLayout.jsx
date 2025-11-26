@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, Navigate } from 'react-router-dom'
 import axios from 'axios'
 import packageJson from '../../../package.json'
 import BackButton from '../common/BackButton'
@@ -133,7 +133,20 @@ const getStatusColorClass = (color) => {
 
 export default function AppLayout({ children }) {
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
+
+  // Redirect to login if not authenticated
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeJobs, setActiveJobs] = useState([])
   const [jobSearchQuery, setJobSearchQuery] = useState('')
@@ -962,7 +975,7 @@ export default function AppLayout({ children }) {
                               />
                               {!sidebarCollapsed && item.name}
                             </Link>
-                            {!sidebarCollapsed && activeJobs.length > 0 && (
+                            {!sidebarCollapsed && (
                               <button
                                 onClick={toggleActiveJobsExpanded}
                                 className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
@@ -1026,6 +1039,59 @@ export default function AppLayout({ children }) {
                                     </button>
                                   )
                                 })}
+                                {/* Expand/Collapse All button - only show when any grouping is active */}
+                                {(groupByType || groupByStatus || groupByStage) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      // Get all group names from current grouping
+                                      const groupNames = Object.keys(groupedJobs.groups || {})
+                                      // Check if any groups are expanded (default is expanded, so check if NOT explicitly false)
+                                      const anyExpanded = groupNames.some(name => {
+                                        if (groupByType && expandedTypeGroups[name] !== false) return true
+                                        if (groupByStatus && expandedStatusGroups[name] !== false) return true
+                                        if (groupByStage && expandedStages[name] !== false) return true
+                                        return false
+                                      })
+                                      // If any expanded, collapse all (set to false). Otherwise expand all (set to true)
+                                      const newTypeState = {}
+                                      const newStatusState = {}
+                                      const newStageState = {}
+                                      groupNames.forEach(name => {
+                                        newTypeState[name] = !anyExpanded
+                                        newStatusState[name] = !anyExpanded
+                                        newStageState[name] = !anyExpanded
+                                      })
+                                      if (groupByType) {
+                                        setExpandedTypeGroups(newTypeState)
+                                        localStorage.setItem('expandedTypeGroups', JSON.stringify(newTypeState))
+                                      }
+                                      if (groupByStatus) {
+                                        setExpandedStatusGroups(newStatusState)
+                                        localStorage.setItem('expandedStatusGroups', JSON.stringify(newStatusState))
+                                      }
+                                      if (groupByStage) {
+                                        setExpandedStages(newStageState)
+                                        localStorage.setItem('expandedStages', JSON.stringify(newStageState))
+                                      }
+                                    }}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                                    title="Expand/Collapse all groups"
+                                  >
+                                    <ChevronRightIcon
+                                      className={classNames(
+                                        'h-3.5 w-3.5 text-gray-400 transition-transform',
+                                        // Check if any group is expanded (not explicitly false)
+                                        Object.keys(groupedJobs.groups || {}).some(name => {
+                                          if (groupByType && expandedTypeGroups[name] !== false) return true
+                                          if (groupByStatus && expandedStatusGroups[name] !== false) return true
+                                          if (groupByStage && expandedStages[name] !== false) return true
+                                          return false
+                                        }) && 'rotate-90'
+                                      )}
+                                    />
+                                  </button>
+                                )}
                               </li>
 
                               {/* Grouped/List View */}
@@ -1488,7 +1554,7 @@ export default function AppLayout({ children }) {
                               />
                               {!sidebarCollapsed && item.name}
                             </Link>
-                            {!sidebarCollapsed && priceBooks.length > 0 && (
+                            {!sidebarCollapsed && (
                               <button
                                 onClick={togglePriceBooksExpanded}
                                 className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
@@ -1531,6 +1597,31 @@ export default function AppLayout({ children }) {
                                 >
                                   Category
                                 </button>
+                                {/* Expand/Collapse All button - only show when grouped */}
+                                {groupByCategory && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      // Check if any are expanded
+                                      const anyExpanded = Object.values(expandedCategoryGroups).some(v => v === true)
+                                      // If any expanded, collapse all. Otherwise expand all.
+                                      const categories = Object.keys(groupedPriceBooks.groups || {})
+                                      const newState = {}
+                                      categories.forEach(cat => { newState[cat] = !anyExpanded })
+                                      setExpandedCategoryGroups(newState)
+                                      localStorage.setItem('expandedCategoryGroups', JSON.stringify(newState))
+                                    }}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                                    title={Object.values(expandedCategoryGroups).some(v => v === true) ? 'Collapse all groups' : 'Expand all groups'}
+                                  >
+                                    <ChevronRightIcon
+                                      className={classNames(
+                                        'h-3.5 w-3.5 text-gray-400 transition-transform',
+                                        Object.values(expandedCategoryGroups).some(v => v === true) && 'rotate-90'
+                                      )}
+                                    />
+                                  </button>
+                                )}
                               </li>
 
                               {/* List View */}
@@ -1647,7 +1738,7 @@ export default function AppLayout({ children }) {
                               />
                               {!sidebarCollapsed && item.name}
                             </Link>
-                            {!sidebarCollapsed && contacts.length > 0 && (
+                            {!sidebarCollapsed && (
                               <button
                                 onClick={toggleContactsExpanded}
                                 className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
@@ -1690,6 +1781,29 @@ export default function AppLayout({ children }) {
                                 >
                                   Type
                                 </button>
+                                {/* Expand/Collapse All button - only show when grouped */}
+                                {groupByContactType && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const anyExpanded = Object.values(expandedContactTypeGroups).some(v => v === true)
+                                      const types = Object.keys(groupedContacts.groups || {})
+                                      const newState = {}
+                                      types.forEach(type => { newState[type] = !anyExpanded })
+                                      setExpandedContactTypeGroups(newState)
+                                      localStorage.setItem('expandedContactTypeGroups', JSON.stringify(newState))
+                                    }}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                                    title={Object.values(expandedContactTypeGroups).some(v => v === true) ? 'Collapse all groups' : 'Expand all groups'}
+                                  >
+                                    <ChevronRightIcon
+                                      className={classNames(
+                                        'h-3.5 w-3.5 text-gray-400 transition-transform',
+                                        Object.values(expandedContactTypeGroups).some(v => v === true) && 'rotate-90'
+                                      )}
+                                    />
+                                  </button>
+                                )}
                               </li>
 
                               {/* List View */}
@@ -1806,7 +1920,7 @@ export default function AppLayout({ children }) {
                               />
                               {!sidebarCollapsed && item.name}
                             </Link>
-                            {!sidebarCollapsed && purchaseOrders.length > 0 && (
+                            {!sidebarCollapsed && (
                               <button
                                 onClick={togglePurchaseOrdersExpanded}
                                 className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
@@ -1849,6 +1963,29 @@ export default function AppLayout({ children }) {
                                 >
                                   Job
                                 </button>
+                                {/* Expand/Collapse All button - only show when grouped */}
+                                {groupByPOJob && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const anyExpanded = Object.values(expandedPOJobGroups).some(v => v === true)
+                                      const jobs = Object.keys(groupedPurchaseOrders.groups || {})
+                                      const newState = {}
+                                      jobs.forEach(job => { newState[job] = !anyExpanded })
+                                      setExpandedPOJobGroups(newState)
+                                      localStorage.setItem('expandedPOJobGroups', JSON.stringify(newState))
+                                    }}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                                    title={Object.values(expandedPOJobGroups).some(v => v === true) ? 'Collapse all groups' : 'Expand all groups'}
+                                  >
+                                    <ChevronRightIcon
+                                      className={classNames(
+                                        'h-3.5 w-3.5 text-gray-400 transition-transform',
+                                        Object.values(expandedPOJobGroups).some(v => v === true) && 'rotate-90'
+                                      )}
+                                    />
+                                  </button>
+                                )}
                               </li>
 
                               {/* List View */}
