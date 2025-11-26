@@ -153,6 +153,14 @@ export default function AppLayout({ children }) {
     const saved = localStorage.getItem('expandedStages')
     return saved ? JSON.parse(saved) : { 'Construction': true }
   })
+  const [sortByType, setSortByType] = useState(() => {
+    const saved = localStorage.getItem('jobSortByType')
+    return saved === 'true'
+  })
+  const [sortByStatus, setSortByStatus] = useState(() => {
+    const saved = localStorage.getItem('jobSortByStatus')
+    return saved === 'true'
+  })
 
   // Resizable sidebar state (per-route)
   const getSidebarWidthForRoute = (pathname) => {
@@ -301,8 +309,48 @@ export default function AppLayout({ children }) {
     localStorage.setItem('expandedStages', JSON.stringify(newStages))
   }
 
+  const toggleSortByType = () => {
+    const newValue = !sortByType
+    setSortByType(newValue)
+    localStorage.setItem('jobSortByType', String(newValue))
+  }
+
+  const toggleSortByStatus = () => {
+    const newValue = !sortByStatus
+    setSortByStatus(newValue)
+    localStorage.setItem('jobSortByStatus', String(newValue))
+  }
+
+  // Sort jobs based on active sort toggles
+  const getSortedJobs = (jobs) => {
+    if (!sortByType && !sortByStatus) {
+      return jobs // No sorting
+    }
+
+    return [...jobs].sort((a, b) => {
+      // Primary sort: Type (if enabled)
+      if (sortByType) {
+        const typeA = a.job_type?.name || ''
+        const typeB = b.job_type?.name || ''
+        const typeCompare = typeA.localeCompare(typeB)
+        if (typeCompare !== 0) return typeCompare
+      }
+
+      // Secondary sort: Status (if enabled)
+      if (sortByStatus) {
+        const statusA = a.job_status?.name || ''
+        const statusB = b.job_status?.name || ''
+        return statusA.localeCompare(statusB)
+      }
+
+      return 0
+    })
+  }
+
+  const sortedActiveJobs = getSortedJobs(activeJobs)
+
   // Group jobs by stage for stage view
-  const jobsByStage = activeJobs.reduce((acc, job) => {
+  const jobsByStage = sortedActiveJobs.reduce((acc, job) => {
     const stage = job.stage || 'Unknown'
     if (!acc[stage]) acc[stage] = []
     acc[stage].push(job)
@@ -606,21 +654,33 @@ export default function AppLayout({ children }) {
                                   />
                                 </div>
                                 <button
-                                  onClick={toggleJobViewMode}
+                                  onClick={toggleSortByType}
                                   className={classNames(
                                     'px-1.5 py-1 text-xs rounded border transition-colors',
-                                    jobViewMode === 'stage'
+                                    sortByType
                                       ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
                                       : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
                                   )}
-                                  title={jobViewMode === 'stage' ? 'View as list' : 'View by stage'}
+                                  title={sortByType ? 'Sorted by Type' : 'Sort by Type'}
                                 >
-                                  {jobViewMode === 'stage' ? '📋' : '📊'}
+                                  Type
+                                </button>
+                                <button
+                                  onClick={toggleSortByStatus}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors',
+                                    sortByStatus
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={sortByStatus ? 'Sorted by Status' : 'Sort by Status'}
+                                >
+                                  Status
                                 </button>
                               </li>
 
                               {/* List View */}
-                              {jobViewMode === 'list' && activeJobs
+                              {jobViewMode === 'list' && sortedActiveJobs
                                 .filter(job => {
                                   if (!jobSearchQuery) return true
                                   const query = jobSearchQuery.toLowerCase()
@@ -778,7 +838,7 @@ export default function AppLayout({ children }) {
 
                               {/* More link for list view */}
                               {jobViewMode === 'list' && (() => {
-                                const filteredJobs = activeJobs.filter(job => {
+                                const filteredJobs = sortedActiveJobs.filter(job => {
                                   if (!jobSearchQuery) return true
                                   const query = jobSearchQuery.toLowerCase()
                                   return (job.title || '').toLowerCase().includes(query) ||
