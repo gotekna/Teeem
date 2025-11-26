@@ -448,6 +448,9 @@ export default function TablesTab() {
                     Table Name
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
+                    Feature
+                  </th>
+                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Type
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
@@ -525,6 +528,15 @@ export default function TablesTab() {
                             {table.icon && <span className="mr-2">{table.icon}</span>}
                             {table.plural_name || table.name}
                           </div>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
+                        {table.feature ? (
+                          <span className="inline-flex items-center rounded-md bg-cyan-50 dark:bg-cyan-500/10 px-2 py-1 text-xs font-medium text-cyan-700 dark:text-cyan-400 ring-1 ring-inset ring-cyan-600/20 dark:ring-cyan-500/20">
+                            {table.feature}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 dark:text-gray-600">-</span>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
