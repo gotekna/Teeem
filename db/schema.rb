@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1012,6 +1012,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
     t.bigint "job_type_id"
     t.bigint "job_status_id"
     t.bigint "job_stage_id"
+    t.string "xero_tracking_option_id"
+    t.string "xero_tracking_option_name"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["design_id"], name: "index_jobs_on_design_id"
     t.index ["design_name"], name: "index_jobs_on_design_name"
@@ -1591,6 +1593,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
     t.bigint "quote_response_id"
     t.datetime "arrived_at"
     t.datetime "completed_at"
+    t.string "xero_invoice_number"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
     t.index ["creates_schedule_tasks"], name: "index_purchase_orders_on_creates_schedule_tasks"
