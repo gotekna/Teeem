@@ -63,7 +63,7 @@ gem "fuzzy_match", "~> 2.1"  # Fuzzy string matching for contact sync
 gem "rexml"  # XML parsing for ABN lookup service
 
 # SMS integration
-gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
+gem "twilio-ruby", "~> 7.8"  # Twilio SDK for SMS messaging
 
 # AI integration for plan analysis
 gem "anthropic", "~> 0.1.0"  # Claude API for AI-powered plan review
