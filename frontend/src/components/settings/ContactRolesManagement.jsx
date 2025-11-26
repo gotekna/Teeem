@@ -18,7 +18,7 @@ export default function ContactRolesManagement() {
   useEffect(() => {
     const fetchContactTypes = async () => {
       try {
-        const response = await api.get('/contact_types')
+        const response = await api.get('/api/v1/contact_types')
         setContactTypes(response.data || [])
       } catch (error) {
         console.error('Failed to fetch contact types:', error)
