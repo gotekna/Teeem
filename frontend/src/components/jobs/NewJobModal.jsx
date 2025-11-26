@@ -897,43 +897,79 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
                         </RadioGroup>
                       </div>
 
-                      {/* Stage */}
+                      {/* Job Type */}
                       <div className="group">
                         <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          <div className="rounded-lg bg-cyan-100 dark:bg-cyan-900/30 p-2">
-                            <FlagIcon className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                          <div className="rounded-lg bg-indigo-100 dark:bg-indigo-900/30 p-2">
+                            <BriefcaseIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                           </div>
-                          Project Stage
+                          Job Type <span className="text-red-500">*</span>
                         </label>
                         <select
-                          value={formData.stage}
-                          onChange={(e) => handleChange('stage', e.target.value)}
+                          value={formData.job_type_id || ''}
+                          onChange={(e) => handleChange('job_type_id', parseInt(e.target.value))}
                           className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white transition-all"
+                          required
+                          disabled={loadingConfig}
                         >
-                          {STAGES.map(stage => (
-                            <option key={stage} value={stage}>{stage}</option>
+                          <option value="">Select a type...</option>
+                          {jobTypes.map(type => (
+                            <option key={type.id} value={type.id}>{type.name}</option>
                           ))}
                         </select>
                       </div>
 
-                      {/* Status */}
+                      {/* Job Status */}
                       <div className="group">
                         <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                           <div className="rounded-lg bg-rose-100 dark:bg-rose-900/30 p-2">
                             <ChartBarIcon className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                           </div>
-                          Project Status <span className="text-red-500">*</span>
+                          Job Status <span className="text-red-500">*</span>
                         </label>
                         <select
-                          value={formData.status}
-                          onChange={(e) => handleChange('status', e.target.value)}
+                          value={formData.job_status_id || ''}
+                          onChange={(e) => handleChange('job_status_id', parseInt(e.target.value))}
                           className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white transition-all"
                           required
+                          disabled={!formData.job_type_id || availableStatuses.length === 0}
                         >
-                          {STATUSES.map(status => (
-                            <option key={status} value={status}>{status}</option>
+                          <option value="">Select a status...</option>
+                          {availableStatuses.map(status => (
+                            <option key={status.id} value={status.id}>{status.name}</option>
                           ))}
                         </select>
+                        {formData.job_type_id && availableStatuses.length === 0 && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            No statuses configured for this job type. Configure in Settings → Workflow Config.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Job Stage */}
+                      <div className="group">
+                        <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          <div className="rounded-lg bg-cyan-100 dark:bg-cyan-900/30 p-2">
+                            <FlagIcon className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                          </div>
+                          Job Stage
+                        </label>
+                        <select
+                          value={formData.job_stage_id || ''}
+                          onChange={(e) => handleChange('job_stage_id', e.target.value ? parseInt(e.target.value) : null)}
+                          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white transition-all"
+                          disabled={!formData.job_type_id || !formData.job_status_id || availableStages.length === 0}
+                        >
+                          <option value="">Select a stage...</option>
+                          {availableStages.map(stage => (
+                            <option key={stage.id} value={stage.id}>{stage.name}</option>
+                          ))}
+                        </select>
+                        {formData.job_type_id && formData.job_status_id && availableStages.length === 0 && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            No stages configured for this combination. Configure in Settings → Workflow Config.
+                          </p>
+                        )}
                       </div>
 
                       {/* Summary Card */}
@@ -953,7 +989,11 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
                               {formData.site_supervisor_name && <p><span className="font-medium">Site Supervisor:</span> {formData.site_supervisor_name}</p>}
                               {selectedTemplate && <p><span className="font-medium">Schedule Template:</span> {selectedTemplate.name} ({selectedTemplate.row_count} tasks)</p>}
                               {formData.land_status && <p><span className="font-medium">Land:</span> {formData.land_status}</p>}
-                              <p><span className="font-medium">Stage:</span> {formData.stage} • <span className="font-medium">Status:</span> {formData.status}</p>
+                              <p>
+                                <span className="font-medium">Type:</span> {jobTypes.find(t => t.id === formData.job_type_id)?.name || 'Not selected'} •
+                                <span className="font-medium"> Status:</span> {availableStatuses.find(s => s.id === formData.job_status_id)?.name || 'Not selected'}
+                                {formData.job_stage_id && <> • <span className="font-medium"> Stage:</span> {availableStages.find(s => s.id === formData.job_stage_id)?.name}</>}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -1005,7 +1045,8 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
                             isSubmitting ||
                             !formData.title.trim() ||
                             !formData.site_supervisor_name.trim() ||
-                            !formData.status.trim()
+                            !formData.job_type_id ||
+                            !formData.job_status_id
                           }
                           className="inline-flex items-center gap-2 px-6 py-2 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-500/30"
                         >

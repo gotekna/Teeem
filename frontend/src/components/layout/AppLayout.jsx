@@ -664,7 +664,17 @@ export default function AppLayout({ children }) {
     const byType = {}
     contactsList.forEach(contact => {
       // Contact type should be "Supplier" or "Customer"
-      const typeName = contact.contact_type || contact.type || 'Unspecified'
+      // API returns contact_types as array like ["supplier", "customer"]
+      let typeName = 'Unspecified'
+      if (contact.contact_types && contact.contact_types.length > 0) {
+        // Capitalize first type in array
+        typeName = contact.contact_types[0].charAt(0).toUpperCase() + contact.contact_types[0].slice(1)
+      } else if (contact.contact_type) {
+        typeName = contact.contact_type
+      } else if (contact.type) {
+        typeName = contact.type
+      }
+
       if (!byType[typeName]) byType[typeName] = []
       byType[typeName].push(contact)
     })

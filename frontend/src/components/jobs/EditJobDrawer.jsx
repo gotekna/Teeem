@@ -15,9 +15,6 @@ import { api } from '../../api'
 import { formatCurrency } from '../../utils/formatters'
 import CalendarPicker from '../CalendarPicker'
 
-const STATUSES = ['Active', 'On Hold', 'Cancelled', 'Complete']
-const STAGES = ['Planning', 'Design', 'Preconstruction', 'Construction', 'Closeout', 'Complete']
-
 export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
   const [formData, setFormData] = useState({
     title: '',
@@ -28,8 +25,9 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
     site_supervisor_email: '',
     site_supervisor_phone: '',
     contract_value: '',
-    status: 'Active',
-    stage: 'Planning',
+    job_type_id: null,
+    job_status_id: null,
+    job_stage_id: null,
     start_date: '',
     ted_number: '',
     certifier_job_no: '',
@@ -40,6 +38,14 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [errors, setErrors] = useState({})
   const [showCalendar, setShowCalendar] = useState(false)
+
+  // Job configuration state
+  const [jobTypes, setJobTypes] = useState([])
+  const [jobStatuses, setJobStatuses] = useState([])
+  const [jobStages, setJobStages] = useState([])
+  const [availableStatuses, setAvailableStatuses] = useState([])
+  const [availableStages, setAvailableStages] = useState([])
+  const [loadingConfig, setLoadingConfig] = useState(true)
 
   // Close calendar when clicking outside
   useEffect(() => {
@@ -52,6 +58,31 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showCalendar])
 
+  // Load job configuration when drawer opens
+  useEffect(() => {
+    const loadJobConfiguration = async () => {
+      if (!isOpen) return
+
+      setLoadingConfig(true)
+      try {
+        const [typesRes, statusesRes, stagesRes] = await Promise.all([
+          api.get('/api/v1/job_types'),
+          api.get('/api/v1/job_statuses'),
+          api.get('/api/v1/job_stages')
+        ])
+        setJobTypes(typesRes.job_types || [])
+        setJobStatuses(statusesRes.job_statuses || [])
+        setJobStages(stagesRes.job_stages || [])
+      } catch (error) {
+        console.error('Error fetching job configuration:', error)
+      } finally {
+        setLoadingConfig(false)
+      }
+    }
+
+    loadJobConfiguration()
+  }, [isOpen])
+
   useEffect(() => {
     if (job) {
       setFormData({
@@ -63,8 +94,9 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
         site_supervisor_email: job.site_supervisor_email || '',
         site_supervisor_phone: job.site_supervisor_phone || '',
         contract_value: job.contract_value || '',
-        status: job.status || 'Active',
-        stage: job.stage || 'Planning',
+        job_type_id: job.job_type_id || null,
+        job_status_id: job.job_status_id || null,
+        job_stage_id: job.job_stage_id || null,
         start_date: job.start_date || '',
         ted_number: job.ted_number || '',
         certifier_job_no: job.certifier_job_no || '',
@@ -72,6 +104,52 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
       setErrors({})
     }
   }, [job])
+
+  // Load available statuses when type changes
+  useEffect(() => {
+    const loadAvailableStatuses = async () => {
+      if (!formData.job_type_id) {
+        setAvailableStatuses([])
+        return
+      }
+
+      try {
+        const response = await api.get(`/api/v1/job_types/${formData.job_type_id}/statuses`)
+        setAvailableStatuses(response.statuses || [])
+      } catch (error) {
+        console.error('Error fetching available statuses:', error)
+        setAvailableStatuses([])
+      }
+    }
+
+    if (loadingConfig === false) {
+      loadAvailableStatuses()
+    }
+  }, [formData.job_type_id, loadingConfig])
+
+  // Load available stages when type or status changes
+  useEffect(() => {
+    const loadAvailableStages = async () => {
+      if (!formData.job_type_id || !formData.job_status_id) {
+        setAvailableStages([])
+        return
+      }
+
+      try {
+        const response = await api.get(
+          `/api/v1/job_types/${formData.job_type_id}/statuses/${formData.job_status_id}/stages`
+        )
+        setAvailableStages(response.stages || [])
+      } catch (error) {
+        console.error('Error fetching available stages:', error)
+        setAvailableStages([])
+      }
+    }
+
+    if (loadingConfig === false) {
+      loadAvailableStages()
+    }
+  }, [formData.job_type_id, formData.job_status_id, loadingConfig])
 
   const handleChange = (field, value) => {
     setFormData({ ...formData, [field]: value })
@@ -124,16 +202,6 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
       setIsDeleting(false)
       setShowDeleteConfirm(false)
     }
-  }
-
-  const getStatusColor = (status) => {
-    const colors = {
-      'Active': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      'On Hold': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-      'Cancelled': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-      'Complete': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    }
-    return colors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
   }
 
   if (!job) return null
@@ -189,9 +257,28 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
                                 }`}
                                 placeholder="Job title"
                               />
-                              <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(formData.status)}`}>
-                                {formData.status}
-                              </span>
+                              {availableStatuses.find(s => s.id === formData.job_status_id) && (
+                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
+                                  (() => {
+                                    const status = availableStatuses.find(s => s.id === formData.job_status_id)
+                                    const color = status?.color || 'gray'
+                                    const colorMap = {
+                                      'gray': 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+                                      'yellow': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+                                      'orange': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+                                      'blue': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+                                      'purple': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+                                      'indigo': 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+                                      'green': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+                                      'teal': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
+                                      'slate': 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400'
+                                    }
+                                    return colorMap[color] || colorMap['gray']
+                                  })()
+                                }`}>
+                                  {availableStatuses.find(s => s.id === formData.job_status_id)?.name}
+                                </span>
+                              )}
                             </div>
 
                             {/* Actions Menu */}
@@ -233,27 +320,46 @@ export default function EditJobDrawer({ isOpen, onClose, job, onSuccess }) {
                           {/* Info Grid */}
                           <div className="grid grid-cols-2 gap-6">
                             <div className="flex flex-col gap-1">
-                              <span className="text-sm font-semibold text-gray-900 dark:text-white">Status</span>
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">Job Type</span>
                               <select
-                                value={formData.status}
-                                onChange={(e) => handleChange('status', e.target.value)}
+                                value={formData.job_type_id || ''}
+                                onChange={(e) => handleChange('job_type_id', e.target.value ? parseInt(e.target.value) : null)}
                                 className="text-sm text-gray-600 dark:text-gray-400 bg-transparent border-b border-gray-200 dark:border-gray-700 hover:border-indigo-500 focus:border-indigo-500 focus:outline-none py-1"
+                                disabled={loadingConfig}
                               >
-                                {STATUSES.map((status) => (
-                                  <option key={status} value={status}>{status}</option>
+                                <option value="">Select type...</option>
+                                {jobTypes.map((type) => (
+                                  <option key={type.id} value={type.id}>{type.name}</option>
                                 ))}
                               </select>
                             </div>
 
                             <div className="flex flex-col gap-1">
-                              <span className="text-sm font-semibold text-gray-900 dark:text-white">Stage</span>
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">Job Status</span>
                               <select
-                                value={formData.stage}
-                                onChange={(e) => handleChange('stage', e.target.value)}
+                                value={formData.job_status_id || ''}
+                                onChange={(e) => handleChange('job_status_id', e.target.value ? parseInt(e.target.value) : null)}
                                 className="text-sm text-gray-600 dark:text-gray-400 bg-transparent border-b border-gray-200 dark:border-gray-700 hover:border-indigo-500 focus:border-indigo-500 focus:outline-none py-1"
+                                disabled={!formData.job_type_id || availableStatuses.length === 0}
                               >
-                                {STAGES.map((stage) => (
-                                  <option key={stage} value={stage}>{stage}</option>
+                                <option value="">Select status...</option>
+                                {availableStatuses.map((status) => (
+                                  <option key={status.id} value={status.id}>{status.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">Job Stage</span>
+                              <select
+                                value={formData.job_stage_id || ''}
+                                onChange={(e) => handleChange('job_stage_id', e.target.value ? parseInt(e.target.value) : null)}
+                                className="text-sm text-gray-600 dark:text-gray-400 bg-transparent border-b border-gray-200 dark:border-gray-700 hover:border-indigo-500 focus:border-indigo-500 focus:outline-none py-1"
+                                disabled={!formData.job_type_id || !formData.job_status_id || availableStages.length === 0}
+                              >
+                                <option value="">Select stage...</option>
+                                {availableStages.map((stage) => (
+                                  <option key={stage.id} value={stage.id}>{stage.name}</option>
                                 ))}
                               </select>
                             </div>
