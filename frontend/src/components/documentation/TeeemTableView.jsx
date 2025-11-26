@@ -5991,11 +5991,11 @@ export default function TeeemTableView({
                                 </svg>
                               </button>
 
-                              {/* Dropdown Menu - Opens UPWARD */}
+                              {/* Dropdown Menu - Opens UPWARD - uses more vertical space */}
                               {groupByDropdownOpen && (
-                                <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden flex flex-col">
-                                  {/* Options List */}
-                                  <div className="overflow-y-auto max-h-48 flex-1">
+                                <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[70vh] overflow-hidden flex flex-col">
+                                  {/* Options List - generous height before scrolling */}
+                                  <div className="overflow-y-auto max-h-[60vh] flex-1">
                                     {/* No Grouping Option */}
                                     <button
                                       type="button"
