@@ -524,6 +524,9 @@ export default function TrapidTableView({
 
   // Helper to load a view's state (consolidated to avoid duplication)
   const loadViewState = (view, options = {}) => {
+    console.log('[loadViewState] Called with view:', view?.name, 'options:', options)
+    console.log('[loadViewState] View visibleColumns:', view?.visibleColumns)
+    console.log('[loadViewState] View columnOrder:', view?.columnOrder)
     const {
       skipFilters = false,
       skipColumns = false,
@@ -5327,15 +5330,19 @@ export default function TrapidTableView({
                             <button
                               onClick={() => {
                                 // Load the Setup view as the starting point for new views
-                                // The Setup view is the standard template with all columns visible
+                                // Use Setup view's column configuration as the default
                                 const setupView = savedFilters.find(v => v.name === 'Setup')
+                                console.log('[Create New View] Setup view found:', setupView ? 'YES' : 'NO', setupView)
+                                console.log('[Create New View] savedFilters:', savedFilters)
                                 if (setupView) {
                                   // Load Setup view's configuration
+                                  console.log('[Create New View] Loading Setup view columns:', setupView.visibleColumns)
                                   loadViewState(setupView)
                                   // Setup view should never have grouping, ensure it's cleared
                                   setGroupByColumn(null)
                                 } else {
                                   // Fallback if Setup view doesn't exist (shouldn't happen)
+                                  console.log('[Create New View] No Setup view found, using fallback with all columns')
                                   setCascadeFilters([])
                                   setFilterGroups([{ id: 'default', logic: 'AND' }])
                                   setInterGroupLogic('OR')
