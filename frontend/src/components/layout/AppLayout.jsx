@@ -337,8 +337,8 @@ export default function AppLayout({ children }) {
   useEffect(() => {
     const loadPriceBooks = async () => {
       try {
-        const response = await api.get('/api/v1/price_books?per_page=50')
-        const books = response.price_books || response.items || []
+        const response = await api.get('/api/v1/pricebook?per_page=50')
+        const books = response.items || response.pricebook || []
         console.log('📚 Loaded price books for sidebar:', books.length, 'items')
         setPriceBooks(books)
       } catch (err) {
@@ -540,15 +540,14 @@ export default function AppLayout({ children }) {
     localStorage.setItem('expandedPOJobGroups', JSON.stringify(newGroups))
   }
 
-  // Group jobs by Type and/or Status
+  // Group jobs by Type, Status, and/or Stage
   const getGroupedJobs = (jobs) => {
-    if (!groupByType && !groupByStatus) {
-      // No grouping - return flat list
+    if (!groupByType && !groupByStatus && !groupByStage) {
       return { mode: 'list', jobs }
     }
 
-    if (groupByType && !groupByStatus) {
-      // Group by type only
+    // Single-level grouping
+    if (groupByType && !groupByStatus && !groupByStage) {
       const byType = {}
       jobs.forEach(job => {
         const typeName = job.job_type?.name || 'No Type'
@@ -558,8 +557,7 @@ export default function AppLayout({ children }) {
       return { mode: 'type', groups: byType }
     }
 
-    if (!groupByType && groupByStatus) {
-      // Group by status only
+    if (!groupByType && groupByStatus && !groupByStage) {
       const byStatus = {}
       jobs.forEach(job => {
         const statusName = job.job_status?.name || 'No Status'
@@ -569,21 +567,65 @@ export default function AppLayout({ children }) {
       return { mode: 'status', groups: byStatus }
     }
 
-    // Group by type, then by status within each type
-    const byTypeAndStatus = {}
+    if (!groupByType && !groupByStatus && groupByStage) {
+      const byStage = {}
+      jobs.forEach(job => {
+        const stageName = job.job_stage?.name || 'No Stage'
+        if (!byStage[stageName]) byStage[stageName] = []
+        byStage[stageName].push(job)
+      })
+      return { mode: 'stage', groups: byStage }
+    }
+
+    // Two-level grouping
+    if (groupByType && groupByStatus && !groupByStage) {
+      const byTypeAndStatus = {}
+      jobs.forEach(job => {
+        const typeName = job.job_type?.name || 'No Type'
+        const statusName = job.job_status?.name || 'No Status'
+        if (!byTypeAndStatus[typeName]) byTypeAndStatus[typeName] = {}
+        if (!byTypeAndStatus[typeName][statusName]) byTypeAndStatus[typeName][statusName] = []
+        byTypeAndStatus[typeName][statusName].push(job)
+      })
+      return { mode: 'type-status', groups: byTypeAndStatus }
+    }
+
+    if (groupByType && !groupByStatus && groupByStage) {
+      const byTypeAndStage = {}
+      jobs.forEach(job => {
+        const typeName = job.job_type?.name || 'No Type'
+        const stageName = job.job_stage?.name || 'No Stage'
+        if (!byTypeAndStage[typeName]) byTypeAndStage[typeName] = {}
+        if (!byTypeAndStage[typeName][stageName]) byTypeAndStage[typeName][stageName] = []
+        byTypeAndStage[typeName][stageName].push(job)
+      })
+      return { mode: 'type-stage', groups: byTypeAndStage }
+    }
+
+    if (!groupByType && groupByStatus && groupByStage) {
+      const byStatusAndStage = {}
+      jobs.forEach(job => {
+        const statusName = job.job_status?.name || 'No Status'
+        const stageName = job.job_stage?.name || 'No Stage'
+        if (!byStatusAndStage[statusName]) byStatusAndStage[statusName] = {}
+        if (!byStatusAndStage[statusName][stageName]) byStatusAndStage[statusName][stageName] = []
+        byStatusAndStage[statusName][stageName].push(job)
+      })
+      return { mode: 'status-stage', groups: byStatusAndStage }
+    }
+
+    // Three-level grouping
+    const byTypeStatusStage = {}
     jobs.forEach(job => {
       const typeName = job.job_type?.name || 'No Type'
       const statusName = job.job_status?.name || 'No Status'
-
-      if (!byTypeAndStatus[typeName]) {
-        byTypeAndStatus[typeName] = {}
-      }
-      if (!byTypeAndStatus[typeName][statusName]) {
-        byTypeAndStatus[typeName][statusName] = []
-      }
-      byTypeAndStatus[typeName][statusName].push(job)
+      const stageName = job.job_stage?.name || 'No Stage'
+      if (!byTypeStatusStage[typeName]) byTypeStatusStage[typeName] = {}
+      if (!byTypeStatusStage[typeName][statusName]) byTypeStatusStage[typeName][statusName] = {}
+      if (!byTypeStatusStage[typeName][statusName][stageName]) byTypeStatusStage[typeName][statusName][stageName] = []
+      byTypeStatusStage[typeName][statusName][stageName].push(job)
     })
-    return { mode: 'type-status', groups: byTypeAndStatus }
+    return { mode: 'type-status-stage', groups: byTypeStatusStage }
   }
 
   const groupedJobs = getGroupedJobs(activeJobs)
@@ -1023,6 +1065,13 @@ export default function AppLayout({ children }) {
                                           title={job.job_status.name}
                                         />
                                       )}
+                                      {/* Job Stage Badge */}
+                                      {job.job_stage && (
+                                        <span
+                                          className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                          title={job.job_stage.name}
+                                        />
+                                      )}
                                       <span className="truncate">{job.title || `Job #${job.id}`}</span>
                                     </Link>
                                   </div>
@@ -1110,6 +1159,12 @@ export default function AppLayout({ children }) {
                                                     title={job.job_status.name}
                                                   />
                                                 )}
+                                                {job.job_stage && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                                    title={job.job_stage.name}
+                                                  />
+                                                )}
                                                 <span className="truncate">{job.title || `Job #${job.id}`}</span>
                                               </Link>
                                             </li>
@@ -1173,6 +1228,12 @@ export default function AppLayout({ children }) {
                                                   <span
                                                     className="w-2 h-2 rounded-sm bg-blue-500 dark:bg-blue-400 flex-shrink-0"
                                                     title={job.job_type.name}
+                                                  />
+                                                )}
+                                                {job.job_stage && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                                    title={job.job_stage.name}
                                                   />
                                                 )}
                                                 <span className="truncate">{job.title || `Job #${job.id}`}</span>
@@ -1341,6 +1402,12 @@ export default function AppLayout({ children }) {
                                                   <span
                                                     className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_status.color)} flex-shrink-0`}
                                                     title={job.job_status.name}
+                                                  />
+                                                )}
+                                                {job.job_stage && (
+                                                  <span
+                                                    className={`w-2 h-2 rounded-sm ${getStatusColorClass(job.job_stage.color)} flex-shrink-0`}
+                                                    title={job.job_stage.name}
                                                   />
                                                 )}
                                                 <span className="truncate">{job.title || `Job #${job.id}`}</span>
