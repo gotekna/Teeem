@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowTopRightOnSquareIcon, ShieldCheckIcon, KeyIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 import PublicHolidaysPage from '../../pages/PublicHolidaysPage'
@@ -38,7 +38,30 @@ const TIMEZONES = [
   { value: 'UTC', label: 'UTC' }
 ]
 
+const TAB_NAMES = [
+  'info',
+  'security',
+  'permissions',
+  'corporate',
+  'holidays',
+  'connections',
+  'xero',
+  'contact-roles',
+  'workflows',
+  'folders',
+  'job-setup',
+  'workflow-config',
+  'doc-setup'
+]
+
 export default function CompanySettingsTab() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selectedTabIndex, setSelectedTabIndex] = useState(() => {
+    const subtab = searchParams.get('subtab')
+    const index = TAB_NAMES.indexOf(subtab)
+    return index >= 0 ? index : 0
+  })
+
   const [settings, setSettings] = useState({
     company_name: '',
     abn: '',
@@ -103,6 +126,12 @@ export default function CompanySettingsTab() {
     setSettings(prev => ({ ...prev, [field]: value }))
   }
 
+  const handleTabChange = (index) => {
+    setSelectedTabIndex(index)
+    const tabName = TAB_NAMES[index]
+    setSearchParams({ tab: 'company', subtab: tabName })
+  }
+
   if (loading) {
     return (
       <div>
@@ -128,7 +157,7 @@ export default function CompanySettingsTab() {
           </Link>
         </div>
 
-        <TabGroup>
+        <TabGroup selectedIndex={selectedTabIndex} onChange={handleTabChange}>
           <TabList className="flex space-x-1 rounded-xl bg-indigo-900/20 p-1 mb-6 overflow-x-auto">
             <Tab
               className={({ selected }) =>
