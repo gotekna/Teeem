@@ -72,6 +72,8 @@ git branch -D backend-deploy-rob
 heroku ps
 curl -s https://trapid-backend-447058022b51.herokuapp.com/ | head -5
 curl -s -o /dev/null -w "%{http_code}" https://trapidtest.vercel.app/
+curl -s https://trapid-backend-447058022b51.herokuapp.com/version
+cat frontend/package.json | grep '"version"' | head -1
 heroku pg:info
 heroku logs --tail --num 50 | grep -i "migrat\|error\|fail" | head -20
 ```
@@ -79,10 +81,12 @@ heroku logs --tail --num 50 | grep -i "migrat\|error\|fail" | head -20
 ### Step 7 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
-- ✅ Backend: [dyno status] - https://trapid-backend-447058022b51.herokuapp.com/
-- ✅ Frontend: [status code] - https://trapidtest.vercel.app/
+- ✅ Backend: [version from /version endpoint] - https://trapid-backend-447058022b51.herokuapp.com/
+  - Dyno status: [web/worker status]
+- ✅ Frontend: [version from package.json] - https://trapidtest.vercel.app/
+  - Status: [HTTP status code]
 - ✅ Migrations: [status]
-- ✅ Health check: [response]
+- ✅ Database: [connection info]
 - 🔴 Warnings (if any)
 
 ### Step 8 - Maintenance (IF WARNINGS)
