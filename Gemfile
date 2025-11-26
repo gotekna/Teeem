@@ -66,7 +66,7 @@ gem "rexml"  # XML parsing for ABN lookup service
 gem "twilio-ruby", "~> 7.3"  # Twilio SDK for SMS messaging
 
 # AI integration for plan analysis
-gem "anthropic", "~> 0.1.0"  # Claude API for AI-powered plan review
+gem "anthropic", "~> 1.16.0" # Claude API for AI-powered plan review
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
