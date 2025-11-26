@@ -209,7 +209,8 @@ module Api
           :searchable,
           :description,
           :is_live,
-          :feature
+          :feature,
+          :has_ui
         )
       end
 

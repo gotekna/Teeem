@@ -14,11 +14,20 @@ module Api
           return
         end
 
-        # Find or create default dev user
-        dev_user = User.find_or_create_by!(email: 'dev@trapid.local') do |user|
-          user.name = 'Dev User'
-          user.password = 'DevPassword123!'
-          user.role = 'admin'  # Give dev user admin access
+        # Try to find an existing user (prefer robert@tekna.com.au for local dev)
+        dev_user = User.find_by(email: 'robert@tekna.com.au') ||
+                   User.find_by(email: 'rob@trapid.com.au') ||
+                   User.where(role: 'admin').first ||
+                   User.first
+
+        # If no users exist, create a dev user
+        unless dev_user
+          dev_user = User.create!(
+            email: 'dev@trapid.local',
+            name: 'Dev User',
+            password: 'DevPassword123!',
+            role: 'admin'
+          )
         end
 
         token = JsonWebToken.encode(user_id: dev_user.id)

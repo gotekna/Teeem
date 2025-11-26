@@ -186,6 +186,7 @@ module Api
             icon: table.icon,
             feature: table.feature,
             is_live: table.is_live,
+            has_ui: table.has_ui,
             columns_count: col_count,
             has_column_metadata: has_column_metadata,
             record_count: begin
@@ -340,6 +341,63 @@ module Api
             results: results,
             timestamp: Time.current.iso8601
           }
+        end
+      end
+
+      # POST /api/v1/schema/sync_has_ui_from_production
+      # Fetches has_ui values from production and syncs to local database
+      def sync_has_ui_from_production
+        require 'net/http'
+        require 'json'
+
+        production_url = 'https://trapid-backend-447058022b51.herokuapp.com/api/v1/schema/tables'
+
+        begin
+          uri = URI(production_url)
+          response = Net::HTTP.get(uri)
+          production_data = JSON.parse(response)
+
+          unless production_data['tables']
+            render json: { success: false, error: 'No tables data from production' }, status: :unprocessable_entity
+            return
+          end
+
+          # Build a map of table_id -> has_ui from production
+          production_has_ui = {}
+          production_data['tables'].each do |t|
+            production_has_ui[t['id']] = t['has_ui'] if t['has_ui'].present?
+          end
+
+          updated = []
+          skipped = []
+
+          Table.find_each do |table|
+            if production_has_ui.key?(table.id)
+              old_value = table.has_ui
+              new_value = production_has_ui[table.id]
+
+              if old_value != new_value
+                table.update!(has_ui: new_value)
+                updated << { id: table.id, name: table.name, old: old_value, new: new_value }
+              else
+                skipped << { id: table.id, name: table.name, reason: 'already_synced' }
+              end
+            else
+              skipped << { id: table.id, name: table.name, reason: 'not_in_production' }
+            end
+          end
+
+          render json: {
+            success: true,
+            message: "Synced has_ui from production",
+            updated_count: updated.length,
+            skipped_count: skipped.length,
+            updated: updated,
+            skipped: skipped
+          }
+        rescue => e
+          Rails.logger.error "Failed to sync has_ui from production: #{e.message}"
+          render json: { success: false, error: e.message }, status: :internal_server_error
         end
       end
 
