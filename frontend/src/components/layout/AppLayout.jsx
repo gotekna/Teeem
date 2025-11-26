@@ -546,86 +546,82 @@ export default function AppLayout({ children }) {
       return { mode: 'list', jobs }
     }
 
+    // Count active groupings
+    const activeGroupings = [
+      groupByType && 'type',
+      groupByStatus && 'status',
+      groupByStage && 'stage'
+    ].filter(Boolean)
+
     // Single-level grouping
-    if (groupByType && !groupByStatus && !groupByStage) {
-      const byType = {}
+    if (activeGroupings.length === 1) {
+      const groupType = activeGroupings[0]
+      const grouped = {}
+
       jobs.forEach(job => {
-        const typeName = job.job_type?.name || 'No Type'
-        if (!byType[typeName]) byType[typeName] = []
-        byType[typeName].push(job)
+        let groupName
+        if (groupType === 'type') groupName = job.job_type?.name || 'No Type'
+        else if (groupType === 'status') groupName = job.job_status?.name || 'No Status'
+        else groupName = job.job_stage?.name || 'No Stage'
+
+        if (!grouped[groupName]) grouped[groupName] = []
+        grouped[groupName].push(job)
       })
-      return { mode: 'type', groups: byType }
+      return { mode: groupType, groups: grouped }
     }
 
-    if (!groupByType && groupByStatus && !groupByStage) {
-      const byStatus = {}
+    // Two-level grouping - respect button order
+    if (activeGroupings.length === 2) {
+      // Find which active groupings come first in filterButtonOrder
+      const orderedGroupings = filterButtonOrder.filter(g => activeGroupings.includes(g))
+      const [first, second] = orderedGroupings
+
+      const grouped = {}
       jobs.forEach(job => {
-        const statusName = job.job_status?.name || 'No Status'
-        if (!byStatus[statusName]) byStatus[statusName] = []
-        byStatus[statusName].push(job)
+        let firstName, secondName
+
+        if (first === 'type') firstName = job.job_type?.name || 'No Type'
+        else if (first === 'status') firstName = job.job_status?.name || 'No Status'
+        else firstName = job.job_stage?.name || 'No Stage'
+
+        if (second === 'type') secondName = job.job_type?.name || 'No Type'
+        else if (second === 'status') secondName = job.job_status?.name || 'No Status'
+        else secondName = job.job_stage?.name || 'No Stage'
+
+        if (!grouped[firstName]) grouped[firstName] = {}
+        if (!grouped[firstName][secondName]) grouped[firstName][secondName] = []
+        grouped[firstName][secondName].push(job)
       })
-      return { mode: 'status', groups: byStatus }
+      return { mode: `${first}-${second}`, groups: grouped }
     }
 
-    if (!groupByType && !groupByStatus && groupByStage) {
-      const byStage = {}
+    // Three-level grouping - respect button order
+    if (activeGroupings.length === 3) {
+      const orderedGroupings = filterButtonOrder.filter(g => activeGroupings.includes(g))
+      const [first, second, third] = orderedGroupings
+
+      const grouped = {}
       jobs.forEach(job => {
-        const stageName = job.job_stage?.name || 'No Stage'
-        if (!byStage[stageName]) byStage[stageName] = []
-        byStage[stageName].push(job)
+        const getGroupName = (groupType) => {
+          if (groupType === 'type') return job.job_type?.name || 'No Type'
+          if (groupType === 'status') return job.job_status?.name || 'No Status'
+          return job.job_stage?.name || 'No Stage'
+        }
+
+        const firstName = getGroupName(first)
+        const secondName = getGroupName(second)
+        const thirdName = getGroupName(third)
+
+        if (!grouped[firstName]) grouped[firstName] = {}
+        if (!grouped[firstName][secondName]) grouped[firstName][secondName] = {}
+        if (!grouped[firstName][secondName][thirdName]) grouped[firstName][secondName][thirdName] = []
+        grouped[firstName][secondName][thirdName].push(job)
       })
-      return { mode: 'stage', groups: byStage }
+      return { mode: `${first}-${second}-${third}`, groups: grouped }
     }
 
-    // Two-level grouping
-    if (groupByType && groupByStatus && !groupByStage) {
-      const byTypeAndStatus = {}
-      jobs.forEach(job => {
-        const typeName = job.job_type?.name || 'No Type'
-        const statusName = job.job_status?.name || 'No Status'
-        if (!byTypeAndStatus[typeName]) byTypeAndStatus[typeName] = {}
-        if (!byTypeAndStatus[typeName][statusName]) byTypeAndStatus[typeName][statusName] = []
-        byTypeAndStatus[typeName][statusName].push(job)
-      })
-      return { mode: 'type-status', groups: byTypeAndStatus }
-    }
-
-    if (groupByType && !groupByStatus && groupByStage) {
-      const byTypeAndStage = {}
-      jobs.forEach(job => {
-        const typeName = job.job_type?.name || 'No Type'
-        const stageName = job.job_stage?.name || 'No Stage'
-        if (!byTypeAndStage[typeName]) byTypeAndStage[typeName] = {}
-        if (!byTypeAndStage[typeName][stageName]) byTypeAndStage[typeName][stageName] = []
-        byTypeAndStage[typeName][stageName].push(job)
-      })
-      return { mode: 'type-stage', groups: byTypeAndStage }
-    }
-
-    if (!groupByType && groupByStatus && groupByStage) {
-      const byStatusAndStage = {}
-      jobs.forEach(job => {
-        const statusName = job.job_status?.name || 'No Status'
-        const stageName = job.job_stage?.name || 'No Stage'
-        if (!byStatusAndStage[statusName]) byStatusAndStage[statusName] = {}
-        if (!byStatusAndStage[statusName][stageName]) byStatusAndStage[statusName][stageName] = []
-        byStatusAndStage[statusName][stageName].push(job)
-      })
-      return { mode: 'status-stage', groups: byStatusAndStage }
-    }
-
-    // Three-level grouping
-    const byTypeStatusStage = {}
-    jobs.forEach(job => {
-      const typeName = job.job_type?.name || 'No Type'
-      const statusName = job.job_status?.name || 'No Status'
-      const stageName = job.job_stage?.name || 'No Stage'
-      if (!byTypeStatusStage[typeName]) byTypeStatusStage[typeName] = {}
-      if (!byTypeStatusStage[typeName][statusName]) byTypeStatusStage[typeName][statusName] = {}
-      if (!byTypeStatusStage[typeName][statusName][stageName]) byTypeStatusStage[typeName][statusName][stageName] = []
-      byTypeStatusStage[typeName][statusName][stageName].push(job)
-    })
-    return { mode: 'type-status-stage', groups: byTypeStatusStage }
+    // Fallback - shouldn't reach here
+    return { mode: 'list', jobs }
   }
 
   const groupedJobs = getGroupedJobs(activeJobs)
