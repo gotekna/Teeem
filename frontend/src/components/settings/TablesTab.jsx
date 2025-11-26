@@ -4,15 +4,27 @@ import { api } from '../../api'
 import { TableCellsIcon, PencilIcon, EyeIcon, XMarkIcon, PlusIcon, Cog6ToothIcon, TrashIcon, ArrowTopRightOnSquareIcon, ArrowPathIcon, CheckCircleIcon, ExclamationTriangleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import TableColumnManager from './TableColumnManager'
 
-// Broad feature categories to group related tables
+// Feature categories to group related tables
 const FEATURE_OPTIONS = [
   '',
   'Jobs',
   'Contacts',
-  'Purchasing',
+  'Suppliers',
+  'Purchase Orders',
+  'Pricebook',
+  'Estimates',
+  'Quotes',
   'WHS',
-  'Scheduling',
+  'Schedule',
+  'Meetings',
   'Financial',
+  'Projects',
+  'Workflows',
+  'Companies',
+  'Users',
+  'Xero',
+  'OneDrive',
+  'Documentation',
   'System'
 ]
 
