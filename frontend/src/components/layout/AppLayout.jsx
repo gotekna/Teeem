@@ -1568,7 +1568,7 @@ export default function AppLayout({ children }) {
                                         <ChevronRightIcon
                                           className={classNames(
                                             'h-3 w-3 text-gray-400 transition-transform',
-                                            (expandedCategoryGroups[categoryName] !== false) && 'rotate-90'
+                                            (expandedCategoryGroups[categoryName] === true) && 'rotate-90'
                                           )}
                                         />
                                         <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
@@ -1580,7 +1580,7 @@ export default function AppLayout({ children }) {
                                       </button>
 
                                       {/* Books under this category */}
-                                      {(expandedCategoryGroups[categoryName] !== false) && (
+                                      {(expandedCategoryGroups[categoryName] === true) && (
                                         <ul className="ml-4 space-y-0.5">
                                           {filteredBooks.slice(0, 20).map((book) => (
                                             <li key={book.id}>
@@ -1727,7 +1727,7 @@ export default function AppLayout({ children }) {
                                         <ChevronRightIcon
                                           className={classNames(
                                             'h-3 w-3 text-gray-400 transition-transform',
-                                            (expandedContactTypeGroups[typeName] !== false) && 'rotate-90'
+                                            (expandedContactTypeGroups[typeName] === true) && 'rotate-90'
                                           )}
                                         />
                                         <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
@@ -1739,7 +1739,7 @@ export default function AppLayout({ children }) {
                                       </button>
 
                                       {/* Contacts under this type */}
-                                      {(expandedContactTypeGroups[typeName] !== false) && (
+                                      {(expandedContactTypeGroups[typeName] === true) && (
                                         <ul className="ml-4 space-y-0.5">
                                           {filteredContacts.slice(0, 20).map((contact) => (
                                             <li key={contact.id}>
@@ -1886,7 +1886,7 @@ export default function AppLayout({ children }) {
                                         <ChevronRightIcon
                                           className={classNames(
                                             'h-3 w-3 text-gray-400 transition-transform',
-                                            (expandedPOJobGroups[jobName] !== false) && 'rotate-90'
+                                            (expandedPOJobGroups[jobName] === true) && 'rotate-90'
                                           )}
                                         />
                                         <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
@@ -1898,7 +1898,7 @@ export default function AppLayout({ children }) {
                                       </button>
 
                                       {/* Purchase orders under this job */}
-                                      {(expandedPOJobGroups[jobName] !== false) && (
+                                      {(expandedPOJobGroups[jobName] === true) && (
                                         <ul className="ml-4 space-y-0.5">
                                           {filteredOrders.slice(0, 20).map((order) => (
                                             <li key={order.id}>

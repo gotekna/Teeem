@@ -22,22 +22,6 @@ import {
 import { api } from '../../api'
 import AddressAutocomplete from '../common/AddressAutocomplete'
 
-const STAGES = [
-  'Planning',
-  'Design',
-  'Preconstruction',
-  'Construction',
-  'Closeout',
-  'Complete',
-]
-
-const STATUSES = [
-  'Active',
-  'On Hold',
-  'Cancelled',
-  'Complete',
-]
-
 const LEAD_SOURCES = [
   'Referral',
   'Website',
@@ -72,8 +56,9 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
     start_date: '',
     end_date: '',
     site_supervisor_name: 'Andrew Clement',
-    stage: 'Planning',
-    status: 'Active',
+    job_type_id: null,
+    job_status_id: null,
+    job_stage_id: null,
     has_plans: false,
     has_engineering: false,
     has_soil_report: false,
@@ -93,12 +78,21 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
   const [loadingTemplates, setLoadingTemplates] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
 
+  // Job configuration state
+  const [jobTypes, setJobTypes] = useState([])
+  const [jobStatuses, setJobStatuses] = useState([])
+  const [jobStages, setJobStages] = useState([])
+  const [availableStatuses, setAvailableStatuses] = useState([])
+  const [availableStages, setAvailableStages] = useState([])
+  const [loadingConfig, setLoadingConfig] = useState(false)
+
   const totalSteps = 3
 
-  // Load schedule templates when modal opens
+  // Load schedule templates and job configuration when modal opens
   useEffect(() => {
     if (isOpen) {
       loadScheduleTemplates()
+      loadJobConfiguration()
     }
   }, [isOpen])
 
@@ -119,6 +113,89 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
       setLoadingTemplates(false)
     }
   }
+
+  const loadJobConfiguration = async () => {
+    setLoadingConfig(true)
+    try {
+      const [typesRes, statusesRes, stagesRes] = await Promise.all([
+        api.get('/api/v1/job_types'),
+        api.get('/api/v1/job_statuses'),
+        api.get('/api/v1/job_stages')
+      ])
+      setJobTypes(typesRes.job_types || [])
+      setJobStatuses(statusesRes.job_statuses || [])
+      setJobStages(stagesRes.job_stages || [])
+
+      // Auto-select first type if available
+      if (typesRes.job_types?.length > 0) {
+        setFormData(prev => ({ ...prev, job_type_id: typesRes.job_types[0].id }))
+      }
+    } catch (error) {
+      console.error('Error fetching job configuration:', error)
+    } finally {
+      setLoadingConfig(false)
+    }
+  }
+
+  // Load available statuses when type changes
+  useEffect(() => {
+    const loadAvailableStatuses = async () => {
+      if (!formData.job_type_id) {
+        setAvailableStatuses([])
+        setFormData(prev => ({ ...prev, job_status_id: null, job_stage_id: null }))
+        return
+      }
+
+      try {
+        const response = await api.get(`/api/v1/job_types/${formData.job_type_id}/statuses`)
+        const statuses = response.statuses || []
+        setAvailableStatuses(statuses)
+
+        // Auto-select first status if available
+        if (statuses.length > 0) {
+          setFormData(prev => ({ ...prev, job_status_id: statuses[0].id }))
+        } else {
+          setFormData(prev => ({ ...prev, job_status_id: null, job_stage_id: null }))
+        }
+      } catch (error) {
+        console.error('Error fetching available statuses:', error)
+        setAvailableStatuses([])
+      }
+    }
+
+    loadAvailableStatuses()
+  }, [formData.job_type_id])
+
+  // Load available stages when type or status changes
+  useEffect(() => {
+    const loadAvailableStages = async () => {
+      if (!formData.job_type_id || !formData.job_status_id) {
+        setAvailableStages([])
+        setFormData(prev => ({ ...prev, job_stage_id: null }))
+        return
+      }
+
+      try {
+        const response = await api.get(
+          `/api/v1/job_types/${formData.job_type_id}/statuses/${formData.job_status_id}/stages`
+        )
+        const stages = response.stages || []
+        setAvailableStages(stages)
+
+        // Auto-select first stage if available
+        if (stages.length > 0) {
+          setFormData(prev => ({ ...prev, job_stage_id: stages[0].id }))
+        } else {
+          setFormData(prev => ({ ...prev, job_stage_id: null }))
+        }
+      } catch (error) {
+        console.error('Error fetching available stages:', error)
+        setAvailableStages([])
+      }
+    }
+
+    loadAvailableStages()
+  }, [formData.job_type_id, formData.job_status_id])
 
   // Debounced client search
   useEffect(() => {
@@ -214,8 +291,9 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
         start_date: '',
         end_date: '',
         site_supervisor_name: 'Andrew Clement',
-        stage: 'Planning',
-        status: 'Active',
+        job_type_id: jobTypes.length > 0 ? jobTypes[0].id : null,
+        job_status_id: null,
+        job_stage_id: null,
         has_plans: false,
         has_engineering: false,
         has_soil_report: false,
@@ -253,7 +331,8 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
         formData.location.trim() !== '' &&
         formData.client_id !== null &&
         formData.site_supervisor_name.trim() !== '' &&
-        formData.status.trim() !== ''
+        formData.job_type_id !== null &&
+        formData.job_status_id !== null
       )
     }
     return true

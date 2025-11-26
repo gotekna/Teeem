@@ -20,6 +20,7 @@ const CompaniesPage = lazy(() => import('../../pages/CompaniesPage'))
 const RolesAndGroupsTab = lazy(() => import('./RolesAndGroupsTab'))
 const PermissionsPage = lazy(() => import('../../pages/PermissionsPage'))
 const JobSetupTab = lazy(() => import('./JobSetupTab'))
+const DependencyConfigTab = lazy(() => import('./DependencyConfigTab'))
 const DocumentationCategoriesTab = lazy(() => import('./DocumentationCategoriesTab'))
 
 const TIMEZONES = [
@@ -271,6 +272,18 @@ export default function CompanySettingsTab() {
                 }`
               }
             >
+              Workflow Config
+            </Tab>
+            <Tab
+              className={({ selected }) =>
+                `rounded-lg py-2.5 px-3 text-sm font-medium leading-5 transition-all whitespace-nowrap
+                ${
+                  selected
+                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+                }`
+              }
+            >
               Doc Setup
             </Tab>
           </TabList>
@@ -500,6 +513,13 @@ export default function CompanySettingsTab() {
             <TabPanel>
               <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
                 <JobSetupTab />
+              </Suspense>
+            </TabPanel>
+
+            {/* Workflow Config Tab */}
+            <TabPanel>
+              <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
+                <DependencyConfigTab />
               </Suspense>
             </TabPanel>
 
