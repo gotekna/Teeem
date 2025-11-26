@@ -1,5 +1,4 @@
 class Api::V1::ChatMessagesController < ApplicationController
-  before_action :set_current_user
 
   # GET /api/v1/chat_messages?channel=general
   # GET /api/v1/chat_messages?project_id=123
@@ -9,7 +8,7 @@ class Api::V1::ChatMessagesController < ApplicationController
       @messages = ChatMessage.for_project(params[:project_id]).includes(:user).recent(100)
     elsif params[:user_id].present?
       # Direct messages between current user and specified user
-      @messages = ChatMessage.between_users(@current_user.id, params[:user_id]).includes(:user).recent(100)
+      @messages = ChatMessage.between_users(current_user.id, params[:user_id]).includes(:user).recent(100)
     elsif params[:channel].present?
       @messages = ChatMessage.in_channel(params[:channel]).includes(:user).recent(100)
     else
@@ -22,7 +21,7 @@ class Api::V1::ChatMessagesController < ApplicationController
   # POST /api/v1/chat_messages
   def create
     @message = ChatMessage.new(message_params)
-    @message.user = @current_user
+    @message.user = current_user
 
     if @message.save
       render json: @message.as_json(include: { user: { only: [:id, :name, :email] } }, methods: :formatted_timestamp), status: :created
@@ -35,7 +34,7 @@ class Api::V1::ChatMessagesController < ApplicationController
   def destroy
     @message = ChatMessage.find(params[:id])
 
-    if @message.user_id == @current_user.id
+    if @message.user_id == current_user.id
       @message.destroy
       head :no_content
     else
@@ -45,16 +44,16 @@ class Api::V1::ChatMessagesController < ApplicationController
 
   # GET /api/v1/chat_messages/unread_count
   def unread_count
-    last_read = @current_user.last_chat_read_at || Time.at(0)
+    last_read = current_user.last_chat_read_at || Time.at(0)
     count = ChatMessage.where('created_at > ?', last_read)
-                      .where.not(user_id: @current_user.id)
+                      .where.not(user_id: current_user.id)
                       .count
     render json: { count: count }
   end
 
   # POST /api/v1/chat_messages/mark_as_read
   def mark_as_read
-    @current_user.update(last_chat_read_at: Time.current)
+    current_user.update(last_chat_read_at: Time.current)
     head :no_content
   end
 
@@ -104,9 +103,4 @@ class Api::V1::ChatMessagesController < ApplicationController
     params.require(:chat_message).permit(:content, :channel, :project_id, :recipient_user_id)
   end
 
-  def set_current_user
-    # Assuming you have a current user authentication system
-    # Modify this based on your actual authentication setup
-    @current_user = User.first # TODO: Replace with actual current_user logic
-  end
 end
