@@ -771,9 +771,14 @@ export default function TrapidTableView({
           return existingSetup
         }
 
-        // IMPORTANT: Fetch fresh columns from API to avoid stale state during table transitions
-        const freshColumnsData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
-        const freshColumns = freshColumnsData.table?.columns || []
+        // Try to fetch fresh columns from API, fall back to COLUMNS prop for custom tables
+        let freshColumns = []
+        try {
+          const freshColumnsData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+          freshColumns = freshColumnsData.table?.columns || []
+        } catch (err) {
+          console.log('[Load Views] Could not fetch columns from API, using COLUMNS prop')
+        }
 
         const allColumnsVisible = {}
         const columnOrder = ['select', 'id', 'actions']
@@ -783,12 +788,23 @@ export default function TrapidTableView({
         allColumnsVisible['id'] = true
         allColumnsVisible['actions'] = true
 
-        freshColumns.forEach(col => {
-          if (col.column_name && col.column_name !== 'select' && col.column_name !== 'id' && col.column_name !== 'actions') {
-            allColumnsVisible[col.column_name] = true
-            columnOrder.push(col.column_name)
-          }
-        })
+        // If API returned columns, use those
+        if (freshColumns.length > 0) {
+          freshColumns.forEach(col => {
+            if (col.column_name && col.column_name !== 'select' && col.column_name !== 'id' && col.column_name !== 'actions') {
+              allColumnsVisible[col.column_name] = true
+              columnOrder.push(col.column_name)
+            }
+          })
+        } else {
+          // Fall back to COLUMNS prop (for custom tables like Feature Tracking)
+          COLUMNS.forEach(col => {
+            if (col.key && col.key !== 'select' && col.key !== 'id' && col.key !== 'actions') {
+              allColumnsVisible[col.key] = true
+              columnOrder.push(col.key)
+            }
+          })
+        }
 
         const setupView = await saveNewView({
           name: 'Setup',
@@ -5978,36 +5994,44 @@ export default function TrapidTableView({
                           </button>
                         </div>
                       </div>
-                      {/* Column header row with Expand/Collapse All */}
-                      <div className="flex items-center justify-between px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
-                        <div className="flex items-center gap-2">
-                          <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
-                          <span>Column</span>
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setCollapsedColumnGroups(new Set())}
-                            className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
-                            title="Expand all groups"
-                          >
-                            Expand All
-                          </button>
-                          <button
-                            onClick={() => {
-                              const allGroups = new Set(
-                                COLUMNS
-                                  .filter(col => col.key !== 'select' && col.key !== 'actions')
-                                  .map(col => col.column_group || 'Other')
-                              )
-                              setCollapsedColumnGroups(allGroups)
-                            }}
-                            className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
-                            title="Collapse all groups"
-                          >
-                            Collapse All
-                          </button>
-                        </div>
-                      </div>
+                      {/* Column header row with Expand/Collapse All - only show when there are multiple groups */}
+                      {(() => {
+                        const uniqueGroups = new Set(
+                          COLUMNS
+                            .filter(col => col.key !== 'select' && col.key !== 'actions')
+                            .map(col => col.column_group || 'Other')
+                        )
+                        const hasMultipleGroups = uniqueGroups.size > 1
+
+                        return (
+                          <div className="flex items-center justify-between px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-2">
+                              <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
+                              <span>Column</span>
+                            </div>
+                            {hasMultipleGroups && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => setCollapsedColumnGroups(new Set())}
+                                  className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
+                                  title="Expand all groups"
+                                >
+                                  Expand All
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setCollapsedColumnGroups(uniqueGroups)
+                                  }}
+                                  className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
+                                  title="Collapse all groups"
+                                >
+                                  Collapse All
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                       {/* Combined column list - grouped by column_group with collapsible sections */}
                       <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 flex-1 min-h-0 overflow-y-auto cascade-popup-scroll">
                         {(() => {
@@ -6056,7 +6080,17 @@ export default function TrapidTableView({
 
                           if (renderFlat) {
                             // Flat list - no group headers, free drag-and-drop
-                            const allCols = groupedColumns[sortedGroups[0]]
+                            // Use visibilityColumnOrder if available, otherwise use alphabetical
+                            let allCols = groupedColumns[sortedGroups[0]]
+                            if (visibilityColumnOrder && visibilityColumnOrder.length > 0) {
+                              // Sort by visibilityColumnOrder, putting ordered cols first
+                              const orderMap = new Map(visibilityColumnOrder.map((key, idx) => [key, idx]))
+                              allCols = [...allCols].sort((a, b) => {
+                                const aOrder = orderMap.has(a.key) ? orderMap.get(a.key) : 9999
+                                const bOrder = orderMap.has(b.key) ? orderMap.get(b.key) : 9999
+                                return aOrder - bOrder
+                              })
+                            }
                             return (
                               <div className="grid grid-cols-2 gap-0.5">
                                 {allCols.map((column) => (

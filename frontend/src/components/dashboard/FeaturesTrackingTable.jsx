@@ -193,6 +193,7 @@ export default function FeaturesTrackingTable() {
       <TrapidTableView
         tableName="Feature Tracking"
         tableId="feature_tracking"
+        tableIdNumeric={454}
         entries={features}
         columns={COLUMNS}
         viewOnly={true}
