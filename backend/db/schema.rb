@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_024741) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -792,7 +792,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
   end
 
-  create_table "gold_standard_items", force: :cascade do |t|
+  create_table "gold_standard_table", force: :cascade do |t|
     t.string "email"
     t.string "phone", limit: 20
     t.datetime "created_at", null: false
@@ -938,6 +938,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
     t.index ["position"], name: "index_job_stages_on_position"
   end
 
+  create_table "job_status", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_status_on_is_active"
+    t.index ["position"], name: "index_job_status_on_position"
+  end
+
   create_table "job_status_stages", force: :cascade do |t|
     t.bigint "job_type_id", null: false
     t.bigint "job_status_id", null: false
@@ -951,17 +962,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
     t.index ["job_type_id", "job_status_id", "job_stage_id"], name: "index_job_status_stages_on_type_status_stage", unique: true
     t.index ["job_type_id"], name: "index_job_status_stages_on_job_type_id"
     t.index ["position"], name: "index_job_status_stages_on_position"
-  end
-
-  create_table "job_statuses", force: :cascade do |t|
-    t.string "name", null: false
-    t.integer "position", default: 0
-    t.boolean "is_active", default: true
-    t.string "color"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_job_statuses_on_is_active"
-    t.index ["position"], name: "index_job_statuses_on_position"
   end
 
   create_table "job_type_statuses", force: :cascade do |t|
@@ -3084,13 +3084,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_020315) do
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_status_stages", "job_stages"
-  add_foreign_key "job_status_stages", "job_statuses"
+  add_foreign_key "job_status_stages", "job_status"
   add_foreign_key "job_status_stages", "job_types"
-  add_foreign_key "job_type_statuses", "job_statuses"
+  add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
   add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "job_stages"
-  add_foreign_key "jobs", "job_statuses", on_delete: :nullify
+  add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"

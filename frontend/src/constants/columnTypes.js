@@ -28,7 +28,7 @@ import api from '../api'
  *   Trinity T19.001-T19.021 (SSoT - RULES)
  *       │
  *       ├──► columns table (Table ID 1) - IMPLEMENTATION
- *       ├──► gold_standard_items - PROOF (sample data)
+ *       ├──► gold_standard_table - PROOF (sample data)
  *       └──► THIS FILE - CACHE/FALLBACK ONLY
  *
  * Maintenance Process:

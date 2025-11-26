@@ -63,7 +63,7 @@ Rails.application.routes.draw do
         end
       end
 
-      resources :job_statuses do
+      resources :job_status do
         collection do
           post :reorder
         end
@@ -224,8 +224,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # Gold Standard Items (Demo/Reference Price Book)
-      resources :gold_standard_items, only: [:index, :create, :update, :destroy]
+      # Gold Standard Table (Demo/Reference Price Book)
+      resources :gold_standard_table, only: [:index, :create, :update, :destroy]
 
       # Column Types - Single Source of Truth from Gold Standard Reference Table
       resources :column_types, only: [:index, :show, :update]

@@ -1,4 +1,6 @@
 class JobStatus < ApplicationRecord
+  self.table_name = 'job_status'
+
   has_many :jobs
   has_many :job_type_statuses, dependent: :destroy
   has_many :job_types, through: :job_type_statuses

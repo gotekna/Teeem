@@ -96,7 +96,7 @@ namespace :trapid do
     # Map of model class names to their database table names
     table_mapping = {
       'FinancialTransaction' => 'financial_transactions',
-      'GoldStandardItem' => 'gold_standard_items',
+      'GoldStandardTable' => 'gold_standard_table',
       'TrinityEntry' => 'trinity_entries',
       'Trinity' => 'trinity',
       'Construction' => 'constructions',

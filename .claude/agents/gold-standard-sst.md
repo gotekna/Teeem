@@ -39,7 +39,7 @@ Trinity T19.xxx (SSoT - RULES)
           Reads from API, never edited directly
 ```
 
-**Note:** `gold_standard_items` contains actual user data rows in the Gold Standard table - NOT sample/test data. Do not validate or report on its contents.
+**Note:** `gold_standard_table` contains actual user data rows in the Gold Standard table - NOT sample/test data. Do not validate or report on its contents.
 
 ## Your Diagnostic Protocol
 

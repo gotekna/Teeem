@@ -223,7 +223,7 @@ export default function AppLayout({ children }) {
   })
   const [filterButtonOrder, setFilterButtonOrder] = useState(() => {
     const saved = localStorage.getItem('jobFilterButtonOrder')
-    return saved ? JSON.parse(saved) : ['type', 'status']
+    return saved ? JSON.parse(saved) : ['type', 'status', 'stage']
   })
   const [draggedButton, setDraggedButton] = useState(null)
 
@@ -997,10 +997,15 @@ export default function AppLayout({ children }) {
                                   />
                                 </div>
                                 {filterButtonOrder.map((buttonType) => {
-                                  const isType = buttonType === 'type'
-                                  const isActive = isType ? groupByType : groupByStatus
-                                  const toggleFn = isType ? toggleGroupByType : toggleGroupByStatus
-                                  const label = isType ? 'Type' : 'Status'
+                                  const isActive = buttonType === 'type' ? groupByType :
+                                                   buttonType === 'status' ? groupByStatus :
+                                                   groupByStage
+                                  const toggleFn = buttonType === 'type' ? toggleGroupByType :
+                                                   buttonType === 'status' ? toggleGroupByStatus :
+                                                   toggleGroupByStage
+                                  const label = buttonType === 'type' ? 'Type' :
+                                                buttonType === 'status' ? 'Status' :
+                                                'Stage'
 
                                   return (
                                     <button

@@ -1,2 +1,0 @@
-class GoldStandardItem < ApplicationRecord
-end

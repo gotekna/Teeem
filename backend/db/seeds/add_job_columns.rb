@@ -1,6 +1,6 @@
 jobs_table = Table.find_by(database_table_name: 'jobs')
 job_types_table = Table.find_by(database_table_name: 'job_types')
-job_statuses_table = Table.find_by(database_table_name: 'job_statuses')
+job_statuses_table = Table.find_by(database_table_name: 'job_status')
 
 # First, add columns for job_types table if needed
 unless job_types_table.columns.exists?(column_name: 'name')

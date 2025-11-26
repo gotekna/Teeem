@@ -471,10 +471,10 @@ gold_standard_items = [
 ]
 
 gold_standard_items.each do |item_data|
-  GoldStandardItem.find_or_create_by!(section: item_data[:section]) do |item|
+  GoldStandardTable.find_or_create_by!(section: item_data[:section]) do |item|
     item.assign_attributes(item_data)
   end
 end
 
-puts "Created #{GoldStandardItem.count} gold standard items"
+puts "Created #{GoldStandardTable.count} gold standard items"
 puts "Gold Standard Items seed complete!"
