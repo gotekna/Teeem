@@ -355,24 +355,34 @@ export default function TablesTab() {
   }).sort((a, b) => {
     const multiplier = sortDirection === 'asc' ? 1 : -1
 
+    // Numeric columns
     if (sortColumn === 'id') {
       return (a.id - b.id) * multiplier
     }
-    if (sortColumn === 'feature') {
-      const aVal = a.feature || ''
-      const bVal = b.feature || ''
+    if (sortColumn === 'columns') {
+      return ((a.column_count || 0) - (b.column_count || 0)) * multiplier
+    }
+    if (sortColumn === 'records') {
+      return ((a.record_count || 0) - (b.record_count || 0)) * multiplier
+    }
+
+    // String columns
+    const stringColumns = {
+      'database_table': 'database_table_name',
+      'name': 'name',
+      'feature': 'feature',
+      'type': 'type',
+      'usage': 'usage_type',
+      'status': 'is_live'
+    }
+
+    if (stringColumns[sortColumn]) {
+      const field = stringColumns[sortColumn]
+      const aVal = String(a[field] || '')
+      const bVal = String(b[field] || '')
       return aVal.localeCompare(bVal) * multiplier
     }
-    if (sortColumn === 'name') {
-      const aVal = a.name || ''
-      const bVal = b.name || ''
-      return aVal.localeCompare(bVal) * multiplier
-    }
-    if (sortColumn === 'type') {
-      const aVal = a.type || ''
-      const bVal = b.type || ''
-      return aVal.localeCompare(bVal) * multiplier
-    }
+
     return 0
   })
 
@@ -651,8 +661,17 @@ export default function TablesTab() {
                       )}
                     </div>
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Database Table
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('database_table')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Database Table
+                      {sortColumn === 'database_table' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
                   <th
                     scope="col"
@@ -690,20 +709,56 @@ export default function TablesTab() {
                       )}
                     </div>
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Usage Status
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('usage')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Usage Status
+                      {sortColumn === 'usage' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Columns
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('columns')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Columns
+                      {sortColumn === 'columns' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
                     Virtual
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Records
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('records')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Records
+                      {sortColumn === 'records' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
-                  <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white">
-                    Status
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('status')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortColumn === 'status' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
                   </th>
                   <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
                     <span className="sr-only">Actions</span>

@@ -2871,3 +2871,416 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.index ["scheduled_date"], name: "index_whs_inspections_on_scheduled_date"
     t.index ["status"], name: "index_whs_inspections_on_status"
   end
+
+  create_table "whs_settings", force: :cascade do |t|
+    t.string "setting_key", null: false
+    t.text "setting_value"
+    t.string "setting_type", default: "string"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["setting_key"], name: "index_whs_settings_on_setting_key", unique: true
+  end
+
+  create_table "whs_swms", force: :cascade do |t|
+    t.bigint "job_id"
+    t.bigint "created_by_id", null: false
+    t.bigint "approved_by_id"
+    t.bigint "superseded_by_id"
+    t.string "swms_number", null: false
+    t.string "title", null: false
+    t.decimal "version", precision: 3, scale: 1, default: "1.0", null: false
+    t.string "status", default: "draft", null: false
+    t.boolean "company_wide", default: false, null: false
+    t.text "activity_description"
+    t.string "location_area"
+    t.string "high_risk_type"
+    t.date "start_date"
+    t.integer "expected_duration_days"
+    t.integer "workers_involved"
+    t.string "supervisor_responsible"
+    t.text "emergency_procedures"
+    t.text "emergency_contact_numbers"
+    t.string "first_aid_location"
+    t.string "fire_extinguisher_location"
+    t.string "emergency_assembly_point"
+    t.text "evacuation_procedures"
+    t.text "legislative_references"
+    t.jsonb "ppe_requirements", default: {}
+    t.jsonb "required_qualifications", default: []
+    t.datetime "approved_at"
+    t.datetime "superseded_at"
+    t.string "rejection_reason"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_whs_swms_on_approved_by_id"
+    t.index ["company_wide"], name: "index_whs_swms_on_company_wide"
+    t.index ["created_by_id"], name: "index_whs_swms_on_created_by_id"
+    t.index ["high_risk_type"], name: "index_whs_swms_on_high_risk_type"
+    t.index ["job_id", "status"], name: "index_whs_swms_on_job_id_and_status"
+    t.index ["job_id"], name: "index_whs_swms_on_job_id"
+    t.index ["status"], name: "index_whs_swms_on_status"
+    t.index ["superseded_by_id"], name: "index_whs_swms_on_superseded_by_id"
+    t.index ["swms_number"], name: "index_whs_swms_on_swms_number", unique: true
+  end
+
+  create_table "whs_swms_acknowledgments", force: :cascade do |t|
+    t.bigint "whs_swms_id", null: false
+    t.bigint "user_id"
+    t.string "worker_name", null: false
+    t.string "worker_company"
+    t.string "worker_role"
+    t.text "signature_data"
+    t.datetime "acknowledged_at", null: false
+    t.string "ip_address"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_at"], name: "index_whs_swms_acknowledgments_on_acknowledged_at"
+    t.index ["user_id"], name: "index_whs_swms_acknowledgments_on_user_id"
+    t.index ["whs_swms_id"], name: "index_whs_swms_acknowledgments_on_whs_swms_id"
+  end
+
+  create_table "whs_swms_controls", force: :cascade do |t|
+    t.bigint "whs_swms_hazard_id", null: false
+    t.text "control_description", null: false
+    t.string "control_type", null: false
+    t.string "responsibility"
+    t.integer "residual_likelihood"
+    t.integer "residual_consequence"
+    t.integer "residual_risk_score"
+    t.string "residual_risk_level"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["control_type"], name: "index_whs_swms_controls_on_control_type"
+    t.index ["whs_swms_hazard_id"], name: "index_whs_swms_controls_on_whs_swms_hazard_id"
+  end
+
+  create_table "whs_swms_hazards", force: :cascade do |t|
+    t.bigint "whs_swms_id", null: false
+    t.text "hazard_description", null: false
+    t.integer "likelihood", null: false
+    t.integer "consequence", null: false
+    t.integer "risk_score", null: false
+    t.string "risk_level"
+    t.text "affected_persons"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["risk_level"], name: "index_whs_swms_hazards_on_risk_level"
+    t.index ["whs_swms_id"], name: "index_whs_swms_hazards_on_whs_swms_id"
+  end
+
+  create_table "workflow_definitions", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.string "workflow_type", null: false
+    t.jsonb "config", default: {}, null: false
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_workflow_definitions_on_active"
+    t.index ["workflow_type"], name: "index_workflow_definitions_on_workflow_type"
+  end
+
+  create_table "workflow_instances", force: :cascade do |t|
+    t.bigint "workflow_definition_id", null: false
+    t.string "subject_type", null: false
+    t.bigint "subject_id", null: false
+    t.string "status", default: "pending", null: false
+    t.string "current_step"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["status"], name: "index_workflow_instances_on_status"
+    t.index ["subject_type", "subject_id"], name: "index_workflow_instances_on_subject"
+    t.index ["subject_type", "subject_id"], name: "index_workflow_instances_on_subject_type_and_subject_id"
+    t.index ["workflow_definition_id"], name: "index_workflow_instances_on_workflow_definition_id"
+  end
+
+  create_table "workflow_steps", force: :cascade do |t|
+    t.bigint "workflow_instance_id", null: false
+    t.string "step_name", null: false
+    t.string "status", default: "pending", null: false
+    t.string "assigned_to_type"
+    t.bigint "assigned_to_id"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.jsonb "data", default: {}
+    t.text "comment"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assigned_to_type", "assigned_to_id"], name: "index_workflow_steps_on_assigned_to"
+    t.index ["assigned_to_type", "assigned_to_id"], name: "index_workflow_steps_on_assigned_to_type_and_assigned_to_id"
+    t.index ["status"], name: "index_workflow_steps_on_status"
+    t.index ["workflow_instance_id"], name: "index_workflow_steps_on_workflow_instance_id"
+  end
+
+  create_table "xero_accounts", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "account_type"
+    t.string "tax_type"
+    t.text "description"
+    t.boolean "active", default: true
+    t.string "account_class"
+    t.boolean "system_account", default: false
+    t.boolean "enable_payments_to_account", default: false
+    t.boolean "show_in_expense_claims", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_type"], name: "index_xero_accounts_on_account_type"
+    t.index ["active"], name: "index_xero_accounts_on_active"
+    t.index ["code"], name: "index_xero_accounts_on_code", unique: true
+  end
+
+  create_table "xero_credentials", force: :cascade do |t|
+    t.string "access_token", null: false
+    t.string "refresh_token", null: false
+    t.datetime "expires_at", null: false
+    t.string "tenant_id", null: false
+    t.string "tenant_name"
+    t.string "tenant_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id"], name: "index_xero_credentials_on_tenant_id"
+  end
+
+  create_table "xero_tax_rates", force: :cascade do |t|
+    t.string "code"
+    t.string "name"
+    t.decimal "rate"
+    t.boolean "active"
+    t.string "display_rate"
+    t.string "tax_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  add_foreign_key "account_mappings", "accounting_integrations"
+  add_foreign_key "accounting_integrations", "contacts"
+  add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "agent_definitions", "users", column: "created_by_id"
+  add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
+  add_foreign_key "agent_definitions", "users", column: "updated_by_id"
+  add_foreign_key "bank_accounts", "companies"
+  add_foreign_key "chat_messages", "jobs"
+  add_foreign_key "chat_messages", "projects"
+  add_foreign_key "chat_messages", "users"
+  add_foreign_key "columns", "tables"
+  add_foreign_key "company_activities", "companies"
+  add_foreign_key "company_activities", "users"
+  add_foreign_key "company_compliance_items", "companies"
+  add_foreign_key "company_directors", "companies"
+  add_foreign_key "company_directors", "contacts"
+  add_foreign_key "company_documents", "companies"
+  add_foreign_key "company_xero_accounts", "company_xero_connections"
+  add_foreign_key "company_xero_connections", "companies"
+  add_foreign_key "contact_activities", "contacts"
+  add_foreign_key "contact_addresses", "contacts"
+  add_foreign_key "contact_group_memberships", "contact_groups"
+  add_foreign_key "contact_group_memberships", "contacts"
+  add_foreign_key "contact_persons", "contacts"
+  add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
+  add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
+  add_foreign_key "contacts", "contacts", column: "primary_company_id"
+  add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "emails", "jobs"
+  add_foreign_key "emails", "users"
+  add_foreign_key "estimate_line_items", "estimates"
+  add_foreign_key "estimate_reviews", "estimates"
+  add_foreign_key "estimates", "jobs"
+  add_foreign_key "financial_transactions", "companies"
+  add_foreign_key "financial_transactions", "jobs"
+  add_foreign_key "financial_transactions", "users"
+  add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
+  add_foreign_key "folder_template_items", "folder_templates"
+  add_foreign_key "folder_templates", "users", column: "created_by_id"
+  add_foreign_key "grok_plans", "users"
+  add_foreign_key "job_contacts", "contacts"
+  add_foreign_key "job_contacts", "jobs"
+  add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_people", "contacts"
+  add_foreign_key "job_people", "jobs"
+  add_foreign_key "job_status_stages", "job_stages"
+  add_foreign_key "job_status_stages", "job_status"
+  add_foreign_key "job_status_stages", "job_types"
+  add_foreign_key "job_type_statuses", "job_status"
+  add_foreign_key "job_type_statuses", "job_types"
+  add_foreign_key "jobs", "designs"
+  add_foreign_key "jobs", "job_stages"
+  add_foreign_key "jobs", "job_status", on_delete: :nullify
+  add_foreign_key "jobs", "job_types", on_delete: :nullify
+  add_foreign_key "kudos_events", "purchase_orders"
+  add_foreign_key "kudos_events", "quote_responses"
+  add_foreign_key "kudos_events", "subcontractor_accounts"
+  add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
+  add_foreign_key "maintenance_requests", "jobs"
+  add_foreign_key "maintenance_requests", "purchase_orders"
+  add_foreign_key "maintenance_requests", "users", column: "reported_by_user_id"
+  add_foreign_key "meeting_agenda_items", "meetings"
+  add_foreign_key "meeting_agenda_items", "project_tasks", column: "created_task_id"
+  add_foreign_key "meeting_agenda_items", "users", column: "presenter_id"
+  add_foreign_key "meeting_participants", "contacts"
+  add_foreign_key "meeting_participants", "meetings"
+  add_foreign_key "meeting_participants", "users"
+  add_foreign_key "meetings", "jobs"
+  add_foreign_key "meetings", "meeting_types"
+  add_foreign_key "meetings", "users", column: "created_by_id"
+  add_foreign_key "one_drive_credentials", "jobs"
+  add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
+  add_foreign_key "pay_now_requests", "contacts"
+  add_foreign_key "pay_now_requests", "pay_now_weekly_limits"
+  add_foreign_key "pay_now_requests", "payments"
+  add_foreign_key "pay_now_requests", "portal_users", column: "requested_by_portal_user_id"
+  add_foreign_key "pay_now_requests", "purchase_orders"
+  add_foreign_key "pay_now_requests", "users", column: "approved_by_builder_id"
+  add_foreign_key "pay_now_requests", "users", column: "reviewed_by_supervisor_id"
+  add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
+  add_foreign_key "payments", "purchase_orders"
+  add_foreign_key "payments", "users", column: "created_by_id"
+  add_foreign_key "portal_access_logs", "portal_users"
+  add_foreign_key "portal_users", "contacts"
+  add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
+  add_foreign_key "price_histories", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "pricebook", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
+  add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
+  add_foreign_key "pricebook", "pricebook_categories", column: "category_id", on_delete: :nullify
+  add_foreign_key "project_task_checklist_items", "project_tasks"
+  add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
+  add_foreign_key "project_tasks", "projects"
+  add_foreign_key "project_tasks", "purchase_orders"
+  add_foreign_key "project_tasks", "schedule_template_rows"
+  add_foreign_key "project_tasks", "task_templates"
+  add_foreign_key "project_tasks", "users", column: "assigned_to_id"
+  add_foreign_key "project_tasks", "users", column: "supervisor_checked_by_id"
+  add_foreign_key "projects", "jobs"
+  add_foreign_key "projects", "users", column: "project_manager_id"
+  add_foreign_key "purchase_order_documents", "document_tasks"
+  add_foreign_key "purchase_order_documents", "purchase_orders"
+  add_foreign_key "purchase_order_line_items", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "purchase_order_line_items", "purchase_orders"
+  add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
+  add_foreign_key "purchase_orders", "estimates"
+  add_foreign_key "purchase_orders", "jobs"
+  add_foreign_key "purchase_orders", "quote_responses"
+  add_foreign_key "quote_request_contacts", "contacts"
+  add_foreign_key "quote_request_contacts", "quote_requests"
+  add_foreign_key "quote_requests", "jobs"
+  add_foreign_key "quote_requests", "quote_responses", column: "selected_quote_response_id"
+  add_foreign_key "quote_requests", "users", column: "created_by_id"
+  add_foreign_key "quote_responses", "contacts"
+  add_foreign_key "quote_responses", "portal_users", column: "responded_by_portal_user_id"
+  add_foreign_key "quote_responses", "quote_requests"
+  add_foreign_key "rain_logs", "jobs"
+  add_foreign_key "rain_logs", "users", column: "created_by_user_id"
+  add_foreign_key "role_permissions", "permissions"
+  add_foreign_key "schedule_task_checklist_items", "schedule_tasks"
+  add_foreign_key "schedule_tasks", "jobs"
+  add_foreign_key "schedule_tasks", "purchase_orders"
+  add_foreign_key "schedule_template_row_audits", "schedule_template_rows"
+  add_foreign_key "schedule_template_row_audits", "users"
+  add_foreign_key "schedule_template_rows", "schedule_templates"
+  add_foreign_key "schedule_template_rows", "suppliers"
+  add_foreign_key "schedule_template_rows", "users", column: "assigned_user_id"
+  add_foreign_key "schedule_templates", "users", column: "created_by_id"
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "predecessor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "successor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_dependencies", "users", column: "deleted_by_id", on_delete: :nullify
+  add_foreign_key "sm_hold_logs", "jobs", on_delete: :cascade
+  add_foreign_key "sm_hold_logs", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
+  add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade
+  add_foreign_key "sm_hold_logs", "users", column: "hold_released_by_id", on_delete: :nullify
+  add_foreign_key "sm_hold_logs", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_resource_allocations", "sm_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "sm_resource_allocations", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_resources", "contacts", on_delete: :nullify
+  add_foreign_key "sm_resources", "users", on_delete: :nullify
+  add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
+  add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_settings", "schedule_templates", column: "default_template_id", on_delete: :nullify
+  add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
+  add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
+  add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
+  add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
+  add_foreign_key "sm_tasks", "schedule_template_rows", column: "template_row_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "assigned_user_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "hold_released_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "sm_template_rows", "contacts", column: "supplier_id"
+  add_foreign_key "sm_template_rows", "sm_template_rows", column: "parent_row_id"
+  add_foreign_key "sm_template_rows", "sm_templates"
+  add_foreign_key "sm_template_rows", "supervisor_checklist_templates", column: "checklist_id"
+  add_foreign_key "sm_template_rows", "users", column: "created_by_id"
+  add_foreign_key "sm_template_rows", "users", column: "updated_by_id"
+  add_foreign_key "sm_templates", "users", column: "created_by_id"
+  add_foreign_key "sm_templates", "users", column: "updated_by_id"
+  add_foreign_key "sm_time_entries", "sm_resource_allocations", column: "allocation_id", on_delete: :nullify
+  add_foreign_key "sm_time_entries", "sm_resources", column: "resource_id", on_delete: :cascade
+  add_foreign_key "sm_time_entries", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_time_entries", "users", column: "approved_by_id", on_delete: :nullify
+  add_foreign_key "sm_time_entries", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_working_drawing_pages", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sms_messages", "contacts"
+  add_foreign_key "sms_messages", "users"
+  add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_failed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "subcontractor_accounts", "contacts", column: "invited_by_contact_id"
+  add_foreign_key "subcontractor_accounts", "portal_users"
+  add_foreign_key "subcontractor_invoices", "accounting_integrations"
+  add_foreign_key "subcontractor_invoices", "contacts"
+  add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "supplier_contacts", "contacts"
+  add_foreign_key "supplier_contacts", "suppliers"
+  add_foreign_key "supplier_ratings", "contacts"
+  add_foreign_key "supplier_ratings", "jobs"
+  add_foreign_key "supplier_ratings", "purchase_orders"
+  add_foreign_key "supplier_ratings", "users", column: "rated_by_user_id"
+  add_foreign_key "task_dependencies", "project_tasks", column: "predecessor_task_id"
+  add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
+  add_foreign_key "task_updates", "project_tasks"
+  add_foreign_key "task_updates", "users"
+  add_foreign_key "user_permissions", "permissions"
+  add_foreign_key "user_permissions", "users"
+  add_foreign_key "whs_action_items", "project_tasks"
+  add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
+  add_foreign_key "whs_action_items", "users", column: "created_by_id"
+  add_foreign_key "whs_incidents", "jobs"
+  add_foreign_key "whs_incidents", "users", column: "investigated_by_user_id"
+  add_foreign_key "whs_incidents", "users", column: "reported_by_user_id"
+  add_foreign_key "whs_inductions", "jobs"
+  add_foreign_key "whs_inductions", "users"
+  add_foreign_key "whs_inductions", "users", column: "conducted_by_user_id"
+  add_foreign_key "whs_inspection_items", "whs_inspections"
+  add_foreign_key "whs_inspections", "jobs"
+  add_foreign_key "whs_inspections", "meetings"
+  add_foreign_key "whs_inspections", "users", column: "created_by_id"
+  add_foreign_key "whs_inspections", "users", column: "inspector_user_id"
+  add_foreign_key "whs_swms", "jobs"
+  add_foreign_key "whs_swms", "users", column: "approved_by_id"
+  add_foreign_key "whs_swms", "users", column: "created_by_id"
+  add_foreign_key "whs_swms", "whs_swms", column: "superseded_by_id"
+  add_foreign_key "whs_swms_acknowledgments", "users"
+  add_foreign_key "whs_swms_acknowledgments", "whs_swms"
+  add_foreign_key "whs_swms_controls", "whs_swms_hazards"
+  add_foreign_key "whs_swms_hazards", "whs_swms"
+  add_foreign_key "workflow_instances", "workflow_definitions"
+  add_foreign_key "workflow_steps", "workflow_instances"
+end
