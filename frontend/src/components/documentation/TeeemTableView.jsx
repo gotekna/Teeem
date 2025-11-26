@@ -5486,57 +5486,6 @@ export default function TeeemTableView({
                           </>
                         ) : (
                           <>
-                            {/* Update View Button - appears when active view has been modified */}
-                            {(() => {
-                              if (hideUpdateViewButton) return null  // Skip if disabled via prop
-                              if (!activeViewId) return null
-                              const activeView = savedFilters.find(v => v.id === activeViewId)
-                              if (!activeView) return null
-
-                              // Check if filters or columns have changed
-                              // Normalize both current and saved filters to include default operator
-                              const normalizeFilter = (f) => ({
-                                column: f.column,
-                                value: f.value,
-                                operator: f.operator || '=',
-                                label: f.label
-                              })
-                              const currentFilters = JSON.stringify(cascadeFilters.map(normalizeFilter))
-                              const savedFiltersStr = JSON.stringify(activeView.filters.map(normalizeFilter))
-                              const filtersChanged = currentFilters !== savedFiltersStr
-                              const columnsChanged = activeView.visibleColumns && JSON.stringify(visibleColumns) !== JSON.stringify(activeView.visibleColumns)
-                              const groupByChanged = groupByColumn !== (activeView.groupByColumn || null)
-
-                              if (!filtersChanged && !columnsChanged && !groupByChanged) return null
-
-                              return (
-                                <>
-                                  <button
-                                    onClick={async () => {
-                                      const activeView = savedFilters.find(v => v.id === activeViewId)
-                                      if (activeView) {
-                                        await updateView(activeViewId, {
-                                          ...activeView,
-                                          filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                          filterGroups: [...filterGroups],
-                                          interGroupLogic,
-                                          visibleColumns: { ...visibleColumns },
-                                          columnOrder: visibilityColumnOrder,
-                                          showFilters,
-                                          sortColumns: [...sortColumns],
-                                          groupByColumn
-                                        })
-                                      }
-                                    }}
-                                    className="text-xs px-3 py-1.5 bg-gradient-to-r from-yellow-400 to-orange-400 hover:from-yellow-500 hover:to-orange-500 text-white font-bold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 animate-pulse"
-                                    title="Save changes to this view"
-                                  >
-                                    💾 Update "{activeView.name}"
-                                  </button>
-                                  <span className="text-xs opacity-75">You have unsaved changes</span>
-                                </>
-                              )
-                            })()}
 
                             <button
                               onClick={() => {
