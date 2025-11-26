@@ -248,17 +248,17 @@ export default function TrapidTableView({
   // Search term for multiple_lookups checkbox list
   const [lookupSearch, setLookupSearch] = useState('')
 
-  // Fetch users from API
+  // Fetch users from API (for user columns and view ownership)
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const response = await fetch('/api/v1/users')
-        if (response.ok) {
-          const usersData = await response.json()
-          console.log('✅ Loaded users for dropdown:', usersData.length, 'users')
-          setUsers(usersData)
-        } else {
-          console.debug('Users unavailable, status:', response.status)
+        const response = await api.get('/api/v1/users')
+        if (response && Array.isArray(response)) {
+          console.log('✅ Loaded users for dropdown:', response.length, 'users')
+          setUsers(response)
+        } else if (response?.users) {
+          console.log('✅ Loaded users for dropdown:', response.users.length, 'users')
+          setUsers(response.users)
         }
       } catch (error) {
         console.debug('Users unavailable:', error?.message || 'Unknown error')
