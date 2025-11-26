@@ -6777,9 +6777,6 @@ export default function TeeemTableView({
                           })
                         })()}
                       </div>
-                      <div className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
-                        👁 Show/hide columns for the current view
-                      </div>
                     </div>
                   </div>
                   {/* END MAIN GRID */}
