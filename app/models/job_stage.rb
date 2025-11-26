@@ -1,4 +1,5 @@
 class JobStage < ApplicationRecord
+  belongs_to :job_status, optional: true
   has_many :jobs
   has_many :job_status_stages, dependent: :destroy
   has_many :job_statuses, through: :job_status_stages
