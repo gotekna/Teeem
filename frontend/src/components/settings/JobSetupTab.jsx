@@ -377,7 +377,7 @@ export default function JobSetupTab() {
       setLoading(true)
       const [typesRes, statusesRes, stagesRes] = await Promise.all([
         api.get('/api/v1/job_types'),
-        api.get('/api/v1/job_statuses'),
+        api.get('/api/v1/job_status'),
         api.get('/api/v1/job_stages')
       ])
       setJobTypes(typesRes.job_types || [])
@@ -477,7 +477,7 @@ export default function JobSetupTab() {
     setJobStatuses(reordered)
 
     try {
-      const res = await api.post('/api/v1/job_statuses/reorder', { job_status_ids: ids })
+      const res = await api.post('/api/v1/job_status/reorder', { job_status_ids: ids })
       setJobStatuses(res.job_statuses || reordered)
     } catch (err) {
       console.error('Failed to reorder job statuses:', err)
@@ -487,7 +487,7 @@ export default function JobSetupTab() {
 
   const handleUpdateStatus = async (id, data) => {
     try {
-      const res = await api.patch(`/api/v1/job_statuses/${id}`, { job_status: data })
+      const res = await api.patch(`/api/v1/job_status/${id}`, { job_status: data })
       setJobStatuses(prev => prev.map(s => s.id === id ? res.job_status : s))
     } catch (err) {
       console.error('Failed to update job status:', err)
@@ -498,7 +498,7 @@ export default function JobSetupTab() {
   const handleDeleteStatus = async (id) => {
     if (!confirm('Are you sure you want to delete this job status?')) return
     try {
-      await api.delete(`/api/v1/job_statuses/${id}`)
+      await api.delete(`/api/v1/job_status/${id}`)
       setJobStatuses(prev => prev.filter(s => s.id !== id))
     } catch (err) {
       console.error('Failed to delete job status:', err)
@@ -508,7 +508,7 @@ export default function JobSetupTab() {
 
   const handleCreateStatus = async (data) => {
     try {
-      const res = await api.post('/api/v1/job_statuses', { job_status: data })
+      const res = await api.post('/api/v1/job_status', { job_status: data })
       setJobStatuses(prev => [...prev, res.job_status])
     } catch (err) {
       console.error('Failed to create job status:', err)

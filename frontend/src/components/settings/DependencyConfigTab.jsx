@@ -50,7 +50,7 @@ export default function DependencyConfigTab() {
       setLoading(true)
       const [typesRes, statusesRes, stagesRes] = await Promise.all([
         api.get('/api/v1/job_types'),
-        api.get('/api/v1/job_statuses'),
+        api.get('/api/v1/job_status'),
         api.get('/api/v1/job_stages')
       ])
       setAllTypes(typesRes.job_types || [])

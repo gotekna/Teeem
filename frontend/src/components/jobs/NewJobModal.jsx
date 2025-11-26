@@ -119,7 +119,7 @@ export default function NewJobModal({ isOpen, onClose, onSuccess }) {
     try {
       const [typesRes, statusesRes, stagesRes] = await Promise.all([
         api.get('/api/v1/job_types'),
-        api.get('/api/v1/job_statuses'),
+        api.get('/api/v1/job_status'),
         api.get('/api/v1/job_stages')
       ])
       setJobTypes(typesRes.job_types || [])
