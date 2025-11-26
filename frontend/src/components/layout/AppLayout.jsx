@@ -1529,6 +1529,165 @@ export default function AppLayout({ children }) {
                       )
                     }
 
+                    // Special handling for All Contacts - make it expandable with grouping
+                    if (item.name === 'All Contacts') {
+                      return (
+                        <li key={item.name}>
+                          {/* All Contacts header with expand toggle */}
+                          <div className="flex items-center">
+                            <Link
+                              to={item.href}
+                              title={sidebarCollapsed ? item.name : undefined}
+                              className={classNames(
+                                current
+                                  ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold flex-1',
+                                sidebarCollapsed && 'justify-center'
+                              )}
+                            >
+                              <item.icon
+                                aria-hidden="true"
+                                className={classNames(
+                                  current
+                                    ? 'text-indigo-600 dark:text-white'
+                                    : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                  'size-6 shrink-0',
+                                )}
+                              />
+                              {!sidebarCollapsed && item.name}
+                            </Link>
+                            {!sidebarCollapsed && contacts.length > 0 && (
+                              <button
+                                onClick={toggleContactsExpanded}
+                                className="p-1 mr-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded transition-colors"
+                              >
+                                <ChevronRightIcon
+                                  className={classNames(
+                                    'h-4 w-4 text-gray-400 transition-transform',
+                                    contactsExpanded && 'rotate-90'
+                                  )}
+                                />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Expandable contacts list */}
+                          {!sidebarCollapsed && contactsExpanded && contacts.length > 0 && (
+                            <ul className="mt-1 space-y-0.5">
+                              {/* Search and Type button */}
+                              <li className="px-2 pb-1 flex gap-1">
+                                <div className="relative flex-1">
+                                  <MagnifyingGlassIcon className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                                  <input
+                                    type="text"
+                                    placeholder="Search contacts..."
+                                    value={contactSearchQuery}
+                                    onChange={(e) => setContactSearchQuery(e.target.value)}
+                                    className="w-full pl-7 pr-2 py-1 text-xs border border-gray-200 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={toggleGroupByContactType}
+                                  className={classNames(
+                                    'px-1.5 py-1 text-xs rounded border transition-colors cursor-pointer',
+                                    groupByContactType
+                                      ? 'bg-indigo-100 border-indigo-300 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-300'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-700'
+                                  )}
+                                  title={groupByContactType ? 'Grouped by Type' : 'Group by Type'}
+                                >
+                                  Type
+                                </button>
+                              </li>
+
+                              {/* List View */}
+                              {groupedContacts.mode === 'list' && groupedContacts.items
+                                .filter(contact => {
+                                  if (!contactSearchQuery) return true
+                                  const query = contactSearchQuery.toLowerCase()
+                                  return (contact.name || '').toLowerCase().includes(query)
+                                })
+                                .slice(0, 20)
+                                .map((contact) => (
+                                <li key={contact.id}>
+                                  <Link
+                                    to={`/tables/214/contacts/${contact.id}`}
+                                    className={classNames(
+                                      location.pathname.startsWith(`/tables/214/contacts/${contact.id}`)
+                                        ? 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                      'px-4 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                    )}
+                                  >
+                                    {contact.name || `Contact #${contact.id}`}
+                                  </Link>
+                                </li>
+                              ))}
+
+                              {/* Type Grouped View */}
+                              {groupedContacts.mode === 'type' && Object.entries(groupedContacts.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([typeName, contactsList]) => {
+                                  const filteredContacts = contactsList.filter(contact => {
+                                    if (!contactSearchQuery) return true
+                                    const query = contactSearchQuery.toLowerCase()
+                                    return (contact.name || '').toLowerCase().includes(query)
+                                  })
+                                  if (filteredContacts.length === 0) return null
+
+                                  return (
+                                    <li key={typeName}>
+                                      {/* Type group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleContactTypeGroup(typeName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedContactTypeGroups[typeName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                          {typeName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredContacts.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Contacts under this type */}
+                                      {(expandedContactTypeGroups[typeName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredContacts.slice(0, 20).map((contact) => (
+                                            <li key={contact.id}>
+                                              <Link
+                                                to={`/tables/214/contacts/${contact.id}`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/tables/214/contacts/${contact.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                )}
+                                              >
+                                                {contact.name || `Contact #${contact.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+                            </ul>
+                          )}
+                        </li>
+                      )
+                    }
+
                     // Regular navigation item
                     return (
                       <li key={item.name}>

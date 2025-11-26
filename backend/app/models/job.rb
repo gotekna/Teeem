@@ -10,6 +10,7 @@ class Job < ApplicationRecord
   belongs_to :design, optional: true
   belongs_to :job_type, optional: true
   belongs_to :job_status, optional: true
+  belongs_to :job_stage, optional: true
   has_many :chat_messages, dependent: :nullify
   has_many :emails, dependent: :nullify
   has_many :job_documentation_tabs, dependent: :destroy
@@ -36,6 +37,7 @@ class Job < ApplicationRecord
   validates :site_supervisor_name, presence: true
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
+  validate :stage_must_be_valid_for_type_and_status
 
   # Callbacks
   after_create :create_documentation_tabs_from_categories
@@ -149,6 +151,22 @@ class Job < ApplicationRecord
         sequence_order: category.sequence_order,
         is_active: true
       )
+    end
+  end
+
+  # Validate stage is valid for current type+status
+  def stage_must_be_valid_for_type_and_status
+    return if job_stage_id.nil?
+    return if job_type_id.nil? || job_status_id.nil?
+
+    valid_stage = JobStatusStage.exists?(
+      job_type_id: job_type_id,
+      job_status_id: job_status_id,
+      job_stage_id: job_stage_id
+    )
+
+    unless valid_stage
+      errors.add(:job_stage, "is not valid for this job type and status")
     end
   end
 end

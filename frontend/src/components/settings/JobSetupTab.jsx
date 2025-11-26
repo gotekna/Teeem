@@ -356,6 +356,7 @@ function CascadeSortConfig({ config, onUpdate }) {
 export default function JobSetupTab() {
   const [jobTypes, setJobTypes] = useState([])
   const [jobStatuses, setJobStatuses] = useState([])
+  const [jobStages, setJobStages] = useState([])
   const [cascadeConfig, setCascadeConfig] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -367,12 +368,14 @@ export default function JobSetupTab() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [typesRes, statusesRes] = await Promise.all([
+      const [typesRes, statusesRes, stagesRes] = await Promise.all([
         api.get('/api/v1/job_types'),
-        api.get('/api/v1/job_statuses')
+        api.get('/api/v1/job_statuses'),
+        api.get('/api/v1/job_stages')
       ])
       setJobTypes(typesRes.job_types || [])
       setJobStatuses(statusesRes.job_statuses || [])
+      setJobStages(stagesRes.job_stages || [])
 
       // Load cascade config from company settings or use default
       try {
@@ -504,6 +507,52 @@ export default function JobSetupTab() {
     }
   }
 
+  // Job Stages handlers
+  const handleReorderStages = async (ids) => {
+    // Optimistic update
+    const reordered = ids.map(id => jobStages.find(s => s.id === id))
+    setJobStages(reordered)
+
+    try {
+      const res = await api.post('/api/v1/job_stages/reorder', { job_stage_ids: ids })
+      setJobStages(res.job_stages || reordered)
+    } catch (err) {
+      console.error('Failed to reorder job stages:', err)
+      loadData() // Reload on error
+    }
+  }
+
+  const handleUpdateStage = async (id, data) => {
+    try {
+      const res = await api.patch(`/api/v1/job_stages/${id}`, { job_stage: data })
+      setJobStages(prev => prev.map(s => s.id === id ? res.job_stage : s))
+    } catch (err) {
+      console.error('Failed to update job stage:', err)
+      alert(err.message || 'Failed to update')
+    }
+  }
+
+  const handleDeleteStage = async (id) => {
+    if (!confirm('Are you sure you want to delete this job stage?')) return
+    try {
+      await api.delete(`/api/v1/job_stages/${id}`)
+      setJobStages(prev => prev.filter(s => s.id !== id))
+    } catch (err) {
+      console.error('Failed to delete job stage:', err)
+      alert(err.message || 'Failed to delete')
+    }
+  }
+
+  const handleCreateStage = async (data) => {
+    try {
+      const res = await api.post('/api/v1/job_stages', { job_stage: data })
+      setJobStages(prev => [...prev, res.job_stage])
+    } catch (err) {
+      console.error('Failed to create job stage:', err)
+      alert(err.message || 'Failed to create')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -538,7 +587,7 @@ export default function JobSetupTab() {
         onUpdate={handleCascadeConfigUpdate}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <SortableList
           items={jobTypes}
           onReorder={handleReorderTypes}
@@ -557,6 +606,17 @@ export default function JobSetupTab() {
           onCreate={handleCreateStatus}
           title="Job Statuses"
           description="Workflow stages for jobs (Enquiry to Archived)"
+          colorField={true}
+        />
+
+        <SortableList
+          items={jobStages}
+          onReorder={handleReorderStages}
+          onUpdate={handleUpdateStage}
+          onDelete={handleDeleteStage}
+          onCreate={handleCreateStage}
+          title="Job Stages"
+          description="Sub-steps within statuses (Deposit, Slab, Frame, etc.)"
           colorField={true}
         />
       </div>
