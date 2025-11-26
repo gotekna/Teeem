@@ -6,6 +6,126 @@ import {
   Bars3Icon,
   CheckIcon
 } from '@heroicons/react/24/outline'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+function SortableStatusItem({ status, isSelected, onSelect, onRemove, onPositionChange }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: status.job_type_status_id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 1 : 0
+  }
+
+  const [editingPosition, setEditingPosition] = useState(false)
+  const [positionValue, setPositionValue] = useState(status.position)
+
+  const handlePositionSubmit = () => {
+    const newPosition = parseInt(positionValue, 10)
+    if (!isNaN(newPosition) && newPosition !== status.position) {
+      onPositionChange(status.job_type_status_id, newPosition)
+    }
+    setEditingPosition(false)
+  }
+
+  const handlePositionKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handlePositionSubmit()
+    } else if (e.key === 'Escape') {
+      setPositionValue(status.position)
+      setEditingPosition(false)
+    }
+  }
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
+        isSelected
+          ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700'
+          : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+      }`}
+    >
+      <div className="flex items-center gap-2 flex-1">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          <Bars3Icon className="h-4 w-4" />
+        </button>
+        {editingPosition ? (
+          <input
+            type="number"
+            value={positionValue}
+            onChange={(e) => setPositionValue(e.target.value)}
+            onBlur={handlePositionSubmit}
+            onKeyDown={handlePositionKeyDown}
+            className="w-12 px-1 py-0.5 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            autoFocus
+          />
+        ) : (
+          <button
+            onClick={() => setEditingPosition(true)}
+            className="w-8 h-6 text-xs font-mono text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+            title="Click to edit sort order"
+          >
+            {status.position}
+          </button>
+        )}
+        <button
+          onClick={() => onSelect(status)}
+          className="flex-1 text-left flex items-center gap-2"
+        >
+          <span className={`w-2 h-2 rounded-sm ${
+            status.color === 'gray' ? 'bg-gray-400' :
+            status.color === 'yellow' ? 'bg-yellow-400' :
+            status.color === 'orange' ? 'bg-orange-400' :
+            status.color === 'blue' ? 'bg-blue-400' :
+            status.color === 'purple' ? 'bg-purple-400' :
+            status.color === 'indigo' ? 'bg-indigo-400' :
+            status.color === 'green' ? 'bg-green-400' :
+            status.color === 'teal' ? 'bg-teal-400' :
+            status.color === 'slate' ? 'bg-slate-400' : 'bg-gray-400'
+          }`} />
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            {status.name}
+          </span>
+        </button>
+      </div>
+      <button
+        onClick={() => onRemove(status.job_type_status_id)}
+        className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+      >
+        <TrashIcon className="h-4 w-4" />
+      </button>
+    </li>
+  )
+}
 
 export default function DependencyConfigTab() {
   // All available types, statuses, and stages
@@ -142,6 +262,76 @@ export default function DependencyConfigTab() {
     }
   }
 
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  )
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = typeStatuses.findIndex(s => s.job_type_status_id === active.id)
+    const newIndex = typeStatuses.findIndex(s => s.job_type_status_id === over.id)
+
+    const reordered = arrayMove(typeStatuses, oldIndex, newIndex)
+    setTypeStatuses(reordered)
+
+    // Save new order to backend
+    try {
+      await api.post(`/api/v1/job_types/${selectedType.id}/statuses/reorder`, {
+        job_type_status_ids: reordered.map(s => s.job_type_status_id)
+      })
+      // Reload to get updated positions
+      await loadTypeStatuses(selectedType.id)
+    } catch (err) {
+      console.error('Failed to reorder statuses:', err)
+      // Reload to restore original order
+      await loadTypeStatuses(selectedType.id)
+    }
+  }
+
+  const handlePositionChange = async (jobTypeStatusId, newPosition) => {
+    // Find current status and calculate new order
+    const currentIndex = typeStatuses.findIndex(s => s.job_type_status_id === jobTypeStatusId)
+    if (currentIndex === -1) return
+
+    // Sort by position and find target index
+    const sorted = [...typeStatuses].sort((a, b) => a.position - b.position)
+    let targetIndex = sorted.findIndex(s => s.position >= newPosition)
+    if (targetIndex === -1) targetIndex = sorted.length
+
+    // Don't move if already at position
+    if (sorted[targetIndex]?.job_type_status_id === jobTypeStatusId) return
+
+    // Create reordered list
+    const currentStatus = typeStatuses[currentIndex]
+    const withoutCurrent = sorted.filter(s => s.job_type_status_id !== jobTypeStatusId)
+    const reordered = [
+      ...withoutCurrent.slice(0, targetIndex > currentIndex ? targetIndex - 1 : targetIndex),
+      currentStatus,
+      ...withoutCurrent.slice(targetIndex > currentIndex ? targetIndex - 1 : targetIndex)
+    ]
+
+    setTypeStatuses(reordered)
+
+    // Save new order to backend
+    try {
+      await api.post(`/api/v1/job_types/${selectedType.id}/statuses/reorder`, {
+        job_type_status_ids: reordered.map(s => s.job_type_status_id)
+      })
+      // Reload to get updated positions
+      await loadTypeStatuses(selectedType.id)
+    } catch (err) {
+      console.error('Failed to reorder statuses:', err)
+      // Reload to restore original order
+      await loadTypeStatuses(selectedType.id)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -209,7 +399,7 @@ export default function DependencyConfigTab() {
         {/* Middle Panel: Statuses for Selected Type */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-4">
-            Statuses {selectedType && `for ${selectedType.name}`}
+            Status {selectedType && `for ${selectedType.name}`}
           </h3>
           {!selectedType ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -222,44 +412,29 @@ export default function DependencyConfigTab() {
               </p>
 
               {/* Configured Statuses */}
-              <ul className="space-y-2 mb-4">
-                {typeStatuses.map((status) => (
-                  <li
-                    key={status.id}
-                    className={`flex items-center justify-between px-3 py-2 rounded-lg border transition-colors ${
-                      selectedStatus?.id === status.id
-                        ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700'
-                        : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <button
-                      onClick={() => setSelectedStatus(status)}
-                      className="flex-1 text-left flex items-center gap-2"
-                    >
-                      <span className={`w-2 h-2 rounded-sm ${
-                        status.color === 'gray' ? 'bg-gray-400' :
-                        status.color === 'yellow' ? 'bg-yellow-400' :
-                        status.color === 'orange' ? 'bg-orange-400' :
-                        status.color === 'blue' ? 'bg-blue-400' :
-                        status.color === 'purple' ? 'bg-purple-400' :
-                        status.color === 'indigo' ? 'bg-indigo-400' :
-                        status.color === 'green' ? 'bg-green-400' :
-                        status.color === 'teal' ? 'bg-teal-400' :
-                        status.color === 'slate' ? 'bg-slate-400' : 'bg-gray-400'
-                      }`} />
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {status.name}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => handleRemoveStatus(status.job_type_status_id)}
-                      className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                    >
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={typeStatuses.map(s => s.job_type_status_id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <ul className="space-y-2 mb-4">
+                    {typeStatuses.map((status) => (
+                      <SortableStatusItem
+                        key={status.job_type_status_id}
+                        status={status}
+                        isSelected={selectedStatus?.id === status.id}
+                        onSelect={setSelectedStatus}
+                        onRemove={handleRemoveStatus}
+                        onPositionChange={handlePositionChange}
+                      />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
 
               {/* Add Status Dropdown */}
               {availableStatuses.length > 0 && (

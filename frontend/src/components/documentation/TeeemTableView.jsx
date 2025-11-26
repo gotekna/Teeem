@@ -6077,7 +6077,6 @@ export default function TeeemTableView({
                           </button>
                         </div>
                       </div>
-<<<<<<< HEAD:frontend/src/components/documentation/TeeemTableView.jsx
                       {/* Column search input */}
                       <div className="relative mb-2">
                         <input
@@ -6099,8 +6098,6 @@ export default function TeeemTableView({
                           </button>
                         )}
                       </div>
-=======
->>>>>>> f3107a76 (chore: Add tableIdNumeric to FeaturesTrackingTable):frontend/src/components/documentation/TrapidTableView.jsx
                       {/* Column header row with Expand/Collapse All - only show when there are multiple groups */}
                       {(() => {
                         const uniqueGroups = new Set(
@@ -6113,10 +6110,6 @@ export default function TeeemTableView({
                         return (
                           <div className="flex items-center justify-between px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
                             <div className="flex items-center gap-2">
-<<<<<<< HEAD:frontend/src/components/documentation/TeeemTableView.jsx
-=======
-                              <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
->>>>>>> f3107a76 (chore: Add tableIdNumeric to FeaturesTrackingTable):frontend/src/components/documentation/TrapidTableView.jsx
                               <span>Column</span>
                             </div>
                             {hasMultipleGroups && (
@@ -6195,7 +6188,6 @@ export default function TeeemTableView({
                           const renderFlat = sortedGroups.length === 1
 
                           if (renderFlat) {
-<<<<<<< HEAD:frontend/src/components/documentation/TeeemTableView.jsx
                             // Flat list - show only selected tab's columns
                             let allCols = groupedColumns[sortedGroups[0]]
 
@@ -6224,20 +6216,6 @@ export default function TeeemTableView({
                               )
                             }
 
-=======
-                            // Flat list - no group headers, free drag-and-drop
-                            // Use visibilityColumnOrder if available, otherwise use alphabetical
-                            let allCols = groupedColumns[sortedGroups[0]]
-                            if (visibilityColumnOrder && visibilityColumnOrder.length > 0) {
-                              // Sort by visibilityColumnOrder, putting ordered cols first
-                              const orderMap = new Map(visibilityColumnOrder.map((key, idx) => [key, idx]))
-                              allCols = [...allCols].sort((a, b) => {
-                                const aOrder = orderMap.has(a.key) ? orderMap.get(a.key) : 9999
-                                const bOrder = orderMap.has(b.key) ? orderMap.get(b.key) : 9999
-                                return aOrder - bOrder
-                              })
-                            }
->>>>>>> f3107a76 (chore: Add tableIdNumeric to FeaturesTrackingTable):frontend/src/components/documentation/TrapidTableView.jsx
                             return (
                               <div
                                 className="grid gap-1.5"
