@@ -540,10 +540,11 @@ export default function FeaturesTrackingTable() {
             </div>
           </div>
 
-          {/* Fixed Header Row */}
-          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto">
+          {/* Unified Table with Fixed Header and Chapter Accordion */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto">
             <table className="min-w-full">
-              <thead>
+              {/* Fixed Header */}
+              <thead className="bg-gray-50 dark:bg-gray-900 sticky top-0 z-10">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '250px' }}>Feature</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '150px' }}>Detail 1</th>
@@ -582,222 +583,178 @@ export default function FeaturesTrackingTable() {
                   ))}
                 </tr>
               </thead>
-            </table>
-          </div>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {Object.entries(featuresByChapter)
+                  .sort(([a], [b]) => {
+                    // Extract chapter number from strings like "1. PRE-CONSTRUCTION" or "10. QUALITY"
+                    const numA = parseInt(a.match(/^\d+/)?.[0] || '999')
+                    const numB = parseInt(b.match(/^\d+/)?.[0] || '999')
+                    return numA - numB
+                  })
+                  .map(([chapter, chapterFeatures]) => {
+                    const isExpanded = expandedChapters[chapter]
+                    const chapterStats = {
+                      total: chapterFeatures.length,
+                      systemComplete: chapterFeatures.filter(f => f.system_complete).length,
+                      devChecked: chapterFeatures.filter(f => f.dev_checked).length,
+                      testerChecked: chapterFeatures.filter(f => f.tester_checked).length,
+                      uiChecked: chapterFeatures.filter(f => f.ui_checked).length,
+                      userChecked: chapterFeatures.filter(f => f.user_checked).length,
+                      fullyComplete: chapterFeatures.filter(f =>
+                        f.system_complete && f.dev_checked && f.tester_checked && f.ui_checked && f.user_checked
+                      ).length
+                    }
 
-          {/* Chapter Accordion */}
-          <div className="space-y-2">
-            {Object.entries(featuresByChapter)
-              .sort(([a], [b]) => {
-                // Extract chapter number from strings like "1. PRE-CONSTRUCTION" or "10. QUALITY"
-                const numA = parseInt(a.match(/^\d+/)?.[0] || '999')
-                const numB = parseInt(b.match(/^\d+/)?.[0] || '999')
-                return numA - numB
-              })
-              .map(([chapter, chapterFeatures]) => {
-              const isExpanded = expandedChapters[chapter]
-              const chapterStats = {
-                total: chapterFeatures.length,
-                systemComplete: chapterFeatures.filter(f => f.system_complete).length,
-                devChecked: chapterFeatures.filter(f => f.dev_checked).length,
-                testerChecked: chapterFeatures.filter(f => f.tester_checked).length,
-                uiChecked: chapterFeatures.filter(f => f.ui_checked).length,
-                userChecked: chapterFeatures.filter(f => f.user_checked).length,
-                fullyComplete: chapterFeatures.filter(f =>
-                  f.system_complete && f.dev_checked && f.tester_checked && f.ui_checked && f.user_checked
-                ).length
-              }
+                    // Calculate average progress percentage for chapter
+                    const avgProgress = chapterFeatures.length > 0
+                      ? Math.round(chapterFeatures.reduce((sum, f) => sum + (f.dev_progress || 0), 0) / chapterFeatures.length)
+                      : 0
 
-              // Calculate average progress percentage for chapter
-              const avgProgress = chapterFeatures.length > 0
-                ? Math.round(chapterFeatures.reduce((sum, f) => sum + (f.dev_progress || 0), 0) / chapterFeatures.length)
-                : 0
+                    // Calculate total columns: 10 fixed + competitors
+                    const totalColumns = 10 + sortedCompetitors.length
 
-              return (
-                <div key={chapter} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  {/* Chapter Header */}
-                  <button
-                    onClick={() => toggleChapter(chapter)}
-                    className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-750 transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      {isExpanded ? (
-                        <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                      ) : (
-                        <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-                      )}
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-left">
-                        {chapter} <span className="text-blue-600 dark:text-blue-400">({avgProgress}%)</span>
-                      </h3>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        ({chapterFeatures.length} features)
-                      </span>
-                    </div>
+                    return (
+                      <>
+                        {/* Chapter Header Row */}
+                        <tr
+                          key={`chapter-${chapter}`}
+                          onClick={() => toggleChapter(chapter)}
+                          className="bg-gray-100 dark:bg-gray-900 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 transition"
+                        >
+                          <td colSpan={totalColumns} className="px-4 py-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {isExpanded ? (
+                                  <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                ) : (
+                                  <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                                )}
+                                <span className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {chapter} <span className="text-blue-600 dark:text-blue-400">({avgProgress}%)</span>
+                                </span>
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                  ({chapterFeatures.length} features)
+                                </span>
+                              </div>
 
-                    {/* Chapter Progress Stats */}
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm text-gray-600 dark:text-gray-400">
-                        <span className="font-medium">{chapterStats.fullyComplete}</span> / {chapterStats.total} complete
-                      </div>
-                      <div className="flex gap-2">
-                        <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${chapterStats.systemComplete === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
-                          <span className="text-xs text-gray-500">Sys</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${chapterStats.devChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
-                          <span className="text-xs text-gray-500">Dev</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${chapterStats.testerChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
-                          <span className="text-xs text-gray-500">Test</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${chapterStats.uiChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
-                          <span className="text-xs text-gray-500">UI</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className={`w-2 h-2 rounded-full ${chapterStats.userChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
-                          <span className="text-xs text-gray-500">User</span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
+                              {/* Chapter Progress Stats */}
+                              <div className="flex items-center gap-4">
+                                <div className="text-sm text-gray-600 dark:text-gray-400">
+                                  <span className="font-medium">{chapterStats.fullyComplete}</span> / {chapterStats.total} complete
+                                </div>
+                                <div className="flex gap-2">
+                                  <div className="flex items-center gap-1">
+                                    <div className={`w-2 h-2 rounded-full ${chapterStats.systemComplete === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    <span className="text-xs text-gray-500">Sys</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <div className={`w-2 h-2 rounded-full ${chapterStats.devChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    <span className="text-xs text-gray-500">Dev</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <div className={`w-2 h-2 rounded-full ${chapterStats.testerChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    <span className="text-xs text-gray-500">Test</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <div className={`w-2 h-2 rounded-full ${chapterStats.uiChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    <span className="text-xs text-gray-500">UI</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <div className={`w-2 h-2 rounded-full ${chapterStats.userChecked === chapterStats.total ? 'bg-green-500' : 'bg-gray-300'}`} />
+                                    <span className="text-xs text-gray-500">User</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
 
-                  {/* Chapter Features Table */}
-                  {isExpanded && (
-                    <div className="border-t border-gray-200 dark:border-gray-700">
-                      <div className="overflow-x-auto overflow-y-auto max-h-[600px]" style={{
-                        scrollbarWidth: 'thin',
-                        scrollbarColor: '#CBD5E0 #F7FAFC'
-                      }}>
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                          <thead className="bg-gray-50 dark:bg-gray-900">
-                            <tr>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Feature</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Detail 1</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Detail 2</th>
-                              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Detail 3</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Progress</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">System</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Dev</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Tester</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">UI</th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">User</th>
-                              {sortedCompetitors.map((competitor, index) => (
-                                <th
-                                  key={competitor.key}
-                                  className={`px-3 py-3 text-center text-xs font-medium uppercase ${
-                                    competitor.isTrapid
-                                      ? 'text-blue-600 dark:text-blue-400 font-bold'
-                                      : 'text-gray-500 dark:text-gray-400'
-                                  }`}
+                        {/* Feature Rows (when expanded) */}
+                        {isExpanded && chapterFeatures.map((feature) => (
+                          <tr key={feature.id} className="hover:bg-gray-50 dark:hover:bg-gray-750 bg-white dark:bg-gray-800">
+                            <td className="px-6 py-3 text-sm font-medium text-gray-900 dark:text-gray-100" style={{ minWidth: '250px' }}>{feature.feature_name}</td>
+                            <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400" style={{ minWidth: '150px' }}>{feature.detail_point_1}</td>
+                            <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400" style={{ minWidth: '150px' }}>{feature.detail_point_2}</td>
+                            <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400" style={{ minWidth: '150px' }}>{feature.detail_point_3}</td>
+                            <td className="px-4 py-3 text-center" style={{ minWidth: '100px' }}>
+                              <div className="flex items-center justify-center gap-2">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  value={feature.dev_progress || 0}
+                                  onChange={(e) => {
+                                    const value = Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
+                                    handleEdit({ ...feature, dev_progress: value })
+                                  }}
+                                  className="w-14 px-2 py-1 text-center text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                />
+                                <span className="text-xs text-gray-500">%</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center" style={{ minWidth: '70px' }}>
+                              <input
+                                type="checkbox"
+                                checked={feature.system_complete}
+                                onChange={(e) => handleEdit({ ...feature, system_complete: e.target.checked })}
+                                className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center" style={{ minWidth: '60px' }}>
+                              <input
+                                type="checkbox"
+                                checked={feature.dev_checked}
+                                onChange={(e) => handleEdit({ ...feature, dev_checked: e.target.checked })}
+                                className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center" style={{ minWidth: '60px' }}>
+                              <input
+                                type="checkbox"
+                                checked={feature.tester_checked}
+                                onChange={(e) => handleEdit({ ...feature, tester_checked: e.target.checked })}
+                                className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center" style={{ minWidth: '50px' }}>
+                              <input
+                                type="checkbox"
+                                checked={feature.ui_checked}
+                                onChange={(e) => handleEdit({ ...feature, ui_checked: e.target.checked })}
+                                className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-center" style={{ minWidth: '60px' }}>
+                              <input
+                                type="checkbox"
+                                checked={feature.user_checked}
+                                onChange={(e) => handleEdit({ ...feature, user_checked: e.target.checked })}
+                                className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
+                              />
+                            </td>
+                            {sortedCompetitors.map((competitor) => (
+                              <td
+                                key={competitor.key}
+                                className={`px-3 py-3 text-center ${
+                                  competitor.isTrapid ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                }`}
+                                style={{ minWidth: '100px' }}
+                              >
+                                <button
+                                  onClick={() => handleEdit({ ...feature, [competitor.field]: !feature[competitor.field] })}
+                                  className="text-2xl cursor-pointer hover:scale-110 transition-transform"
                                 >
-                                  <div className="flex items-center justify-center gap-1">
-                                    <span className={`text-xs font-bold ${
-                                      competitor.isTrapid
-                                        ? 'text-blue-500 dark:text-blue-400'
-                                        : 'text-gray-400 dark:text-gray-500'
-                                    }`}>#{index + 1}</span>
-                                    <span>{competitor.name}</span>
-                                  </div>
-                                  <div className={`font-normal ${
-                                    competitor.isTrapid
-                                      ? 'text-blue-500 dark:text-blue-400'
-                                      : 'text-gray-400 dark:text-gray-500'
-                                  }`}>({competitor.coverage}%)</div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                            {chapterFeatures.map((feature) => (
-                              <tr key={feature.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
-                                <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">{feature.feature_name}</td>
-                                <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{feature.detail_point_1}</td>
-                                <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{feature.detail_point_2}</td>
-                                <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{feature.detail_point_3}</td>
-                                <td className="px-4 py-4 text-center">
-                                  <div className="flex items-center justify-center gap-2">
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      max="100"
-                                      value={feature.dev_progress || 0}
-                                      onChange={(e) => {
-                                        const value = Math.min(100, Math.max(0, parseInt(e.target.value) || 0))
-                                        handleEdit({ ...feature, dev_progress: value })
-                                      }}
-                                      className="w-14 px-2 py-1 text-center text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                                    />
-                                    <span className="text-xs text-gray-500">%</span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-4 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={feature.system_complete}
-                                    onChange={(e) => handleEdit({ ...feature, system_complete: e.target.checked })}
-                                    className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={feature.dev_checked}
-                                    onChange={(e) => handleEdit({ ...feature, dev_checked: e.target.checked })}
-                                    className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={feature.tester_checked}
-                                    onChange={(e) => handleEdit({ ...feature, tester_checked: e.target.checked })}
-                                    className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={feature.ui_checked}
-                                    onChange={(e) => handleEdit({ ...feature, ui_checked: e.target.checked })}
-                                    className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
-                                  />
-                                </td>
-                                <td className="px-4 py-4 text-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={feature.user_checked}
-                                    onChange={(e) => handleEdit({ ...feature, user_checked: e.target.checked })}
-                                    className="rounded border-gray-300 dark:border-gray-600 cursor-pointer"
-                                  />
-                                </td>
-                                {sortedCompetitors.map((competitor) => (
-                                  <td
-                                    key={competitor.key}
-                                    className={`px-3 py-4 text-center ${
-                                      competitor.isTrapid ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                                    }`}
-                                  >
-                                    <button
-                                      onClick={() => handleEdit({ ...feature, [competitor.field]: !feature[competitor.field] })}
-                                      className="text-2xl cursor-pointer hover:scale-110 transition-transform"
-                                    >
-                                      {feature[competitor.field] ? '✅' : '❌'}
-                                    </button>
-                                  </td>
-                                ))}
-                              </tr>
+                                  {feature[competitor.field] ? '✅' : '❌'}
+                                </button>
+                              </td>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                          </tr>
+                        ))}
+                      </>
+                    )
+                  })}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

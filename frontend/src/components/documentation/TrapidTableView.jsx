@@ -4592,7 +4592,9 @@ export default function TrapidTableView({
                       </tr>
                     </thead>
                     <tbody>
-                      {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').map((column) => {
+                      {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                        .sort((a, b) => a.label.localeCompare(b.label))
+                        .map((column) => {
                         const colType = column.column_type || column.key
                         return (
                           <tr
@@ -5649,12 +5651,12 @@ export default function TrapidTableView({
                           <div className="flex items-center gap-2 mb-3">
                             <button
                               onClick={() => {
-                                // Find first column that isn't already in sortColumns
+                                // Find first column alphabetically that isn't already in sortColumns
                                 const availableCols = COLUMNS.filter(col =>
                                   col.key !== 'select' &&
                                   col.key !== 'actions' &&
                                   !sortColumns.find(s => s.column === col.key)
-                                )
+                                ).sort((a, b) => a.label.localeCompare(b.label))
                                 if (availableCols.length > 0) {
                                   setSortColumns([...sortColumns, { column: availableCols[0].key, dir: 'asc' }])
                                 }
@@ -5701,7 +5703,9 @@ export default function TrapidTableView({
                                     }}
                                     className="flex-1 min-w-[120px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
                                   >
-                                    {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').map(col => (
+                                    {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                                      .sort((a, b) => a.label.localeCompare(b.label))
+                                      .map(col => (
                                       <option
                                         key={col.key}
                                         value={col.key}
@@ -5803,7 +5807,9 @@ export default function TrapidTableView({
                               className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
                             >
                               <option value="">No grouping</option>
-                              {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id').map(col => (
+                              {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                                .sort((a, b) => a.label.localeCompare(b.label))
+                                .map(col => (
                                 <option key={col.key} value={col.key}>{col.label}</option>
                               ))}
                             </select>
@@ -5892,8 +5898,8 @@ export default function TrapidTableView({
                         <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
                         <span className="flex-1">Column</span>
                       </div>
-                      {/* Combined column list */}
-                      <div className="space-y-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100vh-220px)] overflow-y-auto cascade-popup-scroll">
+                      {/* Combined column list - 2 columns when space allows */}
+                      <div className="grid grid-cols-2 gap-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100vh-220px)] overflow-y-auto cascade-popup-scroll">
                         {(() => {
                           const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
 
@@ -5916,23 +5922,15 @@ export default function TrapidTableView({
                             })
                           }
 
-                          // Normal mode: use custom order if set, otherwise alphabetical
-                          const orderedCols = visibilityColumnOrder
-                            ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
-                            : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
-                          // Add any new columns that aren't in the saved order
-                          const orderedKeys = new Set(orderedCols.map(c => c.key))
-                          const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
-                          const allCols = [...orderedCols, ...newCols]
+                          // Sort: checked columns first (alphabetical), then unchecked (alphabetical)
+                          const checkedCols = filteredCols
+                            .filter(col => visibleColumns[col.key] !== false)
+                            .sort((a, b) => a.label.localeCompare(b.label))
+                          const uncheckedCols = filteredCols
+                            .filter(col => visibleColumns[col.key] === false)
+                            .sort((a, b) => a.label.localeCompare(b.label))
 
-                          // Sort: checked columns first, then unchecked (maintains relative order within each group)
-                          return allCols.sort((a, b) => {
-                            const aChecked = visibleColumns[a.key] !== false
-                            const bChecked = visibleColumns[b.key] !== false
-                            if (aChecked && !bChecked) return -1
-                            if (!aChecked && bChecked) return 1
-                            return 0 // Maintain relative order within groups
-                          })
+                          return [...checkedCols, ...uncheckedCols]
                         })().map((column) => (
                           <div
                             key={column.key}
