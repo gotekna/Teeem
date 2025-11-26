@@ -540,6 +540,51 @@ export default function FeaturesTrackingTable() {
             </div>
           </div>
 
+          {/* Fixed Header Row */}
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto">
+            <table className="min-w-full">
+              <thead>
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '250px' }}>Feature</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '150px' }}>Detail 1</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '150px' }}>Detail 2</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '150px' }}>Detail 3</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '100px' }}>Progress</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '70px' }}>System</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '60px' }}>Dev</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '60px' }}>Tester</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '50px' }}>UI</th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase" style={{ minWidth: '60px' }}>User</th>
+                  {sortedCompetitors.map((competitor, index) => (
+                    <th
+                      key={competitor.key}
+                      className={`px-3 py-3 text-center text-xs font-medium uppercase ${
+                        competitor.isTrapid
+                          ? 'text-blue-600 dark:text-blue-400 font-bold'
+                          : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                      style={{ minWidth: '100px' }}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        <span className={`text-xs font-bold ${
+                          competitor.isTrapid
+                            ? 'text-blue-500 dark:text-blue-400'
+                            : 'text-gray-400 dark:text-gray-500'
+                        }`}>#{index + 1}</span>
+                        <span>{competitor.name}</span>
+                      </div>
+                      <div className={`font-normal ${
+                        competitor.isTrapid
+                          ? 'text-blue-500 dark:text-blue-400'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}>({competitor.coverage}%)</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            </table>
+          </div>
+
           {/* Chapter Accordion */}
           <div className="space-y-2">
             {Object.entries(featuresByChapter)

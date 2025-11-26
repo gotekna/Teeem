@@ -118,22 +118,31 @@ class XeroContactSyncService
       end
     end
 
+    # ONE-WAY SYNC: Xero → Trapid only (disabled Trapid → Xero push)
+    # This prevents changes in Trapid from affecting Xero data
+    # To re-enable two-way sync, uncomment the code below
+    #
     # Process unmatched Trapid contacts that should sync to Xero
-    unmatched_trapid = trapid_contacts.reject { |c| matched_trapid_ids.include?(c.id) }
-    unmatched_trapid.select { |c| c.sync_with_xero }.each do |trapid_contact|
-      begin
-        create_xero_contact_from_trapid(trapid_contact)
-        @stats[:created_in_xero] += 1
-        sleep(RATE_LIMIT_SLEEP / 1000.0)
-      rescue StandardError => e
-        error_msg = "Error creating Xero contact for #{trapid_contact.display_name}: #{e.message}"
-        Rails.logger.error(error_msg)
-        @stats[:errors] << error_msg
-      end
-    end
+    # unmatched_trapid = trapid_contacts.reject { |c| matched_trapid_ids.include?(c.id) }
+    # unmatched_trapid.select { |c| c.sync_with_xero }.each do |trapid_contact|
+    #   begin
+    #     create_xero_contact_from_trapid(trapid_contact)
+    #     @stats[:created_in_xero] += 1
+    #     sleep(RATE_LIMIT_SLEEP / 1000.0)
+    #   rescue StandardError => e
+    #     error_msg = "Error creating Xero contact for #{trapid_contact.display_name}: #{e.message}"
+    #     Rails.logger.error(error_msg)
+    #     @stats[:errors] << error_msg
+    #   end
+    # end
+    #
+    # # Count skipped contacts (Trapid contacts not synced because sync_with_xero is false)
+    # @stats[:skipped] = unmatched_trapid.reject { |c| c.sync_with_xero }.count
 
-    # Count skipped contacts (Trapid contacts not synced because sync_with_xero is false)
-    @stats[:skipped] = unmatched_trapid.reject { |c| c.sync_with_xero }.count
+    # Count Trapid-only contacts that won't be pushed to Xero
+    unmatched_trapid = trapid_contacts.reject { |c| matched_trapid_ids.include?(c.id) }
+    @stats[:skipped] = unmatched_trapid.count
+    Rails.logger.info("ONE-WAY SYNC MODE: #{@stats[:skipped]} Trapid contacts not pushed to Xero")
   end
 
   def find_matching_trapid_contact(xero_contact, by_xero_id, by_tax_number, by_email, remaining_contacts)
