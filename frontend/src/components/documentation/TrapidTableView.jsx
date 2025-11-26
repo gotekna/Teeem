@@ -509,6 +509,11 @@ export default function TrapidTableView({
   const [editingFilterValue, setEditingFilterValue] = useState('') // Track the temporary value while editing
   const [groupByColumn, setGroupByColumn] = useState(null) // Track which column to group by
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()) // Track which groups are collapsed
+  const [collapsedColumnGroups, setCollapsedColumnGroups] = useState(() => {
+    // Start with all groups collapsed by default
+    // Will be populated with actual group names when columns load
+    return new Set(['__all_collapsed__']) // Marker to indicate all should be collapsed initially
+  })
   const [editingDefaultSetup, setEditingDefaultSetup] = useState(false) // Track if editing default column setup
 
   // Determine if filter/column editing should be disabled (not creating new or editing existing)
@@ -4681,7 +4686,9 @@ export default function TrapidTableView({
                 {/* Content - scrollable */}
                 <div className="flex-1 overflow-y-auto p-4">
                   <div className="space-y-4">
-                    {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions').map((column) => {
+                    {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                      .sort((a, b) => a.label.localeCompare(b.label))
+                      .map((column) => {
                       const colType = column.column_type || column.key
                       const columnTypeDef = COLUMN_TYPES.find(t => t.value === colType) || {}
 
@@ -5893,45 +5900,113 @@ export default function TrapidTableView({
                           </button>
                         </div>
                       </div>
-                      {/* Column header row */}
-                      <div className="flex items-center gap-2 px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
-                        <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
-                        <span className="flex-1">Column</span>
+                      {/* Column header row with Expand/Collapse All */}
+                      <div className="flex items-center justify-between px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-2">
+                          <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
+                          <span>Column</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => setCollapsedColumnGroups(new Set())}
+                            className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
+                            title="Expand all groups"
+                          >
+                            Expand All
+                          </button>
+                          <button
+                            onClick={() => {
+                              const allGroups = new Set(
+                                COLUMNS
+                                  .filter(col => col.key !== 'select' && col.key !== 'actions')
+                                  .map(col => col.column_group || 'Other')
+                              )
+                              setCollapsedColumnGroups(allGroups)
+                            }}
+                            className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
+                            title="Collapse all groups"
+                          >
+                            Collapse All
+                          </button>
+                        </div>
                       </div>
-                      {/* Combined column list - 2 columns when space allows */}
-                      <div className="grid grid-cols-2 gap-0.5 border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100vh-220px)] overflow-y-auto cascade-popup-scroll">
+                      {/* Combined column list - grouped by column_group with collapsible sections */}
+                      <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100vh-220px)] overflow-y-auto cascade-popup-scroll">
                         {(() => {
                           const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
 
-                          // When editing default setup, sort by checked status (checked first)
-                          if (editingDefaultSetup) {
-                            const orderedCols = visibilityColumnOrder
-                              ? visibilityColumnOrder.map(key => filteredCols.find(c => c.key === key)).filter(Boolean)
-                              : filteredCols.sort((a, b) => a.label.localeCompare(b.label))
-                            const orderedKeys = new Set(orderedCols.map(c => c.key))
-                            const newCols = filteredCols.filter(c => !orderedKeys.has(c.key))
-                            const allCols = [...orderedCols, ...newCols]
+                          // Group columns by column_group
+                          const groupedColumns = {}
+                          filteredCols.forEach(col => {
+                            const group = col.column_group || 'Other'
+                            if (!groupedColumns[group]) {
+                              groupedColumns[group] = []
+                            }
+                            groupedColumns[group].push(col)
+                          })
 
-                            // Sort: checked columns first, then unchecked
-                            return allCols.sort((a, b) => {
-                              const aChecked = defaultColumnsForNewViews[a.key] !== false
-                              const bChecked = defaultColumnsForNewViews[b.key] !== false
-                              if (aChecked && !bChecked) return -1
-                              if (!aChecked && bChecked) return 1
-                              return 0 // Maintain relative order within groups
-                            })
+                          // Sort columns within each group: checked first (alphabetical), then unchecked (alphabetical)
+                          Object.keys(groupedColumns).forEach(group => {
+                            const cols = groupedColumns[group]
+                            const checkedCols = cols
+                              .filter(col => visibleColumns[col.key] !== false)
+                              .sort((a, b) => a.label.localeCompare(b.label))
+                            const uncheckedCols = cols
+                              .filter(col => visibleColumns[col.key] === false)
+                              .sort((a, b) => a.label.localeCompare(b.label))
+                            groupedColumns[group] = [...checkedCols, ...uncheckedCols]
+                          })
+
+                          // Sort groups alphabetically, but put "Other" last
+                          const sortedGroups = Object.keys(groupedColumns).sort((a, b) => {
+                            if (a === 'Other') return 1
+                            if (b === 'Other') return -1
+                            return a.localeCompare(b)
+                          })
+
+                          // Check if we should collapse all groups initially
+                          const shouldCollapseAll = collapsedColumnGroups.has('__all_collapsed__')
+                          if (shouldCollapseAll && sortedGroups.length > 0) {
+                            // Initialize all groups as collapsed
+                            const allGroups = new Set(sortedGroups)
+                            setCollapsedColumnGroups(allGroups)
                           }
 
-                          // Sort: checked columns first (alphabetical), then unchecked (alphabetical)
-                          const checkedCols = filteredCols
-                            .filter(col => visibleColumns[col.key] !== false)
-                            .sort((a, b) => a.label.localeCompare(b.label))
-                          const uncheckedCols = filteredCols
-                            .filter(col => visibleColumns[col.key] === false)
-                            .sort((a, b) => a.label.localeCompare(b.label))
+                          return sortedGroups.map(groupName => {
+                            const groupCols = groupedColumns[groupName]
+                            const isCollapsed = collapsedColumnGroups.has(groupName)
+                            const checkedCount = groupCols.filter(col => visibleColumns[col.key] !== false).length
+                            const totalCount = groupCols.length
 
-                          return [...checkedCols, ...uncheckedCols]
-                        })().map((column) => (
+                            return (
+                              <div key={groupName} className="mb-1">
+                                {/* Group Header - Collapsible */}
+                                <button
+                                  onClick={() => {
+                                    const newCollapsed = new Set(collapsedColumnGroups)
+                                    if (isCollapsed) {
+                                      newCollapsed.delete(groupName)
+                                    } else {
+                                      newCollapsed.add(groupName)
+                                    }
+                                    newCollapsed.delete('__all_collapsed__') // Clear the initial marker
+                                    setCollapsedColumnGroups(newCollapsed)
+                                  }}
+                                  className="w-full flex items-center justify-between px-2 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded text-xs font-semibold text-gray-700 dark:text-gray-200 transition-colors"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
+                                    <span>{groupName}</span>
+                                  </div>
+                                  <span className="text-[10px] text-gray-500 dark:text-gray-400">
+                                    {checkedCount}/{totalCount}
+                                  </span>
+                                </button>
+
+                                {/* Group Columns - Hidden when collapsed */}
+                                {!isCollapsed && (
+                                  <div className="grid grid-cols-2 gap-0.5 mt-0.5 pl-2">
+                                    {groupCols.map((column) => (
                           <div
                             key={column.key}
                             draggable="false"
@@ -6072,7 +6147,13 @@ export default function TrapidTableView({
                               {['id', 'created_at', 'updated_at'].includes(column.key) && ' 🔒'}
                             </span>
                           </div>
-                        ))}
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })
+                        })()}
                       </div>
                       <div className="mt-1 text-[9px] text-gray-500 dark:text-gray-400">
                         👁 Show/hide columns for the current view

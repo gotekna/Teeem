@@ -19,7 +19,8 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
     column_name: column?.column_name || '',
     data_type: column?.column_type || column?.data_type || 'single_line_text',
     header_align: column?.header_align || 'left',
-    data_align: column?.data_align || 'left'
+    data_align: column?.data_align || 'left',
+    column_group: column?.column_group || ''
   });
   const [saving, setSaving] = useState(false);
   const [availableColumns, setAvailableColumns] = useState([]);
@@ -75,7 +76,8 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
         column_name: column.column_name || '',
         data_type: column.column_type || column.data_type || 'single_line_text',
         header_align: column.header_align || 'left',
-        data_align: column.data_align || 'left'
+        data_align: column.data_align || 'left',
+        column_group: column.column_group || ''
       });
     }
   }, [column]);
@@ -176,6 +178,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
           column: {
             name: editedColumn.name,
             column_type: editedColumn.data_type,
+            column_group: editedColumn.column_group || null,
             header_align: editedColumn.header_align,
             data_align: editedColumn.data_align
           }
@@ -189,6 +192,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
             name: editedColumn.name,
             // column_name is NEVER sent - database column names cannot be changed after creation
             column_type: editedColumn.data_type,
+            column_group: editedColumn.column_group || null,
             header_align: editedColumn.header_align,
             data_align: editedColumn.data_align
           }
@@ -232,7 +236,8 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
   const hasChanges = () => {
     return editedColumn.name !== column.name ||
            editedColumn.header_align !== (column.header_align || 'left') ||
-           editedColumn.data_align !== (column.data_align || 'left');
+           editedColumn.data_align !== (column.data_align || 'left') ||
+           editedColumn.column_group !== (column.column_group || '');
   };
 
   // Check if this is a system-generated column
@@ -481,7 +486,37 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
                 </div>
               </div>
 
-              {/* SECTION 3: Column Type - Read Only */}
+              {/* SECTION 3: Column Group */}
+              <div className="bg-gradient-to-r from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 rounded-xl p-6 border-2 border-teal-200 dark:border-teal-700">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="text-3xl">📁</div>
+                  <div>
+                    <h3 className="text-lg font-bold text-teal-900 dark:text-teal-100">Column Group</h3>
+                    <p className="text-xs text-teal-700 dark:text-teal-300">Group columns together in the visibility panel</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Group Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editedColumn.column_group}
+                    onChange={(e) => setEditedColumn(prev => ({ ...prev, column_group: e.target.value }))}
+                    placeholder="e.g., Contact Info, Financial, System"
+                    className="w-full px-4 py-3 bg-white dark:bg-gray-700 rounded-lg border-2 border-gray-300
+                             dark:border-gray-600 text-base text-gray-900 dark:text-gray-100
+                             focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
+                             placeholder-gray-400 dark:placeholder-gray-500"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Columns with the same group name will be grouped together in the column visibility panel. Leave empty for "Other" group.
+                  </p>
+                </div>
+              </div>
+
+              {/* SECTION 4: Column Type - Read Only (renumbered from 3) */}
               <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-700">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="text-3xl">🎯</div>
@@ -506,7 +541,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
                 </div>
               </div>
 
-              {/* SECTION 4: SQL Type & Metadata */}
+              {/* SECTION 5: SQL Type & Metadata (renumbered from 4) */}
               <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl p-6 border-2 border-green-200 dark:border-green-700">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="text-3xl">🗄️</div>

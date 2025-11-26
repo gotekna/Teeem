@@ -287,6 +287,7 @@ module Api
                 name: col.name,
                 column_name: col.column_name,
                 column_type: col.column_type,
+                column_group: col.column_group,
                 max_length: col.max_length,
                 min_length: col.min_length,
                 default_value: col.default_value,
