@@ -92,7 +92,7 @@ module Api
       end
 
       def job_stage_params
-        params.require(:job_stage).permit(:name, :position, :is_active, :color)
+        params.require(:job_stage).permit(:name, :position, :is_active, :color, :job_status_id)
       end
 
       def job_stage_json(job_stage)
@@ -102,6 +102,8 @@ module Api
           position: job_stage.position,
           is_active: job_stage.is_active,
           color: job_stage.color,
+          job_status_id: job_stage.job_status_id,
+          job_status_name: job_stage.job_status&.name,
           jobs_count: job_stage.jobs.count,
           created_at: job_stage.created_at,
           updated_at: job_stage.updated_at
