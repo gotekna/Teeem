@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -201,6 +201,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.text "choices_order"
     t.string "header_align", default: "left"
     t.string "data_align", default: "left"
+    t.string "column_group"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
     t.index ["lookup_table_id"], name: "index_columns_on_lookup_table_id"
     t.index ["table_id", "column_name"], name: "index_columns_on_table_id_and_column_name", unique: true
@@ -792,7 +793,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
   end
 
-  create_table "gold_standard_items", id: :bigint, default: -> { "nextval('gold_standard_table_id_seq'::regclass)" }, force: :cascade do |t|
+  create_table "gold_standard_table", force: :cascade do |t|
     t.string "email"
     t.string "phone", limit: 20
     t.datetime "created_at", null: false
@@ -927,6 +928,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
   end
 
+  create_table "job_people", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "contact_id", null: false
+    t.string "role"
+    t.text "notes"
+    t.boolean "is_primary", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_job_people_on_contact_id"
+    t.index ["job_id", "contact_id"], name: "index_job_people_on_job_id_and_contact_id", unique: true
+    t.index ["job_id", "is_primary"], name: "index_job_people_on_job_id_and_is_primary"
+    t.index ["job_id"], name: "index_job_people_on_job_id"
+  end
+
   create_table "job_stages", force: :cascade do |t|
     t.string "name", null: false
     t.integer "position", default: 0
@@ -934,7 +949,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "job_status_id"
     t.index ["is_active"], name: "index_job_stages_on_is_active"
+    t.index ["job_status_id"], name: "index_job_stages_on_job_status_id"
     t.index ["position"], name: "index_job_stages_on_position"
   end
 
@@ -2487,6 +2504,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.string "api_endpoint"
     t.string "file_location"
     t.boolean "has_saved_views", default: true
+    t.string "feature"
     t.index ["database_table_name"], name: "index_tables_on_database_table_name"
     t.index ["model_class"], name: "index_tables_on_model_class"
     t.index ["slug"], name: "index_tables_on_slug", unique: true
@@ -3086,6 +3104,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_people", "contacts"
+  add_foreign_key "job_people", "jobs"
   add_foreign_key "job_status_stages", "job_stages"
   add_foreign_key "job_status_stages", "job_status"
   add_foreign_key "job_status_stages", "job_types"
