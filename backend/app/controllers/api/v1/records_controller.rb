@@ -109,6 +109,9 @@ module Api
         model = @table.dynamic_model
         attributes = record_params
 
+        # Apply default values for required fields on specific tables
+        attributes = apply_default_values(model, attributes)
+
         record = model.new(attributes)
 
         if record.save
@@ -227,6 +230,20 @@ module Api
         # Get all column names for this table
         column_names = @table.columns.pluck(:column_name)
         params.require(:record).permit(*column_names)
+      end
+
+      # Apply default values for required fields that are blank
+      def apply_default_values(model, attributes)
+        attrs = attributes.to_h.with_indifferent_access
+
+        # Handle Job model specifically
+        if model == Job
+          attrs[:title] = 'New Job' if attrs[:title].blank?
+          attrs[:status] = 'Active' if attrs[:status].blank?
+          attrs[:site_supervisor_name] = 'TBA' if attrs[:site_supervisor_name].blank?
+        end
+
+        attrs
       end
 
       def record_to_json(record, lookup_cache = nil)
