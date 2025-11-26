@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
       def index
-        @jobs = Job.includes(:job_type, :job_status).all
+        @jobs = Job.includes(:job_type, :job_status, :job_stage).all
 
         # Filter by status if provided (default to Active jobs)
         status_filter = params[:status] || "Active"
@@ -170,7 +170,8 @@ module Api
           :design_id,
           :design_name,
           :job_type_id,
-          :job_status_id
+          :job_status_id,
+          :job_stage_id
         )
       end
 
