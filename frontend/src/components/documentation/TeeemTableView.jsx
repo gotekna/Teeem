@@ -5991,24 +5991,11 @@ export default function TeeemTableView({
                                 </svg>
                               </button>
 
-                              {/* Dropdown Menu */}
+                              {/* Dropdown Menu - Opens UPWARD */}
                               {groupByDropdownOpen && (
-                                <div className="absolute z-50 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden">
-                                  {/* Search Input */}
-                                  <div className="p-2 border-b border-gray-200 dark:border-gray-700">
-                                    <input
-                                      type="text"
-                                      value={groupBySearchQuery}
-                                      onChange={(e) => setGroupBySearchQuery(e.target.value)}
-                                      placeholder="Search columns..."
-                                      className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                      autoFocus
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
-                                  </div>
-
+                                <div className="absolute z-50 bottom-full mb-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-64 overflow-hidden flex flex-col">
                                   {/* Options List */}
-                                  <div className="overflow-y-auto max-h-48">
+                                  <div className="overflow-y-auto max-h-48 flex-1">
                                     {/* No Grouping Option */}
                                     <button
                                       type="button"
@@ -6064,6 +6051,19 @@ export default function TeeemTableView({
                                         No columns found
                                       </div>
                                     )}
+                                  </div>
+
+                                  {/* Search Input - at bottom since dropdown opens upward */}
+                                  <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+                                    <input
+                                      type="text"
+                                      value={groupBySearchQuery}
+                                      onChange={(e) => setGroupBySearchQuery(e.target.value)}
+                                      placeholder="Search columns..."
+                                      className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      autoFocus
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
                                   </div>
                                 </div>
                               )}
