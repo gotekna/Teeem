@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_26_075429) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -927,6 +927,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
   end
 
+  create_table "job_people", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "contact_id", null: false
+    t.string "role"
+    t.text "notes"
+    t.boolean "is_primary", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_job_people_on_contact_id"
+    t.index ["job_id", "contact_id"], name: "index_job_people_on_job_id_and_contact_id", unique: true
+    t.index ["job_id", "is_primary"], name: "index_job_people_on_job_id_and_is_primary"
+    t.index ["job_id"], name: "index_job_people_on_job_id"
+  end
+
   create_table "job_stages", force: :cascade do |t|
     t.string "name", null: false
     t.integer "position", default: 0
@@ -936,6 +950,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.datetime "updated_at", null: false
     t.index ["is_active"], name: "index_job_stages_on_is_active"
     t.index ["position"], name: "index_job_stages_on_position"
+  end
+
+  create_table "job_status", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_status_on_is_active"
+    t.index ["position"], name: "index_job_status_on_position"
   end
 
   create_table "job_status_stages", force: :cascade do |t|
@@ -951,17 +976,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
     t.index ["job_type_id", "job_status_id", "job_stage_id"], name: "index_job_status_stages_on_type_status_stage", unique: true
     t.index ["job_type_id"], name: "index_job_status_stages_on_job_type_id"
     t.index ["position"], name: "index_job_status_stages_on_position"
-  end
-
-  create_table "job_statuses", id: :bigint, default: -> { "nextval('job_status_id_seq'::regclass)" }, force: :cascade do |t|
-    t.string "name", null: false
-    t.integer "position", default: 0
-    t.boolean "is_active", default: true
-    t.string "color"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_job_status_on_is_active"
-    t.index ["position"], name: "index_job_status_on_position"
   end
 
   create_table "job_type_statuses", force: :cascade do |t|
@@ -3086,14 +3100,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_060910) do
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_people", "contacts"
+  add_foreign_key "job_people", "jobs"
   add_foreign_key "job_status_stages", "job_stages"
-  add_foreign_key "job_status_stages", "job_statuses"
+  add_foreign_key "job_status_stages", "job_status"
   add_foreign_key "job_status_stages", "job_types"
-  add_foreign_key "job_type_statuses", "job_statuses"
+  add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
   add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "job_stages"
-  add_foreign_key "jobs", "job_statuses", on_delete: :nullify
+  add_foreign_key "jobs", "job_status", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"

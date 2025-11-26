@@ -41,6 +41,7 @@ const tabs = [
   { name: 'Rain Log', slug: 'rain-log' },
   { name: 'Documents', slug: 'documents' },
   { name: 'Coms', slug: 'coms' },
+  { name: 'People', slug: 'people' },
   { name: 'Team', slug: 'team' },
   { name: 'Settings', slug: 'settings' },
   { name: 'Documentation', slug: 'documentation' },

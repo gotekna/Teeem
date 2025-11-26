@@ -1323,8 +1323,67 @@ export default function AppLayout({ children }) {
                                   )
                                 })}
 
-                              {/* Type + Status Nested Grouped View */}
-                              {groupedJobs.mode === 'type-status' && Object.entries(groupedJobs.groups)
+                              {/* Stage-only Grouped View */}
+                              {groupedJobs.mode === 'stage' && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([stageName, jobs]) => {
+                                  const filteredJobs = jobs.filter(job => {
+                                    if (!jobSearchQuery) return true
+                                    const query = jobSearchQuery.toLowerCase()
+                                    return (job.title || '').toLowerCase().includes(query) ||
+                                           String(job.id).includes(query)
+                                  })
+                                  if (filteredJobs.length === 0) return null
+
+                                  return (
+                                    <li key={stageName}>
+                                      {/* Stage group header */}
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleStageExpanded(stageName)}
+                                        className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                      >
+                                        <ChevronRightIcon
+                                          className={classNames(
+                                            'h-3 w-3 text-gray-400 transition-transform',
+                                            (expandedStages[stageName] !== false) && 'rotate-90'
+                                          )}
+                                        />
+                                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                                          {stageName}
+                                        </span>
+                                        <span className="ml-auto text-xs text-gray-400">
+                                          {filteredJobs.length}
+                                        </span>
+                                      </button>
+
+                                      {/* Jobs under this stage */}
+                                      {(expandedStages[stageName] !== false) && (
+                                        <ul className="ml-4 space-y-0.5">
+                                          {filteredJobs.slice(0, 20).map((job) => (
+                                            <li key={job.id}>
+                                              <Link
+                                                to={`/jobs/${job.id}/overview`}
+                                                className={classNames(
+                                                  location.pathname.startsWith(`/jobs/${job.id}`)
+                                                    ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                    : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                  'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                )}
+                                                title={job.title}
+                                              >
+                                                {job.title || `Job #${job.id}`}
+                                              </Link>
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
+                                    </li>
+                                  )
+                                })}
+
+                              {/* Two-level Nested Grouped View (handles type-status, status-type, type-stage, etc.) */}
+                              {groupedJobs.mode && groupedJobs.mode.split('-').length === 2 && Object.entries(groupedJobs.groups)
                                 .sort(([a], [b]) => a.localeCompare(b))
                                 .map(([typeName, statusGroups]) => (
                                   <li key={typeName}>
@@ -1404,6 +1463,136 @@ export default function AppLayout({ children }) {
                                                         </Link>
                                                       </li>
                                                     ))}
+                                                  </ul>
+                                                )}
+                                              </li>
+                                            )
+                                          })}
+                                      </ul>
+                                    )}
+                                  </li>
+                                ))}
+
+                              {/* Three-level Nested Grouped View (handles type-status-stage, etc.) */}
+                              {groupedJobs.mode && groupedJobs.mode.split('-').length === 3 && Object.entries(groupedJobs.groups)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([firstName, secondGroups]) => (
+                                  <li key={firstName}>
+                                    {/* First level group header */}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleTypeGroup(firstName)}
+                                      className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                    >
+                                      <ChevronRightIcon
+                                        className={classNames(
+                                          'h-3 w-3 text-gray-400 transition-transform',
+                                          (expandedTypeGroups[firstName] !== false) && 'rotate-90'
+                                        )}
+                                      />
+                                      <span className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                        {firstName}
+                                      </span>
+                                      <span className="ml-auto text-xs text-gray-400">
+                                        {Object.values(secondGroups).reduce((sum, thirdGroups) =>
+                                          sum + Object.values(thirdGroups).flat().length, 0
+                                        )}
+                                      </span>
+                                    </button>
+
+                                    {/* Second level groups */}
+                                    {(expandedTypeGroups[firstName] !== false) && (
+                                      <ul className="ml-3 space-y-0.5 mt-0.5">
+                                        {Object.entries(secondGroups)
+                                          .sort(([a], [b]) => a.localeCompare(b))
+                                          .map(([secondName, thirdGroups]) => {
+                                            const groupKey = `${firstName}:${secondName}`
+                                            const totalJobs = Object.values(thirdGroups).flat().length
+                                            if (totalJobs === 0) return null
+
+                                            return (
+                                              <li key={secondName}>
+                                                {/* Second level header */}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => toggleStatusGroup(groupKey)}
+                                                  className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                                >
+                                                  <ChevronRightIcon
+                                                    className={classNames(
+                                                      'h-3 w-3 text-gray-400 transition-transform',
+                                                      (expandedStatusGroups[groupKey] !== false) && 'rotate-90'
+                                                    )}
+                                                  />
+                                                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                    {secondName}
+                                                  </span>
+                                                  <span className="ml-auto text-xs text-gray-400">
+                                                    {totalJobs}
+                                                  </span>
+                                                </button>
+
+                                                {/* Third level groups */}
+                                                {(expandedStatusGroups[groupKey] !== false) && (
+                                                  <ul className="ml-3 space-y-0.5 mt-0.5">
+                                                    {Object.entries(thirdGroups)
+                                                      .sort(([a], [b]) => a.localeCompare(b))
+                                                      .map(([thirdName, jobs]) => {
+                                                        const filteredJobs = jobs.filter(job => {
+                                                          if (!jobSearchQuery) return true
+                                                          const query = jobSearchQuery.toLowerCase()
+                                                          return (job.title || '').toLowerCase().includes(query) ||
+                                                                 String(job.id).includes(query)
+                                                        })
+                                                        if (filteredJobs.length === 0) return null
+
+                                                        const thirdKey = `${groupKey}:${thirdName}`
+                                                        return (
+                                                          <li key={thirdName}>
+                                                            {/* Third level header */}
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => toggleStageExpanded(thirdKey)}
+                                                              className="flex items-center gap-1 px-2 py-1 w-full text-left hover:bg-gray-50 dark:hover:bg-white/5 rounded transition-colors"
+                                                            >
+                                                              <ChevronRightIcon
+                                                                className={classNames(
+                                                                  'h-3 w-3 text-gray-400 transition-transform',
+                                                                  (expandedStages[thirdKey] !== false) && 'rotate-90'
+                                                                )}
+                                                              />
+                                                              <span className="text-xs text-gray-500 dark:text-gray-500">
+                                                                {thirdName}
+                                                              </span>
+                                                              <span className="ml-auto text-xs text-gray-400">
+                                                                {filteredJobs.length}
+                                                              </span>
+                                                            </button>
+
+                                                            {/* Jobs */}
+                                                            {(expandedStages[thirdKey] !== false) && (
+                                                              <ul className="ml-4 space-y-0.5">
+                                                                {filteredJobs.slice(0, 20).map((job) => (
+                                                                  <li key={job.id}>
+                                                                    <Link
+                                                                      to={`/jobs/${job.id}/overview`}
+                                                                      className={classNames(
+                                                                        location.pathname.startsWith(`/jobs/${job.id}`)
+                                                                          ? 'text-indigo-600 dark:text-indigo-400 font-medium'
+                                                                          : 'text-gray-600 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-white',
+                                                                        'px-2 py-1 text-xs rounded hover:bg-gray-50 dark:hover:bg-white/5 block truncate'
+                                                                      )}
+                                                                      title={job.title}
+                                                                    >
+                                                                      {job.title || `Job #${job.id}`}
+                                                                    </Link>
+                                                                  </li>
+                                                                ))}
+                                                              </ul>
+                                                            )}
+                                                          </li>
+                                                        )
+                                                      })}
                                                   </ul>
                                                 )}
                                               </li>
