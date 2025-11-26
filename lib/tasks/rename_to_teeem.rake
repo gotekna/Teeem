@@ -115,8 +115,8 @@ namespace :teeem do
       puts "⚠ FeatureTracker model not found, skipping..."
     end
 
-    # Update Column records (rename component references)
-    if defined?(Column) && Column.table_exists?
+    # Update Column records (rename component references if component column exists)
+    if defined?(Column) && Column.table_exists? && Column.column_names.include?('component')
       count = 0
       Column.where("component ILIKE '%trapid%'").find_each do |column|
         column.component = column.component.gsub(/TrapidTableView/i, 'TeeemTableView')
@@ -125,7 +125,7 @@ namespace :teeem do
       end
       puts "✓ Updated #{count} Column records"
     else
-      puts "⚠ Column model not found, skipping..."
+      puts "⚠ Column model or component column not found, skipping..."
     end
 
     puts "\n✅ Database content rename complete!"
