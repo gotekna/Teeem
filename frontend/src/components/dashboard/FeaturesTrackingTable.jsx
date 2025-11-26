@@ -2,30 +2,124 @@ import { useState, useEffect } from 'react'
 import TrapidTableView from '../documentation/TrapidTableView'
 import { api } from '../../api'
 
+// Column type defaults for TrapidTableView format
+const COLUMN_TYPE_DEFAULTS = {
+  'single_line_text': { width: 200, filterable: true, filterType: 'text' },
+  'multiple_lines_text': { width: 300, sortable: false, filterable: true, filterType: 'text' },
+  'boolean': { width: 80, filterable: true, filterType: 'dropdown' },
+  'percentage': { width: 100, filterable: false },
+  'whole_number': { width: 100, filterable: false },
+  'lookup': { width: 200, filterable: true, filterType: 'dropdown' },
+}
+
+// Convert API column format to TrapidTableView column format
+function convertColumnsToTrapidFormat(apiColumns) {
+  // Start with select column for bulk actions
+  const columns = [
+    { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
+  ]
+
+  // Convert each API column
+  apiColumns.forEach(col => {
+    const defaults = COLUMN_TYPE_DEFAULTS[col.column_type] || { width: 150 }
+
+    columns.push({
+      id: col.id,
+      key: col.column_name,
+      label: col.name,
+      column_type: col.column_type,
+      resizable: true,
+      sortable: defaults.sortable !== false,
+      filterable: defaults.filterable || false,
+      filterType: defaults.filterType,
+      width: defaults.width,
+      tooltip: col.description || `${col.column_type} column`,
+    })
+  })
+
+  return columns
+}
+
 /**
  * FeaturesTrackingTable - Uses standard TrapidTableView with database-backed table
  * Table ID: 375 (Feature Tracker)
  */
 export default function FeaturesTrackingTable() {
+  const TABLE_ID = 375
+
+  const [records, setRecords] = useState([])
+  const [columns, setColumns] = useState([])
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Load stats from feature_trackers API
+  // Load table data and columns
   useEffect(() => {
-    const loadStats = async () => {
+    const loadTableData = async () => {
       try {
-        const response = await api.get('/api/v1/feature_trackers')
-        if (response.success && response.stats) {
-          setStats(response.stats)
+        setLoading(true)
+
+        // Load table schema and records in parallel
+        const [tableResponse, recordsResponse, statsResponse] = await Promise.all([
+          api.get(`/api/v1/tables/${TABLE_ID}`),
+          api.get(`/api/v1/tables/${TABLE_ID}/records`),
+          api.get('/api/v1/feature_trackers')
+        ])
+
+        if (tableResponse.table) {
+          // Convert columns to TrapidTableView format
+          const trapidColumns = convertColumnsToTrapidFormat(tableResponse.table.columns || [])
+          setColumns(trapidColumns)
+        }
+
+        if (recordsResponse.records) {
+          setRecords(recordsResponse.records)
+        }
+
+        if (statsResponse.success && statsResponse.stats) {
+          setStats(statsResponse.stats)
         }
       } catch (err) {
-        console.error('Error loading feature stats:', err)
+        console.error('Error loading feature tracker table:', err)
+        setError(err.message || 'Failed to load features')
       } finally {
         setLoading(false)
       }
     }
-    loadStats()
+
+    loadTableData()
   }, [])
+
+  // Handle record edit
+  const handleEdit = async (entry) => {
+    try {
+      const { select, actions, ...recordData } = entry
+      await api.put(`/api/v1/tables/${TABLE_ID}/records/${entry.id}`, { record: recordData })
+      // Refresh records
+      const response = await api.get(`/api/v1/tables/${TABLE_ID}/records`)
+      if (response.records) {
+        setRecords(response.records)
+      }
+    } catch (err) {
+      console.error('Error updating record:', err)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-600 dark:text-gray-400">Loading features...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-red-600 dark:text-red-400">Error: {error}</div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-full">
@@ -63,13 +157,19 @@ export default function FeaturesTrackingTable() {
         </div>
       )}
 
-      {/* Standard TrapidTableView - uses database table ID 375 */}
-      <TrapidTableView
-        tableId={375}
-        tableName="Feature Tracker"
-        enableExport={true}
-        initialGroupByColumn="chapter"
-      />
+      {/* Standard TrapidTableView */}
+      {columns.length > 0 && (
+        <TrapidTableView
+          tableId={`table-feature-tracker`}
+          tableIdNumeric={TABLE_ID}
+          tableName="Feature Tracker"
+          entries={records}
+          columns={columns}
+          onEdit={handleEdit}
+          enableExport={true}
+          initialGroupByColumn="chapter"
+        />
+      )}
     </div>
   )
 }

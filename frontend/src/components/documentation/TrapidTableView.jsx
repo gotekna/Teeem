@@ -5463,7 +5463,7 @@ export default function TrapidTableView({
                   </div>
 
                   {/* Main content: 3 columns - Saved Views | Filter Builder | Column Visibility */}
-                  <div className="grid grid-cols-[340px,1fr,300px] gap-4 flex-1 min-h-0">
+                  <div className="grid grid-cols-[340px,1fr,380px] gap-4 flex-1 min-h-0 overflow-hidden">
                     {/* COLUMN 1: Saved Views Section (moved to left) */}
                     <div className="border-r border-gray-200 dark:border-gray-700 pr-4 h-full overflow-hidden flex flex-col">
                       <div className="flex-1 min-h-0">
@@ -5945,7 +5945,7 @@ export default function TrapidTableView({
                     </div>
 
                     {/* COLUMN 3: Column Visibility - Combined with Default */}
-                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 h-full overflow-y-auto cascade-popup-scroll w-[300px] min-w-[240px] relative">
+                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 h-full overflow-y-auto cascade-popup-scroll w-[380px] min-w-[320px] relative">
                       {/* Disabled overlay */}
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -6009,7 +6009,7 @@ export default function TrapidTableView({
                         </div>
                       </div>
                       {/* Combined column list - grouped by column_group with collapsible sections */}
-                      <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100vh-220px)] overflow-y-auto cascade-popup-scroll">
+                      <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100%-70px)] overflow-y-auto cascade-popup-scroll">
                         {(() => {
                           const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
 
