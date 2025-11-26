@@ -1,5 +1,7 @@
-# Gold Standard Item model for demonstrating table features
-class GoldStandardItem < ApplicationRecord
+# Gold Standard Table model for demonstrating table features
+class GoldStandardTable < ApplicationRecord
+  self.table_name = 'gold_standard_table'
+
   # This model serves as a live reference implementation
   # for the TrapidTableView component
 
