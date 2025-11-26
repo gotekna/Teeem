@@ -5499,7 +5499,7 @@ export default function TrapidTableView({
                     </div>
 
                     {/* COLUMN 2: Filter Builder */}
-                    <div className="flex flex-col h-full overflow-hidden relative">
+                    <div className="flex flex-col h-full min-h-0 overflow-hidden relative">
                       {/* Disabled overlay */}
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -5511,7 +5511,7 @@ export default function TrapidTableView({
                         </div>
                       )}
                       {/* View Filter - Filter Builder UI */}
-                      <div className="flex-1 overflow-y-auto cascade-popup-scroll">
+                      <div className="flex-1 min-h-0 overflow-y-auto cascade-popup-scroll">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                           View Filter
                         </label>
@@ -5945,7 +5945,7 @@ export default function TrapidTableView({
                     </div>
 
                     {/* COLUMN 3: Column Visibility - Combined with Default */}
-                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 h-full overflow-y-auto cascade-popup-scroll w-[380px] min-w-[320px] relative">
+                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 h-full min-h-0 overflow-y-auto cascade-popup-scroll w-[380px] min-w-[320px] relative flex flex-col">
                       {/* Disabled overlay */}
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -6009,7 +6009,7 @@ export default function TrapidTableView({
                         </div>
                       </div>
                       {/* Combined column list - grouped by column_group with collapsible sections */}
-                      <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 max-h-[calc(100%-70px)] overflow-y-auto cascade-popup-scroll">
+                      <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 flex-1 min-h-0 overflow-y-auto cascade-popup-scroll">
                         {(() => {
                           const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
 

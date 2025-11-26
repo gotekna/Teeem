@@ -2,106 +2,83 @@ import { useState, useEffect } from 'react'
 import TrapidTableView from '../documentation/TrapidTableView'
 import { api } from '../../api'
 
-// Column type defaults for TrapidTableView format
-const COLUMN_TYPE_DEFAULTS = {
-  'single_line_text': { width: 200, filterable: true, filterType: 'text' },
-  'multiple_lines_text': { width: 300, sortable: false, filterable: true, filterType: 'text' },
-  'boolean': { width: 80, filterable: true, filterType: 'dropdown' },
-  'percentage': { width: 100, filterable: false },
-  'whole_number': { width: 100, filterable: false },
-  'lookup': { width: 200, filterable: true, filterType: 'dropdown' },
-}
-
-// Convert API column format to TrapidTableView column format
-function convertColumnsToTrapidFormat(apiColumns) {
-  // Start with select column for bulk actions
-  const columns = [
-    { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
-  ]
-
-  // Convert each API column
-  apiColumns.forEach(col => {
-    const defaults = COLUMN_TYPE_DEFAULTS[col.column_type] || { width: 150 }
-
-    columns.push({
-      id: col.id,
-      key: col.column_name,
-      label: col.name,
-      column_type: col.column_type,
-      resizable: true,
-      sortable: defaults.sortable !== false,
-      filterable: defaults.filterable || false,
-      filterType: defaults.filterType,
-      width: defaults.width,
-      tooltip: col.description || `${col.column_type} column`,
-    })
-  })
-
-  return columns
-}
-
 /**
- * FeaturesTrackingTable - Uses standard TrapidTableView with database-backed table
- * Table ID: 375 (Feature Tracker)
+ * FeaturesTrackingTable - Uses TrapidTableView to display feature tracking data
+ * This is a VIEW-ONLY table - no editing allowed
  */
 export default function FeaturesTrackingTable() {
-  const TABLE_ID = 375
-
-  const [records, setRecords] = useState([])
-  const [columns, setColumns] = useState([])
-  const [stats, setStats] = useState(null)
+  const [features, setFeatures] = useState([])
+  const [featureChapters, setFeatureChapters] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [stats, setStats] = useState(null)
 
-  // Load table data and columns
+  // Define columns for TrapidTableView - chapter is now a lookup column for grouping
+  const COLUMNS = [
+    {
+      key: 'feature_chapter',
+      label: 'Chapter',
+      column_type: 'lookup',
+      resizable: true,
+      sortable: true,
+      filterable: true,
+      filterType: 'dropdown',
+      width: 280,
+      lookup_table: 'feature_chapters',
+      lookup_display_field: 'display_name'
+    },
+    { key: 'feature_name', label: 'Feature', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 280 },
+    { key: 'detail_point_1', label: 'Detail 1', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
+    { key: 'detail_point_2', label: 'Detail 2', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
+    { key: 'detail_point_3', label: 'Detail 3', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
+    { key: 'dev_progress', label: 'Progress', column_type: 'percentage', resizable: true, sortable: true, filterable: false, width: 100 },
+    { key: 'system_complete', label: 'System', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
+    { key: 'dev_checked', label: 'Dev', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'tester_checked', label: 'Tester', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'ui_checked', label: 'UI', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 60 },
+    { key: 'user_checked', label: 'User', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'trapid_has', label: 'Trapid', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
+    { key: 'buildertrend_has', label: 'BuilderTrend', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+    { key: 'buildexact_has', label: 'BuildExact', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
+    { key: 'jacks_has', label: 'Jacks', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
+    { key: 'wunderbuilt_has', label: 'Wunderbuilt', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+    { key: 'databuild_has', label: 'DataBuild', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
+    { key: 'simpro_has', label: 'Simpro', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
+    { key: 'smarterbuild_has', label: 'SmarterBuild', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+    { key: 'clickhome_has', label: 'ClickHome', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
+    { key: 'clickup_has', label: 'ClickUp', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 }
+  ]
+
   useEffect(() => {
-    const loadTableData = async () => {
-      try {
-        setLoading(true)
-
-        // Load table schema and records in parallel
-        const [tableResponse, recordsResponse, statsResponse] = await Promise.all([
-          api.get(`/api/v1/tables/${TABLE_ID}`),
-          api.get(`/api/v1/tables/${TABLE_ID}/records`),
-          api.get('/api/v1/feature_trackers')
-        ])
-
-        if (tableResponse.table) {
-          // Convert columns to TrapidTableView format
-          const trapidColumns = convertColumnsToTrapidFormat(tableResponse.table.columns || [])
-          setColumns(trapidColumns)
-        }
-
-        if (recordsResponse.records) {
-          setRecords(recordsResponse.records)
-        }
-
-        if (statsResponse.success && statsResponse.stats) {
-          setStats(statsResponse.stats)
-        }
-      } catch (err) {
-        console.error('Error loading feature tracker table:', err)
-        setError(err.message || 'Failed to load features')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadTableData()
+    loadFeatures()
   }, [])
 
-  // Handle record edit
-  const handleEdit = async (entry) => {
+  const loadFeatures = async () => {
     try {
-      const { select, actions, ...recordData } = entry
-      await api.put(`/api/v1/tables/${TABLE_ID}/records/${entry.id}`, { record: recordData })
-      // Refresh records
-      const response = await api.get(`/api/v1/tables/${TABLE_ID}/records`)
-      if (response.records) {
-        setRecords(response.records)
+      setLoading(true)
+      const response = await api.get('/api/v1/feature_trackers')
+
+      if (response.success) {
+        // Transform feature_chapter to lookup format { id, display }
+        const processedFeatures = response.feature_trackers.map(f => ({
+          ...f,
+          // Convert feature_chapter to lookup column format for TrapidTableView
+          feature_chapter: f.feature_chapter ? {
+            id: f.feature_chapter.id,
+            display: f.feature_chapter.display_name
+          } : null
+        }))
+        setFeatures(processedFeatures)
+        setFeatureChapters(response.feature_chapters || [])
+        setStats(response.stats)
+      } else {
+        setError('Failed to load features')
       }
     } catch (err) {
-      console.error('Error updating record:', err)
+      console.error('Error loading features:', err)
+      setError(err.message || 'Failed to load features')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -157,19 +134,16 @@ export default function FeaturesTrackingTable() {
         </div>
       )}
 
-      {/* Standard TrapidTableView */}
-      {columns.length > 0 && (
-        <TrapidTableView
-          tableId={`table-feature-tracker`}
-          tableIdNumeric={TABLE_ID}
-          tableName="Feature Tracker"
-          entries={records}
-          columns={columns}
-          onEdit={handleEdit}
-          enableExport={true}
-          initialGroupByColumn="chapter"
-        />
-      )}
+      {/* TrapidTableView - View Only Mode */}
+      <TrapidTableView
+        tableName="Feature Tracking"
+        tableId="feature_tracking"
+        entries={features}
+        columns={COLUMNS}
+        viewOnly={true}
+        enableExport={true}
+        initialGroupByColumn="feature_chapter"
+      />
     </div>
   )
 }
