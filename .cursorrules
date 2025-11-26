@@ -1,4 +1,4 @@
-# Cursor AI Rules for Trapid Project
+# Cursor AI Rules for TEEEM Project
 
 ## Auto-Load Documentation
 
@@ -15,7 +15,7 @@ If the user mentions ANY of these keywords, immediately read the Gantt Bible:
 
 **Files to read:**
 - `GANTT_SCHEDULE_RULES.md` - The Bible (RULES ONLY)
-- Location: `/Users/rob/Projects/trapid/GANTT_SCHEDULE_RULES.md`
+- Location: `/Users/rob/Projects/teeem/GANTT_SCHEDULE_RULES.md`
 
 ### Gantt Development Rules
 

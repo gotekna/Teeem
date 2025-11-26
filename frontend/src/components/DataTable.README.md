@@ -1,8 +1,8 @@
 # DataTable Component
 
-**Location**: `/Users/jakebaird/trapid/frontend/src/components/DataTable.jsx`
+**Location**: `/Users/jakebaird/teeem/frontend/src/components/DataTable.jsx`
 
-The standard table component for all data listing views in Trapid. Follows Tailwind UI Application UI patterns with full dark mode support, sortable columns, and responsive design.
+The standard table component for all data listing views in TEEEM. Follows Tailwind UI Application UI patterns with full dark mode support, sortable columns, and responsive design.
 
 ## When to Use
 
@@ -231,7 +231,7 @@ dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/20
 
 ## Examples
 
-See `/Users/jakebaird/trapid/frontend/src/components/DataTableExample.jsx` for:
+See `/Users/jakebaird/teeem/frontend/src/components/DataTableExample.jsx` for:
 - Complete user table with avatars
 - Project table with status badges
 - Empty state handling
@@ -263,6 +263,6 @@ See `/Users/jakebaird/trapid/frontend/src/components/DataTableExample.jsx` for:
 
 ## Related Documentation
 
-- **Full Standards**: `/Users/jakebaird/trapid/CLAUDE.md` (TABLE STANDARDS section)
-- **Refactoring Audit**: `/Users/jakebaird/trapid/TABLE_REFACTORING_AUDIT.md`
+- **Full Standards**: `/Users/jakebaird/teeem/CLAUDE.md` (TABLE STANDARDS section)
+- **Refactoring Audit**: `/Users/jakebaird/teeem/TABLE_REFACTORING_AUDIT.md`
 - **Tailwind UI Reference**: https://tailwindui.com (Application UI → Tables)

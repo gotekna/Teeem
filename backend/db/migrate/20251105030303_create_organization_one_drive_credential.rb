@@ -10,7 +10,7 @@ class CreateOrganizationOneDriveCredential < ActiveRecord::Migration[8.0]
       t.string :drive_id
       t.string :drive_name
       t.string :root_folder_id # Root folder for all job folders
-      t.string :root_folder_path # Path to root folder (e.g., "Trapid Jobs")
+      t.string :root_folder_path # Path to root folder (e.g., "TEEEM Jobs")
 
       # Connection metadata
       t.jsonb :metadata, default: {} # Store additional OneDrive info

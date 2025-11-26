@@ -1,14 +1,14 @@
-# Trapid Color System
+# TEEEM Color System
 
-**Authority:** Implementation Reference (supplements [TRAPID_BIBLE.md Chapter 19](../TRAPID_DOCS/TRAPID_BIBLE.md#chapter-19))
+**Authority:** Implementation Reference (supplements [TEEEM_BIBLE.md Chapter 19](../TEEEM_DOCS/TEEEM_BIBLE.md#chapter-19))
 
-**📖 For RULES:** See [TRAPID_BIBLE.md Chapter 19](../TRAPID_DOCS/TRAPID_BIBLE.md#chapter-19) - UI/UX Standards & Patterns (ABSOLUTE authority)
+**📖 For RULES:** See [TEEEM_BIBLE.md Chapter 19](../TEEEM_DOCS/TEEEM_BIBLE.md#chapter-19) - UI/UX Standards & Patterns (ABSOLUTE authority)
 
 **This document:** Provides implementation details and code examples for the color standards defined in Bible Chapter 19.
 
 ---
 
-This document outlines the standardized color system used throughout the Trapid frontend application. All color usage should follow these patterns for consistency and vibrant UI/UX.
+This document outlines the standardized color system used throughout the TEEEM frontend application. All color usage should follow these patterns for consistency and vibrant UI/UX.
 
 ## Philosophy
 
@@ -67,7 +67,7 @@ All badges, pills, and status indicators use these exact Tailwind classes:
 
 ### Badge Component
 
-**Location**: `/Users/jakebaird/trapid/frontend/src/components/Badge.jsx`
+**Location**: `/Users/jakebaird/teeem/frontend/src/components/Badge.jsx`
 
 The reusable Badge component is the **primary way** to add colored status indicators:
 
@@ -127,7 +127,7 @@ For success/error message banners:
 
 ### Toast Notifications
 
-Toasts use the same color pattern. See `/Users/jakebaird/trapid/frontend/src/components/Toast.jsx`:
+Toasts use the same color pattern. See `/Users/jakebaird/teeem/frontend/src/components/Toast.jsx`:
 
 ```jsx
 <Toast message="Operation successful!" type="success" />
@@ -138,7 +138,7 @@ Toasts use the same color pattern. See `/Users/jakebaird/trapid/frontend/src/com
 
 ### Purchase Order Status
 
-**File**: `/Users/jakebaird/trapid/frontend/src/components/purchase-orders/POStatusBadge.jsx`
+**File**: `/Users/jakebaird/teeem/frontend/src/components/purchase-orders/POStatusBadge.jsx`
 
 - Draft → Gray
 - Pending → Yellow
@@ -151,7 +151,7 @@ Toasts use the same color pattern. See `/Users/jakebaird/trapid/frontend/src/com
 
 ### Payment Status
 
-**File**: `/Users/jakebaird/trapid/frontend/src/components/purchase-orders/PaymentStatusBadge.jsx`
+**File**: `/Users/jakebaird/teeem/frontend/src/components/purchase-orders/PaymentStatusBadge.jsx`
 
 - Pending → Gray
 - Part Payment → Yellow
@@ -230,21 +230,21 @@ import Badge from '../components/Badge'
 The following files have been standardized to use the new color system:
 
 ### Components
-- `/Users/jakebaird/trapid/frontend/src/components/Badge.jsx` - NEW reusable component
-- `/Users/jakebaird/trapid/frontend/src/components/Toast.jsx`
-- `/Users/jakebaird/trapid/frontend/src/components/imports/ImportProgress.jsx`
-- `/Users/jakebaird/trapid/frontend/src/components/purchase-orders/POStatusBadge.jsx`
-- `/Users/jakebaird/trapid/frontend/src/components/purchase-orders/PaymentStatusBadge.jsx`
-- `/Users/jakebaird/trapid/frontend/src/components/settings/XeroConnection.jsx`
-- `/Users/jakebaird/trapid/frontend/src/components/settings/OneDriveConnection.jsx`
-- `/Users/jakebaird/trapid/frontend/src/components/documents/JobDocumentsTab.jsx`
+- `/Users/jakebaird/teeem/frontend/src/components/Badge.jsx` - NEW reusable component
+- `/Users/jakebaird/teeem/frontend/src/components/Toast.jsx`
+- `/Users/jakebaird/teeem/frontend/src/components/imports/ImportProgress.jsx`
+- `/Users/jakebaird/teeem/frontend/src/components/purchase-orders/POStatusBadge.jsx`
+- `/Users/jakebaird/teeem/frontend/src/components/purchase-orders/PaymentStatusBadge.jsx`
+- `/Users/jakebaird/teeem/frontend/src/components/settings/XeroConnection.jsx`
+- `/Users/jakebaird/teeem/frontend/src/components/settings/OneDriveConnection.jsx`
+- `/Users/jakebaird/teeem/frontend/src/components/documents/JobDocumentsTab.jsx`
 
 ### Pages
-- `/Users/jakebaird/trapid/frontend/src/pages/ContactsPage.jsx`
-- `/Users/jakebaird/trapid/frontend/src/pages/SuppliersPage.jsx`
-- `/Users/jakebaird/trapid/frontend/src/pages/SupplierDetailPage.jsx`
-- `/Users/jakebaird/trapid/frontend/src/pages/PriceBooksPage.jsx`
-- `/Users/jakebaird/trapid/frontend/src/pages/PriceBookItemDetailPage.jsx`
+- `/Users/jakebaird/teeem/frontend/src/pages/ContactsPage.jsx`
+- `/Users/jakebaird/teeem/frontend/src/pages/SuppliersPage.jsx`
+- `/Users/jakebaird/teeem/frontend/src/pages/SupplierDetailPage.jsx`
+- `/Users/jakebaird/teeem/frontend/src/pages/PriceBooksPage.jsx`
+- `/Users/jakebaird/teeem/frontend/src/pages/PriceBookItemDetailPage.jsx`
 
 ## Best Practices
 

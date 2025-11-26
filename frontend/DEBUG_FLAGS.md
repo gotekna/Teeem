@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Trapid frontend now uses conditional debug logging to reduce console verbosity while maintaining debugging capabilities when needed.
+The TEEEM frontend now uses conditional debug logging to reduce console verbosity while maintaining debugging capabilities when needed.
 
 ## Quick Start
 

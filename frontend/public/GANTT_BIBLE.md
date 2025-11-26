@@ -4,8 +4,8 @@
 **Status:** Production-ready with DHtmlx trial
 **Authority Level:** ABSOLUTE - This is The Bible for all Gantt development
 **File Locations:**
-- Source: `/Users/rob/Projects/trapid/GANTT_BIBLE.md`
-- Public: `/Users/rob/Projects/trapid/frontend/public/GANTT_BIBLE.md`
+- Source: `/Users/rob/Projects/teeem/GANTT_BIBLE.md`
+- Public: `/Users/rob/Projects/teeem/frontend/public/GANTT_BIBLE.md`
 
 ---
 
@@ -103,11 +103,11 @@ When you update either Bible or Lexicon, you MUST sync to frontend/public/:
 
 ```bash
 # After updating source files, ALWAYS run:
-cp /Users/rob/Projects/trapid/GANTT_BIBLE.md \
-   /Users/rob/Projects/trapid/frontend/public/GANTT_BIBLE.md
+cp /Users/rob/Projects/teeem/GANTT_BIBLE.md \
+   /Users/rob/Projects/teeem/frontend/public/GANTT_BIBLE.md
 
-cp /Users/rob/Projects/trapid/GANTT_BUG_HUNTER_LEXICON.md \
-   /Users/rob/Projects/trapid/frontend/public/GANTT_BUG_HUNTER_LEXICON.md
+cp /Users/rob/Projects/teeem/GANTT_BUG_HUNTER_LEXICON.md \
+   /Users/rob/Projects/teeem/frontend/public/GANTT_BUG_HUNTER_LEXICON.md
 ```
 
 ✅ **MUST sync after EVERY edit**
@@ -187,11 +187,11 @@ After updating either document, MUST verify:
 
 ```bash
 # 1. Check files are synced
-ls -lh /Users/rob/Projects/trapid/frontend/public/GANTT*.md
+ls -lh /Users/rob/Projects/teeem/frontend/public/GANTT*.md
 
 # 2. Check timestamps match
-head -3 /Users/rob/Projects/trapid/GANTT_BIBLE.md
-head -3 /Users/rob/Projects/trapid/frontend/public/GANTT_BIBLE.md
+head -3 /Users/rob/Projects/teeem/GANTT_BIBLE.md
+head -3 /Users/rob/Projects/teeem/frontend/public/GANTT_BIBLE.md
 
 # 3. Test UI buttons in browser
 # - Navigate to Settings → Schedule Master

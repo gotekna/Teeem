@@ -922,7 +922,7 @@ style={{
 **E2E Tests:** [gantt-cascade.spec.js](../frontend/tests/e2e/gantt-cascade.spec.js)
 
 ```bash
-cd /Users/rob/Projects/trapid/frontend
+cd /Users/rob/Projects/teeem/frontend
 npm run test:e2e
 ```
 

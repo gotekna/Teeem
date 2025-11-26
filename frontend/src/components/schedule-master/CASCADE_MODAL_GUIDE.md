@@ -7,7 +7,7 @@ The new **CascadeKanbanModal** replaces the checkbox-heavy interface with a mode
 ## Features
 
 ### 🎨 Modern Design
-- **Gradient Header**: Matches the Trapid design system (indigo-purple gradient)
+- **Gradient Header**: Matches the TEEEM design system (indigo-purple gradient)
 - **Visual Swim Lanes**: Three clear zones for task organization
 - **Card-Based UI**: Each task is represented as a draggable card
 - **Dark Mode Support**: Full dark mode compatibility
@@ -230,7 +230,7 @@ localStorage.setItem('dhtmlxGanttUseKanbanModal', 'true')
 - Summary cards layout
 - Button styling
 
-**TrapidTableView.jsx:**
+**TeeemTableView.jsx:**
 - Card border style
 - Shadow hierarchy
 - Hover effects
@@ -430,8 +430,8 @@ The same vertical kanban pattern will be applied to:
 - dhtmlxGantt integration
 
 **Aligned With:**
-- Trapid Design System
-- TRAPID_BIBLE.md UI/UX rules
+- TEEEM Design System
+- TEEEM_BIBLE.md UI/UX rules
 - Modern web standards
 
 ---

@@ -1,4 +1,4 @@
-# Trapid Security Scripts
+# TEEEM Security Scripts
 
 ## API Key & Secret Detection
 
@@ -87,7 +87,7 @@ If the script incorrectly flags a false positive:
 ### Integration with Deploy Agent
 
 The deploy-manager agent **automatically runs** `check_all_secrets.sh` before every deployment.
-This is enforced via the project's TRAPID_BIBLE.md Chapter 20 (Agent System).
+This is enforced via the project's TEEEM_BIBLE.md Chapter 20 (Agent System).
 
 If secrets are detected, deployment will be blocked until they are removed.
 
@@ -95,7 +95,7 @@ If secrets are detected, deployment will be blocked until they are removed.
 
 Test the security check:
 ```bash
-cd /Users/jakebaird/trapid
+cd /Users/jakebaird/teeem
 ./scripts/check_all_secrets.sh
 ```
 

@@ -258,7 +258,7 @@ schedule-master/
 
 ## Styling
 
-All components follow Trapid design patterns:
+All components follow TEEEM design patterns:
 - Tailwind CSS utility classes
 - Dark mode support throughout
 - Badge component for status indicators

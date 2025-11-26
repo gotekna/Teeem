@@ -1,6 +1,6 @@
-# Trapid Frontend
+# TEEEM Frontend
 
-React frontend for Trapid application, built with Vite.
+React frontend for TEEEM application, built with Vite.
 
 ## Setup
 

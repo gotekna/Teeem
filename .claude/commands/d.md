@@ -52,7 +52,7 @@ git branch -D backend-deploy-rob
 ```bash
 heroku ps
 curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
-curl -s -o /dev/null -w "%{http_code}" https://trapidtest.vercel.app/
+curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
 ```
 
 ### Step 6 - Report Status

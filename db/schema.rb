@@ -539,7 +539,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.decimal "accounts_payable_overdue", precision: 15, scale: 2
     t.boolean "portal_enabled", default: false
     t.datetime "portal_welcome_sent_at"
-    t.decimal "trapid_rating", precision: 3, scale: 2
+    t.decimal "teeem_rating", precision: 3, scale: 2
     t.integer "total_ratings_count", default: 0
     t.string "director_id"
     t.string "passport_number"
@@ -565,7 +565,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.index ["primary_contact_type"], name: "index_contacts_on_primary_contact_type"
     t.index ["rating"], name: "index_contacts_on_rating"
     t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
-    t.index ["trapid_rating"], name: "index_contacts_on_trapid_rating"
+    t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
     t.index ["xero_id", "last_synced_at"], name: "index_contacts_on_xero_id_and_last_synced_at"
@@ -727,7 +727,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.boolean "simpro_has", default: false, null: false
     t.boolean "smarterbuild_has", default: false, null: false
     t.boolean "clickhome_has", default: false, null: false
-    t.boolean "trapid_has", default: false, null: false
+    t.boolean "teeem_has", default: false, null: false
     t.boolean "clickup_has"
     t.index ["chapter"], name: "index_feature_trackers_on_chapter"
     t.index ["sort_order"], name: "index_feature_trackers_on_sort_order"

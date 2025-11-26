@@ -73,7 +73,7 @@ git branch -D backend-deploy-rob
 ```bash
 heroku ps -a teeem-backend
 curl -s https://teeem-backend-39604ccca45a.herokuapp.com/ | head -5
-curl -s -o /dev/null -w "%{http_code}" https://trapidtest.vercel.app/
+curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
 curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 cat frontend/package.json | grep '"version"' | head -1
 heroku pg:info -a teeem-backend
@@ -85,7 +85,7 @@ heroku logs --tail --num 50 -a teeem-backend | grep -i "migrat\|error\|fail" | h
 - ✅ Commit: [hash + message]
 - ✅ Backend: [version from /version endpoint] - https://teeem-backend-39604ccca45a.herokuapp.com/
   - Dyno status: [web/worker status]
-- ✅ Frontend: [version from package.json] - https://trapidtest.vercel.app/
+- ✅ Frontend: [version from package.json] - https://teeem.vercel.app/
   - Status: [HTTP status code]
 - ✅ Migrations: [status]
 - ✅ Database: [connection info]

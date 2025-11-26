@@ -2,7 +2,7 @@
 
 ## Overview
 
-This directory contains the **single source of truth** for table routing in Trapid. All data tables must use `TablePage` with `TrapidTableView` to ensure consistency and feature inheritance.
+This directory contains the **single source of truth** for table routing in TEEEM. All data tables must use `TablePage` with `TeeemTableView` to ensure consistency and feature inheritance.
 
 ## The Problem We Solved
 
@@ -14,18 +14,18 @@ Previously, developers created custom page components for each table:
 
 **Issues with this approach:**
 - ⚠️ No schema editor (Create/Edit/Delete columns)
-- ⚠️ Missing TrapidTableView features (filters, saved views, kanban)
+- ⚠️ Missing TeeemTableView features (filters, saved views, kanban)
 - ⚠️ Inconsistent UI/UX across tables
 - ⚠️ 10x more code to maintain
 - ⚠️ Bug fixes needed in 10 places instead of 1
 
 ## The Solution
 
-**One component to rule them all:** `TrapidTableView`
+**One component to rule them all:** `TeeemTableView`
 
 All tables now route through:
 ```
-/tables/:id/:slug → TablePage → TrapidTableView (with enableSchemaEditor=true)
+/tables/:id/:slug → TablePage → TeeemTableView (with enableSchemaEditor=true)
 ```
 
 Legacy routes automatically redirect:
@@ -59,7 +59,7 @@ bin/rails db:migrate
 ### Step 3: That's it!
 - ✅ Users can access via `/tables/999/your-table`
 - ✅ If you set `legacyRoute`, `/your-table` redirects automatically
-- ✅ Inherits all TrapidTableView features
+- ✅ Inherits all TeeemTableView features
 - ✅ Schema editor works out of the box
 
 ## When to Create Custom Pages
@@ -73,11 +73,11 @@ bin/rails db:migrate
   - Example: `/whs` → `WhsDashboardPage.jsx`
 
 ### ❌ NO - Don't create custom pages for:
-- **List/Table views** - Always use TablePage + TrapidTableView
-- **Simple CRUD** - Create/Read/Update/Delete → use TrapidTableView
-- **"I need a table with filters"** - TrapidTableView has this
-- **"I need to edit columns"** - TrapidTableView has this
-- **"I need saved views"** - TrapidTableView has this
+- **List/Table views** - Always use TablePage + TeeemTableView
+- **Simple CRUD** - Create/Read/Update/Delete → use TeeemTableView
+- **"I need a table with filters"** - TeeemTableView has this
+- **"I need to edit columns"** - TeeemTableView has this
+- **"I need saved views"** - TeeemTableView has this
 
 ## Architecture
 
@@ -90,7 +90,7 @@ Redirects to: /tables/214/contacts
       ↓
 TablePage component loads
       ↓
-TrapidTableView renders with:
+TeeemTableView renders with:
   - enableSchemaEditor={true}
   - All columns from API
   - Filters, saved views, kanban
@@ -108,13 +108,13 @@ frontend/src/config/
 └── ...other configs
 
 frontend/src/pages/
-├── TablePage.jsx          ← Universal table page (uses TrapidTableView)
+├── TablePage.jsx          ← Universal table page (uses TeeemTableView)
 ├── ContactDetailPage.jsx  ← Custom detail page (OK to keep)
 ├── WhsDashboardPage.jsx   ← Custom dashboard (OK to keep)
 └── ContactsPage.jsx       ← ❌ DEPRECATED - redirects to TablePage
 
 frontend/src/components/documentation/
-└── TrapidTableView.jsx    ← The gold standard (one component for all tables)
+└── TeeemTableView.jsx    ← The gold standard (one component for all tables)
 ```
 
 ## Audit & Maintenance
@@ -134,7 +134,7 @@ grep -r "ContactsPage\|PurchaseOrdersPage\|WhsSwmsPage" frontend/src/pages/
 
 ## Related Documentation
 
-- **Trinity Bible Rule #20.37** - TrapidTableView: The One Table Standard
+- **Trinity Bible Rule #20.37** - TeeemTableView: The One Table Standard
 - **Teacher Chapter 19** - UI/UX Standards & Patterns
 - **Trinity Lexicon** - Bug history for custom table implementations
 
