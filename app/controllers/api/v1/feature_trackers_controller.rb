@@ -2,15 +2,38 @@ class Api::V1::FeatureTrackersController < ApplicationController
   before_action :set_feature_tracker, only: [:update, :destroy]
 
   def index
-    @feature_trackers = FeatureTracker.ordered
+    @feature_trackers = FeatureTracker.includes(:feature_chapter).ordered
 
     if params[:chapter].present?
       @feature_trackers = @feature_trackers.by_chapter(params[:chapter])
     end
 
+    if params[:feature_chapter_id].present?
+      @feature_trackers = @feature_trackers.by_feature_chapter(params[:feature_chapter_id])
+    end
+
+    # Include chapter lookup data for TrapidTableView
+    feature_chapters = FeatureChapter.all.map do |fc|
+      {
+        id: fc.id,
+        chapter_number: fc.chapter_number,
+        name: fc.name,
+        display_name: fc.display_name
+      }
+    end
+
     render json: {
       success: true,
-      feature_trackers: @feature_trackers.as_json(methods: [:completion_percentage, :fully_complete?]),
+      feature_trackers: @feature_trackers.as_json(
+        methods: [:completion_percentage, :fully_complete?, :chapter_display],
+        include: {
+          feature_chapter: {
+            only: [:id, :chapter_number, :name],
+            methods: [:display_name]
+          }
+        }
+      ),
+      feature_chapters: feature_chapters,
       chapters: FeatureTracker.chapters,
       stats: {
         total: FeatureTracker.count,
@@ -84,6 +107,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
   def feature_tracker_params
     params.require(:feature_tracker).permit(
       :chapter,
+      :feature_chapter_id,
       :feature_name,
       :detail_point_1,
       :detail_point_2,
