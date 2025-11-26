@@ -2122,6 +2122,12 @@ export default function AppLayout({ children }) {
                   {!user && (
                     <div className="px-4 py-3">
                       <p className="text-sm text-gray-500 dark:text-gray-400">Not logged in</p>
+                      <Link
+                        to="/login"
+                        className="mt-2 inline-flex items-center rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+                      >
+                        Sign in
+                      </Link>
                     </div>
                   )}
                   <div className="py-1">

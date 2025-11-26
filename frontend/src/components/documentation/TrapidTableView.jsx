@@ -3355,9 +3355,14 @@ export default function TrapidTableView({
             >
               <option value="">Select...</option>
               {availableChoices.length > 0 ? (
-                availableChoices.map(choice => (
-                  <option key={choice} value={choice}>{choice}</option>
-                ))
+                availableChoices.map(choice => {
+                  // Handle both string choices and object choices (from lookups)
+                  const choiceValue = typeof choice === 'object' ? (choice.id || choice.display) : choice
+                  const choiceLabel = typeof choice === 'object' ? choice.display : choice
+                  return (
+                    <option key={choiceValue} value={choiceValue}>{choiceLabel}</option>
+                  )
+                })
               ) : (
                 <>
                   <option value="active">Active</option>
@@ -3608,9 +3613,13 @@ export default function TrapidTableView({
             // Check if lookupOptions are objects {id, display} or just strings (fallback)
             const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
 
+            // Get the current value - handle both object format from API and direct ID
+            const currentValue = editingData[columnKey]
+            const selectValue = typeof currentValue === 'object' ? currentValue?.id : currentValue
+
             return (
               <select
-                value={editingData[columnKey] || ''}
+                value={selectValue || ''}
                 onChange={(e) => {
                   const value = e.target.value
                   setEditingData({ ...editingData, [columnKey]: value })
@@ -3633,16 +3642,27 @@ export default function TrapidTableView({
           }
 
           // Display mode - render lookup value as text
-          // The value stored is the ID, so we need to look up the display value
+          // The API returns lookup values as {id, display} objects
           if (entry[columnKey]) {
+            const entryValue = entry[columnKey]
+
+            // Handle object format from API (e.g., {id: 1, display: "House"})
+            if (typeof entryValue === 'object' && entryValue !== null) {
+              return (
+                <span className="text-gray-900 dark:text-white">
+                  {entryValue.display || entryValue.id || '-'}
+                </span>
+              )
+            }
+
+            // Handle raw ID - look up display value from columnChoices
             const columnDef = COLUMNS.find(c => c.key === columnKey)
             const lookupOptions = columnDef?.id ? (columnChoices[columnDef.id] || []) : []
             const isObjectFormat = lookupOptions.length > 0 && typeof lookupOptions[0] === 'object'
 
-            let displayValue = entry[columnKey]
+            let displayValue = entryValue
             if (isObjectFormat) {
-              // Convert both to numbers for comparison to handle type mismatches
-              const entryId = parseInt(entry[columnKey])
+              const entryId = parseInt(entryValue)
               const matchingOption = lookupOptions.find(opt => parseInt(opt.id) === entryId)
               if (matchingOption) {
                 displayValue = matchingOption.display
@@ -3846,18 +3866,27 @@ export default function TrapidTableView({
                 className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select...</option>
-                {availableChoices.map(choice => (
-                  <option key={choice} value={choice}>{choice}</option>
-                ))}
+                {availableChoices.map(choice => {
+                  // Handle both string choices and object choices (from lookups)
+                  const choiceValue = typeof choice === 'object' ? (choice.id || choice.display) : choice
+                  const choiceLabel = typeof choice === 'object' ? choice.display : choice
+                  return (
+                    <option key={choiceValue} value={choiceValue}>{choiceLabel}</option>
+                  )
+                })}
               </select>
             )
           }
 
           // Display mode - render choice as badge
           if (entry[columnKey]) {
+            // Handle object format (from API) vs string
+            const choiceDisplayValue = typeof entry[columnKey] === 'object'
+              ? (entry[columnKey].display || entry[columnKey].id)
+              : entry[columnKey]
             return (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                {entry[columnKey]}
+                {choiceDisplayValue}
               </span>
             )
           }
@@ -3994,6 +4023,14 @@ export default function TrapidTableView({
             >
               {value}
             </a>
+          )
+        }
+
+        // Handle object values (e.g., lookup columns returning {id, display})
+        if (value && typeof value === 'object') {
+          const displayValue = value.display || value.id || JSON.stringify(value)
+          return (
+            <span className="text-gray-900 dark:text-white">{displayValue}</span>
           )
         }
 

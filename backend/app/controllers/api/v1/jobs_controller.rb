@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs]
+      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options]
 
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
@@ -143,6 +143,69 @@ module Api
                             .ordered
 
         render json: @tabs
+      end
+
+      # POST /api/v1/jobs/:id/import_xero_bills
+      # Import bills from Xero that are tracked to this job
+      def import_xero_bills
+        service = XeroBillImportService.new(@job)
+        result = service.import_bills
+
+        render json: result
+      rescue XeroBillImportService::NotConnectedError => e
+        render json: { success: false, error: e.message }, status: :service_unavailable
+      rescue XeroBillImportService::NoTrackingOptionError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue StandardError => e
+        Rails.logger.error("Xero bill import error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/link_xero_tracking
+      # Link this job to a Xero tracking option
+      def link_xero_tracking
+        tracking_option_id = params[:tracking_option_id]
+        tracking_option_name = params[:tracking_option_name]
+
+        unless tracking_option_id.present?
+          return render json: { success: false, error: 'tracking_option_id is required' }, status: :bad_request
+        end
+
+        if @job.update(
+          xero_tracking_option_id: tracking_option_id,
+          xero_tracking_option_name: tracking_option_name
+        )
+          render json: {
+            success: true,
+            job: @job.as_json(only: [:id, :title, :xero_tracking_option_id, :xero_tracking_option_name])
+          }
+        else
+          render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/jobs/:id/xero_tracking_options
+      # Get available Xero tracking options and suggest a match for this job
+      def xero_tracking_options
+        tracking_options = XeroBillImportService.fetch_tracking_options
+
+        # Find suggested match based on job title/location
+        suggested_match = XeroBillImportService.match_job_to_tracking_option(@job, tracking_options)
+
+        render json: {
+          success: true,
+          tracking_options: tracking_options.map { |o| { id: o['TrackingOptionID'], name: o['Name'] } },
+          current_option: @job.xero_tracking_option_id.present? ? {
+            id: @job.xero_tracking_option_id,
+            name: @job.xero_tracking_option_name
+          } : nil,
+          suggested_match: suggested_match ? {
+            id: suggested_match['TrackingOptionID'],
+            name: suggested_match['Name']
+          } : nil
+        }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
       private

@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard'
 import AuthCallback from './pages/AuthCallback'
 import AutoLoginPage from './pages/AutoLoginPage'
 import Login from './pages/Login'
+import Logout from './pages/Logout'
 
 // Lazy load: Everything else (loads on-demand)
 const XestPage = lazy(() => import('./pages/XestPage'))
@@ -137,6 +138,7 @@ function App() {
           <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/logout" element={<Logout />} />
         <Route path="/auto-login" element={<AutoLoginPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/dashboard" element={<AppLayout><Dashboard /></AppLayout>} />

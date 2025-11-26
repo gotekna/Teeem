@@ -1,18 +1,15 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
 export default function Logout() {
-  const navigate = useNavigate()
   const { logout } = useAuth()
 
   useEffect(() => {
-    const performLogout = async () => {
-      await logout()
-      navigate('/login')
-    }
-    performLogout()
-  }, [logout, navigate])
+    // Clear auth state
+    logout()
+    // Hard redirect to login page to ensure clean state
+    window.location.href = '/login'
+  }, [logout])
 
   return (
     <div className="flex items-center justify-center min-h-screen">

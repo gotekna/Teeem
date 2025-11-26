@@ -14,7 +14,7 @@ class User < ApplicationRecord
 
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :name, presence: true
-  validates :password, length: { minimum: 12 }, if: :password_required?
+  validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
   validates :role, inclusion: { in: ROLES }
   validates :assigned_role, inclusion: { in: ASSIGNABLE_ROLES }, allow_nil: true
