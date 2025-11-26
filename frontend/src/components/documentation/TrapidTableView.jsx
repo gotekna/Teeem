@@ -3880,9 +3880,13 @@ export default function TrapidTableView({
 
           // Display mode - render choice as badge
           if (entry[columnKey]) {
+            // Handle object format (from API) vs string
+            const choiceDisplayValue = typeof entry[columnKey] === 'object'
+              ? (entry[columnKey].display || entry[columnKey].id)
+              : entry[columnKey]
             return (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                {entry[columnKey]}
+                {choiceDisplayValue}
               </span>
             )
           }
@@ -4019,6 +4023,14 @@ export default function TrapidTableView({
             >
               {value}
             </a>
+          )
+        }
+
+        // Handle object values (e.g., lookup columns returning {id, display})
+        if (value && typeof value === 'object') {
+          const displayValue = value.display || value.id || JSON.stringify(value)
+          return (
+            <span className="text-gray-900 dark:text-white">{displayValue}</span>
           )
         }
 
