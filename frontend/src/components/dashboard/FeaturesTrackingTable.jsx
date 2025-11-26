@@ -3,100 +3,29 @@ import TrapidTableView from '../documentation/TrapidTableView'
 import { api } from '../../api'
 
 /**
- * FeaturesTrackingTable - Uses TrapidTableView to display feature tracking data
- * This is a VIEW-ONLY table - no editing allowed
+ * FeaturesTrackingTable - Uses standard TrapidTableView with database-backed table
+ * Table ID: 375 (Feature Tracker)
  */
 export default function FeaturesTrackingTable() {
-  const [features, setFeatures] = useState([])
-  const [featureChapters, setFeatureChapters] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
   const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  // Define columns for TrapidTableView - chapter is now a lookup column for grouping
-  const COLUMNS = [
-    {
-      key: 'feature_chapter',
-      label: 'Chapter',
-      column_type: 'lookup',
-      resizable: true,
-      sortable: true,
-      filterable: true,
-      filterType: 'dropdown',
-      width: 280,
-      lookup_table: 'feature_chapters',
-      lookup_display_field: 'display_name'
-    },
-    { key: 'feature_name', label: 'Feature', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 280 },
-    { key: 'detail_point_1', label: 'Detail 1', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
-    { key: 'detail_point_2', label: 'Detail 2', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
-    { key: 'detail_point_3', label: 'Detail 3', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 180 },
-    { key: 'dev_progress', label: 'Progress', column_type: 'percentage', resizable: true, sortable: true, filterable: false, width: 100 },
-    { key: 'system_complete', label: 'System', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
-    { key: 'dev_checked', label: 'Dev', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
-    { key: 'tester_checked', label: 'Tester', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
-    { key: 'ui_checked', label: 'UI', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 60 },
-    { key: 'user_checked', label: 'User', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
-    { key: 'trapid_has', label: 'Trapid', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
-    { key: 'buildertrend_has', label: 'BuilderTrend', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
-    { key: 'buildexact_has', label: 'BuildExact', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
-    { key: 'jacks_has', label: 'Jacks', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70 },
-    { key: 'wunderbuilt_has', label: 'Wunderbuilt', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
-    { key: 'databuild_has', label: 'DataBuild', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
-    { key: 'simpro_has', label: 'Simpro', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
-    { key: 'smarterbuild_has', label: 'SmarterBuild', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
-    { key: 'clickhome_has', label: 'ClickHome', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 90 },
-    { key: 'clickup_has', label: 'ClickUp', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 }
-  ]
-
+  // Load stats from feature_trackers API
   useEffect(() => {
-    loadFeatures()
-  }, [])
-
-  const loadFeatures = async () => {
-    try {
-      setLoading(true)
-      const response = await api.get('/api/v1/feature_trackers')
-
-      if (response.success) {
-        // Transform feature_chapter to lookup format { id, display }
-        const processedFeatures = response.feature_trackers.map(f => ({
-          ...f,
-          // Convert feature_chapter to lookup column format for TrapidTableView
-          feature_chapter: f.feature_chapter ? {
-            id: f.feature_chapter.id,
-            display: f.feature_chapter.display_name
-          } : null
-        }))
-        setFeatures(processedFeatures)
-        setFeatureChapters(response.feature_chapters || [])
-        setStats(response.stats)
-      } else {
-        setError('Failed to load features')
+    const loadStats = async () => {
+      try {
+        const response = await api.get('/api/v1/feature_trackers')
+        if (response.success && response.stats) {
+          setStats(response.stats)
+        }
+      } catch (err) {
+        console.error('Error loading feature stats:', err)
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error('Error loading features:', err)
-      setError(err.message || 'Failed to load features')
-    } finally {
-      setLoading(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-gray-600 dark:text-gray-400">Loading features...</div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-red-600 dark:text-red-400">Error: {error}</div>
-      </div>
-    )
-  }
+    loadStats()
+  }, [])
 
   return (
     <div className="h-full">
@@ -134,15 +63,12 @@ export default function FeaturesTrackingTable() {
         </div>
       )}
 
-      {/* TrapidTableView - View Only Mode */}
+      {/* Standard TrapidTableView - uses database table ID 375 */}
       <TrapidTableView
-        tableName="Feature Tracking"
-        tableId="feature_tracking"
-        entries={features}
-        columns={COLUMNS}
-        viewOnly={true}
+        tableId={375}
+        tableName="Feature Tracker"
         enableExport={true}
-        initialGroupByColumn="feature_chapter"
+        initialGroupByColumn="chapter"
       />
     </div>
   )
