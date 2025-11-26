@@ -6091,8 +6091,10 @@ export default function TrapidTableView({
                                 return aOrder - bOrder
                               })
                             }
+                            // Use 1 column for 20 or fewer items, 2 columns for more
+                            const useOneColumn = allCols.length <= 20
                             return (
-                              <div className="grid grid-cols-2 gap-0.5">
+                              <div className={`grid ${useOneColumn ? 'grid-cols-1' : 'grid-cols-2'} gap-0.5`}>
                                 {allCols.map((column) => (
                                   <div
                                     key={column.key}
