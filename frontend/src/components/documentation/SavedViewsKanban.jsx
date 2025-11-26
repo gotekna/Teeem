@@ -436,7 +436,7 @@ export default function SavedViewsKanban({
                           const invalidColumns = allTrueColumns.filter(key => !validColumnKeys.includes(key))
 
                           if (invalidColumns.length > 0) {
-                            console.warn('[SavedViewsKanban] Invalid columns detected in view:', {
+                            console.debug('[SavedViewsKanban] Stale columns in view (will be ignored):', {
                               viewName: view.name,
                               invalidColumns: invalidColumns
                             })

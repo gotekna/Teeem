@@ -475,6 +475,7 @@ export default function TrapidTableView({
     }
   })
   const [showCascadeDropdown, setShowCascadeDropdown] = useState(false)
+  const [cascadeFullscreen, setCascadeFullscreen] = useState(false) // Fullscreen mode for cascade popup
 
   // Saved custom filters - load from localStorage on mount (per table)
   const [savedFilters, setSavedFilters] = useState([])
@@ -526,6 +527,8 @@ export default function TrapidTableView({
     setEditingViewId(null)
     setCreatingNewView(false)
     setEditingDefaultSetup(false)
+    setCascadeFullscreen(false) // Reset fullscreen mode when closing
+    setColumnSearchQuery('') // Clear column search when closing
   }
 
   // Helper to load a view's state (consolidated to avoid duplication)
@@ -575,6 +578,12 @@ export default function TrapidTableView({
       const dedupedColumnOrder = [...new Set(view.columnOrder)]
       setVisibilityColumnOrder(dedupedColumnOrder)
       setColumnOrder(dedupedColumnOrder)
+    }
+    // Load showFilters (default true if not specified)
+    if (!skipColumns) {
+      const newShowFilters = view.showFilters === undefined ? true : view.showFilters
+      console.log('[loadViewState] Setting showFilters:', newShowFilters, 'from view.showFilters:', view.showFilters)
+      setShowFilters(newShowFilters)
     }
 
     // Load sort (defensive validation)
@@ -712,6 +721,7 @@ export default function TrapidTableView({
               // Parse columns structure
               visibleColumns: columns.visible || {},
               columnOrder: columns.order || [],
+              showFilters: columns.showFilters !== false, // default true
               sortColumns: Array.isArray(view.sort_order) ? view.sort_order : [],
               groupByColumn: view.group_by_column || null,
               display_order: view.display_order || 0,
@@ -2002,7 +2012,8 @@ export default function TrapidTableView({
           },
           columns: {
             visible: viewData.visibleColumns || {},
-            order: viewData.columnOrder || []
+            order: viewData.columnOrder || [],
+            showFilters: viewData.showFilters === undefined ? true : viewData.showFilters
           },
           sort_order: sortColumns,
           group_by_column: groupByColumn,
@@ -2025,6 +2036,7 @@ export default function TrapidTableView({
           // Parse columns structure
           visibleColumns: columns.visible || {},
           columnOrder: columns.order || [],
+          showFilters: columns.showFilters !== false, // default true
           sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
           groupByColumn: response.view.group_by_column || null,
           isDefault: response.view.is_default || false
@@ -2069,7 +2081,8 @@ export default function TrapidTableView({
           },
           columns: {
             visible: viewData.visibleColumns || {},
-            order: viewData.columnOrder || []
+            order: viewData.columnOrder || [],
+            showFilters: viewData.showFilters === undefined ? true : viewData.showFilters
           },
           sort_order: sortColumns,
           group_by_column: groupByColumn,
@@ -2094,6 +2107,7 @@ export default function TrapidTableView({
             // Parse columns structure
             visibleColumns: columns.visible || {},
             columnOrder: columns.order || [],
+            showFilters: columns.showFilters !== false, // default true
             sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
             groupByColumn: response.view.group_by_column || null,
             isDefault: response.view.is_default || false
@@ -5083,45 +5097,53 @@ export default function TrapidTableView({
                 {/* Dropdown positioned in center like a modal - resizable */}
                 <div
                   ref={cascadePopupRef}
-                  style={{
+                  style={cascadeFullscreen ? {} : {
                     width: `${cascadePopupSize.width}vw`,
                     height: `${cascadePopupSize.height}vh`,
                     transform: `translate(calc(-50% + ${cascadePopupPosition.x}px), calc(-50% + ${cascadePopupPosition.y}px))`
                   }}
-                  className="fixed top-1/2 left-1/2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl overflow-hidden z-[60]"
+                  className={cascadeFullscreen
+                    ? "fixed inset-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl overflow-hidden z-[60]"
+                    : "fixed top-1/2 left-1/2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl overflow-hidden z-[60]"
+                  }
                   onClick={(e) => e.stopPropagation()}
                 >
-                {/* Right resize handle */}
-                <div
-                  className="absolute top-0 right-0 w-2 h-full cursor-ew-resize hover:bg-blue-500/20 z-10"
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    setIsResizing('right')
-                    document.body.style.cursor = 'ew-resize'
-                  }}
-                />
-                {/* Bottom resize handle */}
-                <div
-                  className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize hover:bg-blue-500/20 z-10"
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    setIsResizing('bottom')
-                    document.body.style.cursor = 'ns-resize'
-                  }}
-                />
-                {/* Corner resize handle */}
-                <div
-                  className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-blue-500/30 z-20"
-                  onMouseDown={(e) => {
-                    e.preventDefault()
-                    setIsResizing('corner')
-                    document.body.style.cursor = 'nwse-resize'
-                  }}
-                >
-                  <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z" />
-                  </svg>
-                </div>
+                {/* Resize handles - hidden in fullscreen mode */}
+                {!cascadeFullscreen && (
+                  <>
+                    {/* Right resize handle */}
+                    <div
+                      className="absolute top-0 right-0 w-2 h-full cursor-ew-resize hover:bg-blue-500/20 z-10"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setIsResizing('right')
+                        document.body.style.cursor = 'ew-resize'
+                      }}
+                    />
+                    {/* Bottom resize handle */}
+                    <div
+                      className="absolute bottom-0 left-0 w-full h-2 cursor-ns-resize hover:bg-blue-500/20 z-10"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setIsResizing('bottom')
+                        document.body.style.cursor = 'ns-resize'
+                      }}
+                    />
+                    {/* Corner resize handle */}
+                    <div
+                      className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize hover:bg-blue-500/30 z-20"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setIsResizing('corner')
+                        document.body.style.cursor = 'nwse-resize'
+                      }}
+                    >
+                      <svg className="w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22 22H20V20H22V22ZM22 18H20V16H22V18ZM18 22H16V20H18V22ZM22 14H20V12H22V14ZM18 18H16V16H18V18ZM14 22H12V20H14V22Z" />
+                      </svg>
+                    </div>
+                  </>
+                )}
                 <div className="p-3 h-full overflow-hidden flex flex-col">
                   {/* Header - Draggable */}
                   <div
@@ -5140,10 +5162,37 @@ export default function TrapidTableView({
                       </svg>
                       Cascade Filters
                     </span>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      {/* Fullscreen toggle button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setCascadeFullscreen(!cascadeFullscreen)
+                          // Reset position when toggling fullscreen
+                          if (!cascadeFullscreen) {
+                            setCascadePopupPosition({ x: 0, y: 0 })
+                          }
+                        }}
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title={cascadeFullscreen ? "Exit fullscreen" : "Fullscreen"}
+                      >
+                        {cascadeFullscreen ? (
+                          // Exit fullscreen icon (arrows pointing inward)
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9L4 4m0 0v5m0-5h5m6 0l5-5m0 0v5m0-5h-5m0 16l5 5m0 0v-5m0 5h-5m-6 0l-5 5m0 0v-5m0 5h5" />
+                          </svg>
+                        ) : (
+                          // Fullscreen icon (arrows pointing outward)
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-5h-4m4 0v4m0-4l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5h-4m4 0v-4m0 4l-5-5" />
+                          </svg>
+                        )}
+                      </button>
+                      {/* Close button */}
                       <button
                         onClick={closeCascadePopup}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title="Close"
                       >
                         ✕
                       </button>
@@ -5199,16 +5248,15 @@ export default function TrapidTableView({
                                     interGroupLogic,
                                     visibleColumns: { ...visibleColumns },
                                     columnOrder: visibilityColumnOrder,
+                                    showFilters,
                                     sortColumns: [...sortColumns],
                                     groupByColumn
                                   })
                                 }
 
-                                setEditingViewId(null)
-                                setActiveViewId(null)
-                                setCascadeFilters([])
-                                setFilterGroups([{ id: 'default', logic: 'AND' }])
-                                setInterGroupLogic('OR')
+                                // Keep the view active after saving (stay in edit mode)
+                                setActiveViewId(editingViewId)
+                                // Don't reset filters/columns - they were just saved
                               }}
                               className="text-xs px-3 py-1 bg-green-500 hover:bg-green-600 rounded transition-colors whitespace-nowrap font-medium"
                             >
@@ -5231,16 +5279,16 @@ export default function TrapidTableView({
                                     interGroupLogic,
                                     visibleColumns: { ...visibleColumns },
                                     columnOrder: visibilityColumnOrder,
+                                    showFilters,
                                     sortColumns: [...sortColumns],
                                     groupByColumn
                                   })
                                 }
 
+                                // Keep the view active after saving
+                                setActiveViewId(editingViewId)
                                 setEditingViewId(null)
-                                setActiveViewId(null)
-                                setCascadeFilters([])
-                                setFilterGroups([{ id: 'default', logic: 'AND' }])
-                                setInterGroupLogic('OR')
+                                // Don't reset filters/columns - they were just saved
                                 setShowCascadeDropdown(false) // Close the popup
                               }}
                               className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 rounded transition-colors whitespace-nowrap font-medium"
@@ -5286,6 +5334,7 @@ export default function TrapidTableView({
                                     interGroupLogic,
                                     visibleColumns: columnsToSave,
                                     columnOrder: orderToSave,
+                                    showFilters,
                                     sortColumns: [...sortColumns],
                                     groupByColumn,
                                     isDefault: savedFilters.length === 0
@@ -5317,6 +5366,7 @@ export default function TrapidTableView({
                                   interGroupLogic,
                                   visibleColumns: columnsToSave,
                                   columnOrder: orderToSave,
+                                  showFilters,
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
@@ -5350,6 +5400,7 @@ export default function TrapidTableView({
                                   interGroupLogic,
                                   visibleColumns: columnsToSave,
                                   columnOrder: orderToSave,
+                                  showFilters,
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
@@ -5415,6 +5466,7 @@ export default function TrapidTableView({
                                           interGroupLogic,
                                           visibleColumns: { ...visibleColumns },
                                           columnOrder: visibilityColumnOrder,
+                                          showFilters,
                                           sortColumns: [...sortColumns],
                                           groupByColumn
                                         })
@@ -5479,7 +5531,8 @@ export default function TrapidTableView({
                   </div>
 
                   {/* Main content: 3 columns - Saved Views | Filter Builder | Column Visibility */}
-                  <div className="grid grid-cols-[340px,1fr,380px] gap-4 flex-1 min-h-0 overflow-hidden">
+                  {/* Columns panel gets more space since it often has many items */}
+                  <div className={`grid ${cascadeFullscreen ? 'grid-cols-[260px,1fr,1.5fr]' : 'grid-cols-[260px,1fr,1.2fr]'} gap-4 flex-1 min-h-0 overflow-hidden`}>
                     {/* COLUMN 1: Saved Views Section (moved to left) */}
                     <div className="border-r border-gray-200 dark:border-gray-700 pr-4 h-full overflow-hidden flex flex-col">
                       <div className="flex-1 min-h-0">
@@ -5958,6 +6011,27 @@ export default function TrapidTableView({
                           )}
                         </div>
                       </div>
+
+                      {/* Display Options Panel */}
+                      <div className="mt-4">
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                          Display Options
+                        </label>
+                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={showFilters}
+                              onChange={(e) => setShowFilters(e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">Show inline column filters</span>
+                          </label>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                            Display filter inputs in the table header row
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     {/* COLUMN 3: Column Visibility - Combined with Default */}
@@ -5994,6 +6068,27 @@ export default function TrapidTableView({
                           </button>
                         </div>
                       </div>
+                      {/* Column search input */}
+                      <div className="relative mb-2">
+                        <input
+                          type="text"
+                          value={columnSearchQuery}
+                          onChange={(e) => setColumnSearchQuery(e.target.value)}
+                          placeholder="Search columns..."
+                          className="w-full px-2 py-1 pl-7 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        {columnSearchQuery && (
+                          <button
+                            onClick={() => setColumnSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                       {/* Column header row with Expand/Collapse All - only show when there are multiple groups */}
                       {(() => {
                         const uniqueGroups = new Set(
@@ -6006,7 +6101,6 @@ export default function TrapidTableView({
                         return (
                           <div className="flex items-center justify-between px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
                             <div className="flex items-center gap-2">
-                              <span className="w-4 text-center text-blue-600" title="Visible now">👁</span>
                               <span>Column</span>
                             </div>
                             {hasMultipleGroups && (
@@ -6035,7 +6129,13 @@ export default function TrapidTableView({
                       {/* Combined column list - grouped by column_group with collapsible sections */}
                       <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1 flex-1 min-h-0 overflow-y-auto cascade-popup-scroll">
                         {(() => {
-                          const filteredCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                          // Filter columns by search query
+                          const searchLower = columnSearchQuery.toLowerCase().trim()
+                          const filteredCols = COLUMNS.filter(col =>
+                            col.key !== 'select' &&
+                            col.key !== 'actions' &&
+                            (!searchLower || col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower))
+                          )
 
                           // Group columns by column_group
                           const groupedColumns = {}
@@ -6091,10 +6191,15 @@ export default function TrapidTableView({
                                 return aOrder - bOrder
                               })
                             }
-                            // Use 1 column for 20 or fewer items, 2 columns for more
-                            const useOneColumn = allCols.length <= 20
+                            // Use CSS grid with auto-fill to fit as many columns as possible
+                            // Each column item needs min 160px to show full name
                             return (
-                              <div className={`grid ${useOneColumn ? 'grid-cols-1' : 'grid-cols-2'} gap-0.5`}>
+                              <div
+                                className="grid gap-1"
+                                style={{
+                                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))'
+                                }}
+                              >
                                 {allCols.map((column) => (
                                   <div
                                     key={column.key}
@@ -6144,12 +6249,57 @@ export default function TrapidTableView({
                                         }
                                       }
                                     }}
-                                    className={`flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded select-none transition-colors ${
+                                    className={`relative flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded select-none transition-all duration-150 ${
                                       visibleColumns[column.key] !== false
-                                        ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 border border-green-300 dark:border-green-700'
-                                        : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600'
-                                    } ${draggedVisibilityColumn === column.key ? 'opacity-50' : ''} ${dragOverVisibilityColumn === column.key ? 'border-t-2 border-blue-500' : ''}`}
+                                        ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 border-2 border-green-300 dark:border-green-700'
+                                        : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
+                                    } ${draggedVisibilityColumn === column.key ? 'opacity-40 scale-95 border-dashed border-orange-400 bg-orange-50 dark:bg-orange-900/30' : ''} ${dragOverVisibilityColumn === column.key ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50' : ''}`}
                                   >
+                                    {/* Drop indicator line - shows where item will be inserted */}
+                                    {dragOverVisibilityColumn === column.key && draggedVisibilityColumn && (
+                                      <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-full shadow-lg shadow-blue-300 z-10">
+                                        <div className="absolute -left-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
+                                        <div className="absolute -right-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
+                                      </div>
+                                    )}
+                                    {/* Position number with jump input */}
+                                    {(() => {
+                                      const currentPos = allCols.findIndex(c => c.key === column.key) + 1
+                                      return (
+                                        <input
+                                          type="text"
+                                          key={`pos-${column.key}-${currentPos}`}
+                                          defaultValue={currentPos}
+                                          onFocus={(e) => e.target.select()}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                              e.preventDefault()
+                                              const newPos = parseInt(e.target.value, 10)
+                                              if (!isNaN(newPos) && newPos >= 1 && newPos <= allCols.length) {
+                                                const currentIndex = currentPos - 1
+                                                const targetIndex = newPos - 1
+                                                if (currentIndex !== targetIndex) {
+                                                  const currentOrder = allCols.map(c => c.key)
+                                                  currentOrder.splice(currentIndex, 1)
+                                                  currentOrder.splice(targetIndex, 0, column.key)
+                                                  setVisibilityColumnOrder(currentOrder)
+                                                }
+                                              }
+                                              e.target.blur()
+                                            } else if (e.key === 'Escape') {
+                                              e.target.value = currentPos
+                                              e.target.blur()
+                                            }
+                                          }}
+                                          onBlur={(e) => {
+                                            e.target.value = currentPos
+                                          }}
+                                          className="w-7 h-5 text-[10px] text-center font-mono bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 rounded border-0 focus:ring-1 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700"
+                                          title={`Position ${currentPos} - type new position and press Enter`}
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      )
+                                    })()}
                                     <span
                                       draggable="true"
                                       onDragStart={(e) => {
@@ -6177,7 +6327,7 @@ export default function TrapidTableView({
                                       }}
                                       className="w-3 h-3 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
-                                    <span className="truncate flex-1" title={column.label}>{column.label}</span>
+                                    <span className="truncate min-w-0 flex-1 text-[11px]" title={column.label}>{column.label}</span>
                                   </div>
                                 ))}
                               </div>
@@ -6278,12 +6428,19 @@ export default function TrapidTableView({
                                 }
                               }
                             }}
-                            className={`flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded select-none transition-colors ${
+                            className={`relative flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded select-none transition-all duration-150 ${
                               visibleColumns[column.key] !== false
-                                ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 border border-green-300 dark:border-green-700'
-                                : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-300 dark:border-gray-600'
-                            } ${draggedVisibilityColumn === column.key ? 'opacity-50' : ''} ${dragOverVisibilityColumn === column.key ? 'border-t-2 border-blue-500' : ''}`}
+                                ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 border-2 border-green-300 dark:border-green-700'
+                                : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
+                            } ${draggedVisibilityColumn === column.key ? 'opacity-40 scale-95 border-dashed border-orange-400 bg-orange-50 dark:bg-orange-900/30' : ''} ${dragOverVisibilityColumn === column.key ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50' : ''}`}
                           >
+                            {/* Drop indicator line - shows where item will be inserted */}
+                            {dragOverVisibilityColumn === column.key && draggedVisibilityColumn && (
+                              <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-full shadow-lg shadow-blue-300 z-10">
+                                <div className="absolute -left-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
+                                <div className="absolute -right-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
+                              </div>
+                            )}
                             {/* Drag handle */}
                             <span
                               draggable="true"
