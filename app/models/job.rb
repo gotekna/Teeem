@@ -35,7 +35,7 @@ class Job < ApplicationRecord
   # Validations
   validates :title, presence: true
   validates :status, presence: true
-  validates :site_supervisor_name, presence: true
+  validates :site_supervisor_name, presence: true, unless: :imported_from_xero?
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
   validate :stage_must_be_valid_for_type_and_status
@@ -132,6 +132,11 @@ class Job < ApplicationRecord
         relationships_count: cc.contact.outgoing_relationships.count
       }
     end
+  end
+
+  # Check if job was imported from Xero (has tracking option linked)
+  def imported_from_xero?
+    xero_tracking_option_id.present?
   end
 
   private
