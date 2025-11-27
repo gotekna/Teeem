@@ -170,11 +170,13 @@ module Api
             cascadeFilters: [],
             filterGroups: []
           ],
-          columns: {
+          columns: [
+            :showFilters,
             order: [],
             visible: {}
-          },
-          sort_order: []
+          ],
+          sort_order: [:column, :dir],
+          group_by_columns: []
         )
       end
 
