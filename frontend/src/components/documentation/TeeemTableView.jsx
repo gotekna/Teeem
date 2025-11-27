@@ -6476,7 +6476,7 @@ export default function TeeemTableView({
                                       setVisibilityColumnOrder([...visibleKeys, ...hiddenKeys])
                                     }
                                   }}
-                                  className="w-6 text-[9px] text-center text-green-600 dark:text-green-400 font-medium bg-transparent border border-transparent hover:border-green-300 focus:border-green-500 focus:outline-none rounded [appearance:textfield]"
+                                  className="w-6 text-[9px] text-center text-green-700 dark:text-green-300 font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 hover:border-green-400 focus:border-green-500 focus:outline-none rounded [appearance:textfield]"
                                 />
                               )}
                               <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
