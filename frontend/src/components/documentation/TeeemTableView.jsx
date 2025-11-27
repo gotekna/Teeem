@@ -510,9 +510,10 @@ export default function TeeemTableView({
   const [newViewName, setNewViewName] = useState('') // Name for new view being created
   const [editingFilterId, setEditingFilterId] = useState(null) // Track which filter is being edited
   const [editingFilterValue, setEditingFilterValue] = useState('') // Track the temporary value while editing
-  const [groupByColumn, setGroupByColumn] = useState(initialGroupByColumn) // Track which column to group by
+  const [groupByColumn, setGroupByColumn] = useState(initialGroupByColumn) // Track which column to group by (legacy single)
+  const [groupByColumns, setGroupByColumns] = useState(initialGroupByColumn ? [initialGroupByColumn] : []) // Track multiple group by columns
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()) // Track which groups are collapsed
-  const [groupByDropdownOpen, setGroupByDropdownOpen] = useState(false) // Track if group by dropdown is open
+  const [groupByDropdownOpen, setGroupByDropdownOpen] = useState(null) // Track which group by dropdown is open (by index)
   const [groupBySearchQuery, setGroupBySearchQuery] = useState('') // Search query for group by dropdown
   const [sortColumnDropdownOpen, setSortColumnDropdownOpen] = useState(null) // Track which sort column dropdown is open (by index)
   const [sortColumnSearchQuery, setSortColumnSearchQuery] = useState('') // Search query for sort column dropdown
@@ -6111,149 +6112,204 @@ export default function TeeemTableView({
                         </div>
                       </div>
 
-                      {/* Group By Panel */}
+                      {/* Group By Panel - Multiple Columns */}
                       <div className="mt-4">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                           Group By
                         </label>
                         <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
-                          <div className="flex items-center gap-2">
-                            {/* Searchable Group By Dropdown - with smart positioning */}
-                            <div className="relative flex-1" data-group-by-dropdown>
-                              {groupByDropdownOpen ? (
-                                // Search input replaces button when open
-                                <input
-                                  type="text"
-                                  value={groupBySearchQuery}
-                                  onChange={(e) => setGroupBySearchQuery(e.target.value)}
-                                  placeholder="Type to search..."
-                                  className="w-full px-3 py-2 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  autoFocus
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Escape') {
-                                      setGroupByDropdownOpen(false)
-                                      setGroupBySearchQuery('')
-                                    }
-                                  }}
-                                />
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setGroupByDropdownOpen(true)
-                                    setGroupBySearchQuery('')
-                                  }}
-                                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
-                                >
-                                  <span className={groupByColumn ? '' : 'text-gray-400 dark:text-gray-500'}>
-                                    {groupByColumn
-                                      ? COLUMNS.find(c => c.key === groupByColumn)?.label || groupByColumn
-                                      : 'No grouping'}
-                                  </span>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
-                              )}
-
-                              {/* Dropdown Menu - Smart positioning */}
-                              {groupByDropdownOpen && (
-                                <div
-                                  className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
-                                  style={{
-                                    // Smart positioning: check if more space above or below
-                                    ...((() => {
-                                      const el = document.querySelector(`[data-group-by-dropdown]`)
-                                      if (el) {
-                                        const rect = el.getBoundingClientRect()
-                                        const spaceBelow = window.innerHeight - rect.bottom
-                                        const spaceAbove = rect.top
-                                        if (spaceBelow < 200 && spaceAbove > spaceBelow) {
-                                          return { bottom: '100%', marginBottom: '4px' }
-                                        }
-                                      }
-                                      return { top: '100%', marginTop: '4px' }
-                                    })())
-                                  }}
-                                >
-                                  {/* No Grouping Option */}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setGroupByColumn(null)
-                                      setCollapsedGroups(new Set())
-                                      setGroupByDropdownOpen(false)
-                                      setGroupBySearchQuery('')
-                                    }}
-                                    className={`w-full px-3 py-1.5 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 ${
-                                      !groupByColumn ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
-                                    }`}
-                                  >
-                                    {!groupByColumn && <span className="text-blue-600">✓</span>}
-                                    <span className={!groupByColumn ? '' : 'ml-5'}>No grouping</span>
-                                  </button>
-
-                                  {/* Filtered Column Options */}
-                                  {COLUMNS
-                                    .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
-                                    .filter(col => {
-                                      if (!groupBySearchQuery.trim()) return true
-                                      const searchLower = groupBySearchQuery.toLowerCase()
-                                      return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
-                                    })
-                                    .sort((a, b) => a.label.localeCompare(b.label))
-                                    .map(col => (
-                                      <button
-                                        key={col.key}
-                                        type="button"
-                                        onClick={() => {
-                                          setGroupByColumn(col.key)
-                                          setCollapsedGroups(new Set())
-                                          setGroupByDropdownOpen(false)
-                                          setGroupBySearchQuery('')
-                                        }}
-                                        className={`w-full px-3 py-1.5 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 ${
-                                          groupByColumn === col.key ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
-                                        }`}
-                                      >
-                                        {groupByColumn === col.key && <span className="text-blue-600">✓</span>}
-                                        <span className={groupByColumn === col.key ? '' : 'ml-5'}>{col.label}</span>
-                                      </button>
-                                    ))
-                                  }
-
-                                  {/* No Results */}
-                                  {groupBySearchQuery.trim() &&
-                                    COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
-                                      .filter(col => col.label.toLowerCase().includes(groupBySearchQuery.toLowerCase()) || col.key.toLowerCase().includes(groupBySearchQuery.toLowerCase()))
-                                      .length === 0 && (
-                                    <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
-                                      No columns found
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            {groupByColumn && (
+                          {/* Add group column button */}
+                          <div className="flex items-center gap-2 mb-3">
+                            <button
+                              onClick={() => {
+                                // Find first column alphabetically that isn't already in groupByColumns
+                                const availableCols = COLUMNS.filter(col =>
+                                  col.key !== 'select' &&
+                                  col.key !== 'actions' &&
+                                  col.key !== 'id' &&
+                                  !groupByColumns.includes(col.key)
+                                ).sort((a, b) => a.label.localeCompare(b.label))
+                                if (availableCols.length > 0) {
+                                  const newGroupByColumns = [...groupByColumns, availableCols[0].key]
+                                  setGroupByColumns(newGroupByColumns)
+                                  setGroupByColumn(newGroupByColumns[0]) // Keep legacy in sync with first
+                                  setCollapsedGroups(new Set())
+                                }
+                              }}
+                              className="px-3 py-1.5 border border-purple-300 dark:border-purple-500 rounded-lg bg-purple-50 dark:bg-purple-900/30 text-sm font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors"
+                            >
+                              +Group Column
+                            </button>
+                            {groupByColumns.length > 0 && (
                               <button
                                 onClick={() => {
+                                  setGroupByColumns([])
                                   setGroupByColumn(null)
                                   setCollapsedGroups(new Set())
                                 }}
-                                className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                                className="ml-auto px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                               >
-                                Clear
+                                Clear All
                               </button>
                             )}
                           </div>
-                          {groupByColumn && (
+
+                          {/* Group columns list */}
+                          {groupByColumns.length === 0 ? (
+                            <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-3 italic">
+                              No grouping. Click +Group Column to add one.
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {groupByColumns.map((groupCol, index) => (
+                                <div
+                                  key={`${groupCol}-${index}`}
+                                  className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
+                                >
+                                  {/* Order number */}
+                                  <span className="w-6 h-6 flex items-center justify-center bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
+                                    {index + 1}
+                                  </span>
+
+                                  {/* Column dropdown - Searchable with smart positioning */}
+                                  <div className="relative flex-1 min-w-[120px]" data-group-column-dropdown={index}>
+                                    {groupByDropdownOpen === index ? (
+                                      <input
+                                        type="text"
+                                        value={groupBySearchQuery}
+                                        onChange={(e) => setGroupBySearchQuery(e.target.value)}
+                                        placeholder="Type to search..."
+                                        className="w-full px-3 py-1.5 border border-purple-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none"
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Escape') {
+                                            setGroupByDropdownOpen(null)
+                                            setGroupBySearchQuery('')
+                                          }
+                                        }}
+                                      />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setGroupByDropdownOpen(index)
+                                          setGroupBySearchQuery('')
+                                        }}
+                                        className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
+                                      >
+                                        <span>{COLUMNS.find(c => c.key === groupCol)?.label || groupCol}</span>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </button>
+                                    )}
+
+                                    {groupByDropdownOpen === index && (
+                                      <div
+                                        className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
+                                        style={{
+                                          ...((() => {
+                                            const el = document.querySelector(`[data-group-column-dropdown="${index}"]`)
+                                            if (el) {
+                                              const rect = el.getBoundingClientRect()
+                                              const spaceBelow = window.innerHeight - rect.bottom
+                                              const spaceAbove = rect.top
+                                              if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+                                                return { bottom: '100%', marginBottom: '4px' }
+                                              }
+                                            }
+                                            return { top: '100%', marginTop: '4px' }
+                                          })())
+                                        }}
+                                      >
+                                        {COLUMNS
+                                          .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                                          .filter(col => {
+                                            if (!groupBySearchQuery.trim()) return true
+                                            const searchLower = groupBySearchQuery.toLowerCase()
+                                            return col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower)
+                                          })
+                                          .sort((a, b) => a.label.localeCompare(b.label))
+                                          .map(col => {
+                                            const isDisabled = groupByColumns.some((g, i) => i !== index && g === col.key)
+                                            return (
+                                              <button
+                                                key={col.key}
+                                                type="button"
+                                                disabled={isDisabled}
+                                                onClick={() => {
+                                                  if (!isDisabled) {
+                                                    const newGroupByColumns = groupByColumns.map((g, i) =>
+                                                      i === index ? col.key : g
+                                                    )
+                                                    setGroupByColumns(newGroupByColumns)
+                                                    setGroupByColumn(newGroupByColumns[0]) // Keep legacy in sync
+                                                    setGroupByDropdownOpen(null)
+                                                    setGroupBySearchQuery('')
+                                                    setCollapsedGroups(new Set())
+                                                  }
+                                                }}
+                                                className={`w-full px-3 py-1.5 text-left text-sm flex items-center gap-2 ${
+                                                  isDisabled
+                                                    ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                                                    : groupCol === col.key
+                                                      ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                                                      : 'text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/30'
+                                                }`}
+                                              >
+                                                {groupCol === col.key && <span className="text-purple-600">✓</span>}
+                                                <span className={groupCol === col.key ? '' : 'ml-5'}>{col.label}</span>
+                                              </button>
+                                            )
+                                          })
+                                        }
+                                        {groupBySearchQuery.trim() &&
+                                          COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                                            .filter(col => col.label.toLowerCase().includes(groupBySearchQuery.toLowerCase()) || col.key.toLowerCase().includes(groupBySearchQuery.toLowerCase()))
+                                            .length === 0 && (
+                                          <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                            No columns found
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Delete button */}
+                                  <button
+                                    onClick={() => {
+                                      const newGroupByColumns = groupByColumns.filter((_, i) => i !== index)
+                                      setGroupByColumns(newGroupByColumns)
+                                      setGroupByColumn(newGroupByColumns[0] || null) // Keep legacy in sync
+                                      setCollapsedGroups(new Set())
+                                    }}
+                                    className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded transition-colors"
+                                    title="Remove group column"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ))}
+
+                              {/* Group info */}
+                              <div className="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-1">
+                                Grouped by {groupByColumns.length} column{groupByColumns.length !== 1 ? 's' : ''} in order shown
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Collapse/Expand controls */}
+                          {groupByColumns.length > 0 && (
                             <div className="mt-3 flex items-center gap-2">
                               <button
                                 onClick={() => {
-                                  // Collapse all groups - handle lookup columns which return { id, display } objects
+                                  // Collapse all groups - use first group column
                                   const allGroups = new Set()
+                                  const firstGroupCol = groupByColumns[0]
                                   filteredAndSorted.forEach(entry => {
-                                    const rawValue = entry[groupByColumn]
+                                    const rawValue = entry[firstGroupCol]
                                     const groupValue = rawValue && typeof rawValue === 'object' && rawValue.display !== undefined
                                       ? (rawValue.display || '(empty)')
                                       : (rawValue ?? '(empty)')
@@ -6507,26 +6563,6 @@ export default function TeeemTableView({
                                   {column.label}
                                 </span>
                               </label>
-                              {/* Group by toggle */}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  // Toggle: if already grouped by this column, clear it; otherwise set it
-                                  if (groupByColumn === column.key) {
-                                    setGroupByColumn(null)
-                                  } else {
-                                    setGroupByColumn(column.key)
-                                  }
-                                }}
-                                title={groupByColumn === column.key ? 'Remove grouping' : 'Group by this column'}
-                                className={`ml-auto px-1 py-0.5 text-[8px] font-bold rounded ${
-                                  groupByColumn === column.key
-                                    ? 'bg-purple-500 text-white'
-                                    : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 hover:bg-purple-200 dark:hover:bg-purple-800'
-                                }`}
-                              >
-                                G
-                              </button>
                             </div>
                           )
 
