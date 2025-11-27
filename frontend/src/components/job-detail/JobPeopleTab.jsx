@@ -55,9 +55,10 @@ const ROLE_GROUPS = [
     icon: UserGroupIcon,
     roles: [
       { key: 'supervisor', label: 'Supervisor', icon: WrenchScrewdriverIcon, color: 'orange' },
+      { key: 'site_coordinator', label: 'Site Coordinator', icon: ClipboardDocumentListIcon, color: 'amber' },
       { key: 'estimator', label: 'Estimator', icon: CalculatorIcon, color: 'green' },
       { key: 'internal_sales', label: 'Internal Sales', icon: CurrencyDollarIcon, color: 'purple' },
-      { key: 'coordinator', label: 'Coordinator', icon: ClipboardDocumentListIcon, color: 'teal' },
+      { key: 'coordinator', label: 'Client Coordinator', icon: ClipboardDocumentListIcon, color: 'teal' },
     ]
   }
 ]
@@ -76,6 +77,7 @@ const getRoleBadgeClasses = (color) => {
     cyan: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-400',
     slate: 'bg-slate-100 dark:bg-slate-900/30 text-slate-800 dark:text-slate-400',
     orange: 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-400',
+    amber: 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-400',
     green: 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-400',
     purple: 'bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-400',
     pink: 'bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-400',
@@ -113,7 +115,7 @@ const formatRelationshipType = (type) => {
 }
 
 // Internal team roles that use users instead of contacts
-const INTERNAL_ROLES = ['supervisor', 'estimator', 'internal_sales', 'coordinator']
+const INTERNAL_ROLES = ['supervisor', 'site_coordinator', 'estimator', 'internal_sales', 'coordinator']
 
 // Job type icon mapping - maps icon names from API to actual icon components
 const ICON_COMPONENTS = {
@@ -1147,7 +1149,7 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
             </div>
 
             {/* 4-column grid for internal team roles */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
               {group.roles.map(role => {
                 const roleContacts = (contactsByRole[role.key] || []).map(c => ({ ...c, roleConfig: role }))
                 const RoleIcon = role.icon
