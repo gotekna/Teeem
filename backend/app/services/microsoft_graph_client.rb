@@ -328,7 +328,8 @@ class MicrosoftGraphClient
   end
 
   # List items in a folder
-  def list_folder_items(folder_id = nil)
+  # include_thumbnails: if true, expands thumbnails for image files
+  def list_folder_items(folder_id = nil, include_thumbnails: false)
     folder_id = folder_id || @credential.root_folder_id
 
     unless folder_id
@@ -336,6 +337,7 @@ class MicrosoftGraphClient
     end
 
     path = "/drives/#{@credential.drive_id}/items/#{folder_id}/children"
+    path += "?$expand=thumbnails" if include_thumbnails
     get(path)
   end
 
