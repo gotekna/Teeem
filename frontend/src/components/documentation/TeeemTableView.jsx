@@ -144,7 +144,9 @@ export default function TeeemTableView({
   loadingMore = false,  // NEW: Shows loading indicator when more records are being fetched
   preloadedViews = null,  // NEW: Preloaded views from parent (skips API call if provided)
   hideUpdateViewButton = false,  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)
-  initialGroupByColumn = null  // NEW: Initial column to group by (for tables that default to grouped view)
+  initialGroupByColumn = null,  // NEW: Initial column to group by (for tables that default to grouped view)
+  onServerSearch = null,  // NEW: Callback for server-side search (called with debounced search term)
+  serverSearchLoading = false  // NEW: Shows loading indicator during server-side search
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -250,6 +252,21 @@ export default function TeeemTableView({
   // enableImport/enableExport: show import/export options in three-dot menu
   // onImport/onExport: callback functions for import/export actions
   const [search, setSearch] = useState('')
+
+  // Server-side search with debouncing (Chapter 20.20 enhancement)
+  // When onServerSearch is provided, triggers server search after 300ms of inactivity
+  useEffect(() => {
+    if (!onServerSearch) return  // Only activate if callback is provided
+
+    const debounceTimer = setTimeout(() => {
+      // Call server search callback with the search term
+      // Empty string clears the search and reloads all records
+      onServerSearch(search)
+    }, 300)  // 300ms debounce delay
+
+    return () => clearTimeout(debounceTimer)
+  }, [search, onServerSearch])
+
   // Multi-column sorting: array of {column, dir} objects
   // First item is primary sort, second is secondary, etc.
   // Sort and group by are per-view settings, not persisted with table state
@@ -1627,7 +1644,8 @@ export default function TeeemTableView({
     }
 
     // Apply search (Chapter 20.20) - Search across ALL fields
-    if (search) {
+    // SKIP client-side filtering when onServerSearch is provided (server handles filtering)
+    if (search && !onServerSearch) {
       const query = search.toLowerCase()
       result = result.filter(e => {
         // Get all values from the entry and check if any contain the search query
@@ -2003,7 +2021,7 @@ export default function TeeemTableView({
     }
 
     return result
-  }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents])
+  }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch])
 
   // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
@@ -4564,12 +4582,18 @@ export default function TeeemTableView({
         {/* Search Box with Clear Button (Chapter 20.20) */}
         <div className="flex items-end gap-3">
           <div className="relative flex-1">
-            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            {serverSearchLoading ? (
+              <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+              </div>
+            ) : (
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            )}
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search across all fields..."
+              placeholder={onServerSearch ? "Search all records..." : "Search across all fields..."}
               className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {search && (
@@ -5403,22 +5427,19 @@ export default function TeeemTableView({
                   </div>
 
                   {/* Two separate header boxes */}
-                  <div className="grid grid-cols-[340px,1fr] gap-4 -mx-3 px-3 mb-3">
+                  <div className="grid grid-cols-[220px,1fr] gap-4 mb-2">
                     {/* LEFT: Saved Views header box */}
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2.5 rounded-lg shadow-lg">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold">Saved Views</span>
-                          <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] bg-white/20 backdrop-blur-sm text-white rounded-full text-xs font-bold">
-                            {savedFilters.length}
-                          </span>
-                        </div>
-                        <div className="text-xs opacity-75">Drag to reorder</div>
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 py-1.5 rounded-md shadow-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold">Saved Views</span>
+                        <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded font-medium">
+                          {savedFilters.length}
+                        </span>
                       </div>
                     </div>
                     {/* RIGHT: Create New or Edit View header box */}
-                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2.5 rounded-lg shadow-lg">
-                      <div className="flex items-center gap-3">
+                    <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 py-1.5 rounded-md shadow-sm">
+                      <div className="flex items-center gap-2">
                         {editingViewId ? (
                           <>
                             <span className="text-sm font-bold whitespace-nowrap">Edit View:</span>

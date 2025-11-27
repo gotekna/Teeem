@@ -125,6 +125,8 @@ export default function TablePage({ embedded = false }) {
   const [preloadedViews, setPreloadedViews] = useState(null) // Pre-loaded views for parallel loading
   const [viewsLoaded, setViewsLoaded] = useState(false) // Track if views are loaded (for progressive loading)
   const [viewsLoading, setViewsLoading] = useState(false) // Track if views are currently loading
+  const [serverSearchLoading, setServerSearchLoading] = useState(false) // Track server-side search loading state
+  const [currentSearchTerm, setCurrentSearchTerm] = useState('') // Track current search term for server-side search
 
   // Reset progressive loading state when table changes
   useEffect(() => {
@@ -687,6 +689,41 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
+  // Server-side search handler for TeeemTableView
+  // Called by TeeemTableView when search term changes (with 300ms debounce)
+  const handleServerSearch = useCallback(async (searchTerm) => {
+    // Only enable server-side search for tables that need it (not Price Books which loads all)
+    const isPriceBooks = id === '205' || id === 'price-books'
+    if (isPriceBooks) return  // Price Books loads all records, use client-side search
+
+    setCurrentSearchTerm(searchTerm)
+    setServerSearchLoading(true)
+
+    try {
+      // Build URL with search parameter
+      const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''
+      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${PAGE_SIZE}&page=1${searchParam}`)
+
+      // Update records with search results
+      setRecords(response.records || [])
+      setCurrentPage(1)
+      setTotalPages(response.pagination?.total_pages || 1)
+      setTotalCount(response.pagination?.total_count || 0)
+      setHasMore(1 < (response.pagination?.total_pages || 1))
+
+      progressiveLoadLog('Server search completed:', {
+        searchTerm,
+        resultCount: response.records?.length,
+        totalCount: response.pagination?.total_count
+      })
+    } catch (err) {
+      console.error('Server search failed:', err)
+      // Don't clear records on error - keep showing previous results
+    } finally {
+      setServerSearchLoading(false)
+    }
+  }, [id, PAGE_SIZE])
+
   // CRUD handlers for TeeemTableView
   const handleEdit = async (entry) => {
     try {
@@ -975,6 +1012,8 @@ export default function TablePage({ embedded = false }) {
             entries={records}
             columns={teeemColumns}
             preloadedViews={preloadedViews}
+            onServerSearch={handleServerSearch}
+            serverSearchLoading={serverSearchLoading}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
