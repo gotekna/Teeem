@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :create_portal_user, :update_portal_user, :delete_portal_user]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
 
       # GET /api/v1/contacts
       def index
@@ -45,15 +45,50 @@ module Api
 
         @contacts = @contacts.order(:full_name)
 
+        # Optionally include companies and jobs data
+        include_companies = params[:include_companies] == 'true'
+        include_jobs = params[:include_jobs] == 'true'
+
+        contacts_json = @contacts.as_json(
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status],
+          include: {
+            portal_user: { only: [:id, :email, :portal_type, :active] }
+          },
+          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name]
+        )
+
+        # Add company and job counts for all contacts
+        if include_companies || include_jobs
+          contacts_json.each do |contact_json|
+            contact = @contacts.find { |c| c.id == contact_json['id'] }
+            next unless contact
+
+            if include_companies
+              # Add primary company info
+              if contact.primary_company
+                contact_json['primary_company'] = {
+                  id: contact.primary_company.id,
+                  name: contact.primary_company.display_name
+                }
+              end
+
+              # Count additional companies
+              contact_json['additional_companies_count'] = contact.outgoing_relationships
+                .active
+                .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in'])
+                .count
+            end
+
+            if include_jobs
+              # Count jobs
+              contact_json['jobs_count'] = contact.job_contacts.count
+            end
+          end
+        end
+
         render json: {
           success: true,
-          contacts: @contacts.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating],
-            include: {
-              portal_user: { only: [:id, :email, :portal_type, :active] }
-            },
-            methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name]
-          )
+          contacts: contacts_json
         }
       end
 
@@ -67,6 +102,7 @@ module Api
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
+            :entity_type, :primary_role, :employment_status,
             # Xero fields
             :bank_bsb, :bank_account_number, :bank_account_name,
             :default_purchase_account, :default_sales_account,
@@ -120,6 +156,53 @@ module Api
             )
           end
         end
+
+        # Add primary company and employment details
+        if @contact.primary_company.present?
+          contact_json[:primary_company] = {
+            id: @contact.primary_company.id,
+            name: @contact.primary_company.display_name,
+            contact_types: @contact.primary_company.contact_types,
+            role: @contact.primary_role,
+            employment_status: @contact.employment_status,
+            start_date: @contact.employment_start_date
+          }
+        end
+
+        # Add additional companies via relationships
+        contact_json[:additional_companies] = @contact.outgoing_relationships
+          .active
+          .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in', 'authorized_signatory_of', 'beneficial_owner_of'])
+          .includes(:related_contact)
+          .map do |rel|
+            {
+              id: rel.related_contact.id,
+              name: rel.related_contact.display_name,
+              entity_type: rel.related_contact.entity_type,
+              relationship_type: rel.relationship_type,
+              role_in_relationship: rel.role_in_relationship,
+              ownership_percentage: rel.ownership_percentage,
+              context: rel.context,
+              start_date: rel.start_date,
+              end_date: rel.end_date,
+              is_active: rel.is_active
+            }
+          end
+
+        # Add jobs/constructions
+        contact_json[:jobs] = @contact.job_contacts
+          .includes(:job)
+          .map do |jc|
+            {
+              job_id: jc.job_id,
+              job_title: jc.job.title,
+              location: jc.job.location,
+              role: jc.role,
+              primary: jc.primary,
+              status: jc.job.status,
+              stage: jc.job.stage
+            }
+          end
 
         render json: {
           success: true,
@@ -1053,6 +1136,21 @@ module Api
         }
       end
 
+      # GET /api/v1/contacts/:id/internal_messages
+      def internal_messages
+        # TODO: Implement internal messages functionality
+        # For now, return an empty array to prevent frontend errors
+        render json: {
+          success: true,
+          messages: []
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fetch messages: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       private
 
       def set_contact
@@ -1127,6 +1225,7 @@ module Api
           :xero_account_number,
           :company_number,
           :default_discount,
+          :entity_type,
           contact_types: [],
           lgas: [],
           contact_group_ids: [],

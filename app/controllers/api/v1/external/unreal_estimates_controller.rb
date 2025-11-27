@@ -34,7 +34,7 @@ module Api
               case matcher_result[:status]
               when :auto_matched
                 matched_job = matcher_result[:matched_job]
-                construction = Construction.find(matched_job[:id])
+                construction = Job.find(matched_job[:id])
                 estimate.match_to_construction!(construction, matched_job[:confidence_score])
 
                 estimate.save!

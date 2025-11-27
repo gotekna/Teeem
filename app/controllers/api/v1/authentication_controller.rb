@@ -14,11 +14,20 @@ module Api
           return
         end
 
-        # Find or create default dev user
-        dev_user = User.find_or_create_by!(email: 'dev@teeem.local') do |user|
-          user.name = 'Dev User'
-          user.password = 'DevPassword123!'
-          user.role = 'admin'  # Give dev user admin access
+        # Try to find an existing user (prefer robert@tekna.com.au for local dev)
+        dev_user = User.find_by(email: 'robert@tekna.com.au') ||
+                   User.find_by(email: 'rob@teeem.com.au') ||
+                   User.where(role: 'admin').first ||
+                   User.first
+
+        # If no users exist, create a dev user
+        unless dev_user
+          dev_user = User.create!(
+            email: 'dev@teeem.local',
+            name: 'Dev User',
+            password: 'DevPassword123!',
+            role: 'admin'
+          )
         end
 
         token = JsonWebToken.encode(user_id: dev_user.id)
@@ -31,7 +40,7 @@ module Api
             email: dev_user.email,
             name: dev_user.name,
             role: dev_user.role,
-            permissions: dev_user.all_permissions
+            permissions: dev_user.permissions
           }
         }
       end
@@ -59,7 +68,7 @@ module Api
               email: user.email,
               name: user.name,
               role: user.role,
-              permissions: user.all_permissions
+              permissions: user.permissions
             }
           }, status: :created
         else
@@ -87,7 +96,7 @@ module Api
               email: user.email,
               name: user.name,
               role: user.role,
-              permissions: user.all_permissions
+              permissions: user.permissions
             }
           }
         else
@@ -107,7 +116,8 @@ module Api
             email: @current_user.email,
             name: @current_user.name,
             role: @current_user.role,
-            permissions: @current_user.all_permissions
+            permissions: @current_user.permissions,
+            preload_price_books: @current_user.preload_price_books
           }
         }
       end

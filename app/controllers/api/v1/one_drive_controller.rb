@@ -1,7 +1,7 @@
 module Api
   module V1
     class OneDriveController < ApplicationController
-      before_action :set_construction, only: [:authorize, :callback, :status, :disconnect]
+      before_action :set_job, only: [:authorize, :callback, :status, :disconnect]
 
       # GET /api/v1/onedrive/authorize?construction_id=123
       # Redirects user to Microsoft OAuth consent page
@@ -11,7 +11,7 @@ module Api
 
         # Store state in session for verification in callback
         session[:onedrive_state] = state
-        session[:onedrive_construction_id] = @construction.id
+        session[:onedrive_construction_id] = @job.id
 
         # Get redirect URI from env
         redirect_uri = ENV['ONEDRIVE_REDIRECT_URI']
@@ -39,9 +39,9 @@ module Api
 
         # Retrieve construction from session
         construction_id = session[:onedrive_construction_id]
-        @construction = Construction.find_by(id: construction_id)
+        @job = Job.find_by(id: construction_id)
 
-        unless @construction
+        unless @job
           return render json: { error: 'Construction not found' }, status: :not_found
         end
 
@@ -53,7 +53,7 @@ module Api
           token_data = MicrosoftGraphClient.exchange_code_for_token(code, redirect_uri)
 
           # Create or update credential
-          credential = @construction.one_drive_credential || @construction.build_one_drive_credential
+          credential = @job.one_drive_credential || @job.build_one_drive_credential
 
           credential.update!(
             access_token: token_data[:access_token],
@@ -67,7 +67,7 @@ module Api
 
           # Redirect to frontend with success message
           # TODO: Update this URL to match your frontend route
-          redirect_to "#{ENV['FRONTEND_URL']}/jobs/#{@construction.id}?onedrive=connected", allow_other_host: true
+          redirect_to "#{ENV['FRONTEND_URL']}/jobs/#{@job.id}?onedrive=connected", allow_other_host: true
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           Rails.logger.error "OneDrive authentication failed: #{e.message}"
@@ -82,7 +82,7 @@ module Api
       # GET /api/v1/onedrive/status?construction_id=123
       # Check if OneDrive is connected for a construction
       def status
-        credential = @construction.one_drive_credential
+        credential = @job.one_drive_credential
 
         if credential&.valid_credential?
           render json: {
@@ -103,7 +103,7 @@ module Api
       # DELETE /api/v1/onedrive/disconnect?construction_id=123
       # Disconnect OneDrive for a construction
       def disconnect
-        credential = @construction.one_drive_credential
+        credential = @job.one_drive_credential
 
         if credential
           credential.destroy
@@ -116,10 +116,10 @@ module Api
       # POST /api/v1/onedrive/create_folders?construction_id=123
       # Create folder structure for a construction
       def create_folders
-        construction_id = params[:construction_id]
-        @construction = Construction.find(construction_id)
+        construction_id = params[:job_id]
+        @job = Job.find(construction_id)
 
-        credential = @construction.one_drive_credential
+        credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
           return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
@@ -139,9 +139,9 @@ module Api
 
         # Prepare job data for variable resolution
         job_data = {
-          job_code: @construction.id.to_s.rjust(3, '0'),
-          project_name: @construction.title,
-          site_supervisor: @construction.site_supervisor_name
+          job_code: @job.id.to_s.rjust(3, '0'),
+          project_name: @job.title,
+          site_supervisor: @job.site_supervisor_name
         }
 
         begin
@@ -169,10 +169,10 @@ module Api
       # GET /api/v1/onedrive/folders?construction_id=123&folder_id=xxx
       # List folders and files
       def list_items
-        construction_id = params[:construction_id]
-        @construction = Construction.find(construction_id)
+        construction_id = params[:job_id]
+        @job = Job.find(construction_id)
 
-        credential = @construction.one_drive_credential
+        credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
           return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
@@ -202,10 +202,10 @@ module Api
       # POST /api/v1/onedrive/upload?construction_id=123&folder_id=xxx
       # Upload file to OneDrive
       def upload
-        construction_id = params[:construction_id]
-        @construction = Construction.find(construction_id)
+        construction_id = params[:job_id]
+        @job = Job.find(construction_id)
 
-        credential = @construction.one_drive_credential
+        credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
           return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
@@ -256,10 +256,10 @@ module Api
       # GET /api/v1/onedrive/download?construction_id=123&file_id=xxx
       # Download file from OneDrive
       def download
-        construction_id = params[:construction_id]
-        @construction = Construction.find(construction_id)
+        construction_id = params[:job_id]
+        @job = Job.find(construction_id)
 
-        credential = @construction.one_drive_credential
+        credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
           return render json: { error: 'OneDrive not connected or token expired' }, status: :unauthorized
@@ -298,16 +298,16 @@ module Api
 
       private
 
-      def set_construction
-        construction_id = params[:construction_id]
+      def set_job
+        construction_id = params[:job_id]
 
         unless construction_id
           return render json: { error: 'construction_id parameter is required' }, status: :bad_request
         end
 
-        @construction = Construction.find_by(id: construction_id)
+        @job = Job.find_by(id: construction_id)
 
-        unless @construction
+        unless @job
           render json: { error: 'Construction not found' }, status: :not_found
         end
       end

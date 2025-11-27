@@ -60,7 +60,8 @@ module Api
             :friday,
             :saturday,
             :sunday
-          ]
+          ],
+          job_cascade_sort: [:key, :label, :enabled]
         )
       end
     end

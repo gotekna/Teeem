@@ -1,12 +1,12 @@
 class ScheduleTask < ApplicationRecord
   # Associations
-  belongs_to :construction
+  belongs_to :job
   belongs_to :purchase_order, optional: true
   has_many :schedule_task_checklist_items, dependent: :destroy
 
   # Validations
   validates :title, presence: true
-  validates :construction_id, presence: true
+  validates :job_id, presence: true
 
   # Scopes
   scope :matched, -> { where(matched_to_po: true) }
@@ -74,7 +74,7 @@ class ScheduleTask < ApplicationRecord
 
   # Suggest matching purchase orders based on title and supplier
   def suggested_purchase_orders(limit = 5)
-    construction.purchase_orders.where.not(id: purchase_order_id).where(
+    job.purchase_orders.where.not(id: purchase_order_id).where(
       'LOWER(description) LIKE ? OR LOWER(ted_task) LIKE ?',
       "%#{title.downcase}%",
       "%#{title.downcase}%"

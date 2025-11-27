@@ -2,7 +2,7 @@ class SupplierRating < ApplicationRecord
   # Associations
   belongs_to :contact  # The supplier being rated
   belongs_to :rated_by_user, class_name: 'User'
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   belongs_to :purchase_order, optional: true
 
   # Validations

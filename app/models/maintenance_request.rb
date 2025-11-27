@@ -1,6 +1,6 @@
 class MaintenanceRequest < ApplicationRecord
   # Associations
-  belongs_to :construction
+  belongs_to :job
   belongs_to :supplier_contact, class_name: 'Contact', optional: true
   belongs_to :reported_by_user, class_name: 'User', optional: true
   belongs_to :purchase_order, optional: true

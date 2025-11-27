@@ -4,9 +4,7 @@ class User < ApplicationRecord
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :schedule_template_row_audits, dependent: :nullify
-  has_many :user_permissions, dependent: :destroy
-  has_many :permissions, through: :user_permissions
-  has_many :table_views, dependent: :destroy
+  has_many :foundation_views, dependent: :destroy
 
   # Role constants
   ROLES = %w[user admin product_owner estimator supervisor builder].freeze
@@ -16,7 +14,7 @@ class User < ApplicationRecord
 
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :name, presence: true
-  validates :password, length: { minimum: 12 }, if: :password_required?
+  validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
   validates :role, inclusion: { in: ROLES }
   validates :assigned_role, inclusion: { in: ASSIGNABLE_ROLES }, allow_nil: true
@@ -63,67 +61,56 @@ class User < ApplicationRecord
     admin? || builder?
   end
 
-  # Schema editing permission - only admins can modify table schemas
-  def can_edit_table_schema?
-    admin?
-  end
+  # Returns array of permission strings for this user
+  def permissions
+    perms = []
 
-  # ===================================================================
-  # PERMISSION SYSTEM
-  # ===================================================================
+    # Base permissions for all users
+    perms += ['view_dashboard', 'view_jobs', 'view_contacts']
 
-  # Main permission check method
-  # Usage: user.can?(:view_gantt) or user.can?('edit_projects')
-  def can?(permission_name)
-    # In dev mode with bypass enabled, grant all permissions
-    if ENV['DEV_MODE_AUTH_BYPASS'] == 'true'
-      return true
+    # Role-specific permissions
+    case role
+    when 'admin'
+      # Admins get all permissions
+      perms += [
+        'manage_permissions',
+        'manage_users',
+        'manage_system',
+        'create_templates',
+        'edit_schedule',
+        'view_supervisor_tasks',
+        'view_builder_tasks',
+        'edit_projects',
+        'manage_workflows',
+        'view_gantt',
+        'manage_company_settings',
+        'manage_integrations'
+      ]
+    when 'product_owner'
+      perms += [
+        'create_templates',
+        'edit_schedule',
+        'edit_projects',
+        'view_gantt'
+      ]
+    when 'estimator'
+      perms += [
+        'edit_schedule',
+        'edit_projects',
+        'view_gantt'
+      ]
+    when 'supervisor'
+      perms += [
+        'view_supervisor_tasks',
+        'view_gantt'
+      ]
+    when 'builder'
+      perms += [
+        'view_builder_tasks'
+      ]
     end
 
-    permission_name = permission_name.to_s
-
-    # Check user-specific override first
-    user_perm = user_permissions.joins(:permission).find_by(permissions: { name: permission_name })
-    return user_perm.granted if user_perm.present?
-
-    # Fall back to role-based permission
-    RolePermission.joins(:permission)
-                  .where(role: role, permissions: { name: permission_name, enabled: true })
-                  .exists?
-  end
-
-  # Check multiple permissions at once (user must have ALL)
-  def can_all?(*permission_names)
-    permission_names.all? { |perm| can?(perm) }
-  end
-
-  # Check if user has ANY of the given permissions
-  def can_any?(*permission_names)
-    permission_names.any? { |perm| can?(perm) }
-  end
-
-  # Get all permissions for this user (role + overrides)
-  def all_permissions
-    # In dev mode, return all permissions
-    if ENV['DEV_MODE_AUTH_BYPASS'] == 'true'
-      return Permission.enabled.pluck(:name)
-    end
-
-    # Get role permissions
-    role_perms = RolePermission.joins(:permission)
-                               .where(role: role, permissions: { enabled: true })
-                               .pluck('permissions.name')
-
-    # Apply user overrides
-    user_permissions.joins(:permission).each do |up|
-      if up.granted
-        role_perms << up.permission.name unless role_perms.include?(up.permission.name)
-      else
-        role_perms.delete(up.permission.name)
-      end
-    end
-
-    role_perms.uniq
+    perms.uniq
   end
 
   # OAuth helper methods

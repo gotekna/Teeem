@@ -13,15 +13,14 @@ Rails.application.routes.draw do
   # API routes
   namespace :api do
     namespace :v1 do
+      # Feature Trackers
+      resources :feature_trackers, only: [:index, :create, :update, :destroy]
+
       # Authentication routes
       post 'auth/signup', to: 'authentication#signup'
       post 'auth/login', to: 'authentication#login'
       get 'auth/me', to: 'authentication#me'
       get 'auth/dev_login', to: 'authentication#dev_login'  # Dev mode only
-
-      # OmniAuth routes
-      get 'auth/microsoft_office365/callback', to: 'omniauth_callbacks#microsoft_office365'
-      get 'auth/failure', to: 'omniauth_callbacks#failure'
 
       # Import routes
       post 'imports/upload', to: 'imports#upload'
@@ -42,20 +41,68 @@ Rails.application.routes.draw do
       # Git integration
       get 'git/branch_status', to: 'git#branch_status'
 
+      # System & Performance Monitoring
+      get 'system/health', to: 'system#health'
+      get 'system/performance', to: 'system#performance'
+      get 'system/metrics', to: 'system#metrics'
+
       # Health checks
       get 'health/pricebook', to: 'health#pricebook'
       get 'health/pricebook/missing_items', to: 'health#missing_items'
       get 'pricebook/price_health_check', to: 'pricebook_items#price_health_check'
 
-      # Construction jobs management
-      resources :constructions do
+      # Job setup (types, statuses, and stages)
+      resources :job_types do
+        collection do
+          post :reorder
+        end
+        resources :statuses, controller: 'job_type_statuses', only: [:index, :create] do
+          collection do
+            post :reorder
+          end
+        end
+      end
+
+      resources :job_status do
+        collection do
+          post :reorder
+        end
+      end
+
+      resources :job_stages do
+        collection do
+          post :reorder
+        end
+      end
+
+      # Junction table routes
+      resources :job_type_statuses, only: [:destroy]
+
+      # Nested route for stages within type+status
+      get 'job_types/:job_type_id/statuses/:job_status_id/stages',
+        to: 'job_status_stages#index'
+      post 'job_types/:job_type_id/statuses/:job_status_id/stages',
+        to: 'job_status_stages#create'
+      post 'job_types/:job_type_id/statuses/:job_status_id/stages/reorder',
+        to: 'job_status_stages#reorder'
+      delete 'job_status_stages/:id', to: 'job_status_stages#destroy'
+
+      # Jobs management
+      resources :jobs do
         member do
           get :saved_messages
           get :emails
           get :documentation_tabs
+          # Xero bill import
+          post :import_xero_bills
+          post :link_xero_tracking
+          get :xero_tracking_options
         end
 
-        # Schedule tasks (nested under constructions)
+        # Job contacts (nested under jobs)
+        resources :job_contacts, only: [:index, :create, :update, :destroy]
+
+        # Schedule tasks (nested under jobs)
         resources :schedule_tasks, only: [:index, :create] do
           collection do
             post :import
@@ -64,13 +111,19 @@ Rails.application.routes.draw do
           end
         end
 
-        # Document tasks (nested under constructions)
+        # Document tasks (nested under jobs)
         resources :document_tasks, only: [:index] do
           member do
             post :upload
             post :validate
           end
         end
+
+        # Rain logs (nested under jobs)
+        resources :rain_logs, only: [:index, :show, :create, :update, :destroy]
+
+        # Meetings (nested under jobs)
+        resources :meetings, only: [:index, :create]
 
       end
 
@@ -103,6 +156,22 @@ Rails.application.routes.draw do
         end
       end
 
+      # Meetings (non-nested routes)
+      resources :meetings, only: [:index, :show, :update, :destroy] do
+        member do
+          post :start
+          post :complete
+          post :cancel
+        end
+      end
+
+      # Meeting Types configuration
+      resources :meeting_types, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          get :categories
+        end
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do
@@ -116,6 +185,23 @@ Rails.application.routes.draw do
           post :mark_received
           get :available_documents
           post :attach_documents
+        end
+        # Payments nested under purchase orders
+        resources :payments, only: [:index, :create]
+      end
+
+      # Payments (standalone routes)
+      resources :payments, only: [:show, :update, :destroy] do
+        member do
+          post :sync_to_xero
+        end
+      end
+
+      # Price Book Categories (lookup table for pricebook items)
+      resources :pricebook_categories do
+        collection do
+          post :reorder
+          get :dropdown
         end
       end
 
@@ -142,6 +228,15 @@ Rails.application.routes.draw do
         end
       end
 
+      # Gold Standard Table (Demo/Reference Price Book)
+      resources :gold_standard_table, only: [:index, :create, :update, :destroy]
+
+      # Column Types - Single Source of Truth from Gold Standard Reference Table
+      resources :column_types, only: [:index, :show, :update]
+
+      # Gold Table Sync Check - Compare column types across all sources
+      get 'gold_table_sync', to: 'gold_table_sync#index'
+
       # Suppliers management
       resources :suppliers do
         collection do
@@ -159,6 +254,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # Contact roles management
+      resources :contact_roles, only: [ :index, :create, :update, :destroy ]
+
       # Contacts management
       resources :contacts do
         collection do
@@ -169,14 +267,34 @@ Rails.application.routes.draw do
         end
         member do
           get :categories
+          get :internal_messages
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices
           delete :delete_price_column
           get :activities
           post :link_xero_contact
+          post :portal_user, to: 'contacts#create_portal_user'
+          patch :portal_user, to: 'contacts#update_portal_user'
+          delete :portal_user, to: 'contacts#delete_portal_user'
         end
+
+        # Contact relationships (nested under contacts)
+        resources :relationships, controller: 'contact_relationships', only: [:index, :create, :show, :update, :destroy]
+
+        # SMS messages (nested under contacts)
+        resources :sms_messages, only: [:index, :create]
+
+        # Contact persons (nested under contacts) - for Xero sync
+        resources :contact_persons, only: [:index, :create, :update, :destroy]
+
+        # Contact groups (nested under contacts)
+        resources :contact_groups, only: [:index]
       end
+
+      # SMS webhooks (Twilio callbacks - not nested)
+      post 'sms/webhook', to: 'sms_messages#webhook'
+      post 'sms/status', to: 'sms_messages#status_webhook'
 
       # Chat messages
       resources :chat_messages, only: [:index, :create, :destroy] do
@@ -191,24 +309,7 @@ Rails.application.routes.draw do
       end
 
       # Users management
-      resources :users, only: [:index, :show, :update, :destroy] do
-        member do
-          post :reset_password
-        end
-      end
-
-      # Permissions management
-      resources :permissions, only: [:index] do
-        collection do
-          get :roles
-        end
-      end
-      get 'permissions/user/:user_id', to: 'permissions#user_permissions'
-      post 'permissions/grant', to: 'permissions#grant'
-
-      # User Roles and Groups management
-      resources :user_roles, only: [:index, :create, :destroy]
-      resources :user_groups, only: [:index, :create, :destroy]
+      resources :users, only: [:index, :show, :update, :destroy]
 
       # Workflow management
       resources :workflow_definitions
@@ -248,7 +349,9 @@ Rails.application.routes.draw do
       resources :designs
 
       # Company Settings
-      resource :company_settings, only: [:show, :update]
+      resource :company_settings, only: [:show, :update] do
+        post :test_twilio, on: :collection
+      end
 
       # Folder Templates for OneDrive sync
       resources :folder_templates do
@@ -266,12 +369,79 @@ Rails.application.routes.draw do
       post 'setup/sync_documentation_categories', to: 'setup#sync_documentation_categories'
       post 'setup/sync_supervisor_checklists', to: 'setup#sync_supervisor_checklists'
       post 'setup/sync_schedule_templates', to: 'setup#sync_schedule_templates'
-      post 'setup/sync_folder_templates', to: 'setup#sync_folder_templates'  # Folder templates sync endpoint
+      post 'setup/sync_folder_templates', to: 'setup#sync_folder_templates'
 
       # Documentation Categories (Global)
       resources :documentation_categories do
         collection do
           post :reorder
+        end
+      end
+
+      # TEEEM_DOCS Documentation Viewer
+      get 'documentation', to: 'documentation#index'
+      get 'documentation/search', to: 'documentation#search'
+      get 'documentation/:id', to: 'documentation#show'
+
+      # Trinity (Bible + Lexicon + Teacher combined)
+      resources :trinity do
+        collection do
+          get :stats
+          get :constants
+          get :search
+          post :export_lexicon
+          post :export_teacher
+        end
+      end
+
+      # Inspiring Quotes
+      resources :inspiring_quotes do
+        collection do
+          get :daily
+          get :random
+        end
+      end
+
+      # Agent definitions
+      resources :agents, only: [:index] do
+        collection do
+          get :shortcuts
+        end
+      end
+
+      # User roles
+      resources :roles, only: [:index]
+      resources :user_roles, only: [:index, :create, :destroy]
+
+      # Permissions management
+      get 'permissions', to: 'permissions#index'
+      get 'permissions/roles', to: 'permissions#roles'
+      get 'permissions/user/:id', to: 'permissions#user_permissions'
+      post 'permissions/grant', to: 'permissions#grant'
+
+      # Contact types
+      resources :contact_types, only: [:index]
+
+      # Legacy routes for backwards compatibility
+      resources :documentation_entries, controller: 'trinity' do
+        collection do
+          get :stats
+          post :export_lexicon
+          post :export_teacher
+        end
+      end
+
+      resources :documented_bugs, controller: 'trinity' do
+        collection do
+          get :stats
+          post :export_to_markdown, action: :export_lexicon
+        end
+      end
+
+      # Agent Definitions (Chapter 20)
+      resources :agent_definitions, param: :agent_id do
+        member do
+          post :record_run
         end
       end
 
@@ -298,10 +468,290 @@ Rails.application.routes.draw do
             post :bulk_update
             post :reorder
           end
+          member do
+            get :audit_logs
+          end
         end
       end
 
-      # Bug Hunter Tests for Gantt Testing
+      # ============================================
+      # SM Gantt (Schedule Master v2)
+      # ============================================
+
+      # SM Tasks (nested under jobs)
+      resources :jobs, only: [] do
+        resources :sm_tasks, only: [:index, :create] do
+          collection do
+            get :gantt_data
+            post :copy_from_template
+          end
+        end
+      end
+
+      # SM Tasks (non-nested routes)
+      resources :sm_tasks, only: [:show, :update, :destroy] do
+        member do
+          post :start
+          post :complete
+          get :spawn_preview
+          post :hold
+          post :release_hold
+          # Cascade endpoints
+          post :cascade_preview
+          post :cascade_execute
+          post :move
+          # Working drawings AI
+          get :working_drawings
+          post 'working_drawings/process', to: 'sm_tasks#process_working_drawings'
+          patch 'working_drawings/pages/:page_id/override', to: 'sm_tasks#override_page_category'
+        end
+
+        # Dependencies (nested under sm_tasks)
+        resources :dependencies, controller: 'sm_dependencies', only: [:index, :create]
+      end
+
+      # SM Dependencies (non-nested routes)
+      resources :sm_dependencies, only: [:show, :update, :destroy] do
+        member do
+          post :restore
+        end
+      end
+
+      # SM Hold Reasons (admin)
+      resources :sm_hold_reasons, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :reorder
+          post :seed_defaults
+        end
+      end
+
+      # SM Templates (Schedule Master templates for SM Gantt)
+      resources :sm_templates, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :set_default
+        end
+        collection do
+          get :default
+        end
+        resources :rows, controller: 'sm_template_rows', only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :move
+          end
+          collection do
+            post :bulk_create
+            post :reorder
+          end
+        end
+      end
+
+      # SM Settings (singleton - admin)
+      resource :sm_settings, only: [:show, :update]
+
+      # ============================================
+      # SM Gantt Phase 2 - Resource Allocation
+      # ============================================
+
+      # SM Resources (people, equipment, materials)
+      resources :sm_resources, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          get :schedule           # Resource schedule in Gantt format
+          get :allocations        # Resource allocations list
+          post :allocate          # Allocate resource to task
+        end
+        collection do
+          get :availability       # Availability for a date
+          get :utilization        # Utilization report
+          delete 'allocations/:allocation_id', action: :remove_allocation
+        end
+      end
+
+      # SM Resource Allocations (nested under tasks)
+      resources :sm_tasks, only: [] do
+        resources :resource_allocations, controller: 'sm_resource_allocations', only: [:index, :create]
+        resources :time_entries, controller: 'sm_time_entries', only: [:index, :create]
+      end
+
+      # SM Resource Allocations (non-nested)
+      resources :sm_resource_allocations, only: [:show, :update, :destroy] do
+        member do
+          post :confirm
+          post :start
+          post :complete
+        end
+        collection do
+          get 'by_resource/:resource_id', action: :by_resource
+          get :gantt_data
+        end
+      end
+
+      # SM Time Entries (non-nested)
+      resources :sm_time_entries, only: [:show, :update, :destroy] do
+        member do
+          post :approve
+        end
+        collection do
+          post :bulk_approve
+          get 'by_resource/:resource_id', action: :by_resource
+          get :timesheet
+          # SmTimesheetService endpoints
+          get 'resource_timesheet/:resource_id', action: :resource_timesheet
+          get 'task_timesheet/:task_id', action: :task_timesheet
+          get :pending_approvals
+          get 'weekly_summary/:resource_id', action: :weekly_summary
+          post :log_time
+          get :export_payroll
+        end
+      end
+
+      # SM Reports & Dashboard
+      resources :sm_reports, only: [] do
+        collection do
+          get :dashboard
+          get :utilization
+          get :costs
+          get :trends
+          get :forecast
+          get :export
+          get 'resource/:resource_id', action: :resource
+          get 'task/:task_id', action: :task
+        end
+      end
+
+      # SM Field Operations (Mobile)
+      resources :sm_field, only: [] do
+        collection do
+          # Photos
+          post :upload_photo
+          delete 'photos/:id', action: :delete_photo
+
+          # GPS Check-ins
+          post :checkin
+          get :checkins
+          get 'site_status/:job_id', action: :site_status
+
+          # Voice Notes
+          post :record_voice_note
+          post 'voice_notes/:id/transcribe', action: :transcribe_voice_note
+
+          # Offline Sync
+          post :sync
+        end
+      end
+
+      # Field endpoints nested under tasks
+      resources :sm_tasks, only: [] do
+        member do
+          get 'photos', to: 'sm_field#task_photos'
+          get 'voice_notes', to: 'sm_field#task_voice_notes'
+        end
+      end
+
+      # ============================================
+      # SM Gantt Phase 3 - Collaboration
+      # ============================================
+
+      # Activities (Activity Feed)
+      resources :sm_activities, only: [] do
+        collection do
+          get :feed
+          get :my_activity
+          get :summary
+        end
+      end
+
+      # Activities nested under jobs
+      resources :jobs, only: [] do
+        resources :sm_activities, only: [:index], controller: 'sm_activities'
+      end
+
+      # Activities nested under tasks
+      resources :sm_tasks, only: [] do
+        member do
+          get :activities, to: 'sm_activities#task_activities'
+        end
+        resources :comments, controller: 'sm_comments', only: [:index, :create]
+      end
+
+      # Comments (non-nested)
+      resources :sm_comments, only: [:show, :update, :destroy] do
+        member do
+          get :replies
+          post :reply
+        end
+        collection do
+          get :mentions
+          post 'mentions/:id/read', action: :mark_mention_read
+          post 'mentions/read_all', action: :mark_all_mentions_read
+        end
+      end
+
+      # ============================================
+      # SM Gantt - Advanced Analytics
+      # ============================================
+
+      resources :jobs, only: [] do
+        scope module: :sm do
+          # Analytics endpoints
+          resources :sm_analytics, only: [], controller: '/api/v1/sm_analytics' do
+            collection do
+              get :critical_path
+              get :delay_impact
+              get :evm
+              get :s_curve
+              get :baselines
+              post :baselines, action: :create_baseline
+              get 'baselines/:id/compare', action: :compare_baseline
+              get :variance
+              get :summary
+            end
+          end
+
+          # AI endpoints
+          resources :sm_ai, only: [], controller: '/api/v1/sm_ai' do
+            collection do
+              get :suggestions
+              get :predictions
+              get :resource_optimization
+              get :summary
+            end
+          end
+        end
+      end
+
+      # AI duration estimation (no construction required)
+      post 'sm_ai/estimate_duration', to: 'sm_ai#estimate_duration'
+
+      # ============================================
+      # SM Gantt - Integrations
+      # ============================================
+
+      resources :sm_integrations, only: [] do
+        collection do
+          # MS Project
+          post :import_ms_project
+          get :export_ms_project
+          # Calendar sync
+          post :sync_calendar
+          get :calendar_events
+          # Notifications
+          post :send_notification
+          get :notification_settings
+          patch :notification_settings, action: :update_notification_settings
+        end
+      end
+
+      # ============================================
+      # End SM Gantt
+      # ============================================
+
+      # Public Holidays
+      resources :public_holidays, only: [:index, :create, :destroy] do
+        collection do
+          get :dates
+        end
+      end
+
+      # Bug Hunter Tests
       resources :bug_hunter_tests, only: [:index] do
         collection do
           get :history
@@ -312,18 +762,10 @@ Rails.application.routes.draw do
         end
       end
 
-      # Public Holidays
-      resources :public_holidays, only: [:index, :create, :destroy] do
+      # Agent Status
+      resources :agents, only: [] do
         collection do
-          get :dates
-        end
-      end
-
-      # Inspiring Quotes
-      resources :inspiring_quotes do
-        collection do
-          get :daily
-          get :random
+          get :status
         end
       end
 
@@ -377,19 +819,14 @@ Rails.application.routes.draw do
       # Schema information
       get 'schema', to: 'schema#index'
       get 'schema/tables', to: 'schema#tables'
+      get 'schema/in_memory_tables', to: 'schema#in_memory_tables'
       get 'schema/system_table_columns/:table_name', to: 'schema#system_table_columns'
+      get 'schema/columns', to: 'schema#all_columns'  # All columns across all tables for Developer Tools
+      post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
+      post 'schema/sync_has_ui_from_production', to: 'schema#sync_has_ui_from_production'  # Sync has_ui from production
 
-      # Table protection management
-      resources :table_protections do
-        collection do
-          post :protect_table
-          post :unprotect_table
-          get 'check/:table_name', action: :check, as: :check
-        end
-      end
-
-      # Table management
-      resources :tables do
+      # Foundation management
+      resources :foundations do
         # Column management
         resources :columns, only: [:create, :update, :destroy] do
           collection do
@@ -398,22 +835,26 @@ Rails.application.routes.draw do
           member do
             get :lookup_options
             get :lookup_search
-            # Choice/schema management endpoints
             get :choices
+            post :add_choice
+            post :reorder_choices
             post :rename_choice
-            delete :delete_choice
             post :merge_choices
-            post :validate_change
-            post :apply_change
+            delete :delete_choice
           end
         end
 
-        # Record management for dynamic tables
+        # Record management for dynamic foundations
         resources :records
       end
 
-      # Table Views (saved filters/views per user)
-      resources :table_views, only: [:index, :show, :create, :update, :destroy]
+      # Foundation views (user-specific saved views)
+      resources :foundation_views, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :reorder
+          post :create_all_setup_views
+        end
+      end
 
       # Estimates management (from Unreal Engine or other sources)
       resources :estimates, only: [:index, :show, :destroy] do
@@ -428,49 +869,281 @@ Rails.application.routes.draw do
       # Estimate Reviews (AI Plan Analysis)
       resources :estimate_reviews, only: [:show, :destroy]
 
+      # Unreal Variables management
+      resources :unreal_variables
+
       # Corporate Entity Management
       resources :companies do
+        collection do
+          post :import
+        end
         member do
           get :directors
           post :add_director
-          delete 'directors/:director_id', action: :remove_director, as: :remove_director
-          get :bank_accounts
+          delete 'directors/:director_id', to: 'companies#remove_director'
           get :compliance_items
-          get :documents
           get :activities
+          get :documents
+          get :assets
         end
       end
 
-      resources :assets do
-        member do
-          get :insurance
-          post :add_insurance
-          get :service_history
-          post :add_service
-        end
-      end
-
+      # Bank Accounts
       resources :bank_accounts
 
-      resources :company_compliance_items do
+      # Assets
+      resources :assets do
         member do
-          post :mark_complete
+          get :service_history
+          post :add_service
+          get :insurance
+          post :insurance, to: 'assets#update_insurance'
+          put :insurance, to: 'assets#update_insurance'
         end
       end
 
-      resources :company_documents
-      resources :asset_insurance
-      resources :asset_service_history
-
-      resources :company_xero_connections do
+      # Company Documents
+      resources :company_documents do
         member do
-          post :sync
+          get :download
         end
       end
 
-      # Xero OAuth routes
-      get 'xero/auth_url', to: 'company_xero_connections#auth_url'
-      post 'xero/callback', to: 'company_xero_connections#callback'
+      # Company Xero Connections
+      resources :company_xero_connections, only: [:index, :show, :destroy] do
+        collection do
+          get :auth_url
+          post :callback
+        end
+        member do
+          post :sync_accounts
+          get :status
+          delete :disconnect, to: 'company_xero_connections#disconnect'
+        end
+      end
+
+      # Company Compliance Items
+      resources :company_compliance_items, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :mark_completed
+        end
+      end
+
+      # WHS (Workplace Health & Safety) Module
+      # SWMS (Safe Work Method Statements)
+      resources :whs_swms, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :submit_for_approval
+          post :approve
+          post :reject
+          post :supersede
+          post :acknowledge
+        end
+      end
+
+      # WHS Inspections
+      resources :whs_inspections, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :start
+          post :complete
+        end
+      end
+
+      # WHS Inspection Templates
+      resources :whs_inspection_templates, only: [:index, :show, :create, :update, :destroy]
+
+      # WHS Incidents
+      resources :whs_incidents, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :investigate
+          post :close
+          post :notify_workcov
+        end
+      end
+
+      # WHS Inductions
+      resources :whs_inductions, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :complete
+          post :mark_expired
+        end
+      end
+
+      # WHS Induction Templates
+      resources :whs_induction_templates, only: [:index, :show, :create, :update, :destroy]
+
+      # WHS Action Items
+      resources :whs_action_items, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :start
+          post :complete
+          post :cancel
+        end
+      end
+
+      # WHS Settings
+      resources :whs_settings, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          get 'key/:key', action: :show_by_key
+          patch 'key/:key', action: :update_by_key
+        end
+      end
+
+      # Financial Tracking & Reporting
+      resources :financial_transactions do
+        member do
+          post :post # Post a draft transaction
+        end
+        collection do
+          get :summary
+          get :categories
+        end
+      end
+
+      # Financial Reports
+      get 'financial_reports/balance_sheet', to: 'financial_reports#balance_sheet'
+      get 'financial_reports/profit_loss', to: 'financial_reports#profit_loss'
+      get 'financial_reports/job_profitability', to: 'financial_reports#job_profitability'
+      get 'financial_reports/account_balances', to: 'financial_reports#account_balances'
+      get 'financial_reports/trial_balance', to: 'financial_reports#trial_balance'
+
+      # Financial Exports
+      get 'financial_exports/transactions', to: 'financial_exports#transactions'
+      get 'financial_exports/balance_sheet', to: 'financial_exports#balance_sheet'
+      get 'financial_exports/profit_loss', to: 'financial_exports#profit_loss'
+      get 'financial_exports/job_profitability', to: 'financial_exports#job_profitability'
+      get 'financial_exports/chart_of_accounts', to: 'financial_exports#chart_of_accounts'
+      get 'financial_exports/accountant_package', to: 'financial_exports#accountant_package'
+
+      # Chart of Accounts
+      resources :chart_of_accounts, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          get :balance
+        end
+        collection do
+          get :kinds
+        end
+      end
+
+      # Pay Now Requests (admin/supervisor interface)
+      resources :pay_now_requests, only: [:index, :show] do
+        member do
+          post :approve
+          post :reject
+        end
+        collection do
+          get :dashboard_stats
+          get :pending_approval
+        end
+      end
+
+      # Pay Now Weekly Limits (builder settings)
+      resources :pay_now_weekly_limits, only: [] do
+        collection do
+          get :current
+          post :set_limit
+          get :history
+          get :usage_report
+        end
+      end
+
+      # Subcontractor Portal routes (for external subcontractor access)
+      namespace :portal do
+        # Portal authentication
+        post 'auth/login', to: 'authentication#login'
+        post 'auth/signup', to: 'authentication#signup'
+        post 'auth/forgot_password', to: 'authentication#forgot_password'
+        post 'auth/reset_password', to: 'authentication#reset_password'
+        get 'auth/me', to: 'authentication#me'
+
+        # Quote requests (subcontractor view)
+        resources :quote_requests, only: [:index, :show] do
+          member do
+            post :reject
+          end
+        end
+
+        # Quote responses (submit and manage quotes)
+        resources :quote_responses, only: [:create, :update, :show]
+
+        # Jobs tracking
+        resources :jobs, only: [:index, :show] do
+          member do
+            post :mark_arrival
+            post :mark_complete
+            post :upload_photos
+            post :report_issue
+          end
+        end
+
+        # SM Gantt Tasks (supplier schedule view)
+        resources :sm_tasks, only: [:index, :show, :update] do
+          member do
+            post :add_comment
+            get :comments
+            get :photos
+            post :upload_photo
+          end
+          collection do
+            get :activities
+            get :schedule
+          end
+        end
+
+        # Invoices
+        resources :invoices, only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :retry_sync
+          end
+          collection do
+            get :stats
+          end
+        end
+
+        # Accounting integrations
+        resources :accounting_integrations, only: [:index, :show, :destroy] do
+          collection do
+            get :oauth_url
+            post :oauth_callback
+          end
+          member do
+            post :refresh
+            get :test_connection
+          end
+        end
+
+        # Kudos system
+        resources :kudos, only: [:index] do
+          collection do
+            get :leaderboard
+            get :events
+            get :trends
+            post :recalculate
+          end
+        end
+
+        # Pay Now requests (supplier early payment)
+        resources :pay_now_requests, only: [:index, :show, :create, :destroy] do
+          member do
+            post :upload_documents
+          end
+          collection do
+            get :eligible_purchase_orders
+          end
+        end
+      end
+
+      # Quote Requests (internal builder interface)
+      resources :quote_requests do
+        member do
+          post :accept_quote
+          post :close
+          post :convert_to_po
+        end
+        collection do
+          get :stats
+        end
+      end
 
       # External integrations (API endpoints for third-party systems)
       namespace :external do

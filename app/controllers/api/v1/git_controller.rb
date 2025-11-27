@@ -4,6 +4,21 @@ module Api
       # GET /api/v1/git/branch_status
       def branch_status
         begin
+          # Check if git is available
+          unless git_available?
+            return render json: {
+              git_available: false,
+              current_branch: 'unknown',
+              branches: [],
+              commit_stats: {
+                total_branches: 0,
+                local_branches: 0,
+                remote_branches: 0
+              },
+              message: 'Git is not available in this environment'
+            }
+          end
+
           # Get current branch
           current_branch = `git branch --show-current`.strip
 
@@ -89,6 +104,21 @@ module Api
           }
         rescue => e
           render json: { error: "Failed to fetch git branch status: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      private
+
+      # Check if git command is available
+      def git_available?
+        return @git_available unless @git_available.nil?
+        @git_available = begin
+          # Use File.exist? to check if git is in PATH
+          ENV['PATH'].split(':').any? do |dir|
+            File.executable?(File.join(dir, 'git'))
+          end
+        rescue => e
+          false
         end
       end
     end

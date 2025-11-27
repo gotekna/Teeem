@@ -3,27 +3,41 @@
 module Api
   module V1
     class AgentDefinitionsController < ApplicationController
-      skip_before_action :authorize_request, only: [:index, :show]
+      skip_before_action :authorize_request, only: [:index, :show, :record_run]
 
       # GET /api/v1/agent_definitions
       # Returns list of all agents
       def index
-        agents = AgentDefinition.active.by_priority
+        agents = AgentDefinition.active.by_priority.includes(:created_by, :updated_by, :last_run_by)
 
         render json: {
           success: true,
-          data: agents.as_json(methods: [:status_emoji, :success_rate])
+          data: agents.as_json(
+            methods: [:status_emoji, :success_rate],
+            include: {
+              created_by: { only: [:id, :name, :email] },
+              updated_by: { only: [:id, :name, :email] },
+              last_run_by: { only: [:id, :name, :email] }
+            }
+          )
         }
       end
 
       # GET /api/v1/agent_definitions/:id
       # Returns single agent with full details
       def show
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.includes(:created_by, :updated_by, :last_run_by).find_by!(agent_id: params[:agent_id])
 
         render json: {
           success: true,
-          data: agent.as_json(methods: [:status_emoji, :success_rate])
+          data: agent.as_json(
+            methods: [:status_emoji, :success_rate],
+            include: {
+              created_by: { only: [:id, :name, :email] },
+              updated_by: { only: [:id, :name, :email] },
+              last_run_by: { only: [:id, :name, :email] }
+            }
+          )
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: 'Agent not found' }, status: :not_found
@@ -31,19 +45,28 @@ module Api
 
       # POST /api/v1/agent_definitions/:id/record_run
       # Records a run result
+      # Accepts user_name param for CLI runs (from git config user.name)
+      # Accepts tokens param for token usage tracking
       def record_run
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
         status = params[:status] # 'success' or 'failure'
         message = params[:message]
         details = params[:details] || {}
+        user_name = params[:user_name]
+        tokens = params[:tokens].to_i if params[:tokens].present?
 
         if status == 'success'
-          agent.record_success(message, details)
+          agent.record_success(message, details, user_name: user_name, tokens: tokens)
         else
-          agent.record_failure(message, details)
+          agent.record_failure(message, details, user_name: user_name, tokens: tokens)
         end
 
-        render json: { success: true, data: agent }
+        render json: {
+          success: true,
+          data: agent.as_json(
+            only: [:id, :agent_id, :name, :last_run_at, :last_status, :last_message, :last_run_by_name, :total_runs, :successful_runs, :failed_runs, :last_run_tokens, :total_tokens]
+          )
+        }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: 'Agent not found' }, status: :not_found
       end
@@ -63,7 +86,7 @@ module Api
       # PATCH /api/v1/agent_definitions/:id (admin only)
       # Updates an agent
       def update
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
 
         if agent.update(agent_params)
           render json: { success: true, data: agent }
@@ -77,7 +100,7 @@ module Api
       # DELETE /api/v1/agent_definitions/:id (admin only)
       # Deactivates an agent
       def destroy
-        agent = AgentDefinition.find_by!(agent_id: params[:id])
+        agent = AgentDefinition.find_by!(agent_id: params[:agent_id])
         agent.update!(active: false)
 
         render json: { success: true, message: 'Agent deactivated' }

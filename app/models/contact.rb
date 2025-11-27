@@ -29,13 +29,32 @@ class Contact < ApplicationRecord
            foreign_key: :related_contact_id, dependent: :destroy
   has_many :related_contacts, through: :outgoing_relationships, source: :related_contact
 
+  # Primary company relationship (person works for company)
+  belongs_to :primary_company, class_name: 'Contact', optional: true
+  has_many :employees, class_name: 'Contact', foreign_key: :primary_company_id, dependent: :nullify
+
+  # Construction/Job associations
+  has_many :job_contacts, dependent: :destroy
+  has_many :jobs, through: :job_contacts
+
   # Portal-related associations
   has_one :portal_user, dependent: :destroy
   has_many :supplier_ratings, dependent: :destroy
   has_many :maintenance_requests, foreign_key: :supplier_contact_id, dependent: :destroy
 
+  # Subcontractor-related associations
+  has_one :subcontractor_account, through: :portal_user
+  has_many :quote_responses, dependent: :destroy
+  has_many :quote_request_contacts, dependent: :destroy
+  has_many :quote_requests, through: :quote_request_contacts
+  has_one :accounting_integration, dependent: :destroy
+  has_many :subcontractor_invoices, dependent: :destroy
+  has_many :pay_now_requests, dependent: :destroy
+
   # Constants
   CONTACT_TYPES = %w[customer supplier sales land_agent].freeze
+  ENTITY_TYPES = %w[person company trust].freeze
+  EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
   # Validations
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
@@ -51,6 +70,11 @@ class Contact < ApplicationRecord
   scope :suppliers, -> { with_type('supplier') }
   scope :sales, -> { with_type('sales') }
   scope :land_agents, -> { with_type('land_agent') }
+
+  # Entity type scopes
+  scope :people, -> { where(entity_type: 'person') }
+  scope :companies, -> { where(entity_type: 'company') }
+  scope :trusts, -> { where(entity_type: 'trust') }
 
   # Instance methods
   def display_name
@@ -79,6 +103,80 @@ class Contact < ApplicationRecord
 
   def is_land_agent?
     contact_types&.include?('land_agent')
+  end
+
+  # Entity type helpers
+  def is_person?
+    entity_type == 'person' || contact_types&.include?('person')
+  end
+
+  def is_company?
+    entity_type == 'company' || contact_types&.include?('company')
+  end
+
+  def is_trust?
+    entity_type == 'trust' || contact_types&.include?('trust')
+  end
+
+  # Company/Employment relationship helpers
+  def all_companies
+    companies = []
+    companies << primary_company if primary_company.present?
+    companies += additional_companies.to_a
+    companies.uniq
+  end
+
+  def additional_companies
+    outgoing_relationships
+      .where(relationship_type: ['director_of', 'shareholder_of', 'trustee_of', 'employee_of', 'partner_in'])
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  def employers
+    companies = []
+    companies << primary_company if primary_company.present?
+    companies += outgoing_relationships
+      .where(relationship_type: 'employee_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+    companies.uniq
+  end
+
+  def directors_of
+    outgoing_relationships
+      .where(relationship_type: 'director_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  def shareholders_of
+    outgoing_relationships
+      .where(relationship_type: 'shareholder_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  def trustees_of
+    outgoing_relationships
+      .where(relationship_type: 'trustee_of')
+      .includes(:related_contact)
+      .map(&:related_contact)
+  end
+
+  # Job/Construction helpers
+  def all_jobs_with_roles
+    job_contacts.includes(:job).map do |jc|
+      {
+        job: jc.job,
+        role: jc.role,
+        primary: jc.primary
+      }
+    end
+  end
+
+  def primary_jobs
+    job_contacts.where(primary: true).includes(:job).map(&:job)
   end
 
   # Supplier-specific helper methods
@@ -137,6 +235,41 @@ class Contact < ApplicationRecord
 
   def open_maintenance_requests_count
     maintenance_requests.active.count
+  end
+
+  # Subcontractor-specific methods
+  def is_subcontractor?
+    is_supplier? && subcontractor_account.present?
+  end
+
+  def enable_subcontractor_access!(invited_by: nil)
+    return if subcontractor_account.present?
+
+    transaction do
+      # Ensure portal access is enabled first
+      unless has_portal_access?
+        enable_portal!('supplier')
+      end
+
+      # Create subcontractor account
+      portal_user.create_subcontractor_account!(invited_by: invited_by)
+    end
+  end
+
+  def kudos_score
+    subcontractor_account&.kudos_score || 0
+  end
+
+  def pending_quote_requests
+    quote_requests.active.pending_response
+  end
+
+  def active_jobs
+    purchase_orders.where(status: %w[sent received])
+  end
+
+  def accounting_connected?
+    accounting_integration.present? && accounting_integration.connected?
   end
 
   private

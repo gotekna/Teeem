@@ -1,5 +1,4 @@
 class Api::V1::OutlookController < ApplicationController
-  before_action :set_current_user
 
   # GET /api/v1/outlook/auth_url
   # Get the OAuth authorization URL for connecting Outlook
@@ -183,7 +182,7 @@ class Api::V1::OutlookController < ApplicationController
   # POST /api/v1/outlook/import_for_job
   # Import emails for a specific construction job
   def import_for_job
-    construction = Construction.find(params[:construction_id])
+    construction = Job.find(params[:job_id])
     outlook = OutlookService.new
 
     # Build search query based on job details
@@ -210,7 +209,7 @@ class Api::V1::OutlookController < ApplicationController
       parsed_data = parser.parse
 
       email = Email.new(parsed_data)
-      email.user = @current_user
+      email.user = current_user
 
       # Force assignment to this construction
       email.construction = construction
@@ -236,8 +235,4 @@ class Api::V1::OutlookController < ApplicationController
 
   private
 
-  def set_current_user
-    # TODO: Replace with actual current_user logic from your authentication system
-    @current_user = User.first
-  end
 end

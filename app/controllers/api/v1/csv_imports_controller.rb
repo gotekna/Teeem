@@ -38,7 +38,7 @@ module Api
         # Import job and POs in a transaction
         ActiveRecord::Base.transaction do
           # Create Construction (job)
-          construction = Construction.create!(
+          construction = Job.create!(
             title: parse_result[:job_name],
             site_supervisor_name: params[:site_supervisor_name],
             site_supervisor_email: params[:site_supervisor_email],

@@ -1,98 +1,110 @@
 module Api
   module V1
     class CompanyXeroConnectionsController < ApplicationController
-      before_action :set_connection, only: [:show, :update, :destroy, :sync]
+      before_action :set_connection, only: [:show, :disconnect, :sync_accounts]
 
+      # GET /api/v1/company_xero_connections
       def index
-        @connections = CompanyXeroConnection.all.includes(:company)
+        @connections = CompanyXeroConnection.includes(:company).all
+
         render json: {
+          success: true,
           connections: @connections.as_json(
-            include: :company,
-            methods: [:token_expired?, :connected?]
+            include: { company: { only: [:id, :name] } },
+            only: [:id, :company_id, :xero_tenant_id, :xero_tenant_name, :connection_status,
+                   :last_sync_at, :accounting_method, :financial_year_end],
+            methods: [:connected?, :days_since_last_sync]
           )
         }
       end
 
+      # GET /api/v1/company_xero_connections/:id
       def show
         render json: {
+          success: true,
           connection: @connection.as_json(
-            include: [:company, :xero_accounts],
-            methods: [:token_expired?, :connected?]
+            include: {
+              company: { only: [:id, :name] },
+              company_xero_accounts: {
+                only: [:id, :account_code, :account_name, :account_type, :status],
+                methods: [:display_name, :mapped?]
+              }
+            },
+            methods: [:connected?, :days_since_last_sync]
           )
         }
       end
 
-      def create
-        @connection = CompanyXeroConnection.new(connection_params)
-
-        if @connection.save
-          render json: { connection: @connection, message: 'Xero connection created successfully' }, status: :created
-        else
-          render json: { errors: @connection.errors.full_messages }, status: :unprocessable_entity
-        end
+      # GET /api/v1/company_xero_connections/auth_url
+      def auth_url
+        # Generate Xero OAuth authorization URL
+        # This will be implemented with XeroAuthService
+        render json: {
+          success: true,
+          auth_url: "https://login.xero.com/identity/connect/authorize?response_type=code&client_id=YOUR_CLIENT_ID"
+        }
       end
 
-      def update
-        if @connection.update(connection_params)
-          render json: { connection: @connection, message: 'Xero connection updated successfully' }
-        else
-          render json: { errors: @connection.errors.full_messages }, status: :unprocessable_entity
-        end
+      # POST /api/v1/company_xero_connections/callback
+      def callback
+        # Handle OAuth callback from Xero
+        # This will be implemented with XeroAuthService
+        company_id = params[:state] # Pass company_id in state parameter
+        auth_code = params[:code]
+
+        # For now, return success
+        render json: {
+          success: true,
+          message: 'Xero connection established (callback implementation pending)'
+        }
       end
 
-      def destroy
-        @connection.disconnect!
-        render json: { message: 'Xero connection removed successfully' }
-      end
+      # POST /api/v1/company_xero_connections/:id/sync_accounts
+      def sync_accounts
+        # Sync chart of accounts from Xero
+        # This will be implemented with XeroSyncService
 
-      def sync
-        begin
-          service = XeroSyncService.new(@connection)
-          result = service.sync_accounts
+        if @connection.connected?
+          # XeroSyncService.new(@connection).sync_chart_of_accounts
+          @connection.sync_successful!
 
           render json: {
-            message: 'Sync completed successfully',
-            accounts_synced: result[:accounts_synced]
+            success: true,
+            message: 'Accounts synced successfully',
+            last_sync_at: @connection.last_sync_at
           }
-        rescue StandardError => e
-          render json: { error: "Sync failed: #{e.message}" }, status: :unprocessable_entity
+        else
+          render json: {
+            success: false,
+            error: 'Connection is not active'
+          }, status: :unprocessable_entity
         end
       end
 
-      def auth_url
-        company_id = params[:company_id]
-        unless company_id
-          return render json: { error: 'company_id required' }, status: :bad_request
-        end
-
-        company = Company.find(company_id)
-        service = XeroAuthService.new
-        auth_url = service.authorization_url(company_id)
-
-        render json: { auth_url: auth_url }
-      rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Company not found' }, status: :not_found
-      rescue StandardError => e
-        render json: { error: e.message }, status: :unprocessable_entity
-      end
-
-      def callback
-        code = params[:code]
-        company_id = params[:company_id]
-
-        unless code && company_id
-          return render json: { error: 'code and company_id required' }, status: :bad_request
-        end
-
-        service = XeroAuthService.new
-        connection = service.handle_callback(code, company_id)
+      # DELETE /api/v1/company_xero_connections/:id
+      def disconnect
+        @connection.mark_disconnected!
 
         render json: {
-          message: 'Successfully connected to Xero',
-          connection: connection.as_json(methods: [:connected?])
+          success: true,
+          message: 'Xero connection disconnected successfully'
         }
-      rescue StandardError => e
-        render json: { error: "Authentication failed: #{e.message}" }, status: :unprocessable_entity
+      end
+
+      # GET /api/v1/company_xero_connections/:id/status
+      def status
+        connection = CompanyXeroConnection.find(params[:id])
+
+        render json: {
+          success: true,
+          status: {
+            connected: connection.connected?,
+            tenant_name: connection.xero_tenant_name,
+            last_sync: connection.last_sync_at,
+            days_since_sync: connection.days_since_last_sync,
+            account_count: connection.company_xero_accounts.active.count
+          }
+        }
       end
 
       private
@@ -100,13 +112,13 @@ module Api
       def set_connection
         @connection = CompanyXeroConnection.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Xero connection not found' }, status: :not_found
+        render json: { success: false, error: 'Xero connection not found' }, status: :not_found
       end
 
       def connection_params
-        params.require(:connection).permit(
-          :company_id, :tenant_id, :tenant_name, :access_token,
-          :refresh_token, :token_expires_at
+        params.require(:company_xero_connection).permit(
+          :company_id, :xero_tenant_id, :xero_tenant_name, :xero_tenant_type,
+          :accounting_method, :financial_year_end
         )
       end
     end

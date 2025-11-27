@@ -1,12 +1,12 @@
 module Api
   module V1
     class RainLogsController < ApplicationController
-      before_action :set_construction
+      before_action :set_job
       before_action :set_rain_log, only: [:show, :update, :destroy]
 
-      # GET /api/v1/constructions/:construction_id/rain_logs
+      # GET /api/v1/constructions/:job_id/rain_logs
       def index
-        @rain_logs = @construction.rain_logs.recent.includes(:created_by_user)
+        @rain_logs = @job.rain_logs.recent.includes(:created_by_user)
 
         # Optional date range filter
         if params[:start_date].present? && params[:end_date].present?
@@ -27,7 +27,7 @@ module Api
         }
       end
 
-      # GET /api/v1/constructions/:construction_id/rain_logs/:id
+      # GET /api/v1/constructions/:job_id/rain_logs/:id
       def show
         render json: {
           rain_log: @rain_log.as_json(
@@ -38,9 +38,9 @@ module Api
         }
       end
 
-      # POST /api/v1/constructions/:construction_id/rain_logs
+      # POST /api/v1/constructions/:job_id/rain_logs
       def create
-        @rain_log = @construction.rain_logs.build(rain_log_params)
+        @rain_log = @job.rain_logs.build(rain_log_params)
         @rain_log.created_by_user = current_user
         @rain_log.source = 'manual'
 
@@ -62,7 +62,7 @@ module Api
         end
       end
 
-      # PATCH/PUT /api/v1/constructions/:construction_id/rain_logs/:id
+      # PATCH/PUT /api/v1/constructions/:job_id/rain_logs/:id
       def update
         if @rain_log.update(rain_log_params)
           # Auto-calculate severity if rainfall_mm changed
@@ -82,7 +82,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/constructions/:construction_id/rain_logs/:id
+      # DELETE /api/v1/constructions/:job_id/rain_logs/:id
       def destroy
         @rain_log.destroy
         head :no_content
@@ -90,12 +90,12 @@ module Api
 
       private
 
-      def set_construction
-        @construction = Construction.find(params[:construction_id])
+      def set_job
+        @job = Job.find(params[:job_id])
       end
 
       def set_rain_log
-        @rain_log = @construction.rain_logs.find(params[:id])
+        @rain_log = @job.rain_logs.find(params[:id])
       end
 
       def rain_log_params

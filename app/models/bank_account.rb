@@ -3,19 +3,70 @@ class BankAccount < ApplicationRecord
   belongs_to :company
 
   # Validations
-  validates :account_name, presence: true
-  validates :bank_name, presence: true
-  validates :bsb, presence: true, format: { with: /\A\d{3}-?\d{3}\z/, message: "must be in format XXX-XXX" }
+  validates :institution_name, presence: true
+  validates :bsb, format: { with: /\A\d{6}\z/, message: "must be 6 digits", allow_blank: true }
   validates :account_number, presence: true
-  validates :is_primary, uniqueness: { scope: :company_id, conditions: -> { where(is_primary: true) },
-                                        message: "company can only have one primary account" }
+  validates :status, inclusion: { in: %w[active closed] }
+  validate :date_closed_after_opened
+
+  # Scopes
+  scope :active, -> { where(status: 'active') }
+  scope :closed, -> { where(status: 'closed') }
+  scope :by_institution, ->(institution) { where(institution_name: institution) }
 
   # Callbacks
-  before_save :normalize_bsb
+  after_create :create_activity
+  after_update :create_update_activity, if: :saved_change_to_status?
+
+  # Instance methods
+  def formatted_bsb
+    return nil unless bsb.present?
+    # Format as XXX-XXX
+    "#{bsb[0..2]}-#{bsb[3..5]}"
+  end
+
+  def display_name
+    "#{institution_name} - #{masked_account_number}"
+  end
+
+  def masked_account_number
+    return nil unless account_number.present?
+    # Show last 4 digits only
+    "****#{account_number.last(4)}"
+  end
+
+  def active?
+    status == 'active'
+  end
 
   private
 
-  def normalize_bsb
-    self.bsb = bsb.gsub(/\D/, '').insert(3, '-') if bsb.present?
+  def date_closed_after_opened
+    return unless date_opened.present? && date_closed.present?
+    if date_closed < date_opened
+      errors.add(:date_closed, "cannot be before date opened")
+    end
+  end
+
+  def create_activity
+    company.company_activities.create!(
+      activity_type: 'bank_account_added',
+      description: "Bank account added: #{display_name}",
+      metadata: { bank_account_id: id, institution: institution_name },
+      performed_by: Current.user || User.first,
+      occurred_at: Time.current
+    )
+  end
+
+  def create_update_activity
+    if status == 'closed'
+      company.company_activities.create!(
+        activity_type: 'bank_account_closed',
+        description: "Bank account closed: #{display_name}",
+        metadata: { bank_account_id: id, date_closed: date_closed },
+        performed_by: Current.user || User.first,
+        occurred_at: Time.current
+      )
+    end
   end
 end

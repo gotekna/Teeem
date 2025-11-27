@@ -8,14 +8,14 @@ module Api
       def index
         @purchase_orders = PurchaseOrder.includes(
           :supplier,
-          :construction,
+          :job,
           :project_tasks,
           :schedule_tasks,
           line_items: :pricebook_item
         ).all
 
         # Filters
-        @purchase_orders = @purchase_orders.by_construction(params[:construction_id])
+        @purchase_orders = @purchase_orders.by_construction(params[:job_id])
         @purchase_orders = @purchase_orders.by_status(params[:status])
         @purchase_orders = @purchase_orders.where(supplier_id: params[:supplier_id]) if params[:supplier_id].present?
 
@@ -55,7 +55,7 @@ module Api
           purchase_orders: @purchase_orders.as_json(
             include: {
               supplier: { only: [:id, :name] },
-              construction: {
+              job: {
                 only: [:id, :title],
                 methods: [:site_supervisor_info]
               },
@@ -83,7 +83,7 @@ module Api
           **@purchase_order.as_json(
             include: {
               supplier: { only: [:id, :name, :contact_person, :email, :phone, :address] },
-              construction: {
+              job: {
                 only: [:id, :title],
                 methods: [:site_supervisor_info]
               },
@@ -214,7 +214,7 @@ module Api
       # Smart lookup for PO auto-population
       # Params: { construction_id, task_description, category, quantity, supplier_preference }
       def smart_lookup
-        service = SmartPoLookupService.new(construction_id: params[:construction_id])
+        service = SmartPoLookupService.new(construction_id: params[:job_id])
         result = service.lookup(
           task_description: params[:task_description],
           category: params[:category],
@@ -228,7 +228,7 @@ module Api
       # POST /api/v1/purchase_orders/smart_create
       # Create PO with smart auto-population
       def smart_create
-        service = SmartPoLookupService.new(construction_id: params[:construction_id])
+        service = SmartPoLookupService.new(construction_id: params[:job_id])
         lookup_result = service.lookup(
           task_description: params[:task_description],
           category: params[:category],
@@ -243,7 +243,7 @@ module Api
 
         # Build PO from lookup result
         @purchase_order = PurchaseOrder.new(
-          construction_id: params[:construction_id],
+          construction_id: params[:job_id],
           supplier_id: lookup_result[:supplier].id,
           description: params[:task_description],
           delivery_address: lookup_result[:metadata][:delivery_address],
@@ -275,7 +275,7 @@ module Api
       # Create multiple POs from JSON array
       # Params: { construction_id, purchase_orders: [{task_description, category, quantity, supplier_preference}] }
       def bulk_create
-        service = SmartPoLookupService.new(construction_id: params[:construction_id])
+        service = SmartPoLookupService.new(construction_id: params[:job_id])
         po_requests = params[:purchase_orders] || []
 
         results = []
@@ -291,7 +291,7 @@ module Api
 
           if lookup_result[:success]
             purchase_order = PurchaseOrder.new(
-              construction_id: params[:construction_id],
+              construction_id: params[:job_id],
               supplier_id: lookup_result[:supplier].id,
               description: po_request[:task_description],
               delivery_address: lookup_result[:metadata][:delivery_address],
@@ -343,7 +343,7 @@ module Api
       # GET /api/v1/purchase_orders/:id/available_documents
       # Get all documents from the associated job that can be attached to this PO
       def available_documents
-        documents = DocumentTask.where(construction_id: @purchase_order.construction_id)
+        documents = DocumentTask.where(construction_id: @purchase_order.job_id)
                                  .order(:category, :name)
 
         render json: {
@@ -372,7 +372,7 @@ module Api
         # Validate that all document tasks belong to the same construction
         if document_task_ids.any?
           invalid_docs = DocumentTask.where(id: document_task_ids)
-                                     .where.not(construction_id: @purchase_order.construction_id)
+                                     .where.not(construction_id: @purchase_order.job_id)
 
           if invalid_docs.any?
             return render json: {
@@ -406,12 +406,12 @@ module Api
       private
 
       def set_purchase_order
-        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :construction).find(params[:id])
+        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find(params[:id])
       end
 
       def purchase_order_params
         params.require(:purchase_order).permit(
-          :construction_id,
+          :job_id,
           :supplier_id,
           :status,
           :description,

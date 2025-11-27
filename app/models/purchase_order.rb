@@ -1,8 +1,10 @@
 class PurchaseOrder < ApplicationRecord
   # Associations
-  belongs_to :construction, counter_cache: true
+  belongs_to :job, counter_cache: true
   belongs_to :supplier, optional: true, counter_cache: true
+  belongs_to :contact, foreign_key: :supplier_id, optional: true
   belongs_to :estimate, optional: true
+  belongs_to :quote_response, optional: true
   has_many :line_items, class_name: 'PurchaseOrderLineItem', dependent: :destroy
   has_many :payments, dependent: :destroy
   has_many :project_tasks, dependent: :nullify
@@ -10,13 +12,16 @@ class PurchaseOrder < ApplicationRecord
   has_many :workflow_instances, as: :subject, dependent: :destroy
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
+  has_many :kudos_events, dependent: :destroy
+  has_many :subcontractor_invoices, dependent: :destroy
+  has_many :pay_now_requests, dependent: :destroy
 
   # Nested attributes
   accepts_nested_attributes_for :line_items, allow_destroy: true
 
   # Validations
   validates :purchase_order_number, presence: true, uniqueness: true
-  validates :construction_id, presence: true
+  validates :job_id, presence: true
   validates :status, presence: true, inclusion: {
     in: %w[draft pending approved sent received invoiced paid cancelled]
   }
@@ -48,12 +53,12 @@ class PurchaseOrder < ApplicationRecord
   before_validation :generate_po_number, if: :new_record?
   before_save :calculate_totals
   before_save :calculate_variances
-  after_save :update_construction_profit
-  after_destroy :update_construction_profit
+  after_save :update_job_profit
+  after_destroy :update_job_profit
 
   # Scopes
   scope :by_status, ->(status) { where(status: status) if status.present? }
-  scope :by_construction, ->(construction_id) { where(construction_id: construction_id) if construction_id.present? }
+  scope :by_construction, ->(job_id) { where(job_id: job_id) if job_id.present? }
   scope :recent, -> { order(created_at: :desc) }
   scope :overdue, -> { where('required_date < ? AND status NOT IN (?)', CompanySetting.today, ['received', 'cancelled']) }
   scope :pending_approval, -> { where(status: 'pending') }
@@ -224,6 +229,48 @@ class PurchaseOrder < ApplicationRecord
     update!(visible_to_supplier: false)
   end
 
+  # Subcontractor job tracking methods
+  def mark_arrived!(time = Time.current)
+    transaction do
+      update!(arrived_at: time)
+      KudosEvent.record_arrival(self, time) if contact&.subcontractor_account
+    end
+  end
+
+  def mark_completed!(time = Time.current)
+    transaction do
+      update!(
+        completed_at: time,
+        status: 'received'
+      )
+      KudosEvent.record_completion(self, time) if contact&.subcontractor_account
+    end
+  end
+
+  def from_quote?
+    quote_response_id.present?
+  end
+
+  def can_create_invoice?
+    received? && contact&.accounting_connected?
+  end
+
+  def create_subcontractor_invoice!(amount: nil)
+    raise 'PO not yet received' unless received?
+    raise 'Invoice already exists' if subcontractor_invoices.any?
+
+    invoice_amount = amount || total
+    raise "Invoice amount (#{invoice_amount}) exceeds PO amount (#{total})" if invoice_amount > total
+
+    SubcontractorInvoice.create!(
+      purchase_order: self,
+      contact: contact,
+      accounting_integration: contact.accounting_integration,
+      amount: invoice_amount,
+      status: 'draft'
+    )
+  end
+
   def payment_schedule_summary
     return [] unless payment_schedule.is_a?(Array)
     payment_schedule
@@ -267,8 +314,8 @@ class PurchaseOrder < ApplicationRecord
     end
   end
 
-  # Update the construction's live profit when this PO changes
-  def update_construction_profit
-    construction&.calculate_and_update_profit!
+  # Update the job's live profit when this PO changes
+  def update_job_profit
+    job&.calculate_and_update_profit!
   end
 end

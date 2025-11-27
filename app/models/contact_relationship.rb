@@ -4,10 +4,32 @@ class ContactRelationship < ApplicationRecord
 
   # Relationship type options
   RELATIONSHIP_TYPES = [
-    'previous_client',
+    # Employment
+    'employee_of',
+    'contractor_for',
+
+    # Company roles
+    'director_of',
+    'shareholder_of',
+    'authorized_signatory_of',
+    'beneficial_owner_of',
+
+    # Trust roles
+    'trustee_of',
+    'beneficiary_of',
+    'appointor_of',
+
+    # Ownership
+    'owner_of',
+    'co_owner_with',
+
+    # Business relationships
+    'partner_in',
     'parent_company',
     'subsidiary',
-    'partner',
+
+    # Legacy/General
+    'previous_client',
     'referral',
     'supplier_alternate',
     'related_project',
@@ -21,6 +43,16 @@ class ContactRelationship < ApplicationRecord
   validates :related_contact_id, presence: true
   validate :cannot_relate_to_self
   validate :unique_relationship_pair
+  validates :ownership_percentage, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
+
+  # Scopes
+  scope :active, -> { where(is_active: true) }
+  scope :inactive, -> { where(is_active: false) }
+  scope :by_type, ->(type) { where(relationship_type: type) }
+  scope :employment, -> { where(relationship_type: ['employee_of', 'contractor_for']) }
+  scope :company_roles, -> { where(relationship_type: ['director_of', 'shareholder_of', 'authorized_signatory_of', 'beneficial_owner_of']) }
+  scope :trust_roles, -> { where(relationship_type: ['trustee_of', 'beneficiary_of', 'appointor_of']) }
+  scope :ownership, -> { where(relationship_type: ['owner_of', 'co_owner_with', 'shareholder_of']) }
 
   # Callbacks for bidirectional sync
   after_create :create_reverse_relationship
@@ -65,7 +97,14 @@ class ContactRelationship < ApplicationRecord
       source_contact_id: related_contact_id,
       related_contact_id: source_contact_id,
       relationship_type: relationship_type,
-      notes: notes
+      notes: notes,
+      role_in_relationship: role_in_relationship,
+      ownership_percentage: ownership_percentage,
+      context: context,
+      start_date: start_date,
+      end_date: end_date,
+      is_active: is_active,
+      metadata: metadata
     )
   ensure
     Thread.current[:creating_reverse_relationship] = false
@@ -80,7 +119,14 @@ class ContactRelationship < ApplicationRecord
     Thread.current[:updating_reverse_relationship] = true
     reverse.update!(
       relationship_type: relationship_type,
-      notes: notes
+      notes: notes,
+      role_in_relationship: role_in_relationship,
+      ownership_percentage: ownership_percentage,
+      context: context,
+      start_date: start_date,
+      end_date: end_date,
+      is_active: is_active,
+      metadata: metadata
     )
   ensure
     Thread.current[:updating_reverse_relationship] = false
