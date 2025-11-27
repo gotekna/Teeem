@@ -60,7 +60,7 @@
     /* Brand Colors */
     --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 40, 11%, 89%;         /* #F2F1EF */
+    --secondary: 40 11% 89%;           /* #F2F1EF */
     --secondary-foreground: 240 5.9% 10%;
 
     /* Semantic Colors */
@@ -357,6 +357,11 @@
 /* ========================================
    COMPONENT OVERRIDES
    ======================================== */
+
+/* Ensure primary buttons have white text in light mode and black text in dark mode */
+button[class*="bg-primary"]:not([class*="bg-primary/"]):not([class*="bg-primary-"]) {
+  color: hsl(var(--primary-foreground)) !important;
+}
 
 /* Date picker */
 .rdp-tbody .rdp-button {
