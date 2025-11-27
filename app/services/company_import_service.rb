@@ -104,13 +104,9 @@ class CompanyImportService
         email: row[2],
         mobile_phone: row[3],
         date_of_birth: parse_date(row[4]),
-        place_of_birth: row[5],
-        birth_state: row[6],
-        birth_country: row[7],
-        current_residential_address: row[8],
-        director_id: row[9],
-        passport_number: row[10],
-        drivers_license_number: row[11]
+        # Note: place_of_birth, birth_state, birth_country, current_residential_address,
+        # passport_number, drivers_license_number columns were removed as unused
+        director_id: row[9]
       )
 
       contact.save!

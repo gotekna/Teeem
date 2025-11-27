@@ -6,6 +6,17 @@ Commits ALL pending changes and pushes to trigger GitHub Actions deployment to s
 
 **Run from teeem root. Auto-generate commit messages.**
 
+## 🔴 STAGING ONLY - NEVER DEPLOY TO LIVE
+
+**This command deploys to STAGING (rob branch) ONLY.**
+
+- ✅ Staging Frontend: https://teeemrob.vercel.app/
+- ✅ Staging Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- ❌ NEVER push to main/Live branch
+- ❌ NEVER deploy to https://teeem.vercel.app/ (production)
+
+**To deploy to production:** Create a PR from rob → main (Live branch).
+
 ## Parallel Execution Strategy
 
 ### Step 1 - Pre-Flight Checks (RUN IN PARALLEL)
@@ -104,12 +115,26 @@ curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
 ```
 
-### Step 8 - Report Status
+### Step 8 - Sync Local Version with Staging
+
+**After successful deploy, sync local version number to match staging:**
+```bash
+# Get staging version number
+STAGING_VERSION=$(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '"version":"v[0-9]*"' | grep -o '[0-9]*')
+
+# Update local database to match
+cd backend && bin/rails runner "Version.current.update(current_version: ${STAGING_VERSION})"
+```
+
+This keeps local and staging version numbers in sync.
+
+### Step 9 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
 - ✅ GitHub Actions: [status - in_progress/success/failure]
 - ✅ Backend: [version from /version endpoint] - https://teeem-backend-39604ccca45a.herokuapp.com/
 - ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel)
+- ✅ Local version synced to: [version]
 - 🔴 Warnings (if any)
 
 ## Branch Strategy

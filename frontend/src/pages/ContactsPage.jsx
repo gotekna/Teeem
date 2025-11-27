@@ -368,7 +368,7 @@ export default function ContactsPage() {
           case 'name':
             return item.full_name?.toLowerCase().includes(lowerFilter)
           case 'type':
-            return item.primary_contact_type?.toLowerCase().includes(lowerFilter)
+            return item.contact_types?.[0]?.toLowerCase().includes(lowerFilter)
           case 'email':
             return item.email?.toLowerCase().includes(lowerFilter)
           case 'phone':
@@ -422,8 +422,7 @@ export default function ContactsPage() {
     try {
       const response = await api.patch('/api/v1/contacts/bulk_update', {
         contact_ids: Array.from(selectedContacts),
-        contact_types: [bulkContactType],
-        primary_contact_type: bulkContactType
+        contact_types: [bulkContactType]
       })
 
       if (response.success) {
@@ -561,13 +560,12 @@ export default function ContactsPage() {
     }
   }
 
-  const handleUpdateSingleContact = async (contactId, newTypes, newPrimaryType) => {
+  const handleUpdateSingleContact = async (contactId, newTypes) => {
     setUpdatingContactId(contactId)
     try {
       await api.patch(`/api/v1/contacts/${contactId}`, {
         contact: {
-          contact_types: newTypes,
-          primary_contact_type: newPrimaryType
+          contact_types: newTypes
         }
       })
       setToast({
@@ -649,16 +647,16 @@ export default function ContactsPage() {
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
                   <span className="text-sm text-gray-500">Updating...</span>
                 </div>
-              ) : contact.primary_contact_type ? (
+              ) : contact.contact_types?.[0] ? (
                 <div className="relative">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
                       setOpenDropdownId(openDropdownId === contact.id ? null : contact.id)
                     }}
-                    className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${getTypeBadge(contact.primary_contact_type).className}`}
+                    className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium cursor-pointer hover:opacity-80 transition-opacity ${getTypeBadge(contact.contact_types[0]).className}`}
                   >
-                    {getTypeBadge(contact.primary_contact_type).label}
+                    {getTypeBadge(contact.contact_types[0]).label}
                     <ChevronDownIcon className="ml-1 h-3 w-3" />
                   </button>
                   {openDropdownId === contact.id && (
@@ -674,7 +672,6 @@ export default function ContactsPage() {
                         {['customer', 'supplier', 'sales', 'land_agent'].map((type) => {
                           const badge = getTypeBadge(type)
                           const isSelected = contact.contact_types?.includes(type)
-                          const isPrimary = contact.primary_contact_type === type
                           return (
                             <div
                               key={type}
@@ -687,18 +684,14 @@ export default function ContactsPage() {
                                   onChange={() => {
                                     const currentTypes = contact.contact_types || []
                                     let newTypes
-                                    let newPrimaryType = contact.primary_contact_type
 
                                     if (isSelected) {
                                       newTypes = currentTypes.filter(t => t !== type)
-                                      if (isPrimary) {
-                                        newPrimaryType = newTypes[0] || null
-                                      }
                                     } else {
                                       newTypes = [...currentTypes, type]
                                     }
 
-                                    handleUpdateSingleContact(contact.id, newTypes, newPrimaryType)
+                                    handleUpdateSingleContact(contact.id, newTypes)
                                   }}
                                   className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600"
                                 />
@@ -855,7 +848,7 @@ export default function ContactsPage() {
       case 'name':
         return contact.full_name?.toLowerCase() || ''
       case 'type':
-        return contact.primary_contact_type?.toLowerCase() || ''
+        return contact.contact_types?.[0]?.toLowerCase() || ''
       case 'email':
         return contact.email?.toLowerCase() || ''
       case 'phone':

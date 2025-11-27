@@ -1,4 +1,95 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, useDeferredValue, useCallback, memo } from 'react'
+
+// Isolated search input component - prevents parent re-renders on every keystroke
+const SearchInput = memo(function SearchInput({ onSearch, onSearchAllChange, searchAllColumns, serverSearchLoading, hasServerSearch }) {
+  const [localValue, setLocalValue] = useState('')
+  const debounceRef = useRef(null)
+
+  const handleChange = useCallback((e) => {
+    const value = e.target.value
+    setLocalValue(value)
+
+    // Clear existing debounce timer
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    // Debounce the search callback
+    debounceRef.current = setTimeout(() => {
+      console.log(`[Search] Debounced search triggered: "${value}"`)
+      onSearch(value)
+    }, 300)
+  }, [onSearch])
+
+  const handleClear = useCallback(() => {
+    setLocalValue('')
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+    onSearch('')
+  }, [onSearch])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [])
+
+  return (
+    <>
+      <div className="relative flex-1">
+        {serverSearchLoading ? (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2">
+            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
+          </div>
+        ) : (
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        )}
+        <input
+          type="text"
+          value={localValue}
+          onChange={handleChange}
+          placeholder={hasServerSearch ? "Search all records..." : "Search across all fields..."}
+          className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+        {localValue && (
+          <button
+            onClick={handleClear}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Search All Columns Toggle */}
+      {hasServerSearch && (
+        <label className="flex items-center gap-2 cursor-pointer select-none group">
+          <div className="relative">
+            <input
+              type="checkbox"
+              checked={searchAllColumns}
+              onChange={(e) => onSearchAllChange(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-gray-200 dark:bg-gray-600 rounded-full peer peer-checked:bg-blue-600 transition-colors"></div>
+            <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+          </div>
+          <span className="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200 whitespace-nowrap">
+            Search all columns
+          </span>
+        </label>
+      )}
+    </>
+  )
+})
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Menu, MenuButton, MenuItems, MenuItem } from '@headlessui/react'
 import RichTextEditor from '../common/RichTextEditor'
@@ -251,19 +342,28 @@ export default function TeeemTableView({
   // customActions: optional array of custom button elements to display after Columns button
   // enableImport/enableExport: show import/export options in three-dot menu
   // onImport/onExport: callback functions for import/export actions
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState('') // Search term (updated via debounced callback from SearchInput)
+  const [searchAllColumns, setSearchAllColumns] = useState(false) // Toggle to search all text columns
 
-  // Server-side search with debouncing (Chapter 20.20 enhancement)
-  // When onServerSearch is provided, triggers server search after 300ms of inactivity
-  useEffect(() => {
-    if (!onServerSearch) return  // Only activate if callback is provided
+  // Stable callback for SearchInput - triggers server search when called
+  const handleSearchFromInput = useCallback((value) => {
+    console.log(`[Search] Search value received: "${value}" (searchAll: ${searchAllColumns})`)
+    setSearch(value)
+    if (onServerSearch) {
+      const startTime = performance.now()
+      onServerSearch(value, searchAllColumns)
+      console.log(`[Search] onServerSearch called in ${(performance.now() - startTime).toFixed(1)}ms`)
+    }
+  }, [onServerSearch, searchAllColumns])
 
-    const debounceTimer = setTimeout(() => {
-      onServerSearch(search)
-    }, 300)  // 300ms debounce delay
-
-    return () => clearTimeout(debounceTimer)
-  }, [search, onServerSearch])
+  // Stable callback for search all toggle
+  const handleSearchAllChange = useCallback((checked) => {
+    setSearchAllColumns(checked)
+    // Re-trigger search with current term when toggle changes
+    if (onServerSearch && search) {
+      onServerSearch(search, checked)
+    }
+  }, [onServerSearch, search])
 
   // Multi-column sorting: array of {column, dir} objects
   // First item is primary sort, second is secondary, etc.
@@ -4646,30 +4746,14 @@ export default function TeeemTableView({
         <div className="py-2 border-b border-gray-200 dark:border-gray-700 space-y-1 flex-shrink-0 relative z-20">
         {/* Search Box with Clear Button (Chapter 20.20) */}
         <div className="flex items-end gap-3">
-          <div className="relative flex-1">
-            {serverSearchLoading ? (
-              <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600" />
-              </div>
-            ) : (
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            )}
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={onServerSearch ? "Search all records..." : "Search across all fields..."}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              >
-                <XMarkIcon className="w-5 h-5" />
-              </button>
-            )}
-          </div>
+          {/* Isolated SearchInput component - typing doesn't re-render parent */}
+          <SearchInput
+            onSearch={handleSearchFromInput}
+            onSearchAllChange={handleSearchAllChange}
+            searchAllColumns={searchAllColumns}
+            serverSearchLoading={serverSearchLoading}
+            hasServerSearch={!!onServerSearch}
+          />
 
           {/* Custom Action Buttons (Chapter 20: Add, Import, etc.) */}
           {customActions && customActions}

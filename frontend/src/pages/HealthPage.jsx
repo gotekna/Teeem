@@ -32,6 +32,8 @@ export default function HealthPage() {
     issues: []
   })
   const [xeroSyncHealth, setXeroSyncHealth] = useState(null)
+  const [duplicateContacts, setDuplicateContacts] = useState(null)
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false)
   const [expandedSupplierCategory, setExpandedSupplierCategory] = useState(null)
   const [loadingMissingItems, setLoadingMissingItems] = useState(false)
   const [missingItems, setMissingItems] = useState({})
@@ -41,7 +43,8 @@ export default function HealthPage() {
     itemsWithDefaultSupplierButNoPriceHistory: false,
     itemsRequiringPhotoWithoutImage: false,
     priceMismatches: false,
-    xeroSync: true
+    xeroSync: true,
+    duplicateContacts: true
   })
   const [searchQueries, setSearchQueries] = useState({
     itemsWithoutDefaultSupplier: '',
@@ -200,6 +203,7 @@ export default function HealthPage() {
     loadHealthData()
     loadPriceHealthCheck()
     loadXeroSyncHealth()
+    loadDuplicateContacts()
   }, [])
 
   // Persist column order to localStorage
@@ -283,6 +287,18 @@ export default function HealthPage() {
       setXeroSyncHealth(response.health)
     } catch (error) {
       console.error('Failed to load Xero sync health:', error)
+    }
+  }
+
+  const loadDuplicateContacts = async () => {
+    try {
+      setLoadingDuplicates(true)
+      const response = await api.get('/api/v1/contacts/possible_duplicates')
+      setDuplicateContacts(response)
+    } catch (error) {
+      console.error('Failed to load duplicate contacts:', error)
+    } finally {
+      setLoadingDuplicates(false)
     }
   }
 
@@ -1837,6 +1853,150 @@ export default function HealthPage() {
               )}
             </div>
           )}
+
+          {/* Possible Duplicate Contacts Section */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <button
+              onClick={() => toggleSection('duplicateContacts')}
+              className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50"
+            >
+              <div className="flex items-center gap-3">
+                {expandedSections.duplicateContacts ? (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                )}
+                <span className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Possible Duplicate Contacts
+                </span>
+                {duplicateContacts && (
+                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                    duplicateContacts.total_duplicate_groups > 0
+                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                      : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  }`}>
+                    {duplicateContacts.total_duplicate_groups} groups
+                  </span>
+                )}
+              </div>
+              {loadingDuplicates && (
+                <ArrowPathIcon className="h-5 w-5 text-gray-400 animate-spin" />
+              )}
+            </button>
+
+            {expandedSections.duplicateContacts && (
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                {loadingDuplicates ? (
+                  <div className="flex items-center justify-center py-8">
+                    <ArrowPathIcon className="h-8 w-8 text-gray-400 animate-spin" />
+                  </div>
+                ) : duplicateContacts ? (
+                  <>
+                    {/* Stats */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Duplicate Groups</div>
+                        <div className={`text-2xl font-semibold ${duplicateContacts.total_duplicate_groups > 0 ? 'text-yellow-600' : 'text-gray-900 dark:text-white'}`}>
+                          {duplicateContacts.total_duplicate_groups}
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                        <div className="text-sm text-gray-500 dark:text-gray-400">Contacts Involved</div>
+                        <div className={`text-2xl font-semibold ${duplicateContacts.total_contacts_involved > 0 ? 'text-yellow-600' : 'text-gray-900 dark:text-white'}`}>
+                          {duplicateContacts.total_contacts_involved}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Duplicate Groups List */}
+                    {duplicateContacts.duplicates && duplicateContacts.duplicates.length > 0 ? (
+                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                        {duplicateContacts.duplicates.slice(0, 20).map((group, idx) => (
+                          <div key={idx} className="border border-gray-200 dark:border-gray-600 rounded-lg p-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                group.match_type === 'full_name' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                group.match_type === 'first_last_name' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
+                                'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                              }`}>
+                                {group.match_type === 'full_name' ? 'Same Full Name' :
+                                 group.match_type === 'first_last_name' ? 'Same First+Last' : 'Same Email'}
+                              </span>
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                "{group.match_value}"
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                ({group.contacts.length} contacts)
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {group.contacts.map((contact) => (
+                                <div key={contact.id} className="flex items-center justify-between text-sm bg-gray-50 dark:bg-gray-700/30 rounded px-2 py-1">
+                                  <div className="flex items-center gap-2">
+                                    <Link
+                                      to={`/contacts/${contact.id}`}
+                                      className="text-indigo-600 hover:text-indigo-500 font-medium"
+                                    >
+                                      #{contact.id}
+                                    </Link>
+                                    <span className="text-gray-700 dark:text-gray-300">{contact.full_name}</span>
+                                    {contact.entity_type && (
+                                      <span className={`px-1.5 py-0.5 text-xs rounded ${
+                                        contact.entity_type === 'person' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300' :
+                                        'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                      }`}>
+                                        {contact.entity_type}
+                                      </span>
+                                    )}
+                                    {contact.has_xero && (
+                                      <span className="px-1.5 py-0.5 text-xs bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 rounded">
+                                        Xero
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                                    {contact.email && <span className="text-xs">{contact.email}</span>}
+                                    {contact.contact_types && contact.contact_types.length > 0 && (
+                                      <span className="text-xs">{contact.contact_types.join(', ')}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                        {duplicateContacts.duplicates.length > 20 && (
+                          <div className="text-center text-sm text-gray-500 py-2">
+                            Showing 20 of {duplicateContacts.duplicates.length} duplicate groups
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircleIcon className="h-5 w-5" />
+                        <span className="text-sm">No duplicate contacts found</span>
+                      </div>
+                    )}
+
+                    {/* Link to Contacts */}
+                    <div className="mt-4 flex justify-end">
+                      <Link
+                        to="/contacts"
+                        className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500"
+                      >
+                        <LinkIcon className="h-4 w-4 mr-1" />
+                        View All Contacts
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-gray-500 dark:text-gray-400 text-center py-4">
+                    Failed to load duplicate contacts data
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

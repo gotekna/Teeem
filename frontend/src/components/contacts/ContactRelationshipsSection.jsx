@@ -88,11 +88,15 @@ export default function ContactRelationshipsSection({ contactId, isEditMode }) {
   const loadAllContacts = async () => {
     try {
       const response = await api.get('/api/v1/contacts')
-      // Filter out the current contact
-      const otherContacts = response.contacts.filter(c => c.id !== parseInt(contactId))
+      // Filter out the current contact - handle case where response.contacts might be undefined
+      const contacts = response?.contacts || response || []
+      const otherContacts = Array.isArray(contacts)
+        ? contacts.filter(c => c.id !== parseInt(contactId))
+        : []
       setAllContacts(otherContacts)
     } catch (err) {
       console.error('Failed to load contacts:', err)
+      setAllContacts([])
     }
   }
 

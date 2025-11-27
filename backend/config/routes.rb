@@ -279,6 +279,8 @@ Rails.application.routes.draw do
           post :merge
           post :match_supplier
           get :validate_abn
+          get :possible_duplicates
+          get :read_only_fields
         end
         member do
           get :categories
@@ -828,6 +830,9 @@ Rails.application.routes.draw do
           get :sync_contacts_status
         end
       end
+
+      # Xero contact lookup (separate route for /api/v1/xero/contacts/:id)
+      get 'xero/contacts/:id', to: 'xero#show_contact'
 
       # Xero Webhooks (separate controller for webhook handling)
       post 'xero/webhooks', to: 'xero_webhooks#receive'

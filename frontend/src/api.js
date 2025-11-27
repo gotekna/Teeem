@@ -26,11 +26,13 @@ export const api = {
       }
     }
 
+    const fetchStart = performance.now();
     const response = await fetch(url, {
       method: 'GET',
       headers: getAuthHeaders(),
       credentials: 'include',
     });
+    console.log(`[API] fetch completed in ${(performance.now() - fetchStart).toFixed(0)}ms for ${endpoint.substring(0, 50)}...`);
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       // Handle both single error and array of errors
@@ -84,7 +86,10 @@ export const api = {
       return JSON.parse(text);
     }
 
-    return response.json();
+    const jsonStart = performance.now();
+    const data = await response.json();
+    console.log(`[API] JSON parse completed in ${(performance.now() - jsonStart).toFixed(0)}ms`);
+    return data;
   },
 
   async post(endpoint, data) {

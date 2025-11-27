@@ -62,6 +62,36 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [selectedLinkId, setSelectedLinkId] = useState(null)
   const [loadingLinks, setLoadingLinks] = useState(true)
 
+  // Xero contact data (fetched from Xero API)
+  const [xeroContactData, setXeroContactData] = useState(null)
+  const [loadingXeroContact, setLoadingXeroContact] = useState(false)
+
+  // Xero-synced accounting fields that are READ-ONLY in TEEEM
+  // These fields can only be updated via Xero sync, not manual edits
+  const XERO_READ_ONLY_FIELDS = [
+    'accounts_payable_outstanding',
+    'accounts_payable_overdue',
+    'accounts_receivable_outstanding',
+    'accounts_receivable_overdue',
+    'bank_bsb',
+    'bank_account_number',
+    'bank_account_name',
+    'default_purchase_account',
+    'default_sales_account',
+    'bill_due_day',
+    'bill_due_type',
+    'sales_due_day',
+    'sales_due_type',
+    'default_discount',
+    'xero_account_number',
+    'xero_contact_number',
+    'xero_contact_status',
+    'company_number'
+  ]
+
+  // Helper to check if a field is read-only
+  const isReadOnlyField = (fieldName) => XERO_READ_ONLY_FIELDS.includes(fieldName)
+
   // Define the field mappings between Xero and TEEEM
   const fieldMappings = [
     {
@@ -71,6 +101,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: 'synced' },
         { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: 'synced' },
         { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced' },
+        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'entity_type', value: contact?.entity_type ? (contact.entity_type.charAt(0).toUpperCase() + contact.entity_type.slice(1)) : '-', syncStatus: contact?.entity_type ? 'synced' : 'not_linked' },
         { xeroField: 'ContactID', teeemField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked' }
       ]
     },
@@ -85,41 +116,49 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     },
     {
       section: 'Tax & Registration',
+      readOnly: true,
+      readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
         { xeroField: 'TaxNumber', teeemField: 'tax_number', value: contact?.tax_number, syncStatus: 'synced' },
-        { xeroField: 'AccountNumber', teeemField: 'xero_account_number', value: contact?.xero_account_number, syncStatus: 'synced' },
-        { xeroField: 'ContactNumber', teeemField: 'xero_contact_number', value: contact?.xero_contact_number, syncStatus: 'synced' },
-        { xeroField: 'ContactStatus', teeemField: 'xero_contact_status', value: contact?.xero_contact_status, syncStatus: 'synced' },
-        { xeroField: 'CompanyNumber', teeemField: 'company_number', value: contact?.company_number, syncStatus: 'synced' }
+        { xeroField: 'AccountNumber', teeemField: 'xero_account_number', value: contact?.xero_account_number, syncStatus: 'read_only' },
+        { xeroField: 'ContactNumber', teeemField: 'xero_contact_number', value: contact?.xero_contact_number, syncStatus: 'read_only' },
+        { xeroField: 'ContactStatus', teeemField: 'xero_contact_status', value: contact?.xero_contact_status, syncStatus: 'read_only' },
+        { xeroField: 'CompanyNumber', teeemField: 'company_number', value: contact?.company_number, syncStatus: 'read_only' }
       ]
     },
     {
       section: 'Purchase (Accounts Payable)',
+      readOnly: true,
+      readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'DefaultPurchaseAccount', teeemField: 'default_purchase_account', value: contact?.default_purchase_account, syncStatus: 'synced' },
-        { xeroField: 'PurchaseTerms (Days)', teeemField: 'bill_due_day', value: contact?.bill_due_day, syncStatus: 'synced' },
-        { xeroField: 'PurchaseTerms (Type)', teeemField: 'bill_due_type', value: contact?.bill_due_type, syncStatus: 'synced' },
+        { xeroField: 'DefaultPurchaseAccount', teeemField: 'default_purchase_account', value: contact?.default_purchase_account, syncStatus: 'read_only' },
+        { xeroField: 'PurchaseTerms (Days)', teeemField: 'bill_due_day', value: contact?.bill_due_day, syncStatus: 'read_only' },
+        { xeroField: 'PurchaseTerms (Type)', teeemField: 'bill_due_type', value: contact?.bill_due_type, syncStatus: 'read_only' },
         { xeroField: 'AccountsPayable Outstanding', teeemField: 'accounts_payable_outstanding', value: contact?.accounts_payable_outstanding, syncStatus: 'read_only', type: 'currency' },
         { xeroField: 'AccountsPayable Overdue', teeemField: 'accounts_payable_overdue', value: contact?.accounts_payable_overdue, syncStatus: 'read_only', type: 'currency' }
       ]
     },
     {
       section: 'Sales (Accounts Receivable)',
+      readOnly: true,
+      readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'DefaultSalesAccount', teeemField: 'default_sales_account', value: contact?.default_sales_account, syncStatus: 'synced' },
-        { xeroField: 'DefaultDiscount', teeemField: 'default_discount', value: contact?.default_discount, syncStatus: 'synced', type: 'percentage' },
-        { xeroField: 'SalesTerms (Days)', teeemField: 'sales_due_day', value: contact?.sales_due_day, syncStatus: 'synced' },
-        { xeroField: 'SalesTerms (Type)', teeemField: 'sales_due_type', value: contact?.sales_due_type, syncStatus: 'synced' },
+        { xeroField: 'DefaultSalesAccount', teeemField: 'default_sales_account', value: contact?.default_sales_account, syncStatus: 'read_only' },
+        { xeroField: 'DefaultDiscount', teeemField: 'default_discount', value: contact?.default_discount, syncStatus: 'read_only', type: 'percentage' },
+        { xeroField: 'SalesTerms (Days)', teeemField: 'sales_due_day', value: contact?.sales_due_day, syncStatus: 'read_only' },
+        { xeroField: 'SalesTerms (Type)', teeemField: 'sales_due_type', value: contact?.sales_due_type, syncStatus: 'read_only' },
         { xeroField: 'AccountsReceivable Outstanding', teeemField: 'accounts_receivable_outstanding', value: contact?.accounts_receivable_outstanding, syncStatus: 'read_only', type: 'currency' },
         { xeroField: 'AccountsReceivable Overdue', teeemField: 'accounts_receivable_overdue', value: contact?.accounts_receivable_overdue, syncStatus: 'read_only', type: 'currency' }
       ]
     },
     {
       section: 'Bank Details',
+      readOnly: true,
+      readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'BankAccountBSB', teeemField: 'bank_bsb', value: contact?.bank_bsb, syncStatus: 'synced' },
-        { xeroField: 'BankAccountNumber', teeemField: 'bank_account_number', value: contact?.bank_account_number, syncStatus: 'synced' },
-        { xeroField: 'BankAccountName', teeemField: 'bank_account_name', value: contact?.bank_account_name, syncStatus: 'synced' }
+        { xeroField: 'BankAccountBSB', teeemField: 'bank_bsb', value: contact?.bank_bsb, syncStatus: 'read_only' },
+        { xeroField: 'BankAccountNumber', teeemField: 'bank_account_number', value: contact?.bank_account_number, syncStatus: 'read_only' },
+        { xeroField: 'BankAccountName', teeemField: 'bank_account_name', value: contact?.bank_account_name, syncStatus: 'read_only' }
       ]
     },
     {
@@ -145,6 +184,13 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       loadTransactions()
     }
   }, [contact?.id, selectedLinkId])
+
+  // Load Xero contact data when links change
+  useEffect(() => {
+    if (contact?.id && (xeroLinks.length > 0 || contact?.xero_id)) {
+      loadXeroContactData()
+    }
+  }, [contact?.id, selectedLinkId, xeroLinks.length])
 
   const loadXeroLinks = async () => {
     setLoadingLinks(true)
@@ -248,6 +294,74 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     }
   }
 
+  // Fetch raw Xero contact data to show what Xero has
+  const loadXeroContactData = async () => {
+    const selectedLink = xeroLinks.find(l => l.id === selectedLinkId)
+    const xeroContactId = selectedLink?.xero_contact_id || contact?.xero_id
+    const xeroTenantId = selectedLink?.xero_tenant_id
+
+    if (!xeroContactId) {
+      setXeroContactData(null)
+      return
+    }
+
+    try {
+      setLoadingXeroContact(true)
+      const tenantParam = xeroTenantId ? `?tenant_id=${xeroTenantId}` : ''
+      const response = await api.get(`/api/v1/xero/contacts/${xeroContactId}${tenantParam}`)
+      if (response.success && response.data?.contact) {
+        setXeroContactData(response.data.contact)
+      }
+    } catch (error) {
+      console.log('Could not fetch Xero contact data:', error.message)
+      setXeroContactData(null)
+    } finally {
+      setLoadingXeroContact(false)
+    }
+  }
+
+  // Helper to get value from Xero contact data
+  const getXeroValue = (xeroFieldName) => {
+    if (!xeroContactData || loadingXeroContact) return loadingXeroContact ? '...' : '-'
+
+    // Map our xeroField names to actual Xero API field names
+    const fieldMap = {
+      'Name': xeroContactData.Name,
+      'FirstName': xeroContactData.FirstName,
+      'LastName': xeroContactData.LastName,
+      'EmailAddress': xeroContactData.EmailAddress,
+      'IsSupplier/IsCustomer': xeroContactData.IsSupplier ? 'Supplier' : (xeroContactData.IsCustomer ? 'Customer' : '-'),
+      'ContactID': xeroContactData.ContactID,
+      'PhoneNumber (Mobile)': xeroContactData.Phones?.find(p => p.PhoneType === 'MOBILE')?.PhoneNumber,
+      'PhoneNumber (Office)': xeroContactData.Phones?.find(p => p.PhoneType === 'DEFAULT')?.PhoneNumber,
+      'PhoneNumber (Fax)': xeroContactData.Phones?.find(p => p.PhoneType === 'FAX')?.PhoneNumber,
+      'Website': xeroContactData.Website,
+      'TaxNumber': xeroContactData.TaxNumber,
+      'AccountNumber': xeroContactData.AccountNumber,
+      'ContactNumber': xeroContactData.ContactNumber,
+      'ContactStatus': xeroContactData.ContactStatus,
+      'CompanyNumber': xeroContactData.CompanyNumber,
+      'DefaultPurchaseAccount': xeroContactData.PurchasesDefaultAccountCode,
+      'PurchaseTerms (Days)': xeroContactData.PaymentTerms?.Bills?.Day,
+      'PurchaseTerms (Type)': xeroContactData.PaymentTerms?.Bills?.Type,
+      'AccountsPayable Outstanding': xeroContactData.Balances?.AccountsPayable?.Outstanding,
+      'AccountsPayable Overdue': xeroContactData.Balances?.AccountsPayable?.Overdue,
+      'DefaultSalesAccount': xeroContactData.SalesDefaultAccountCode,
+      'DefaultDiscount': xeroContactData.Discount,
+      'SalesTerms (Days)': xeroContactData.PaymentTerms?.Sales?.Day,
+      'SalesTerms (Type)': xeroContactData.PaymentTerms?.Sales?.Type,
+      'AccountsReceivable Outstanding': xeroContactData.Balances?.AccountsReceivable?.Outstanding,
+      'AccountsReceivable Overdue': xeroContactData.Balances?.AccountsReceivable?.Overdue,
+      'BankAccountBSB': xeroContactData.BankAccountDetails?.split(' ')[0],
+      'BankAccountNumber': xeroContactData.BankAccountDetails?.split(' ').slice(1).join(' '),
+      'BankAccountName': null, // Xero doesn't store this separately
+    }
+
+    const value = fieldMap[xeroFieldName]
+    if (value === undefined || value === null || value === '') return '-'
+    return value
+  }
+
   const formatValue = (field) => {
     if (!field.value && field.value !== 0) return '-'
     if (field.type === 'currency') {
@@ -280,7 +394,12 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       case 'never':
         return <XCircleIcon className="h-5 w-5 text-gray-400" />
       case 'read_only':
-        return <ExclamationTriangleIcon className="h-5 w-5 text-blue-500" />
+        // Lock icon for read-only fields
+        return (
+          <svg className="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        )
       case 'error':
         return <XCircleIcon className="h-5 w-5 text-red-500" />
       default:
@@ -292,7 +411,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     switch (status) {
       case 'synced': return 'Synced'
       case 'not_linked': return 'Not Linked'
-      case 'read_only': return 'Read Only'
+      case 'read_only': return 'Read Only (Xero)'
       case 'enabled': return 'Enabled'
       case 'disabled': return 'Disabled'
       case 'never': return 'Never Synced'
@@ -942,10 +1061,20 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       {/* Field Mappings Table */}
       {fieldMappings.map((section, idx) => (
         <div key={idx} className="mb-8">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            {section.section}
-          </h3>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="flex items-center gap-3 mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {section.section}
+            </h3>
+            {section.readOnly && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                Read Only - Edit in Xero
+              </span>
+            )}
+          </div>
+          <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border overflow-hidden ${section.readOnly ? 'border-gray-300 dark:border-gray-600' : 'border-gray-200 dark:border-gray-700'}`}>
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-800/50">
                 <tr>
@@ -956,7 +1085,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                     TEEEM Field
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Current Value
+                    TEEEM Value
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/20">
+                    Xero Value
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
@@ -964,27 +1096,38 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {section.fields.map((field, fieldIdx) => (
-                  <tr key={fieldIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {field.xeroField}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
-                      {field.teeemField}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                      {formatValue(field)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(field.syncStatus)}
-                        <span className="text-gray-700 dark:text-gray-300">
-                          {getStatusLabel(field.syncStatus)}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {section.fields.map((field, fieldIdx) => {
+                  const xeroValue = getXeroValue(field.xeroField)
+                  const teeemValue = formatValue(field)
+                  const valuesMatch = xeroValue === teeemValue || (xeroValue === '-' && teeemValue === '-')
+                  const hasMismatch = xeroValue !== '-' && teeemValue !== '-' && xeroValue !== teeemValue
+
+                  return (
+                    <tr key={fieldIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {field.xeroField}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
+                        {field.teeemField}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                        {teeemValue}
+                      </td>
+                      <td className={`px-6 py-4 text-sm bg-blue-50 dark:bg-blue-900/20 ${hasMismatch ? 'text-yellow-700 dark:text-yellow-300 font-medium' : 'text-blue-700 dark:text-blue-300'}`}>
+                        {xeroValue}
+                        {hasMismatch && <span className="ml-2 text-yellow-500">⚠</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(field.syncStatus)}
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {getStatusLabel(field.syncStatus)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -997,21 +1140,26 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
           <div className="flex items-center gap-2">
             <CheckCircleIcon className="h-4 w-4 text-green-500" />
-            <span className="text-gray-700 dark:text-gray-300">Synced</span>
+            <span className="text-gray-700 dark:text-gray-300">Synced (editable)</span>
           </div>
           <div className="flex items-center gap-2">
             <XCircleIcon className="h-4 w-4 text-gray-400" />
             <span className="text-gray-700 dark:text-gray-300">Not Linked</span>
           </div>
           <div className="flex items-center gap-2">
-            <ExclamationTriangleIcon className="h-4 w-4 text-blue-500" />
-            <span className="text-gray-700 dark:text-gray-300">Read Only</span>
+            <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span className="text-gray-700 dark:text-gray-300">Read Only (edit in Xero)</span>
           </div>
           <div className="flex items-center gap-2">
             <XCircleIcon className="h-4 w-4 text-red-500" />
             <span className="text-gray-700 dark:text-gray-300">Error</span>
           </div>
         </div>
+        <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          Read-only fields (Bank Details, Payment Terms, Balances) are synced from Xero for security. To update them, make changes in Xero and they will sync automatically.
+        </p>
       </div>
 
       {/* Convert to Contact Person Modal */}
