@@ -34,6 +34,7 @@ export default function DocumentCategoryTabs({ jobId, onCategoryChange, children
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [documentCategories, setDocumentCategories] = useState([])
   const [loading, setLoading] = useState(true)
+  const [photoCounts, setPhotoCounts] = useState({}) // Track photo counts for SharePoint categories
 
   useEffect(() => {
     fetchDocumentationTabs()
@@ -59,6 +60,22 @@ export default function DocumentCategoryTabs({ jobId, onCategoryChange, children
     if (onCategoryChange) {
       onCategoryChange(documentCategories[index])
     }
+  }
+
+  // Handler for SharePoint photo count updates
+  const handlePhotoCountChange = (categoryId, count) => {
+    setPhotoCounts(prev => ({
+      ...prev,
+      [categoryId]: count
+    }))
+  }
+
+  // Get display count for a category - use photo count for photo categories
+  const getDisplayCount = (category) => {
+    if (isPhotoCategory(category.name)) {
+      return photoCounts[category.id] ?? null // null means still loading
+    }
+    return category.document_count || 0
   }
 
   if (loading) {
@@ -99,7 +116,7 @@ export default function DocumentCategoryTabs({ jobId, onCategoryChange, children
               }
             >
               <div className="flex items-center gap-2">
-                {category.name} ({category.document_count || 0})
+                {category.name} ({getDisplayCount(category) ?? '...'})
               </div>
             </Tab>
           ))}
@@ -112,6 +129,7 @@ export default function DocumentCategoryTabs({ jobId, onCategoryChange, children
               <SharePointPhotoGallery
                 jobId={jobId}
                 folderNames={getFolderNamesForCategory(category.name)}
+                onPhotoCountChange={(count) => handlePhotoCountChange(category.id, count)}
               />
             ) : (
               children(category)

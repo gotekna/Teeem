@@ -29,7 +29,7 @@ function formatFileSize(bytes) {
   return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
-export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photos', '07 Supervisor Photos'] }) {
+export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photos', '07 Supervisor Photos'], onPhotoCountChange }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [files, setFiles] = useState([])
@@ -52,9 +52,16 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
         `/api/v1/organization_onedrive/folder_contents?job_id=${jobId}&folder_names=${folderNames.join(',')}`
       )
 
-      setFiles(response.files || [])
+      const loadedFiles = response.files || []
+      setFiles(loadedFiles)
       setFoundFolders(response.found_folders || [])
       setJobFolderUrl(response.job_folder_web_url)
+
+      // Notify parent component of photo count
+      if (onPhotoCountChange) {
+        const imageCount = loadedFiles.filter(f => isImageFile(f.name)).length
+        onPhotoCountChange(imageCount)
+      }
     } catch (err) {
       console.error('Failed to fetch folder contents:', err)
       if (err.response?.status === 404) {
@@ -63,6 +70,10 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
         setError('OneDrive not connected. Please connect in Settings.')
       } else {
         setError(err.message || 'Failed to load photos from SharePoint')
+      }
+      // Report 0 photos on error
+      if (onPhotoCountChange) {
+        onPhotoCountChange(0)
       }
     } finally {
       setLoading(false)
