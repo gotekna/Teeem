@@ -60,7 +60,7 @@ module Api
         include_jobs = params[:include_jobs] == 'true'
 
         contacts_json = @contacts.as_json(
-          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status],
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status],
           include: {
             portal_user: { only: [:id, :email, :portal_type, :active] }
           },
@@ -111,7 +111,7 @@ module Api
             :tax_number, :xero_id, :sync_with_xero, :last_synced_at, :xero_sync_error,
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
-            :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
+            :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
             :entity_type, :primary_role, :employment_status,
             # Xero fields
             :bank_bsb, :bank_account_number, :bank_account_name,
@@ -243,7 +243,7 @@ module Api
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :primary_contact_type, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas],
+              only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas],
               methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?]
             )
           }
@@ -1324,7 +1324,6 @@ module Api
           :contact_region_id,
           :contact_region,
           :branch,
-          :primary_contact_type,
           :rating,
           :response_rate,
           :avg_response_time,

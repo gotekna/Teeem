@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_27_232827) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_235401) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -531,7 +531,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_232827) do
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
     t.string "contact_types", default: [], array: true
-    t.string "primary_contact_type"
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
@@ -582,7 +581,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_232827) do
     t.index ["is_active"], name: "index_contacts_on_is_active"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
-    t.index ["primary_contact_type"], name: "index_contacts_on_primary_contact_type"
     t.index ["rating"], name: "index_contacts_on_rating"
     t.index ["supplier_code"], name: "index_contacts_on_supplier_code", unique: true, where: "(supplier_code IS NOT NULL)"
     t.index ["teeem_rating"], name: "index_contacts_on_teeem_rating"
