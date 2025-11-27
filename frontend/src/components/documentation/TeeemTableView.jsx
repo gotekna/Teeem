@@ -6502,7 +6502,7 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to show' : 'No visible columns'}
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col gap-0.5">
+                                    <div className="grid grid-cols-2 gap-0.5">
                                       {visibleCols.map((col, idx) => renderColumnItem(col, idx, true))}
                                     </div>
                                   )}
@@ -6529,7 +6529,7 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to hide' : 'No hidden columns'}
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col gap-0.5">
+                                    <div className="grid grid-cols-2 gap-0.5">
                                       {hiddenCols.map((col, idx) => renderColumnItem(col, idx, false))}
                                     </div>
                                   )}
