@@ -105,47 +105,101 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
     )
   }
 
-  // Sync items configuration
+  // Get client contacts for this job
+  const clientContacts = job?.contacts?.filter(c => c.role === 'client') || []
+  const clientNames = clientContacts.map(c => c.contact?.full_name || c.contact?.company_name).filter(Boolean).join(', ')
+
+  // Sync items configuration - showing TEEEM data that could sync with Xero
   const syncItems = [
     {
       name: 'Tracking Category',
       description: 'Link job to Xero tracking category for bill matching',
       xeroField: 'Tracking Category → Job',
+      teeemField: 'Job Title',
       teeemValue: job?.xero_tracking_option_name || null,
-      teeemField: job?.title,
+      teeemData: job?.title,
       status: job?.xero_tracking_option_id ? 'linked' : 'not_linked'
     },
     {
       name: 'Bills / Purchase Orders',
       description: 'Import bills from Xero as Purchase Orders',
       xeroField: 'Bills (ACCPAY)',
-      teeemValue: null,
       teeemField: 'Purchase Orders',
+      teeemValue: job?.purchase_orders_count ? `${job.purchase_orders_count} POs` : null,
+      teeemData: job?.purchase_orders_count || 0,
       status: 'can_sync'
     },
     {
       name: 'Contract Value',
-      description: 'Job contract value for budget tracking',
-      xeroField: '-',
-      teeemValue: job?.contract_value ? `$${Number(job.contract_value).toLocaleString()}` : null,
+      description: 'Job contract value for budget comparison',
+      xeroField: 'Quote / Invoice Total',
       teeemField: 'Contract Value',
+      teeemValue: job?.contract_value ? `$${Number(job.contract_value).toLocaleString()}` : null,
+      teeemData: job?.contract_value,
       status: job?.contract_value ? 'teeem_only' : 'not_set'
     },
     {
-      name: 'Contacts / Suppliers',
-      description: 'Suppliers linked to this job via Purchase Orders',
-      xeroField: 'Contacts',
-      teeemValue: null,
-      teeemField: 'Contacts',
-      status: 'can_sync'
+      name: 'Client / Customer',
+      description: 'Job client linked to Xero contact',
+      xeroField: 'Contact (Customer)',
+      teeemField: 'Client Contact',
+      teeemValue: clientNames || null,
+      teeemData: clientContacts.length,
+      status: clientContacts.length > 0 ? 'can_sync' : 'not_set'
+    },
+    {
+      name: 'Job Location',
+      description: 'Site address for the job',
+      xeroField: 'Tracking Option Name',
+      teeemField: 'Location',
+      teeemValue: job?.location || job?.title || null,
+      teeemData: job?.location,
+      status: job?.location ? 'teeem_only' : 'not_set'
+    },
+    {
+      name: 'Start Date',
+      description: 'Job commencement date',
+      xeroField: '-',
+      teeemField: 'Start Date',
+      teeemValue: job?.start_date ? new Date(job.start_date).toLocaleDateString() : null,
+      teeemData: job?.start_date,
+      status: job?.start_date ? 'teeem_only' : 'not_set'
+    },
+    {
+      name: 'TED Number',
+      description: 'TED reference number',
+      xeroField: 'Reference',
+      teeemField: 'TED Number',
+      teeemValue: job?.ted_number || null,
+      teeemData: job?.ted_number,
+      status: job?.ted_number ? 'can_sync' : 'not_set'
+    },
+    {
+      name: 'Certifier Job No',
+      description: 'Certifier job reference',
+      xeroField: 'Reference',
+      teeemField: 'Certifier Job No',
+      teeemValue: job?.certifier_job_no || null,
+      teeemData: job?.certifier_job_no,
+      status: job?.certifier_job_no ? 'can_sync' : 'not_set'
     },
     {
       name: 'Payments',
       description: 'Payment records for bills',
       xeroField: 'Payments',
-      teeemValue: null,
       teeemField: 'Payments',
+      teeemValue: null,
+      teeemData: null,
       status: 'can_sync'
+    },
+    {
+      name: 'Live Profit',
+      description: 'Current profit calculation',
+      xeroField: '-',
+      teeemField: 'Live Profit',
+      teeemValue: job?.live_profit ? `$${Number(job.live_profit).toLocaleString()}` : null,
+      teeemData: job?.live_profit,
+      status: job?.live_profit ? 'teeem_only' : 'not_set'
     },
   ]
 
@@ -210,15 +264,18 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <span className="text-gray-400">Xero: </span>
-                      <span className="text-gray-600 dark:text-gray-300">{item.xeroField}</span>
+                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1">
+                      <span className="text-blue-500 dark:text-blue-400 font-medium">Xero: </span>
+                      <span className="text-blue-700 dark:text-blue-300">{item.xeroField}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-400">TEEEM: </span>
-                      <span className="text-gray-600 dark:text-gray-300">
-                        {item.teeemValue || item.teeemField || '-'}
+                    <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded px-2 py-1">
+                      <span className="text-indigo-500 dark:text-indigo-400 font-medium">TEEEM: </span>
+                      <span className="text-indigo-700 dark:text-indigo-300">
+                        {item.teeemValue || item.teeemField}
                       </span>
+                      {!item.teeemValue && item.teeemField && (
+                        <span className="text-gray-400 ml-1">(empty)</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -365,15 +422,18 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-gray-400">Xero: </span>
-                    <span className="text-gray-600 dark:text-gray-300">{item.xeroField}</span>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded px-2 py-1">
+                    <span className="text-blue-500 dark:text-blue-400 font-medium">Xero: </span>
+                    <span className="text-blue-700 dark:text-blue-300">{item.xeroField}</span>
                   </div>
-                  <div>
-                    <span className="text-gray-400">TEEEM: </span>
-                    <span className="text-gray-600 dark:text-gray-300">
-                      {item.teeemValue || item.teeemField || '-'}
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded px-2 py-1">
+                    <span className="text-indigo-500 dark:text-indigo-400 font-medium">TEEEM: </span>
+                    <span className="text-indigo-700 dark:text-indigo-300">
+                      {item.teeemValue || item.teeemField}
                     </span>
+                    {!item.teeemValue && item.teeemField && (
+                      <span className="text-gray-400 ml-1">(empty)</span>
+                    )}
                   </div>
                 </div>
               </div>

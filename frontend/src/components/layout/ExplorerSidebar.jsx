@@ -424,7 +424,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
                     Price Books
                   </span>
                   <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-                    {priceBooks.length}
+                    {priceBooks.reduce((sum, pb) => sum + (pb.record_count || 0), 0).toLocaleString()}
                   </span>
                 </div>
                 <ChevronRightIcon
@@ -458,7 +458,12 @@ export default function ExplorerSidebar({ onUploadClick }) {
                               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-200'
                           }`}
                         >
-                          <span className="truncate">{priceBook.name}</span>
+                          <span className="truncate flex-1">{priceBook.name}</span>
+                          {priceBook.record_count !== undefined && (
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              {priceBook.record_count.toLocaleString()}
+                            </span>
+                          )}
                         </Link>
                       ))}
                     </div>
