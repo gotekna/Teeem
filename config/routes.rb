@@ -825,7 +825,32 @@ Rails.application.routes.draw do
       post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
       post 'schema/sync_has_ui_from_production', to: 'schema#sync_has_ui_from_production'  # Sync has_ui from production
 
-      # Foundation management
+      # Foundation management (renamed from tables)
+      # Legacy alias for backward compatibility with frontend
+      resources :tables, controller: 'foundations' do
+        resources :columns, only: [:create, :update, :destroy] do
+          collection do
+            post :test_formula
+          end
+          member do
+            get :lookup_options
+            get :lookup_search
+            get :choices
+            post :add_choice
+            post :reorder_choices
+            post :rename_choice
+            post :merge_choices
+            delete :delete_choice
+          end
+        end
+        resources :records
+      end
+      resources :table_views, controller: 'foundation_views', only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :reorder
+        end
+      end
+
       resources :foundations do
         # Column management
         resources :columns, only: [:create, :update, :destroy] do
