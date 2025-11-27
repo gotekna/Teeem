@@ -136,6 +136,7 @@ export default function AppLayout({ children }) {
   const { user, loading } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeJobs, setActiveJobs] = useState([])
+  const [totalJobsCount, setTotalJobsCount] = useState(0)
   const [jobSearchQuery, setJobSearchQuery] = useState('')
   const [activeJobsExpanded, setActiveJobsExpanded] = useState(() => {
     const saved = localStorage.getItem('activeJobsExpanded')
@@ -144,6 +145,7 @@ export default function AppLayout({ children }) {
 
   // Price Books state
   const [priceBooks, setPriceBooks] = useState([])
+  const [totalPriceBooksCount, setTotalPriceBooksCount] = useState(0)
   const [priceBookSearchQuery, setPriceBookSearchQuery] = useState('')
   const [priceBooksExpanded, setPriceBooksExpanded] = useState(() => {
     const saved = localStorage.getItem('priceBooksExpanded')
@@ -160,6 +162,7 @@ export default function AppLayout({ children }) {
 
   // Contacts state
   const [contacts, setContacts] = useState([])
+  const [totalContactsCount, setTotalContactsCount] = useState(0)
   const [contactSearchQuery, setContactSearchQuery] = useState('')
   const [contactsExpanded, setContactsExpanded] = useState(() => {
     const saved = localStorage.getItem('contactsExpanded')
@@ -176,6 +179,7 @@ export default function AppLayout({ children }) {
 
   // Purchase Orders state
   const [purchaseOrders, setPurchaseOrders] = useState([])
+  const [totalPurchaseOrdersCount, setTotalPurchaseOrdersCount] = useState(0)
   const [purchaseOrderSearchQuery, setPurchaseOrderSearchQuery] = useState('')
   const [purchaseOrdersExpanded, setPurchaseOrdersExpanded] = useState(() => {
     const saved = localStorage.getItem('purchaseOrdersExpanded')
@@ -326,11 +330,22 @@ export default function AppLayout({ children }) {
 
     const loadActiveJobs = async () => {
       try {
+        // Load active jobs for sidebar list
         const response = await api.get('/api/v1/jobs?status=Active&per_page=20')
         const jobs = response.jobs || response.constructions || []
         console.log('📋 Loaded jobs for sidebar:', jobs.length, 'jobs')
         console.log('📋 Job titles:', jobs.map(j => j.title || `Job #${j.id}`))
         setActiveJobs(jobs)
+
+        // Get total count of ALL jobs (not just active) for the badge
+        const totalCount = response.pagination?.total_count
+        if (totalCount !== undefined) {
+          // This is just active jobs count, fetch all jobs count separately
+          const allJobsResponse = await api.get('/api/v1/jobs?per_page=1')
+          setTotalJobsCount(allJobsResponse.pagination?.total_count || jobs.length)
+        } else {
+          setTotalJobsCount(jobs.length)
+        }
       } catch (err) {
         // Silently fail - sidebar will just show empty, user can still navigate
         console.debug('Active jobs unavailable:', err?.message || 'Unknown error')
@@ -350,6 +365,7 @@ export default function AppLayout({ children }) {
         const books = response.items || response.pricebook || []
         console.log('📚 Loaded price books for sidebar:', books.length, 'items')
         setPriceBooks(books)
+        setTotalPriceBooksCount(response.pagination?.total_count || books.length)
       } catch (err) {
         console.debug('Price books unavailable:', err?.message || 'Unknown error')
       }
@@ -368,6 +384,7 @@ export default function AppLayout({ children }) {
         const contactsList = response.contacts || []
         console.log('👥 Loaded contacts for sidebar:', contactsList.length, 'contacts')
         setContacts(contactsList)
+        setTotalContactsCount(response.pagination?.total_count || contactsList.length)
       } catch (err) {
         console.debug('Contacts unavailable:', err?.message || 'Unknown error')
       }
@@ -386,6 +403,7 @@ export default function AppLayout({ children }) {
         const orders = response.purchase_orders || []
         console.log('📦 Loaded purchase orders for sidebar:', orders.length, 'orders')
         setPurchaseOrders(orders)
+        setTotalPurchaseOrdersCount(response.pagination?.total_count || orders.length)
       } catch (err) {
         console.debug('Purchase orders unavailable:', err?.message || 'Unknown error')
       }
@@ -993,7 +1011,7 @@ export default function AppLayout({ children }) {
                                 <>
                                   {item.name}
                                   <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-                                    {activeJobs.length}
+                                    {totalJobsCount}
                                   </span>
                                 </>
                               )}
@@ -1811,7 +1829,7 @@ export default function AppLayout({ children }) {
                                 <>
                                   {item.name}
                                   <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-                                    {priceBooks.length}
+                                    {totalPriceBooksCount}
                                   </span>
                                 </>
                               )}
@@ -2002,7 +2020,7 @@ export default function AppLayout({ children }) {
                                 <>
                                   {item.name}
                                   <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-                                    {contacts.length}
+                                    {totalContactsCount}
                                   </span>
                                 </>
                               )}
@@ -2191,7 +2209,7 @@ export default function AppLayout({ children }) {
                                 <>
                                   {item.name}
                                   <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
-                                    {purchaseOrders.length}
+                                    {totalPurchaseOrdersCount}
                                   </span>
                                 </>
                               )}
