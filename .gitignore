@@ -25,7 +25,8 @@ pnpm-debug.log*
 lerna-debug.log*
 .vercel
 
-# Frontend (React/Node)
+# Node modules (root and frontend)
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/build/

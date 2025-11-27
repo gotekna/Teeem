@@ -228,7 +228,13 @@ module Api
 
       def record_params
         # Get all column names for this foundation
-        column_names = @foundation.columns.pluck(:column_name)
+        column_names = if @foundation.table_type == 'system'
+          # For system foundations, get column names from the actual model
+          model = @foundation.dynamic_model
+          model.column_names - ['id', 'created_at', 'updated_at']
+        else
+          @foundation.columns.pluck(:column_name)
+        end
         params.require(:record).permit(*column_names)
       end
 
