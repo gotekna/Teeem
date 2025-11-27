@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_27_030736) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_062942) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -962,15 +962,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_030736) do
 
   create_table "job_contacts", force: :cascade do |t|
     t.bigint "job_id", null: false
-    t.bigint "contact_id", null: false
+    t.bigint "contact_id"
     t.boolean "primary", default: false, null: false
     t.string "role"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
     t.index ["contact_id"], name: "index_job_contacts_on_contact_id"
     t.index ["job_id", "contact_id"], name: "index_job_contacts_on_job_id_and_contact_id", unique: true
     t.index ["job_id", "primary"], name: "index_job_contacts_on_job_id_and_primary"
     t.index ["job_id"], name: "index_job_contacts_on_job_id"
+    t.index ["user_id"], name: "index_job_contacts_on_user_id"
   end
 
   create_table "job_documentation_tabs", force: :cascade do |t|
@@ -1023,9 +1025,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_030736) do
     t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "job_type_id"
     t.index ["is_active"], name: "index_job_status_on_is_active"
-    t.index ["job_type_id"], name: "index_job_status_on_job_type_id"
     t.index ["position"], name: "index_job_status_on_position"
   end
 
@@ -1062,6 +1062,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_030736) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "icon"
     t.index ["is_active"], name: "index_job_types_on_is_active"
     t.index ["position"], name: "index_job_types_on_position"
   end
@@ -3123,6 +3124,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_030736) do
   add_foreign_key "grok_plans", "users"
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
+  add_foreign_key "job_contacts", "users"
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"

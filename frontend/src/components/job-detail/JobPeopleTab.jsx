@@ -18,6 +18,12 @@ import {
   PhoneIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  HomeIcon,
+  BriefcaseIcon,
+  HomeModernIcon,
+  BuildingStorefrontIcon,
+  WrenchIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { api } from '../../api'
@@ -36,6 +42,14 @@ const ROLE_GROUPS = [
     ]
   },
   {
+    key: 'external',
+    label: 'External Team',
+    icon: UserGroupIcon,
+    roles: [
+      { key: 'external_sales', label: 'External Sales', icon: CurrencyDollarIcon, color: 'pink' },
+    ]
+  },
+  {
     key: 'internal',
     label: 'Internal Team',
     icon: UserGroupIcon,
@@ -44,14 +58,6 @@ const ROLE_GROUPS = [
       { key: 'estimator', label: 'Estimator', icon: CalculatorIcon, color: 'green' },
       { key: 'internal_sales', label: 'Internal Sales', icon: CurrencyDollarIcon, color: 'purple' },
       { key: 'coordinator', label: 'Coordinator', icon: ClipboardDocumentListIcon, color: 'teal' },
-    ]
-  },
-  {
-    key: 'external',
-    label: 'External Team',
-    icon: UserGroupIcon,
-    roles: [
-      { key: 'external_sales', label: 'External Sales', icon: CurrencyDollarIcon, color: 'pink' },
     ]
   }
 ]
@@ -109,6 +115,597 @@ const formatRelationshipType = (type) => {
 // Internal team roles that use users instead of contacts
 const INTERNAL_ROLES = ['supervisor', 'estimator', 'internal_sales', 'coordinator']
 
+// Job type icon mapping - maps icon names from API to actual icon components
+const ICON_COMPONENTS = {
+  'HomeIcon': HomeIcon,
+  'BuildingOfficeIcon': BuildingOfficeIcon,
+  'UserGroupIcon': UserGroupIcon,
+  'HomeModernIcon': HomeModernIcon,
+  'WrenchIcon': WrenchIcon,
+  'BuildingStorefrontIcon': BuildingStorefrontIcon,
+  'SparklesIcon': SparklesIcon,
+  'BriefcaseIcon': BriefcaseIcon,
+}
+
+const getIconComponent = (iconName) => {
+  return ICON_COMPONENTS[iconName] || BriefcaseIcon
+}
+
+// Job counts by type component
+function JobCountsByType({ contactId }) {
+  const [jobCounts, setJobCounts] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchJobCounts = async () => {
+      if (!contactId) {
+        setLoading(false)
+        return
+      }
+      try {
+        setLoading(true)
+        const response = await api.get('/api/v1/jobs', {
+          params: { contact_id: contactId, per_page: 100 }
+        })
+        const jobs = response.jobs || []
+
+        // Group jobs by type (using type id as key to handle same name correctly)
+        const countsByType = {}
+        jobs.forEach(job => {
+          const typeId = job.job_type?.id || 'unassigned'
+          const typeName = job.job_type?.name || 'Unassigned'
+          const typeIcon = job.job_type?.icon || 'BriefcaseIcon'
+          if (!countsByType[typeId]) {
+            countsByType[typeId] = { name: typeName, icon: typeIcon, count: 0 }
+          }
+          countsByType[typeId].count++
+        })
+
+        // Convert to array for rendering, sorted by count descending
+        const countsArray = Object.values(countsByType)
+          .map(({ name, icon, count }) => ({
+            name,
+            count,
+            Icon: getIconComponent(icon)
+          }))
+          .sort((a, b) => b.count - a.count)
+
+        setJobCounts(countsArray)
+      } catch {
+        setJobCounts([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchJobCounts()
+  }, [contactId])
+
+  if (loading) {
+    return <div className="animate-pulse h-4 w-12 bg-gray-200 dark:bg-gray-700 rounded" />
+  }
+
+  if (jobCounts.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {jobCounts.map(({ name, count, Icon }) => (
+        <div
+          key={name}
+          className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400"
+          title={`${count} ${name} job${count !== 1 ? 's' : ''}`}
+        >
+          <Icon className="h-4 w-4" />
+          <span className="font-medium">{count}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Contact Card Component - shows detailed contact info in expanded view
+function ContactCard({ contact, roleConfig, isPrimary, navigate }) {
+  const [expanded, setExpanded] = useState(false)
+
+  const displayName = contact.contact?.full_name || contact.contact?.company_name || 'Unknown'
+  const email = contact.contact?.email
+  const mobile = contact.contact?.mobile_phone
+  const relationships = contact.relationships || []
+  const relationshipsCount = contact.relationships_count || 0
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              onClick={() => navigate(`/contacts/${contact.contact_id}`)}
+              className="font-medium text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 truncate block"
+            >
+              {displayName}
+            </button>
+            <JobCountsByType contactId={contact.contact_id} />
+          </div>
+
+          <div className="flex flex-wrap gap-1 mt-1">
+            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeClasses(roleConfig.color)}`}>
+              {roleConfig.label}
+            </span>
+            {isPrimary && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                Primary
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-1">
+        {email && (
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+            <EnvelopeIcon className="h-3.5 w-3.5 flex-shrink-0" />
+            <a href={`mailto:${email}`} className="hover:text-indigo-600 truncate">
+              {email}
+            </a>
+          </div>
+        )}
+        {mobile && (
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+            <PhoneIcon className="h-3.5 w-3.5 flex-shrink-0" />
+            <a href={`tel:${mobile}`} className="hover:text-indigo-600">
+              {mobile}
+            </a>
+          </div>
+        )}
+      </div>
+
+      {relationshipsCount > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
+          >
+            {expanded ? (
+              <ChevronDownIcon className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRightIcon className="h-3.5 w-3.5" />
+            )}
+            <LinkIcon className="h-3.5 w-3.5" />
+            {relationshipsCount} Relationship{relationshipsCount !== 1 ? 's' : ''}
+          </button>
+
+          {expanded && relationships.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {relationships.map((rel) => (
+                <div
+                  key={rel.id}
+                  className="p-2 bg-gray-50 dark:bg-gray-900 rounded text-xs"
+                >
+                  <div className="text-gray-500 dark:text-gray-400">
+                    {formatRelationshipType(rel.relationship_type)}
+                  </div>
+                  <button
+                    onClick={() => navigate(`/contacts/${rel.related_contact.id}`)}
+                    className="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
+                  >
+                    {rel.related_contact.full_name || rel.related_contact.company_name}
+                  </button>
+                  {(rel.related_contact.email || rel.related_contact.mobile_phone) && (
+                    <div className="mt-1 text-gray-500 dark:text-gray-400 space-y-0.5">
+                      {rel.related_contact.email && (
+                        <div className="flex items-center gap-1">
+                          <EnvelopeIcon className="h-3 w-3" />
+                          {rel.related_contact.email}
+                        </div>
+                      )}
+                      {rel.related_contact.mobile_phone && (
+                        <div className="flex items-center gap-1">
+                          <PhoneIcon className="h-3 w-3" />
+                          {rel.related_contact.mobile_phone}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Related Contact Card - shows contact from relationships with expandable details
+function RelatedContactCard({ item, navigate, currentJobId }) {
+  const [expanded, setExpanded] = useState(false)
+  const [relationships, setRelationships] = useState([])
+  const [jobs, setJobs] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  const loadDetails = async () => {
+    if (loaded) return
+    try {
+      setLoading(true)
+      const [contactResponse, jobsResponse] = await Promise.all([
+        api.get(`/api/v1/contacts/${item.contact_id}`),
+        api.get('/api/v1/jobs', { params: { contact_id: item.contact_id, per_page: 10 } })
+      ])
+      const contactData = contactResponse.contact || contactResponse
+      const outgoingRels = (contactData.outgoing_relationships || contactData.relationships || [])
+        .filter(rel => rel.direction !== 'incoming')
+        .filter(rel => {
+          const relContactId = rel.related_contact?.id || rel.related_contact_id
+          return relContactId !== item.fromContactId
+        })
+      setRelationships(outgoingRels)
+      const allJobs = jobsResponse.jobs || []
+      const otherJobs = allJobs.filter(job => job.id !== parseInt(currentJobId))
+      setJobs(otherJobs)
+      setLoaded(true)
+    } catch (err) {
+      console.error('Failed to load contact details:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleExpand = () => {
+    if (!expanded && !loaded) loadDetails()
+    setExpanded(!expanded)
+  }
+
+  return (
+    <div className={`bg-white dark:bg-gray-800 rounded-lg border p-4 shadow-sm ${
+      item.isAlsoOnJob
+        ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+        : 'border-gray-200 dark:border-gray-700'
+    }`}>
+      <div className="flex items-start justify-between gap-2">
+        <button
+          onClick={() => navigate(`/contacts/${item.contact_id}`)}
+          className="font-medium text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 block text-left"
+        >
+          {item.contact.full_name || item.contact.company_name}
+        </button>
+        {item.isAlsoOnJob && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 flex-shrink-0">
+            Also on Job
+          </span>
+        )}
+      </div>
+
+      <div className="mt-1 flex items-center justify-between">
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {formatRelationshipType(item.relationshipType)}
+        </span>
+        <JobCountsByType contactId={item.contact_id} />
+      </div>
+
+      <div className="mt-2 space-y-1">
+        {item.contact.email && (
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+            <EnvelopeIcon className="h-3.5 w-3.5 flex-shrink-0" />
+            <a href={`mailto:${item.contact.email}`} className="hover:text-indigo-600 truncate">
+              {item.contact.email}
+            </a>
+          </div>
+        )}
+        {item.contact.mobile_phone && (
+          <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+            <PhoneIcon className="h-3.5 w-3.5 flex-shrink-0" />
+            <a href={`tel:${item.contact.mobile_phone}`} className="hover:text-indigo-600">
+              {item.contact.mobile_phone}
+            </a>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+        <button
+          onClick={handleExpand}
+          className="flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
+        >
+          {expanded ? <ChevronDownIcon className="h-3.5 w-3.5" /> : <ChevronRightIcon className="h-3.5 w-3.5" />}
+          <LinkIcon className="h-3.5 w-3.5" />
+          View Details
+        </button>
+
+        {expanded && (
+          <div className="mt-2 space-y-3">
+            {loading ? (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-indigo-600"></div>
+                Loading...
+              </div>
+            ) : (
+              <>
+                <div>
+                  <div className="flex items-center gap-1 text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <LinkIcon className="h-3 w-3" />
+                    Relationships
+                  </div>
+                  {relationships.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic pl-4">No other relationships</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {relationships.map((rel) => (
+                        <div key={rel.id} className="p-2 bg-gray-50 dark:bg-gray-900 rounded text-xs">
+                          <button
+                            onClick={() => navigate(`/contacts/${rel.related_contact?.id || rel.related_contact_id}`)}
+                            className="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
+                          >
+                            {rel.related_contact?.full_name || rel.related_contact?.company_name || 'Unknown'}
+                          </button>
+                          <div className="text-gray-500 dark:text-gray-400 mt-0.5">
+                            {formatRelationshipType(rel.relationship_type)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-1 text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <BriefcaseIcon className="h-3 w-3" />
+                    Previous Jobs
+                  </div>
+                  {jobs.length === 0 ? (
+                    <p className="text-xs text-gray-500 italic pl-4">No previous jobs</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {jobs.map((job) => (
+                        <div key={job.id} className="p-2 bg-gray-50 dark:bg-gray-900 rounded text-xs">
+                          <button
+                            onClick={() => navigate(`/jobs/${job.id}`)}
+                            className="font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
+                          >
+                            {job.title}
+                          </button>
+                          <div className="mt-0.5 text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                            {job.ted_number && <span>#{job.ted_number}</span>}
+                            {job.status && <span className="capitalize">{job.status}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Client Related Jobs - fetches and displays jobs for a specific contact
+function ClientRelatedJobs({ contactId, currentJobId, navigate }) {
+  const [jobs, setJobs] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        setLoading(true)
+        const response = await api.get('/api/v1/jobs', {
+          params: { contact_id: contactId, per_page: 10 }
+        })
+        const otherJobs = (response.jobs || []).filter(job => job.id !== parseInt(currentJobId))
+        setJobs(otherJobs)
+      } catch (err) {
+        console.error('Failed to load related jobs:', err)
+        setJobs([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    if (contactId) fetchJobs()
+  }, [contactId, currentJobId])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
+      </div>
+    )
+  }
+
+  if (jobs.length === 0) {
+    return <p className="text-sm text-gray-500 dark:text-gray-400 italic">No previous jobs</p>
+  }
+
+  return (
+    <div className="space-y-3">
+      {jobs.map(job => (
+        <div key={job.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          <button
+            onClick={() => navigate(`/jobs/${job.id}`)}
+            className="font-medium text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 text-left"
+          >
+            {job.title}
+          </button>
+          <div className="mt-1 space-y-0.5">
+            {job.ted_number && <div className="text-xs text-gray-500 dark:text-gray-400">#{job.ted_number}</div>}
+            {job.status && <div className="text-xs text-gray-500 dark:text-gray-400">Status: {job.status}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Collapsible Row - shows header that expands to full details with 3-column layout
+function CollapsiblePersonRow({ contact, roleConfig, relatedContacts, allContactIds, jobId, onSetPrimary, onRemove, navigate }) {
+  const [expanded, setExpanded] = useState(false)
+
+  // For users (internal team), we don't have contact data
+  const isUser = !!contact.user && !contact.contact
+  const displayName = isUser
+    ? (contact.user?.name || contact.user?.email || 'Unknown User')
+    : (contact.contact?.full_name || contact.contact?.company_name || 'Unknown')
+  const email = isUser ? contact.user?.email : contact.contact?.email
+  const mobile = isUser ? null : contact.contact?.mobile_phone
+  const isPrimary = contact.primary
+
+  return (
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+      {/* Collapsible Header */}
+      <div
+        className="bg-gray-50 dark:bg-gray-800 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-750"
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          {expanded ? (
+            <ChevronDownIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+          ) : (
+            <ChevronRightIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+          )}
+
+          {/* Primary Star - only for clients */}
+          {contact.role === 'client' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!isPrimary) onSetPrimary?.(contact.id)
+              }}
+              className={`flex-shrink-0 ${
+                isPrimary ? 'text-yellow-500 cursor-default' : 'text-gray-300 hover:text-yellow-500'
+              }`}
+              title={isPrimary ? 'Primary client' : 'Set as primary'}
+            >
+              {isPrimary ? <StarIconSolid className="h-4 w-4" /> : <StarIcon className="h-4 w-4" />}
+            </button>
+          )}
+
+          {/* Name */}
+          {isUser ? (
+            <span className="font-medium text-sm text-gray-900 dark:text-white">{displayName}</span>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate(`/contacts/${contact.contact_id}`)
+              }}
+              className="font-medium text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+            >
+              {displayName}
+            </button>
+          )}
+
+          {isPrimary && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+              Primary
+            </span>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Contact Info */}
+          <div className="hidden sm:flex items-center gap-3 text-xs text-gray-600 dark:text-gray-400">
+            {email && (
+              <a href={`mailto:${email}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-indigo-600">
+                <EnvelopeIcon className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">{email}</span>
+              </a>
+            )}
+            {mobile && (
+              <a href={`tel:${mobile}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 hover:text-indigo-600">
+                <PhoneIcon className="h-3.5 w-3.5" />
+                <span className="hidden md:inline">{mobile}</span>
+              </a>
+            )}
+          </div>
+
+          {/* Job Counts by Type */}
+          {!isUser && <JobCountsByType contactId={contact.contact_id} />}
+
+          {/* Delete Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove?.(contact.id)
+            }}
+            className="flex-shrink-0 p-1 rounded transition-colors text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+            title="Remove from job"
+          >
+            <TrashIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Expanded Content - 3 column layout (only for contacts, not users) */}
+      {expanded && !isUser && (
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+              {roleConfig.icon ? <roleConfig.icon className="h-4 w-4 text-gray-500" /> : <UserIcon className="h-4 w-4 text-gray-500" />}
+              <h4 className="font-medium text-sm text-gray-900 dark:text-white">{roleConfig.label} Details</h4>
+            </div>
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+              <UserIcon className="h-4 w-4 text-gray-500" />
+              <h4 className="font-medium text-sm text-gray-900 dark:text-white">Related Contacts</h4>
+              <span className="ml-auto bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs font-medium px-2 py-0.5 rounded-full">
+                {relatedContacts.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+              <BriefcaseIcon className="h-4 w-4 text-gray-500" />
+              <h4 className="font-medium text-sm text-gray-900 dark:text-white">Related Jobs</h4>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <ContactCard
+                contact={contact}
+                roleConfig={roleConfig}
+                isPrimary={isPrimary}
+                navigate={navigate}
+              />
+            </div>
+
+            <div className="space-y-3">
+              {relatedContacts.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400 italic">No related contacts</p>
+              ) : (
+                relatedContacts.map(item => (
+                  <RelatedContactCard
+                    key={item.id}
+                    item={item}
+                    navigate={navigate}
+                    currentJobId={jobId}
+                  />
+                ))
+              )}
+            </div>
+
+            <ClientRelatedJobs
+              contactId={contact.contact_id}
+              currentJobId={jobId}
+              navigate={navigate}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Expanded Content for Users - simpler view */}
+      {expanded && isUser && (
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            <p><span className="font-medium">Role:</span> {roleConfig.label}</p>
+            {email && <p><span className="font-medium">Email:</span> {email}</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function JobPeopleTab({ jobId, onUpdate }) {
   const navigate = useNavigate()
   const searchInputRef = useRef(null)
@@ -120,14 +717,6 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState(null)
-  const [expandedRelationships, setExpandedRelationships] = useState({}) // Track which contacts have expanded relationships
-
-  const toggleRelationships = (contactId) => {
-    setExpandedRelationships(prev => ({
-      ...prev,
-      [contactId]: !prev[contactId]
-    }))
-  }
 
   const isInternalRole = (role) => INTERNAL_ROLES.includes(role)
 
@@ -336,6 +925,23 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
   // Contacts without a role
   const unassignedContacts = contacts.filter(c => !c.role || !ROLE_TYPES.find(r => r.key === c.role))
 
+  // Get all contact IDs on this job (for flagging "Also on Job" in relationships)
+  const allJobContactIds = contacts.filter(c => c.contact_id).map(c => c.contact_id)
+
+  // Get related contacts for a specific person - show ALL relationships
+  const getRelatedContactsForPerson = (person) => {
+    return (person.relationships || []).map(rel => ({
+      id: `rel-${rel.id}`,
+      contact: rel.related_contact,
+      contact_id: rel.related_contact.id,
+      relationshipType: rel.relationship_type,
+      fromContact: person.contact?.full_name || person.contact?.company_name,
+      fromContactId: person.contact_id,
+      // Flag if this contact is also on this job
+      isAlsoOnJob: allJobContactIds.includes(rel.related_contact.id)
+    }))
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -345,50 +951,10 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Add Role Buttons */}
-      <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-          <PlusIcon className="h-5 w-5 mr-2 text-gray-400" />
-          Add People to Job
-        </h3>
-        <div className="space-y-4">
-          {ROLE_GROUPS.map((group) => {
-            const GroupIcon = group.icon
-            return (
-              <div key={group.key}>
-                <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 flex items-center">
-                  <GroupIcon className="h-4 w-4 mr-1.5" />
-                  {group.label}
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {group.roles.map((role) => {
-                    const Icon = role.icon
-                    return (
-                      <button
-                        key={role.key}
-                        onClick={() => {
-                          setAddingRole(role.key)
-                          setSearchQuery('')
-                          setSearchResults([])
-                        }}
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                      >
-                        <Icon className="h-4 w-4 mr-2" />
-                        Add {role.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
         </div>
       )}
 
@@ -510,170 +1076,143 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
         </div>
       )}
 
-      {/* People by Role Group */}
+      {/* People by Individual Role - each role gets its own section with header */}
       {ROLE_GROUPS.map((group) => {
-        // Get all contacts for this group
-        const groupContacts = group.roles.flatMap(role =>
-          (contactsByRole[role.key] || []).map(c => ({ ...c, roleConfig: role }))
-        )
-        if (groupContacts.length === 0) return null
+        const isClientGroup = group.key === 'client'
+        const isExternalGroup = group.key === 'external'
 
+        // For client and external groups, show each role separately with its own header
+        if (isClientGroup || isExternalGroup) {
+          return group.roles.map(role => {
+            const roleContacts = (contactsByRole[role.key] || []).map(c => ({ ...c, roleConfig: role }))
+
+            // For client roles, skip if empty. For external roles, always show header
+            if (roleContacts.length === 0 && isClientGroup) return null
+
+            const RoleIcon = role.icon
+            return (
+              <div key={role.key} className="space-y-2">
+                {/* Role Header */}
+                <div className="flex items-center gap-2 pb-1 border-b border-gray-200 dark:border-gray-700">
+                  <RoleIcon className="h-4 w-4 text-gray-500" />
+                  <h3 className="font-medium text-sm text-gray-900 dark:text-white">{role.label}</h3>
+                  <span className={`${getRoleBadgeClasses(role.color)} text-xs font-medium px-1.5 py-0.5 rounded-full`}>
+                    {roleContacts.length}
+                  </span>
+                  <button
+                    onClick={() => {
+                      setAddingRole(role.key)
+                      setSearchQuery('')
+                      setSearchResults([])
+                    }}
+                    className="ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded transition-colors"
+                  >
+                    <PlusIcon className="h-3.5 w-3.5" />
+                    Add
+                  </button>
+                </div>
+
+                {/* Empty state for external roles */}
+                {roleContacts.length === 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 italic">No {role.label.toLowerCase()} assigned</p>
+                )}
+
+                {/* Collapsible rows for each contact */}
+                {roleContacts.map(contact => (
+                  <CollapsiblePersonRow
+                    key={contact.id}
+                    contact={contact}
+                    roleConfig={contact.roleConfig}
+                    relatedContacts={getRelatedContactsForPerson(contact)}
+                    allContactIds={allJobContactIds}
+                    jobId={jobId}
+                    onSetPrimary={handleSetPrimary}
+                    onRemove={handleRemoveContact}
+                    navigate={navigate}
+                  />
+                ))}
+              </div>
+            )
+          })
+        }
+
+        // For internal group, show as 4-column grid with role boxes
         const GroupIcon = group.icon
         return (
-          <div
-            key={group.key}
-            className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700"
-          >
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center mb-4">
-                <GroupIcon className="h-5 w-5 mr-2 text-gray-400" />
-                {group.label} ({groupContacts.length})
-              </h3>
+          <div key={group.key} className="space-y-2">
+            {/* Group Header */}
+            <div className="flex items-center gap-2 pb-1 border-b border-gray-200 dark:border-gray-700">
+              <GroupIcon className="h-4 w-4 text-gray-500" />
+              <h3 className="font-medium text-sm text-gray-900 dark:text-white">{group.label}</h3>
+            </div>
 
-              <div className="space-y-3">
-                {groupContacts.map(contact => (
+            {/* 4-column grid for internal team roles */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+              {group.roles.map(role => {
+                const roleContacts = (contactsByRole[role.key] || []).map(c => ({ ...c, roleConfig: role }))
+                const RoleIcon = role.icon
+
+                return (
                   <div
-                    key={contact.id}
-                    className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700"
+                    key={role.key}
+                    className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2"
                   >
-                    {/* Primary Star (only for main client role) */}
-                    {contact.role === 'client' && (
+                    {/* Role Header */}
+                    <div className="flex items-center gap-1 mb-1 pb-1 border-b border-gray-100 dark:border-gray-700">
+                      <RoleIcon className="h-3.5 w-3.5 text-gray-500" />
+                      <h4 className="font-medium text-xs text-gray-900 dark:text-white">{role.label}</h4>
                       <button
-                        onClick={() => !contact.primary && handleSetPrimary(contact.id)}
-                        className={`flex-shrink-0 mt-0.5 ${
-                          contact.primary
-                            ? 'text-yellow-500 cursor-default'
-                            : 'text-gray-300 dark:text-gray-600 hover:text-yellow-500 dark:hover:text-yellow-500'
-                        }`}
-                        title={contact.primary ? 'Primary client' : 'Set as primary client'}
+                        onClick={() => setAddingRole(role.key)}
+                        className="ml-auto p-0.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 rounded transition-colors"
+                        title={`Add ${role.label}`}
                       >
-                        {contact.primary ? (
-                          <StarIconSolid className="h-5 w-5" />
-                        ) : (
-                          <StarIcon className="h-5 w-5" />
-                        )}
+                        <PlusIcon className="h-3.5 w-3.5" />
                       </button>
+                    </div>
+
+                    {/* Empty state */}
+                    {roleContacts.length === 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 italic">Not assigned</p>
                     )}
 
-                    {/* Person Info - handles both contacts and users */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
+                    {/* Person(s) in this role */}
+                    <div className="space-y-1">
+                      {roleContacts.map(contact => (
+                        <div key={contact.id} className="flex items-start justify-between gap-1">
+                          {/* Name & Email */}
+                          <div className="min-w-0 flex-1">
                             {contact.user ? (
-                              <span className="font-medium text-sm text-gray-900 dark:text-white">
+                              <span className="font-medium text-xs text-gray-900 dark:text-white block truncate">
                                 {contact.user.name || contact.user.email}
                               </span>
                             ) : (
                               <button
                                 onClick={() => navigate(`/contacts/${contact.contact_id}`)}
-                                className="font-medium text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                                className="font-medium text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 block truncate"
                               >
                                 {getContactDisplayName(contact.contact)}
                               </button>
                             )}
-                            {/* Role Badge */}
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getRoleBadgeClasses(contact.roleConfig.color)}`}>
-                              {contact.roleConfig.label}
-                            </span>
-                            {contact.primary && (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-400">
-                                Primary
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Email, Mobile and Relationships */}
-                          <div className="mt-2 space-y-1">
                             {(contact.user?.email || contact.contact?.email) && (
-                              <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                                <EnvelopeIcon className="h-3.5 w-3.5 flex-shrink-0" />
-                                <a href={`mailto:${contact.user?.email || contact.contact?.email}`} className="hover:text-indigo-600 dark:hover:text-indigo-400">
-                                  {contact.user?.email || contact.contact?.email}
-                                </a>
-                              </div>
-                            )}
-                            {contact.contact?.mobile_phone && (
-                              <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
-                                <PhoneIcon className="h-3.5 w-3.5 flex-shrink-0" />
-                                <a href={`tel:${contact.contact.mobile_phone}`} className="hover:text-indigo-600 dark:hover:text-indigo-400">
-                                  {contact.contact.mobile_phone}
-                                </a>
-                              </div>
-                            )}
-
-                            {/* Relationships Section */}
-                            {contact.relationships_count > 0 && (
-                              <div className="mt-2">
-                                <button
-                                  onClick={() => toggleRelationships(contact.id)}
-                                  className="flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
-                                >
-                                  {expandedRelationships[contact.id] ? (
-                                    <ChevronDownIcon className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <ChevronRightIcon className="h-3.5 w-3.5" />
-                                  )}
-                                  <LinkIcon className="h-3.5 w-3.5" />
-                                  {contact.relationships_count} Relationship{contact.relationships_count !== 1 ? 's' : ''}
-                                </button>
-
-                                {expandedRelationships[contact.id] && contact.relationships && (
-                                  <div className="mt-2 ml-4 space-y-2">
-                                    {contact.relationships.map((rel) => (
-                                      <div
-                                        key={rel.id}
-                                        className="p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600"
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                                            {formatRelationshipType(rel.relationship_type)}
-                                          </span>
-                                          <button
-                                            onClick={() => navigate(`/contacts/${rel.related_contact.id}`)}
-                                            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
-                                          >
-                                            {rel.related_contact.full_name || rel.related_contact.company_name}
-                                          </button>
-                                        </div>
-                                        {(rel.related_contact.email || rel.related_contact.mobile_phone) && (
-                                          <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
-                                            {rel.related_contact.email && (
-                                              <span className="flex items-center gap-1">
-                                                <EnvelopeIcon className="h-3 w-3" />
-                                                {rel.related_contact.email}
-                                              </span>
-                                            )}
-                                            {rel.related_contact.mobile_phone && (
-                                              <span className="flex items-center gap-1">
-                                                <PhoneIcon className="h-3 w-3" />
-                                                {rel.related_contact.mobile_phone}
-                                              </span>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
+                              <a href={`mailto:${contact.user?.email || contact.contact?.email}`} className="text-xs text-gray-500 dark:text-gray-400 hover:text-indigo-600 truncate block">
+                                {contact.user?.email || contact.contact?.email}
+                              </a>
                             )}
                           </div>
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => handleRemoveContact(contact.id)}
+                            className="flex-shrink-0 p-0.5 rounded transition-colors text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                            title="Remove from job"
+                          >
+                            <TrashIcon className="h-3 w-3" />
+                          </button>
                         </div>
-
-                        {/* Delete Button */}
-                        <button
-                          onClick={() => handleRemoveContact(contact.id)}
-                          className="flex-shrink-0 p-1.5 rounded-lg transition-colors text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          title="Remove from job"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                        </button>
-                      </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                )
+              })}
             </div>
           </div>
         )
@@ -736,22 +1275,14 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
 
       {/* Empty State */}
       {contacts.length === 0 && (
-        <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="px-4 py-12 text-center">
-            <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-8 text-center">
+            <UserGroupIcon className="mx-auto h-8 w-8 text-gray-400" />
             <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No people added</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Get started by adding a client or other team members to this job.
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Use the + Add buttons above to add people.
             </p>
           </div>
-        </div>
-      )}
-
-      {/* Help text */}
-      {contacts.length > 0 && (
-        <div className="text-xs text-gray-500 dark:text-gray-400">
-          <StarIconSolid className="inline h-3 w-3 text-yellow-500 mr-1" />
-          Click the star to set the primary client for this job.
         </div>
       )}
     </div>

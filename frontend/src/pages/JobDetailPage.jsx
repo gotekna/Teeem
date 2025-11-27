@@ -20,7 +20,6 @@ import { api } from '../api'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 import { POSummaryCards, POTable, PurchaseOrderModal } from '../components/purchase-orders'
 import JobDocumentsTab from '../components/documents/JobDocumentsTab'
-import TeamSettings from '../components/job-detail/TeamSettings'
 import EstimatesTab from '../components/estimates/EstimatesTab'
 import ScheduleMasterTab from '../components/schedule-master/ScheduleMasterTab'
 import DocumentationTab from '../components/documentation/DocumentationTab'
@@ -31,12 +30,12 @@ import AddressAutocomplete from '../components/common/AddressAutocomplete'
 import JobContactsSection from '../components/job-detail/JobContactsSection'
 import RainLogTab from '../components/rain-log/RainLogTab'
 import JobPeopleTab from '../components/job-detail/JobPeopleTab'
-import JobPeopleGridTab from '../components/job-detail/JobPeopleGridTab'
+import JobXeroTab from '../components/job-detail/JobXeroTab'
 
 const tabs = [
   { name: 'Overview', slug: 'overview' },
   { name: 'People', slug: 'people' },
-  { name: 'People Grid', slug: 'people-grid' },
+  { name: 'Xero', slug: 'xero' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
   { name: 'Estimates', slug: 'estimates' },
   { name: 'Activity', slug: 'activity' },
@@ -45,7 +44,6 @@ const tabs = [
   { name: 'Rain Log', slug: 'rain-log' },
   { name: 'Documents', slug: 'documents' },
   { name: 'Coms', slug: 'coms' },
-  { name: 'Team', slug: 'team' },
   { name: 'Settings', slug: 'settings' },
   { name: 'Documentation', slug: 'documentation' },
 ]
@@ -283,67 +281,47 @@ export default function JobDetailPage() {
     )
   }
 
-  const stats = [
-    {
-      name: 'Contract Value',
-      value: job.contract_value ? formatCurrency(job.contract_value, false) : '$0',
-      icon: CurrencyDollarIcon
-    },
-    {
-      name: 'Live Profit',
-      value: job.live_profit ? formatCurrency(job.live_profit, false) : '$0',
-      icon: ChartBarIcon,
-      change: job.profit_percentage ? formatPercentage(job.profit_percentage, 2) : '0%',
-      changeType: job.profit_percentage >= 0 ? 'positive' : 'negative'
-    },
-    {
-      name: 'Stage',
-      value: job.stage || 'Not Set',
-      icon: DocumentTextIcon
-    },
-    {
-      name: 'Status',
-      value: job.status || 'Unknown',
-      icon: BriefcaseIcon
-    },
-  ]
-
   return (
     <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
-          <div className="px-8 py-6">
+          <div className="px-6 py-3">
             {/* Back to Jobs Button */}
             <button
               onClick={() => navigate(returnTo)}
-              className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-2 transition-colors"
+              className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-1 transition-colors"
             >
-              <ArrowLeftIcon className="h-4 w-4" />
+              <ArrowLeftIcon className="h-3 w-3" />
               Back to Jobs
             </button>
 
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-indigo-600">
-                <BriefcaseIcon className="h-6 w-6 text-white" />
+            <div className="flex items-center gap-3 mb-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600">
+                <BriefcaseIcon className="h-4 w-4 text-white" />
               </div>
               <div className="flex-1">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{job.title}</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Construction Job #{job.id}
-                </p>
+                <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {job.title}
+                  {job.contacts?.filter(c => c.role === 'client').length > 0 && (
+                    <span className="text-gray-500 dark:text-gray-400 font-normal">
+                      {' - '}
+                      {job.contacts.filter(c => c.role === 'client').map(c => c.contact?.full_name || c.contact?.company_name).filter(Boolean).join(' & ')}
+                    </span>
+                  )}
+                </h1>
               </div>
               <button
                 onClick={() => setShowSetupGuide(true)}
-                className="flex items-center justify-center h-10 w-10 rounded-lg border-2 border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group"
+                className="flex items-center justify-center h-7 w-7 rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-800 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors group"
                 title="Help & Setup Guide"
               >
-                <QuestionMarkCircleIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-300" />
+                <QuestionMarkCircleIcon className="h-4 w-4 text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:group-hover:text-indigo-300" />
               </button>
             </div>
 
             {/* Tabs */}
             <div className="border-b border-gray-200 dark:border-gray-800 -mb-px">
-              <nav aria-label="Tabs" className="flex space-x-8">
+              <nav aria-label="Tabs" className="flex space-x-6">
                 {tabs.map((tabItem) => (
                   <button
                     key={tabItem.name}
@@ -352,7 +330,7 @@ export default function JobDetailPage() {
                       activeTab === tabItem.slug
                         ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
-                      'whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium'
+                      'whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium'
                     )}
                   >
                     {tabItem.name}
@@ -364,7 +342,7 @@ export default function JobDetailPage() {
         </div>
 
         {/* Content */}
-        <div className="p-8">
+        <div className="p-4">
           {/* No Contacts Warning */}
           {(!job.contacts || job.contacts.length === 0) && (
             <div className="mb-6 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-4 border-l-4 border-yellow-400 dark:border-yellow-600">
@@ -394,38 +372,6 @@ export default function JobDetailPage() {
               </div>
             </div>
           )}
-
-          {/* Stats */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-            {stats.map((stat) => (
-              <div
-                key={stat.name}
-                className="overflow-hidden rounded-lg bg-white dark:bg-gray-800 px-3 py-3 shadow-sm border border-gray-200 dark:border-gray-700"
-              >
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <stat.icon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-                  </div>
-                  <div className="ml-3 w-0 flex-1">
-                    <dt className="truncate text-xs font-medium text-gray-500 dark:text-gray-400">{stat.name}</dt>
-                    <dd className="flex items-baseline mt-1">
-                      <div className="text-lg font-semibold text-gray-900 dark:text-white">{stat.value}</div>
-                      {stat.change && (
-                        <div
-                          className={classNames(
-                            stat.changeType === 'positive' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
-                            'ml-2 flex items-baseline text-xs font-semibold'
-                          )}
-                        >
-                          {stat.change}
-                        </div>
-                      )}
-                    </dd>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
 
           {/* Tab content */}
           {activeTab === 'overview' && (
@@ -749,29 +695,8 @@ export default function JobDetailPage() {
             <JobPeopleTab jobId={id} onUpdate={loadJob} />
           )}
 
-          {activeTab === 'people-grid' && (
-            <JobPeopleGridTab jobId={id} onUpdate={loadJob} />
-          )}
-
-          {activeTab === 'team' && (
-            <TeamSettings
-              job={job}
-              onSave={async (teamData) => {
-                try {
-                  setSaving(true)
-                  await api.put(`/api/v1/jobs/${id}`, {
-                    construction: teamData
-                  })
-                  await loadJob()
-                } catch (err) {
-                  console.error('Failed to update team settings:', err)
-                  alert('Failed to update team settings')
-                } finally {
-                  setSaving(false)
-                }
-              }}
-              saving={saving}
-            />
+          {activeTab === 'xero' && (
+            <JobXeroTab jobId={id} job={job} onUpdate={loadJob} />
           )}
 
           {activeTab === 'settings' && (
