@@ -271,6 +271,11 @@ export default function TeeemTableView({
   // Search term for multiple_lookups checkbox list
   const [lookupSearch, setLookupSearch] = useState('')
 
+  // Reset columnChoices when switching tables to prevent stale data from previous table
+  useEffect(() => {
+    setColumnChoices({})
+  }, [foundationIdNumeric])
+
   // Fetch users from API (for user columns and view ownership)
   useEffect(() => {
     const fetchUsers = async () => {
@@ -298,14 +303,17 @@ export default function TeeemTableView({
         return
       }
 
-      // Find all choice columns
+      // Find all choice columns that belong to this foundation
+      // Filter out columns that don't have matching foundation_id to avoid 500 errors during table transitions
       const choiceColumns = COLUMNS.filter(col =>
-        col.column_type === 'choice' || col.column_type === 'single_select' || col.column_type === 'dropdown'
+        (col.column_type === 'choice' || col.column_type === 'single_select' || col.column_type === 'dropdown') &&
+        (!col.foundation_id || col.foundation_id === foundationIdNumeric)
       )
 
-      // Find all lookup columns (both single and multiple)
+      // Find all lookup columns (both single and multiple) that belong to this foundation
       const lookupColumns = COLUMNS.filter(col =>
-        col.column_type === 'lookup' || col.column_type === 'link_to_another_record' || col.column_type === 'multiple_lookups'
+        (col.column_type === 'lookup' || col.column_type === 'link_to_another_record' || col.column_type === 'multiple_lookups') &&
+        (!col.foundation_id || col.foundation_id === foundationIdNumeric)
       )
 
       console.log('🔍 Fetching choices for', choiceColumns.length, 'choice columns:', choiceColumns.map(c => ({ key: c.key, id: c.id })))
