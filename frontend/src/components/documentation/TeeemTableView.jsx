@@ -5092,20 +5092,13 @@ export default function TeeemTableView({
                             }
                             setDeletingColumnId(column.id || column.key)
                             try {
-                              const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/foundations/${foundationIdNumeric}/columns/${column.id}`, {
-                                method: 'DELETE',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${localStorage.getItem('token')}`
-                                }
-                              })
-                              if (response.ok) {
+                              const response = await api.delete(`/api/v1/foundations/${foundationIdNumeric}/columns/${column.id}`)
+                              if (response?.success !== false) {
                                 alert(`Column "${column.label}" deleted successfully. Please refresh the page to see changes.`)
                                 setShowDeleteColumnModal(false)
                                 window.location.reload()
                               } else {
-                                const error = await response.json()
-                                alert(`Failed to delete column: ${error.error || 'Unknown error'}`)
+                                alert(`Failed to delete column: ${response?.error || 'Unknown error'}`)
                               }
                             } catch (err) {
                               alert(`Failed to delete column: ${err.message}`)
@@ -5246,6 +5239,51 @@ export default function TeeemTableView({
               )}
             </button>
           ))}
+
+          {/* Collapse/Expand All buttons - shown when grouping is active */}
+          {groupByColumns.length > 0 && filteredAndSorted.length > 0 && (
+            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-300 dark:border-gray-600">
+              <button
+                onClick={() => {
+                  // Collapse all groups - build all possible paths
+                  const allPaths = new Set()
+                  const getDisplayValue = (entry, colKey) => {
+                    const rawValue = entry[colKey]
+                    const column = COLUMNS.find(c => c.key === colKey)
+                    if (column?.lookup_foundation_id && column?.columnChoices) {
+                      const matchingOption = column.columnChoices.find(
+                        opt => String(opt.id) === String(rawValue) || String(opt.value) === String(rawValue)
+                      )
+                      return matchingOption?.display || `ID: ${rawValue}`
+                    }
+                    return rawValue ?? '(empty)'
+                  }
+                  filteredAndSorted.forEach(entry => {
+                    let path = ''
+                    groupByColumns.forEach((colKey) => {
+                      const value = getDisplayValue(entry, colKey)
+                      path = path ? `${path}|${value}` : value
+                      allPaths.add(path)
+                    })
+                  })
+                  setCollapsedGroups(allPaths)
+                }}
+                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors flex items-center gap-1"
+                title="Collapse All Groups"
+              >
+                <MinusCircleIcon className="w-3.5 h-3.5" />
+                Collapse
+              </button>
+              <button
+                onClick={() => setCollapsedGroups(new Set())}
+                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors flex items-center gap-1"
+                title="Expand All Groups"
+              >
+                <PlusCircleIcon className="w-3.5 h-3.5" />
+                Expand
+              </button>
+            </div>
+          )}
 
             {/* Excel-style dropdown panel */}
             {showCascadeDropdown && (
