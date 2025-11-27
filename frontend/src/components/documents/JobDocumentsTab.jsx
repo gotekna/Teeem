@@ -272,7 +272,7 @@ export default function JobDocumentsTab({ jobId, jobTitle }) {
           >
             <div className="flex items-center gap-2">
               <CloudIcon className="h-4 w-4" />
-              OneDrive Folders
+              SharePoint Folders
             </div>
           </button>
         </div>
