@@ -830,6 +830,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # Xero contact lookup (separate route for /api/v1/xero/contacts/:id)
+      get 'xero/contacts/:id', to: 'xero#show_contact'
+
       # Xero Webhooks (separate controller for webhook handling)
       post 'xero/webhooks', to: 'xero_webhooks#receive'
       get 'xero/webhooks/intent', to: 'xero_webhooks#verify_intent'
