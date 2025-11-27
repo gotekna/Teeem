@@ -817,6 +817,66 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/contacts/:id
+      # Fetch a single contact from Xero by ContactID
+      def show_contact
+        xero_contact_id = params[:id]
+        tenant_id = params[:tenant_id]
+
+        if xero_contact_id.blank?
+          return render json: {
+            success: false,
+            error: 'Contact ID is required'
+          }, status: :bad_request
+        end
+
+        begin
+          client = XeroApiClient.new
+
+          # Use tenant_id if provided (for multi-org support)
+          result = if tenant_id.present?
+            client.get("Contacts/#{xero_contact_id}", {}, tenant_id)
+          else
+            client.get("Contacts/#{xero_contact_id}")
+          end
+
+          if result[:success]
+            xero_contact = result[:data]['Contacts']&.first
+
+            if xero_contact
+              render json: {
+                success: true,
+                data: {
+                  contact: xero_contact
+                }
+              }
+            else
+              render json: {
+                success: false,
+                error: 'Contact not found in Xero'
+              }, status: :not_found
+            end
+          else
+            render json: {
+              success: false,
+              error: 'Failed to fetch contact from Xero'
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero show_contact auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero show_contact error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to fetch contact: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       private
 
       # Determine what sync action was taken for a contact
