@@ -280,6 +280,7 @@ Rails.application.routes.draw do
           post :match_supplier
           get :validate_abn
           get :possible_duplicates
+          get :read_only_fields
         end
         member do
           get :categories
