@@ -426,6 +426,12 @@ export default function TeeemTableView({
   // Bulk action state - show delete only after edit clicked
   const [showDeleteButton, setShowDeleteButton] = useState(false)
 
+  // Bulk update modal state
+  const [showBulkUpdateModal, setShowBulkUpdateModal] = useState(false)
+  const [bulkUpdateColumn, setBulkUpdateColumn] = useState('')
+  const [bulkUpdateValue, setBulkUpdateValue] = useState('')
+  const [bulkUpdateSaving, setBulkUpdateSaving] = useState(false)
+
   // Edit mode state - when true, all cells are unlocked for editing
   const [editModeActive, setEditModeActive] = useState(false)
 
@@ -4604,6 +4610,17 @@ export default function TeeemTableView({
               >
                 <TrashIcon className="h-4 w-4" />
                 Delete ({selectedRows.size})
+              </button>
+              <button
+                onClick={() => {
+                  setBulkUpdateColumn('')
+                  setBulkUpdateValue('')
+                  setShowBulkUpdateModal(true)
+                }}
+                className="inline-flex items-center gap-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+              >
+                <PencilIcon className="h-4 w-4" />
+                Bulk Update ({selectedRows.size})
               </button>
               <button
                 onClick={() => {
@@ -9400,6 +9417,201 @@ export default function TeeemTableView({
             // This allows the refetch to complete before the modal closes
           }}
         />
+      )}
+
+      {/* Bulk Update Modal */}
+      {showBulkUpdateModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowBulkUpdateModal(false)}>
+          <div className="flex min-h-screen items-center justify-center p-4">
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
+
+            {/* Modal */}
+            <div
+              className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Bulk Update {selectedRows.size} {selectedRows.size === 1 ? 'Record' : 'Records'}
+              </h3>
+
+              {/* Column Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Column to Update
+                </label>
+                <select
+                  value={bulkUpdateColumn}
+                  onChange={(e) => {
+                    setBulkUpdateColumn(e.target.value)
+                    setBulkUpdateValue('')
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="">-- Select a column --</option>
+                  {visibleColumns.filter(col => !col.is_system && col.column_key !== 'id').map(col => (
+                    <option key={col.id || col.column_key} value={col.column_key}>
+                      {col.display_name || col.column_key}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Value Input - depends on column type */}
+              {bulkUpdateColumn && (() => {
+                const selectedCol = visibleColumns.find(c => c.column_key === bulkUpdateColumn)
+                const colType = selectedCol?.column_type
+
+                // For choice/select columns, show dropdown
+                if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
+                  const choices = selectedCol?.choices || []
+                  return (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        New Value
+                      </label>
+                      <select
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      >
+                        <option value="">-- Select a value --</option>
+                        {choices.map(choice => (
+                          <option key={choice.value || choice} value={choice.value || choice}>
+                            {choice.label || choice.value || choice}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )
+                }
+
+                // For boolean columns
+                if (colType === 'boolean' || colType === 'checkbox') {
+                  return (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        New Value
+                      </label>
+                      <select
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      >
+                        <option value="">-- Select a value --</option>
+                        <option value="true">Yes / True</option>
+                        <option value="false">No / False</option>
+                      </select>
+                    </div>
+                  )
+                }
+
+                // For number columns
+                if (colType === 'number' || colType === 'integer' || colType === 'decimal' || colType === 'currency') {
+                  return (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        New Value
+                      </label>
+                      <input
+                        type="number"
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder="Enter number..."
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+                  )
+                }
+
+                // For date columns
+                if (colType === 'date' || colType === 'datetime') {
+                  return (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        New Value
+                      </label>
+                      <input
+                        type={colType === 'datetime' ? 'datetime-local' : 'date'}
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    </div>
+                  )
+                }
+
+                // Default: text input
+                return (
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      New Value
+                    </label>
+                    <input
+                      type="text"
+                      value={bulkUpdateValue}
+                      onChange={(e) => setBulkUpdateValue(e.target.value)}
+                      placeholder="Enter new value..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                )
+              })()}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowBulkUpdateModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!bulkUpdateColumn) {
+                      alert('Please select a column to update')
+                      return
+                    }
+
+                    setBulkUpdateSaving(true)
+                    try {
+                      const selectedIds = Array.from(selectedRows)
+                      console.log(`🔄 Bulk updating ${selectedIds.length} records, column: ${bulkUpdateColumn}, value: ${bulkUpdateValue}`)
+
+                      // Call bulk update API
+                      if (onBulkUpdate) {
+                        await onBulkUpdate(selectedIds, bulkUpdateColumn, bulkUpdateValue)
+                      } else if (tableId) {
+                        // Direct API call if no callback provided
+                        await api.post(`/api/v1/foundations/${tableId}/records/bulk_update`, {
+                          ids: selectedIds,
+                          column_key: bulkUpdateColumn,
+                          value: bulkUpdateValue
+                        })
+                        // Refresh the data
+                        if (onColumnUpdate) onColumnUpdate()
+                      }
+
+                      setShowBulkUpdateModal(false)
+                      setSelectedRows(new Set())
+                      setShowDeleteButton(false)
+                      console.log('✅ Bulk update completed')
+                    } catch (error) {
+                      console.error('❌ Bulk update failed:', error)
+                      alert(`Bulk update failed: ${error.message || 'Unknown error'}`)
+                    } finally {
+                      setBulkUpdateSaving(false)
+                    }
+                  }}
+                  disabled={!bulkUpdateColumn || bulkUpdateSaving}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  {bulkUpdateSaving ? 'Updating...' : `Update ${selectedRows.size} Records`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
