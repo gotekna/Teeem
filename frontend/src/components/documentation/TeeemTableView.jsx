@@ -2476,9 +2476,13 @@ export default function TeeemTableView({
             <input
               type="checkbox"
               checked={selectedRows.has(entry.id)}
-              onChange={() => handleSelectRow(entry.id)}
+              onChange={() => {}} // Handled by onMouseDown for drag support
               onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+                // Start drag selection from checkbox click
+                handleDragSelectStart(entry.id)
+              }}
               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
             />
           </div>
