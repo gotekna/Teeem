@@ -692,9 +692,18 @@ export default function TablePage({ embedded = false }) {
   // Server-side search handler for TeeemTableView
   // Called by TeeemTableView when search term changes (with 300ms debounce)
   const handleServerSearch = useCallback(async (searchTerm) => {
+    console.log('[TablePage Server Search] handleServerSearch called:', {
+      searchTerm,
+      tableId: id,
+      tableSlug: table?.slug
+    })
+
     // Only enable server-side search for tables that need it (not Price Books which loads all)
     const isPriceBooks = id === '205' || id === 'price-books'
-    if (isPriceBooks) return  // Price Books loads all records, use client-side search
+    if (isPriceBooks) {
+      console.log('[TablePage Server Search] Skipping for Price Books (uses client-side)')
+      return  // Price Books loads all records, use client-side search
+    }
 
     setCurrentSearchTerm(searchTerm)
     setServerSearchLoading(true)
@@ -702,7 +711,15 @@ export default function TablePage({ embedded = false }) {
     try {
       // Build URL with search parameter
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''
-      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${PAGE_SIZE}&page=1${searchParam}`)
+      const url = `/api/v1/foundations/${id}/records?per_page=${PAGE_SIZE}&page=1${searchParam}`
+      console.log('[TablePage Server Search] Making API request:', url)
+
+      const response = await api.get(url)
+      console.log('[TablePage Server Search] API response:', {
+        recordCount: response.records?.length,
+        totalCount: response.pagination?.total_count,
+        firstThreeIds: response.records?.slice(0, 3).map(r => r.id)
+      })
 
       // Update records with search results
       setRecords(response.records || [])
@@ -717,12 +734,12 @@ export default function TablePage({ embedded = false }) {
         totalCount: response.pagination?.total_count
       })
     } catch (err) {
-      console.error('Server search failed:', err)
+      console.error('[TablePage Server Search] FAILED:', err)
       // Don't clear records on error - keep showing previous results
     } finally {
       setServerSearchLoading(false)
     }
-  }, [id, PAGE_SIZE])
+  }, [id, PAGE_SIZE, table?.slug])
 
   // CRUD handlers for TeeemTableView
   const handleEdit = async (entry) => {
@@ -1004,6 +1021,12 @@ export default function TablePage({ embedded = false }) {
 
       {/* TeeemTableView - The Gold Standard */}
       <div className="flex-1 min-h-0 overflow-auto">
+        {teeemColumns.length > 0 && console.log('[TablePage Render] Passing to TeeemTableView:', {
+            foundationId: `table-${table.slug || id}`,
+            hasOnServerSearch: !!handleServerSearch,
+            serverSearchLoading,
+            recordCount: records.length
+          })}
         {teeemColumns.length > 0 ? (
           <TeeemTableView
             foundationId={`table-${table.slug || id}`}

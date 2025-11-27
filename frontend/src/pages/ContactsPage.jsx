@@ -167,10 +167,22 @@ export default function ContactsPage() {
     }
   }, [location.search])
 
+  // Initial load
   useEffect(() => {
     loadContacts()
     loadSuppliers()
   }, [filter, xeroSyncFilter])
+
+  // Debounced server-side search when searchQuery changes
+  useEffect(() => {
+    // Skip initial render (handled by the effect above)
+    const debounceTimer = setTimeout(() => {
+      console.log('[ContactsPage] Search query changed, triggering server search:', searchQuery)
+      loadContacts(searchQuery)
+    }, 300)  // 300ms debounce
+
+    return () => clearTimeout(debounceTimer)
+  }, [searchQuery])
 
   // Listen for global search event from AppLayout
   useEffect(() => {
@@ -198,7 +210,7 @@ export default function ContactsPage() {
     localStorage.setItem('suppliers_columnOrder', JSON.stringify(supplierColumnOrder))
   }, [supplierColumnOrder])
 
-  const loadContacts = async () => {
+  const loadContacts = async (search = '') => {
     try {
       setLoading(true)
       const params = new URLSearchParams()
@@ -208,8 +220,15 @@ export default function ContactsPage() {
       if (xeroSyncFilter !== 'all') {
         params.append('xero_sync', xeroSyncFilter)
       }
+      // Server-side search - search across all contacts, not just loaded ones
+      if (search) {
+        params.append('search', search)
+        console.log('[ContactsPage] Server search for:', search)
+      }
       const endpoint = params.toString() ? `/api/v1/contacts?${params.toString()}` : '/api/v1/contacts'
+      console.log('[ContactsPage] Loading contacts:', endpoint)
       const response = await api.get(endpoint)
+      console.log('[ContactsPage] Loaded', response.contacts?.length, 'contacts')
       setContacts(response.contacts || [])
     } catch (err) {
       setError('Failed to load contacts')
@@ -843,12 +862,9 @@ export default function ContactsPage() {
     }
   }
 
-  const filteredContacts = applyColumnFilters(
-    contacts.filter(c =>
-      c.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-  ).sort((a, b) => {
+  // Server-side search handles main search query, so we just apply column filters here
+  // (column filters are quick client-side filters for individual columns)
+  const filteredContacts = applyColumnFilters(contacts).sort((a, b) => {
     // Primary sort
     const aPrimaryVal = getSortValue(a, sortBy)
     const bPrimaryVal = getSortValue(b, sortBy)

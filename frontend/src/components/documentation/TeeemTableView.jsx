@@ -256,15 +256,29 @@ export default function TeeemTableView({
   // Server-side search with debouncing (Chapter 20.20 enhancement)
   // When onServerSearch is provided, triggers server search after 300ms of inactivity
   useEffect(() => {
-    if (!onServerSearch) return  // Only activate if callback is provided
+    console.log('[Server Search] useEffect triggered:', {
+      search,
+      hasOnServerSearch: !!onServerSearch,
+      foundationId
+    })
 
+    if (!onServerSearch) {
+      console.log('[Server Search] No onServerSearch callback, using client-side filtering')
+      return  // Only activate if callback is provided
+    }
+
+    console.log('[Server Search] Setting up debounce timer for:', search)
     const debounceTimer = setTimeout(() => {
       // Call server search callback with the search term
       // Empty string clears the search and reloads all records
+      console.log('[Server Search] Debounce complete, calling onServerSearch with:', search)
       onServerSearch(search)
     }, 300)  // 300ms debounce delay
 
-    return () => clearTimeout(debounceTimer)
+    return () => {
+      console.log('[Server Search] Clearing debounce timer')
+      clearTimeout(debounceTimer)
+    }
   }, [search, onServerSearch])
 
   // Multi-column sorting: array of {column, dir} objects
@@ -5442,13 +5456,14 @@ export default function TeeemTableView({
                       <div className="flex items-center gap-2">
                         {editingViewId ? (
                           <>
-                            <span className="text-sm font-bold whitespace-nowrap">Edit View:</span>
+                            <span className="text-xs font-bold whitespace-nowrap">Edit View:</span>
                             <input
                               type="text"
                               id="editViewNameInput"
                               key={editingViewId}
+                              maxLength={30}
                               defaultValue={savedFilters.find(v => v.id === editingViewId)?.name || ''}
-                              className="flex-1 max-w-[200px] text-sm font-semibold px-2 py-1 border-0 rounded bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+                              className="flex-1 max-w-[150px] text-xs font-semibold px-2 py-0.5 border-0 rounded bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
                               onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
                                   setEditingViewId(null)
