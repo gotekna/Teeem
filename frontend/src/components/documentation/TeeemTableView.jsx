@@ -6760,8 +6760,8 @@ export default function TeeemTableView({
                           </button>
                         )}
                       </div>
-                      {/* Side-by-side Visible and Hidden columns */}
-                      <div className="flex gap-2">
+                      {/* Visible and Hidden columns - stacked vertically with scroll */}
+                      <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
                         {(() => {
                           // Filter columns by search query
                           const searchLower = columnSearchQuery.toLowerCase().trim()
@@ -6982,8 +6982,8 @@ export default function TeeemTableView({
 
                           return (
                             <>
-                              {/* Visible Columns - auto width based on content */}
-                              <div className="min-w-0" style={{ flex: visibleCols.length <= 20 ? '0 0 auto' : '1 1 0%' }}>
+                              {/* Visible Columns */}
+                              <div>
                                 <div className="text-[10px] font-semibold text-green-700 dark:text-green-400 mb-1 px-1 flex items-center justify-between">
                                   <div className="flex items-center gap-1">
                                     <span className="w-2 h-2 bg-green-500 rounded-full"></span>
@@ -7010,12 +7010,9 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to show' : 'No visible columns'}
                                     </div>
                                   ) : (
-                                    <div
-                                      className={`${visibleCols.length <= 20 ? 'columns-1' : visibleCols.length <= 40 ? 'columns-2' : 'columns-3'} gap-2`}
-                                      style={{ columnFill: 'balance' }}
-                                    >
+                                    <div className="flex flex-col gap-0.5">
                                       {visibleCols.map((col, idx) => (
-                                        <div key={col.key} className="break-inside-avoid mb-1">
+                                        <div key={col.key}>
                                           {renderColumnItem(col, idx, true)}
                                         </div>
                                       ))}
@@ -7024,8 +7021,8 @@ export default function TeeemTableView({
                                 </div>
                               </div>
 
-                              {/* Hidden Columns - takes remaining space */}
-                              <div className="flex-1 min-w-0">
+                              {/* Hidden Columns */}
+                              <div>
                                 <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1 px-1 flex items-center justify-between">
                                   <div className="flex items-center gap-1">
                                     <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
@@ -7052,12 +7049,9 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to hide' : 'No hidden columns'}
                                     </div>
                                   ) : (
-                                    <div
-                                      className={`${hiddenCols.length <= 20 ? 'columns-1' : hiddenCols.length <= 40 ? 'columns-2' : 'columns-3'} gap-2`}
-                                      style={{ columnFill: 'balance' }}
-                                    >
+                                    <div className="flex flex-col gap-0.5">
                                       {hiddenCols.map((col, idx) => (
-                                        <div key={col.key} className="break-inside-avoid mb-1">
+                                        <div key={col.key}>
                                           {renderColumnItem(col, idx, false)}
                                         </div>
                                       ))}
