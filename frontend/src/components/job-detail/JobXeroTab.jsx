@@ -6,6 +6,10 @@ import {
   ArrowDownTrayIcon,
   XMarkIcon,
   LinkIcon,
+  CloudArrowDownIcon,
+  UserGroupIcon,
+  FolderIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
@@ -20,6 +24,13 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState(null)
   const [error, setError] = useState(null)
+
+  // Full import states
+  const [fullImportRunning, setFullImportRunning] = useState(false)
+  const [fullImportResult, setFullImportResult] = useState(null)
+  const [importingContacts, setImportingContacts] = useState(false)
+  const [importingTracking, setImportingTracking] = useState(false)
+  const [importingBills, setImportingBills] = useState(false)
 
   useEffect(() => {
     loadXeroData()
@@ -94,6 +105,74 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
       setError(err.response?.data?.error || 'Failed to import bills from Xero')
     } finally {
       setImporting(false)
+    }
+  }
+
+  // Full import handlers
+  const handleFullImport = async () => {
+    try {
+      setFullImportRunning(true)
+      setFullImportResult(null)
+      setError(null)
+
+      const response = await api.post('/api/v1/xero/full_import')
+      setFullImportResult(response)
+      onUpdate?.()
+      loadXeroData() // Refresh data
+    } catch (err) {
+      console.error('Failed to run full import:', err)
+      setError(err.response?.data?.error || 'Failed to run full import')
+    } finally {
+      setFullImportRunning(false)
+    }
+  }
+
+  const handleImportContacts = async () => {
+    try {
+      setImportingContacts(true)
+      setError(null)
+
+      const response = await api.post('/api/v1/xero/sync_contacts')
+      if (response.success) {
+        setFullImportResult(prev => ({ ...prev, contacts: response }))
+      }
+    } catch (err) {
+      console.error('Failed to import contacts:', err)
+      setError(err.response?.data?.error || 'Failed to import contacts')
+    } finally {
+      setImportingContacts(false)
+    }
+  }
+
+  const handleImportTrackingCategories = async () => {
+    try {
+      setImportingTracking(true)
+      setError(null)
+
+      const response = await api.post('/api/v1/xero/import_tracking_categories')
+      setFullImportResult(prev => ({ ...prev, tracking_categories: response }))
+      loadXeroData() // Refresh tracking options
+    } catch (err) {
+      console.error('Failed to import tracking categories:', err)
+      setError(err.response?.data?.error || 'Failed to import tracking categories')
+    } finally {
+      setImportingTracking(false)
+    }
+  }
+
+  const handleImportAllBills = async () => {
+    try {
+      setImportingBills(true)
+      setError(null)
+
+      const response = await api.post('/api/v1/xero/import_all_bills')
+      setFullImportResult(prev => ({ ...prev, bills: response }))
+      onUpdate?.()
+    } catch (err) {
+      console.error('Failed to import all bills:', err)
+      setError(err.response?.data?.error || 'Failed to import all bills')
+    } finally {
+      setImportingBills(false)
     }
   }
 
@@ -302,10 +381,118 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
         </div>
       )}
 
-      {/* Pull from Xero Card */}
+      {/* Full Import Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+          Import from Xero
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          Import all data from Xero: contacts, tracking categories (as jobs), and bills (as purchase orders).
+        </p>
+
+        {/* Import Buttons */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+          {/* Full Import */}
+          <button
+            onClick={handleFullImport}
+            disabled={fullImportRunning || importingContacts || importingTracking || importingBills}
+            className="flex flex-col items-center gap-2 p-3 rounded-lg border-2 border-dashed border-indigo-300 dark:border-indigo-600 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {fullImportRunning ? (
+              <ArrowPathIcon className="h-6 w-6 text-indigo-500 animate-spin" />
+            ) : (
+              <CloudArrowDownIcon className="h-6 w-6 text-indigo-500" />
+            )}
+            <span className="text-xs font-medium text-indigo-700 dark:text-indigo-300">
+              {fullImportRunning ? 'Importing...' : 'Full Import'}
+            </span>
+          </button>
+
+          {/* Import Contacts */}
+          <button
+            onClick={handleImportContacts}
+            disabled={fullImportRunning || importingContacts}
+            className="flex flex-col items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {importingContacts ? (
+              <ArrowPathIcon className="h-6 w-6 text-blue-500 animate-spin" />
+            ) : (
+              <UserGroupIcon className="h-6 w-6 text-blue-500" />
+            )}
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              {importingContacts ? 'Importing...' : 'Contacts'}
+            </span>
+          </button>
+
+          {/* Import Tracking Categories */}
+          <button
+            onClick={handleImportTrackingCategories}
+            disabled={fullImportRunning || importingTracking}
+            className="flex flex-col items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {importingTracking ? (
+              <ArrowPathIcon className="h-6 w-6 text-green-500 animate-spin" />
+            ) : (
+              <FolderIcon className="h-6 w-6 text-green-500" />
+            )}
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              {importingTracking ? 'Importing...' : 'Jobs'}
+            </span>
+          </button>
+
+          {/* Import All Bills */}
+          <button
+            onClick={handleImportAllBills}
+            disabled={fullImportRunning || importingBills}
+            className="flex flex-col items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {importingBills ? (
+              <ArrowPathIcon className="h-6 w-6 text-orange-500 animate-spin" />
+            ) : (
+              <DocumentTextIcon className="h-6 w-6 text-orange-500" />
+            )}
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              {importingBills ? 'Importing...' : 'Bills'}
+            </span>
+          </button>
+        </div>
+
+        {/* Import Results */}
+        {fullImportResult && (
+          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-xs space-y-2">
+            <p className="font-medium text-gray-700 dark:text-gray-300">Import Results:</p>
+            {fullImportResult.contacts && (
+              <div className="flex items-center gap-2">
+                <UserGroupIcon className="h-4 w-4 text-blue-500" />
+                <span className="text-gray-600 dark:text-gray-400">
+                  Contacts: {fullImportResult.contacts.stats?.created_in_teeem || 0} created, {fullImportResult.contacts.stats?.matched || 0} matched
+                </span>
+              </div>
+            )}
+            {fullImportResult.tracking_categories && (
+              <div className="flex items-center gap-2">
+                <FolderIcon className="h-4 w-4 text-green-500" />
+                <span className="text-gray-600 dark:text-gray-400">
+                  Jobs: {fullImportResult.tracking_categories.stats?.created || 0} created, {fullImportResult.tracking_categories.stats?.linked || 0} linked, {fullImportResult.tracking_categories.stats?.skipped || 0} skipped
+                </span>
+              </div>
+            )}
+            {fullImportResult.bills && (
+              <div className="flex items-center gap-2">
+                <DocumentTextIcon className="h-4 w-4 text-orange-500" />
+                <span className="text-gray-600 dark:text-gray-400">
+                  Bills: {fullImportResult.bills.stats?.imported || 0} imported, {fullImportResult.bills.stats?.skipped || 0} skipped, {fullImportResult.bills.stats?.no_job || 0} no job
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Pull from Xero Card - for this specific job */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
         <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-4">
-          Pull Bills from Xero
+          Pull Bills for This Job
         </h3>
 
         {/* Step 1: Link to Tracking Category */}
