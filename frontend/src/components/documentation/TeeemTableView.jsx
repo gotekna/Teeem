@@ -6479,13 +6479,38 @@ export default function TeeemTableView({
                             setDragOverVisibilityColumn(null)
                           }
 
+                          // Select all / Hide all handlers
+                          const handleSelectAll = () => {
+                            const newVisibility = { ...visibleColumns }
+                            filteredCols.forEach(col => {
+                              newVisibility[col.key] = true
+                            })
+                            setVisibleColumns(newVisibility)
+                          }
+
+                          const handleHideAll = () => {
+                            const newVisibility = { ...visibleColumns }
+                            filteredCols.forEach(col => {
+                              newVisibility[col.key] = false
+                            })
+                            setVisibleColumns(newVisibility)
+                          }
+
                           return (
                             <>
                               {/* Visible Columns */}
                               <div className="flex-1 min-w-0">
-                                <div className="text-[10px] font-semibold text-green-700 dark:text-green-400 mb-1 px-1 flex items-center gap-1">
-                                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                  Visible ({visibleCols.length})
+                                <div className="text-[10px] font-semibold text-green-700 dark:text-green-400 mb-1 px-1 flex items-center justify-between">
+                                  <div className="flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                    Visible ({visibleCols.length})
+                                  </div>
+                                  <button
+                                    onClick={handleSelectAll}
+                                    className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
+                                  >
+                                    Select All
+                                  </button>
                                 </div>
                                 <div
                                   className={`border rounded p-1 transition-colors ${
@@ -6510,9 +6535,17 @@ export default function TeeemTableView({
 
                               {/* Hidden Columns */}
                               <div className="flex-1 min-w-0">
-                                <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1 px-1 flex items-center gap-1">
-                                  <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
-                                  Hidden ({hiddenCols.length})
+                                <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1 px-1 flex items-center justify-between">
+                                  <div className="flex items-center gap-1">
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                    Hidden ({hiddenCols.length})
+                                  </div>
+                                  <button
+                                    onClick={handleHideAll}
+                                    className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
+                                  >
+                                    Hide All
+                                  </button>
                                 </div>
                                 <div
                                   className={`border rounded p-1 transition-colors ${
