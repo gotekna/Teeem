@@ -7421,26 +7421,6 @@ export default function TeeemTableView({
                           <span className="truncate" title={column.label}>{column.label}</span>
                           {isSystemGenerated && <span className="ml-1 text-sm">🔒</span>}
                           {column.sortable && <SortIcon column={colKey} />}
-                          {/* Filter toggle - click to show/hide this column's filter */}
-                          {showFilters && colKey !== 'select' && colKey !== 'actions' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setColumnShowFilters(prev => ({
-                                  ...prev,
-                                  [colKey]: !(prev[colKey] ?? true)
-                                }))
-                              }}
-                              className={`ml-1 p-0.5 rounded flex-shrink-0 transition-all ${
-                                columnShowFilters[colKey] ?? true
-                                  ? 'bg-white/20 text-white hover:bg-white/30'
-                                  : 'bg-white/10 text-white/40 hover:bg-white/20 hover:text-white/60'
-                              }`}
-                              title={columnShowFilters[colKey] ?? true ? 'Hide filter' : 'Show filter'}
-                            >
-                              <FunnelIcon className="h-3.5 w-3.5" />
-                            </button>
-                          )}
                           {/* Schema Editor Cog Icon - only show in Edit Individual mode */}
                           {editIndividualMode && enableSchemaEditor && colKey !== 'select' && (
                             // Only show cog if column has a database ID (numeric) - system columns like 'id' primary key have no column record

@@ -852,6 +852,14 @@ Rails.application.routes.draw do
       end
 
       # Foundation views (user-specific saved views)
+      # Backward-compatible alias for /api/v1/table_views
+      resources :table_views, controller: 'foundation_views', only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :reorder
+          post :create_all_setup_views
+        end
+      end
+
       resources :foundation_views, only: [:index, :show, :create, :update, :destroy] do
         collection do
           post :reorder
