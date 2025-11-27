@@ -247,6 +247,7 @@ module Api
           attrs[:title] = 'New Job' if attrs[:title].blank?
           attrs[:status] = 'Active' if attrs[:status].blank?
           attrs[:site_supervisor_name] = 'TBA' if attrs[:site_supervisor_name].blank?
+          attrs[:purchase_orders_count] = 0 if attrs[:purchase_orders_count].blank?
         end
 
         attrs
