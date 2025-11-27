@@ -20,9 +20,11 @@ class TableBuilder
         ActiveRecord::Schema.define do
           create_table table_name.to_sym, force: true do |t|
             # Add columns from the table definition
-            # Skip 'id' column as Rails creates it automatically as the primary key
+            # Skip reserved columns as Rails creates them automatically:
+            # - 'id' as the primary key
+            # - 'created_at' and 'updated_at' via t.timestamps
             columns.each do |column|
-              next if column.column_name == 'id'
+              next if TableBuilder::RESERVED_COLUMNS.include?(column.column_name)
               builder.send(:add_column_to_migration, t, column)
             end
 
@@ -66,11 +68,11 @@ class TableBuilder
       end
 
       # Add foreign key for lookup columns
-      if column.column_type == 'lookup' && column.lookup_table
+      if column.column_type == 'lookup' && column.lookup_foundation
         begin
           ActiveRecord::Migration.add_foreign_key(
             @table.database_table_name.to_sym,
-            column.lookup_table.database_table_name.to_sym,
+            column.lookup_foundation.database_table_name.to_sym,
             column: column.column_name.to_sym,
             on_delete: :nullify  # Set to NULL when referenced record is deleted
           )
@@ -138,6 +140,9 @@ class TableBuilder
   end
 
   private
+
+  # Reserved column names that Rails creates automatically
+  RESERVED_COLUMNS = %w[id created_at updated_at].freeze
 
   def validate_table
     # Allow tables with no columns - they will have id and timestamps at minimum

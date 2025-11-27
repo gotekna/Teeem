@@ -155,6 +155,76 @@ class MicrosoftGraphClient
     get("/drives/#{drive_id}")
   end
 
+  # SharePoint Site Operations
+
+  # List SharePoint sites the user has access to
+  def list_sharepoint_sites
+    # Search for all sites the user can access
+    response = get('/sites?search=*')
+    sites = response['value'] || []
+
+    sites.map do |site|
+      {
+        id: site['id'],
+        name: site['displayName'] || site['name'],
+        web_url: site['webUrl'],
+        description: site['description']
+      }
+    end
+  end
+
+  # Get a specific SharePoint site by name or ID
+  def get_sharepoint_site(site_identifier)
+    # If it's a full site ID (contains domain), use directly
+    if site_identifier.include?(',')
+      get("/sites/#{site_identifier}")
+    else
+      # Search for the site by name
+      response = get("/sites?search=#{URI.encode_www_form_component(site_identifier)}")
+      sites = response['value'] || []
+      sites.first || raise(APIError.new("SharePoint site '#{site_identifier}' not found"))
+    end
+  end
+
+  # Get the default document library drive for a SharePoint site
+  def get_sharepoint_site_drive(site_id)
+    get("/sites/#{site_id}/drive")
+  end
+
+  # List all drives (document libraries) for a SharePoint site
+  def list_sharepoint_site_drives(site_id)
+    response = get("/sites/#{site_id}/drives")
+    drives = response['value'] || []
+
+    drives.map do |drive|
+      {
+        id: drive['id'],
+        name: drive['name'],
+        web_url: drive['webUrl'],
+        drive_type: drive['driveType']
+      }
+    end
+  end
+
+  # Set a SharePoint site as the target for job folders
+  def use_sharepoint_site(site_identifier)
+    site = get_sharepoint_site(site_identifier)
+    drive = get_sharepoint_site_drive(site['id'])
+
+    @credential.update!(
+      drive_id: drive['id'],
+      drive_name: drive['name'],
+      metadata: @credential.metadata.merge({
+        site_id: site['id'],
+        site_name: site['displayName'] || site['name'],
+        site_web_url: site['webUrl'],
+        drive_type: 'sharepoint'
+      })
+    )
+
+    { site: site, drive: drive }
+  end
+
   # Create root folder for all jobs (organization-level)
   def create_jobs_root_folder(folder_name = "TEEEM Jobs")
     # Get the drive if we don't have it
@@ -281,12 +351,22 @@ class MicrosoftGraphClient
   # Search for job folder by construction
   def find_job_folder(construction)
     job_code = construction.id.to_s.rjust(3, '0')
-    search_query = "#{job_code} - #{construction.title}"
+    expected_name = "#{job_code} - #{construction.title}"
 
-    results = search(search_query, @credential.root_folder_id)
+    # First try direct folder listing (more reliable than search for SharePoint)
+    if @credential.root_folder_id.present?
+      begin
+        results = get("/drives/#{@credential.drive_id}/items/#{@credential.root_folder_id}/children")
+        folder = results['value']&.find { |item| item['name'] == expected_name && item['folder'] }
+        return folder if folder
+      rescue APIError => e
+        Rails.logger.warn "Direct folder listing failed: #{e.message}"
+      end
+    end
 
-    # Find exact match
-    results['value']&.find { |item| item['name'] == search_query && item['folder'] }
+    # Fallback to search
+    results = search(expected_name, @credential.root_folder_id)
+    results['value']&.find { |item| item['name'] == expected_name && item['folder'] }
   end
 
   # Search for folder by name in drive root

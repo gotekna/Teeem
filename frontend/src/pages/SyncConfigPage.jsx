@@ -67,7 +67,7 @@ function AccountingBadge({ system }) {
   )
 }
 
-export default function SyncConfigPage() {
+export default function SyncConfigPage({ embedded = false }) {
   const [configs, setConfigs] = useState([])
   const [selectedConfig, setSelectedConfig] = useState(null)
   const [fieldMappings, setFieldMappings] = useState([])
@@ -223,39 +223,66 @@ export default function SyncConfigPage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Contact Sync Configuration</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Configure how contacts sync between TEEEM and your accounting system.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handlePreview}
-              className="inline-flex items-center rounded-md bg-white dark:bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              <EyeIcon className="-ml-0.5 mr-1.5 h-5 w-5" />
-              Preview Sync
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {saving ? (
-                <ArrowPathIcon className="-ml-0.5 mr-1.5 h-5 w-5 animate-spin" />
-              ) : (
-                <CheckCircleIcon className="-ml-0.5 mr-1.5 h-5 w-5" />
-              )}
-              Save Configuration
-            </button>
+    <div className={embedded ? '' : 'p-6 max-w-6xl mx-auto'}>
+      {/* Header - hidden when embedded */}
+      {!embedded && (
+        <div className="mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Contact Sync Configuration</h1>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Configure how contacts sync between TEEEM and your accounting system.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handlePreview}
+                className="inline-flex items-center rounded-md bg-white dark:bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <EyeIcon className="-ml-0.5 mr-1.5 h-5 w-5" />
+                Preview Sync
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+              >
+                {saving ? (
+                  <ArrowPathIcon className="-ml-0.5 mr-1.5 h-5 w-5 animate-spin" />
+                ) : (
+                  <CheckCircleIcon className="-ml-0.5 mr-1.5 h-5 w-5" />
+                )}
+                Save Configuration
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Action buttons when embedded */}
+      {embedded && (
+        <div className="mb-4 flex justify-end gap-3">
+          <button
+            onClick={handlePreview}
+            className="inline-flex items-center rounded-md bg-white dark:bg-gray-800 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <EyeIcon className="-ml-0.5 mr-1.5 h-5 w-5" />
+            Preview Sync
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {saving ? (
+              <ArrowPathIcon className="-ml-0.5 mr-1.5 h-5 w-5 animate-spin" />
+            ) : (
+              <CheckCircleIcon className="-ml-0.5 mr-1.5 h-5 w-5" />
+            )}
+            Save Configuration
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 rounded-md bg-red-50 dark:bg-red-900/20 p-4">

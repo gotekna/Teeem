@@ -69,6 +69,24 @@ class Api::V1::GoldStandardTableController < ApplicationController
     render json: { success: true, message: "Item deleted successfully" }
   end
 
+  # POST /api/v1/gold_standard_table/bulk_delete
+  def bulk_delete
+    ids = params[:ids]
+    return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+
+    ids = ids.first(1000) if ids.is_a?(Array)
+    deleted_count = GoldStandardTable.where(id: ids).delete_all
+
+    render json: {
+      success: true,
+      deleted_count: deleted_count,
+      requested_count: ids.size
+    }
+  rescue => e
+    Rails.logger.error "Error bulk deleting gold standard items: #{e.class} - #{e.message}"
+    render json: { error: e.message }, status: :internal_server_error
+  end
+
   # Public endpoint to sync column types with the columns table
   # NOTE: This should be protected in production - see Item 14
   def sync_with_columns
