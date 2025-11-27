@@ -29,7 +29,7 @@ function formatFileSize(bytes) {
   return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
-export default function SharePointPhotoGallery({ jobId, folderNames = ['Photo', 'Client Photo'] }) {
+export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photos', '07 Supervisor Photos'] }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [files, setFiles] = useState([])
