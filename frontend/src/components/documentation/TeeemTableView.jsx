@@ -695,11 +695,11 @@ export default function TeeemTableView({
 
   // Cascade popup resizing state
   const [cascadePopupSize, setCascadePopupSize] = useState(() => {
-    if (typeof window === 'undefined') return { width: 50, height: 90 } // vw, vh
+    if (typeof window === 'undefined') return { width: 85, height: 90 } // vw, vh
     try {
       const stored = localStorage.getItem(`teeem-cascade-popup-size-${foundationId}`)
-      return stored ? JSON.parse(stored) : { width: 50, height: 90 }
-    } catch { return { width: 50, height: 90 } }
+      return stored ? JSON.parse(stored) : { width: 85, height: 90 }
+    } catch { return { width: 85, height: 90 } }
   })
   const [isResizing, setIsResizing] = useState(null) // 'right', 'bottom', 'corner', or null
   const cascadePopupRef = useRef(null)
@@ -1659,35 +1659,65 @@ export default function TeeemTableView({
     Object.entries(columnFilters).forEach(([key, value]) => {
       if (!value) return
 
+      // Helper to check if value is empty
+      const isEmpty = (v) => v === null || v === undefined || v === '' || (typeof v === 'string' && v.trim() === '')
+
       switch (key) {
         case 'category':
-          result = result.filter(e => e.category === value)
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.category))
+          } else {
+            result = result.filter(e => e.category === value)
+          }
           break
         case 'chapter':
-          result = result.filter(e => e.chapter_number === parseInt(value))
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.chapter_number))
+          } else {
+            result = result.filter(e => e.chapter_number === parseInt(value))
+          }
           break
         case 'section':
-          result = result.filter(e => e.section_number?.toLowerCase().includes(value.toLowerCase()) || e.section_display?.toLowerCase().includes(value.toLowerCase()))
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.section_number) && isEmpty(e.section_display))
+          } else {
+            result = result.filter(e => e.section_number?.toLowerCase().includes(value.toLowerCase()) || e.section_display?.toLowerCase().includes(value.toLowerCase()))
+          }
           break
         case 'type':
-          result = result.filter(e => e.entry_type === value)
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.entry_type))
+          } else {
+            result = result.filter(e => e.entry_type === value)
+          }
           break
         case 'title':
-          result = result.filter(e => e.title?.toLowerCase().includes(value.toLowerCase()))
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.title))
+          } else {
+            result = result.filter(e => e.title?.toLowerCase().includes(value.toLowerCase()))
+          }
           break
         case 'content':
-          result = result.filter(e => {
-            const searchIn = [
-              e.description,
-              e.details,
-              e.summary,
-              e.scenario,
-              e.solution,
-              e.examples,
-              e.code_example
-            ].filter(Boolean).join(' ').toLowerCase()
-            return searchIn.includes(value.toLowerCase())
-          })
+          if (value === '__empty__') {
+            result = result.filter(e => {
+              const searchIn = [e.description, e.details, e.summary, e.scenario, e.solution, e.examples, e.code_example]
+              return searchIn.every(v => isEmpty(v))
+            })
+          } else {
+            result = result.filter(e => {
+              const searchIn = [
+                e.description,
+                e.details,
+                e.summary,
+                e.scenario,
+                e.solution,
+                e.examples,
+                e.code_example
+              ].filter(Boolean).join(' ').toLowerCase()
+              return searchIn.includes(value.toLowerCase())
+            })
+          }
           break
         case 'component':
           // Component uses multi-select checkboxes
@@ -1702,14 +1732,26 @@ export default function TeeemTableView({
           }
           break
         case 'status':
-          result = result.filter(e => e.status === value)
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.status))
+          } else {
+            result = result.filter(e => e.status === value)
+          }
           break
         case 'severity':
-          result = result.filter(e => e.severity === value)
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.severity))
+          } else {
+            result = result.filter(e => e.severity === value)
+          }
           break
         case 'user':
           // User filter - convert string to number for comparison
-          result = result.filter(e => e.user === parseInt(value))
+          if (value === '__empty__') {
+            result = result.filter(e => isEmpty(e.user))
+          } else {
+            result = result.filter(e => e.user === parseInt(value))
+          }
           break
         default:
           // Generic handler for other filterable columns
@@ -1717,6 +1759,13 @@ export default function TeeemTableView({
           if (value === 'true' || value === 'false') {
             const boolValue = value === 'true'
             result = result.filter(e => e[key] === boolValue)
+          } else if (value === '__empty__') {
+            // "No Info" filter - match rows with empty/null/undefined values
+            result = result.filter(e => {
+              const entryValue = e[key]
+              return entryValue === null || entryValue === undefined || entryValue === '' ||
+                     (typeof entryValue === 'string' && entryValue.trim() === '')
+            })
           } else {
             // For other columns, do a simple equality check or string match
             result = result.filter(e => {
@@ -7725,6 +7774,7 @@ export default function TeeemTableView({
                             className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
                           >
                             <option key="inline-all" value="">All</option>
+                            <option key="inline-empty" value="__empty__">No Info</option>
                             {colKey === 'category' && (
                               // Check if this is Trinity data (has bible/teacher/lexicon) or other data
                               entries.some(e => ['bible', 'teacher', 'lexicon'].includes(e.category)) ? (
