@@ -994,7 +994,7 @@ export default function TablePage({ embedded = false }) {
               } else if (table.slug === 'jobs' || table.slug === 'active-jobs' || table.database_table_name === 'jobs' || table.database_table_name === 'constructions') {
                 sessionStorage.setItem('jobsTableView', currentTableUrl)
                 navigate(`/jobs/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'pricebook-items' || table.database_table_name === 'pricebook_items') {
+              } else if (table.slug === 'pricebook' || table.slug === 'pricebook-items' || table.database_table_name === 'pricebook' || table.database_table_name === 'pricebook_items') {
                 sessionStorage.setItem('pricebooksTableView', currentTableUrl)
                 navigate(`/price-books/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
               }
@@ -1011,7 +1011,7 @@ export default function TablePage({ embedded = false }) {
               } else if (table.slug === 'jobs' || table.slug === 'active-jobs' || table.database_table_name === 'jobs' || table.database_table_name === 'constructions') {
                 sessionStorage.setItem('jobsTableView', currentTableUrl)
                 navigate(`/jobs/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'pricebook-items' || table.database_table_name === 'pricebook_items') {
+              } else if (table.slug === 'pricebook' || table.slug === 'pricebook-items' || table.database_table_name === 'pricebook' || table.database_table_name === 'pricebook_items') {
                 sessionStorage.setItem('pricebooksTableView', currentTableUrl)
                 navigate(`/price-books/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
               }
@@ -1021,7 +1021,9 @@ export default function TablePage({ embedded = false }) {
               loadTable()
             }}
             viewOnly={
+              table.slug === 'pricebook' ||
               table.slug === 'pricebook-items' ||
+              table.database_table_name === 'pricebook' ||
               table.database_table_name === 'pricebook_items' ||
               table.slug === 'contacts' ||
               table.database_table_name === 'contacts'
