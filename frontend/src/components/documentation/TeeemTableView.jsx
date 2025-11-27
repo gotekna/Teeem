@@ -7674,8 +7674,10 @@ export default function TeeemTableView({
                         )}
 
                         {/* Default text filter for columns without specific filterType - Show only if showFilters is true */}
-                        {/* Exclude: select, component, columns with filterable: false, and columns with showFilter unchecked */}
-                        {showFilters && (columnShowFilters[colKey] ?? true) && !column.filterType && colKey !== 'component' && colKey !== 'select' && column.filterable !== false && (
+                        {/* Exclude: select, actions, component - everything else gets a filter if columnShowFilters allows */}
+                        {/* Also show for columns with filterType that doesn't have a specific handler (like currency, number, etc) */}
+                        {showFilters && (columnShowFilters[colKey] ?? true) && colKey !== 'component' && colKey !== 'select' && colKey !== 'actions' &&
+                         (!column.filterType || !['text', 'boolean', 'dropdown'].includes(column.filterType)) && (
                           <input
                             type="text"
                             placeholder="Filter..."
