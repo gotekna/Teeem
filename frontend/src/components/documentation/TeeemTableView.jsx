@@ -659,6 +659,10 @@ export default function TeeemTableView({
       // Load autoFitColumns (default false if not specified)
       const newAutoFitColumns = view.autoFitColumns === undefined ? false : view.autoFitColumns
       setAutoFitColumns(newAutoFitColumns)
+      // Load column widths if saved with view
+      if (view.columnWidths && typeof view.columnWidths === 'object') {
+        setColumnWidths(prev => ({ ...prev, ...view.columnWidths }))
+      }
     }
 
     // Load sort (defensive validation)
@@ -803,6 +807,7 @@ export default function TeeemTableView({
               columnOrder: columns.order || [],
               showFilters: columns.showFilters !== false, // default true
               autoFitColumns: columns.autoFitColumns === true, // default false
+              columnWidths: columns.widths || {},
               sortColumns: Array.isArray(view.sort_order) ? view.sort_order : [],
               groupByColumn: view.group_by_column || null,  // Legacy single
               groupByColumns: groupByColumns,  // New array
@@ -2249,7 +2254,8 @@ export default function TeeemTableView({
             visible: viewData.visibleColumns || {},
             order: viewData.columnOrder || [],
             showFilters: viewData.showFilters === undefined ? true : viewData.showFilters,
-            autoFitColumns: viewData.autoFitColumns === true
+            autoFitColumns: viewData.autoFitColumns === true,
+            widths: viewData.columnWidths || {}
           },
           sort_order: sortColumns,
           group_by_column: groupByColumn,
@@ -2274,6 +2280,7 @@ export default function TeeemTableView({
           columnOrder: columns.order || [],
           showFilters: columns.showFilters !== false, // default true
           autoFitColumns: columns.autoFitColumns === true, // default false
+          columnWidths: columns.widths || {},
           sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
           groupByColumn: response.view.group_by_column || null,
           display_order: 1, // New views go to position 2 (after the first/default view)
@@ -2343,7 +2350,8 @@ export default function TeeemTableView({
             visible: viewData.visibleColumns || {},
             order: viewData.columnOrder || [],
             showFilters: viewData.showFilters === undefined ? true : viewData.showFilters,
-            autoFitColumns: viewData.autoFitColumns === true
+            autoFitColumns: viewData.autoFitColumns === true,
+            widths: viewData.columnWidths || {}
           },
           sort_order: sortColumns,
           group_by_column: groupByColumn,  // Legacy single column (backward compatible)
@@ -2375,6 +2383,7 @@ export default function TeeemTableView({
             columnOrder: columns.order || [],
             showFilters: columns.showFilters !== false, // default true
             autoFitColumns: columns.autoFitColumns === true, // default false
+            columnWidths: columns.widths || {},
             sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
             groupByColumn: response.view.group_by_column || null,  // Legacy single
             groupByColumns: savedGroupByColumns,  // New array
@@ -5533,6 +5542,7 @@ export default function TeeemTableView({
                                     columnOrder: visibilityColumnOrder,
                                     showFilters,
                                     autoFitColumns,
+                                    columnWidths: { ...columnWidths },
                                     sortColumns: [...sortColumns],
                                     groupByColumns: [...groupByColumns]  // Save full array of group by columns
                                   })
@@ -5567,6 +5577,7 @@ export default function TeeemTableView({
                                     columnOrder: visibilityColumnOrder,
                                     showFilters,
                                     autoFitColumns,
+                                    columnWidths: { ...columnWidths },
                                     sortColumns: [...sortColumns],
                                     groupByColumns: [...groupByColumns]  // Save full array of group by columns
                                   })
@@ -5623,6 +5634,7 @@ export default function TeeemTableView({
                                     columnOrder: orderToSave,
                                     showFilters,
                                     autoFitColumns,
+                                    columnWidths: { ...columnWidths },
                                     sortColumns: [...sortColumns],
                                     groupByColumn,
                                     isDefault: savedFilters.length === 0
@@ -5656,6 +5668,7 @@ export default function TeeemTableView({
                                   columnOrder: orderToSave,
                                   showFilters,
                                   autoFitColumns,
+                                  columnWidths: { ...columnWidths },
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
@@ -5691,6 +5704,7 @@ export default function TeeemTableView({
                                   columnOrder: orderToSave,
                                   showFilters,
                                   autoFitColumns,
+                                  columnWidths: { ...columnWidths },
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
@@ -7100,7 +7114,7 @@ export default function TeeemTableView({
                                       [column.key]: !(prev[column.key] ?? true)
                                     }))
                                   }}
-                                  className={`flex-shrink-0 ml-auto w-4 h-4 flex items-center justify-center rounded text-[9px] font-medium transition-colors ${
+                                  className={`flex-shrink-0 w-4 h-4 flex items-center justify-center rounded text-[9px] font-medium transition-colors ${
                                     columnShowFilters[column.key] ?? true
                                       ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60'
                                       : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -7109,6 +7123,34 @@ export default function TeeemTableView({
                                 >
                                   {columnShowFilters[column.key] ?? true ? '⊜' : '⊝'}
                                 </button>
+                              )}
+                              {/* Column width input for visible columns */}
+                              {isVisible && column.key !== 'select' && (
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  value={columnWidths[column.key] || ''}
+                                  placeholder="W"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.target.select()
+                                  }}
+                                  onFocus={(e) => {
+                                    const target = e.target
+                                    setTimeout(() => target.select(), 0)
+                                  }}
+                                  onMouseUp={(e) => e.preventDefault()}
+                                  onChange={(e) => {
+                                    e.stopPropagation()
+                                    const newWidth = parseInt(e.target.value) || 0
+                                    if (newWidth > 0) {
+                                      setColumnWidths(prev => ({ ...prev, [column.key]: newWidth }))
+                                    }
+                                  }}
+                                  className="w-10 text-[9px] text-center text-gray-600 dark:text-gray-300 font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 hover:border-blue-400 focus:border-blue-500 focus:outline-none rounded [appearance:textfield] flex-shrink-0"
+                                  title={`Column width: ${columnWidths[column.key] || 'auto'}px`}
+                                />
                               )}
                             </div>
                           )
