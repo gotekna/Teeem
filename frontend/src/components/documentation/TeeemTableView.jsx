@@ -7809,6 +7809,11 @@ export default function TeeemTableView({
                     return (
                       <tr
                         key={entry.id}
+                        onMouseEnter={() => {
+                          if (isDragging) {
+                            handleDragSelectOver(entry.id)
+                          }
+                        }}
                         onDoubleClick={(e) => {
                           if (!editModeActive) {
                             e.stopPropagation()
@@ -7982,6 +7987,11 @@ export default function TeeemTableView({
               return displayedRows.map((entry, index) => (
               <tr
                 key={entry.id}
+                onMouseEnter={() => {
+                  if (isDragging) {
+                    handleDragSelectOver(entry.id)
+                  }
+                }}
                 onDoubleClick={(e) => {
                   // Double-click row when NOT in edit mode
                   if (!editModeActive) {
