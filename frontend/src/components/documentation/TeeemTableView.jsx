@@ -5742,7 +5742,7 @@ export default function TeeemTableView({
 
                                             {filterColumnDropdownOpen === filter.id && (
                                               <div
-                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg overflow-y-auto whitespace-nowrap"
+                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 border-t-0 rounded-b-lg shadow-lg overflow-y-auto whitespace-nowrap"
                                                 style={{
                                                   // Use fixed positioning to escape overflow containers
                                                   ...((() => {
@@ -5751,7 +5751,7 @@ export default function TeeemTableView({
                                                       const rect = el.getBoundingClientRect()
                                                       const spaceBelow = window.innerHeight - rect.bottom - 20
                                                       return {
-                                                        top: rect.bottom,
+                                                        top: rect.bottom - 1,
                                                         left: rect.left,
                                                         minWidth: rect.width,
                                                         maxHeight: Math.max(200, spaceBelow)
