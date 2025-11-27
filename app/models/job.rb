@@ -41,6 +41,7 @@ class Job < ApplicationRecord
 
   # Callbacks
   after_create :create_documentation_tabs_from_categories
+  after_create :queue_onedrive_folder_creation
 
   # Scopes
   scope :active, -> { where(status: 'Active') }
@@ -168,5 +169,18 @@ class Job < ApplicationRecord
     unless valid_stage
       errors.add(:job_stage, "is not valid for this job type and status")
     end
+  end
+
+  # Queue OneDrive folder creation after job is created
+  def queue_onedrive_folder_creation
+    # Only create folders if OneDrive is connected
+    credential = OrganizationOneDriveCredential.active_credential
+    return unless credential&.valid_credential?
+
+    # Queue the folder creation job (runs in background)
+    CreateJobOnedriveFoldersJob.perform_later(id)
+    update_column(:onedrive_folder_creation_status, 'pending')
+  rescue StandardError => e
+    Rails.logger.error "Failed to queue OneDrive folder creation for job #{id}: #{e.message}"
   end
 end
