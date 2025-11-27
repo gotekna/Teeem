@@ -294,8 +294,8 @@ export default function ContactDetailPage() {
       // By default, select all categories
       setSelectedCategories(response.categories?.map(c => c.category) || [])
     } catch (err) {
-      // Silently ignore 422 errors (contact is not a supplier)
-      if (err.response?.status !== 422) {
+      // Silently ignore "Contact must be a supplier" errors
+      if (!err.message?.includes('must be a supplier')) {
         console.error('Failed to load categories:', err)
       }
       setSourceCategories([])
@@ -348,8 +348,8 @@ export default function ContactDetailPage() {
       // Show ALL categories where this contact has any involvement (default supplier OR price histories)
       setCurrentContactCategories(response.categories || [])
     } catch (err) {
-      // Silently ignore 422 errors (contact is not a supplier)
-      if (err.response?.status !== 422) {
+      // Silently ignore "Contact must be a supplier" errors
+      if (!err.message?.includes('must be a supplier')) {
         console.error('Failed to load current contact categories:', err)
       }
       setCurrentContactCategories([])
