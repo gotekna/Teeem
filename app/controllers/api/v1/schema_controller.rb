@@ -274,7 +274,7 @@ module Api
           'solid_queue_recurring_tasks',
           'solid_queue_scheduled_executions',
           'solid_queue_semaphores',
-          'tables',
+          'foundations',
           'columns',
           'versions'
         ]
@@ -318,10 +318,10 @@ module Api
 
         # Disable ActiveRecord query cache for this request
         ActiveRecord::Base.uncached do
-          system_tables = Table.where(table_type: 'system').order(:name)
+          system_foundations = Foundation.where(table_type: 'system').order(:name)
 
-          results = system_tables.map do |table|
-            audit_system_table(table)
+          results = system_foundations.map do |foundation|
+            audit_system_foundation(foundation)
           end
 
           # Calculate summary
@@ -371,19 +371,19 @@ module Api
           updated = []
           skipped = []
 
-          Table.find_each do |table|
-            if production_has_ui.key?(table.id)
-              old_value = table.has_ui
-              new_value = production_has_ui[table.id]
+          Foundation.find_each do |foundation|
+            if production_has_ui.key?(foundation.id)
+              old_value = foundation.has_ui
+              new_value = production_has_ui[foundation.id]
 
               if old_value != new_value
-                table.update!(has_ui: new_value)
-                updated << { id: table.id, name: table.name, old: old_value, new: new_value }
+                foundation.update!(has_ui: new_value)
+                updated << { id: foundation.id, name: foundation.name, old: old_value, new: new_value }
               else
-                skipped << { id: table.id, name: table.name, reason: 'already_synced' }
+                skipped << { id: foundation.id, name: foundation.name, reason: 'already_synced' }
               end
             else
-              skipped << { id: table.id, name: table.name, reason: 'not_in_production' }
+              skipped << { id: foundation.id, name: foundation.name, reason: 'not_in_production' }
             end
           end
 
@@ -402,16 +402,16 @@ module Api
       end
 
       # GET /api/v1/schema/columns
-      # Returns all columns across all user tables for Developer Tools view
+      # Returns all columns across all user foundations for Developer Tools view
       def all_columns
-        columns = Column.includes(:table, :lookup_table).order(:table_id, :position)
+        columns = Column.includes(:foundation, :lookup_foundation).order(:foundation_id, :position)
 
         columns_data = columns.map do |col|
           {
             id: col.id,
-            table_id: col.table_id,
-            table_name: col.table&.name,
-            table_slug: col.table&.slug,
+            foundation_id: col.foundation_id,
+            foundation_name: col.foundation&.name,
+            foundation_slug: col.foundation&.slug,
             name: col.name,
             column_name: col.column_name,
             column_type: col.column_type,
@@ -427,8 +427,8 @@ module Api
             max_value: col.max_value,
             validation_message: col.validation_message,
             position: col.position,
-            lookup_table_id: col.lookup_table_id,
-            lookup_table_name: col.lookup_table&.name,
+            lookup_foundation_id: col.lookup_foundation_id,
+            lookup_foundation_name: col.lookup_foundation&.name,
             lookup_display_column: col.lookup_display_column,
             is_multiple: col.is_multiple,
             has_cross_table_refs: col.has_cross_table_refs,
