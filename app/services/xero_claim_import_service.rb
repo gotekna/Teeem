@@ -174,10 +174,12 @@ class XeroClaimImportService
     # Build description from line items
     description = build_description(invoice, tracking_option_id)
 
-    # Create JobClaim
+    # Create JobClaim - use description as the claim name (user preference)
+    # Keep invoice_number for reference but description is the primary name
+    claim_name = description.presence || invoice_number || "XERO-#{invoice_id[0..7]}"
     job.job_claims.create!(
-      invoice_number: invoice_number || "XERO-#{invoice_id[0..7]}",
-      description: description.truncate(500),
+      invoice_number: invoice_number,
+      description: claim_name.truncate(500),
       amount: job_total,
       amount_paid: invoice['AmountPaid'] || 0,
       status: determine_status(invoice),
