@@ -4,21 +4,21 @@ class Api::V1::GoldTableSyncController < ApplicationController
   # GET /api/v1/gold_table_sync
   # Returns comparison of column type definitions from all sources
   def index
-    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: 'Gold Standard Reference')
 
-    unless gold_standard_table
+    unless gold_standard_foundation
       render json: {
         success: false,
-        error: 'Gold Standard Reference table not found'
+        error: 'Gold Standard Reference foundation not found'
       }, status: :not_found
       return
     end
 
-    # Get all columns from Gold Standard table (from database schema)
+    # Get all columns from Gold Standard foundation (from database schema)
     db_columns = ActiveRecord::Base.connection.columns('gold_standard_items')
 
     # Get column metadata from columns table
-    metadata_columns = gold_standard_table.columns.index_by(&:column_name)
+    metadata_columns = gold_standard_foundation.columns.index_by(&:column_name)
 
     comparison_data = db_columns.map do |db_col|
       column_name = db_col.name

@@ -87,6 +87,7 @@ class Foundation < ApplicationRecord
   private
 
   def name_not_reserved
+    return if allow_reserved_name
     if name.present? && RESERVED_NAMES.include?(name.downcase)
       errors.add(:name, "cannot be a reserved name (#{RESERVED_NAMES.join(', ')})")
     end

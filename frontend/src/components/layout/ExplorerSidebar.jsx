@@ -100,7 +100,7 @@ export default function ExplorerSidebar({ onUploadClick }) {
   const loadPriceBooks = async () => {
     try {
       setLoadingPriceBooks(true)
-      const response = await api.get('/api/v1/tables')
+      const response = await api.get('/api/v1/foundations')
       // Find tables tagged as "Price Book" or with name containing "price"
       const priceBookTables = (response.tables || []).filter(table =>
         table.is_live && (

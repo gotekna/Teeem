@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
-export default function LookupConfigModal({ column, tableId, onSave, onClose }) {
+export default function LookupConfigModal({ column, foundationId, onSave, onClose }) {
   const [loading, setLoading] = useState(false)
   const [tables, setTables] = useState([])
   const [targetTableColumns, setTargetTableColumns] = useState([])
   const [formData, setFormData] = useState({
-    lookup_table_id: column?.lookup_table_id || '',
+    lookup_foundation_id: column?.lookup_foundation_id || '',
     lookup_display_column: column?.lookup_display_column || '',
   })
 
@@ -15,27 +15,27 @@ export default function LookupConfigModal({ column, tableId, onSave, onClose }) 
   useEffect(() => {
     const fetchTables = async () => {
       try {
-        const response = await api.get('/api/v1/tables')
+        const response = await api.get('/api/v1/foundations')
         // Filter out the current table
-        const availableTables = response.data.tables.filter(t => t.id !== tableId)
+        const availableTables = response.data.tables.filter(t => t.id !== foundationId)
         setTables(availableTables)
       } catch (err) {
         console.error('Error fetching tables:', err)
       }
     }
     fetchTables()
-  }, [tableId])
+  }, [foundationId])
 
   // Fetch columns from selected target table
   useEffect(() => {
     const fetchTargetColumns = async () => {
-      if (!formData.lookup_table_id) {
+      if (!formData.lookup_foundation_id) {
         setTargetTableColumns([])
         return
       }
 
       try {
-        const response = await api.get(`/api/v1/tables/${formData.lookup_table_id}`)
+        const response = await api.get(`/api/v1/foundations/${formData.lookup_foundation_id}`)
         setTargetTableColumns(response.data.table.columns || [])
       } catch (err) {
         console.error('Error fetching target table columns:', err)
@@ -43,10 +43,10 @@ export default function LookupConfigModal({ column, tableId, onSave, onClose }) 
       }
     }
     fetchTargetColumns()
-  }, [formData.lookup_table_id])
+  }, [formData.lookup_foundation_id])
 
   const handleSave = async () => {
-    if (!formData.lookup_table_id || !formData.lookup_display_column) {
+    if (!formData.lookup_foundation_id || !formData.lookup_display_column) {
       alert('Please select both a target table and display field')
       return
     }
@@ -86,10 +86,10 @@ export default function LookupConfigModal({ column, tableId, onSave, onClose }) 
               Link to table
             </label>
             <select
-              value={formData.lookup_table_id}
+              value={formData.lookup_foundation_id}
               onChange={(e) => setFormData({
                 ...formData,
-                lookup_table_id: e.target.value,
+                lookup_foundation_id: e.target.value,
                 lookup_display_column: '' // Reset display column when table changes
               })}
               className="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
@@ -103,7 +103,7 @@ export default function LookupConfigModal({ column, tableId, onSave, onClose }) 
             </select>
           </div>
 
-          {formData.lookup_table_id && (
+          {formData.lookup_foundation_id && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Display field
@@ -137,7 +137,7 @@ export default function LookupConfigModal({ column, tableId, onSave, onClose }) 
           </button>
           <button
             onClick={handleSave}
-            disabled={loading || !formData.lookup_table_id || !formData.lookup_display_column}
+            disabled={loading || !formData.lookup_foundation_id || !formData.lookup_display_column}
             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Saving...' : 'Save'}

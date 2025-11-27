@@ -451,8 +451,8 @@ module Api
 
       private
 
-      def get_record_count(table)
-        table.dynamic_model.count
+      def get_record_count(foundation)
+        foundation.dynamic_model.count
       rescue
         0
       end
@@ -610,13 +610,13 @@ module Api
         0
       end
 
-      # Audit a single system table for sync status
-      def audit_system_table(table)
+      # Audit a single system foundation for sync status
+      def audit_system_foundation(foundation)
         issues = []
         warnings = []
 
         # Get actual database table name
-        actual_table_name = get_actual_table_name(table.model_class)
+        actual_table_name = get_actual_table_name(foundation.model_class)
 
         # Check 1: Database table exists
         db_exists = actual_table_name.present? && ActiveRecord::Base.connection.table_exists?(actual_table_name)
@@ -626,12 +626,12 @@ module Api
 
         # Check 2: Model class is valid
         model_valid = false
-        if table.model_class.present?
+        if foundation.model_class.present?
           begin
-            table.model_class.constantize
+            foundation.model_class.constantize
             model_valid = true
           rescue NameError
-            issues << "Model class '#{table.model_class}' not found"
+            issues << "Model class '#{foundation.model_class}' not found"
           end
         else
           warnings << "No model_class defined"
@@ -648,7 +648,7 @@ module Api
 
           # Get registered columns count (from columns table)
           # Query directly to bypass all caching layers
-          registered_columns_count = Column.where(table_id: table.id).count
+          registered_columns_count = Column.where(foundation_id: foundation.id).count
 
           # Get record count
           record_count = ActiveRecord::Base.connection.select_value(
@@ -673,11 +673,11 @@ module Api
                  end
 
         {
-          table_id: table.id,
-          name: table.name,
-          slug: table.slug,
-          icon: table.icon,
-          model_class: table.model_class,
+          foundation_id: foundation.id,
+          name: foundation.name,
+          slug: foundation.slug,
+          icon: foundation.icon,
+          model_class: foundation.model_class,
           database_table_name: actual_table_name,
           status: status,
           db_exists: db_exists,

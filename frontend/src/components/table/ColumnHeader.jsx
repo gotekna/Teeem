@@ -30,7 +30,7 @@ const COLUMN_TYPES = [
   { value: 'lookup', label: 'Lookup', icon: ArrowsRightLeftIcon, needsConfig: true },
 ]
 
-export default function ColumnHeader({ column, onTypeChange, tableId }) {
+export default function ColumnHeader({ column, onTypeChange, foundationId }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showLookupConfig, setShowLookupConfig] = useState(false)
   const dropdownRef = useRef(null)
@@ -127,7 +127,7 @@ export default function ColumnHeader({ column, onTypeChange, tableId }) {
       {showLookupConfig && (
         <LookupConfigSlideout
           column={column}
-          tableId={tableId}
+          foundationId={foundationId}
           onSave={handleLookupSave}
           onClose={() => setShowLookupConfig(false)}
         />

@@ -146,7 +146,7 @@ export default function UsersPage() {
         <div className="flex-1">
           <TeeemTableView
             category="users"
-            tableId="users"
+            foundationId="users"
             tableName="Users"
             entries={users}
             columns={USER_COLUMNS}

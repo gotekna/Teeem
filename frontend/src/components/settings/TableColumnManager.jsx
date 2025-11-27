@@ -29,7 +29,7 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
   const loadColumns = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/tables/${table.id}`)
+      const response = await api.get(`/api/v1/foundations/${table.id}`)
       setColumns(response.table.columns || [])
     } catch (err) {
       console.error('Failed to load columns:', err)
@@ -75,7 +75,7 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
       setEditingRequired(false)
 
       // Then update on server
-      const response = await api.put(`/api/v1/tables/${table.id}/columns/${columnId}`, {
+      const response = await api.put(`/api/v1/foundations/${table.id}/columns/${columnId}`, {
         column: {
           name: editingName.trim(),
           column_type: editingType,
@@ -106,7 +106,7 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
     }
 
     try {
-      const response = await api.delete(`/api/v1/tables/${table.id}/columns/${column.id}`)
+      const response = await api.delete(`/api/v1/foundations/${table.id}/columns/${column.id}`)
 
       if (response.success) {
         // Remove from UI after successful delete
@@ -134,7 +134,7 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
 
   const handleAddColumn = async (columnData) => {
     try {
-      const response = await api.post(`/api/v1/tables/${table.id}/columns`, {
+      const response = await api.post(`/api/v1/foundations/${table.id}/columns`, {
         column: columnData
       })
 
@@ -349,7 +349,7 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           onAdd={handleAddColumn}
-          tableId={table.id}
+          foundationId={table.id}
         />
       )}
     </>

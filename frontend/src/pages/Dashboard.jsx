@@ -45,7 +45,7 @@ export default function Dashboard() {
   const loadTables = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/api/v1/tables')
+      const response = await api.get('/api/v1/foundations')
       // Only show tables that are marked as live
       const liveTables = (response.tables || []).filter(table => table.is_live)
       setTables(liveTables)
@@ -68,7 +68,7 @@ export default function Dashboard() {
 
     try {
       // Step 1: Create the table
-      const tableResponse = await api.post('/api/v1/tables', {
+      const tableResponse = await api.post('/api/v1/foundations', {
         table: {
           name: newTableName,
           searchable: true
@@ -80,7 +80,7 @@ export default function Dashboard() {
         return
       }
 
-      const tableId = tableResponse.table.id
+      const foundationId = tableResponse.table.id
       const tableSlug = tableResponse.table.slug
 
       // Step 2: Create default columns
@@ -103,7 +103,7 @@ export default function Dashboard() {
           required: false
         }
 
-        const columnResponse = await api.post(`/api/v1/tables/${tableId}/columns`, {
+        const columnResponse = await api.post(`/api/v1/foundations/${foundationId}/columns`, {
           column: columnData
         })
 
@@ -114,12 +114,12 @@ export default function Dashboard() {
       }
 
       // Step 3: Mark table as live
-      await api.put(`/api/v1/tables/${tableId}`, {
+      await api.put(`/api/v1/foundations/${foundationId}`, {
         table: { is_live: true }
       })
 
       // Step 4: Navigate to the spreadsheet view
-      navigate(`/tables/${tableId}/${tableSlug}`)
+      navigate(`/tables/${foundationId}/${tableSlug}`)
     } catch (err) {
       console.error('Table creation error:', err)
       setCreateError(err.response?.data?.error || err.message || 'Failed to create table')

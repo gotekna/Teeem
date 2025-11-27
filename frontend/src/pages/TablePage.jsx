@@ -66,7 +66,7 @@ function convertColumnsToTEEEMFormat(apiColumns, tableSlug) {
       sumType: defaults.sumType,
       tooltip: col.description || `${col.column_type} column`,
       // Pass lookup info if available
-      lookup_table_id: col.lookup_table_id,
+      lookup_foundation_id: col.lookup_foundation_id,
       lookup_display_column: col.lookup_display_column,
     })
   })
@@ -328,7 +328,7 @@ export default function TablePage({ embedded = false }) {
   const loadTable = async () => {
     try {
       console.log('[Load Table] Loading table with ID/slug:', id)
-      const response = await api.get(`/api/v1/tables/${id}`)
+      const response = await api.get(`/api/v1/foundations/${id}`)
       console.log('[Load Table] ✅ Table loaded:', response.table?.name)
       setTable(response.table)
 
@@ -357,8 +357,8 @@ export default function TablePage({ embedded = false }) {
     progressiveLoadLog('🎯 Loading views for table:', table.id)
 
     try {
-      const data = await api.get(`/api/v1/table_views`, {
-        params: { table_id: table.id }
+      const data = await api.get(`/api/v1/foundation_views`, {
+        params: { foundation_id: table.id }
       })
 
       if (data && data.success && data.views) {
@@ -468,7 +468,7 @@ export default function TablePage({ embedded = false }) {
 
       // Views are already loaded by loadViewsFirst() - no need to load them here
 
-      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}`, {
+      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}`, {
         onDownloadProgress: (progressEvent) => {
           // Just update progress if we have real data
           if (progressEvent.total) {
@@ -582,7 +582,7 @@ export default function TablePage({ embedded = false }) {
       const activeElement = document.activeElement
 
       // Load all items with full data (no fields=minimal param)
-      const response = await api.get(`/api/v1/tables/${id}/records?per_page=10000&page=1`)
+      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=10000&page=1`)
 
       setFullRecords(response.records || [])
       setFullDataLoaded(true)
@@ -613,7 +613,7 @@ export default function TablePage({ embedded = false }) {
       const activeElement = document.activeElement
 
       // Load full fields (no fields=minimal param)
-      const response = await api.get(`/api/v1/tables/${id}/records?per_page=${perPage}&page=${page}`)
+      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}`)
 
       if (response.records && response.records.length > 0) {
         progressiveLoadLog('✅ Full fields loaded:', {
@@ -695,7 +695,7 @@ export default function TablePage({ embedded = false }) {
         Object.entries(recordData).filter(([_, v]) => v !== '')
       )
 
-      const response = await api.put(`/api/v1/tables/${id}/records/${entry.id}`, {
+      const response = await api.put(`/api/v1/foundations/${id}/records/${entry.id}`, {
         record: cleanedData
       })
       if (response.success) {
@@ -709,7 +709,7 @@ export default function TablePage({ embedded = false }) {
 
   const handleDelete = async (entry) => {
     try {
-      const response = await api.delete(`/api/v1/tables/${id}/records/${entry.id}`)
+      const response = await api.delete(`/api/v1/foundations/${id}/records/${entry.id}`)
       if (response.success) {
         await loadRecords()
       }
@@ -723,7 +723,7 @@ export default function TablePage({ embedded = false }) {
     try {
       await Promise.all(
         entries.map(entry =>
-          api.delete(`/api/v1/tables/${id}/records/${entry.id}`)
+          api.delete(`/api/v1/foundations/${id}/records/${entry.id}`)
         )
       )
       await loadRecords()
@@ -745,7 +745,7 @@ export default function TablePage({ embedded = false }) {
         newRecordData[col.column_name] = ''
       })
 
-      const response = await api.post(`/api/v1/tables/${id}/records`, {
+      const response = await api.post(`/api/v1/foundations/${id}/records`, {
         record: newRecordData
       })
 
@@ -883,8 +883,8 @@ export default function TablePage({ embedded = false }) {
       <div className="flex-1 min-h-0 overflow-auto">
         {teeemColumns.length > 0 ? (
           <TeeemTableView
-            tableId={`table-${table.slug || id}`}
-            tableIdNumeric={table.id}
+            foundationId={`table-${table.slug || id}`}
+            foundationIdNumeric={table.id}
             tableName={table.name}
             entries={records}
             columns={teeemColumns}

@@ -31,7 +31,7 @@ export default function AutocompleteLookupCell({ column, value, onChange, isEdit
 
     try {
       const response = await api.get(
-        `/api/v1/tables/${column.table_id}/columns/${column.id}/lookup_search`,
+        `/api/v1/foundations/${column.foundation_id}/columns/${column.id}/lookup_search`,
         { params: { q: term } }
       )
       setResults(response.data.results || [])

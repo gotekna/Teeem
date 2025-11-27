@@ -22,7 +22,7 @@ export default function ImportProgress({ sessionKey, onComplete }) {
           if (response.status === 'completed') {
             // Wait a moment to show 100% before completing
             setTimeout(() => {
-              onComplete(response.table_id)
+              onComplete(response.foundation_id)
             }, 1000)
           } else if (response.status === 'failed') {
             setError(response.error || 'Import failed')

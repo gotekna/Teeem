@@ -145,7 +145,7 @@ export default function UserManagementTab() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         category="users"
-        tableId="users-quick-view"
+        foundationId="users-quick-view"
         columns={USER_COLUMNS}
       />
 

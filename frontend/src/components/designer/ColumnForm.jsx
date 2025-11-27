@@ -34,7 +34,7 @@ export default function ColumnForm({ table, column, onClose }) {
     min_value: column?.min_value || '',
     default_value: column?.default_value || '',
     validation_message: column?.validation_message || '',
-    lookup_table_id: column?.lookup_table_id || '',
+    lookup_foundation_id: column?.lookup_foundation_id || '',
     lookup_display_column: column?.lookup_display_column || '',
     is_multiple: column?.is_multiple || false,
   })
@@ -53,7 +53,7 @@ export default function ColumnForm({ table, column, onClose }) {
   useEffect(() => {
     const fetchTables = async () => {
       try {
-        const response = await api.get('/api/v1/tables')
+        const response = await api.get('/api/v1/foundations')
         // Filter out the current table (can't lookup to self)
         setTables(response.data.tables.filter(t => t.id !== table.id))
       } catch (err) {
@@ -69,13 +69,13 @@ export default function ColumnForm({ table, column, onClose }) {
   // Fetch columns from the selected lookup table
   useEffect(() => {
     const fetchTargetColumns = async () => {
-      if (!formData.lookup_table_id) {
+      if (!formData.lookup_foundation_id) {
         setTargetTableColumns([])
         return
       }
 
       try {
-        const response = await api.get(`/api/v1/tables/${formData.lookup_table_id}`)
+        const response = await api.get(`/api/v1/foundations/${formData.lookup_foundation_id}`)
         setTargetTableColumns(response.data.table.columns || [])
       } catch (err) {
         console.error('Error fetching target table columns:', err)
@@ -83,10 +83,10 @@ export default function ColumnForm({ table, column, onClose }) {
       }
     }
 
-    if (isLookupType && formData.lookup_table_id) {
+    if (isLookupType && formData.lookup_foundation_id) {
       fetchTargetColumns()
     }
-  }, [isLookupType, formData.lookup_table_id])
+  }, [isLookupType, formData.lookup_foundation_id])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -104,9 +104,9 @@ export default function ColumnForm({ table, column, onClose }) {
       }
 
       if (isEditing) {
-        await api.put(`/api/v1/tables/${table.id}/columns/${column.id}`, { column: columnData })
+        await api.put(`/api/v1/foundations/${table.id}/columns/${column.id}`, { column: columnData })
       } else {
-        await api.post(`/api/v1/tables/${table.id}/columns`, { column: columnData })
+        await api.post(`/api/v1/foundations/${table.id}/columns`, { column: columnData })
       }
       onClose()
     } catch (err) {
@@ -215,10 +215,10 @@ export default function ColumnForm({ table, column, onClose }) {
                           Link to Table *
                         </label>
                         <select
-                          value={formData.lookup_table_id}
+                          value={formData.lookup_foundation_id}
                           onChange={(e) => setFormData({
                             ...formData,
-                            lookup_table_id: e.target.value,
+                            lookup_foundation_id: e.target.value,
                             lookup_display_column: '' // Reset display column when table changes
                           })}
                           required={isLookupType}
@@ -235,7 +235,7 @@ export default function ColumnForm({ table, column, onClose }) {
                       </div>
 
                       {/* Display Column Selector */}
-                      {formData.lookup_table_id && (
+                      {formData.lookup_foundation_id && (
                         <div className="mb-3">
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Display Field *

@@ -3,7 +3,7 @@ import { XMarkIcon } from '@heroicons/react/24/outline'
 import LookupConfigSlideout from './LookupConfigSlideout'
 import { COLUMN_TYPES } from '../../constants/columnTypes'
 
-export default function AddColumnModal({ isOpen, onClose, onAdd, tableId }) {
+export default function AddColumnModal({ isOpen, onClose, onAdd, foundationId }) {
   const [step, setStep] = useState(1) // 1 = column type, 2 = column name + settings
   const [columnName, setColumnName] = useState('')
   const [columnType, setColumnType] = useState('single_line_text')
@@ -27,15 +27,15 @@ export default function AddColumnModal({ isOpen, onClose, onAdd, tableId }) {
       setIsSubmitting(false)
       setShowColumnSuggestions(false)
       setTestResult(null)
-    } else if (isOpen && tableId) {
+    } else if (isOpen && foundationId) {
       // Fetch available columns for autocomplete
       fetchTableColumns()
     }
-  }, [isOpen, tableId])
+  }, [isOpen, foundationId])
 
   const fetchTableColumns = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/tables/${tableId}`)
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/foundations/${foundationId}`)
       const data = await response.json()
       if (data.success && data.table) {
         setAvailableColumns(data.table.columns || [])
@@ -137,7 +137,7 @@ export default function AddColumnModal({ isOpen, onClose, onAdd, tableId }) {
     try {
       setTestingFormula(true)
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/tables/${tableId}/columns/test_formula`,
+        `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/v1/foundations/${foundationId}/columns/test_formula`,
         {
           method: 'POST',
           headers: {
@@ -180,7 +180,7 @@ export default function AddColumnModal({ isOpen, onClose, onAdd, tableId }) {
     const columnData = {
       name: columnName.trim(),
       column_type: columnType, // Use the selected columnType (lookup or multiple_lookups)
-      lookup_table_id: lookupConfig.lookup_table_id,
+      lookup_foundation_id: lookupConfig.lookup_foundation_id,
       lookup_display_column: lookupConfig.lookup_display_column
     }
 
@@ -434,7 +434,7 @@ export default function AddColumnModal({ isOpen, onClose, onAdd, tableId }) {
       {showLookupConfig && (
         <LookupConfigSlideout
           column={{ name: columnName }}
-          tableId={tableId}
+          foundationId={foundationId}
           onSave={handleLookupSave}
           onClose={() => setShowLookupConfig(false)}
         />

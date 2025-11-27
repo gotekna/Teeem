@@ -165,8 +165,8 @@ function calculateLayout(tables, relationships) {
   relationships.forEach((rel) => {
     edges.push({
       id: `edge-${rel.id}`,
-      source: `table-${rel.from_table_id}`,
-      target: `table-${rel.to_table_id}`,
+      source: `table-${rel.from_foundation_id}`,
+      target: `table-${rel.to_foundation_id}`,
       type: 'smoothstep',
       animated: false,
       label: rel.from_column_name,
@@ -275,7 +275,7 @@ function SchemaPageContent() {
     // Filter relationships to only include visible tables
     const visibleTableIds = new Set(filteredTables.map(t => t.id))
     const filteredRelationships = schema.relationships.filter(
-      rel => visibleTableIds.has(rel.from_table_id) && visibleTableIds.has(rel.to_table_id)
+      rel => visibleTableIds.has(rel.from_foundation_id) && visibleTableIds.has(rel.to_foundation_id)
     )
 
     // Calculate layout

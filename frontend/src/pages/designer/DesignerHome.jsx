@@ -12,7 +12,7 @@ export default function DesignerHome() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, tableId: null, tableName: '' })
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, foundationId: null, tableName: '' })
   const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
@@ -22,7 +22,7 @@ export default function DesignerHome() {
   const fetchTables = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/api/v1/tables')
+      const response = await api.get('/api/v1/foundations')
       setTables(response.tables || [])
     } catch (err) {
       setError(err.message)
@@ -31,13 +31,13 @@ export default function DesignerHome() {
     }
   }
 
-  const openDeleteModal = (tableId, tableName) => {
-    setDeleteModal({ isOpen: true, tableId, tableName })
+  const openDeleteModal = (foundationId, tableName) => {
+    setDeleteModal({ isOpen: true, foundationId, tableName })
   }
 
   const closeDeleteModal = () => {
     if (!isDeleting) {
-      setDeleteModal({ isOpen: false, tableId: null, tableName: '' })
+      setDeleteModal({ isOpen: false, foundationId: null, tableName: '' })
     }
   }
 
@@ -45,8 +45,8 @@ export default function DesignerHome() {
     setIsDeleting(true)
 
     try {
-      await api.delete(`/api/v1/tables/${deleteModal.tableId}`)
-      setDeleteModal({ isOpen: false, tableId: null, tableName: '' })
+      await api.delete(`/api/v1/foundations/${deleteModal.foundationId}`)
+      setDeleteModal({ isOpen: false, foundationId: null, tableName: '' })
       fetchTables() // Refresh the list
     } catch (err) {
       alert(`Error deleting table: ${err.message}`)

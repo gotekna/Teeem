@@ -117,7 +117,7 @@ export default function TableBuilder() {
 
     try {
       // Step 1: Create the table
-      const tableResponse = await api.post('/api/v1/tables', {
+      const tableResponse = await api.post('/api/v1/foundations', {
         table: {
           name: tableName,
           searchable: true
@@ -129,7 +129,7 @@ export default function TableBuilder() {
         return
       }
 
-      const tableId = tableResponse.table.id
+      const foundationId = tableResponse.table.id
       const tableSlug = tableResponse.table.slug
 
       // Step 2: Create each column
@@ -144,7 +144,7 @@ export default function TableBuilder() {
           required: false
         }
 
-        const columnResponse = await api.post(`/api/v1/tables/${tableId}/columns`, {
+        const columnResponse = await api.post(`/api/v1/foundations/${foundationId}/columns`, {
           column: columnData
         })
 

@@ -2,7 +2,7 @@ import { useParams, useNavigate, useSearchParams, useLocation } from 'react-rout
 import ColumnEditorFullView from '../components/schema/ColumnEditorFullView'
 
 export default function ColumnEditorPage() {
-  const { tableId } = useParams()
+  const { foundationId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const location = useLocation()
@@ -18,7 +18,7 @@ export default function ColumnEditorPage() {
 
   return (
     <ColumnEditorFullView
-      tableId={parseInt(tableId)}
+      foundationId={parseInt(foundationId)}
       tableName={tableName}
       onClose={handleClose}
       isNewMode={isNewMode}

@@ -131,7 +131,7 @@ export default function TablesTab() {
       setCreatingSetupViews(true)
       setSetupViewResults(null)
 
-      const response = await api.post('/api/v1/table_views/create_all_setup_views')
+      const response = await api.post('/api/v1/foundation_views/create_all_setup_views')
 
       if (response.success) {
         setSetupViewResults(response)
@@ -163,10 +163,10 @@ export default function TablesTab() {
     setEditingName('')
   }
 
-  const handleSaveEdit = async (tableId) => {
+  const handleSaveEdit = async (foundationId) => {
     try {
       setSaving(true)
-      await api.patch(`/api/v1/tables/${tableId}`, {
+      await api.patch(`/api/v1/foundations/${foundationId}`, {
         table: {
           name: editingName
         }
@@ -174,7 +174,7 @@ export default function TablesTab() {
 
       // Update local state
       setTables(tables.map(t =>
-        t.id === tableId ? { ...t, name: editingName } : t
+        t.id === foundationId ? { ...t, name: editingName } : t
       ))
 
       setEditingId(null)
@@ -192,10 +192,10 @@ export default function TablesTab() {
     setEditingFeature(table.feature || '')
   }
 
-  const handleSaveFeature = async (tableId, newFeature) => {
+  const handleSaveFeature = async (foundationId, newFeature) => {
     try {
       setSaving(true)
-      await api.patch(`/api/v1/tables/${tableId}`, {
+      await api.patch(`/api/v1/foundations/${foundationId}`, {
         table: {
           feature: newFeature || null
         }
@@ -203,7 +203,7 @@ export default function TablesTab() {
 
       // Update local state
       setTables(tables.map(t =>
-        t.id === tableId ? { ...t, feature: newFeature || null } : t
+        t.id === foundationId ? { ...t, feature: newFeature || null } : t
       ))
 
       setEditingFeatureId(null)
@@ -246,7 +246,7 @@ export default function TablesTab() {
 
     try {
       setCreating(true)
-      const response = await api.post('/api/v1/tables', {
+      const response = await api.post('/api/v1/foundations', {
         table: {
           name: newTableName,
           is_live: false
@@ -272,10 +272,10 @@ export default function TablesTab() {
     }
   }
 
-  const handleToggleHasUi = async (tableId, hasUi) => {
+  const handleToggleHasUi = async (foundationId, hasUi) => {
     try {
       setSaving(true)
-      await api.patch(`/api/v1/tables/${tableId}`, {
+      await api.patch(`/api/v1/foundations/${foundationId}`, {
         table: {
           has_ui: hasUi
         }
@@ -283,7 +283,7 @@ export default function TablesTab() {
 
       // Update local state
       setTables(tables.map(t =>
-        t.id === tableId ? { ...t, has_ui: hasUi } : t
+        t.id === foundationId ? { ...t, has_ui: hasUi } : t
       ))
     } catch (err) {
       console.error('Failed to update has_ui:', err)
@@ -308,7 +308,7 @@ export default function TablesTab() {
     // Check if other tables have lookup columns referencing this table
     const referencingTables = tables.filter(t =>
       t.id !== table.id &&
-      t.columns?.some(col => col.lookup_table_id === table.id)
+      t.columns?.some(col => col.lookup_foundation_id === table.id)
     )
 
     if (referencingTables.length > 0) {
@@ -322,7 +322,7 @@ export default function TablesTab() {
     }
 
     try {
-      const response = await api.delete(`/api/v1/tables/${table.id}`)
+      const response = await api.delete(`/api/v1/foundations/${table.id}`)
 
       if (response.success) {
         // Refresh tables list
@@ -652,7 +652,7 @@ export default function TablesTab() {
               <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
                 {setupViewResults.results?.created?.map((item, idx) => (
                   <div key={`created-${idx}`} className="text-green-600 dark:text-green-400">
-                    ✓ Created Setup view for: {item.table_name} (ID: {item.table_id})
+                    ✓ Created Setup view for: {item.table_name} (ID: {item.foundation_id})
                   </div>
                 ))}
                 {setupViewResults.results?.skipped?.map((item, idx) => (
@@ -943,7 +943,7 @@ export default function TablesTab() {
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
                         {(() => {
                           // Find sync result for this table
-                          const syncResult = syncResults?.results?.find(r => r.table_id === table.id)
+                          const syncResult = syncResults?.results?.find(r => r.foundation_id === table.id)
                           if (syncResult && syncResult.db_exists) {
                             const virtualCount = syncResult.registered_columns_count - syncResult.db_columns_count
 

@@ -233,8 +233,8 @@ function App() {
         <Route path="/tables/:id" element={<AppLayout><TablePage /></AppLayout>} />
         <Route path="/embed/tables/:id" element={<TablePage embedded />} />
         <Route path="/embed/tables/:id/:slug" element={<TablePage embedded />} />
-        <Route path="/tables/:tableId/columns/new" element={<ColumnEditorPage />} />
-        <Route path="/tables/:tableId/columns" element={<ColumnEditorPage />} />
+        <Route path="/tables/:foundationId/columns/new" element={<ColumnEditorPage />} />
+        <Route path="/tables/:foundationId/columns" element={<ColumnEditorPage />} />
         <Route path="/designer" element={<AppLayout><DesignerHome /></AppLayout>} />
         <Route path="/designer/tables/new" element={<AppLayout><TableBuilder /></AppLayout>} />
         <Route path="/designer/tables/:id" element={<AppLayout><TableSettings /></AppLayout>} />

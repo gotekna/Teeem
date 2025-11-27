@@ -166,8 +166,8 @@ export default function GoldStandardTableTab() {
   // Fetch column IDs from API and merge with static config
   const fetchColumnIds = async () => {
     try {
-      console.log('🔍 fetchColumnIds: Starting fetch from /api/v1/tables/1')
-      const response = await fetch('/api/v1/tables/1')
+      console.log('🔍 fetchColumnIds: Starting fetch from /api/v1/foundations/1')
+      const response = await fetch('/api/v1/foundations/1')
       if (!response.ok) {
         console.log('❌ fetchColumnIds: Response not OK', response.status)
         return
@@ -193,11 +193,11 @@ export default function GoldStandardTableTab() {
         // Find matching database column by column_name (key)
         const dbCol = dbColumns.find(dc => dc.column_name === col.key)
         if (dbCol) {
-          // Merge ALL database column properties (id, lookup_table_id, lookup_display_column, header_align, data_align, etc.)
+          // Merge ALL database column properties (id, lookup_foundation_id, lookup_display_column, header_align, data_align, etc.)
           const merged = {
             ...col,
             id: dbCol.id,
-            lookup_table_id: dbCol.lookup_table_id,
+            lookup_foundation_id: dbCol.lookup_foundation_id,
             lookup_display_column: dbCol.lookup_display_column,
             header_align: dbCol.header_align,
             data_align: dbCol.data_align
@@ -326,8 +326,8 @@ export default function GoldStandardTableTab() {
 
       <div className="flex-1 min-h-0 px-6">
       <TeeemTableView
-        tableId="gold-standard-table"
-        tableIdNumeric={1}
+        foundationId="gold-standard-table"
+        foundationIdNumeric={1}
         tableName="Gold Standard Reference"
         entries={data}
         columns={columnsWithIds}

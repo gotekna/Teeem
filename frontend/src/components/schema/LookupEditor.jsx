@@ -5,9 +5,9 @@ import { api } from '../../api';
  * LookupEditor - Manage lookup column configuration
  * Allows selecting which table and column this lookup field references
  */
-const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
+const LookupEditor = ({ foundationId, column, onUpdate, onClose }) => {
   const [tables, setTables] = useState([]);
-  const [selectedTableId, setSelectedTableId] = useState(column?.lookup_table_id || '');
+  const [selectedTableId, setSelectedTableId] = useState(column?.lookup_foundation_id || '');
   const [availableColumns, setAvailableColumns] = useState([]);
   const [selectedDisplayColumnId, setSelectedDisplayColumnId] = useState('');
   const [loading, setLoading] = useState(true);
@@ -18,7 +18,7 @@ const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
     const fetchTables = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/api/v1/tables');
+        const response = await api.get('/api/v1/foundations');
         if (response.success) {
           setTables(response.tables || []);
         }
@@ -42,7 +42,7 @@ const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
       }
 
       try {
-        const response = await api.get(`/api/v1/tables/${selectedTableId}`);
+        const response = await api.get(`/api/v1/foundations/${selectedTableId}`);
         if (response.success && response.table) {
           const columns = response.table.columns || [];
           setAvailableColumns(columns);
@@ -72,7 +72,7 @@ const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
     console.log('🔵 handleSave called', {
       selectedTableId,
       selectedDisplayColumnId,
-      tableId,
+      foundationId,
       columnId: column.id
     });
 
@@ -100,17 +100,17 @@ const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
       setSaving(true);
       const payload = {
         column: {
-          lookup_table_id: selectedTableId,
+          lookup_foundation_id: selectedTableId,
           lookup_display_column: displayColumn.column_name  // Send column_name, not ID
         }
       };
       console.log('📤 Sending PATCH request:', {
-        url: `/api/v1/tables/${tableId}/columns/${column.id}`,
+        url: `/api/v1/foundations/${foundationId}/columns/${column.id}`,
         payload
       });
 
       const response = await api.patch(
-        `/api/v1/tables/${tableId}/columns/${column.id}`,
+        `/api/v1/foundations/${foundationId}/columns/${column.id}`,
         payload
       );
 
@@ -222,7 +222,7 @@ const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
       <div className="flex justify-between gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
         {/* Clear Lookup Button - only show if lookup is configured */}
         <div>
-          {column?.lookup_table_id && (
+          {column?.lookup_foundation_id && (
             <button
               onClick={async () => {
                 if (!confirm('Are you sure you want to remove the lookup configuration? This will clear the link to the other table.')) {
@@ -231,10 +231,10 @@ const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
                 try {
                   setSaving(true);
                   const response = await api.patch(
-                    `/api/v1/tables/${tableId}/columns/${column.id}`,
+                    `/api/v1/foundations/${foundationId}/columns/${column.id}`,
                     {
                       column: {
-                        lookup_table_id: null,
+                        lookup_foundation_id: null,
                         lookup_display_column: null
                       }
                     }

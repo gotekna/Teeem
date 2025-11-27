@@ -32,7 +32,7 @@ export default function TableSettings() {
   const fetchTable = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/tables/${id}`)
+      const response = await api.get(`/api/v1/foundations/${id}`)
       if (response.success && response.table) {
         setTable(response.table)
       } else {
@@ -48,7 +48,7 @@ export default function TableSettings() {
   const handleTableUpdate = async (updates) => {
     try {
       setSaving(true)
-      const response = await api.put(`/api/v1/tables/${id}`, { table: updates })
+      const response = await api.put(`/api/v1/foundations/${id}`, { table: updates })
       if (response.success && response.table) {
         setTable(response.table)
       }
@@ -65,7 +65,7 @@ export default function TableSettings() {
     }
 
     try {
-      await api.delete(`/api/v1/tables/${id}`)
+      await api.delete(`/api/v1/foundations/${id}`)
       navigate('/designer')
     } catch (err) {
       setError(err.message)

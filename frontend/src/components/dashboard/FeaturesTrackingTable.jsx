@@ -192,8 +192,8 @@ export default function FeaturesTrackingTable() {
       {/* TeeemTableView */}
       <TeeemTableView
         tableName="Feature Tracking"
-        tableId="feature_tracking"
-        tableIdNumeric={454}
+        foundationId="feature_tracking"
+        foundationIdNumeric={454}
         entries={features}
         columns={COLUMNS}
         viewOnly={true}

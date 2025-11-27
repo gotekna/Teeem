@@ -109,9 +109,9 @@ export default function TeeemTableView({
   onImport = null,
   onExport = null,
   columns = null,  // NEW: Custom columns definition (if not provided, uses DEFAULT_TRINITY_COLUMNS)
-  tableId = 'default',  // NEW: Unique identifier for this table (for saving filters per table)
+  foundationId = 'default',  // NEW: Unique identifier for this table (for saving filters per table)
   enableSchemaEditor = false,  // NEW: Enable schema editor menu items
-  tableIdNumeric = null,  // NEW: Numeric table ID for schema editor API calls
+  foundationIdNumeric = null,  // NEW: Numeric table ID for schema editor API calls
   tableName = 'Table',  // NEW: Human-readable table name for schema editor
   onRowDoubleClick = null,  // NEW: Custom handler for row double-click (overrides default edit modal)
   onView = null,  // NEW: Custom handler for View action button (e.g., navigate to detail page)
@@ -156,7 +156,7 @@ export default function TeeemTableView({
     }
     try {
       // Primary storage: teeemTableViewState (the main save location)
-      const storageKey = `teeemTableViewState_${tableId || category || 'default'}`
+      const storageKey = `teeemTableViewState_${foundationId || category || 'default'}`
       const savedState = localStorage.getItem(storageKey)
       if (savedState) {
         const state = JSON.parse(savedState)
@@ -186,7 +186,7 @@ export default function TeeemTableView({
         }
       }
       // Fallback: Check legacy default columns storage
-      const legacyStored = localStorage.getItem(`teeem-default-columns-${tableId}`)
+      const legacyStored = localStorage.getItem(`teeem-default-columns-${foundationId}`)
       if (legacyStored) {
         const parsed = JSON.parse(legacyStored)
         if (parsed && typeof parsed === 'object') {
@@ -270,8 +270,8 @@ export default function TeeemTableView({
   // Fetch choices for all choice columns and lookup options for lookup columns
   useEffect(() => {
     const fetchColumnChoices = async () => {
-      if (!tableIdNumeric) {
-        console.log('⚠️ No tableIdNumeric, skipping choice/lookup fetch')
+      if (!foundationIdNumeric) {
+        console.log('⚠️ No foundationIdNumeric, skipping choice/lookup fetch')
         return
       }
 
@@ -298,7 +298,7 @@ export default function TeeemTableView({
         try {
           // Use api.get() to bypass Vite proxy cache issues
           console.log('📡 Fetching choices from API for column:', column.id)
-          const data = await api.get(`/api/v1/tables/${tableIdNumeric}/columns/${column.id}/choices`, {
+          const data = await api.get(`/api/v1/foundations/${foundationIdNumeric}/columns/${column.id}/choices`, {
             params: { _: Date.now() } // Cache buster
           })
           console.log('✅ Received choices for column', column.id, ':', data.choices?.map(c => c.value))
@@ -332,7 +332,7 @@ export default function TeeemTableView({
 
         try {
           console.log('📡 Fetching lookup options from API for column:', column.id)
-          const data = await api.get(`/api/v1/tables/${tableIdNumeric}/columns/${column.id}/lookup_options`, {
+          const data = await api.get(`/api/v1/foundations/${foundationIdNumeric}/columns/${column.id}/lookup_options`, {
             params: { _: Date.now() } // Cache buster
           })
           console.log('✅ Received lookup options for column', column.id, ':', data.options?.map(o => o.display))
@@ -359,7 +359,7 @@ export default function TeeemTableView({
     }
 
     fetchColumnChoices()
-  }, [tableIdNumeric, columns])
+  }, [foundationIdNumeric, columns])
 
   // Get current user for audit trail
   const getCurrentUser = () => {
@@ -446,7 +446,7 @@ export default function TeeemTableView({
   // Cascade filters - Excel-style dropdown filters that can be applied in any order (per table)
   const [cascadeFilters, setCascadeFilters] = useState(() => {
     try {
-      const key = `teeem-cascade-filters-${tableId}`
+      const key = `teeem-cascade-filters-${foundationId}`
       const stored = localStorage.getItem(key)
       return stored ? JSON.parse(stored) : []
     } catch (error) {
@@ -456,7 +456,7 @@ export default function TeeemTableView({
   })
   const [filterGroups, setFilterGroups] = useState(() => {
     try {
-      const key = `teeem-filter-groups-${tableId}`
+      const key = `teeem-filter-groups-${foundationId}`
       const stored = localStorage.getItem(key)
       return stored ? JSON.parse(stored) : [{ id: 'default', logic: 'AND' }]
     } catch (error) {
@@ -466,7 +466,7 @@ export default function TeeemTableView({
   })
   const [interGroupLogic, setInterGroupLogic] = useState(() => {
     try {
-      const key = `teeem-inter-group-logic-${tableId}`
+      const key = `teeem-inter-group-logic-${foundationId}`
       const stored = localStorage.getItem(key)
       return stored ? JSON.parse(stored) : 'OR'
     } catch (error) {
@@ -498,7 +498,7 @@ export default function TeeemTableView({
     // Load from localStorage per table, fallback to alphabetical order
     if (typeof window === 'undefined') return null
     try {
-      const stored = localStorage.getItem(`teeem-visibility-column-order-${tableId}`)
+      const stored = localStorage.getItem(`teeem-visibility-column-order-${foundationId}`)
       return stored ? JSON.parse(stored) : null
     } catch (error) {
       return null
@@ -552,14 +552,14 @@ export default function TeeemTableView({
       setActive = true
     } = options
 
-    // CRITICAL: Validate table_id to prevent cross-table contamination
+    // CRITICAL: Validate foundation_id to prevent cross-table contamination
     // Use loose equality (!=) to handle Integer vs String type mismatch
-    if (view.table_id != null && tableIdNumeric != null && view.table_id != tableIdNumeric) {
+    if (view.foundation_id != null && foundationIdNumeric != null && view.foundation_id != foundationIdNumeric) {
       console.error('[loadViewState] ❌ BLOCKED: Attempted to load view from wrong table:', {
         viewId: view.id,
         viewName: view.name,
-        viewTableId: view.table_id,
-        currentTableId: tableIdNumeric
+        viewTableId: view.foundation_id,
+        currentTableId: foundationIdNumeric
       })
       return // ABORT - do not load view from wrong table
     }
@@ -633,7 +633,7 @@ export default function TeeemTableView({
   const [cascadePopupSize, setCascadePopupSize] = useState(() => {
     if (typeof window === 'undefined') return { width: 50, height: 90 } // vw, vh
     try {
-      const stored = localStorage.getItem(`teeem-cascade-popup-size-${tableId}`)
+      const stored = localStorage.getItem(`teeem-cascade-popup-size-${foundationId}`)
       return stored ? JSON.parse(stored) : { width: 50, height: 90 }
     } catch { return { width: 50, height: 90 } }
   })
@@ -645,46 +645,46 @@ export default function TeeemTableView({
   const [isDraggingPopup, setIsDraggingPopup] = useState(false)
   const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 })
 
-  // Track previous tableId to detect changes
+  // Track previous foundationId to detect changes
   const prevTableIdRef = useRef(null)
   // Track if we're currently creating a Default view to prevent race conditions
   const creatingDefaultViewRef = useRef(false)
 
-  // Load saved views from API when tableId changes
+  // Load saved views from API when foundationId changes
   useEffect(() => {
     const loadSavedViews = async () => {
-      if (!tableIdNumeric) return
+      if (!foundationIdNumeric) return
 
       // Check if table changed (will need to reset activeViewId and auto-apply new view)
-      const tableChanged = prevTableIdRef.current !== null && prevTableIdRef.current !== tableId
+      const tableChanged = prevTableIdRef.current !== null && prevTableIdRef.current !== foundationId
       if (tableChanged) {
         console.log('[Load Views] Table changed, will reset activeViewId and auto-apply')
         setActiveViewId(null)
       }
 
       try {
-        console.log('[Load Views] Loading saved views for table:', tableIdNumeric)
-        console.log('[Load Views] prevTableIdRef:', prevTableIdRef.current, 'current tableId:', tableId)
+        console.log('[Load Views] Loading saved views for table:', foundationIdNumeric)
+        console.log('[Load Views] prevTableIdRef:', prevTableIdRef.current, 'current foundationId:', foundationId)
 
         // Option 3: Use preloaded views if available (parallel loading optimization)
         // But first validate they're for the correct table
         let data
         if (preloadedViews && preloadedViews.length > 0) {
           // Check if preloaded views are for the current table
-          const firstViewTableId = preloadedViews[0]?.table_id
-          if (firstViewTableId == tableIdNumeric) {
+          const firstViewTableId = preloadedViews[0]?.foundation_id
+          if (firstViewTableId == foundationIdNumeric) {
             console.log('[Load Views] ✅ Using preloaded views (parallel loading):', preloadedViews.length, 'views')
             data = { success: true, views: preloadedViews }
           } else {
-            console.log('[Load Views] ⚠️ Preloaded views are for wrong table (', firstViewTableId, 'vs', tableIdNumeric, '), loading via API instead')
-            data = await api.get(`/api/v1/table_views`, {
-              params: { table_id: tableIdNumeric }
+            console.log('[Load Views] ⚠️ Preloaded views are for wrong table (', firstViewTableId, 'vs', foundationIdNumeric, '), loading via API instead')
+            data = await api.get(`/api/v1/foundation_views`, {
+              params: { foundation_id: foundationIdNumeric }
             })
           }
         } else {
           console.log('[Load Views] 🔄 Loading views via API (no preloaded data)')
-          data = await api.get(`/api/v1/table_views`, {
-            params: { table_id: tableIdNumeric }
+          data = await api.get(`/api/v1/foundation_views`, {
+            params: { foundation_id: foundationIdNumeric }
           })
         }
 
@@ -696,14 +696,14 @@ export default function TeeemTableView({
           // Validate that all views belong to the current table
           // Use loose equality (!=) to handle Integer vs String type mismatch
           const validViews = data.views.filter(view => {
-            if (view.table_id != tableIdNumeric) {
+            if (view.foundation_id != foundationIdNumeric) {
               console.warn('[Load Views] ⚠️ Filtering out view from wrong table:', {
                 viewId: view.id,
                 viewName: view.name,
-                viewTableId: view.table_id,
-                viewTableIdType: typeof view.table_id,
-                currentTableId: tableIdNumeric,
-                currentTableIdType: typeof tableIdNumeric
+                viewTableId: view.foundation_id,
+                viewTableIdType: typeof view.foundation_id,
+                currentTableId: foundationIdNumeric,
+                currentTableIdType: typeof foundationIdNumeric
               })
               return false
             }
@@ -779,8 +779,8 @@ export default function TeeemTableView({
         creatingDefaultViewRef.current = true
 
         // Double-check database to prevent race condition duplicates
-        const checkData = await api.get(`/api/v1/table_views`, {
-          params: { table_id: tableIdNumeric }
+        const checkData = await api.get(`/api/v1/foundation_views`, {
+          params: { foundation_id: foundationIdNumeric }
         })
 
         const existingSetup = checkData.views?.find(v => v.name === 'Setup')
@@ -792,7 +792,7 @@ export default function TeeemTableView({
         // Try to fetch fresh columns from API, fall back to COLUMNS prop for custom tables
         let freshColumns = []
         try {
-          const freshColumnsData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+          const freshColumnsData = await api.get(`/api/v1/foundations/${foundationIdNumeric}`)
           freshColumns = freshColumnsData.table?.columns || []
         } catch (err) {
           console.log('[Load Views] Could not fetch columns from API, using COLUMNS prop')
@@ -843,14 +843,14 @@ export default function TeeemTableView({
       }
     }
 
-    if (prevTableIdRef.current !== tableId || (preloadedViews && savedFilters.length === 0)) {
-      console.log('[Load Views] tableId changed or preloaded views available:', { from: prevTableIdRef.current, to: tableId, hasPreloadedViews: !!preloadedViews })
+    if (prevTableIdRef.current !== foundationId || (preloadedViews && savedFilters.length === 0)) {
+      console.log('[Load Views] foundationId changed or preloaded views available:', { from: prevTableIdRef.current, to: foundationId, hasPreloadedViews: !!preloadedViews })
       loadSavedViews()
-      prevTableIdRef.current = tableId
+      prevTableIdRef.current = foundationId
     } else {
-      console.log('[Load Views] tableId unchanged and no preloaded views, skipping load:', tableId)
+      console.log('[Load Views] foundationId unchanged and no preloaded views, skipping load:', foundationId)
     }
-  }, [tableId, tableIdNumeric, preloadedViews])
+  }, [foundationId, foundationIdNumeric, preloadedViews])
 
   // Note: Saved views are now persisted via API calls when creating/updating/deleting
   // No need for automatic localStorage sync
@@ -858,7 +858,7 @@ export default function TeeemTableView({
   // URL-based view selection - load view from URL on mount and when URL changes
   useEffect(() => {
     const viewParam = searchParams.get('view')
-    console.log('[TeeemTableView] URL view check:', { viewParam, savedFiltersCount: savedFilters.length, tableId, activeViewId })
+    console.log('[TeeemTableView] URL view check:', { viewParam, savedFiltersCount: savedFilters.length, foundationId, activeViewId })
     if (viewParam && savedFilters.length > 0) {
       // Find view by name (URL-friendly slug) - try multiple matching strategies
       let view = savedFilters.find(v =>
@@ -951,7 +951,7 @@ export default function TeeemTableView({
   // Initialize default columns for new views from localStorage (will be updated from DB when views load)
   const getInitialDefaultColumns = () => {
     try {
-      const stored = localStorage.getItem(`teeem-default-columns-${tableId}`)
+      const stored = localStorage.getItem(`teeem-default-columns-${foundationId}`)
       if (stored) {
         const parsed = JSON.parse(stored)
         // Merge with current defaults to handle new columns
@@ -1017,7 +1017,7 @@ export default function TeeemTableView({
   const [columnMinWidths, setColumnMinWidths] = useState(() => {
     if (typeof window === 'undefined') return {}
     try {
-      const stored = localStorage.getItem(`teeem-column-min-widths-${tableId}`)
+      const stored = localStorage.getItem(`teeem-column-min-widths-${foundationId}`)
       return stored ? JSON.parse(stored) : {}
     } catch { return {} }
   })
@@ -1026,7 +1026,7 @@ export default function TeeemTableView({
   const [columnShowFilters, setColumnShowFilters] = useState(() => {
     if (typeof window === 'undefined') return {}
     try {
-      const stored = localStorage.getItem(`teeem-column-show-filters-${tableId}`)
+      const stored = localStorage.getItem(`teeem-column-show-filters-${foundationId}`)
       return stored ? JSON.parse(stored) : {}
     } catch { return {} }
   })
@@ -1034,20 +1034,20 @@ export default function TeeemTableView({
   // Save column min widths to localStorage whenever they change (per table)
   useEffect(() => {
     try {
-      localStorage.setItem(`teeem-column-min-widths-${tableId}`, JSON.stringify(columnMinWidths))
+      localStorage.setItem(`teeem-column-min-widths-${foundationId}`, JSON.stringify(columnMinWidths))
     } catch (error) {
       console.error('Error saving column min widths to localStorage:', error)
     }
-  }, [columnMinWidths, tableId])
+  }, [columnMinWidths, foundationId])
 
   // Save column show filters to localStorage whenever they change (per table)
   useEffect(() => {
     try {
-      localStorage.setItem(`teeem-column-show-filters-${tableId}`, JSON.stringify(columnShowFilters))
+      localStorage.setItem(`teeem-column-show-filters-${foundationId}`, JSON.stringify(columnShowFilters))
     } catch (error) {
       console.error('Error saving column show filters to localStorage:', error)
     }
-  }, [columnShowFilters, tableId])
+  }, [columnShowFilters, foundationId])
 
   // Removed: Old __default_setup__ system that conflicted with new "Default" view system
 
@@ -1055,12 +1055,12 @@ export default function TeeemTableView({
   useEffect(() => {
     if (visibilityColumnOrder) {
       try {
-        localStorage.setItem(`teeem-visibility-column-order-${tableId}`, JSON.stringify(visibilityColumnOrder))
+        localStorage.setItem(`teeem-visibility-column-order-${foundationId}`, JSON.stringify(visibilityColumnOrder))
       } catch (error) {
         console.error('Error saving visibility column order to localStorage:', error)
       }
     }
-  }, [visibilityColumnOrder, tableId])
+  }, [visibilityColumnOrder, foundationId])
 
   // Sync visibility column order to table column order (dropdown controls table)
   useEffect(() => {
@@ -1093,7 +1093,7 @@ export default function TeeemTableView({
       }
       return changed ? orderedKeys : prev
     })
-  }, [visibilityColumnOrder, tableId, COLUMNS])
+  }, [visibilityColumnOrder, foundationId, COLUMNS])
 
   // Close group by dropdown when clicking outside
   useEffect(() => {
@@ -1147,38 +1147,38 @@ export default function TeeemTableView({
   // Save cascade filters to localStorage whenever they change (per table)
   useEffect(() => {
     try {
-      localStorage.setItem(`teeem-cascade-filters-${tableId}`, JSON.stringify(cascadeFilters))
+      localStorage.setItem(`teeem-cascade-filters-${foundationId}`, JSON.stringify(cascadeFilters))
     } catch (error) {
       console.error('Error saving cascade filters to localStorage:', error)
     }
-  }, [cascadeFilters, tableId])
+  }, [cascadeFilters, foundationId])
 
   // Save filter groups to localStorage whenever they change (per table)
   useEffect(() => {
     try {
-      localStorage.setItem(`teeem-filter-groups-${tableId}`, JSON.stringify(filterGroups))
+      localStorage.setItem(`teeem-filter-groups-${foundationId}`, JSON.stringify(filterGroups))
     } catch (error) {
       console.error('Error saving filter groups to localStorage:', error)
     }
-  }, [filterGroups, tableId])
+  }, [filterGroups, foundationId])
 
   // Save inter-group logic to localStorage whenever it changes (per table)
   useEffect(() => {
     try {
-      localStorage.setItem(`teeem-inter-group-logic-${tableId}`, JSON.stringify(interGroupLogic))
+      localStorage.setItem(`teeem-inter-group-logic-${foundationId}`, JSON.stringify(interGroupLogic))
     } catch (error) {
       console.error('Error saving inter-group logic to localStorage:', error)
     }
-  }, [interGroupLogic, tableId])
+  }, [interGroupLogic, foundationId])
 
   // Save cascade popup size to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(`teeem-cascade-popup-size-${tableId}`, JSON.stringify(cascadePopupSize))
+      localStorage.setItem(`teeem-cascade-popup-size-${foundationId}`, JSON.stringify(cascadePopupSize))
     } catch (error) {
       console.error('Error saving cascade popup size to localStorage:', error)
     }
-  }, [cascadePopupSize, tableId])
+  }, [cascadePopupSize, foundationId])
 
   // Handle cascade popup resizing
   useEffect(() => {
@@ -1270,19 +1270,19 @@ export default function TeeemTableView({
   const scrollContainerRef = useRef(null)
 
   // NOTE: Table state is now loaded from localStorage during initialization (via getInitialTableState)
-  // This useEffect handles tableId or category changes AFTER initial render
+  // This useEffect handles foundationId or category changes AFTER initial render
   // The initial load happens in useState initialization to avoid race conditions
   const prevCategoryRef = React.useRef(category)
   useEffect(() => {
     // Skip on initial mount - state is already loaded from localStorage via initialTableState
-    if (prevTableIdRef.current === tableId && prevCategoryRef.current === category) {
+    if (prevTableIdRef.current === foundationId && prevCategoryRef.current === category) {
       return
     }
-    prevTableIdRef.current = tableId
+    prevTableIdRef.current = foundationId
     prevCategoryRef.current = category
 
-    // Load state for new tableId/category
-    const storageKey = `teeemTableViewState_${tableId || category || 'default'}`
+    // Load state for new foundationId/category
+    const storageKey = `teeemTableViewState_${foundationId || category || 'default'}`
     const savedState = localStorage.getItem(storageKey)
     if (savedState) {
       try {
@@ -1305,19 +1305,19 @@ export default function TeeemTableView({
       setSortColumns([])
       setGroupByColumn(null)
     }
-  }, [tableId, category])
+  }, [foundationId, category])
 
   // Save table state to localStorage whenever it changes (Chapter 20.5B)
   // NOTE: sortColumns and groupByColumn are NOT persisted here - they are per-view settings
   useEffect(() => {
-    const storageKey = `teeemTableViewState_${tableId || category || 'default'}`
+    const storageKey = `teeemTableViewState_${foundationId || category || 'default'}`
     const state = {
       columnWidths,
       columnOrder,
       visibleColumns
     }
     localStorage.setItem(storageKey, JSON.stringify(state))
-  }, [columnWidths, columnOrder, visibleColumns, tableId, category])
+  }, [columnWidths, columnOrder, visibleColumns, foundationId, category])
 
   // Column resizing handlers (Chapter 20.4)
   const handleResizeStart = (e, columnKey) => {
@@ -2065,9 +2065,9 @@ export default function TeeemTableView({
         ? viewData.groupByColumn
         : null
 
-      const response = await api.post('/api/v1/table_views', {
+      const response = await api.post('/api/v1/foundation_views', {
         table_view: {
-          table_id: tableIdNumeric,
+          foundation_id: foundationIdNumeric,
           name: viewData.name,
           view_type: 'custom',
           filters: {
@@ -2126,7 +2126,7 @@ export default function TeeemTableView({
           display_order: v.display_order
         }))
 
-        api.post('/api/v1/table_views/reorder', { orders })
+        api.post('/api/v1/foundation_views/reorder', { orders })
           .then(() => console.log('[Save View] View order updated - new view at position 2'))
           .catch(err => console.error('[Save View] Failed to save view order:', err))
 
@@ -2159,7 +2159,7 @@ export default function TeeemTableView({
         ? viewData.groupByColumn
         : null
 
-      const response = await api.put(`/api/v1/table_views/${viewId}`, {
+      const response = await api.put(`/api/v1/foundation_views/${viewId}`, {
         table_view: {
           name: viewData.name,
           filters: {
@@ -2223,7 +2223,7 @@ export default function TeeemTableView({
   const deleteView = async (viewId) => {
     try {
       console.log('[Delete View] Deleting view:', viewId)
-      const response = await api.delete(`/api/v1/table_views/${viewId}`)
+      const response = await api.delete(`/api/v1/foundation_views/${viewId}`)
       console.log('[Delete View] API response:', response)
 
       if (response.success) {
@@ -4598,7 +4598,7 @@ export default function TeeemTableView({
                   <MenuItem>
                     {({ focus }) => (
                       <button
-                        onClick={() => navigate(`/tables/${tableIdNumeric}/columns/new?name=${encodeURIComponent(tableName)}`)}
+                        onClick={() => navigate(`/tables/${foundationIdNumeric}/columns/new?name=${encodeURIComponent(tableName)}`)}
                         className={`${
                           focus ? 'bg-gray-100 dark:bg-gray-700' : ''
                         } group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200`}
@@ -4611,7 +4611,7 @@ export default function TeeemTableView({
                   <MenuItem>
                     {({ focus }) => (
                       <button
-                        onClick={() => navigate(`/tables/${tableIdNumeric}/columns?name=${encodeURIComponent(tableName)}`)}
+                        onClick={() => navigate(`/tables/${foundationIdNumeric}/columns?name=${encodeURIComponent(tableName)}`)}
                         className={`${
                           focus ? 'bg-gray-100 dark:bg-gray-700' : ''
                         } group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200`}
@@ -4698,15 +4698,15 @@ export default function TeeemTableView({
                 </div>
                 <div className="px-4 py-2 space-y-2">
                   {/* Table ID - only show if available */}
-                  {tableIdNumeric && (
+                  {foundationIdNumeric && (
                     <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 rounded-lg px-3 py-2">
                       <div>
                         <span className="text-xs text-gray-500 dark:text-gray-400">Table ID:</span>
-                        <span className="ml-2 font-mono text-sm text-gray-900 dark:text-gray-100">{tableIdNumeric}</span>
+                        <span className="ml-2 font-mono text-sm text-gray-900 dark:text-gray-100">{foundationIdNumeric}</span>
                       </div>
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(String(tableIdNumeric))
+                          navigator.clipboard.writeText(String(foundationIdNumeric))
                           alert('Table ID copied to clipboard!')
                         }}
                         className="ml-2 px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
@@ -5023,7 +5023,7 @@ export default function TeeemTableView({
                             }
                             setDeletingColumnId(column.id || column.key)
                             try {
-                              const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/tables/${tableIdNumeric}/columns/${column.id}`, {
+                              const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/foundations/${foundationIdNumeric}/columns/${column.id}`, {
                                 method: 'DELETE',
                                 headers: {
                                   'Content-Type': 'application/json',
@@ -7084,7 +7084,7 @@ export default function TeeemTableView({
                                   e.stopPropagation()
                                   // Fetch the full column data from API to get all configuration including lookup settings
                                   try {
-                                    const response = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+                                    const response = await api.get(`/api/v1/foundations/${foundationIdNumeric}`)
                                     if (response.success && response.table) {
                                       const fullColumn = response.table.columns.find(c => c.id === column.id)
                                       if (fullColumn) {
@@ -8905,7 +8905,7 @@ export default function TeeemTableView({
           isOpen={!!selectedColumnForEdit}
           column={selectedColumnForEdit}
           table={null} // TODO: Pass table data if needed
-          tableId={tableIdNumeric}
+          foundationId={foundationIdNumeric}
           onClose={() => setSelectedColumnForEdit(null)}
           onUpdate={async () => {
             console.log('🔄 onUpdate called for column:', selectedColumnForEdit.id, 'type:', selectedColumnForEdit.column_type)
@@ -8913,7 +8913,7 @@ export default function TeeemTableView({
             // Refetch the full column data to get updated configuration (alignment, lookup settings, etc.)
             try {
               console.log('🔄 Refetching column data for column:', selectedColumnForEdit.id)
-              const tableData = await api.get(`/api/v1/tables/${tableIdNumeric}`)
+              const tableData = await api.get(`/api/v1/foundations/${foundationIdNumeric}`)
               if (tableData.success && tableData.table?.columns) {
                 const updatedColumn = tableData.table.columns.find(c => c.id === selectedColumnForEdit.id)
                 if (updatedColumn) {
@@ -8934,7 +8934,7 @@ export default function TeeemTableView({
             if (isChoiceColumn && selectedColumnForEdit.id) {
               try {
                 console.log('🔄 Refetching choices for column:', selectedColumnForEdit.id)
-                const data = await api.get(`/api/v1/tables/${tableIdNumeric}/columns/${selectedColumnForEdit.id}/choices`, {
+                const data = await api.get(`/api/v1/foundations/${foundationIdNumeric}/columns/${selectedColumnForEdit.id}/choices`, {
                   params: { _: Date.now() } // Cache buster
                 })
                 console.log('📦 API Response:', data)

@@ -17,10 +17,10 @@ const TAB_TABLE_IDS = {
 export default function RolesAndGroupsTab() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedIndex, setSelectedIndex] = useState(() => {
-    // Initialize from URL tableId if present
-    const tableId = searchParams.get('tableId')
-    if (tableId) {
-      const index = Object.entries(TAB_TABLE_IDS).find(([_, id]) => id === parseInt(tableId))?.[0]
+    // Initialize from URL foundationId if present
+    const foundationId = searchParams.get('foundationId')
+    if (foundationId) {
+      const index = Object.entries(TAB_TABLE_IDS).find(([_, id]) => id === parseInt(foundationId))?.[0]
       return index ? parseInt(index) : 0
     }
     return 0
@@ -29,21 +29,21 @@ export default function RolesAndGroupsTab() {
   // Update URL when tab changes
   const handleTabChange = (index) => {
     setSelectedIndex(index)
-    const tableId = TAB_TABLE_IDS[index]
+    const foundationId = TAB_TABLE_IDS[index]
     setSearchParams(prev => {
       const newParams = new URLSearchParams(prev)
-      newParams.set('tableId', tableId.toString())
+      newParams.set('foundationId', foundationId.toString())
       return newParams
     })
   }
 
-  // Set initial tableId in URL if not present
+  // Set initial foundationId in URL if not present
   useEffect(() => {
-    if (!searchParams.get('tableId')) {
-      const tableId = TAB_TABLE_IDS[selectedIndex]
+    if (!searchParams.get('foundationId')) {
+      const foundationId = TAB_TABLE_IDS[selectedIndex]
       setSearchParams(prev => {
         const newParams = new URLSearchParams(prev)
-        newParams.set('tableId', tableId.toString())
+        newParams.set('foundationId', foundationId.toString())
         return newParams
       })
     }

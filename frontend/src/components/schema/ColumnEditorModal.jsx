@@ -12,7 +12,7 @@ import LookupEditor from './LookupEditor';
  * Opens when user clicks the cog icon (⚙️) on a column header in "Edit Individual" mode
  * Shows the appropriate editor based on column type and selected action
  */
-const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }) => {
+const ColumnEditorModal = ({ isOpen, column, table, foundationId, onClose, onUpdate }) => {
   const [activeTab, setActiveTab] = useState('info');
   const [editedColumn, setEditedColumn] = useState({
     name: column?.name || '',
@@ -84,11 +84,11 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
   // Fetch available columns for reference
   useEffect(() => {
-    if (!isOpen || !tableId) return;
+    if (!isOpen || !foundationId) return;
 
     const fetchColumns = async () => {
       try {
-        const response = await api.get(`/api/v1/tables/${tableId}`);
+        const response = await api.get(`/api/v1/foundations/${foundationId}`);
         if (response.success && response.table?.columns) {
           setAvailableColumns(response.table.columns);
         }
@@ -98,7 +98,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
     };
 
     fetchColumns();
-  }, [isOpen, tableId]);
+  }, [isOpen, foundationId]);
 
   if (!isOpen || !column) return null;
 
@@ -173,7 +173,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
       }
 
       console.log('📤 About to send PATCH request:', {
-        url: `/api/v1/tables/${tableId}/columns/${column.id}`,
+        url: `/api/v1/foundations/${foundationId}/columns/${column.id}`,
         payload: {
           column: {
             name: editedColumn.name,
@@ -186,7 +186,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
       });
 
       const result = await api.patch(
-        `/api/v1/tables/${tableId}/columns/${column.id}`,
+        `/api/v1/foundations/${foundationId}/columns/${column.id}`,
         {
           column: {
             name: editedColumn.name,
@@ -655,7 +655,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
           {activeTab === 'type' && (
             <TypeConversionEditor
-              tableId={tableId}
+              foundationId={foundationId}
               column={column}
               onUpdate={handleUpdate}
             />
@@ -663,7 +663,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
           {activeTab === 'choices' && isChoiceColumn && (
             <ChoiceEditor
-              tableId={tableId}
+              foundationId={foundationId}
               column={column}
               onUpdate={handleUpdate}
             />
@@ -671,7 +671,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
           {activeTab === 'formula' && isComputedColumn && (
             <FormulaEditor
-              tableId={tableId}
+              foundationId={foundationId}
               table={table}
               formula={column.formula}
               onChange={(newFormula) => {
@@ -683,7 +683,7 @@ const ColumnEditorModal = ({ isOpen, column, table, tableId, onClose, onUpdate }
 
           {activeTab === 'lookup' && isLookupColumn && (
             <LookupEditor
-              tableId={tableId}
+              foundationId={foundationId}
               column={column}
               onUpdate={handleUpdate}
               onClose={onClose}

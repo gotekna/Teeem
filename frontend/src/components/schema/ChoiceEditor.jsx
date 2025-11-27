@@ -12,7 +12,7 @@ import { api } from '../../api';
  * - Merge multiple choices into one
  * - Drag-and-drop reorder with persistence (saves to database)
  */
-const ChoiceEditor = ({ tableId, column, onUpdate }) => {
+const ChoiceEditor = ({ foundationId, column, onUpdate }) => {
   const [choices, setChoices] = useState([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -33,12 +33,12 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
 
   useEffect(() => {
     loadChoices();
-  }, [tableId, column.id]);
+  }, [foundationId, column.id]);
 
   const loadChoices = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/v1/tables/${tableId}/columns/${column.id}/choices`);
+      const response = await api.get(`/api/v1/foundations/${foundationId}/columns/${column.id}/choices`);
 
       // api.get returns parsed JSON directly (not wrapped in .data like axios)
       if (response?.success) {
@@ -76,7 +76,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
       setAdding(true);
 
       // Call backend API to persist the choice
-      const response = await api.post(`/api/v1/tables/${tableId}/columns/${column.id}/add_choice`, {
+      const response = await api.post(`/api/v1/foundations/${foundationId}/columns/${column.id}/add_choice`, {
         value: newChoice.trim()
       });
 
@@ -120,7 +120,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     }
 
     try {
-      const response = await api.post(`/api/v1/tables/${tableId}/columns/${column.id}/rename_choice`, {
+      const response = await api.post(`/api/v1/foundations/${foundationId}/columns/${column.id}/rename_choice`, {
         old_value: oldValue,
         new_value: editValue.trim()
       });
@@ -147,7 +147,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     console.log('🗑️ handleDeleteChoice called', {
       value: choice.value,
       count: choice.count,
-      tableId,
+      foundationId,
       columnId: column.id
     });
 
@@ -155,8 +155,8 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
       // No data to worry about, delete immediately
       console.log('✅ Choice has 0 records, deleting immediately');
       try {
-        console.log('🌐 Making DELETE request to:', `/api/v1/tables/${tableId}/columns/${column.id}/delete_choice`);
-        const response = await api.delete(`/api/v1/tables/${tableId}/columns/${column.id}/delete_choice`, {
+        console.log('🌐 Making DELETE request to:', `/api/v1/foundations/${foundationId}/columns/${column.id}/delete_choice`);
+        const response = await api.delete(`/api/v1/foundations/${foundationId}/columns/${column.id}/delete_choice`, {
           params: { value: choice.value }
         });
         console.log('✅ Delete response:', response);
@@ -198,7 +198,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
         params.replacement_value = replacementValue;
       }
 
-      const response = await api.delete(`/api/v1/tables/${tableId}/columns/${column.id}/delete_choice`, {
+      const response = await api.delete(`/api/v1/foundations/${foundationId}/columns/${column.id}/delete_choice`, {
         params
       });
 
@@ -242,7 +242,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
     }
 
     try {
-      const response = await api.post(`/api/v1/tables/${tableId}/columns/${column.id}/merge_choices`, {
+      const response = await api.post(`/api/v1/foundations/${foundationId}/columns/${column.id}/merge_choices`, {
         source_values: selectedChoices.filter(v => v !== mergeTarget),
         target_value: mergeTarget
       });
@@ -316,7 +316,7 @@ const ChoiceEditor = ({ tableId, column, onUpdate }) => {
       // Get the current order of choice values
       const order = choices.map(c => c.value);
 
-      const response = await api.post(`/api/v1/tables/${tableId}/columns/${column.id}/reorder_choices`, {
+      const response = await api.post(`/api/v1/foundations/${foundationId}/columns/${column.id}/reorder_choices`, {
         order
       });
 

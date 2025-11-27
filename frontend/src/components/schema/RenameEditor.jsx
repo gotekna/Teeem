@@ -10,7 +10,7 @@ import { api } from '../../api';
  * - Preview showing all affected references
  * - Validation of new name
  */
-const RenameEditor = ({ tableId, column, onUpdate }) => {
+const RenameEditor = ({ foundationId, column, onUpdate }) => {
   const [newName, setNewName] = useState(column.name);
   const [newColumnName, setNewColumnName] = useState(column.column_name);
   const [validationResult, setValidationResult] = useState(null);
@@ -49,7 +49,7 @@ const RenameEditor = ({ tableId, column, onUpdate }) => {
       setValidationResult(null);
 
       const response = await api.post(
-        `/api/v1/tables/${tableId}/columns/${column.id}/validate_change`,
+        `/api/v1/foundations/${foundationId}/columns/${column.id}/validate_change`,
         {
           change_type: 'rename',
           new_name: newName,
@@ -83,7 +83,7 @@ const RenameEditor = ({ tableId, column, onUpdate }) => {
 
     try {
       const response = await api.post(
-        `/api/v1/tables/${tableId}/columns/${column.id}/apply_change`,
+        `/api/v1/foundations/${foundationId}/columns/${column.id}/apply_change`,
         {
           change_type: 'rename',
           new_name: newName,

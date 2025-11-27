@@ -24,7 +24,7 @@ import PreviewChangesModal from './PreviewChangesModal';
  * - Delete columns (with warnings)
  * - Rename columns
  */
-const ColumnEditorFullView = ({ tableId, tableName, onClose, isNewMode = false }) => {
+const ColumnEditorFullView = ({ foundationId, tableName, onClose, isNewMode = false }) => {
   const [table, setTable] = useState(null);
   const [columns, setColumns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,12 +45,12 @@ const ColumnEditorFullView = ({ tableId, tableName, onClose, isNewMode = false }
 
   useEffect(() => {
     loadTableData();
-  }, [tableId]);
+  }, [foundationId]);
 
   const loadTableData = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/v1/tables/${tableId}`);
+      const response = await api.get(`/api/v1/foundations/${foundationId}`);
 
       // Handle different response formats
       if (response && response.success) {
@@ -158,7 +158,7 @@ const ColumnEditorFullView = ({ tableId, tableName, onClose, isNewMode = false }
 
       // Call API to create column
       const result = await api.post(
-        `/api/v1/tables/${tableId}/columns`,
+        `/api/v1/foundations/${foundationId}/columns`,
         {
           column: {
             name: newColumn.name,
@@ -583,25 +583,25 @@ const ColumnEditorFullView = ({ tableId, tableName, onClose, isNewMode = false }
                         <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
                           {editorMode[column.id] === 'rename' ? (
                             <RenameEditor
-                              tableId={tableId}
+                              foundationId={foundationId}
                               column={column}
                               onUpdate={loadTableData}
                             />
                           ) : editorMode[column.id] === 'typeConversion' ? (
                             <TypeConversionEditor
-                              tableId={tableId}
+                              foundationId={foundationId}
                               column={column}
                               onUpdate={loadTableData}
                             />
                           ) : editorMode[column.id] === 'choices' ? (
                             <ChoiceEditor
-                              tableId={tableId}
+                              foundationId={foundationId}
                               column={column}
                               onUpdate={loadTableData}
                             />
                           ) : editorMode[column.id] === 'formula' ? (
                             <FormulaEditor
-                              tableId={tableId}
+                              foundationId={foundationId}
                               column={column}
                               onUpdate={loadTableData}
                             />

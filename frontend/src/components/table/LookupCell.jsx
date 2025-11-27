@@ -9,14 +9,14 @@ export default function LookupCell({ column, value, onChange, isEditing }) {
   // Fetch lookup options when in edit mode
   useEffect(() => {
     const fetchOptions = async () => {
-      if (!isEditing || !column.lookup_table_id) return
+      if (!isEditing || !column.lookup_foundation_id) return
 
       setLoading(true)
       setError(null)
 
       try {
         const response = await api.get(
-          `/api/v1/tables/${column.table_id}/columns/${column.id}/lookup_options`
+          `/api/v1/foundations/${column.foundation_id}/columns/${column.id}/lookup_options`
         )
         setOptions(response.data.options || [])
       } catch (err) {
@@ -29,7 +29,7 @@ export default function LookupCell({ column, value, onChange, isEditing }) {
     }
 
     fetchOptions()
-  }, [isEditing, column.lookup_table_id, column.table_id, column.id])
+  }, [isEditing, column.lookup_foundation_id, column.foundation_id, column.id])
 
   // Display mode - show the display value
   if (!isEditing) {

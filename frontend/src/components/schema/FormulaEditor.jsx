@@ -11,7 +11,7 @@ import { api } from '../../api';
  * - Live preview with sample data
  * - Supported functions: SUM, AVG, IF, CONCAT, ROUND, etc.
  */
-const FormulaEditor = ({ tableId, table, formula, onChange }) => {
+const FormulaEditor = ({ foundationId, table, formula, onChange }) => {
   const [formulaValue, setFormulaValue] = useState(formula || '=');
   const [previewResult, setPreviewResult] = useState(null);
   const [previewError, setPreviewError] = useState(null);
@@ -30,11 +30,11 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
     // Get available columns from table or fetch from API
     if (table?.columns) {
       setAvailableColumns(table.columns);
-    } else if (tableId) {
+    } else if (foundationId) {
       // Fetch columns from API if not in table prop
       const fetchColumns = async () => {
         try {
-          const response = await api.get(`/api/v1/tables/${tableId}`);
+          const response = await api.get(`/api/v1/foundations/${foundationId}`);
           if (response.success && response.table?.columns) {
             setAvailableColumns(response.table.columns);
           }
@@ -44,7 +44,7 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
       };
       fetchColumns();
     }
-  }, [table, tableId]);
+  }, [table, foundationId]);
 
   // Fetch columns from linked tables when available columns change
   useEffect(() => {
@@ -61,14 +61,14 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
       const linkedColumns = {};
 
       for (const lookupCol of lookupColumns) {
-        if (lookupCol.lookup_table_id) {
+        if (lookupCol.lookup_foundation_id) {
           try {
-            const response = await api.get(`/api/v1/tables/${lookupCol.lookup_table_id}`);
+            const response = await api.get(`/api/v1/foundations/${lookupCol.lookup_foundation_id}`);
             if (response.success && response.table?.columns) {
               linkedColumns[lookupCol.column_name] = response.table.columns;
             }
           } catch (error) {
-            console.error(`Error fetching columns for linked table ${lookupCol.lookup_table_id}:`, error);
+            console.error(`Error fetching columns for linked table ${lookupCol.lookup_foundation_id}:`, error);
           }
         }
       }
@@ -145,7 +145,7 @@ const FormulaEditor = ({ tableId, table, formula, onChange }) => {
       setTesting(true);
       setPreviewError(null);
 
-      const response = await api.post(`/api/v1/tables/${tableId}/columns/test_formula`, {
+      const response = await api.post(`/api/v1/foundations/${foundationId}/columns/test_formula`, {
         formula: formulaValue
       });
 

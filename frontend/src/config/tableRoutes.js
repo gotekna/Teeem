@@ -16,7 +16,7 @@
  *
  * HOW TO ADD A NEW TABLE:
  * 1. Create the table in the database
- * 2. Add an entry to this config with tableId and legacyRoute
+ * 2. Add an entry to this config with foundationId and legacyRoute
  * 3. The redirect will be automatically created in App.jsx
  * 4. Users navigate to /your-route → automatically redirected to /tables/:id/:slug
  *
@@ -27,14 +27,14 @@
 
 export const TABLE_ROUTES = [
   {
-    tableId: 1,
+    foundationId: 1,
     slug: 'gold-standard-reference',
     name: 'Gold Standard Reference',
     legacyRoute: null, // Accessed via System Admin only
     hasCustomDetailPage: false
   },
   {
-    tableId: 214,
+    foundationId: 214,
     slug: 'contacts',
     name: 'Contacts',
     legacyRoute: '/contacts',
@@ -42,7 +42,7 @@ export const TABLE_ROUTES = [
     description: 'Business contacts and relationships'
   },
   {
-    tableId: 215,
+    foundationId: 215,
     slug: 'suppliers',
     name: 'Suppliers',
     legacyRoute: '/suppliers',
@@ -50,7 +50,7 @@ export const TABLE_ROUTES = [
     hasCustomDetailPage: true // /suppliers/:id uses SupplierDetailPage
   },
   {
-    tableId: 205,
+    foundationId: 205,
     slug: 'pricebook',
     name: 'Pricebook',
     legacyRoute: '/price-books',
@@ -58,7 +58,7 @@ export const TABLE_ROUTES = [
     description: 'Product pricing and supplier information'
   },
   {
-    tableId: 217,
+    foundationId: 217,
     slug: 'purchase-orders',
     name: 'Purchase Orders',
     legacyRoute: '/purchase-orders',
@@ -66,7 +66,7 @@ export const TABLE_ROUTES = [
     description: 'Purchase orders for suppliers'
   },
   {
-    tableId: 212,
+    foundationId: 212,
     slug: 'user-management',
     name: 'User Management',
     legacyRoute: '/users',
@@ -74,7 +74,7 @@ export const TABLE_ROUTES = [
     description: 'System users and permissions'
   },
   {
-    tableId: 204,
+    foundationId: 204,
     slug: 'jobs',
     name: 'Jobs',
     legacyRoute: '/jobs',
@@ -83,7 +83,7 @@ export const TABLE_ROUTES = [
   },
   // WHS (Workplace Health & Safety) Tables
   {
-    tableId: 206,
+    foundationId: 206,
     slug: 'whs-swms',
     name: 'WHS SWMS',
     legacyRoute: '/whs/swms',
@@ -91,7 +91,7 @@ export const TABLE_ROUTES = [
     description: 'Safe Work Method Statements'
   },
   {
-    tableId: 207,
+    foundationId: 207,
     slug: 'whs-action-items',
     name: 'WHS Action Items',
     legacyRoute: '/whs/action-items',
@@ -99,7 +99,7 @@ export const TABLE_ROUTES = [
     description: 'WHS action items and follow-ups'
   },
   {
-    tableId: 208,
+    foundationId: 208,
     slug: 'whs-inductions',
     name: 'WHS Inductions',
     legacyRoute: '/whs/inductions',
@@ -107,7 +107,7 @@ export const TABLE_ROUTES = [
     description: 'Worker safety inductions'
   },
   {
-    tableId: 209,
+    foundationId: 209,
     slug: 'whs-inspections',
     name: 'WHS Inspections',
     legacyRoute: '/whs/inspections',
@@ -115,7 +115,7 @@ export const TABLE_ROUTES = [
     description: 'Workplace safety inspections'
   },
   {
-    tableId: 210,
+    foundationId: 210,
     slug: 'whs-incidents',
     name: 'WHS Incidents',
     legacyRoute: '/whs/incidents',
@@ -127,8 +127,8 @@ export const TABLE_ROUTES = [
 /**
  * Get table route configuration by table ID
  */
-export function getTableRoute(tableId) {
-  return TABLE_ROUTES.find(route => route.tableId === tableId)
+export function getTableRoute(foundationId) {
+  return TABLE_ROUTES.find(route => route.foundationId === foundationId)
 }
 
 /**
@@ -141,13 +141,13 @@ export function getTableByLegacyRoute(legacyRoute) {
 /**
  * Get the canonical table URL for a given table ID
  */
-export function getTableUrl(tableId) {
-  const route = getTableRoute(tableId)
+export function getTableUrl(foundationId) {
+  const route = getTableRoute(foundationId)
   if (!route) {
-    console.warn(`No route configuration found for table ID ${tableId}`)
-    return `/tables/${tableId}`
+    console.warn(`No route configuration found for table ID ${foundationId}`)
+    return `/tables/${foundationId}`
   }
-  return `/tables/${route.tableId}/${route.slug}`
+  return `/tables/${route.foundationId}/${route.slug}`
 }
 
 /**
@@ -159,7 +159,7 @@ export function generateLegacyRedirects() {
     .filter(route => route.legacyRoute && !route.redirectTo)
     .map(route => ({
       from: route.legacyRoute,
-      to: getTableUrl(route.tableId)
+      to: getTableUrl(route.foundationId)
     }))
 }
 

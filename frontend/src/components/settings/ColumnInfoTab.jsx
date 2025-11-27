@@ -328,7 +328,7 @@ export default function ColumnInfoTab() {
           ]
 
           setColumns(systemColumns)
-          setDataSource(`Gold Standard Reference Table (ID: ${data.table_id})`)
+          setDataSource(`Gold Standard Reference Table (ID: ${data.foundation_id})`)
           setError(null)
         } else {
           throw new Error('Invalid API response')

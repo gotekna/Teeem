@@ -12,7 +12,7 @@ import { COLUMN_TYPES, getColumnTypeEmoji } from '../../constants/columnTypes';
  * - Count of successful vs failed conversions
  * - Validation before applying changes
  */
-const TypeConversionEditor = ({ tableId, column, onUpdate }) => {
+const TypeConversionEditor = ({ foundationId, column, onUpdate }) => {
   const [newType, setNewType] = useState(column.column_type);
   const [conversionStrategy, setConversionStrategy] = useState('clear_invalid');
   const [validationResult, setValidationResult] = useState(null);
@@ -87,7 +87,7 @@ const TypeConversionEditor = ({ tableId, column, onUpdate }) => {
       const proceed = window.confirm(
         '⚠️ Converting to Lookup type requires additional configuration.\n\n' +
         'After conversion, you will need to:\n' +
-        '1. Set the target table (lookup_table_id)\n' +
+        '1. Set the target table (lookup_foundation_id)\n' +
         '2. Set the display column (lookup_display_column)\n' +
         '3. Configure these in the Column Info tab\n\n' +
         'Do you want to proceed?'
@@ -156,7 +156,7 @@ const TypeConversionEditor = ({ tableId, column, onUpdate }) => {
 
       // Use the existing PATCH endpoint to update the column type
       const response = await api.patch(
-        `/api/v1/tables/${tableId}/columns/${column.id}`,
+        `/api/v1/foundations/${foundationId}/columns/${column.id}`,
         {
           column: {
             column_type: newType

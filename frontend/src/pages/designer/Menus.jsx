@@ -15,7 +15,7 @@ export default function Menus() {
   const fetchTables = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/api/v1/tables')
+      const response = await api.get('/api/v1/foundations')
       // Add is_live property to each table (defaults to false)
       const tablesWithLiveStatus = (response.tables || []).map(table => ({
         ...table,
@@ -29,15 +29,15 @@ export default function Menus() {
     }
   }
 
-  const toggleLiveStatus = async (tableId, currentStatus) => {
+  const toggleLiveStatus = async (foundationId, currentStatus) => {
     // Optimistically update the UI
     setTables(tables.map(table =>
-      table.id === tableId ? { ...table, is_live: !currentStatus } : table
+      table.id === foundationId ? { ...table, is_live: !currentStatus } : table
     ))
 
     try {
       // Update via API
-      await api.patch(`/api/v1/tables/${tableId}`, {
+      await api.patch(`/api/v1/foundations/${foundationId}`, {
         table: { is_live: !currentStatus }
       })
     } catch (err) {

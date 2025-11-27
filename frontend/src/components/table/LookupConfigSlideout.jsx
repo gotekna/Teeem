@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { XMarkIcon, MagnifyingGlassIcon, ChevronLeftIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
-export default function LookupConfigSlideout({ column, tableId, onSave, onClose }) {
+export default function LookupConfigSlideout({ column, foundationId, onSave, onClose }) {
   const [step, setStep] = useState(1) // 1 = select table, 2 = select fields
   const [loading, setLoading] = useState(false)
   const [tables, setTables] = useState([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedTableId, setSelectedTableId] = useState(column?.lookup_table_id || '')
+  const [selectedTableId, setSelectedTableId] = useState(column?.lookup_foundation_id || '')
   const [selectedTable, setSelectedTable] = useState(null)
   const [displayColumn, setDisplayColumn] = useState(column?.lookup_display_column || '')
   const [selectedFields, setSelectedFields] = useState(new Set())
@@ -16,16 +16,16 @@ export default function LookupConfigSlideout({ column, tableId, onSave, onClose 
   useEffect(() => {
     const fetchTables = async () => {
       try {
-        const response = await api.get('/api/v1/tables')
+        const response = await api.get('/api/v1/foundations')
         // Filter out the current table
-        const availableTables = response.data.tables.filter(t => t.id !== tableId)
+        const availableTables = response.data.tables.filter(t => t.id !== foundationId)
         setTables(availableTables)
       } catch (err) {
         console.error('Error fetching tables:', err)
       }
     }
     fetchTables()
-  }, [tableId])
+  }, [foundationId])
 
   // Fetch selected table details
   useEffect(() => {
@@ -36,7 +36,7 @@ export default function LookupConfigSlideout({ column, tableId, onSave, onClose 
       }
 
       try {
-        const response = await api.get(`/api/v1/tables/${selectedTableId}`)
+        const response = await api.get(`/api/v1/foundations/${selectedTableId}`)
         setSelectedTable(response.data.table)
       } catch (err) {
         console.error('Error fetching table details:', err)
@@ -81,7 +81,7 @@ export default function LookupConfigSlideout({ column, tableId, onSave, onClose 
     setLoading(true)
     try {
       await onSave({
-        lookup_table_id: selectedTableId,
+        lookup_foundation_id: selectedTableId,
         lookup_display_column: displayColumn,
       })
       onClose()

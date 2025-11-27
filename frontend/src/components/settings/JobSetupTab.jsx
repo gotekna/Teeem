@@ -425,8 +425,8 @@ export default function JobSetupTab() {
         api.get('/api/v1/job_types'),
         api.get('/api/v1/job_status'),
         api.get('/api/v1/job_stages'),
-        api.get('/api/v1/records?table_id=385').catch(() => ({ records: [] })),
-        api.get('/api/v1/records?table_id=384').catch(() => ({ records: [] }))
+        api.get('/api/v1/records?foundation_id=385').catch(() => ({ records: [] })),
+        api.get('/api/v1/records?foundation_id=384').catch(() => ({ records: [] }))
       ])
       setJobTypes(typesRes.job_types || [])
       setJobStatuses(statusesRes.job_statuses || [])

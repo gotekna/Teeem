@@ -13,9 +13,9 @@ export default function ImportPage() {
     setStep('preview')
   }
 
-  const handleImportComplete = (tableId) => {
+  const handleImportComplete = (foundationId) => {
     // Navigate directly to the table view for editing
-    navigate(`/tables/${tableId}`)
+    navigate(`/tables/${foundationId}`)
   }
 
   const handleBack = () => {

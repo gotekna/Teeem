@@ -99,7 +99,7 @@ export default function ColumnsTab() {
       <TeeemTableView
         entries={entries}
         columns={COLUMNS_TABLE_COLUMNS}
-        tableId="dev-columns"
+        foundationId="dev-columns"
         tableName="Columns"
         viewOnly={true}
         hideUpdateViewButton={true}

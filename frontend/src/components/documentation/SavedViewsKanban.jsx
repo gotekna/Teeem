@@ -75,7 +75,7 @@ export default function SavedViewsKanban({
         display_order: v.display_order
       }))
 
-      api.post('/api/v1/table_views/reorder', { orders })
+      api.post('/api/v1/foundation_views/reorder', { orders })
         .then(() => console.log('View order saved'))
         .catch(err => console.error('Failed to save view order:', err))
 
