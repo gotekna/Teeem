@@ -105,6 +105,69 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
     )
   }
 
+  // Sync items configuration
+  const syncItems = [
+    {
+      name: 'Tracking Category',
+      description: 'Link job to Xero tracking category for bill matching',
+      xeroField: 'Tracking Category → Job',
+      teeemValue: job?.xero_tracking_option_name || null,
+      teeemField: job?.title,
+      status: job?.xero_tracking_option_id ? 'linked' : 'not_linked'
+    },
+    {
+      name: 'Bills / Purchase Orders',
+      description: 'Import bills from Xero as Purchase Orders',
+      xeroField: 'Bills (ACCPAY)',
+      teeemValue: null,
+      teeemField: 'Purchase Orders',
+      status: 'can_sync'
+    },
+    {
+      name: 'Contract Value',
+      description: 'Job contract value for budget tracking',
+      xeroField: '-',
+      teeemValue: job?.contract_value ? `$${Number(job.contract_value).toLocaleString()}` : null,
+      teeemField: 'Contract Value',
+      status: job?.contract_value ? 'teeem_only' : 'not_set'
+    },
+    {
+      name: 'Contacts / Suppliers',
+      description: 'Suppliers linked to this job via Purchase Orders',
+      xeroField: 'Contacts',
+      teeemValue: null,
+      teeemField: 'Contacts',
+      status: 'can_sync'
+    },
+    {
+      name: 'Payments',
+      description: 'Payment records for bills',
+      xeroField: 'Payments',
+      teeemValue: null,
+      teeemField: 'Payments',
+      status: 'can_sync'
+    },
+  ]
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'linked':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Linked</span>
+      case 'synced':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Synced</span>
+      case 'can_sync':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Can Sync</span>
+      case 'teeem_only':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">TEEEM Only</span>
+      case 'not_linked':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">Not Linked</span>
+      case 'not_set':
+        return <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-500">Not Set</span>
+      default:
+        return null
+    }
+  }
+
   if (!xeroConnected) {
     return (
       <div className="space-y-4">
@@ -115,7 +178,7 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
             <div className="flex-1">
               <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Xero Not Connected</h4>
               <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-                Connect to Xero in Settings to pull bills for this job.
+                Connect to Xero in Settings to sync data for this job.
               </p>
               <a
                 href="/settings"
@@ -128,33 +191,39 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
           </div>
         </div>
 
-        {/* Job Info Preview */}
+        {/* Potential Sync Items */}
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-            Job Info for Xero Matching
+            Potential Xero Sync Items
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Once connected, Xero will match bills to this job using the tracking category.
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+            Once connected, you can sync the following data between TEEEM and Xero:
           </p>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Job Title</p>
-              <p className="font-medium text-gray-900 dark:text-white">{job?.title || '-'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Location</p>
-              <p className="font-medium text-gray-900 dark:text-white">{job?.location || job?.title || '-'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">TED Number</p>
-              <p className="font-medium text-gray-900 dark:text-white">{job?.ted_number || '-'}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Contract Value</p>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {job?.contract_value ? `$${Number(job.contract_value).toLocaleString()}` : '-'}
-              </p>
-            </div>
+
+          <div className="space-y-3">
+            {syncItems.map((item, index) => (
+              <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</p>
+                    {getStatusBadge(item.status)}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-gray-400">Xero: </span>
+                      <span className="text-gray-600 dark:text-gray-300">{item.xeroField}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">TEEEM: </span>
+                      <span className="text-gray-600 dark:text-gray-300">
+                        {item.teeemValue || item.teeemField || '-'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -278,6 +347,39 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
             )}
           </div>
         )}
+      </div>
+
+      {/* Sync Items Overview */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+          Xero Sync Status
+        </h3>
+
+        <div className="space-y-3">
+          {syncItems.map((item, index) => (
+            <div key={index} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">{item.name}</p>
+                  {getStatusBadge(item.status)}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-gray-400">Xero: </span>
+                    <span className="text-gray-600 dark:text-gray-300">{item.xeroField}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">TEEEM: </span>
+                    <span className="text-gray-600 dark:text-gray-300">
+                      {item.teeemValue || item.teeemField || '-'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
