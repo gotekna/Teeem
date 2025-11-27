@@ -523,6 +523,82 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/folder_contents
+      # Get contents of a specific folder by name within a job's folder
+      # Supports fetching from multiple folders (e.g., "Photo" and "Client Photo")
+      def folder_contents
+        job = Job.find(params[:job_id])
+        folder_names = params[:folder_names]&.split(',')&.map(&:strip) || [params[:folder_name]]
+
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Find the job folder
+          job_folder = client.find_job_folder(job)
+
+          unless job_folder
+            return render json: {
+              error: 'Job folder not found',
+              job_folder_exists: false
+            }, status: :not_found
+          end
+
+          # Get all items in the job folder
+          job_items = client.list_folder_items(job_folder['id'])
+          job_folders = job_items['value']&.select { |item| item['folder'] } || []
+
+          # Find the target folders by name
+          all_files = []
+          found_folders = []
+
+          folder_names.each do |folder_name|
+            target_folder = job_folders.find { |f| f['name'].downcase == folder_name.downcase }
+
+            if target_folder
+              found_folders << { name: target_folder['name'], id: target_folder['id'], web_url: target_folder['webUrl'] }
+
+              # Get contents of this folder
+              folder_contents = client.list_folder_items(target_folder['id'])
+              files = folder_contents['value'] || []
+
+              # Add folder info to each file for context
+              files.each do |file|
+                file['source_folder'] = folder_name
+                all_files << file
+              end
+            end
+          end
+
+          # Separate files and subfolders
+          files_only = all_files.reject { |item| item['folder'] }
+          subfolders = all_files.select { |item| item['folder'] }
+
+          render json: {
+            files: files_only,
+            subfolders: subfolders,
+            total_count: files_only.length,
+            found_folders: found_folders,
+            requested_folders: folder_names,
+            job_folder_id: job_folder['id'],
+            job_folder_web_url: job_folder['webUrl']
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to get folder contents: #{e.message}"
+          render json: { error: "Failed to get folder contents: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/download
       # Download file from OneDrive
       def download

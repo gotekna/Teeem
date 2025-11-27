@@ -1,9 +1,30 @@
 import { useState, useEffect } from 'react'
 import { Tab } from '@headlessui/react'
 import { api } from '../../api'
+import SharePointPhotoGallery from './SharePointPhotoGallery'
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
+}
+
+// Categories that should show SharePoint photos instead of tasks
+const PHOTO_CATEGORIES = ['photo', 'client photo', 'photos', 'client photos']
+
+function isPhotoCategory(categoryName) {
+  return PHOTO_CATEGORIES.includes(categoryName?.toLowerCase())
+}
+
+// Get folder names to fetch based on category
+function getFolderNamesForCategory(categoryName) {
+  const name = categoryName?.toLowerCase()
+  if (name === 'photo' || name === 'photos') {
+    // Photo tab shows both Photo and Client Photo folders
+    return ['Photo', 'Client Photo']
+  }
+  if (name === 'client photo' || name === 'client photos') {
+    return ['Client Photo']
+  }
+  return [categoryName]
 }
 
 export default function DocumentCategoryTabs({ jobId, onCategoryChange, children }) {
@@ -84,7 +105,14 @@ export default function DocumentCategoryTabs({ jobId, onCategoryChange, children
       <Tab.Panels className="mt-6">
         {documentCategories.map((category) => (
           <Tab.Panel key={category.id} className="focus:outline-none">
-            {children(category)}
+            {isPhotoCategory(category.name) ? (
+              <SharePointPhotoGallery
+                jobId={jobId}
+                folderNames={getFolderNamesForCategory(category.name)}
+              />
+            ) : (
+              children(category)
+            )}
           </Tab.Panel>
         ))}
       </Tab.Panels>
