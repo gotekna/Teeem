@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PlusIcon, ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, MagnifyingGlassIcon, Bars3Icon, ChevronUpIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, MagnifyingGlassIcon, Bars3Icon, ChevronUpIcon, LinkIcon, ExclamationCircleIcon, ExclamationTriangleIcon, CheckCircleIcon, Cog6ToothIcon } from '@heroicons/react/24/outline'
 import { api } from '../api'
 
 export default function HealthPage() {
@@ -31,6 +31,7 @@ export default function HealthPage() {
     issues_found: 0,
     issues: []
   })
+  const [xeroSyncHealth, setXeroSyncHealth] = useState(null)
   const [expandedSupplierCategory, setExpandedSupplierCategory] = useState(null)
   const [loadingMissingItems, setLoadingMissingItems] = useState(false)
   const [missingItems, setMissingItems] = useState({})
@@ -39,7 +40,8 @@ export default function HealthPage() {
     suppliersWithIncompleteCategoryPricing: false,
     itemsWithDefaultSupplierButNoPriceHistory: false,
     itemsRequiringPhotoWithoutImage: false,
-    priceMismatches: false
+    priceMismatches: false,
+    xeroSync: true
   })
   const [searchQueries, setSearchQueries] = useState({
     itemsWithoutDefaultSupplier: '',
@@ -197,6 +199,7 @@ export default function HealthPage() {
   useEffect(() => {
     loadHealthData()
     loadPriceHealthCheck()
+    loadXeroSyncHealth()
   }, [])
 
   // Persist column order to localStorage
@@ -271,6 +274,15 @@ export default function HealthPage() {
       setPriceHealthCheck(response)
     } catch (error) {
       console.error('Failed to load price health check:', error)
+    }
+  }
+
+  const loadXeroSyncHealth = async () => {
+    try {
+      const response = await api.get('/api/v1/sync_configurations/health')
+      setXeroSyncHealth(response.health)
+    } catch (error) {
+      console.error('Failed to load Xero sync health:', error)
     }
   }
 
@@ -1654,6 +1666,177 @@ export default function HealthPage() {
               </div>
             </div>
           </div>
+
+          {/* Xero Sync Health Section */}
+          {xeroSyncHealth && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => toggleSection('xeroSync')}
+                className="w-full px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              >
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Xero Contact Sync Health
+                  </h2>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    xeroSyncHealth.overall_status === 'healthy' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                    xeroSyncHealth.overall_status === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                    xeroSyncHealth.overall_status === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                  }`}>
+                    {xeroSyncHealth.overall_status === 'healthy' ? 'Healthy' :
+                     xeroSyncHealth.overall_status === 'warning' ? 'Warning' :
+                     xeroSyncHealth.overall_status === 'error' ? 'Errors' : 'Disabled'}
+                  </span>
+                </div>
+                {expandedSections.xeroSync ? (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+
+              {expandedSections.xeroSync && (
+                <div className="p-6">
+                  {/* Overview Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <LinkIcon className="h-4 w-4 text-blue-500" />
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Linked Contacts</span>
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {xeroSyncHealth.total_linked_contacts || 0}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ExclamationCircleIcon className="h-4 w-4 text-red-500" />
+                        <span className="text-sm text-gray-500 dark:text-gray-400">With Errors</span>
+                      </div>
+                      <div className={`text-2xl font-semibold ${xeroSyncHealth.total_contacts_with_errors > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                        {xeroSyncHealth.total_contacts_with_errors || 0}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ExclamationTriangleIcon className="h-4 w-4 text-yellow-500" />
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Conflicts</span>
+                      </div>
+                      <div className={`text-2xl font-semibold ${xeroSyncHealth.total_contacts_with_conflicts > 0 ? 'text-yellow-600' : 'text-gray-900 dark:text-white'}`}>
+                        {xeroSyncHealth.total_contacts_with_conflicts || 0}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Cog6ToothIcon className="h-4 w-4 text-indigo-500" />
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Organizations</span>
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {xeroSyncHealth.sync_enabled_count || 0} / {xeroSyncHealth.total_organizations || 0}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Organization Health */}
+                  {xeroSyncHealth.organizations && xeroSyncHealth.organizations.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Organization Status</h4>
+                      <div className="space-y-2">
+                        {xeroSyncHealth.organizations.map((org) => (
+                          <div
+                            key={org.xero_tenant_id}
+                            className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                org.status === 'healthy' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                                org.status === 'warning' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                org.status === 'error' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                              }`}>
+                                {org.status === 'healthy' ? 'Healthy' :
+                                 org.status === 'warning' ? 'Warning' :
+                                 org.status === 'error' ? 'Errors' : 'Disabled'}
+                              </span>
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {org.xero_tenant_name || 'Unnamed Organization'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+                              <span>{org.linked_contacts} linked</span>
+                              {org.contacts_with_errors > 0 && (
+                                <span className="text-red-600">{org.contacts_with_errors} errors</span>
+                              )}
+                              {org.contacts_with_conflicts > 0 && (
+                                <span className="text-yellow-600">{org.contacts_with_conflicts} conflicts</span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recent Errors */}
+                  {xeroSyncHealth.recent_errors && xeroSyncHealth.recent_errors.length > 0 && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Recent Sync Errors</h4>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-900/50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Contact</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Error</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                            {xeroSyncHealth.recent_errors.slice(0, 5).map((error, idx) => (
+                              <tr key={idx}>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                  <Link to={`/contacts/${error.contact_id}`} className="text-indigo-600 hover:text-indigo-500">
+                                    {error.contact_name || `Contact #${error.contact_id}`}
+                                  </Link>
+                                </td>
+                                <td className="px-4 py-2 text-sm text-red-600 dark:text-red-400 max-w-xs truncate">
+                                  {error.error}
+                                </td>
+                                <td className="px-4 py-2 whitespace-nowrap text-sm">
+                                  <Link to={`/contacts/${error.contact_id}?tab=xero`} className="text-indigo-600 hover:text-indigo-500">
+                                    View Details
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* No Issues / Configure Link */}
+                  <div className="flex items-center justify-between">
+                    {xeroSyncHealth.total_contacts_with_errors === 0 && xeroSyncHealth.total_contacts_with_conflicts === 0 ? (
+                      <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                        <CheckCircleIcon className="h-5 w-5" />
+                        <span className="text-sm">All contacts syncing correctly</span>
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                    <Link
+                      to="/contacts/sync-config"
+                      className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500"
+                    >
+                      <Cog6ToothIcon className="h-4 w-4 mr-1" />
+                      Configure Sync Settings
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -115,21 +115,37 @@ module Api
           }, status: :conflict
         end
 
+        # Store column info before destroying
+        deleted_column_name = @column.column_name
+        column_to_remove = @column
+
+        # Remove the column from the database table first (preserves FK constraints)
+        builder = TableBuilder.new(@foundation)
+        table_exists = ActiveRecord::Base.connection.table_exists?(@foundation.database_table_name)
+
+        if table_exists
+          # Skip removing reserved columns from DB (they're Rails auto-generated)
+          unless TableBuilder::RESERVED_COLUMNS.include?(deleted_column_name)
+            result = builder.remove_column(column_to_remove)
+            unless result[:success]
+              return render json: {
+                success: false,
+                errors: result[:errors]
+              }, status: :unprocessable_entity
+            end
+          end
+        end
+
+        # Now destroy the column record
         @column.destroy
 
-        # Rebuild the database table without this column
-        foundation_reloaded = Foundation.includes(:columns).find(@foundation.id)
-        builder = TableBuilder.new(foundation_reloaded)
-        result = builder.create_database_table
+        # Remove column from all existing views for this foundation
+        remove_column_from_views(deleted_column_name)
 
-        if result[:success]
-          render json: { success: true }
-        else
-          render json: {
-            success: false,
-            errors: result[:errors]
-          }, status: :unprocessable_entity
-        end
+        # Reset the connection's schema cache
+        ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(@foundation.database_table_name)
+
+        render json: { success: true }
       end
 
       # GET /api/v1/foundations/:foundation_id/columns/:id/lookup_options
@@ -636,6 +652,39 @@ module Api
         end
 
         Rails.logger.info "[Column Create] Updated #{updated_count} views for foundation #{@foundation.id} with new column '#{column.column_name}'"
+      end
+
+      # Remove a deleted column from all existing views for this foundation
+      # This ensures views stay in sync when columns are deleted
+      def remove_column_from_views(column_name)
+        views = FoundationView.where(foundation_id: @foundation.id)
+        updated_count = 0
+
+        views.each do |view|
+          next unless view.columns.is_a?(Hash)
+          modified = false
+
+          # Remove from visible columns
+          if view.columns['visible'].is_a?(Hash) && view.columns['visible'].key?(column_name)
+            view.columns['visible'].delete(column_name)
+            modified = true
+          end
+
+          # Remove from column order
+          if view.columns['order'].is_a?(Array) && view.columns['order'].include?(column_name)
+            view.columns['order'].delete(column_name)
+            modified = true
+          end
+
+          if modified && view.save
+            updated_count += 1
+            Rails.logger.info "[Column Delete] Removed column '#{column_name}' from view '#{view.name}' (ID: #{view.id})"
+          elsif modified
+            Rails.logger.error "[Column Delete] Failed to update view '#{view.name}': #{view.errors.full_messages.join(', ')}"
+          end
+        end
+
+        Rails.logger.info "[Column Delete] Updated #{updated_count} views for foundation #{@foundation.id}, removed column '#{column_name}'"
       end
 
       # Check if column is referenced by lookups or formulas

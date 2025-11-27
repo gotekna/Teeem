@@ -6,13 +6,26 @@ module Api
 
       # GET /api/v1/contacts/:contact_id/relationships
       def index
-        @relationships = @contact.outgoing_relationships.includes(:related_contact)
-        render json: { relationships: @relationships.map { |rel| serialize_relationship(rel) } }
+        # Get both outgoing and incoming relationships
+        outgoing = @contact.outgoing_relationships.includes(:related_contact)
+        incoming = @contact.incoming_relationships.includes(:source_contact)
+
+        render json: {
+          success: true,
+          relationships: {
+            outgoing: outgoing.map { |rel| serialize_relationship(rel, 'outgoing') },
+            incoming: incoming.map { |rel| serialize_relationship(rel, 'incoming') }
+          },
+          relationship_types: ContactRelationship::RELATIONSHIP_TYPES
+        }
       end
 
       # GET /api/v1/contacts/:contact_id/relationships/:id
       def show
-        render json: serialize_relationship(@relationship)
+        render json: {
+          success: true,
+          relationship: serialize_relationship(@relationship)
+        }
       end
 
       # POST /api/v1/contacts/:contact_id/relationships
@@ -20,25 +33,48 @@ module Api
         @relationship = @contact.outgoing_relationships.build(relationship_params)
 
         if @relationship.save
-          render json: serialize_relationship(@relationship), status: :created
+          render json: {
+            success: true,
+            relationship: serialize_relationship(@relationship)
+          }, status: :created
         else
-          render json: { errors: @relationship.errors.full_messages }, status: :unprocessable_entity
+          render json: {
+            success: false,
+            errors: @relationship.errors.full_messages
+          }, status: :unprocessable_entity
         end
       end
 
       # PATCH/PUT /api/v1/contacts/:contact_id/relationships/:id
       def update
         if @relationship.update(relationship_params)
-          render json: serialize_relationship(@relationship)
+          render json: {
+            success: true,
+            relationship: serialize_relationship(@relationship)
+          }
         else
-          render json: { errors: @relationship.errors.full_messages }, status: :unprocessable_entity
+          render json: {
+            success: false,
+            errors: @relationship.errors.full_messages
+          }, status: :unprocessable_entity
         end
       end
 
       # DELETE /api/v1/contacts/:contact_id/relationships/:id
       def destroy
         @relationship.destroy
-        head :no_content
+        render json: { success: true }
+      end
+
+      # GET /api/v1/contacts/:contact_id/relationships/summary
+      def summary
+        # Return a summary of all relationships for search results
+        render json: {
+          success: true,
+          summary: @contact.relationship_summary,
+          companies: @contact.all_companies.map { |c| { id: c.id, name: c.display_name } },
+          employees: @contact.employees.map { |e| { id: e.id, name: e.display_name } }
+        }
       end
 
       private
@@ -48,28 +84,70 @@ module Api
       end
 
       def set_relationship
-        @relationship = @contact.outgoing_relationships.find(params[:id])
+        @relationship = @contact.outgoing_relationships.find_by(id: params[:id]) ||
+                        @contact.incoming_relationships.find_by(id: params[:id])
+
+        unless @relationship
+          render json: {
+            success: false,
+            errors: ["Relationship not found"]
+          }, status: :not_found
+        end
       end
 
       def relationship_params
-        params.require(:contact_relationship).permit(:related_contact_id, :relationship_type, :notes)
+        params.require(:contact_relationship).permit(
+          :related_contact_id,
+          :relationship_type,
+          :ownership_percentage,
+          :start_date,
+          :end_date,
+          :is_active,
+          :notes,
+          :role_in_relationship,
+          :context,
+          metadata: {}
+        )
       end
 
-      def serialize_relationship(relationship)
+      def serialize_relationship(relationship, direction = nil)
+        # Determine the "other" contact based on perspective
+        other_contact = if direction == 'incoming'
+          relationship.source_contact
+        else
+          relationship.related_contact
+        end
+
         {
           id: relationship.id,
           source_contact_id: relationship.source_contact_id,
           related_contact_id: relationship.related_contact_id,
           relationship_type: relationship.relationship_type,
+          relationship_type_label: relationship.relationship_type.humanize.titleize,
+          direction: direction,
+          ownership_percentage: relationship.ownership_percentage,
+          start_date: relationship.start_date,
+          end_date: relationship.end_date,
+          is_active: relationship.is_active,
           notes: relationship.notes,
+          role_in_relationship: relationship.role_in_relationship,
+          context: relationship.context,
           created_at: relationship.created_at,
           updated_at: relationship.updated_at,
+          other_contact: {
+            id: other_contact&.id,
+            name: other_contact&.display_name,
+            entity_type: other_contact&.entity_type,
+            email: other_contact&.email,
+            phone: other_contact&.primary_phone,
+            contact_types: other_contact&.contact_types
+          },
           related_contact: {
-            id: relationship.related_contact.id,
-            full_name: relationship.related_contact.display_name,
-            email: relationship.related_contact.email,
-            phone: relationship.related_contact.primary_phone,
-            contact_types: relationship.related_contact.contact_types
+            id: relationship.related_contact&.id,
+            full_name: relationship.related_contact&.display_name,
+            email: relationship.related_contact&.email,
+            phone: relationship.related_contact&.primary_phone,
+            contact_types: relationship.related_contact&.contact_types
           }
         }
       end

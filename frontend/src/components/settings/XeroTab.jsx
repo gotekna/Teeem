@@ -3,6 +3,7 @@ import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
 
 const XeroConnection = lazy(() => import('./XeroConnection'))
 const XeroFieldMappingTab = lazy(() => import('./XeroFieldMappingTab'))
+const SyncConfigPage = lazy(() => import('../../pages/SyncConfigPage'))
 
 export default function XeroTab() {
   return (
@@ -33,6 +34,18 @@ export default function XeroTab() {
           >
             Field Mapping
           </Tab>
+          <Tab
+            className={({ selected }) =>
+              `rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all whitespace-nowrap
+              ${
+                selected
+                  ? 'bg-white dark:bg-gray-700 text-purple-700 dark:text-purple-400 shadow'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
+              }`
+            }
+          >
+            Contact Sync
+          </Tab>
         </TabList>
 
         <TabPanels>
@@ -45,6 +58,12 @@ export default function XeroTab() {
           <TabPanel>
             <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
               <XeroFieldMappingTab />
+            </Suspense>
+          </TabPanel>
+
+          <TabPanel>
+            <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
+              <SyncConfigPage embedded={true} />
             </Suspense>
           </TabPanel>
         </TabPanels>

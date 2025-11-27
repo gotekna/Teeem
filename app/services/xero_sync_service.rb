@@ -1,68 +1,204 @@
+require 'httparty'
+
 class XeroSyncService
-  XERO_API_URL = 'https://api.xero.com/api.xro/2.0'
+  include HTTParty
+  base_uri 'https://api.xero.com/api.xro/2.0'
+
+  class SyncError < StandardError; end
 
   def initialize(connection)
     @connection = connection
-    ensure_token_valid!
+    @auth_service = XeroAuthService.new(connection.company)
   end
 
-  def sync_accounts
-    # Refresh token if needed
-    ensure_token_valid!
+  # Sync chart of accounts from Xero
+  def sync_chart_of_accounts
+    begin
+      # Get valid access token
+      access_token = @auth_service.get_valid_token(@connection)
 
-    # Fetch chart of accounts from Xero
-    accounts = fetch_accounts
-
-    # Clear existing synced accounts
-    @connection.xero_accounts.destroy_all
-
-    # Create new account records
-    accounts_created = 0
-
-    accounts.each do |account|
-      @connection.xero_accounts.create!(
-        xero_account_id: account['AccountID'],
-        account_code: account['Code'],
-        account_name: account['Name'],
-        account_type: account['Type'],
-        tax_type: account['TaxType'],
-        description: account['Description'],
-        is_active: account['Status'] == 'ACTIVE'
+      # Fetch accounts from Xero
+      response = self.class.get(
+        '/Accounts',
+        headers: {
+          'Authorization' => "Bearer #{access_token}",
+          'Xero-tenant-id' => @connection.xero_tenant_id,
+          'Accept' => 'application/json',
+          'Content-Type' => 'application/json'
+        }
       )
-      accounts_created += 1
+
+      unless response.success?
+        error_message = "Failed to sync accounts: #{response.code} - #{response.body}"
+        Rails.logger.error(error_message)
+        @connection.mark_error!(error_message)
+        raise SyncError, error_message
+      end
+
+      accounts_data = JSON.parse(response.body)['Accounts'] || []
+
+      # Sync each account
+      synced_count = 0
+      accounts_data.each do |account_data|
+        sync_account(account_data)
+        synced_count += 1
+      end
+
+      # Mark sync as successful
+      @connection.sync_successful!
+
+      Rails.logger.info("Synced #{synced_count} accounts for #{@connection.company.name}")
+
+      {
+        success: true,
+        synced_count: synced_count,
+        total_accounts: @connection.company_xero_accounts.count
+      }
+    rescue XeroAuthService::AuthenticationError => e
+      @connection.mark_error!(e.message)
+      raise
+    rescue StandardError => e
+      error_message = "Sync failed: #{e.message}"
+      Rails.logger.error(error_message)
+      @connection.mark_error!(error_message)
+      raise SyncError, error_message
     end
+  end
 
-    # Update last sync timestamp
-    @connection.update!(last_sync_at: Time.current)
+  # Sync organization settings
+  def sync_organization_settings
+    begin
+      access_token = @auth_service.get_valid_token(@connection)
 
-    {
-      accounts_synced: accounts_created,
-      synced_at: @connection.last_sync_at
-    }
-  rescue StandardError => e
-    Rails.logger.error "Xero sync failed: #{e.message}"
-    raise e
+      response = self.class.get(
+        '/Organisation',
+        headers: {
+          'Authorization' => "Bearer #{access_token}",
+          'Xero-tenant-id' => @connection.xero_tenant_id,
+          'Accept' => 'application/json'
+        }
+      )
+
+      if response.success?
+        org_data = JSON.parse(response.body)['Organisations'].first
+
+        # Update connection with organization settings
+        @connection.update(
+          accounting_method: org_data['SalesTaxBasis'], # CASH or ACCRUAL
+          financial_year_end: parse_xero_date(org_data['FinancialYearEndMonth'], org_data['FinancialYearEndDay'])
+        )
+
+        Rails.logger.info("Synced organization settings for #{@connection.company.name}")
+        { success: true }
+      else
+        Rails.logger.warn("Failed to sync organization settings: #{response.code}")
+        { success: false, error: "Failed to fetch organization settings" }
+      end
+    rescue StandardError => e
+      Rails.logger.error("Organization settings sync error: #{e.message}")
+      { success: false, error: e.message }
+    end
+  end
+
+  # Fetch Profit & Loss report (for Phase 2 consolidation)
+  def fetch_profit_and_loss(from_date, to_date)
+    begin
+      access_token = @auth_service.get_valid_token(@connection)
+
+      response = self.class.get(
+        '/Reports/ProfitAndLoss',
+        query: {
+          fromDate: from_date.strftime('%Y-%m-%d'),
+          toDate: to_date.strftime('%Y-%m-%d')
+        },
+        headers: {
+          'Authorization' => "Bearer #{access_token}",
+          'Xero-tenant-id' => @connection.xero_tenant_id,
+          'Accept' => 'application/json'
+        }
+      )
+
+      if response.success?
+        report_data = JSON.parse(response.body)['Reports'].first
+        {
+          success: true,
+          data: report_data
+        }
+      else
+        {
+          success: false,
+          error: "Failed to fetch P&L: #{response.code}"
+        }
+      end
+    rescue StandardError => e
+      Rails.logger.error("P&L fetch error: #{e.message}")
+      { success: false, error: e.message }
+    end
+  end
+
+  # Fetch Balance Sheet report (for Phase 2 consolidation)
+  def fetch_balance_sheet(as_at_date)
+    begin
+      access_token = @auth_service.get_valid_token(@connection)
+
+      response = self.class.get(
+        '/Reports/BalanceSheet',
+        query: {
+          date: as_at_date.strftime('%Y-%m-%d')
+        },
+        headers: {
+          'Authorization' => "Bearer #{access_token}",
+          'Xero-tenant-id' => @connection.xero_tenant_id,
+          'Accept' => 'application/json'
+        }
+      )
+
+      if response.success?
+        report_data = JSON.parse(response.body)['Reports'].first
+        {
+          success: true,
+          data: report_data
+        }
+      else
+        {
+          success: false,
+          error: "Failed to fetch Balance Sheet: #{response.code}"
+        }
+      end
+    rescue StandardError => e
+      Rails.logger.error("Balance Sheet fetch error: #{e.message}")
+      { success: false, error: e.message }
+    end
   end
 
   private
 
-  def ensure_token_valid!
-    if @connection.needs_token_refresh?
-      XeroAuthService.new.refresh_token(@connection)
-      @connection.reload
-    end
+  def sync_account(account_data)
+    account = @connection.company_xero_accounts.find_or_initialize_by(
+      xero_account_id: account_data['AccountID']
+    )
+
+    account.assign_attributes(
+      account_code: account_data['Code'],
+      account_name: account_data['Name'],
+      account_type: account_data['Type'],
+      account_class: account_data['Class'],
+      tax_type: account_data['TaxType'],
+      description: account_data['Description'],
+      enable_payments_to_account: account_data['EnablePaymentsToAccount'] || false,
+      show_in_expense_claims: account_data['ShowInExpenseClaims'] || false,
+      status: account_data['Status'],
+      reporting_code_value: account_data['ReportingCodeName']
+    )
+
+    account.save!
   end
 
-  def fetch_accounts
-    url = "#{XERO_API_URL}/Accounts"
-
-    response = HTTP.auth("Bearer #{@connection.access_token}")
-                   .headers('Xero-Tenant-Id' => @connection.tenant_id, 'Accept' => 'application/json')
-                   .get(url)
-
-    raise "Failed to fetch accounts: #{response.status} - #{response.body}" unless response.status.success?
-
-    data = JSON.parse(response.body)
-    data['Accounts'] || []
+  def parse_xero_date(month, day)
+    return nil unless month.present? && day.present?
+    # Create date for current year's financial year end
+    Date.new(Date.today.year, month.to_i, day.to_i)
+  rescue ArgumentError
+    nil
   end
 end

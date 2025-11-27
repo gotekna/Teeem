@@ -16,7 +16,7 @@ class JobContact < ApplicationRecord
   scope :primary, -> { where(primary: true) }
 
   # Internal team roles use users, external roles use contacts
-  INTERNAL_ROLES = %w[supervisor estimator internal_sales coordinator].freeze
+  INTERNAL_ROLES = %w[supervisor site_coordinator estimator internal_sales coordinator].freeze
 
   def internal_team?
     INTERNAL_ROLES.include?(role)

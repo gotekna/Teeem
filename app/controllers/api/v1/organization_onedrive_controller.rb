@@ -1,6 +1,9 @@
 module Api
   module V1
     class OrganizationOnedriveController < ApplicationController
+      # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
+      skip_before_action :authorize_request, only: [:callback]
+
       # Require admin for sensitive operations
       before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images]
 
@@ -113,19 +116,19 @@ module Api
           frontend_url = get_frontend_url_from_request
 
           # Redirect to frontend settings page with success message
-          redirect_to "#{frontend_url}/settings?onedrive=connected", allow_other_host: true
+          redirect_to "#{frontend_url}/admin/system?onedrive=connected", allow_other_host: true
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           Rails.logger.error "=== OneDrive Authentication Failed ==="
           Rails.logger.error "Error: #{e.message}"
           frontend_url = get_frontend_url_from_request
-          redirect_to "#{frontend_url}/settings?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
+          redirect_to "#{frontend_url}/admin/system?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
         rescue StandardError => e
           Rails.logger.error "=== OneDrive Connection Failed ==="
           Rails.logger.error "Error: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
           frontend_url = get_frontend_url_from_request
-          redirect_to "#{frontend_url}/settings?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
+          redirect_to "#{frontend_url}/admin/system?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
         end
       end
 
@@ -242,6 +245,82 @@ module Api
           Rails.logger.error "Failed to change root folder: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
           render json: { error: "Failed to change root folder: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/organization_onedrive/sharepoint_sites
+      # List available SharePoint sites
+      def sharepoint_sites
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          sites = client.list_sharepoint_sites
+
+          render json: {
+            sites: sites,
+            current_site: credential.metadata&.dig('site_name')
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to list SharePoint sites: #{e.message}"
+          render json: { error: "Failed to list sites: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/use_sharepoint_site
+      # Switch to using a SharePoint site instead of personal OneDrive
+      def use_sharepoint_site
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        site_name = params[:site_name]
+
+        if site_name.blank?
+          return render json: { error: 'Site name is required' }, status: :bad_request
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          result = client.use_sharepoint_site(site_name)
+
+          # Reset root folder since we're switching drives
+          credential.update!(
+            root_folder_id: nil,
+            root_folder_path: nil
+          )
+
+          render json: {
+            message: "Successfully switched to SharePoint site '#{result[:site]['displayName'] || site_name}'",
+            site: {
+              id: result[:site]['id'],
+              name: result[:site]['displayName'] || result[:site]['name'],
+              web_url: result[:site]['webUrl']
+            },
+            drive: {
+              id: result[:drive]['id'],
+              name: result[:drive]['name']
+            }
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to switch SharePoint site: #{e.message}"
+          render json: { error: "Failed to switch site: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -376,8 +455,7 @@ module Api
       # POST /api/v1/organization_onedrive/create_job_folders
       # Create folder structure for a specific job
       def create_job_folders
-        construction_id = params[:job_id]
-        construction = Job.find(construction_id)
+        job = Job.find(params[:job_id])
 
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -401,7 +479,7 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # Check if job folder already exists
-          existing_folder = client.find_job_folder(construction)
+          existing_folder = client.find_job_folder(job)
 
           if existing_folder
             return render json: {
@@ -412,7 +490,7 @@ module Api
           end
 
           # Create folder structure for this job
-          job_folder = client.create_job_folder_structure(construction, template)
+          job_folder = client.create_job_folder_structure(job, template)
 
           # Mark credential as synced
           credential.mark_synced!
@@ -438,8 +516,7 @@ module Api
       # GET /api/v1/organization_onedrive/job_folders
       # List folders and files for a specific job
       def list_job_items
-        construction_id = params[:job_id]
-        construction = Job.find(construction_id)
+        job = Job.find(params[:job_id])
 
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -451,7 +528,7 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # Find the job folder
-          job_folder = client.find_job_folder(construction)
+          job_folder = client.find_job_folder(job)
 
           unless job_folder
             return render json: {
@@ -485,8 +562,7 @@ module Api
       # POST /api/v1/organization_onedrive/upload
       # Upload file to OneDrive
       def upload
-        construction_id = params[:job_id]
-        construction = Job.find(construction_id)
+        job = Job.find(params[:job_id])
 
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -537,6 +613,82 @@ module Api
         rescue StandardError => e
           Rails.logger.error "Failed to upload file: #{e.message}"
           render json: { error: "Failed to upload file: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/organization_onedrive/folder_contents
+      # Get contents of a specific folder by name within a job's folder
+      # Supports fetching from multiple folders (e.g., "Photo" and "Client Photo")
+      def folder_contents
+        job = Job.find(params[:job_id])
+        folder_names = params[:folder_names]&.split(',')&.map(&:strip) || [params[:folder_name]]
+
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Find the job folder
+          job_folder = client.find_job_folder(job)
+
+          unless job_folder
+            return render json: {
+              error: 'Job folder not found',
+              job_folder_exists: false
+            }, status: :not_found
+          end
+
+          # Get all items in the job folder
+          job_items = client.list_folder_items(job_folder['id'])
+          job_folders = job_items['value']&.select { |item| item['folder'] } || []
+
+          # Find the target folders by name
+          all_files = []
+          found_folders = []
+
+          folder_names.each do |folder_name|
+            target_folder = job_folders.find { |f| f['name'].downcase == folder_name.downcase }
+
+            if target_folder
+              found_folders << { name: target_folder['name'], id: target_folder['id'], web_url: target_folder['webUrl'] }
+
+              # Get contents of this folder
+              folder_contents = client.list_folder_items(target_folder['id'])
+              files = folder_contents['value'] || []
+
+              # Add folder info to each file for context
+              files.each do |file|
+                file['source_folder'] = folder_name
+                all_files << file
+              end
+            end
+          end
+
+          # Separate files and subfolders
+          files_only = all_files.reject { |item| item['folder'] }
+          subfolders = all_files.select { |item| item['folder'] }
+
+          render json: {
+            files: files_only,
+            subfolders: subfolders,
+            total_count: files_only.length,
+            found_folders: found_folders,
+            requested_folders: folder_names,
+            job_folder_id: job_folder['id'],
+            job_folder_web_url: job_folder['webUrl']
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to get folder contents: #{e.message}"
+          render json: { error: "Failed to get folder contents: #{e.message}" }, status: :internal_server_error
         end
       end
 

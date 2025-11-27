@@ -4,6 +4,7 @@ class Job < ApplicationRecord
 
   # Associations
   has_many :purchase_orders, dependent: :destroy
+  has_many :job_claims, dependent: :destroy
   has_many :schedule_tasks, dependent: :destroy
   has_one :project, dependent: :destroy
   has_one :one_drive_credential, dependent: :destroy
@@ -14,6 +15,7 @@ class Job < ApplicationRecord
   has_many :chat_messages, dependent: :nullify
   has_many :emails, dependent: :nullify
   has_many :job_documentation_tabs, dependent: :destroy
+  has_many :document_tasks, dependent: :destroy
   has_many :job_contacts, dependent: :destroy
   has_many :contacts, through: :job_contacts
   has_many :rain_logs, dependent: :destroy
@@ -34,13 +36,14 @@ class Job < ApplicationRecord
   # Validations
   validates :title, presence: true
   validates :status, presence: true
-  validates :site_supervisor_name, presence: true
+  validates :site_supervisor_name, presence: true, unless: :imported_from_xero?
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
   validate :stage_must_be_valid_for_type_and_status
 
   # Callbacks
   after_create :create_documentation_tabs_from_categories
+  after_create :queue_onedrive_folder_creation
 
   # Scopes
   scope :active, -> { where(status: 'Active') }
@@ -132,6 +135,11 @@ class Job < ApplicationRecord
     end
   end
 
+  # Check if job was imported from Xero (has tracking option linked)
+  def imported_from_xero?
+    xero_tracking_option_id.present?
+  end
+
   private
 
   def must_have_at_least_one_contact
@@ -168,5 +176,18 @@ class Job < ApplicationRecord
     unless valid_stage
       errors.add(:job_stage, "is not valid for this job type and status")
     end
+  end
+
+  # Queue OneDrive folder creation after job is created
+  def queue_onedrive_folder_creation
+    # Only create folders if OneDrive is connected
+    credential = OrganizationOneDriveCredential.active_credential
+    return unless credential&.valid_credential?
+
+    # Queue the folder creation job (runs in background)
+    CreateJobOnedriveFoldersJob.perform_later(id)
+    update_column(:onedrive_folder_creation_status, 'pending')
+  rescue StandardError => e
+    Rails.logger.error "Failed to queue OneDrive folder creation for job #{id}: #{e.message}"
   end
 end
