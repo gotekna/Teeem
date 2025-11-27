@@ -240,6 +240,11 @@ class XeroContactSyncService
     updates[:full_name] = xero_contact['Name'] if xero_contact['Name'].present?
     updates[:first_name] = xero_contact['FirstName'] if xero_contact['FirstName'].present?
     updates[:last_name] = xero_contact['LastName'] if xero_contact['LastName'].present?
+
+    # If it's a company (has Name but no FirstName), also set company_name_or_trust
+    if xero_contact['Name'].present? && xero_contact['FirstName'].blank?
+      updates[:company_name_or_trust] = xero_contact['Name']
+    end
     updates[:tax_number] = normalize_tax_number(xero_contact['TaxNumber']) if xero_contact['TaxNumber'].present?
 
     # Xero contact status and identifiers
@@ -388,11 +393,15 @@ class XeroContactSyncService
     contact_types << 'customer' if xero_contact['IsCustomer'] == true
     contact_types << 'supplier' if xero_contact['IsSupplier'] == true
 
+    # If it's a company (has Name but no FirstName), set company_name_or_trust
+    is_company = xero_contact['Name'].present? && xero_contact['FirstName'].blank?
+
     contact_data = {
       xero_id: xero_contact['ContactID'],
       full_name: xero_contact['Name'],
       first_name: xero_contact['FirstName'],
       last_name: xero_contact['LastName'],
+      company_name_or_trust: is_company ? xero_contact['Name'] : nil,
       tax_number: normalize_tax_number(xero_contact['TaxNumber']),
       email: extract_xero_email(xero_contact),
       contact_types: contact_types.any? ? contact_types : nil,
