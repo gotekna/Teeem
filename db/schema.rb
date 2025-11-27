@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_27_221241) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_232827) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -373,8 +373,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_221241) do
     t.string "activity_type"
     t.text "description"
     t.jsonb "metadata"
-    t.string "performed_by_type", null: false
-    t.bigint "performed_by_id", null: false
+    t.string "performed_by_type"
+    t.bigint "performed_by_id"
     t.datetime "occurred_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -560,17 +560,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_221241) do
     t.decimal "accounts_payable_outstanding", precision: 15, scale: 2
     t.decimal "accounts_payable_overdue", precision: 15, scale: 2
     t.boolean "portal_enabled", default: false
-    t.datetime "portal_welcome_sent_at"
     t.decimal "teeem_rating", precision: 3, scale: 2
     t.integer "total_ratings_count", default: 0
     t.string "director_id"
-    t.string "passport_number"
-    t.string "drivers_license_number"
     t.date "date_of_birth"
-    t.string "place_of_birth"
-    t.string "birth_state"
-    t.string "birth_country"
-    t.text "current_residential_address"
     t.string "company_name_or_trust"
     t.bigint "primary_company_id"
     t.string "primary_role"
@@ -587,7 +580,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_221241) do
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
-    t.index ["passport_number"], name: "index_contacts_on_passport_number", where: "(passport_number IS NOT NULL)"
     t.index ["portal_enabled"], name: "index_contacts_on_portal_enabled"
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["primary_contact_type"], name: "index_contacts_on_primary_contact_type"
