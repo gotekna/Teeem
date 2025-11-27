@@ -87,12 +87,30 @@ module Api
           # Initialize client and set up drive
           client = MicrosoftGraphClient.new(credential)
 
-          # Create root folder for all jobs
+          # ALWAYS use the TEEEM SharePoint site instead of personal OneDrive
+          Rails.logger.info "Switching to TEEEM SharePoint site..."
+          begin
+            result = client.use_sharepoint_site("TEEEM")
+            Rails.logger.info "Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
+          rescue StandardError => e
+            Rails.logger.warn "Could not find TEEEM SharePoint site, trying search..."
+            # Try to find it by searching available sites
+            sites = client.list_sharepoint_sites
+            teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
+            if teeem_site
+              result = client.use_sharepoint_site(teeem_site[:id])
+              Rails.logger.info "Connected to SharePoint site via search: #{teeem_site[:name]}"
+            else
+              Rails.logger.warn "TEEEM SharePoint site not found, falling back to default drive"
+            end
+          end
+
+          # Create root folder for all jobs in the SharePoint site
           Rails.logger.info "Creating root folder 'TEEEM Jobs'..."
           root_folder = client.create_jobs_root_folder("TEEEM Jobs")
-          Rails.logger.info "Root folder created successfully"
+          Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
 
-          Rails.logger.info "=== OneDrive Connection Completed Successfully ==="
+          Rails.logger.info "=== SharePoint Connection Completed Successfully ==="
 
           # Dynamically determine frontend URL based on request origin
           frontend_url = get_frontend_url_from_request
