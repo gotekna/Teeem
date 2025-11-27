@@ -1,6 +1,9 @@
 module Api
   module V1
     class OrganizationOnedriveController < ApplicationController
+      # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
+      skip_before_action :authorize_request, only: [:callback]
+
       # Require admin for sensitive operations
       before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images]
 
