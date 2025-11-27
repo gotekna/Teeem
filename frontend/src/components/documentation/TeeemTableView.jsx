@@ -9449,9 +9449,9 @@ export default function TeeemTableView({
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="">-- Select a column --</option>
-                  {visibleColumns.filter(col => !col.is_system && col.column_key !== 'id').map(col => (
-                    <option key={col.id || col.column_key} value={col.column_key}>
-                      {col.display_name || col.column_key}
+                  {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id').map(col => (
+                    <option key={col.key} value={col.column_key || col.key}>
+                      {col.display_name || col.label || col.key}
                     </option>
                   ))}
                 </select>
@@ -9459,7 +9459,7 @@ export default function TeeemTableView({
 
               {/* Value Input - depends on column type */}
               {bulkUpdateColumn && (() => {
-                const selectedCol = visibleColumns.find(c => c.column_key === bulkUpdateColumn)
+                const selectedCol = COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)
                 const colType = selectedCol?.column_type
 
                 // For choice/select columns, show dropdown
