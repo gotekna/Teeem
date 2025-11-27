@@ -1700,11 +1700,18 @@ export default function TeeemTableView({
               const entryValue = e[key]
               if (entryValue === null || entryValue === undefined) return false
 
-              // Check if this is a choice column (exact match required)
+              // Check column type for special handling
               const column = COLUMNS.find(c => c.key === key)
               const isChoiceColumn = column?.column_type === 'choice' ||
                                      column?.column_type === 'single_select' ||
                                      column?.column_type === 'dropdown'
+              const isLookupColumn = column?.column_type === 'lookup'
+
+              // Handle lookup columns - value is stored as {id, display} object
+              if (isLookupColumn && typeof entryValue === 'object' && entryValue.id !== undefined) {
+                // Filter value is the ID, compare as strings
+                return String(entryValue.id) === String(value)
+              }
 
               if (typeof entryValue === 'string') {
                 // Choice columns: exact match (case-insensitive)
@@ -2099,17 +2106,26 @@ export default function TeeemTableView({
 
   // Get unique values for any column - generic helper
   const getUniqueValuesForColumn = (columnKey) => {
-    // Get values from data
-    const dataValues = [...new Set(entries.map(e => e[columnKey] || e.entry_type).filter(Boolean))]
+    const columnDef = COLUMNS.find(c => c.key === columnKey)
+
+    // For lookup columns, use columnChoices which has the display values
+    if (columnDef?.column_type === 'lookup' && columnDef?.id) {
+      const availableChoices = columnChoices[columnDef.id] || []
+      // columnChoices for lookups are stored as {id, display} objects from API
+      // Return them as-is since the dropdown renderer expects this format
+      return availableChoices
+    }
 
     // For choice columns, also include available choices (even if not used in data)
-    const columnDef = COLUMNS.find(c => c.key === columnKey)
     if (columnDef?.column_type === 'choice' && columnDef?.id) {
       const availableChoices = columnChoices[columnDef.id] || []
       // Use the order from API (columnChoices), not alphabetical sort
       // This respects the saved choices_order from the database
       return availableChoices
     }
+
+    // Get values from data
+    const dataValues = [...new Set(entries.map(e => e[columnKey] || e.entry_type).filter(Boolean))]
 
     // For numeric columns or columns with numeric values, sort numerically
     const allNumbers = dataValues.every(v => typeof v === 'number' || !isNaN(parseFloat(v)))
