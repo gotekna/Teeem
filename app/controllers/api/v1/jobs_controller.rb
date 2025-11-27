@@ -49,8 +49,11 @@ module Api
         job_json = @job.as_json
         job_json[:contacts] = @job.job_contacts
                                                      .includes(contact: :outgoing_relationships)
+                                                     .where.not(contact_id: nil)
                                                      .order(primary: :desc, created_at: :asc)
                                                      .map do |cc|
+          next unless cc.contact # Skip if contact was deleted
+
           {
             id: cc.id,
             contact_id: cc.contact_id,
@@ -61,7 +64,7 @@ module Api
             ),
             relationships_count: cc.contact.outgoing_relationships.count
           }
-        end
+        end.compact
 
         render json: job_json
       end
