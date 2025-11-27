@@ -447,13 +447,17 @@ class XeroContactSyncService
   # Sync contact persons from Xero to TEEEM
   # Xero ContactPersons structure:
   # [{"FirstName": "Michael", "LastName": "Lyell", "EmailAddress": "michael@example.com", "IncludeInEmails": true}]
+  #
+  # NEW BEHAVIOR: Primary contact persons (index 0) are created as separate Contact records
+  # linked to the company via primary_company_id. This allows the person to be a separate
+  # searchable contact with their own details, while being associated with their company.
   def sync_contact_persons(teeem_contact, xero_contact)
     xero_persons = xero_contact['ContactPersons'] || []
     return if xero_persons.empty?
 
     Rails.logger.info("Syncing #{xero_persons.length} contact persons for #{teeem_contact.display_name}")
 
-    # Get existing contact persons for this contact
+    # Get existing contact persons for this contact (legacy ContactPerson records)
     existing_persons = teeem_contact.contact_persons.to_a
 
     xero_persons.each_with_index do |xero_person, index|
@@ -462,7 +466,12 @@ class XeroContactSyncService
       email = xero_person['EmailAddress']
       include_in_emails = xero_person['IncludeInEmails'] != false # Default to true
 
-      # Try to find existing contact person by email or name
+      # For primary contact (index 0), create as separate Contact record linked to company
+      if index == 0 && first_name.present?
+        create_or_update_primary_contact_as_person(teeem_contact, xero_person)
+      end
+
+      # Also maintain the legacy ContactPerson record for backwards compatibility
       existing = existing_persons.find do |ep|
         (email.present? && ep.email&.downcase == email&.downcase) ||
           (ep.first_name&.downcase == first_name&.downcase && ep.last_name&.downcase == last_name&.downcase)
@@ -495,6 +504,70 @@ class XeroContactSyncService
   rescue StandardError => e
     Rails.logger.error("Error syncing contact persons for #{teeem_contact.display_name}: #{e.message}")
     # Don't raise - contact person sync failure shouldn't fail the whole contact sync
+  end
+
+  # Create primary contact person as a separate Contact record linked to the company
+  # This allows searching/viewing the person independently while maintaining the company relationship
+  def create_or_update_primary_contact_as_person(company_contact, xero_person)
+    first_name = xero_person['FirstName'].to_s.strip
+    last_name = xero_person['LastName'].to_s.strip
+    email = xero_person['EmailAddress'].to_s.strip.downcase
+    full_name = "#{first_name} #{last_name}".strip
+
+    return if full_name.blank?
+
+    # Try to find existing person contact by email or by company link + name
+    person_contact = nil
+
+    # First try by email if present
+    if email.present?
+      person_contact = Contact.find_by('LOWER(email) = ?', email)
+    end
+
+    # If not found, try by company link + name match
+    if person_contact.nil?
+      person_contact = Contact.find_by(
+        primary_company_id: company_contact.id,
+        first_name: first_name,
+        last_name: last_name
+      )
+    end
+
+    if person_contact
+      # Update existing person contact
+      person_contact.update!(
+        first_name: first_name,
+        last_name: last_name,
+        full_name: full_name,
+        email: email.presence,
+        primary_company_id: company_contact.id,
+        entity_type: 'person',
+        last_synced_at: @sync_timestamp
+      )
+      Rails.logger.info("Updated person contact: #{full_name} (linked to #{company_contact.display_name})")
+    else
+      # Create new person contact
+      person_contact = Contact.create!(
+        first_name: first_name,
+        last_name: last_name,
+        full_name: full_name,
+        email: email.presence,
+        primary_company_id: company_contact.id,
+        entity_type: 'person',
+        sync_with_xero: false, # Don't sync person back to Xero (they're part of company contact)
+        last_synced_at: @sync_timestamp
+      )
+      Rails.logger.info("Created person contact: #{full_name} (linked to #{company_contact.display_name})")
+      @stats[:created_in_teeem] += 1
+    end
+
+    # Link company back to this person as their director/primary contact
+    company_contact.update!(director_id: person_contact.id) if company_contact.director_id != person_contact.id
+
+    person_contact
+  rescue StandardError => e
+    Rails.logger.error("Error creating person contact for #{full_name}: #{e.message}")
+    nil
   end
 
   # Helper to set sync timestamp (useful for job)
