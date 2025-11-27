@@ -6435,9 +6435,44 @@ export default function TeeemTableView({
                               )}
                               {/* Drag handle */}
                               <span className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">⠿</span>
-                              {/* Position number for visible columns */}
+                              {/* Position number input for visible columns */}
                               {isVisible && (
-                                <span className="w-5 text-[9px] text-center text-green-600 dark:text-green-400 font-medium">{index + 1}</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={index + 1}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    e.stopPropagation()
+                                    const newPos = parseInt(e.target.value) || 1
+                                    const clampedPos = Math.max(1, Math.min(newPos, visibleCols.length))
+
+                                    // Reorder: move this column to the new position
+                                    const existingOrder = visibilityColumnOrder || []
+                                    const allKeys = filteredCols.map(c => c.key)
+                                    const fullOrder = [...existingOrder]
+                                    allKeys.forEach(key => {
+                                      if (!fullOrder.includes(key)) fullOrder.push(key)
+                                    })
+
+                                    // Get visible columns in current order
+                                    const visibleKeys = fullOrder.filter(key => visibleColumns[key] !== false)
+                                    const currentIndex = visibleKeys.indexOf(column.key)
+                                    const targetIndex = clampedPos - 1
+
+                                    if (currentIndex !== -1 && currentIndex !== targetIndex) {
+                                      // Remove from current position
+                                      visibleKeys.splice(currentIndex, 1)
+                                      // Insert at new position
+                                      visibleKeys.splice(targetIndex, 0, column.key)
+
+                                      // Rebuild full order: visible columns first in new order, then hidden
+                                      const hiddenKeys = fullOrder.filter(key => visibleColumns[key] === false)
+                                      setVisibilityColumnOrder([...visibleKeys, ...hiddenKeys])
+                                    }
+                                  }}
+                                  className="w-6 text-[9px] text-center text-green-600 dark:text-green-400 font-medium bg-transparent border border-transparent hover:border-green-300 focus:border-green-500 focus:outline-none rounded"
+                                />
                               )}
                               <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
                                 <input
