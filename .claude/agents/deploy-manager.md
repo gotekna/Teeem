@@ -88,19 +88,30 @@ Handles git operations, commits, pushes, and deployments to staging environment.
 
 1. **Run pre-deployment checks** (see above)
 2. Check current branch: `git branch --show-current`
-3. Commit and push changes to `rob` branch
-4. Deploy backend using git subtree:
+3. Commit and push changes to `rob` branch:
    ```bash
-   export GIT_HTTP_USER_AGENT="git/2.51.2"
-   /opt/homebrew/bin/git subtree split --prefix=backend -b backend-deploy-rob
-   /opt/homebrew/bin/git push heroku backend-deploy-rob:main --force
-   git branch -D backend-deploy-rob
+   git add [files]
+   git commit -m "message"
+   git push origin rob
    ```
-5. Frontend deploys automatically via Vercel (rob branch)
+4. **GitHub Actions auto-deploys:**
+   - Backend deploys to Heroku via `deploy-backend-staging.yml` workflow
+   - Frontend deploys automatically via Vercel
+5. **Monitor deployment:**
+   ```bash
+   # Check GitHub Actions status
+   gh run list --limit 3
+
+   # View specific run logs if needed
+   gh run view [run-id] --log
+   ```
 6. **Verify deployment:**
    - Check Heroku logs for migration success
    - Test critical endpoints (health check, API status)
    - Confirm no 500 errors
+   ```bash
+   curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
+   ```
 
 ### Production Deployment
 
