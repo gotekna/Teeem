@@ -5246,13 +5246,22 @@ export default function TeeemTableView({
               <button
                 onClick={() => {
                   // Collapse all groups - build all possible paths
+                  // Must match exactly what getGroupDisplayValue does in the table render
                   const allPaths = new Set()
                   const getDisplayValue = (entry, colKey) => {
-                    const rawValue = entry[colKey]
-                    const column = COLUMNS.find(c => c.key === colKey)
-                    if (column?.lookup_foundation_id && column?.columnChoices) {
-                      const matchingOption = column.columnChoices.find(
-                        opt => String(opt.id) === String(rawValue) || String(opt.value) === String(rawValue)
+                    // Search by key or column_name to handle saved views with different formats
+                    const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
+                    const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                    const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+                    // Use column_name if different from key to access the entry data
+                    const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+                    const rawValue = entry[actualKey] ?? entry[colKey]
+
+                    if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+                      return rawValue.display || '(empty)'
+                    } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+                      const matchingOption = lookupOptions.find(opt =>
+                        opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
                       )
                       return matchingOption?.display || `ID: ${rawValue}`
                     }
@@ -6613,12 +6622,15 @@ export default function TeeemTableView({
                                   // Collapse all groups at all levels - build all possible paths
                                   const allPaths = new Set()
 
-                                  // Helper to get display value for a column
+                                  // Helper to get display value for a column (matches getGroupDisplayValue in table render)
                                   const getDisplayValue = (entry, colKey) => {
-                                    const groupColumnDef = COLUMNS.find(c => c.key === colKey)
+                                    // Search by key or column_name to handle saved views with different formats
+                                    const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
                                     const isLookupColumn = groupColumnDef?.column_type === 'lookup'
                                     const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
-                                    const rawValue = entry[colKey]
+                                    // Use column_name if different from key to access the entry data
+                                    const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+                                    const rawValue = entry[actualKey] ?? entry[colKey]
 
                                     if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
                                       return rawValue.display || '(empty)'
@@ -7674,10 +7686,13 @@ export default function TeeemTableView({
 
               // Helper to get display value for a column
               const getGroupDisplayValue = (entry, colKey) => {
-                const groupColumnDef = COLUMNS.find(c => c.key === colKey)
+                // Search by key or column_name to handle saved views with different formats
+                const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
                 const isLookupColumn = groupColumnDef?.column_type === 'lookup'
                 const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
-                const rawValue = entry[colKey]
+                // Use column_name if different from key to access the entry data
+                const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+                const rawValue = entry[actualKey] ?? entry[colKey]
 
                 if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
                   return rawValue.display || '(empty)'
@@ -7864,8 +7879,10 @@ export default function TeeemTableView({
                     }
                     const rowCount = countRows(childNode)
 
-                    // Get column label for this level
-                    const colLabel = COLUMNS.find(c => c.key === activeGroupColumns[level])?.label || activeGroupColumns[level]
+                    // Get column label for this level - search by key, column_name, or fall back to raw key
+                    const groupColKey = activeGroupColumns[level]
+                    const colDef = COLUMNS.find(c => c.key === groupColKey || c.column_name === groupColKey)
+                    const colLabel = colDef?.label || groupColKey
 
                     return (
                       <React.Fragment key={`group-${groupPath}`}>
