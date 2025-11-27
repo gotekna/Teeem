@@ -71,6 +71,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: 'synced' },
         { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: 'synced' },
         { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced' },
+        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'entity_type', value: contact?.entity_type ? (contact.entity_type.charAt(0).toUpperCase() + contact.entity_type.slice(1)) : '-', syncStatus: contact?.entity_type ? 'synced' : 'not_linked' },
         { xeroField: 'ContactID', teeemField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked' }
       ]
     },
