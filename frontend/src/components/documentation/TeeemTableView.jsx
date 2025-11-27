@@ -528,7 +528,7 @@ export default function TeeemTableView({
     }
   })
   const [showCascadeDropdown, setShowCascadeDropdown] = useState(false)
-  const [cascadeFullscreen, setCascadeFullscreen] = useState(false) // Fullscreen mode for cascade popup
+  const [cascadeFullscreen, setCascadeFullscreen] = useState(true) // Fullscreen mode for cascade popup - default to wide
   const [filterSectionCollapsed, setFilterSectionCollapsed] = useState(false) // Collapse View Filter section
   const [sortSectionCollapsed, setSortSectionCollapsed] = useState(false) // Collapse Sort By section
   const [groupSectionCollapsed, setGroupSectionCollapsed] = useState(false) // Collapse Group By section
