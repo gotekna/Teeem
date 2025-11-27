@@ -14,6 +14,7 @@ class Job < ApplicationRecord
   has_many :chat_messages, dependent: :nullify
   has_many :emails, dependent: :nullify
   has_many :job_documentation_tabs, dependent: :destroy
+  has_many :document_tasks, dependent: :destroy
   has_many :job_contacts, dependent: :destroy
   has_many :contacts, through: :job_contacts
   has_many :rain_logs, dependent: :destroy

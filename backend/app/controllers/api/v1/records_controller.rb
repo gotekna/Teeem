@@ -157,10 +157,15 @@ module Api
         model = @foundation.dynamic_model
         record = model.find(params[:id])
 
-        record.destroy
+        record.destroy!
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Record not found' }, status: :not_found
+      rescue ActiveRecord::InvalidForeignKey => e
+        render json: { error: "Cannot delete: record has dependent data. #{e.message}" }, status: :unprocessable_entity
+      rescue => e
+        Rails.logger.error "Error deleting record: #{e.class} - #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
       end
 
       private
