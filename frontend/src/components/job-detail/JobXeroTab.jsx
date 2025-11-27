@@ -107,14 +107,54 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
 
   if (!xeroConnected) {
     return (
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800 p-4">
-        <div className="flex items-start gap-3">
-          <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mt-0.5" />
-          <div>
-            <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Xero Not Connected</h4>
-            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
-              Connect to Xero in Settings to pull bills for this job.
-            </p>
+      <div className="space-y-4">
+        {/* Warning */}
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800 p-4">
+          <div className="flex items-start gap-3">
+            <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Xero Not Connected</h4>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                Connect to Xero in Settings to pull bills for this job.
+              </p>
+              <a
+                href="/settings"
+                className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+              >
+                Go to Settings
+                <span aria-hidden="true">&rarr;</span>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Job Info Preview */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+            Job Info for Xero Matching
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Once connected, Xero will match bills to this job using the tracking category.
+          </p>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Job Title</p>
+              <p className="font-medium text-gray-900 dark:text-white">{job?.title || '-'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Location</p>
+              <p className="font-medium text-gray-900 dark:text-white">{job?.location || job?.title || '-'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">TED Number</p>
+              <p className="font-medium text-gray-900 dark:text-white">{job?.ted_number || '-'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Contract Value</p>
+              <p className="font-medium text-gray-900 dark:text-white">
+                {job?.contract_value ? `$${Number(job.contract_value).toLocaleString()}` : '-'}
+              </p>
+            </div>
           </div>
         </div>
       </div>
