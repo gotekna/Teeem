@@ -5742,21 +5742,11 @@ export default function TeeemTableView({
 
                                             {filterColumnDropdownOpen === filter.id && (
                                               <div
-                                                className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
+                                                className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto"
                                                 style={{
-                                                  // Smart positioning: check if more space above or below
-                                                  ...((() => {
-                                                    const el = document.querySelector(`[data-filter-column-dropdown]`)
-                                                    if (el) {
-                                                      const rect = el.getBoundingClientRect()
-                                                      const spaceBelow = window.innerHeight - rect.bottom
-                                                      const spaceAbove = rect.top
-                                                      if (spaceBelow < 200 && spaceAbove > spaceBelow) {
-                                                        return { bottom: '100%', marginBottom: '4px' }
-                                                      }
-                                                    }
-                                                    return { top: '100%', marginTop: '4px' }
-                                                  })())
+                                                  // Always open upward in the modal to avoid cutoff
+                                                  bottom: '100%',
+                                                  marginBottom: '4px'
                                                 }}
                                               >
                                                 {COLUMNS
