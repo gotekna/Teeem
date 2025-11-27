@@ -236,14 +236,22 @@ class XeroContactSyncService
     contact_types << 'supplier' if xero_contact['IsSupplier'] == true
     updates[:contact_types] = contact_types if contact_types.any?
 
-    # Update fields if Xero has data and TEEEM doesn't, or if explicitly syncing
-    updates[:full_name] = xero_contact['Name'] if xero_contact['Name'].present?
-    updates[:first_name] = xero_contact['FirstName'] if xero_contact['FirstName'].present?
-    updates[:last_name] = xero_contact['LastName'] if xero_contact['LastName'].present?
+    # Determine if this is a company contact
+    is_company = xero_contact_is_company?(xero_contact)
 
-    # If it's a company (has Name but no FirstName), also set company_name_or_trust
-    if xero_contact['Name'].present? && xero_contact['FirstName'].blank?
+    # Update fields if Xero has data
+    updates[:full_name] = xero_contact['Name'] if xero_contact['Name'].present?
+    updates[:entity_type] = is_company ? 'company' : 'person'
+
+    # For companies: clear first_name/last_name and set company_name_or_trust
+    # The person whose name was in FirstName/LastName should be created as a linked Contact
+    if is_company
+      updates[:first_name] = nil
+      updates[:last_name] = nil
       updates[:company_name_or_trust] = xero_contact['Name']
+    else
+      updates[:first_name] = xero_contact['FirstName'] if xero_contact['FirstName'].present?
+      updates[:last_name] = xero_contact['LastName'] if xero_contact['LastName'].present?
     end
     updates[:tax_number] = normalize_tax_number(xero_contact['TaxNumber']) if xero_contact['TaxNumber'].present?
 
@@ -393,15 +401,22 @@ class XeroContactSyncService
     contact_types << 'customer' if xero_contact['IsCustomer'] == true
     contact_types << 'supplier' if xero_contact['IsSupplier'] == true
 
-    # If it's a company (has Name but no FirstName), set company_name_or_trust
-    is_company = xero_contact['Name'].present? && xero_contact['FirstName'].blank?
+    # Determine if this is a company contact
+    # A contact is a company if:
+    # 1. It has a Name containing company indicators (Pty Ltd, Ltd, Inc, etc.), OR
+    # 2. It has a Name but no FirstName
+    # When a company has FirstName/LastName, those represent the primary contact person
+    is_company = xero_contact_is_company?(xero_contact)
 
+    # For companies: don't put person's name in first_name/last_name fields
+    # The person should be created as a separate linked Contact
     contact_data = {
       xero_id: xero_contact['ContactID'],
       full_name: xero_contact['Name'],
-      first_name: xero_contact['FirstName'],
-      last_name: xero_contact['LastName'],
+      first_name: is_company ? nil : xero_contact['FirstName'],
+      last_name: is_company ? nil : xero_contact['LastName'],
       company_name_or_trust: is_company ? xero_contact['Name'] : nil,
+      entity_type: is_company ? 'company' : 'person',
       tax_number: normalize_tax_number(xero_contact['TaxNumber']),
       email: extract_xero_email(xero_contact),
       contact_types: contact_types.any? ? contact_types : nil,
@@ -577,6 +592,54 @@ class XeroContactSyncService
     tax_number.to_s.gsub(/[\s\-]/, '').upcase
   end
 
+  # Determine if a Xero contact represents a company (vs. an individual person)
+  # Company indicators in the Name field:
+  # - Pty Ltd, Pty. Ltd., PTY LTD
+  # - Ltd, Ltd., Limited
+  # - Inc, Inc., Incorporated
+  # - Corp, Corp., Corporation
+  # - LLC, L.L.C.
+  # - Trust (e.g., "Smith Family Trust")
+  # - Group, Holdings
+  # Also: if Name is present but FirstName is blank, it's likely a company
+  COMPANY_INDICATORS = [
+    /\bpty\.?\s*ltd\.?\b/i,
+    /\bltd\.?\b/i,
+    /\blimited\b/i,
+    /\binc\.?\b/i,
+    /\bincorporated\b/i,
+    /\bcorp\.?\b/i,
+    /\bcorporation\b/i,
+    /\bllc\b/i,
+    /\bl\.l\.c\.?\b/i,
+    /\btrust\b/i,
+    /\bgroup\b/i,
+    /\bholdings\b/i,
+    /\bpartners\b/i,
+    /\bpartnership\b/i,
+    /\bco\.?\b/i,            # Co. or Company
+    /\bcompany\b/i,
+    /\bassociates?\b/i,
+    /\benterprise[s]?\b/i,
+    /\bsolutions?\b/i,
+    /\bservices?\b/i,
+    /\bsuperannuation\b/i,
+    /\bsuper\s+fund\b/i,
+    /\bfund\b/i,
+    /\baccount\b/i           # Often used in trust/super fund names
+  ].freeze
+
+  def xero_contact_is_company?(xero_contact)
+    name = xero_contact['Name'].to_s
+    first_name = xero_contact['FirstName'].to_s.strip
+
+    # If Name is present but FirstName is blank, it's likely a company
+    return true if name.present? && first_name.blank?
+
+    # Check for company indicators in the name
+    COMPANY_INDICATORS.any? { |pattern| name.match?(pattern) }
+  end
+
   # Sync contact persons from Xero to TEEEM
   # Xero ContactPersons structure:
   # [{"FirstName": "Michael", "LastName": "Lyell", "EmailAddress": "michael@example.com", "IncludeInEmails": true}]
@@ -584,11 +647,42 @@ class XeroContactSyncService
   # BEHAVIOR: ALL contact persons are created as separate Contact records
   # linked to the company via primary_company_id. This allows each person to be a separate
   # searchable contact with their own details, while being associated with their company.
+  #
+  # IMPORTANT: For company contacts, Xero stores the primary contact person in the
+  # main contact's FirstName/LastName/EmailAddress fields (not in ContactPersons array).
+  # We need to create a Contact for this person AS WELL AS any in the ContactPersons array.
   def sync_contact_persons(teeem_contact, xero_contact)
+    # Check if this is a company with a primary person in FirstName/LastName fields
+    is_company = xero_contact_is_company?(xero_contact)
+    main_first_name = xero_contact['FirstName'].to_s.strip
+    main_last_name = xero_contact['LastName'].to_s.strip
+    main_email = xero_contact['EmailAddress'].to_s.strip
+
     xero_persons = xero_contact['ContactPersons'] || []
+
+    # For companies: First, create a Contact for the person in the main FirstName/LastName fields
+    # This person is typically the PRIMARY contact for the company
+    primary_person_contact = nil
+    if is_company && main_first_name.present?
+      main_person = {
+        'FirstName' => main_first_name,
+        'LastName' => main_last_name,
+        'EmailAddress' => main_email,
+        'IncludeInEmails' => true
+      }
+      Rails.logger.info("Creating primary person contact #{main_first_name} #{main_last_name} for company #{teeem_contact.display_name}")
+      primary_person_contact = create_or_update_contact_person_as_contact(teeem_contact, main_person, true)
+
+      # Set director_id to this primary person
+      if primary_person_contact && teeem_contact.director_id != primary_person_contact.id
+        teeem_contact.update!(director_id: primary_person_contact.id)
+      end
+    end
+
+    # If there are no additional contact persons in the array, we're done
     return if xero_persons.empty?
 
-    Rails.logger.info("Syncing #{xero_persons.length} contact persons for #{teeem_contact.display_name}")
+    Rails.logger.info("Syncing #{xero_persons.length} additional contact persons for #{teeem_contact.display_name}")
 
     # Get existing contact persons for this contact (legacy ContactPerson records)
     existing_persons = teeem_contact.contact_persons.to_a
@@ -600,9 +694,10 @@ class XeroContactSyncService
       include_in_emails = xero_person['IncludeInEmails'] != false # Default to true
 
       # Create ALL contact persons as separate Contact records linked to company
+      # If we already created a primary person from main FirstName/LastName, these are NOT primary
       if first_name.present?
-        is_primary = (index == 0)
-        create_or_update_contact_person_as_contact(teeem_contact, xero_person, is_primary)
+        array_person_is_primary = (index == 0) && primary_person_contact.nil?
+        create_or_update_contact_person_as_contact(teeem_contact, xero_person, array_person_is_primary)
       end
 
       # Also maintain the legacy ContactPerson record for backwards compatibility
@@ -611,6 +706,9 @@ class XeroContactSyncService
           (ep.first_name&.downcase == first_name&.downcase && ep.last_name&.downcase == last_name&.downcase)
       end
 
+      # For legacy ContactPerson records, first in array is primary only if no main person exists
+      legacy_is_primary = (index == 0) && main_first_name.blank?
+
       if existing
         # Update existing contact person
         existing.update!(
@@ -618,7 +716,7 @@ class XeroContactSyncService
           last_name: last_name,
           email: email,
           include_in_emails: include_in_emails,
-          is_primary: index == 0 # First person in Xero list is primary
+          is_primary: legacy_is_primary
         )
         Rails.logger.debug("Updated contact person: #{first_name} #{last_name}")
         @stats[:contact_persons_synced] += 1
@@ -629,7 +727,7 @@ class XeroContactSyncService
           last_name: last_name,
           email: email,
           include_in_emails: include_in_emails,
-          is_primary: index == 0 # First person in Xero list is primary
+          is_primary: legacy_is_primary
         )
         Rails.logger.debug("Created contact person: #{first_name} #{last_name}")
         @stats[:contact_persons_synced] += 1
