@@ -5240,60 +5240,6 @@ export default function TeeemTableView({
             </button>
           ))}
 
-          {/* Collapse/Expand All buttons - shown when grouping is active */}
-          {groupByColumns.length > 0 && filteredAndSorted.length > 0 && (
-            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-gray-300 dark:border-gray-600">
-              <button
-                onClick={() => {
-                  // Collapse all groups - build all possible paths
-                  // Must match exactly what getGroupDisplayValue does in the table render
-                  const allPaths = new Set()
-                  const getDisplayValue = (entry, colKey) => {
-                    // Search by key or column_name to handle saved views with different formats
-                    const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
-                    const isLookupColumn = groupColumnDef?.column_type === 'lookup'
-                    const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
-                    // Use column_name if different from key to access the entry data
-                    const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
-                    const rawValue = entry[actualKey] ?? entry[colKey]
-
-                    if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
-                      return rawValue.display || '(empty)'
-                    } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
-                      const matchingOption = lookupOptions.find(opt =>
-                        opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
-                      )
-                      return matchingOption?.display || `ID: ${rawValue}`
-                    }
-                    return rawValue ?? '(empty)'
-                  }
-                  filteredAndSorted.forEach(entry => {
-                    let path = ''
-                    groupByColumns.forEach((colKey) => {
-                      const value = getDisplayValue(entry, colKey)
-                      path = path ? `${path}|${value}` : value
-                      allPaths.add(path)
-                    })
-                  })
-                  setCollapsedGroups(allPaths)
-                }}
-                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors flex items-center gap-1"
-                title="Collapse All Groups"
-              >
-                <MinusCircleIcon className="w-3.5 h-3.5" />
-                Collapse
-              </button>
-              <button
-                onClick={() => setCollapsedGroups(new Set())}
-                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded transition-colors flex items-center gap-1"
-                title="Expand All Groups"
-              >
-                <PlusCircleIcon className="w-3.5 h-3.5" />
-                Expand
-              </button>
-            </div>
-          )}
-
             {/* Excel-style dropdown panel */}
             {showCascadeDropdown && (
               <>
@@ -6876,7 +6822,7 @@ export default function TeeemTableView({
                                   className="w-6 text-[9px] text-center text-green-700 dark:text-green-300 font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 hover:border-green-400 focus:border-green-500 focus:outline-none rounded [appearance:textfield]"
                                 />
                               )}
-                              <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={isVisible}
@@ -6891,7 +6837,7 @@ export default function TeeemTableView({
                                   } focus:ring-offset-0`}
                                 />
                                 <span
-                                  className={`font-medium whitespace-nowrap ${
+                                  className={`font-medium whitespace-nowrap truncate ${
                                     isVisible
                                       ? 'text-green-800 dark:text-green-200'
                                       : 'text-gray-600 dark:text-gray-400'
@@ -6900,6 +6846,26 @@ export default function TeeemTableView({
                                   {column.label}
                                 </span>
                               </label>
+                              {/* Show Filter toggle - only for visible columns with filterable type */}
+                              {isVisible && showFilters && column.filterable !== false && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setColumnShowFilters(prev => ({
+                                      ...prev,
+                                      [column.key]: !(prev[column.key] ?? true)
+                                    }))
+                                  }}
+                                  className={`flex-shrink-0 px-1 py-0.5 rounded text-[9px] font-medium transition-colors ${
+                                    columnShowFilters[column.key] ?? true
+                                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60'
+                                      : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                  }`}
+                                  title={columnShowFilters[column.key] ?? true ? 'Hide filter for this column' : 'Show filter for this column'}
+                                >
+                                  {columnShowFilters[column.key] ?? true ? '⊜' : '⊝'}
+                                </button>
+                              )}
                             </div>
                           )
 
@@ -7277,21 +7243,75 @@ export default function TeeemTableView({
             )}
           </div>
 
-          {/* Showing count - right aligned */}
-          <div className="flex justify-end ml-auto items-center gap-2">
-            {loadingMore && (
-              <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                <span className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></span>
-                Loading...
-              </span>
+          {/* Collapse/Expand buttons (left) and Record count (right) */}
+          <div className="flex justify-between items-center">
+            {/* Collapse/Expand All - shown when grouping is active */}
+            {groupByColumns.length > 0 && filteredAndSorted.length > 0 ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    // Collapse all groups - build all possible paths
+                    const allPaths = new Set()
+                    const getDisplayValue = (entry, colKey) => {
+                      const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
+                      const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                      const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+                      const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+                      const rawValue = entry[actualKey] ?? entry[colKey]
+                      if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+                        return rawValue.display || '(empty)'
+                      } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+                        const matchingOption = lookupOptions.find(opt =>
+                          opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
+                        )
+                        return matchingOption?.display || `ID: ${rawValue}`
+                      }
+                      return rawValue ?? '(empty)'
+                    }
+                    filteredAndSorted.forEach(entry => {
+                      let path = ''
+                      groupByColumns.forEach((colKey) => {
+                        const value = getDisplayValue(entry, colKey)
+                        path = path ? `${path}|${value}` : value
+                        allPaths.add(path)
+                      })
+                    })
+                    setCollapsedGroups(allPaths)
+                  }}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  title="Collapse All Groups"
+                >
+                  ▶ Collapse
+                </button>
+                <span className="text-xs text-gray-300 dark:text-gray-600">|</span>
+                <button
+                  onClick={() => setCollapsedGroups(new Set())}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  title="Expand All Groups"
+                >
+                  ▼ Expand
+                </button>
+              </div>
+            ) : (
+              <div></div>
             )}
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {filteredAndSorted.length > MAX_RENDERED_ROWS
-                ? `Showing ${MAX_RENDERED_ROWS} of ${filteredAndSorted.length} matches (${entries.length} total)`
-                : filteredAndSorted.length === entries.length
-                  ? `${filteredAndSorted.length} records`
-                  : `${filteredAndSorted.length} of ${entries.length} records`}
-            </span>
+
+            {/* Showing count - right aligned */}
+            <div className="flex items-center gap-2">
+              {loadingMore && (
+                <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <span className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></span>
+                  Loading...
+                </span>
+              )}
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {filteredAndSorted.length > MAX_RENDERED_ROWS
+                  ? `Showing ${MAX_RENDERED_ROWS} of ${filteredAndSorted.length} matches (${entries.length} total)`
+                  : filteredAndSorted.length === entries.length
+                    ? `${filteredAndSorted.length} records`
+                    : `${filteredAndSorted.length} of ${entries.length} records`}
+              </span>
+            </div>
           </div>
         </div>
         {/* END BOTTOM SECTION - Filters */}
