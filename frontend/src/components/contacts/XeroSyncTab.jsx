@@ -1,12 +1,42 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import {
   ArrowPathIcon,
   CheckCircleIcon,
   XCircleIcon,
   ExclamationTriangleIcon,
-  LinkIcon
+  LinkIcon,
+  Cog6ToothIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
+
+// Accounting system badge configurations
+const ACCOUNTING_SYSTEMS = {
+  xero: {
+    name: 'Xero',
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+    dotColor: 'bg-blue-500'
+  },
+  quickbooks: {
+    name: 'QuickBooks',
+    color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-800',
+    dotColor: 'bg-green-500'
+  },
+  myob: {
+    name: 'MYOB',
+    color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+    dotColor: 'bg-purple-500'
+  }
+}
+
+const getBadgeColorClass = (badgeColor) => {
+  const colorMap = {
+    blue: ACCOUNTING_SYSTEMS.xero.color,
+    green: ACCOUNTING_SYSTEMS.quickbooks.color,
+    purple: ACCOUNTING_SYSTEMS.myob.color
+  }
+  return colorMap[badgeColor] || ACCOUNTING_SYSTEMS.xero.color
+}
 
 export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [syncing, setSyncing] = useState(false)
@@ -26,6 +56,11 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [companies, setCompanies] = useState([])
   const [selectedCompanyId, setSelectedCompanyId] = useState('')
   const [deleteOriginal, setDeleteOriginal] = useState(false)
+
+  // Multi-Xero support
+  const [xeroLinks, setXeroLinks] = useState([])
+  const [selectedLinkId, setSelectedLinkId] = useState(null)
+  const [loadingLinks, setLoadingLinks] = useState(true)
 
   // Define the field mappings between Xero and TEEEM
   const fieldMappings = [
@@ -97,12 +132,41 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     }
   ]
 
-  // Load transaction data when component mounts
+  // Load xero links when component mounts
+  useEffect(() => {
+    if (contact?.id) {
+      loadXeroLinks()
+    }
+  }, [contact?.id])
+
+  // Load transactions when xero links change or a link is selected
   useEffect(() => {
     if (contact?.id && contact['is_supplier?']) {
       loadTransactions()
     }
-  }, [contact?.id])
+  }, [contact?.id, selectedLinkId])
+
+  const loadXeroLinks = async () => {
+    setLoadingLinks(true)
+    try {
+      const response = await api.get(`/api/v1/contacts/${contact.id}/xero_links`)
+      if (response.success) {
+        const links = response.xero_links || []
+        setXeroLinks(links)
+        // Auto-select the first link if none selected
+        if (links.length > 0 && !selectedLinkId) {
+          setSelectedLinkId(links[0].id)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load Xero links:', err)
+    } finally {
+      setLoadingLinks(false)
+    }
+  }
+
+  // Get the currently selected Xero link
+  const selectedLink = xeroLinks.find(l => l.id === selectedLinkId)
 
   const loadTransactions = async () => {
     setLoadingTransactions(true)
@@ -127,17 +191,23 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         setContactGroups(groupsResponse.contact_groups || [])
       }
 
-      // Fetch Xero data if contact is linked
-      if (contact?.xero_id) {
+      // Fetch Xero data if a link is selected
+      const xeroContactId = selectedLink?.xero_contact_id || contact?.xero_id
+      const xeroTenantId = selectedLink?.xero_tenant_id
+
+      if (xeroContactId) {
+        // Build tenant query param if available
+        const tenantParam = xeroTenantId ? `&tenant_id=${xeroTenantId}` : ''
+
         // Invoices
-        const invoicesResponse = await api.get(`/api/v1/xero/invoices?contact_id=${contact.xero_id}`)
+        const invoicesResponse = await api.get(`/api/v1/xero/invoices?contact_id=${xeroContactId}${tenantParam}`)
         if (invoicesResponse.success) {
           setXeroInvoices(invoicesResponse.data?.invoices || [])
         }
 
         // Credit Notes
         try {
-          const creditNotesResponse = await api.get(`/api/v1/xero/credit_notes?contact_id=${contact.xero_id}`)
+          const creditNotesResponse = await api.get(`/api/v1/xero/credit_notes?contact_id=${xeroContactId}${tenantParam}`)
           if (creditNotesResponse.success) {
             setXeroCreditNotes(creditNotesResponse.data?.credit_notes || [])
           }
@@ -147,7 +217,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
         // Payments
         try {
-          const paymentsResponse = await api.get(`/api/v1/xero/payments?contact_id=${contact.xero_id}`)
+          const paymentsResponse = await api.get(`/api/v1/xero/payments?contact_id=${xeroContactId}${tenantParam}`)
           if (paymentsResponse.success) {
             setXeroPayments(paymentsResponse.data?.payments || [])
           }
@@ -157,13 +227,19 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
         // Quotes
         try {
-          const quotesResponse = await api.get(`/api/v1/xero/quotes?contact_id=${contact.xero_id}`)
+          const quotesResponse = await api.get(`/api/v1/xero/quotes?contact_id=${xeroContactId}${tenantParam}`)
           if (quotesResponse.success) {
             setXeroQuotes(quotesResponse.data?.quotes || [])
           }
         } catch (e) {
           console.log('Quotes endpoint not available yet')
         }
+      } else {
+        // No Xero link - clear Xero data
+        setXeroInvoices([])
+        setXeroCreditNotes([])
+        setXeroPayments([])
+        setXeroQuotes([])
       }
     } catch (error) {
       setTransactionsError(error.message || 'Failed to load transactions')
@@ -227,7 +303,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   }
 
   const handleSync = async () => {
-    if (!contact?.xero_id) {
+    // Check if we have a link to sync
+    const xeroContactId = selectedLink?.xero_contact_id || contact?.xero_id
+    if (!xeroContactId) {
       setSyncError('Contact must be linked to Xero first')
       return
     }
@@ -347,6 +425,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     }
   }
 
+  // Determine if we have any Xero connection
+  const hasXeroConnection = xeroLinks.length > 0 || contact?.xero_id
+
   return (
     <div className="py-6">
       {/* Header with Sync Button */}
@@ -357,19 +438,92 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
             Field mappings between Xero and TEEEM
           </p>
         </div>
-        <button
-          onClick={handleSync}
-          disabled={syncing || !contact?.xero_id}
-          className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            contact?.xero_id
-              ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-          {syncing ? 'Syncing...' : 'Sync from Xero'}
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/contacts/sync-config"
+            className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+          >
+            <Cog6ToothIcon className="h-4 w-4" />
+            Settings
+          </Link>
+          <button
+            onClick={handleSync}
+            disabled={syncing || !hasXeroConnection}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              hasXeroConnection
+                ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync from Xero'}
+          </button>
+        </div>
       </div>
+
+      {/* Organization Selector (if multiple links) */}
+      {xeroLinks.length > 1 && (
+        <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            View data from organization:
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {xeroLinks.map((link) => (
+              <button
+                key={link.id}
+                onClick={() => setSelectedLinkId(link.id)}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-full border transition ${
+                  selectedLinkId === link.id
+                    ? getBadgeColorClass(link.badge_color)
+                    : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${
+                  selectedLinkId === link.id
+                    ? (link.badge_color === 'blue' ? 'bg-blue-500' : link.badge_color === 'green' ? 'bg-green-500' : 'bg-purple-500')
+                    : 'bg-gray-400'
+                }`}></span>
+                {link.xero_tenant_name || 'Unknown Organization'}
+                {link.sync_error && (
+                  <XCircleIcon className="h-4 w-4 text-red-500" />
+                )}
+                {link.has_conflicts && (
+                  <ExclamationTriangleIcon className="h-4 w-4 text-yellow-500" />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected organization info */}
+      {selectedLink && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border ${getBadgeColorClass(selectedLink.badge_color)}`}>
+                <span className={`w-2 h-2 rounded-full ${selectedLink.badge_color === 'blue' ? 'bg-blue-500' : selectedLink.badge_color === 'green' ? 'bg-green-500' : 'bg-purple-500'}`}></span>
+                {selectedLink.accounting_system === 'xero' ? 'Xero' :
+                 selectedLink.accounting_system === 'quickbooks' ? 'QuickBooks' :
+                 selectedLink.accounting_system === 'myob' ? 'MYOB' : 'Xero'}
+              </span>
+              <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                {selectedLink.xero_tenant_name}
+              </span>
+            </div>
+            <div className="text-xs text-blue-700 dark:text-blue-300">
+              {selectedLink.last_synced_at
+                ? `Last synced: ${new Date(selectedLink.last_synced_at).toLocaleString()}`
+                : 'Never synced'}
+            </div>
+          </div>
+          {selectedLink.sync_error && (
+            <div className="mt-2 text-sm text-red-600 dark:text-red-400">
+              Error: {selectedLink.sync_error}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sync Error Message */}
       {syncError && (
@@ -430,13 +584,20 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         <div className="flex items-center gap-2">
           <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           <p className="text-sm text-blue-800 dark:text-blue-300">
-            {contact?.xero_id ? (
+            {xeroLinks.length > 0 ? (
               <>
-                <span className="font-semibold">✅ Linked to Xero</span> • Contact ID: {contact.xero_id}
+                <span className="font-semibold">Linked to {xeroLinks.length} Xero organization{xeroLinks.length > 1 ? 's' : ''}</span>
+                {selectedLink && (
+                  <> • Viewing: <span className="font-mono">{selectedLink.xero_contact_id?.substring(0, 8)}...</span></>
+                )}
+              </>
+            ) : contact?.xero_id ? (
+              <>
+                <span className="font-semibold">Linked to Xero (legacy)</span> • Contact ID: <span className="font-mono">{contact.xero_id?.substring(0, 8)}...</span>
               </>
             ) : (
               <>
-                <span className="font-semibold">❌ Not Linked</span> • Use the "Link Xero Contact" button in the Overview tab to connect this contact
+                <span className="font-semibold">Not Linked</span> • Use the Accounting Connections panel in the sidebar to link this contact
               </>
             )}
           </p>
@@ -584,7 +745,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               </div>
 
               {/* Xero Invoices */}
-              {contact?.xero_id && (
+              {(selectedLink || contact?.xero_id) && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
                     Invoices in Xero ({xeroInvoices.length})
@@ -644,7 +805,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               )}
 
               {/* Xero Credit Notes */}
-              {contact?.xero_id && xeroCreditNotes.length > 0 && (
+              {(selectedLink || contact?.xero_id) && xeroCreditNotes.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
                     Credit Notes in Xero ({xeroCreditNotes.length})
@@ -685,7 +846,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               )}
 
               {/* Xero Payments */}
-              {contact?.xero_id && xeroPayments.length > 0 && (
+              {(selectedLink || contact?.xero_id) && xeroPayments.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
                     Payments in Xero ({xeroPayments.length})

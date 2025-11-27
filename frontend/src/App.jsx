@@ -49,6 +49,7 @@ const JobSetupPage = lazyWithRetry(() => import('./pages/JobSetupPage'))
 const PriceBookItemDetailPage = lazyWithRetry(() => import('./pages/PriceBookItemDetailPage'))
 const ContactsPage = lazyWithRetry(() => import('./pages/ContactsPage'))
 const ContactDetailPage = lazyWithRetry(() => import('./pages/ContactDetailPage'))
+const SyncConfigPage = lazyWithRetry(() => import('./pages/SyncConfigPage'))
 const AccountsPage = lazyWithRetry(() => import('./pages/AccountsPage'))
 const UsersPage = lazyWithRetry(() => import('./pages/UsersPage'))
 const SystemAdminPage = lazyWithRetry(() => import('./pages/SystemAdminPage'))
@@ -213,6 +214,7 @@ function App() {
         <Route path="/price-books" element={<Navigate to="/tables/205/pricebook" replace />} />
         <Route path="/price-books/:id" element={<AppLayout><PriceBookItemDetailPage /></AppLayout>} />
         <Route path="/contacts" element={<Navigate to="/tables/214/contacts" replace />} />
+        <Route path="/contacts/sync-config" element={<AppLayout><SyncConfigPage /></AppLayout>} />
         <Route path="/contacts/:id" element={<AppLayout><ContactDetailPage /></AppLayout>} />
         <Route path="/accounts" element={<AppLayout><AccountsPage /></AppLayout>} />
         <Route path="/users" element={<Navigate to="/tables/212/user-management" replace />} />

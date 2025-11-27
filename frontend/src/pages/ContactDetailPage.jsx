@@ -32,6 +32,7 @@ import JobsSection from '../components/contacts/JobsSection'
 import CommunicationsTab from '../components/communications/CommunicationsTab'
 import PortalUserSection from '../components/contacts/PortalUserSection'
 import XeroSyncTab from '../components/contacts/XeroSyncTab'
+import XeroConnectionsSection from '../components/contacts/XeroConnectionsSection'
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn) => {
@@ -192,6 +193,7 @@ export default function ContactDetailPage() {
     { id: 'contact-persons', label: 'Contact Persons' },
     { id: 'business-details', label: 'Business Details' },
     { id: 'contact-groups', label: 'Contact Groups' },
+    { id: 'accounting-connections', label: 'Accounting' },
     { id: 'system-info', label: 'System Info' },
     { id: 'quick-stats', label: 'Quick Stats' }
   ]
@@ -1727,6 +1729,20 @@ export default function ContactDetailPage() {
           {contact.address && (
             <ContactMapCard address={contact.address} />
           )}
+
+          {/* Accounting Connections */}
+          <div
+            ref={(el) => (sectionRefs.current['accounting-connections'] = el)}
+            id="accounting-connections"
+          >
+            <XeroConnectionsSection
+              contact={contact}
+              onContactUpdate={(updatedContact) => {
+                setContact(updatedContact)
+                loadContact()
+              }}
+            />
+          </div>
 
           {/* System Information */}
           <div
