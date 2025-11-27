@@ -91,6 +91,7 @@ class DatabaseExtractor:
         - id, title, contract_value, live_profit, profit_percentage
         - stage, status, start_date, created_at
         """
+        # Note: Table renamed from 'constructions' to 'jobs'
         query = """
         SELECT
             c.id,
@@ -104,16 +105,16 @@ class DatabaseExtractor:
             c.created_at,
             COUNT(DISTINCT po.id) as purchase_orders_count,
             COALESCE(SUM(po.total), 0) as total_po_value
-        FROM constructions c
+        FROM jobs c
         LEFT JOIN purchase_orders po ON c.id = po.construction_id
         WHERE c.created_at >= NOW() - INTERVAL '%s days'
         GROUP BY c.id
         ORDER BY c.created_at DESC
         """
 
-        logger.info(f"Extracting constructions from last {days_back} days")
+        logger.info(f"Extracting jobs from last {days_back} days")
         df = pd.read_sql_query(query, self.connect(), params=(days_back,))
-        logger.info(f"Extracted {len(df)} constructions")
+        logger.info(f"Extracted {len(df)} jobs")
         return df
 
     def extract_suppliers(self) -> pd.DataFrame:
