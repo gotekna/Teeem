@@ -626,13 +626,13 @@ export default function TeeemTableView({
       )
     }
 
-    // Load group by (defensive validation)
+    // Load group by (defensive validation) - prefer groupByColumns array, fall back to single groupByColumn
     if (!skipGroup) {
-      setGroupByColumn(
-        typeof view.groupByColumn === 'string' && view.groupByColumn.trim() !== ''
-          ? view.groupByColumn
-          : null
-      )
+      const groupCols = Array.isArray(view.groupByColumns) && view.groupByColumns.length > 0
+        ? view.groupByColumns
+        : (typeof view.groupByColumn === 'string' && view.groupByColumn.trim() !== '' ? [view.groupByColumn] : [])
+      setGroupByColumns(groupCols)
+      setGroupByColumn(groupCols[0] || null)  // Keep legacy single in sync
     }
 
     // Set as active view
@@ -648,6 +648,7 @@ export default function TeeemTableView({
     setInterGroupLogic('OR')
     setSortColumns([])
     setGroupByColumn(null)
+    setGroupByColumns([])
     setNewViewName('')
     setActiveViewId(null)
   }
@@ -741,6 +742,10 @@ export default function TeeemTableView({
           const converted = validViews.map(view => {
             const filters = view.filters || {}
             const columns = view.columns || {}
+            // Use group_by_columns array if available, otherwise fall back to single group_by_column
+            const groupByColumns = Array.isArray(view.group_by_columns) && view.group_by_columns.length > 0
+              ? view.group_by_columns
+              : (view.group_by_column ? [view.group_by_column] : [])
 
             return {
               id: view.id,
@@ -754,7 +759,8 @@ export default function TeeemTableView({
               columnOrder: columns.order || [],
               showFilters: columns.showFilters !== false, // default true
               sortColumns: Array.isArray(view.sort_order) ? view.sort_order : [],
-              groupByColumn: view.group_by_column || null,
+              groupByColumn: view.group_by_column || null,  // Legacy single
+              groupByColumns: groupByColumns,  // New array
               display_order: view.display_order || 0,
               isDefault: view.is_default || false
             }
@@ -1327,6 +1333,7 @@ export default function TeeemTableView({
         // Start with empty sort when switching tables
         setSortColumns([])
         setGroupByColumn(null)
+        setGroupByColumns([])
       } catch (e) {
         console.error('Failed to load table state:', e)
       }
@@ -1337,6 +1344,7 @@ export default function TeeemTableView({
       setVisibleColumns(getDefaultVisibleColumns())
       setSortColumns([])
       setGroupByColumn(null)
+      setGroupByColumns([])
     }
   }, [foundationId, category])
 
@@ -1969,16 +1977,30 @@ export default function TeeemTableView({
   useEffect(() => {
     if (groupByColumn && filteredAndSorted.length > 0) {
       const allGroups = new Set()
+      // Get column definition to check if it's a lookup column
+      const groupColumnDef = COLUMNS.find(c => c.key === groupByColumn)
+      const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+      const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+
       filteredAndSorted.forEach(entry => {
         const rawValue = entry[groupByColumn]
-        const groupValue = rawValue && typeof rawValue === 'object' && rawValue.display !== undefined
-          ? (rawValue.display || '(empty)')
-          : (rawValue ?? '(empty)')
+        let groupValue
+
+        if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+          groupValue = rawValue.display || '(empty)'
+        } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+          const matchingOption = lookupOptions.find(opt =>
+            opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
+          )
+          groupValue = matchingOption?.display || `ID: ${rawValue}`
+        } else {
+          groupValue = rawValue ?? '(empty)'
+        }
         allGroups.add(groupValue)
       })
       setCollapsedGroups(allGroups)
     }
-  }, [groupByColumn]) // Only trigger when groupByColumn changes, not on every filteredAndSorted change
+  }, [groupByColumn, columnChoices, COLUMNS]) // Also trigger when columnChoices loads
 
   // Multi-column sort handler
   // Regular click: single column sort (cycles asc -> desc -> clear)
@@ -2188,9 +2210,9 @@ export default function TeeemTableView({
 
       // Defensive validation: ensure correct data types before saving
       const sortColumns = Array.isArray(viewData.sortColumns) ? viewData.sortColumns : []
-      const groupByColumn = typeof viewData.groupByColumn === 'string' && viewData.groupByColumn.trim() !== ''
-        ? viewData.groupByColumn
-        : null
+      // Support both single groupByColumn (legacy) and groupByColumns array (new)
+      const groupByColumns = Array.isArray(viewData.groupByColumns) ? viewData.groupByColumns : []
+      const groupByColumn = groupByColumns[0] || (typeof viewData.groupByColumn === 'string' && viewData.groupByColumn.trim() !== '' ? viewData.groupByColumn : null)
 
       const response = await api.put(`/api/v1/foundation_views/${viewId}`, {
         foundation_view: {
@@ -2206,7 +2228,8 @@ export default function TeeemTableView({
             showFilters: viewData.showFilters === undefined ? true : viewData.showFilters
           },
           sort_order: sortColumns,
-          group_by_column: groupByColumn,
+          group_by_column: groupByColumn,  // Legacy single column (backward compatible)
+          group_by_columns: groupByColumns,  // New array of columns
           is_default: viewData.isDefault || false
         }
       })
@@ -2216,6 +2239,10 @@ export default function TeeemTableView({
         // Update the view in savedFilters
         const filters = response.view.filters || {}
         const columns = response.view.columns || {}
+        // Use group_by_columns array if available, otherwise fall back to single group_by_column
+        const savedGroupByColumns = Array.isArray(response.view.group_by_columns) && response.view.group_by_columns.length > 0
+          ? response.view.group_by_columns
+          : (response.view.group_by_column ? [response.view.group_by_column] : [])
 
         setSavedFilters(savedFilters.map(v =>
           v.id === viewId ? {
@@ -2230,7 +2257,8 @@ export default function TeeemTableView({
             columnOrder: columns.order || [],
             showFilters: columns.showFilters !== false, // default true
             sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
-            groupByColumn: response.view.group_by_column || null,
+            groupByColumn: response.view.group_by_column || null,  // Legacy single
+            groupByColumns: savedGroupByColumns,  // New array
             isDefault: response.view.is_default || false
           } : v
         ))
@@ -5155,6 +5183,7 @@ export default function TeeemTableView({
                   // User can then configure and save to a view
                   setSortColumns([])
                   setGroupByColumn(null)
+                  setGroupByColumns([])
                 }
                 setShowCascadeDropdown(!showCascadeDropdown)
               }}
@@ -5360,6 +5389,8 @@ export default function TeeemTableView({
                                 const editedView = savedFilters.find(v => v.id === editingViewId)
 
                                 console.log('[Save View] Saving column order:', visibilityColumnOrder)
+                                console.log('[Save View] Saving sortColumns:', sortColumns)
+                                console.log('[Save View] Saving groupByColumns:', groupByColumns)
                                 if (editedView) {
                                   await updateView(editingViewId, {
                                     ...editedView,
@@ -5371,7 +5402,7 @@ export default function TeeemTableView({
                                     columnOrder: visibilityColumnOrder,
                                     showFilters,
                                     sortColumns: [...sortColumns],
-                                    groupByColumn
+                                    groupByColumns: [...groupByColumns]  // Save full array of group by columns
                                   })
                                 }
 
@@ -5390,7 +5421,9 @@ export default function TeeemTableView({
                                 const newName = nameInput?.value?.trim() || savedFilters.find(v => v.id === editingViewId)?.name
                                 const editedView = savedFilters.find(v => v.id === editingViewId)
 
-                                console.log('[Save View] Saving column order:', visibilityColumnOrder)
+                                console.log('[Save & Close] Saving column order:', visibilityColumnOrder)
+                                console.log('[Save & Close] Saving sortColumns:', sortColumns)
+                                console.log('[Save & Close] Saving groupByColumns:', groupByColumns)
                                 if (editedView) {
                                   await updateView(editingViewId, {
                                     ...editedView,
@@ -5402,7 +5435,7 @@ export default function TeeemTableView({
                                     columnOrder: visibilityColumnOrder,
                                     showFilters,
                                     sortColumns: [...sortColumns],
-                                    groupByColumn
+                                    groupByColumns: [...groupByColumns]  // Save full array of group by columns
                                   })
                                 }
 
@@ -5565,6 +5598,7 @@ export default function TeeemTableView({
                                   loadViewState(setupView)
                                   // Setup view should never have grouping, ensure it's cleared
                                   setGroupByColumn(null)
+                                  setGroupByColumns([])
                                 } else {
                                   // Fallback if Setup view doesn't exist (shouldn't happen)
                                   console.log('[Create New View] No Setup view found, using fallback with all columns')
@@ -5573,6 +5607,7 @@ export default function TeeemTableView({
                                   setInterGroupLogic('OR')
                                   setSortColumns([])
                                   setGroupByColumn(null)
+                                  setGroupByColumns([])
                                   const allVisible = {}
                                   COLUMNS.forEach(col => {
                                     if (col.key !== 'select' && col.key !== 'actions') {
@@ -5627,6 +5662,7 @@ export default function TeeemTableView({
                           setInterGroupLogic={setInterGroupLogic}
                           setSortColumns={setSortColumns}
                           setGroupByColumn={setGroupByColumn}
+                          setGroupByColumns={setGroupByColumns}
                           deleteView={deleteView}
                           hideHeader={true}
                           searchParams={searchParams}
@@ -6419,11 +6455,25 @@ export default function TeeemTableView({
                                   // Collapse all groups - use first group column
                                   const allGroups = new Set()
                                   const firstGroupCol = groupByColumns[0]
+                                  // Get column definition to check if it's a lookup column
+                                  const groupColumnDef = COLUMNS.find(c => c.key === firstGroupCol)
+                                  const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                                  const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+
                                   filteredAndSorted.forEach(entry => {
                                     const rawValue = entry[firstGroupCol]
-                                    const groupValue = rawValue && typeof rawValue === 'object' && rawValue.display !== undefined
-                                      ? (rawValue.display || '(empty)')
-                                      : (rawValue ?? '(empty)')
+                                    let groupValue
+
+                                    if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+                                      groupValue = rawValue.display || '(empty)'
+                                    } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+                                      const matchingOption = lookupOptions.find(opt =>
+                                        opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
+                                      )
+                                      groupValue = matchingOption?.display || `ID: ${rawValue}`
+                                    } else {
+                                      groupValue = rawValue ?? '(empty)'
+                                    }
                                     allGroups.add(groupValue)
                                   })
                                   setCollapsedGroups(allGroups)
@@ -7458,12 +7508,30 @@ export default function TeeemTableView({
               // Group rows if groupByColumn is set
               if (groupByColumn) {
                 const groups = {}
+                // Get column definition to check if it's a lookup column
+                const groupColumnDef = COLUMNS.find(c => c.key === groupByColumn)
+                const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+
                 filteredAndSorted.forEach(entry => {
-                  // Handle lookup columns which return { id, display } objects
+                  // Handle lookup columns which return { id, display } objects OR just IDs
                   const rawValue = entry[groupByColumn]
-                  const groupValue = rawValue && typeof rawValue === 'object' && rawValue.display !== undefined
-                    ? (rawValue.display || '(empty)')
-                    : (rawValue ?? '(empty)')
+                  let groupValue
+
+                  if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+                    // Value is already an object with display
+                    groupValue = rawValue.display || '(empty)'
+                  } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+                    // Value is just an ID - look up the display value from options
+                    const matchingOption = lookupOptions.find(opt =>
+                      opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
+                    )
+                    groupValue = matchingOption?.display || `ID: ${rawValue}`
+                  } else {
+                    // Plain value or empty
+                    groupValue = rawValue ?? '(empty)'
+                  }
+
                   if (!groups[groupValue]) {
                     groups[groupValue] = []
                   }

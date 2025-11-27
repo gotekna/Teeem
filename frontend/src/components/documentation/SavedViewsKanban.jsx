@@ -28,6 +28,7 @@ export default function SavedViewsKanban({
   setInterGroupLogic,
   setSortColumns,
   setGroupByColumn,
+  setGroupByColumns,
   deleteView,
   hideHeader = false,
   searchParams,
@@ -171,9 +172,15 @@ export default function SavedViewsKanban({
     if (setSortColumns) {
       setSortColumns(view.sortColumns || [])
     }
-    // Restore group by column
-    if (setGroupByColumn) {
-      setGroupByColumn(view.groupByColumn || null)
+    // Restore group by columns - prefer array, fall back to single column
+    if (setGroupByColumns) {
+      const groupCols = Array.isArray(view.groupByColumns) && view.groupByColumns.length > 0
+        ? view.groupByColumns
+        : (view.groupByColumn ? [view.groupByColumn] : [])
+      setGroupByColumns(groupCols)
+      if (setGroupByColumn) {
+        setGroupByColumn(groupCols[0] || null)  // Keep legacy single in sync
+      }
     }
     setActiveViewId(view.id)
     setEditingViewId(null) // Clear edit mode when loading a view
@@ -379,9 +386,15 @@ export default function SavedViewsKanban({
                         if (setSortColumns) {
                           setSortColumns(view.sortColumns || [])
                         }
-                        // Restore group by column
-                        if (setGroupByColumn) {
-                          setGroupByColumn(view.groupByColumn || null)
+                        // Restore group by columns - prefer array, fall back to single column
+                        if (setGroupByColumns) {
+                          const groupCols = Array.isArray(view.groupByColumns) && view.groupByColumns.length > 0
+                            ? view.groupByColumns
+                            : (view.groupByColumn ? [view.groupByColumn] : [])
+                          setGroupByColumns(groupCols)
+                          if (setGroupByColumn) {
+                            setGroupByColumn(groupCols[0] || null)  // Keep legacy single in sync
+                          }
                         }
                         setActiveViewId(view.id)
                         setEditingViewId(view.id)
