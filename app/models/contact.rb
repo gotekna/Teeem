@@ -11,6 +11,7 @@ class Contact < ApplicationRecord
   has_many :contact_addresses, dependent: :destroy
   has_many :contact_group_memberships, dependent: :destroy
   has_many :contact_groups, through: :contact_group_memberships
+  has_many :xero_links, class_name: 'ContactXeroLink', dependent: :destroy
 
   # Enable nested attributes for Xero associations
   accepts_nested_attributes_for :contact_persons, allow_destroy: true
@@ -271,6 +272,113 @@ class Contact < ApplicationRecord
 
   def accounting_connected?
     accounting_integration.present? && accounting_integration.connected?
+  end
+
+  # Xero sync helpers
+  def synced_to_xero?
+    xero_links.enabled.any?
+  end
+
+  def xero_tenants
+    xero_links.enabled.pluck(:xero_tenant_id)
+  end
+
+  def xero_link_for_tenant(tenant_id)
+    xero_links.find_by(xero_tenant_id: tenant_id)
+  end
+
+  def has_xero_conflicts?
+    xero_links.with_conflicts.any?
+  end
+
+  def has_xero_errors?
+    xero_links.with_errors.any?
+  end
+
+  # ABN validation helpers
+  def abn_verified?
+    abn_verified_at.present? && abn_valid == true
+  end
+
+  def abn_needs_verification?
+    tax_number.present? && abn_verified_at.nil?
+  end
+
+  def formatted_abn
+    return nil if tax_number.blank?
+    AbrApiService.format(tax_number)
+  end
+
+  # Verify ABN against ABR API
+  def verify_abn!
+    return if tax_number.blank?
+
+    service = AbrApiService.new
+    result = service.lookup(tax_number)
+
+    update!(
+      abn_valid: result[:valid],
+      abn_entity_name: result[:entity_name],
+      abn_entity_type: result[:entity_type_description],
+      abn_gst_registered: result[:gst_registered],
+      abn_verified_at: Time.current
+    )
+
+    result
+  rescue AbrApiService::InvalidAbnFormat => e
+    update!(
+      abn_valid: false,
+      abn_verified_at: Time.current
+    )
+    raise e
+  rescue AbrApiService::AbnNotFound => e
+    update!(
+      abn_valid: false,
+      abn_verified_at: Time.current
+    )
+    raise e
+  end
+
+  # Check ABN format only (no API call)
+  def abn_format_valid?
+    return false if tax_number.blank?
+    AbrApiService.valid_format?(tax_number)
+  end
+
+  # Check if contact can be deleted (for Xero sync)
+  def can_delete?
+    # Can't delete if has linked jobs, invoices, purchase orders, etc.
+    return false if jobs.any?
+    return false if purchase_orders.any?
+    return false if subcontractor_invoices.any?
+    return false if quote_responses.any?
+    true
+  end
+
+  def deletion_blockers
+    blockers = []
+    blockers << "#{jobs.count} jobs" if jobs.any?
+    blockers << "#{purchase_orders.count} purchase orders" if purchase_orders.any?
+    blockers << "#{subcontractor_invoices.count} invoices" if subcontractor_invoices.any?
+    blockers << "#{quote_responses.count} quote responses" if quote_responses.any?
+    blockers
+  end
+
+  # Relationship summary for search results
+  def relationship_summary
+    relationships = []
+
+    outgoing_relationships.includes(:related_contact).each do |rel|
+      type_label = rel.relationship_type.humanize.titleize
+      company_name = rel.related_contact&.display_name
+      if rel.ownership_percentage.present?
+        relationships << "#{type_label} (#{rel.ownership_percentage}%) of #{company_name}"
+      else
+        relationships << "#{type_label} #{company_name}"
+      end
+    end
+
+    relationships
   end
 
   private

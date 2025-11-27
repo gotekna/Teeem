@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_27_072214) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_221241) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -485,6 +485,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_072214) do
     t.index ["position"], name: "index_contact_types_on_position"
   end
 
+  create_table "contact_xero_links", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.string "xero_tenant_id", null: false
+    t.string "xero_tenant_name"
+    t.string "xero_contact_id", null: false
+    t.boolean "sync_enabled", default: true
+    t.string "sync_direction", default: "bidirectional"
+    t.datetime "last_synced_at"
+    t.datetime "xero_last_modified_at"
+    t.string "sync_error"
+    t.jsonb "conflict_fields", default: {}
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id", "xero_tenant_id"], name: "idx_contact_xero_links_contact_tenant", unique: true
+    t.index ["contact_id"], name: "index_contact_xero_links_on_contact_id"
+    t.index ["sync_enabled"], name: "index_contact_xero_links_on_sync_enabled"
+    t.index ["xero_tenant_id", "xero_contact_id"], name: "idx_contact_xero_links_tenant_xero_id", unique: true
+    t.index ["xero_tenant_id"], name: "index_contact_xero_links_on_xero_tenant_id"
+  end
+
   create_table "contacts", force: :cascade do |t|
     t.integer "sys_type_id"
     t.boolean "deleted"
@@ -556,6 +577,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_072214) do
     t.string "employment_status"
     t.date "employment_start_date"
     t.string "entity_type"
+    t.boolean "abn_valid"
+    t.string "abn_entity_name"
+    t.string "abn_entity_type"
+    t.boolean "abn_gst_registered"
+    t.datetime "abn_verified_at"
+    t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
@@ -2545,6 +2572,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_072214) do
     t.index ["supplier_code"], name: "index_suppliers_on_supplier_code", unique: true
   end
 
+  create_table "sync_configurations", force: :cascade do |t|
+    t.string "xero_tenant_id", null: false
+    t.string "xero_tenant_name"
+    t.string "accounting_system", default: "xero"
+    t.jsonb "field_mappings", default: {}
+    t.jsonb "cleanup_options", default: {"archive_duplicates"=>false, "standardize_abn_format"=>true, "delete_primary_person_after_import"=>false}
+    t.boolean "sync_enabled", default: true
+    t.boolean "webhooks_enabled", default: false
+    t.datetime "last_full_sync_at"
+    t.datetime "webhooks_registered_at"
+    t.string "webhook_key"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["accounting_system"], name: "index_sync_configurations_on_accounting_system"
+    t.index ["xero_tenant_id"], name: "index_sync_configurations_on_xero_tenant_id", unique: true
+  end
+
   create_table "table_protections", force: :cascade do |t|
     t.string "table_name", null: false
     t.boolean "is_protected", default: true, null: false
@@ -3130,6 +3175,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_072214) do
   add_foreign_key "contact_persons", "contacts"
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
+  add_foreign_key "contact_xero_links", "contacts"
   add_foreign_key "contacts", "contacts", column: "primary_company_id"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "emails", "jobs"

@@ -295,7 +295,22 @@ Rails.application.routes.draw do
         end
 
         # Contact relationships (nested under contacts)
-        resources :relationships, controller: 'contact_relationships', only: [:index, :create, :show, :update, :destroy]
+        resources :relationships, controller: 'contact_relationships', only: [:index, :create, :show, :update, :destroy] do
+          collection do
+            get :summary
+          end
+        end
+
+        # Xero links (nested under contacts)
+        resources :xero_links, controller: 'contact_xero_links', only: [:index, :create, :show, :update, :destroy] do
+          member do
+            post :sync
+            post :resolve_conflict
+          end
+          collection do
+            get :conflicts
+          end
+        end
 
         # SMS messages (nested under contacts)
         resources :sms_messages, only: [:index, :create]
@@ -798,7 +813,6 @@ Rails.application.routes.draw do
           delete :disconnect
           get :invoices
           post :match_invoice
-          post :webhook
           post :sync_contacts
           get :sync_status
           get :sync_history
@@ -812,6 +826,21 @@ Rails.application.routes.draw do
         end
         member do
           get :sync_contacts_status
+        end
+      end
+
+      # Xero Webhooks (separate controller for webhook handling)
+      post 'xero/webhooks', to: 'xero_webhooks#receive'
+      get 'xero/webhooks/intent', to: 'xero_webhooks#verify_intent'
+
+      # Sync Configurations (per-Xero-org settings for contact sync)
+      resources :sync_configurations, param: :xero_tenant_id, only: [:index, :show, :update] do
+        member do
+          post :preview
+        end
+        collection do
+          get :field_mappings
+          get :health
         end
       end
 
