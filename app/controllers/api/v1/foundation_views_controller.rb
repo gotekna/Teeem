@@ -1,29 +1,29 @@
 module Api
   module V1
-    class TableViewsController < ApplicationController
-      before_action :set_table_view, only: [:show, :update, :destroy]
+    class FoundationViewsController < ApplicationController
+      before_action :set_foundation_view, only: [:show, :update, :destroy]
 
-      # GET /api/v1/table_views
-      # GET /api/v1/table_views?table_id=123
+      # GET /api/v1/foundation_views
+      # GET /api/v1/foundation_views?foundation_id=123
       def index
         # Handle both authenticated and unauthenticated requests
         # Unauthenticated users see public/system views (user_id IS NULL)
         if current_user
-          views = current_user.table_views
+          views = current_user.foundation_views
         else
-          views = TableView.where(user_id: nil)
+          views = FoundationView.where(user_id: nil)
         end
 
-        if params[:table_id].present?
-          views = views.where(table_id: params[:table_id])
+        if params[:foundation_id].present?
+          views = views.where(foundation_id: params[:foundation_id])
 
-          # Auto-create "Setup" view if no views exist for this user/table combination
+          # Auto-create "Setup" view if no views exist for this user/foundation combination
           if current_user && views.empty?
-            table = Table.find_by(id: params[:table_id])
-            if table
-              create_default_setup_view(table, current_user)
+            foundation = Foundation.find_by(id: params[:foundation_id])
+            if foundation
+              create_default_setup_view(foundation, current_user)
               # Reload views to include the newly created Setup view
-              views = current_user.table_views.where(table_id: params[:table_id])
+              views = current_user.foundation_views.where(foundation_id: params[:foundation_id])
             end
           end
         end
@@ -34,15 +34,15 @@ module Api
         }
       end
 
-      # GET /api/v1/table_views/:id
+      # GET /api/v1/foundation_views/:id
       def show
         render json: {
           success: true,
-          view: @table_view
+          view: @foundation_view
         }
       end
 
-      # POST /api/v1/table_views
+      # POST /api/v1/foundation_views
       def create
         unless current_user
           return render json: {
@@ -51,51 +51,51 @@ module Api
           }, status: :unauthorized
         end
 
-        @table_view = current_user.table_views.build(table_view_params)
+        @foundation_view = current_user.foundation_views.build(foundation_view_params)
 
-        if @table_view.save
+        if @foundation_view.save
           render json: {
             success: true,
-            view: @table_view,
+            view: @foundation_view,
             message: "View saved successfully"
           }, status: :created
         else
           render json: {
             success: false,
-            errors: @table_view.errors.full_messages
+            errors: @foundation_view.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
 
-      # PATCH/PUT /api/v1/table_views/:id
+      # PATCH/PUT /api/v1/foundation_views/:id
       def update
-        if @table_view.update(table_view_params)
+        if @foundation_view.update(foundation_view_params)
           render json: {
             success: true,
-            view: @table_view,
+            view: @foundation_view,
             message: "View updated successfully"
           }
         else
           render json: {
             success: false,
-            errors: @table_view.errors.full_messages
+            errors: @foundation_view.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
 
-      # DELETE /api/v1/table_views/:id
+      # DELETE /api/v1/foundation_views/:id
       def destroy
-        @table_view.destroy
+        @foundation_view.destroy
         render json: {
           success: true,
           message: "View deleted successfully"
         }
       end
 
-      # POST /api/v1/table_views/reorder
+      # POST /api/v1/foundation_views/reorder
       # Bulk update display_order for views after drag-and-drop
       # GOLD STANDARD RULE: The view with display_order = 0 automatically becomes the default view
-      # (enforced by TableView model after_save callback)
+      # (enforced by FoundationView model after_save callback)
       def reorder
         orders = params[:orders] # Array of {id: X, display_order: Y}
 
@@ -109,13 +109,13 @@ module Api
         begin
           ActiveRecord::Base.transaction do
             orders.each do |item|
-              view = current_user.table_views.find(item[:id])
+              view = current_user.foundation_views.find(item[:id])
               Rails.logger.info "[Reorder] Updating view #{view.id} (#{view.name}) from display_order #{view.display_order} to #{item[:display_order]}"
               view.update!(display_order: item[:display_order])
               Rails.logger.info "[Reorder] Successfully updated view #{view.id}"
             end
             # Note: The view at display_order = 0 will automatically be set as default
-            # by the TableView model's ensure_first_view_is_default callback
+            # by the FoundationView model's ensure_first_view_is_default callback
           end
 
           render json: {
@@ -141,7 +141,7 @@ module Api
 
       private
 
-      def set_table_view
+      def set_foundation_view
         unless current_user
           return render json: {
             success: false,
@@ -149,7 +149,7 @@ module Api
           }, status: :unauthorized
         end
 
-        @table_view = current_user.table_views.find(params[:id])
+        @foundation_view = current_user.foundation_views.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,
@@ -157,9 +157,9 @@ module Api
         }, status: :not_found
       end
 
-      def table_view_params
-        params.require(:table_view).permit(
-          :table_id,
+      def foundation_view_params
+        params.require(:foundation_view).permit(
+          :foundation_id,
           :name,
           :view_type,
           :is_default,
@@ -178,8 +178,8 @@ module Api
         )
       end
 
-    # POST /api/v1/table_views/create_all_setup_views
-    # Creates Setup views for all tables that don't have one
+    # POST /api/v1/foundation_views/create_all_setup_views
+    # Creates Setup views for all foundations that don't have one
     def create_all_setup_views
       unless current_user
         return render json: {
@@ -194,23 +194,23 @@ module Api
         errors: []
       }
 
-      # Get all tables
-      tables = Table.all
+      # Get all foundations
+      foundations = Foundation.all
 
-      tables.each do |table|
-        # Check if user already has a Setup view for this table
-        existing_setup = current_user.table_views.find_by(table_id: table.id, name: 'Setup')
+      foundations.each do |foundation|
+        # Check if user already has a Setup view for this foundation
+        existing_setup = current_user.foundation_views.find_by(foundation_id: foundation.id, name: 'Setup')
 
         if existing_setup
-          results[:skipped] << { table_id: table.id, table_name: table.name, reason: 'Setup view already exists' }
+          results[:skipped] << { foundation_id: foundation.id, foundation_name: foundation.name, reason: 'Setup view already exists' }
           next
         end
 
         begin
-          create_default_setup_view(table, current_user)
-          results[:created] << { table_id: table.id, table_name: table.name }
+          create_default_setup_view(foundation, current_user)
+          results[:created] << { foundation_id: foundation.id, foundation_name: foundation.name }
         rescue => e
-          results[:errors] << { table_id: table.id, table_name: table.name, error: e.message }
+          results[:errors] << { foundation_id: foundation.id, foundation_name: foundation.name, error: e.message }
         end
       end
 
@@ -223,11 +223,11 @@ module Api
 
     private
 
-      # Auto-create the "Setup" view for tables without saved views
+      # Auto-create the "Setup" view for foundations without saved views
       # This view serves as the default template with all columns visible
-      def create_default_setup_view(table, user)
-        # Get all columns for the table
-        all_columns = table.columns.pluck(:column_name)
+      def create_default_setup_view(foundation, user)
+        # Get all columns for the foundation
+        all_columns = foundation.columns.pluck(:column_name)
 
         # Build visible columns hash (all columns visible by default)
         visible_columns = {}
@@ -240,8 +240,8 @@ module Api
         column_order = ['select', 'id', 'actions'] + all_columns
 
         # Create the Setup view
-        user.table_views.create!(
-          table_id: table.id,
+        user.foundation_views.create!(
+          foundation_id: foundation.id,
           name: 'Setup',
           view_type: 'custom',
           filters: {
@@ -259,9 +259,9 @@ module Api
           display_order: 0
         )
 
-        Rails.logger.info "Created default 'Setup' view for user #{user.id}, table #{table.id} (#{table.name})"
+        Rails.logger.info "Created default 'Setup' view for user #{user.id}, foundation #{foundation.id} (#{foundation.name})"
       rescue => e
-        Rails.logger.error "Failed to create Setup view for table #{table.id}: #{e.message}"
+        Rails.logger.error "Failed to create Setup view for foundation #{foundation.id}: #{e.message}"
         # Don't fail the request if view creation fails
       end
     end

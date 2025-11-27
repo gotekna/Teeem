@@ -1,53 +1,53 @@
 module Api
   module V1
-    class TablesController < ApplicationController
-      before_action :set_table, only: [:show, :update, :destroy]
+    class FoundationsController < ApplicationController
+      before_action :set_foundation, only: [:show, :update, :destroy]
 
-      # GET /api/v1/tables
+      # GET /api/v1/foundations
       def index
-        tables = Table.includes(:columns).all
+        foundations = Foundation.includes(:columns).all
 
         # Preload all referencing columns to prevent N+1 queries
-        table_ids = tables.pluck(:id)
-        referencing_map = Column.where(lookup_table_id: table_ids)
-                                .includes(:table)
-                                .group_by(&:lookup_table_id)
+        foundation_ids = foundations.pluck(:id)
+        referencing_map = Column.where(lookup_foundation_id: foundation_ids)
+                                .includes(:foundation)
+                                .group_by(&:lookup_foundation_id)
 
         render json: {
           success: true,
-          tables: tables.map { |t| table_json(t, include_record_count: true, referencing_map: referencing_map) }
+          foundations: foundations.map { |f| foundation_json(f, include_record_count: true, referencing_map: referencing_map) }
         }
       end
 
-      # GET /api/v1/tables/:id
+      # GET /api/v1/foundations/:id
       def show
         render json: {
           success: true,
-          table: table_json(@table, include_columns: true)
+          foundation: foundation_json(@foundation, include_columns: true)
         }
       end
 
-      # POST /api/v1/tables
+      # POST /api/v1/foundations
       def create
-        table = Table.new(table_params)
+        foundation = Foundation.new(foundation_params)
 
-        if table.save
+        if foundation.save
           # Create the physical database table immediately
           # Even if it has no columns, it will have id and timestamps
-          builder = TableBuilder.new(table)
+          builder = TableBuilder.new(foundation)
           result = builder.create_database_table
 
           if result[:success]
-            # Auto-create "Setup" view for the new table
-            create_default_setup_view(table) if current_user
+            # Auto-create "Setup" view for the new foundation
+            create_default_setup_view(foundation) if current_user
 
             render json: {
               success: true,
-              table: table_json(table)
+              foundation: foundation_json(foundation)
             }, status: :created
           else
-            # If database table creation fails, rollback the table record
-            table.destroy
+            # If database table creation fails, rollback the foundation record
+            foundation.destroy
             render json: {
               success: false,
               errors: result[:errors]
@@ -56,56 +56,56 @@ module Api
         else
           render json: {
             success: false,
-            errors: table.errors.full_messages
+            errors: foundation.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
 
-      # PATCH/PUT /api/v1/tables/:id
+      # PATCH/PUT /api/v1/foundations/:id
       def update
-        if @table.update(table_params)
+        if @foundation.update(foundation_params)
           render json: {
             success: true,
-            table: table_json(@table)
+            foundation: foundation_json(@foundation)
           }
         else
           render json: {
             success: false,
-            errors: @table.errors.full_messages
+            errors: @foundation.errors.full_messages
           }, status: :unprocessable_entity
         end
       end
 
-      # DELETE /api/v1/tables/:id
+      # DELETE /api/v1/foundations/:id
       def destroy
         # Safety checks before deletion
-        if @table.is_live
+        if @foundation.is_live
           return render json: {
             success: false,
-            errors: ['Cannot delete a live table. Set it to draft first.']
+            errors: ['Cannot delete a live foundation. Set it to draft first.']
           }, status: :unprocessable_entity
         end
 
-        # Check if table has records
+        # Check if foundation has records
         begin
-          record_count = @table.dynamic_model.count
+          record_count = @foundation.dynamic_model.count
           if record_count > 0
             return render json: {
               success: false,
-              errors: ["Cannot delete a table that contains #{record_count} record(s). Delete all records first."]
+              errors: ["Cannot delete a foundation that contains #{record_count} record(s). Delete all records first."]
             }, status: :unprocessable_entity
           end
         rescue => e
           Rails.logger.error "Error checking record count: #{e.message}"
         end
 
-        # Check if other tables have lookup columns referencing this table
-        referencing_columns = Column.where(lookup_table_id: @table.id).includes(:table)
+        # Check if other foundations have lookup columns referencing this foundation
+        referencing_columns = Column.where(lookup_foundation_id: @foundation.id).includes(:foundation)
         if referencing_columns.any?
-          table_names = referencing_columns.map { |col| col.table.name }.uniq.join(', ')
+          foundation_names = referencing_columns.map { |col| col.foundation.name }.uniq.join(', ')
           return render json: {
             success: false,
-            errors: ["Cannot delete this table because it is referenced by lookup columns in: #{table_names}. Remove those lookup columns first."]
+            errors: ["Cannot delete this foundation because it is referenced by lookup columns in: #{foundation_names}. Remove those lookup columns first."]
           }, status: :unprocessable_entity
         end
 
@@ -113,15 +113,15 @@ module Api
         begin
           ActiveRecord::Base.transaction do
             # Drop the database table first
-            builder = TableBuilder.new(@table)
+            builder = TableBuilder.new(@foundation)
             drop_result = builder.drop_database_table
 
             unless drop_result[:success]
               raise ActiveRecord::Rollback, drop_result[:errors].join(', ')
             end
 
-            # Delete the table record (this will also cascade delete columns via dependent: :destroy)
-            @table.destroy!
+            # Delete the foundation record (this will also cascade delete columns via dependent: :destroy)
+            @foundation.destroy!
           end
 
           render json: { success: true }
@@ -131,33 +131,33 @@ module Api
             errors: [e.message]
           }, status: :unprocessable_entity
         rescue => e
-          Rails.logger.error "Error deleting table: #{e.message}"
+          Rails.logger.error "Error deleting foundation: #{e.message}"
           render json: {
             success: false,
-            errors: ["Failed to delete table: #{e.message}"]
+            errors: ["Failed to delete foundation: #{e.message}"]
           }, status: :internal_server_error
         end
       end
 
       private
 
-      def set_table
+      def set_foundation
         # Support both ID and slug
-        @table = if params[:id].to_i.to_s == params[:id]
-          Table.includes(:columns).find(params[:id])
+        @foundation = if params[:id].to_i.to_s == params[:id]
+          Foundation.includes(:columns).find(params[:id])
         else
-          Table.includes(:columns).find_by!(slug: params[:id])
+          Foundation.includes(:columns).find_by!(slug: params[:id])
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Table not found' }, status: :not_found
+        render json: { error: 'Foundation not found' }, status: :not_found
       end
 
-      # Get columns for system tables from the model schema
-      def system_table_columns
-        return [] unless @table.table_type == 'system' && @table.model_class.present?
+      # Get columns for system foundations from the model schema
+      def system_foundation_columns
+        return [] unless @foundation.table_type == 'system' && @foundation.model_class.present?
 
         begin
-          model = @table.model_class.constantize
+          model = @foundation.model_class.constantize
           position = 0
           model.columns.map do |col|
             position += 1
@@ -173,7 +173,7 @@ module Api
             }
           end
         rescue NameError => e
-          Rails.logger.error "Failed to get columns for system table #{@table.slug}: #{e.message}"
+          Rails.logger.error "Failed to get columns for system foundation #{@foundation.slug}: #{e.message}"
           []
         end
       end
@@ -199,8 +199,8 @@ module Api
         end
       end
 
-      def table_params
-        params.require(:table).permit(
+      def foundation_params
+        params.require(:foundation).permit(
           :name,
           :singular_name,
           :plural_name,
@@ -214,11 +214,11 @@ module Api
         )
       end
 
-      # Auto-create the "Setup" view for new tables
+      # Auto-create the "Setup" view for new foundations
       # This view serves as the default template with all columns visible
-      def create_default_setup_view(table)
-        # Get all columns for the table
-        all_columns = table.columns.pluck(:column_name)
+      def create_default_setup_view(foundation)
+        # Get all columns for the foundation
+        all_columns = foundation.columns.pluck(:column_name)
 
         # Build visible columns hash (all columns visible by default)
         visible_columns = {}
@@ -231,8 +231,8 @@ module Api
         column_order = ['select', 'id', 'actions'] + all_columns
 
         # Create the Setup view
-        current_user.table_views.create!(
-          table_id: table.id,
+        current_user.foundation_views.create!(
+          foundation_id: foundation.id,
           name: 'Setup',
           view_type: 'custom',
           filters: {
@@ -250,41 +250,41 @@ module Api
           display_order: 0
         )
 
-        Rails.logger.info "Created default 'Setup' view for table #{table.id} (#{table.name})"
+        Rails.logger.info "Created default 'Setup' view for foundation #{foundation.id} (#{foundation.name})"
       rescue => e
-        Rails.logger.error "Failed to create Setup view for table #{table.id}: #{e.message}"
-        # Don't fail table creation if view creation fails
+        Rails.logger.error "Failed to create Setup view for foundation #{foundation.id}: #{e.message}"
+        # Don't fail foundation creation if view creation fails
       end
 
-      def table_json(table, include_columns: false, include_record_count: false, referencing_map: nil)
-        # Temporarily set @table for system_table_columns helper
-        original_table = @table
-        @table = table
+      def foundation_json(foundation, include_columns: false, include_record_count: false, referencing_map: nil)
+        # Temporarily set @foundation for system_foundation_columns helper
+        original_foundation = @foundation
+        @foundation = foundation
 
         json = {
-          id: table.id,
-          name: table.name,
-          slug: table.slug,
-          singular_name: table.singular_name,
-          plural_name: table.plural_name,
-          database_table_name: table.database_table_name,
-          icon: table.icon,
-          title_column: table.title_column,
-          searchable: table.searchable,
-          description: table.description,
-          is_live: table.is_live,
-          table_type: table.table_type,
-          feature: table.feature,
-          api_endpoint: table.api_endpoint,
-          created_at: table.created_at,
-          updated_at: table.updated_at
+          id: foundation.id,
+          name: foundation.name,
+          slug: foundation.slug,
+          singular_name: foundation.singular_name,
+          plural_name: foundation.plural_name,
+          database_table_name: foundation.database_table_name,
+          icon: foundation.icon,
+          title_column: foundation.title_column,
+          searchable: foundation.searchable,
+          description: foundation.description,
+          is_live: foundation.is_live,
+          table_type: foundation.table_type,
+          feature: foundation.feature,
+          api_endpoint: foundation.api_endpoint,
+          created_at: foundation.created_at,
+          updated_at: foundation.updated_at
         }
 
         if include_columns
-          # Use defined columns if they exist, otherwise auto-detect for system tables
-          if table.columns.any?
+          # Use defined columns if they exist, otherwise auto-detect for system foundations
+          if foundation.columns.any?
             # Use explicitly defined columns from the columns table
-            json[:columns] = table.columns.order(:position).map do |col|
+            json[:columns] = foundation.columns.order(:position).map do |col|
               column_data = {
                 id: col.id,
                 name: col.name,
@@ -303,7 +303,7 @@ module Api
                 max_value: col.max_value,
                 validation_message: col.validation_message,
                 position: col.position,
-                lookup_table_id: col.lookup_table_id,
+                lookup_foundation_id: col.lookup_foundation_id,
                 lookup_display_column: col.lookup_display_column,
                 is_multiple: col.is_multiple,
                 header_align: col.header_align,
@@ -311,22 +311,22 @@ module Api
               }
 
               # Add relationship information
-              if col.lookup_table_id.present?
-                column_data[:lookup_table_name] = col.lookup_table&.name
+              if col.lookup_foundation_id.present?
+                column_data[:lookup_foundation_name] = col.lookup_foundation&.name
               end
 
-              # Find columns that reference this table using preloaded data or query
+              # Find columns that reference this foundation using preloaded data or query
               referencing_columns = if referencing_map
-                referencing_map[table.id] || []
+                referencing_map[foundation.id] || []
               else
-                Column.where(lookup_table_id: table.id).includes(:table)
+                Column.where(lookup_foundation_id: foundation.id).includes(:foundation)
               end
 
               if referencing_columns.any?
                 column_data[:referenced_by] = referencing_columns.map do |ref_col|
                   {
-                    table_id: ref_col.table_id,
-                    table_name: ref_col.table.name,
+                    foundation_id: ref_col.foundation_id,
+                    foundation_name: ref_col.foundation.name,
                     column_name: ref_col.name
                   }
                 end
@@ -334,11 +334,11 @@ module Api
 
               column_data
             end
-          elsif table.table_type == 'system'
-            # Fallback: auto-detect columns from model schema for system tables without defined columns
-            json[:columns] = system_table_columns
+          elsif foundation.table_type == 'system'
+            # Fallback: auto-detect columns from model schema for system foundations without defined columns
+            json[:columns] = system_foundation_columns
           else
-            # No columns defined for non-system table
+            # No columns defined for non-system foundation
             json[:columns] = []
           end
         end
@@ -346,7 +346,7 @@ module Api
         if include_columns || include_record_count
           # Get record count
           begin
-            json[:record_count] = table.dynamic_model.count
+            json[:record_count] = foundation.dynamic_model.count
           rescue
             json[:record_count] = 0
           end
@@ -354,8 +354,8 @@ module Api
 
         # Always include columns info for list view
         unless include_columns
-          if table.table_type == 'system'
-            json[:columns] = system_table_columns.map do |col|
+          if foundation.table_type == 'system'
+            json[:columns] = system_foundation_columns.map do |col|
               {
                 id: col[:id],
                 name: col[:name],
@@ -363,7 +363,7 @@ module Api
               }
             end
           else
-            json[:columns] = table.columns.order(:position).map do |col|
+            json[:columns] = foundation.columns.order(:position).map do |col|
               {
                 id: col.id,
                 name: col.name,
@@ -373,8 +373,8 @@ module Api
           end
         end
 
-        # Restore original @table
-        @table = original_table
+        # Restore original @foundation
+        @foundation = original_foundation
 
         json
       end
