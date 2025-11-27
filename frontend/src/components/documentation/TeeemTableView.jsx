@@ -6457,10 +6457,22 @@ export default function TeeemTableView({
                             // Flat list - show only selected tab's columns
                             let allCols = groupedColumns[sortedGroups[0]]
 
-                            // Filter by tab selection
+                            // Get the current visibility order
+                            const currentOrder = visibilityColumnOrder || allCols.map(c => c.key)
+
+                            // Filter by tab selection and sort by position order (not alphabetically)
                             const checkedCols = allCols
                               .filter(col => visibleColumns[col.key] !== false)
-                              .sort((a, b) => a.label.localeCompare(b.label))
+                              .sort((a, b) => {
+                                // Sort by position in visibility order
+                                const aIndex = currentOrder.indexOf(a.key)
+                                const bIndex = currentOrder.indexOf(b.key)
+                                // If not in order, put at end alphabetically
+                                if (aIndex === -1 && bIndex === -1) return a.label.localeCompare(b.label)
+                                if (aIndex === -1) return 1
+                                if (bIndex === -1) return -1
+                                return aIndex - bIndex
+                              })
                             const uncheckedCols = allCols
                               .filter(col => visibleColumns[col.key] === false)
                               .sort((a, b) => a.label.localeCompare(b.label))
@@ -6489,11 +6501,10 @@ export default function TeeemTableView({
                                   gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))'
                                 }}
                               >
-                                {displayCols.map((column) => {
+                                {displayCols.map((column, displayIndex) => {
                                   // Calculate the position of this column in the visibility order
-                                  const currentOrder = visibilityColumnOrder || allCols.map(c => c.key)
-                                  const visibleOnlyOrder = currentOrder.filter(key => visibleColumns[key] !== false)
-                                  const position = isVisibleTab ? visibleOnlyOrder.indexOf(column.key) + 1 : null
+                                  // Position is simply the display index + 1 since displayCols is already sorted by order
+                                  const position = isVisibleTab ? displayIndex + 1 : null
 
                                   return (
                                     <div
@@ -6510,7 +6521,15 @@ export default function TeeemTableView({
                                         e.preventDefault()
                                         e.stopPropagation()
                                         if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
-                                          const fullOrder = [...(visibilityColumnOrder || allCols.map(c => c.key))]
+                                          // Build full order including any columns not yet in the saved order
+                                          const existingOrder = visibilityColumnOrder || []
+                                          const allKeys = allCols.map(c => c.key)
+                                          const fullOrder = [...existingOrder]
+                                          // Add any missing columns to the end
+                                          allKeys.forEach(key => {
+                                            if (!fullOrder.includes(key)) fullOrder.push(key)
+                                          })
+
                                           const draggedIndex = fullOrder.indexOf(draggedVisibilityColumn)
                                           const targetIndex = fullOrder.indexOf(column.key)
 
@@ -6559,14 +6578,20 @@ export default function TeeemTableView({
                                         <input
                                           type="number"
                                           min="1"
-                                          max={visibleOnlyOrder.length}
+                                          max={displayCols.length}
                                           value={position || ''}
                                           onChange={(e) => {
                                             const newPosition = parseInt(e.target.value, 10)
-                                            if (isNaN(newPosition) || newPosition < 1 || newPosition > visibleOnlyOrder.length) return
+                                            if (isNaN(newPosition) || newPosition < 1 || newPosition > displayCols.length) return
 
-                                            // Reorder: remove from current position and insert at new position
-                                            const fullOrder = [...(visibilityColumnOrder || allCols.map(c => c.key))]
+                                            // Build full order including any columns not yet in the saved order
+                                            const existingOrder = visibilityColumnOrder || []
+                                            const allKeys = allCols.map(c => c.key)
+                                            const fullOrder = [...existingOrder]
+                                            allKeys.forEach(key => {
+                                              if (!fullOrder.includes(key)) fullOrder.push(key)
+                                            })
+
                                             const currentIndex = fullOrder.indexOf(column.key)
                                             if (currentIndex === -1) return
 
@@ -6574,9 +6599,8 @@ export default function TeeemTableView({
                                             fullOrder.splice(currentIndex, 1)
 
                                             // Find where to insert in the full order based on visible-only position
-                                            // We need to find the (newPosition)th visible column's position in the full order
                                             let visibleCount = 0
-                                            let insertIndex = 0
+                                            let insertIndex = fullOrder.length
                                             for (let i = 0; i < fullOrder.length; i++) {
                                               if (visibleColumns[fullOrder[i]] !== false) {
                                                 visibleCount++
@@ -6585,14 +6609,10 @@ export default function TeeemTableView({
                                                   break
                                                 }
                                               }
-                                              if (i === fullOrder.length - 1) {
-                                                insertIndex = fullOrder.length
-                                              }
                                             }
 
-                                            // If moving to position 1, insert at the beginning of visible columns
+                                            // If moving to position 1, insert before the first visible column
                                             if (newPosition === 1) {
-                                              // Find the first visible column's index
                                               insertIndex = fullOrder.findIndex(key => visibleColumns[key] !== false)
                                               if (insertIndex === -1) insertIndex = 0
                                             }
