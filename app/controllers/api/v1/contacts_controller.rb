@@ -204,6 +204,56 @@ module Api
             }
           end
 
+        # Add all relationships (both outgoing and incoming)
+        # Outgoing: relationships where this contact is the source (e.g., John is employee_of ACME)
+        outgoing_rels = @contact.outgoing_relationships
+          .active
+          .includes(:related_contact)
+          .map do |rel|
+            {
+              id: rel.id,
+              direction: 'outgoing',
+              relationship_type: rel.relationship_type,
+              related_contact: {
+                id: rel.related_contact.id,
+                full_name: rel.related_contact.full_name,
+                company_name: rel.related_contact.company_name_or_trust,
+                email: rel.related_contact.email,
+                mobile_phone: rel.related_contact.mobile_phone,
+                entity_type: rel.related_contact.entity_type
+              },
+              role_in_relationship: rel.role_in_relationship,
+              notes: rel.notes
+            }
+          end
+
+        # Incoming: relationships where this contact is the target (e.g., ACME has John as employee)
+        incoming_rels = @contact.incoming_relationships
+          .active
+          .includes(:source_contact)
+          .map do |rel|
+            {
+              id: rel.id,
+              direction: 'incoming',
+              relationship_type: rel.relationship_type,
+              # For incoming, we show the source contact as the "related" person
+              related_contact: {
+                id: rel.source_contact.id,
+                full_name: rel.source_contact.full_name,
+                company_name: rel.source_contact.company_name_or_trust,
+                email: rel.source_contact.email,
+                mobile_phone: rel.source_contact.mobile_phone,
+                entity_type: rel.source_contact.entity_type
+              },
+              role_in_relationship: rel.role_in_relationship,
+              notes: rel.notes
+            }
+          end
+
+        contact_json[:relationships] = outgoing_rels + incoming_rels
+        contact_json[:outgoing_relationships] = outgoing_rels
+        contact_json[:incoming_relationships] = incoming_rels
+
         render json: {
           success: true,
           contact: contact_json
