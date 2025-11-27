@@ -989,7 +989,14 @@ export default function AppLayout({ children }) {
                                   'size-6 shrink-0',
                                 )}
                               />
-                              {!sidebarCollapsed && item.name}
+                              {!sidebarCollapsed && (
+                                <>
+                                  {item.name}
+                                  <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                                    {activeJobs.length}
+                                  </span>
+                                </>
+                              )}
                             </Link>
                             {!sidebarCollapsed && (
                               <button
@@ -1800,7 +1807,14 @@ export default function AppLayout({ children }) {
                                   'size-6 shrink-0',
                                 )}
                               />
-                              {!sidebarCollapsed && item.name}
+                              {!sidebarCollapsed && (
+                                <>
+                                  {item.name}
+                                  <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                                    {priceBooks.length}
+                                  </span>
+                                </>
+                              )}
                             </Link>
                             {!sidebarCollapsed && (
                               <button
@@ -1984,7 +1998,14 @@ export default function AppLayout({ children }) {
                                   'size-6 shrink-0',
                                 )}
                               />
-                              {!sidebarCollapsed && item.name}
+                              {!sidebarCollapsed && (
+                                <>
+                                  {item.name}
+                                  <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                                    {contacts.length}
+                                  </span>
+                                </>
+                              )}
                             </Link>
                             {!sidebarCollapsed && (
                               <button
@@ -2166,7 +2187,14 @@ export default function AppLayout({ children }) {
                                   'size-6 shrink-0',
                                 )}
                               />
-                              {!sidebarCollapsed && item.name}
+                              {!sidebarCollapsed && (
+                                <>
+                                  {item.name}
+                                  <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 tabular-nums">
+                                    {purchaseOrders.length}
+                                  </span>
+                                </>
+                              )}
                             </Link>
                             {!sidebarCollapsed && (
                               <button
