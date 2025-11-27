@@ -256,29 +256,13 @@ export default function TeeemTableView({
   // Server-side search with debouncing (Chapter 20.20 enhancement)
   // When onServerSearch is provided, triggers server search after 300ms of inactivity
   useEffect(() => {
-    console.log('[Server Search] useEffect triggered:', {
-      search,
-      hasOnServerSearch: !!onServerSearch,
-      foundationId
-    })
+    if (!onServerSearch) return  // Only activate if callback is provided
 
-    if (!onServerSearch) {
-      console.log('[Server Search] No onServerSearch callback, using client-side filtering')
-      return  // Only activate if callback is provided
-    }
-
-    console.log('[Server Search] Setting up debounce timer for:', search)
     const debounceTimer = setTimeout(() => {
-      // Call server search callback with the search term
-      // Empty string clears the search and reloads all records
-      console.log('[Server Search] Debounce complete, calling onServerSearch with:', search)
       onServerSearch(search)
     }, 300)  // 300ms debounce delay
 
-    return () => {
-      console.log('[Server Search] Clearing debounce timer')
-      clearTimeout(debounceTimer)
-    }
+    return () => clearTimeout(debounceTimer)
   }, [search, onServerSearch])
 
   // Multi-column sorting: array of {column, dir} objects

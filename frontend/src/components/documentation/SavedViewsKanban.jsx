@@ -221,77 +221,74 @@ export default function SavedViewsKanban({
   }
 
   return (
-    <div className={`h-full flex flex-col ${hideHeader ? '' : 'bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-lg'} overflow-hidden`}>
-      {/* Header - only show if not hidden */}
-      {!hideHeader && (
-        <div className="flex-shrink-0 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-3 shadow-lg">
-          <div className="flex items-center justify-between gap-2">
-            {editingViewId ? (
-              // Editing mode - show inline edit
-              <>
-                <span className="text-xs opacity-90 whitespace-nowrap">Editing:</span>
-                <input
-                  type="text"
-                  autoFocus
-                  defaultValue={savedFilters.find(v => v.id === editingViewId)?.name || ''}
-                  className="flex-1 min-w-0 text-sm font-semibold px-2 py-1 border-0 rounded bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Scrollable card list */}
+      <div className="flex-1 overflow-y-auto cascade-popup-scroll py-1 space-y-1">
+        {/* Header - only show if not hidden */}
+        {!hideHeader && (
+          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 py-1.5 rounded-md shadow-sm">
+            <div className="flex items-center gap-1.5">
+              {editingViewId ? (
+                // Editing mode - show inline edit
+                <>
+                  <span className="text-xs opacity-90 whitespace-nowrap">Editing:</span>
+                  <input
+                    type="text"
+                    autoFocus
+                    maxLength={30}
+                    defaultValue={savedFilters.find(v => v.id === editingViewId)?.name || ''}
+                    className="flex-1 min-w-0 text-xs font-semibold px-2 py-0.5 border-0 rounded bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const newName = e.target.value.trim()
+                        if (newName) {
+                          setSavedFilters(savedFilters.map(v =>
+                            v.id === editingViewId ? { ...v, name: newName } : v
+                          ))
+                        }
+                        setEditingViewId(null)
+                      } else if (e.key === 'Escape') {
+                        setEditingViewId(null)
+                      }
+                    }}
+                    onBlur={(e) => {
                       const newName = e.target.value.trim()
+                      const editingView = savedFilters.find(v => v.id === editingViewId)
+
+                      // Protect "Setup" view from being renamed
+                      if (editingView && editingView.name === 'Setup' && newName !== 'Setup') {
+                        alert('The "Setup" view cannot be renamed as it\'s the default template for new views.')
+                        setEditingViewId(null)
+                        return
+                      }
+
                       if (newName) {
                         setSavedFilters(savedFilters.map(v =>
                           v.id === editingViewId ? { ...v, name: newName } : v
                         ))
                       }
                       setEditingViewId(null)
-                    } else if (e.key === 'Escape') {
-                      setEditingViewId(null)
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const newName = e.target.value.trim()
-                    const editingView = savedFilters.find(v => v.id === editingViewId)
-
-                    // Protect "Setup" view from being renamed
-                    if (editingView && editingView.name === 'Setup' && newName !== 'Setup') {
-                      alert('The "Setup" view cannot be renamed as it\'s the default template for new views.')
-                      setEditingViewId(null)
-                      return
-                    }
-
-                    if (newName) {
-                      setSavedFilters(savedFilters.map(v =>
-                        v.id === editingViewId ? { ...v, name: newName } : v
-                      ))
-                    }
-                    setEditingViewId(null)
-                  }}
-                />
-                <button
-                  onClick={() => setEditingViewId(null)}
-                  className="text-xs px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors whitespace-nowrap"
-                >
-                  Cancel
-                </button>
-              </>
-            ) : (
-              // Normal mode
-              <>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold">Saved Views</span>
-                  <span className="inline-flex items-center justify-center min-w-[20px] h-[20px] bg-white/20 backdrop-blur-sm text-white rounded-full text-xs font-bold">
+                    }}
+                  />
+                  <button
+                    onClick={() => setEditingViewId(null)}
+                    className="text-xs px-2 py-0.5 bg-white/20 hover:bg-white/30 rounded transition-colors whitespace-nowrap"
+                  >
+                    ✕
+                  </button>
+                </>
+              ) : (
+                // Normal mode
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold">Saved Views</span>
+                  <span className="text-xs bg-white/20 px-1.5 py-0.5 rounded font-medium">
                     {savedFilters.filter(v => v.name !== '__default_setup__').length}
                   </span>
                 </div>
-                <div className="text-xs opacity-90">Drag to reorder</div>
-              </>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Scrollable card list */}
-      <div className="flex-1 overflow-y-auto cascade-popup-scroll px-2 py-2 space-y-1">
+        )}
         {savedFilters.filter(v => v.name !== '__default_setup__').map((view, index) => {
           const isActive = activeViewId === view.id
           const isThisCardDragging = draggedIndex === index
@@ -332,27 +329,27 @@ export default function SavedViewsKanban({
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l" />
               )}
 
-              {/* Card content - compact single row layout */}
-              <div className="flex items-center gap-2 min-w-0">
-                {/* Drag handle */}
-                <div className="flex-shrink-0 cursor-grab text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
-                  </svg>
+              {/* Card content - 2 row layout */}
+              <div className="flex flex-col gap-1">
+                {/* Row 1: Drag handle + Name */}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className="flex-shrink-0 cursor-grab text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z" />
+                    </svg>
+                  </div>
+                  <div className="font-medium text-xs text-gray-900 dark:text-white min-w-0 flex-1 truncate">
+                    {view.name === 'Default' && <span className="text-blue-600 dark:text-blue-400">📌 </span>}
+                    <span className={view.name === 'Default' ? 'font-bold' : ''}>{view.name}</span>
+                  </div>
                 </div>
-                {/* View name */}
-                <h4 className="font-semibold text-sm text-gray-900 dark:text-white truncate flex-shrink-0" style={{ maxWidth: '100px' }}>
-                  {view.name === 'Default' && <span className="text-blue-600 dark:text-blue-400">📌 </span>}
-                  <span className={view.name === 'Default' ? 'font-bold' : ''}>{view.name}</span>
-                </h4>
 
-                {/* Compact metadata badges - all in one row */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {/* Filters count */}
-                  <span className="text-xs px-1 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded font-medium">
+                {/* Row 2: Badges + Action buttons */}
+                <div className="flex items-center gap-1 pl-4">
+                  {/* Metadata badges */}
+                  <span className="text-[10px] px-1 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded font-medium">
                     {view.filters?.length || 0}f
                   </span>
-                  {/* Column counts */}
                   {(() => {
                     const validColumnKeys = columns.map(col => col.key).filter(key => key !== 'select' && key !== 'actions')
                     const visibilityMap = isActive && visibleColumns ? visibleColumns : (view.visibleColumns || {})
@@ -360,21 +357,20 @@ export default function SavedViewsKanban({
                     const hiddenCount = validColumnKeys.filter(key => visibilityMap[key] === false).length
                     return (
                       <>
-                        <span className="text-xs px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-medium">
+                        <span className="text-[10px] px-1 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded font-medium">
                           {visibleCount}c
                         </span>
                         {hiddenCount > 0 && (
-                          <span className="text-xs px-1 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded font-medium">
+                          <span className="text-[10px] px-1 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 rounded font-medium">
                             -{hiddenCount}
                           </span>
                         )}
                       </>
                     )
                   })()}
-                </div>
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-0.5 flex-shrink-0 ml-auto">
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-0.5 ml-auto">
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
@@ -423,7 +419,7 @@ export default function SavedViewsKanban({
                   >
                     <PencilIcon className="h-3 w-3" />
                   </button>
-                  {view.name !== 'Default' && (
+                  {view.name !== 'Setup' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -435,21 +431,21 @@ export default function SavedViewsKanban({
                       <TrashIcon className="h-3 w-3" />
                     </button>
                   )}
+                  </div>
                 </div>
               </div>
             </div>
           )
         })}
-      </div>
-
-      {/* Footer hint */}
-      {savedFilters.length > 1 && (
-        <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-800/50 px-2 py-1 text-center border-t border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-400">
-            Top = default • Drag to reorder
+        {/* Footer hint */}
+        {savedFilters.length > 1 && (
+          <div className="text-center py-1">
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              Top = default • Drag to reorder
+            </span>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }

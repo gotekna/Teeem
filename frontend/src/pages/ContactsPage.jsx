@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels, Listbox, ListboxButton, ListboxOptions, ListboxOption } from '@headlessui/react'
 import { api } from '../api'
@@ -167,17 +167,27 @@ export default function ContactsPage() {
     }
   }, [location.search])
 
+  // Track if initial load has happened
+  const initialLoadDone = useRef(false)
+  const lastSearchRef = useRef('')
+
   // Initial load
   useEffect(() => {
     loadContacts()
     loadSuppliers()
+    initialLoadDone.current = true
   }, [filter, xeroSyncFilter])
 
   // Debounced server-side search when searchQuery changes
   useEffect(() => {
-    // Skip initial render (handled by the effect above)
+    // Skip if initial load hasn't happened yet (prevents double load on mount)
+    if (!initialLoadDone.current) return
+
+    // Skip if search hasn't actually changed (prevents unnecessary API calls)
+    if (searchQuery === lastSearchRef.current) return
+
     const debounceTimer = setTimeout(() => {
-      console.log('[ContactsPage] Search query changed, triggering server search:', searchQuery)
+      lastSearchRef.current = searchQuery
       loadContacts(searchQuery)
     }, 300)  // 300ms debounce
 
@@ -223,12 +233,9 @@ export default function ContactsPage() {
       // Server-side search - search across all contacts, not just loaded ones
       if (search) {
         params.append('search', search)
-        console.log('[ContactsPage] Server search for:', search)
       }
       const endpoint = params.toString() ? `/api/v1/contacts?${params.toString()}` : '/api/v1/contacts'
-      console.log('[ContactsPage] Loading contacts:', endpoint)
       const response = await api.get(endpoint)
-      console.log('[ContactsPage] Loaded', response.contacts?.length, 'contacts')
       setContacts(response.contacts || [])
     } catch (err) {
       setError('Failed to load contacts')
