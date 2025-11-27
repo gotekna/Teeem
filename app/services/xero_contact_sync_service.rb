@@ -13,6 +13,7 @@ class XeroContactSyncService
       created_in_teeem: 0,
       created_in_xero: 0,
       updated: 0,
+      contact_persons_synced: 0,
       errors: [],
       skipped: 0
     }
@@ -118,22 +119,31 @@ class XeroContactSyncService
       end
     end
 
+    # ONE-WAY SYNC: Xero → TEEEM only (disabled TEEEM → Xero push)
+    # This prevents changes in TEEEM from affecting Xero data
+    # To re-enable two-way sync, uncomment the code below
+    #
     # Process unmatched TEEEM contacts that should sync to Xero
-    unmatched_teeem = teeem_contacts.reject { |c| matched_teeem_ids.include?(c.id) }
-    unmatched_teeem.select { |c| c.sync_with_xero }.each do |teeem_contact|
-      begin
-        create_xero_contact_from_teeem(teeem_contact)
-        @stats[:created_in_xero] += 1
-        sleep(RATE_LIMIT_SLEEP / 1000.0)
-      rescue StandardError => e
-        error_msg = "Error creating Xero contact for #{teeem_contact.display_name}: #{e.message}"
-        Rails.logger.error(error_msg)
-        @stats[:errors] << error_msg
-      end
-    end
+    # unmatched_teeem = teeem_contacts.reject { |c| matched_teeem_ids.include?(c.id) }
+    # unmatched_teeem.select { |c| c.sync_with_xero }.each do |teeem_contact|
+    #   begin
+    #     create_xero_contact_from_teeem(teeem_contact)
+    #     @stats[:created_in_xero] += 1
+    #     sleep(RATE_LIMIT_SLEEP / 1000.0)
+    #   rescue StandardError => e
+    #     error_msg = "Error creating Xero contact for #{teeem_contact.display_name}: #{e.message}"
+    #     Rails.logger.error(error_msg)
+    #     @stats[:errors] << error_msg
+    #   end
+    # end
+    #
+    # # Count skipped contacts (TEEEM contacts not synced because sync_with_xero is false)
+    # @stats[:skipped] = unmatched_teeem.reject { |c| c.sync_with_xero }.count
 
-    # Count skipped contacts (TEEEM contacts not synced because sync_with_xero is false)
-    @stats[:skipped] = unmatched_teeem.reject { |c| c.sync_with_xero }.count
+    # Count TEEEM-only contacts that won't be pushed to Xero
+    unmatched_teeem = teeem_contacts.reject { |c| matched_teeem_ids.include?(c.id) }
+    @stats[:skipped] = unmatched_teeem.count
+    Rails.logger.info("ONE-WAY SYNC MODE: #{@stats[:skipped]} TEEEM contacts not pushed to Xero")
   end
 
   def find_matching_teeem_contact(xero_contact, by_xero_id, by_tax_number, by_email, remaining_contacts)
@@ -279,6 +289,9 @@ class XeroContactSyncService
     @stats[:updated] += 1
     Rails.logger.info("Updated TEEEM contact ##{teeem_contact.id}")
 
+    # Sync contact persons from Xero
+    sync_contact_persons(teeem_contact, xero_contact)
+
     # Log activity if there were changes
     if changes_made.any?
       ContactActivity.log_xero_sync(
@@ -322,6 +335,9 @@ class XeroContactSyncService
 
     new_contact = Contact.create!(contact_data.compact)
     Rails.logger.info("Created TEEEM contact from Xero: #{xero_contact['Name']}")
+
+    # Sync contact persons from Xero
+    sync_contact_persons(new_contact, xero_contact)
 
     # Log activity for new contact creation
     ContactActivity.log_xero_sync(
@@ -414,6 +430,59 @@ class XeroContactSyncService
     return nil if tax_number.blank?
     # Remove spaces, dashes, and other formatting
     tax_number.to_s.gsub(/[\s\-]/, '').upcase
+  end
+
+  # Sync contact persons from Xero to TEEEM
+  # Xero ContactPersons structure:
+  # [{"FirstName": "Michael", "LastName": "Lyell", "EmailAddress": "michael@example.com", "IncludeInEmails": true}]
+  def sync_contact_persons(teeem_contact, xero_contact)
+    xero_persons = xero_contact['ContactPersons'] || []
+    return if xero_persons.empty?
+
+    Rails.logger.info("Syncing #{xero_persons.length} contact persons for #{teeem_contact.display_name}")
+
+    # Get existing contact persons for this contact
+    existing_persons = teeem_contact.contact_persons.to_a
+
+    xero_persons.each_with_index do |xero_person, index|
+      first_name = xero_person['FirstName']
+      last_name = xero_person['LastName']
+      email = xero_person['EmailAddress']
+      include_in_emails = xero_person['IncludeInEmails'] != false # Default to true
+
+      # Try to find existing contact person by email or name
+      existing = existing_persons.find do |ep|
+        (email.present? && ep.email&.downcase == email&.downcase) ||
+          (ep.first_name&.downcase == first_name&.downcase && ep.last_name&.downcase == last_name&.downcase)
+      end
+
+      if existing
+        # Update existing contact person
+        existing.update!(
+          first_name: first_name,
+          last_name: last_name,
+          email: email,
+          include_in_emails: include_in_emails,
+          is_primary: index == 0 # First person in Xero list is primary
+        )
+        Rails.logger.debug("Updated contact person: #{first_name} #{last_name}")
+        @stats[:contact_persons_synced] += 1
+      else
+        # Create new contact person
+        teeem_contact.contact_persons.create!(
+          first_name: first_name,
+          last_name: last_name,
+          email: email,
+          include_in_emails: include_in_emails,
+          is_primary: index == 0 # First person in Xero list is primary
+        )
+        Rails.logger.debug("Created contact person: #{first_name} #{last_name}")
+        @stats[:contact_persons_synced] += 1
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error("Error syncing contact persons for #{teeem_contact.display_name}: #{e.message}")
+    # Don't raise - contact person sync failure shouldn't fail the whole contact sync
   end
 
   # Helper to set sync timestamp (useful for job)

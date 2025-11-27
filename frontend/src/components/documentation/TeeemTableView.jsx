@@ -2476,9 +2476,13 @@ export default function TeeemTableView({
             <input
               type="checkbox"
               checked={selectedRows.has(entry.id)}
-              onChange={() => handleSelectRow(entry.id)}
+              onChange={() => {}} // Handled by onMouseDown for drag support
               onClick={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                e.stopPropagation()
+                // Start drag selection from checkbox click
+                handleDragSelectStart(entry.id)
+              }}
               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
             />
           </div>
@@ -7809,6 +7813,11 @@ export default function TeeemTableView({
                     return (
                       <tr
                         key={entry.id}
+                        onMouseEnter={() => {
+                          if (isDragging) {
+                            handleDragSelectOver(entry.id)
+                          }
+                        }}
                         onDoubleClick={(e) => {
                           if (!editModeActive) {
                             e.stopPropagation()
@@ -7982,6 +7991,11 @@ export default function TeeemTableView({
               return displayedRows.map((entry, index) => (
               <tr
                 key={entry.id}
+                onMouseEnter={() => {
+                  if (isDragging) {
+                    handleDragSelectOver(entry.id)
+                  }
+                }}
                 onDoubleClick={(e) => {
                   // Double-click row when NOT in edit mode
                   if (!editModeActive) {
@@ -9449,9 +9463,9 @@ export default function TeeemTableView({
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="">-- Select a column --</option>
-                  {visibleColumns.filter(col => !col.is_system && col.column_key !== 'id').map(col => (
-                    <option key={col.id || col.column_key} value={col.column_key}>
-                      {col.display_name || col.column_key}
+                  {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id').map(col => (
+                    <option key={col.key} value={col.column_key || col.key}>
+                      {col.display_name || col.label || col.key}
                     </option>
                   ))}
                 </select>
@@ -9459,12 +9473,15 @@ export default function TeeemTableView({
 
               {/* Value Input - depends on column type */}
               {bulkUpdateColumn && (() => {
-                const selectedCol = visibleColumns.find(c => c.column_key === bulkUpdateColumn)
+                const selectedCol = COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)
                 const colType = selectedCol?.column_type
 
-                // For choice/select columns, show dropdown
-                if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
-                  const choices = selectedCol?.choices || []
+                // Get choices/options from columnChoices state (fetched from API)
+                const availableChoices = selectedCol?.id ? (columnChoices[selectedCol.id] || []) : []
+
+                // For lookup columns, show dropdown with lookup options
+                if (colType === 'lookup' || colType === 'single_lookup') {
+                  const isObjectFormat = availableChoices.length > 0 && typeof availableChoices[0] === 'object'
                   return (
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -9476,7 +9493,39 @@ export default function TeeemTableView({
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       >
                         <option value="">-- Select a value --</option>
-                        {choices.map(choice => (
+                        {availableChoices.map((option, idx) => {
+                          if (isObjectFormat) {
+                            return (
+                              <option key={option.id || idx} value={option.id}>
+                                {option.display || option.name || `ID: ${option.id}`}
+                              </option>
+                            )
+                          }
+                          return (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
+                  )
+                }
+
+                // For choice/select columns, show dropdown
+                if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
+                  return (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        New Value
+                      </label>
+                      <select
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      >
+                        <option value="">-- Select a value --</option>
+                        {availableChoices.map(choice => (
                           <option key={choice.value || choice} value={choice.value || choice}>
                             {choice.label || choice.value || choice}
                           </option>
@@ -9579,17 +9628,16 @@ export default function TeeemTableView({
                       console.log(`🔄 Bulk updating ${selectedIds.length} records, column: ${bulkUpdateColumn}, value: ${bulkUpdateValue}`)
 
                       // Call bulk update API
-                      if (onBulkUpdate) {
-                        await onBulkUpdate(selectedIds, bulkUpdateColumn, bulkUpdateValue)
-                      } else if (tableId) {
-                        // Direct API call if no callback provided
-                        await api.post(`/api/v1/foundations/${tableId}/records/bulk_update`, {
+                      if (foundationIdNumeric) {
+                        await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, {
                           ids: selectedIds,
                           column_key: bulkUpdateColumn,
                           value: bulkUpdateValue
                         })
                         // Refresh the data
                         if (onColumnUpdate) onColumnUpdate()
+                      } else {
+                        throw new Error('No foundation ID available for bulk update')
                       }
 
                       setShowBulkUpdateModal(false)

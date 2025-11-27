@@ -13,6 +13,7 @@ class XeroContactSyncService
       created_in_teeem: 0,
       created_in_xero: 0,
       updated: 0,
+      contact_persons_synced: 0,
       errors: [],
       skipped: 0
     }
@@ -222,6 +223,12 @@ class XeroContactSyncService
       xero_sync_error: nil
     }
 
+    # Extract contact types from Xero IsCustomer/IsSupplier flags
+    contact_types = []
+    contact_types << 'customer' if xero_contact['IsCustomer'] == true
+    contact_types << 'supplier' if xero_contact['IsSupplier'] == true
+    updates[:contact_types] = contact_types if contact_types.any?
+
     # Update fields if Xero has data and TEEEM doesn't, or if explicitly syncing
     updates[:full_name] = xero_contact['Name'] if xero_contact['Name'].present?
     updates[:first_name] = xero_contact['FirstName'] if xero_contact['FirstName'].present?
@@ -288,6 +295,9 @@ class XeroContactSyncService
     @stats[:updated] += 1
     Rails.logger.info("Updated TEEEM contact ##{teeem_contact.id}")
 
+    # Sync contact persons from Xero
+    sync_contact_persons(teeem_contact, xero_contact)
+
     # Log activity if there were changes
     if changes_made.any?
       ContactActivity.log_xero_sync(
@@ -306,6 +316,11 @@ class XeroContactSyncService
   def create_teeem_contact_from_xero(xero_contact)
     Rails.logger.info("Creating TEEEM contact from Xero: #{xero_contact['Name']}")
 
+    # Extract contact types from Xero IsCustomer/IsSupplier flags
+    contact_types = []
+    contact_types << 'customer' if xero_contact['IsCustomer'] == true
+    contact_types << 'supplier' if xero_contact['IsSupplier'] == true
+
     contact_data = {
       xero_id: xero_contact['ContactID'],
       full_name: xero_contact['Name'],
@@ -313,6 +328,7 @@ class XeroContactSyncService
       last_name: xero_contact['LastName'],
       tax_number: normalize_tax_number(xero_contact['TaxNumber']),
       email: extract_xero_email(xero_contact),
+      contact_types: contact_types.any? ? contact_types : nil,
       sync_with_xero: true,
       last_synced_at: @sync_timestamp
     }
@@ -331,6 +347,9 @@ class XeroContactSyncService
 
     new_contact = Contact.create!(contact_data.compact)
     Rails.logger.info("Created TEEEM contact from Xero: #{xero_contact['Name']}")
+
+    # Sync contact persons from Xero
+    sync_contact_persons(new_contact, xero_contact)
 
     # Log activity for new contact creation
     ContactActivity.log_xero_sync(
@@ -423,6 +442,59 @@ class XeroContactSyncService
     return nil if tax_number.blank?
     # Remove spaces, dashes, and other formatting
     tax_number.to_s.gsub(/[\s\-]/, '').upcase
+  end
+
+  # Sync contact persons from Xero to TEEEM
+  # Xero ContactPersons structure:
+  # [{"FirstName": "Michael", "LastName": "Lyell", "EmailAddress": "michael@example.com", "IncludeInEmails": true}]
+  def sync_contact_persons(teeem_contact, xero_contact)
+    xero_persons = xero_contact['ContactPersons'] || []
+    return if xero_persons.empty?
+
+    Rails.logger.info("Syncing #{xero_persons.length} contact persons for #{teeem_contact.display_name}")
+
+    # Get existing contact persons for this contact
+    existing_persons = teeem_contact.contact_persons.to_a
+
+    xero_persons.each_with_index do |xero_person, index|
+      first_name = xero_person['FirstName']
+      last_name = xero_person['LastName']
+      email = xero_person['EmailAddress']
+      include_in_emails = xero_person['IncludeInEmails'] != false # Default to true
+
+      # Try to find existing contact person by email or name
+      existing = existing_persons.find do |ep|
+        (email.present? && ep.email&.downcase == email&.downcase) ||
+          (ep.first_name&.downcase == first_name&.downcase && ep.last_name&.downcase == last_name&.downcase)
+      end
+
+      if existing
+        # Update existing contact person
+        existing.update!(
+          first_name: first_name,
+          last_name: last_name,
+          email: email,
+          include_in_emails: include_in_emails,
+          is_primary: index == 0 # First person in Xero list is primary
+        )
+        Rails.logger.debug("Updated contact person: #{first_name} #{last_name}")
+        @stats[:contact_persons_synced] += 1
+      else
+        # Create new contact person
+        teeem_contact.contact_persons.create!(
+          first_name: first_name,
+          last_name: last_name,
+          email: email,
+          include_in_emails: include_in_emails,
+          is_primary: index == 0 # First person in Xero list is primary
+        )
+        Rails.logger.debug("Created contact person: #{first_name} #{last_name}")
+        @stats[:contact_persons_synced] += 1
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error("Error syncing contact persons for #{teeem_contact.display_name}: #{e.message}")
+    # Don't raise - contact person sync failure shouldn't fail the whole contact sync
   end
 
   # Helper to set sync timestamp (useful for job)
