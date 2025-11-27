@@ -66,7 +66,7 @@ export default function JobDocumentsTab({ jobId, jobTitle }) {
     try {
       setJobFolderStatus({ loading: true, exists: false, webUrl: null })
 
-      const response = await api.get(`/api/v1/organization_onedrive/job_folders?construction_id=${jobId}`)
+      const response = await api.get(`/api/v1/organization_onedrive/job_folders?job_id=${jobId}`)
 
       setJobFolderStatus({
         loading: false,
@@ -101,7 +101,7 @@ export default function JobDocumentsTab({ jobId, jobTitle }) {
       setError(null)
       setMessage(null)
 
-      const response = await api.post(`/api/v1/organization_onedrive/create_job_folders?construction_id=${jobId}`)
+      const response = await api.post(`/api/v1/organization_onedrive/create_job_folders?job_id=${jobId}`)
 
       setMessage({
         type: 'success',
@@ -130,7 +130,7 @@ export default function JobDocumentsTab({ jobId, jobTitle }) {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      formData.append('construction_id', jobId)
+      formData.append('job_id', jobId)
       formData.append('folder_id', uploading)
 
       await api.post('/api/v1/organization_onedrive/upload', formData, {
