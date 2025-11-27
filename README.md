@@ -92,3 +92,4 @@ rails test
 - `CORS_ORIGINS` - Comma-separated list of allowed origins
 - `SECRET_KEY_BASE` - Secret for sessions (generate with `rails secret`)
 # Force rebuild Thu Nov 27 12:18:06 AEST 2025
+# Fresh rebuild Thu Nov 27 12:22:31 AEST 2025
