@@ -76,10 +76,39 @@ class XeroFullBillImportService
 
   def fetch_all_bills
     # Fetch all ACCPAY (bills/expenses) invoices
-    result = @client.get('Invoices', { where: 'Type=="ACCPAY"' })
-    return [] unless result[:success]
+    # Note: List endpoint doesn't include line item tracking details
+    # We'll fetch the list first, then get full details for each
+    all_bills = []
+    page = 1
 
-    result[:data]['Invoices'] || []
+    loop do
+      result = @client.get('Invoices', { where: 'Type=="ACCPAY"', page: page })
+      break unless result[:success]
+
+      invoices = result[:data]['Invoices'] || []
+      break if invoices.empty?
+
+      all_bills.concat(invoices)
+      page += 1
+
+      # Xero returns up to 100 per page
+      break if invoices.length < 100
+    end
+
+    Rails.logger.info("Found #{all_bills.length} bills in Xero, fetching full details...")
+
+    # Now fetch each invoice individually to get line item tracking details
+    all_bills.map do |bill|
+      fetch_invoice_details(bill['InvoiceID']) || bill
+    end.compact
+  end
+
+  def fetch_invoice_details(invoice_id)
+    result = @client.get("Invoices/#{invoice_id}")
+    return nil unless result[:success]
+
+    invoices = result[:data]['Invoices'] || []
+    invoices.first
   end
 
   def import_bill(bill)
