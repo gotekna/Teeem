@@ -825,7 +825,10 @@ Rails.application.routes.draw do
       post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
       post 'schema/sync_has_ui_from_production', to: 'schema#sync_has_ui_from_production'  # Sync has_ui from production
 
-      # Foundation management
+      # Foundation management (tables renamed to foundations)
+      # Backward-compatible alias for /api/v1/tables
+      resources :tables, controller: 'foundations', only: [:index, :show, :create, :update, :destroy]
+
       resources :foundations do
         # Column management
         resources :columns, only: [:create, :update, :destroy] do
