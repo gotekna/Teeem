@@ -9462,9 +9462,12 @@ export default function TeeemTableView({
                 const selectedCol = COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)
                 const colType = selectedCol?.column_type
 
-                // For choice/select columns, show dropdown
-                if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
-                  const choices = selectedCol?.choices || []
+                // Get choices/options from columnChoices state (fetched from API)
+                const availableChoices = selectedCol?.id ? (columnChoices[selectedCol.id] || []) : []
+
+                // For lookup columns, show dropdown with lookup options
+                if (colType === 'lookup' || colType === 'single_lookup') {
+                  const isObjectFormat = availableChoices.length > 0 && typeof availableChoices[0] === 'object'
                   return (
                     <div className="mb-4">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -9476,7 +9479,39 @@ export default function TeeemTableView({
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       >
                         <option value="">-- Select a value --</option>
-                        {choices.map(choice => (
+                        {availableChoices.map((option, idx) => {
+                          if (isObjectFormat) {
+                            return (
+                              <option key={option.id || idx} value={option.id}>
+                                {option.display || option.name || `ID: ${option.id}`}
+                              </option>
+                            )
+                          }
+                          return (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
+                  )
+                }
+
+                // For choice/select columns, show dropdown
+                if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
+                  return (
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        New Value
+                      </label>
+                      <select
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      >
+                        <option value="">-- Select a value --</option>
+                        {availableChoices.map(choice => (
                           <option key={choice.value || choice} value={choice.value || choice}>
                             {choice.label || choice.value || choice}
                           </option>
