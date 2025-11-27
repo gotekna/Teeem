@@ -3196,7 +3196,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_072214) do
   add_foreign_key "price_histories", "pricebook", column: "pricebook_item_id"
   add_foreign_key "pricebook", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
-  add_foreign_key "pricebook", "pricebook_categories", column: "category_id", on_delete: :nullify
+  add_foreign_key "pricebook", "pricebook_categories", column: "category_id"
   add_foreign_key "project_task_checklist_items", "project_tasks"
   add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
   add_foreign_key "project_tasks", "projects"
