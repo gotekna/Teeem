@@ -1,0 +1,368 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ========================================
+       TEKNA BRAND GUIDELINES - DESIGN TOKENS
+       ======================================== */
+
+    /* Typography - Geist fonts loaded via next/font in layout.tsx */
+    --font-sans: var(--font-geist-sans, system-ui), system-ui, sans-serif;
+    --font-mono: var(--font-geist-mono, ui-monospace), ui-monospace, monospace;
+    --font-serif: var(--font-hedvig-serif, Georgia), Georgia, serif;
+
+    /* Font Sizes */
+    --text-xs: 10px;      /* Small pills, tags */
+    --text-sm: 11px;      /* Labels, invoice body, table cells */
+    --text-base: 12px;    /* Small text, badges */
+    --text-md: 14px;      /* Body text (default) */
+    --text-lg: 21px;      /* Document titles, totals */
+    --text-xl: 32px;      /* Large headings */
+
+    /* Corner Radius - ALL SQUARE */
+    --radius: 0rem;
+    --radius-none: 0rem;
+
+    /* Spacing Scale */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-6: 24px;
+    --space-8: 32px;
+
+    /* Document Dimensions (A4) */
+    --doc-width: 595px;
+    --doc-height: 842px;
+    --doc-padding: 32px;
+
+    /* ========================================
+       COLOR SYSTEM - LIGHT MODE
+       ======================================== */
+
+    /* Core Colors */
+    --background: 0, 0%, 100%;
+    --foreground: 0, 0%, 7%;
+
+    /* Text Colors */
+    --text-primary: 0, 0%, 7%;
+    --text-secondary: 0, 0%, 38%;      /* #606060 */
+    --text-muted: 0, 0%, 53%;          /* #878787 */
+
+    /* Surface Colors */
+    --card: 45 18% 96%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 45 18% 96%;
+    --popover-foreground: 240 10% 3.9%;
+
+    /* Brand Colors */
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 40, 11%, 89%;         /* #F2F1EF */
+    --secondary-foreground: 240 5.9% 10%;
+
+    /* Semantic Colors */
+    --muted: 40, 11%, 89%;
+    --muted-foreground: 0, 0%, 53%;    /* #878787 */
+    --accent: 40, 10%, 94%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Status Colors */
+    --status-success-bg: 142, 76%, 93%;      /* #DCFCE7 */
+    --status-success-text: 143, 61%, 15%;    /* #166534 */
+    --status-warning-bg: 48, 96%, 88%;       /* #FEF3C7 */
+    --status-warning-text: 28, 80%, 31%;     /* #92400E */
+    --status-error-bg: 0, 93%, 94%;          /* #FEE2E2 */
+    --status-error-text: 0, 70%, 35%;        /* #991B1B */
+    --status-info-bg: 214, 95%, 93%;         /* #DBEAFE */
+    --status-info-text: 224, 76%, 40%;       /* #1E40AF */
+
+    /* Accent Colors */
+    --accent-blue: 217, 91%, 60%;            /* #0064D9 - AI, links */
+    --accent-today: 0, 84%, 60%;             /* #EF4444 - Today indicator */
+
+    /* UI Colors */
+    --border: 45, 5%, 85%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+
+    /* Chart colors */
+    --chart-grid-stroke: #e6e6e6;
+    --chart-axis-text: #707070;
+    --chart-reference-line-stroke: #e6e6e6;
+    --chart-reference-label: #707070;
+    --chart-actual-line: #000000;
+    --chart-forecast-line: #666666;
+    --chart-tooltip-cursor: #666666;
+    --chart-pattern-bg: white;
+    --chart-pattern-stroke: #707070;
+    --chart-bar-fill: #000000;
+    --chart-bar-fill-secondary: #6666664d;
+    --chart-gradient-start: #707070;
+    --chart-gradient-end: #000000;
+    --chart-line-secondary: #666666;
+  }
+
+  .dark {
+    /* ========================================
+       COLOR SYSTEM - DARK MODE
+       ======================================== */
+
+    /* Core Colors */
+    --background: 0, 0%, 5%;           /* #0d0d0d */
+    --foreground: 0 0% 98%;
+
+    /* Text Colors */
+    --text-primary: 0 0% 98%;
+    --text-secondary: 0, 0%, 70%;      /* Lighter for dark mode visibility */
+    --text-muted: 0, 0%, 60%;          /* Lighter for dark mode visibility */
+
+    /* Surface Colors */
+    --card: 0, 0%, 7%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0, 0%, 7%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Brand Colors */
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0, 0%, 11%;           /* #1D1D1D */
+    --secondary-foreground: 0 0% 98%;
+
+    /* Semantic Colors */
+    --muted: 0, 0%, 11%;
+    --muted-foreground: 0, 0%, 53%;    /* #878787 */
+    --accent: 0, 0%, 11%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 359, 100%, 61%;
+    --destructive-foreground: 0, 0%, 100%;
+
+    /* Status Colors - Dark variants */
+    --status-success-bg: 143, 64%, 15%;      /* #14532D */
+    --status-success-text: 142, 69%, 80%;    /* #86EFAC */
+    --status-warning-bg: 28, 73%, 26%;       /* #78350F */
+    --status-warning-text: 48, 97%, 68%;     /* #FCD34D */
+    --status-error-bg: 0, 63%, 31%;          /* #7F1D1D */
+    --status-error-text: 0, 93%, 82%;        /* #FCA5A5 */
+    --status-info-bg: 224, 76%, 33%;         /* #1E3A8A */
+    --status-info-text: 213, 97%, 78%;       /* #93C5FD */
+
+    /* Accent Colors - Dark variants */
+    --accent-blue: 217, 91%, 65%;            /* Slightly brighter for dark mode */
+    --accent-today: 0, 84%, 60%;             /* Same red for visibility */
+
+    /* UI Colors */
+    --border: 0, 0%, 11%;
+    --input: 0, 0%, 11%;
+    --ring: 240 4.9% 83.9%;
+
+    /* Chart colors */
+    --chart-grid-stroke: #1d1d1d;
+    --chart-axis-text: #666666;
+    --chart-reference-line-stroke: #333333;
+    --chart-reference-label: #666666;
+    --chart-actual-line: #ffffff;
+    --chart-forecast-line: #999999;
+    --chart-tooltip-cursor: #999999;
+    --chart-pattern-bg: #0c0c0c;
+    --chart-pattern-stroke: #666666;
+    --chart-bar-fill: white;
+    --chart-bar-fill-secondary: #6666664d;
+    --chart-gradient-start: #666666;
+    --chart-gradient-end: #ffffff;
+    --chart-line-secondary: #999999;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ========================================
+   TYPOGRAPHY CLASSES
+   ======================================== */
+
+@layer components {
+  /*
+   * TABLE TYPOGRAPHY
+   * Use these classes for consistent table styling across all pages.
+   *
+   * Hierarchy:
+   * - Headers: 11px, uppercase, muted
+   * - Primary cells (names, titles): 13px, medium weight
+   * - Secondary cells (metadata): 11px, muted
+   * - Mono cells (IDs, dates, amounts): 11px, monospace, muted
+   */
+
+  /* Table header cells - uppercase labels */
+  .table-header {
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Primary content - names, titles, descriptions */
+  .table-cell-primary {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* Secondary content - emails, methods, notes */
+  .table-cell-secondary {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Monospace content - IDs, dates, times, file sizes */
+  .table-cell-mono {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Currency/amounts - right-aligned monospace */
+  .table-cell-currency {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: right;
+  }
+
+  /* Positive currency - income, refunds */
+  .table-cell-currency-positive {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: right;
+    color: hsl(var(--status-success-text));
+  }
+
+  /* Negative currency - expenses */
+  .table-cell-currency-negative {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    text-align: right;
+    color: hsl(var(--status-error-text));
+  }
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+[type="search"]::-webkit-search-cancel-button,
+[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes dialog-overlay-show {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialog-overlay-hide {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes dialog-content-show {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes dialog-content-hide {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+}
+
+.loading-ellipsis:after {
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: bottom;
+  -webkit-animation: ellipsis steps(4, end) 900ms infinite;
+  animation: ellipsis steps(4, end) 900ms infinite;
+  content: "\2026";
+  width: 0px;
+}
+
+@keyframes ellipsis {
+  to {
+    width: 1.25em;
+  }
+}
+
+@-webkit-keyframes ellipsis {
+  to {
+    width: 1.25em;
+  }
+}
+
+/* ========================================
+   COMPONENT OVERRIDES
+   ======================================== */
+
+/* Date picker */
+.rdp-tbody .rdp-button {
+  border-radius: 100%;
+}
+
+.aria-selected\:text-accent-foreground[aria-selected="true"] {
+  border-radius: 0px;
+}
