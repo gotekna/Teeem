@@ -3,6 +3,16 @@ module Api
     class ContactsController < ApplicationController
       before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
 
+      # GET /api/v1/contacts/read_only_fields
+      # Returns the list of Xero-synced fields that are read-only in TEEEM
+      def read_only_fields
+        render json: {
+          success: true,
+          read_only_fields: Contact::XERO_READ_ONLY_FIELDS,
+          message: 'These fields are synced from Xero and cannot be edited in TEEEM'
+        }
+      end
+
       # GET /api/v1/contacts
       def index
         @contacts = Contact.all
@@ -1291,6 +1301,8 @@ module Api
       end
 
       def contact_params
+        # Exclude Xero read-only fields from manual updates
+        # These fields are synced from Xero and should not be edited directly in TEEEM
         params.require(:contact).permit(
           :full_name,
           :first_name,
@@ -1320,22 +1332,10 @@ module Api
           :supplier_code,
           :address,
           :notes,
-          # Xero sync fields
-          :bank_bsb,
-          :bank_account_number,
-          :bank_account_name,
-          :default_purchase_account,
-          :default_sales_account,
-          :bill_due_day,
-          :bill_due_type,
-          :sales_due_day,
-          :sales_due_type,
-          :xero_contact_number,
-          :xero_contact_status,
-          :xero_account_number,
-          :company_number,
-          :default_discount,
           :entity_type,
+          # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
+          # They are synced from Xero and cannot be edited in TEEEM
+          # See Contact::XERO_READ_ONLY_FIELDS for the full list
           contact_types: [],
           lgas: [],
           contact_group_ids: [],

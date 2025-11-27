@@ -115,12 +115,26 @@ curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
 ```
 
-### Step 8 - Report Status
+### Step 8 - Sync Local Version with Staging
+
+**After successful deploy, sync local version number to match staging:**
+```bash
+# Get staging version number
+STAGING_VERSION=$(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '"version":"v[0-9]*"' | grep -o '[0-9]*')
+
+# Update local database to match
+cd backend && bin/rails runner "Version.current.update(current_version: ${STAGING_VERSION})"
+```
+
+This keeps local and staging version numbers in sync.
+
+### Step 9 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
 - ✅ GitHub Actions: [status - in_progress/success/failure]
 - ✅ Backend: [version from /version endpoint] - https://teeem-backend-39604ccca45a.herokuapp.com/
 - ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel)
+- ✅ Local version synced to: [version]
 - 🔴 Warnings (if any)
 
 ## Branch Strategy

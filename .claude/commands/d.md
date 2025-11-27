@@ -86,12 +86,26 @@ sleep 5
 gh run list --limit 3
 ```
 
-### Step 7 - Report Status
+### Step 7 - Sync Local Version with Staging
+
+**After successful deploy, sync local version number to match staging:**
+```bash
+# Get staging version number
+STAGING_VERSION=$(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '"version":"v[0-9]*"' | grep -o '[0-9]*')
+
+# Update local database to match
+cd backend && bin/rails runner "Version.current.update(current_version: ${STAGING_VERSION})"
+```
+
+This keeps local and staging version numbers in sync.
+
+### Step 8 - Report Status
 - ✅ Branch: rob
 - ✅ Committed: [list of files]
 - ✅ NOT committed: [remaining uncommitted files]
 - ✅ GitHub Actions triggered - backend will auto-deploy to Heroku
 - ✅ Frontend auto-deploying via Vercel
+- ✅ Local version synced to: [version]
 
 ## Quick Reference
 

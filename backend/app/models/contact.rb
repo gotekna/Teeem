@@ -84,8 +84,7 @@ class Contact < ApplicationRecord
   # Validations
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
   validate :contact_types_must_be_valid
-  validates :primary_contact_type, inclusion: { in: CONTACT_TYPES }, allow_nil: true
-  before_save :set_primary_contact_type_if_blank
+  # Note: primary_contact_type column removed - use contact_types[0] instead
 
   # Scopes
   scope :with_email, -> { where.not(email: [nil, '']) }
@@ -415,9 +414,4 @@ class Contact < ApplicationRecord
     end
   end
 
-  def set_primary_contact_type_if_blank
-    if primary_contact_type.blank? && contact_types.present?
-      self.primary_contact_type = contact_types.first
-    end
-  end
 end
