@@ -5,11 +5,21 @@ module Api
 
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
+      # GET /api/v1/jobs?contact_id=123
       def index
         @jobs = Job.includes(:job_type, :job_status, :job_stage).all
 
-        # Filter by status if provided (default to Active jobs)
-        status_filter = params[:status] || "Active"
+        # Filter by contact_id if provided - only return jobs where this contact is a client
+        # (not representative, broker, etc. - only actual client role)
+        if params[:contact_id].present?
+          @jobs = @jobs.joins(:job_contacts)
+                       .where(job_contacts: { contact_id: params[:contact_id], role: 'client' })
+                       .distinct
+        end
+
+        # Filter by status if provided (default to Active jobs, unless filtering by contact)
+        status_filter = params[:status]
+        status_filter ||= "Active" unless params[:contact_id].present?
         @jobs = @jobs.where(status: status_filter) if status_filter.present?
 
         # Pagination
