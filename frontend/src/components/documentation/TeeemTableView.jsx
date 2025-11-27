@@ -6372,7 +6372,18 @@ export default function TeeemTableView({
                           const renderColumnItem = (column, index, isVisible) => (
                             <div
                               key={column.key}
-                              draggable="false"
+                              draggable="true"
+                              onDragStart={(e) => {
+                                setDraggedVisibilityColumn(column.key)
+                                e.dataTransfer.effectAllowed = 'move'
+                                e.dataTransfer.setData('text/plain', column.key)
+                              }}
+                              onDragEnd={() => {
+                                setTimeout(() => {
+                                  setDraggedVisibilityColumn(null)
+                                  setDragOverVisibilityColumn(null)
+                                }, 0)
+                              }}
                               onDragOver={(e) => {
                                 e.preventDefault()
                                 if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
@@ -6384,6 +6395,16 @@ export default function TeeemTableView({
                                 e.preventDefault()
                                 e.stopPropagation()
                                 if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
+                                  // Check if dragged column visibility needs to change
+                                  const draggedIsVisible = visibleColumns[draggedVisibilityColumn] !== false
+                                  const targetIsVisible = isVisible
+
+                                  // Update visibility if moving between zones
+                                  if (draggedIsVisible !== targetIsVisible) {
+                                    setVisibleColumns({ ...visibleColumns, [draggedVisibilityColumn]: targetIsVisible })
+                                  }
+
+                                  // Update order
                                   const existingOrder = visibilityColumnOrder || []
                                   const allKeys = filteredCols.map(c => c.key)
                                   const fullOrder = [...existingOrder]
@@ -6403,7 +6424,7 @@ export default function TeeemTableView({
                                 setDraggedVisibilityColumn(null)
                                 setDragOverVisibilityColumn(null)
                               }}
-                              className={`relative flex items-center gap-1 px-1.5 py-1 rounded select-none transition-all text-[11px] ${
+                              className={`relative flex items-center gap-1 px-1.5 py-1 rounded select-none transition-all text-[11px] cursor-grab active:cursor-grabbing ${
                                 isVisible
                                   ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800'
                                   : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
@@ -6412,29 +6433,13 @@ export default function TeeemTableView({
                               {dragOverVisibilityColumn === column.key && draggedVisibilityColumn && (
                                 <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full z-10" />
                               )}
+                              {/* Drag handle */}
+                              <span className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">⠿</span>
+                              {/* Position number for visible columns */}
                               {isVisible && (
-                                <>
-                                  <span
-                                    draggable="true"
-                                    onDragStart={(e) => {
-                                      e.stopPropagation()
-                                      setDraggedVisibilityColumn(column.key)
-                                      e.dataTransfer.effectAllowed = 'move'
-                                    }}
-                                    onDragEnd={() => {
-                                      setTimeout(() => {
-                                        setDraggedVisibilityColumn(null)
-                                        setDragOverVisibilityColumn(null)
-                                      }, 0)
-                                    }}
-                                    className="text-gray-400 cursor-grab active:cursor-grabbing hover:text-gray-600 dark:hover:text-gray-300"
-                                    onClick={(e) => e.stopPropagation()}
-                                    title="Drag to reorder"
-                                  >⠿</span>
-                                  <span className="w-5 text-[9px] text-center text-green-600 dark:text-green-400 font-medium">{index + 1}</span>
-                                </>
+                                <span className="w-5 text-[9px] text-center text-green-600 dark:text-green-400 font-medium">{index + 1}</span>
                               )}
-                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0">
+                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={isVisible}
@@ -6462,6 +6467,19 @@ export default function TeeemTableView({
                             </div>
                           )
 
+                          // Handle drop on the zone itself (for empty zones or dropping at end)
+                          const handleZoneDrop = (e, makeVisible) => {
+                            e.preventDefault()
+                            if (draggedVisibilityColumn) {
+                              const draggedIsVisible = visibleColumns[draggedVisibilityColumn] !== false
+                              if (draggedIsVisible !== makeVisible) {
+                                setVisibleColumns({ ...visibleColumns, [draggedVisibilityColumn]: makeVisible })
+                              }
+                            }
+                            setDraggedVisibilityColumn(null)
+                            setDragOverVisibilityColumn(null)
+                          }
+
                           return (
                             <>
                               {/* Visible Columns */}
@@ -6470,9 +6488,19 @@ export default function TeeemTableView({
                                   <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                                   Visible ({visibleCols.length})
                                 </div>
-                                <div className="border border-green-200 dark:border-green-800 rounded p-1 bg-green-50/30 dark:bg-green-900/10 max-h-[40vh] overflow-y-auto">
+                                <div
+                                  className={`border rounded p-1 max-h-[40vh] overflow-y-auto transition-colors ${
+                                    draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] === false
+                                      ? 'border-green-400 border-2 bg-green-100/50 dark:bg-green-900/30'
+                                      : 'border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-900/10'
+                                  }`}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => handleZoneDrop(e, true)}
+                                >
                                   {visibleCols.length === 0 ? (
-                                    <div className="text-[10px] text-gray-400 text-center py-2">No visible columns</div>
+                                    <div className="text-[10px] text-gray-400 text-center py-4">
+                                      {draggedVisibilityColumn ? '⬇️ Drop here to show' : 'No visible columns'}
+                                    </div>
                                   ) : (
                                     <div className="flex flex-col gap-0.5">
                                       {visibleCols.map((col, idx) => renderColumnItem(col, idx, true))}
@@ -6487,9 +6515,19 @@ export default function TeeemTableView({
                                   <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
                                   Hidden ({hiddenCols.length})
                                 </div>
-                                <div className="border border-gray-200 dark:border-gray-700 rounded p-1 bg-gray-50/30 dark:bg-gray-800/30 max-h-[40vh] overflow-y-auto">
+                                <div
+                                  className={`border rounded p-1 max-h-[40vh] overflow-y-auto transition-colors ${
+                                    draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] !== false
+                                      ? 'border-gray-400 border-2 bg-gray-200/50 dark:bg-gray-700/50'
+                                      : 'border-gray-200 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/30'
+                                  }`}
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => handleZoneDrop(e, false)}
+                                >
                                   {hiddenCols.length === 0 ? (
-                                    <div className="text-[10px] text-gray-400 text-center py-2">No hidden columns</div>
+                                    <div className="text-[10px] text-gray-400 text-center py-4">
+                                      {draggedVisibilityColumn ? '⬇️ Drop here to hide' : 'No hidden columns'}
+                                    </div>
                                   ) : (
                                     <div className="flex flex-col gap-0.5">
                                       {hiddenCols.map((col, idx) => renderColumnItem(col, idx, false))}
