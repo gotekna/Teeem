@@ -1,4 +1,37 @@
 namespace :easybuild do
+  desc "Export all contacts with source info"
+  task export_contacts: :environment do
+    require 'csv'
+
+    contacts = Contact.order(:full_name)
+    csv_output = Rails.root.join('tmp', 'all_contacts_export.csv')
+
+    CSV.open(csv_output, 'w') do |csv|
+      csv << ['TEEEM ID', 'Full Name', 'Email', 'Mobile Phone', 'Has Xero ID', 'Source', 'Entity Type', 'Contact Types', 'Company Name']
+      contacts.each do |c|
+        source = c.xero_id.present? ? 'Xero' : (c.sync_with_xero == false ? 'EasyBuild' : 'TEEEM')
+        csv << [
+          c.id,
+          c.full_name,
+          c.email,
+          c.mobile_phone,
+          c.xero_id.present? ? 'Yes' : 'No',
+          source,
+          c.entity_type,
+          c.contact_types&.join(', '),
+          c.company_name_or_trust
+        ]
+      end
+    end
+
+    puts "Total contacts: #{contacts.count}"
+    puts "\nBy Source:"
+    puts "  Xero: #{contacts.count { |c| c.xero_id.present? }}"
+    puts "  EasyBuild: #{contacts.count { |c| c.xero_id.blank? && c.sync_with_xero == false }}"
+    puts "  Other: #{contacts.count { |c| c.xero_id.blank? && c.sync_with_xero != false }}"
+    puts "\nExported to: #{csv_output}"
+  end
+
   desc "Import EasyBuild contacts that don't exist in TEEEM"
   task import_contacts: :environment do
     require 'csv'
