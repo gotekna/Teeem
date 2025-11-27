@@ -313,8 +313,8 @@ export default function AppLayout({ children }) {
 
     const fetchVersion = async () => {
       try {
-        const response = await axios.get('/version')
-        setBackendVersion(response.data.version)
+        const response = await api.get('/version')
+        setBackendVersion(response.version)
       } catch (error) {
         console.error('Failed to fetch version:', error)
         setBackendVersion('unknown')
@@ -2430,20 +2430,24 @@ export default function AppLayout({ children }) {
                     )
                   })}
                 </ul>
-                {!sidebarCollapsed && (
-                  <div className="px-2 pt-3 pb-2">
-                    <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
-                      Frontend: v{frontendVersion}
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed mt-1">
-                      Backend: {backendVersion}
-                    </p>
-                  </div>
-                )}
               </li>
             </ul>
           </nav>
         </div>
+        {/* Version info - fixed at bottom, outside scroll container */}
+        {!sidebarCollapsed && (
+          <div className="shrink-0 border-t border-gray-200 dark:border-white/10 bg-white dark:bg-black/10 px-6 py-3">
+            <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed">
+              Frontend: v{frontendVersion}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed mt-1">
+              Backend: {backendVersion}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 leading-relaxed mt-2 truncate" title={window.location.href}>
+              {window.location.href}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Main content area */}

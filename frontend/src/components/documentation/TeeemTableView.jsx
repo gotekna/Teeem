@@ -7407,6 +7407,8 @@ export default function TeeemTableView({
                           })
                         })()}
                       </div>
+                      </>
+                      )}
                     </div>
                   </div>
                   {/* END MAIN GRID */}

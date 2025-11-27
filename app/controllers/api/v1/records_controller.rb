@@ -30,7 +30,8 @@ module Api
         if search.present?
           searchable_columns = if @foundation.table_type == 'system'
             # For system foundations, search text columns from the model
-            model.columns.select { |c| [:string, :text].include?(c.type) }.map(&:name)
+            # Exclude array columns (e.g., contact_types) as ILIKE doesn't work on arrays
+            model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name)
           else
             @foundation.columns.where(searchable: true).pluck(:column_name)
           end

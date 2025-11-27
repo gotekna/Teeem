@@ -115,7 +115,13 @@ module Api
           }, status: :conflict
         end
 
+        # Store column_name before destroying
+        deleted_column_name = @column.column_name
+
         @column.destroy
+
+        # Remove column from all existing views for this foundation
+        remove_column_from_views(deleted_column_name)
 
         # Rebuild the database table without this column
         foundation_reloaded = Foundation.includes(:columns).find(@foundation.id)
@@ -636,6 +642,39 @@ module Api
         end
 
         Rails.logger.info "[Column Create] Updated #{updated_count} views for foundation #{@foundation.id} with new column '#{column.column_name}'"
+      end
+
+      # Remove a deleted column from all existing views for this foundation
+      # This ensures views stay in sync when columns are deleted
+      def remove_column_from_views(column_name)
+        views = FoundationView.where(foundation_id: @foundation.id)
+        updated_count = 0
+
+        views.each do |view|
+          next unless view.columns.is_a?(Hash)
+          modified = false
+
+          # Remove from visible columns
+          if view.columns['visible'].is_a?(Hash) && view.columns['visible'].key?(column_name)
+            view.columns['visible'].delete(column_name)
+            modified = true
+          end
+
+          # Remove from column order
+          if view.columns['order'].is_a?(Array) && view.columns['order'].include?(column_name)
+            view.columns['order'].delete(column_name)
+            modified = true
+          end
+
+          if modified && view.save
+            updated_count += 1
+            Rails.logger.info "[Column Delete] Removed column '#{column_name}' from view '#{view.name}' (ID: #{view.id})"
+          elsif modified
+            Rails.logger.error "[Column Delete] Failed to update view '#{view.name}': #{view.errors.full_messages.join(', ')}"
+          end
+        end
+
+        Rails.logger.info "[Column Delete] Updated #{updated_count} views for foundation #{@foundation.id}, removed column '#{column_name}'"
       end
 
       # Check if column is referenced by lookups or formulas
