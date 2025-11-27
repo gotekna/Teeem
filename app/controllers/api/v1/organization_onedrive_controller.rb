@@ -98,19 +98,19 @@ module Api
           frontend_url = get_frontend_url_from_request
 
           # Redirect to frontend settings page with success message
-          redirect_to "#{frontend_url}/settings?onedrive=connected", allow_other_host: true
+          redirect_to "#{frontend_url}/admin/system?onedrive=connected", allow_other_host: true
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           Rails.logger.error "=== OneDrive Authentication Failed ==="
           Rails.logger.error "Error: #{e.message}"
           frontend_url = get_frontend_url_from_request
-          redirect_to "#{frontend_url}/settings?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
+          redirect_to "#{frontend_url}/admin/system?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
         rescue StandardError => e
           Rails.logger.error "=== OneDrive Connection Failed ==="
           Rails.logger.error "Error: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
           frontend_url = get_frontend_url_from_request
-          redirect_to "#{frontend_url}/settings?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
+          redirect_to "#{frontend_url}/admin/system?onedrive=error&message=#{CGI.escape(e.message)}", allow_other_host: true
         end
       end
 
