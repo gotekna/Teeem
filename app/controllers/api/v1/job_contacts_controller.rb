@@ -95,11 +95,30 @@ module Api
             only: [:id, :name, :email]
           )
           response[:relationships_count] = 0
+          response[:relationships] = []
         elsif job_contact.contact.present?
           response[:contact] = job_contact.contact.as_json(
-            only: [:id, :first_name, :last_name, :full_name, :company_name, :email, :mobile_phone, :office_phone]
+            only: [:id, :first_name, :last_name, :full_name, :company_name_or_trust, :email, :mobile_phone, :office_phone]
           )
-          response[:relationships_count] = job_contact.contact.outgoing_relationships.count
+          # Add company_name alias for frontend compatibility
+          response[:contact][:company_name] = job_contact.contact.company_name_or_trust
+
+          # Include relationship details
+          relationships = job_contact.contact.outgoing_relationships.includes(:related_contact)
+          response[:relationships_count] = relationships.count
+          response[:relationships] = relationships.map do |rel|
+            {
+              id: rel.id,
+              relationship_type: rel.relationship_type,
+              related_contact: {
+                id: rel.related_contact.id,
+                full_name: rel.related_contact.full_name,
+                company_name: rel.related_contact.company_name_or_trust,
+                email: rel.related_contact.email,
+                mobile_phone: rel.related_contact.mobile_phone
+              }
+            }
+          end
         end
 
         response
