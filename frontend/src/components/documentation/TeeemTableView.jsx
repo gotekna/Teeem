@@ -5742,18 +5742,19 @@ export default function TeeemTableView({
 
                                             {filterColumnDropdownOpen === filter.id && (
                                               <div
-                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto whitespace-nowrap"
+                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg overflow-y-auto whitespace-nowrap"
                                                 style={{
                                                   // Use fixed positioning to escape overflow containers
                                                   ...((() => {
                                                     const el = document.querySelector(`[data-filter-column-dropdown="${filter.id}"]`)
                                                     if (el) {
                                                       const rect = el.getBoundingClientRect()
+                                                      const spaceBelow = window.innerHeight - rect.bottom - 20
                                                       return {
                                                         top: rect.bottom + 4,
                                                         left: rect.left,
                                                         minWidth: rect.width,
-                                                        maxHeight: `min(40vh, ${window.innerHeight - rect.bottom - 20}px)`
+                                                        maxHeight: Math.max(200, spaceBelow)
                                                       }
                                                     }
                                                     return { top: 0, left: 0 }
