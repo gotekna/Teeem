@@ -91,8 +91,9 @@ module Api
           position: job_status.position,
           is_active: job_status.is_active,
           color: job_status.color,
-          job_type_id: job_status.job_type_id,
-          job_type_name: job_status.job_type&.name,
+          # job_type relationship is now many-to-many through job_type_statuses
+          job_type_ids: job_status.job_type_ids,
+          job_type_names: job_status.job_types.pluck(:name),
           jobs_count: job_status.jobs.count,
           created_at: job_status.created_at,
           updated_at: job_status.updated_at
