@@ -230,6 +230,82 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/sharepoint_sites
+      # List available SharePoint sites
+      def sharepoint_sites
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          sites = client.list_sharepoint_sites
+
+          render json: {
+            sites: sites,
+            current_site: credential.metadata&.dig('site_name')
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to list SharePoint sites: #{e.message}"
+          render json: { error: "Failed to list sites: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/use_sharepoint_site
+      # Switch to using a SharePoint site instead of personal OneDrive
+      def use_sharepoint_site
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        site_name = params[:site_name]
+
+        if site_name.blank?
+          return render json: { error: 'Site name is required' }, status: :bad_request
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+          result = client.use_sharepoint_site(site_name)
+
+          # Reset root folder since we're switching drives
+          credential.update!(
+            root_folder_id: nil,
+            root_folder_path: nil
+          )
+
+          render json: {
+            message: "Successfully switched to SharePoint site '#{result[:site]['displayName'] || site_name}'",
+            site: {
+              id: result[:site]['id'],
+              name: result[:site]['displayName'] || result[:site]['name'],
+              web_url: result[:site]['webUrl']
+            },
+            drive: {
+              id: result[:drive]['id'],
+              name: result[:drive]['name']
+            }
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to switch SharePoint site: #{e.message}"
+          render json: { error: "Failed to switch site: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/browse_folders
       # Browse OneDrive folders - optionally within a specific folder
       def browse_folders
