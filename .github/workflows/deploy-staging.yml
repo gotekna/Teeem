@@ -1,42 +1,17 @@
 name: Deploy to Staging
 
+# This workflow is disabled - Vercel handles frontend deployment automatically
+# Backend deployment is handled by deploy-backend-staging.yml
+
 on:
-  push:
-    branches:
-      - rob  # Trigger on push to rob branch
-    paths:
-      - 'frontend/**'  # Only trigger for frontend changes
-      - '.github/workflows/deploy-staging.yml'
+  workflow_dispatch:  # Manual trigger only if needed
 
 jobs:
-  deploy-frontend:
-    name: Deploy Frontend to Vercel
+  info:
+    name: Deployment Info
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Vercel CLI
-        run: npm install -g vercel
-
-      - name: Deploy to Vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Info
         run: |
-          cd frontend
-          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
-          vercel build --prod --token=$VERCEL_TOKEN
-          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
-
-      - name: Notify deployment success
-        if: success()
-        run: |
-          echo "✅ Frontend deployed successfully to Vercel"
-          echo "🔗 https://teeemrob.vercel.app/"
+          echo "Frontend: Auto-deployed by Vercel GitHub integration"
+          echo "Backend: Deployed by deploy-backend-staging.yml workflow"

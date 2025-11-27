@@ -2,9 +2,9 @@
 
 **Shortcut:** `/fd` (full deploy)
 
-Commits ALL pending changes and deploys to staging. Use this when you want to deploy everything.
+Commits ALL pending changes and pushes to trigger GitHub Actions deployment to staging.
 
-**Run from teeem root. Use 'cd backend &&' for Rails commands. Auto-generate commit messages.**
+**Run from teeem root. Auto-generate commit messages.**
 
 ## Parallel Execution Strategy
 
@@ -55,40 +55,37 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to Rob
+### Step 4 - Push to Rob (GitHub Actions handles deployment)
 ```bash
 git pull origin rob --rebase
 git push origin rob
 ```
 
-### Step 5 - Deploy Backend to Heroku
+### Step 5 - Monitor GitHub Actions Deployment
 ```bash
-export GIT_HTTP_USER_AGENT="git/2.51.2"
-/opt/homebrew/bin/git subtree split --prefix=backend -b backend-deploy-rob
-/opt/homebrew/bin/git push heroku backend-deploy-rob:main --force
-git branch -D backend-deploy-rob
+# Wait for workflows to start
+sleep 5
+gh run list --limit 3
 ```
 
-### Step 6 - Verify Deployment (RUN IN PARALLEL)
+### Step 6 - Wait and Verify Deployment (RUN IN PARALLEL after ~60s)
 ```bash
-heroku ps -a teeem-backend
-curl -s https://teeem-backend-39604ccca45a.herokuapp.com/ | head -5
-curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
+# Check GitHub Actions status
+gh run list --limit 2
+
+# Verify backend is up
 curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
-cat frontend/package.json | grep '"version"' | head -1
-heroku pg:info -a teeem-backend
-heroku logs --tail --num 50 -a teeem-backend | grep -i "migrat\|error\|fail" | head -20
+
+# Check frontend
+curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
 ```
 
 ### Step 7 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
+- ✅ GitHub Actions: [status - in_progress/success/failure]
 - ✅ Backend: [version from /version endpoint] - https://teeem-backend-39604ccca45a.herokuapp.com/
-  - Dyno status: [web/worker status]
-- ✅ Frontend: [version from package.json] - https://teeem.vercel.app/
-  - Status: [HTTP status code]
-- ✅ Migrations: [status]
-- ✅ Database: [connection info]
+- ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel)
 - 🔴 Warnings (if any)
 
 ## Branch Strategy
@@ -96,7 +93,8 @@ heroku logs --tail --num 50 -a teeem-backend | grep -i "migrat\|error\|fail" | h
 ```
 Feature → rob (staging) → main (production)
           ↓                   ↑
-       Deploy              Create PR
+       Push triggers       Create PR
+       GitHub Actions
 ```
 
 **Critical Rule:** Rob and main are independent. NEVER merge main → rob.

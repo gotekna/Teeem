@@ -2,13 +2,13 @@
 
 **Shortcut:** `/d` (single chat deploy)
 
-Commits ONLY files worked on in THIS chat session, then deploys. Use `/fd` to commit everything.
+Commits ONLY files worked on in THIS chat session, then pushes to trigger GitHub Actions deployment. Use `/fd` to commit everything.
 
 ## How It Works
 
 1. **ASK which files to commit** - Show `git status` and ask user to specify files
 2. Stage only those files
-3. Deploy to staging
+3. Push to trigger GitHub Actions (auto-deploys backend to Heroku)
 
 ## Instructions
 
@@ -38,34 +38,30 @@ git commit -m "[auto-generated message based on files]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push and Deploy
+### Step 4 - Push (GitHub Actions handles deployment)
 ```bash
 git pull origin rob --rebase
 git push origin rob
-export GIT_HTTP_USER_AGENT="git/2.51.2"
-/opt/homebrew/bin/git subtree split --prefix=backend -b backend-deploy-rob
-/opt/homebrew/bin/git push heroku backend-deploy-rob:main --force
-git branch -D backend-deploy-rob
 ```
 
-### Step 5 - Verify Deployment
+### Step 5 - Monitor Deployment
 ```bash
-heroku ps
-curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
-curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
+# Wait for GitHub Actions to start
+sleep 5
+gh run list --limit 3
 ```
 
 ### Step 6 - Report Status
 - ✅ Branch: rob
 - ✅ Committed: [list of files]
 - ✅ NOT committed: [remaining uncommitted files]
-- ✅ Backend deployed
+- ✅ GitHub Actions triggered - backend will auto-deploy to Heroku
 - ✅ Frontend auto-deploying via Vercel
 
 ## Quick Reference
 
 | Command | What it does |
 |---------|-------------|
-| `/d` | Commit THIS chat's files only + deploy |
-| `/fd` | Commit ALL changes + deploy |
+| `/d` | Commit THIS chat's files only + push (triggers deploy) |
+| `/fd` | Commit ALL changes + push (triggers deploy) |
 | `/deploy no-commit` | Deploy without committing |
