@@ -836,6 +836,7 @@ Rails.application.routes.draw do
       get 'organization_onedrive/job_folders', to: 'organization_onedrive#list_job_items'
       post 'organization_onedrive/upload', to: 'organization_onedrive#upload'
       get 'organization_onedrive/download', to: 'organization_onedrive#download'
+      get 'organization_onedrive/folder_contents', to: 'organization_onedrive#folder_contents'
       get 'organization_onedrive/preview_pricebook_matches', to: 'organization_onedrive#preview_pricebook_matches'
       post 'organization_onedrive/apply_pricebook_matches', to: 'organization_onedrive#apply_pricebook_matches'
       post 'organization_onedrive/sync_pricebook_images', to: 'organization_onedrive#sync_pricebook_images'

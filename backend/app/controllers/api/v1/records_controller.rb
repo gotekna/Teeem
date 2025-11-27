@@ -308,7 +308,13 @@ module Api
 
       def record_params
         # Get all column names for this foundation
-        column_names = @foundation.columns.pluck(:column_name)
+        column_names = if @foundation.table_type == 'system'
+          # For system foundations, get column names from the actual model
+          model = @foundation.dynamic_model
+          model.column_names - ['id', 'created_at', 'updated_at']
+        else
+          @foundation.columns.pluck(:column_name)
+        end
         params.require(:record).permit(*column_names)
       end
 
@@ -321,6 +327,7 @@ module Api
           attrs[:title] = 'New Job' if attrs[:title].blank?
           attrs[:status] = 'Active' if attrs[:status].blank?
           attrs[:site_supervisor_name] = 'TBA' if attrs[:site_supervisor_name].blank?
+          attrs[:purchase_orders_count] = 0 if attrs[:purchase_orders_count].blank?
         end
 
         attrs
