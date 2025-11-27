@@ -192,6 +192,47 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/foundations/:foundation_id/records/bulk_update
+      # Batch update multiple records with the same value for a specific column
+      def bulk_update
+        ids = params[:ids]
+        column_key = params[:column_key]
+        value = params[:value]
+
+        return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+        return render json: { success: false, error: 'No column_key provided' }, status: :bad_request if column_key.blank?
+
+        # Cap at 1000 to prevent abuse
+        ids = ids.first(1000) if ids.is_a?(Array)
+
+        model = @foundation.dynamic_model
+
+        # Validate column exists
+        column_names = if @foundation.table_type == 'system'
+          model.column_names - ['id', 'created_at', 'updated_at']
+        else
+          @foundation.columns.pluck(:column_name)
+        end
+
+        unless column_names.include?(column_key)
+          return render json: { success: false, error: "Invalid column: #{column_key}" }, status: :bad_request
+        end
+
+        # Perform bulk update
+        updated_count = model.where(id: ids).update_all(column_key => value)
+
+        render json: {
+          success: true,
+          updated_count: updated_count,
+          requested_count: ids.size,
+          column_key: column_key,
+          value: value
+        }
+      rescue => e
+        Rails.logger.error "Error bulk updating records: #{e.class} - #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
       # POST /api/v1/foundations/:foundation_id/records/bulk_create
       # Batch create multiple records in a single request (for imports)
       def bulk_create

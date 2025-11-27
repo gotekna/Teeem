@@ -878,6 +878,7 @@ Rails.application.routes.draw do
         resources :records do
           collection do
             post :bulk_delete
+            post :bulk_update
             post :bulk_create
           end
         end
