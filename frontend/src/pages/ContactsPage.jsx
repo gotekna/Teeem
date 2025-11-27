@@ -484,23 +484,21 @@ export default function ContactsPage() {
 
     setUpdating(true)
     try {
-      const deletePromises = Array.from(selectedContacts).map(contactId =>
-        api.delete(`/api/v1/contacts/${contactId}`)
-      )
+      const ids = Array.from(selectedContacts)
+      // Use batch endpoint - single request instead of N requests
+      const response = await api.post('/api/v1/contacts/bulk_delete', { ids })
 
-      const results = await Promise.allSettled(deletePromises)
-
-      const succeeded = results.filter(r => r.status === 'fulfilled').length
-      const failed = results.filter(r => r.status === 'rejected').length
+      const succeeded = response.deleted_count || 0
+      const failed = count - succeeded
 
       if (succeeded > 0) {
         setToast({
-          message: `Successfully deleted ${succeeded} ${succeeded === 1 ? 'contact' : 'contacts'}${failed > 0 ? `. ${failed} failed.` : ''}`,
+          message: `Successfully deleted ${succeeded} ${succeeded === 1 ? 'contact' : 'contacts'}${failed > 0 ? `. ${failed} failed (have linked data).` : ''}`,
           type: succeeded === count ? 'success' : 'warning'
         })
       } else {
         setToast({
-          message: 'Failed to delete contacts. Please try again.',
+          message: 'Failed to delete contacts. They may have linked suppliers or purchase orders.',
           type: 'error'
         })
       }

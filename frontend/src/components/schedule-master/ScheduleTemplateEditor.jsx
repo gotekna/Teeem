@@ -1462,11 +1462,9 @@ export default function ScheduleTemplateEditor() {
     if (!confirm(`Delete ${selectedRows.size} selected rows?`)) return
 
     try {
-      await Promise.all(
-        Array.from(selectedRows).map(rowId =>
-          api.delete(`/api/v1/schedule_templates/${selectedTemplate.id}/rows/${rowId}`)
-        )
-      )
+      const ids = Array.from(selectedRows)
+      // Use batch endpoint - single request instead of N requests
+      await api.post(`/api/v1/schedule_templates/${selectedTemplate.id}/rows/bulk_delete`, { ids })
 
       setRows(prevRows => prevRows.filter(r => !selectedRows.has(r.id)))
       setSelectedRows(new Set())

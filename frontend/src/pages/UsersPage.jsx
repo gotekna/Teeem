@@ -100,9 +100,9 @@ export default function UsersPage() {
     }
 
     try {
-      await Promise.all(
-        selectedUsers.map(user => api.delete(`/api/v1/users/${user.id}`))
-      )
+      const ids = selectedUsers.map(user => user.id)
+      // Use batch endpoint - single request instead of N requests
+      await api.post('/api/v1/users/bulk_delete', { ids })
       setToast({
         message: `${selectedUsers.length} user(s) removed successfully`,
         type: 'success'

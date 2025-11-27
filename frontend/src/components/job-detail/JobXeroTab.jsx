@@ -10,6 +10,7 @@ import {
   UserGroupIcon,
   FolderIcon,
   DocumentTextIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
@@ -31,9 +32,15 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
   const [importingContacts, setImportingContacts] = useState(false)
   const [importingTracking, setImportingTracking] = useState(false)
   const [importingBills, setImportingBills] = useState(false)
+  const [importingClaims, setImportingClaims] = useState(false)
+
+  // Claims data
+  const [claims, setClaims] = useState([])
+  const [loadingClaims, setLoadingClaims] = useState(false)
 
   useEffect(() => {
     loadXeroData()
+    loadClaims()
   }, [jobId])
 
   const loadXeroData = async () => {
@@ -61,6 +68,20 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
       setError('Failed to load Xero data')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadClaims = async () => {
+    try {
+      setLoadingClaims(true)
+      const response = await api.get(`/api/v1/jobs/${jobId}/job_claims`)
+      if (response.success) {
+        setClaims(response.job_claims || [])
+      }
+    } catch (err) {
+      console.error('Failed to load claims:', err)
+    } finally {
+      setLoadingClaims(false)
     }
   }
 
@@ -119,6 +140,7 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
       setFullImportResult(response)
       onUpdate?.()
       loadXeroData() // Refresh data
+      loadClaims() // Refresh claims
     } catch (err) {
       console.error('Failed to run full import:', err)
       setError(err.response?.data?.error || 'Failed to run full import')
@@ -173,6 +195,23 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
       setError(err.response?.data?.error || 'Failed to import all bills')
     } finally {
       setImportingBills(false)
+    }
+  }
+
+  const handleImportAllClaims = async () => {
+    try {
+      setImportingClaims(true)
+      setError(null)
+
+      const response = await api.post('/api/v1/xero/import_all_claims')
+      setFullImportResult(prev => ({ ...prev, claims: response }))
+      onUpdate?.()
+      loadClaims() // Refresh claims list
+    } catch (err) {
+      console.error('Failed to import all claims:', err)
+      setError(err.response?.data?.error || 'Failed to import all claims')
+    } finally {
+      setImportingClaims(false)
     }
   }
 
@@ -387,15 +426,15 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
           Import from Xero
         </h3>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
-          Import all data from Xero: contacts, tracking categories (as jobs), and bills (as purchase orders).
+          Import all data from Xero: contacts, tracking categories (as jobs), bills (as purchase orders), and sales invoices (as claims).
         </p>
 
         {/* Import Buttons */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
           {/* Full Import */}
           <button
             onClick={handleFullImport}
-            disabled={fullImportRunning || importingContacts || importingTracking || importingBills}
+            disabled={fullImportRunning || importingContacts || importingTracking || importingBills || importingClaims}
             className="flex flex-col items-center gap-2 p-3 rounded-lg border-2 border-dashed border-indigo-300 dark:border-indigo-600 hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {fullImportRunning ? (
@@ -455,6 +494,22 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
               {importingBills ? 'Importing...' : 'Bills'}
             </span>
           </button>
+
+          {/* Import All Claims */}
+          <button
+            onClick={handleImportAllClaims}
+            disabled={fullImportRunning || importingClaims}
+            className="flex flex-col items-center gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {importingClaims ? (
+              <ArrowPathIcon className="h-6 w-6 text-emerald-500 animate-spin" />
+            ) : (
+              <CurrencyDollarIcon className="h-6 w-6 text-emerald-500" />
+            )}
+            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+              {importingClaims ? 'Importing...' : 'Claims'}
+            </span>
+          </button>
         </div>
 
         {/* Import Results */}
@@ -482,6 +537,14 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
                 <DocumentTextIcon className="h-4 w-4 text-orange-500" />
                 <span className="text-gray-600 dark:text-gray-400">
                   Bills: {fullImportResult.bills.stats?.imported || 0} imported, {fullImportResult.bills.stats?.skipped || 0} skipped, {fullImportResult.bills.stats?.no_job || 0} no job
+                </span>
+              </div>
+            )}
+            {fullImportResult.claims && (
+              <div className="flex items-center gap-2">
+                <CurrencyDollarIcon className="h-4 w-4 text-emerald-500" />
+                <span className="text-gray-600 dark:text-gray-400">
+                  Claims: {fullImportResult.claims.stats?.imported || 0} imported, {fullImportResult.claims.stats?.skipped || 0} skipped, {fullImportResult.claims.stats?.no_job || 0} no job
                 </span>
               </div>
             )}
@@ -589,6 +652,124 @@ export default function JobXeroTab({ jobId, job, onUpdate }) {
                 {importResult.error || 'Pull failed'}
               </p>
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Job Claims Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+            Progress Claims (Sales Invoices)
+          </h3>
+          <div className="flex items-center gap-2">
+            {claims.length > 0 && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {claims.length} claim{claims.length !== 1 ? 's' : ''}
+              </span>
+            )}
+            <button
+              onClick={loadClaims}
+              disabled={loadingClaims}
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              title="Refresh claims"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${loadingClaims ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {loadingClaims ? (
+          <div className="flex items-center justify-center py-8">
+            <ArrowPathIcon className="h-5 w-5 animate-spin text-gray-400" />
+          </div>
+        ) : claims.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+            <CurrencyDollarIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No claims imported yet</p>
+            <p className="text-xs mt-1">Use "Full Import" or "Claims" button above to import from Xero</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {/* Claims Summary */}
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 text-center">
+                <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                  ${claims.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Total Claimed</p>
+              </div>
+              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+                <p className="text-lg font-semibold text-green-600 dark:text-green-400">
+                  ${claims.reduce((sum, c) => sum + (parseFloat(c.amount_paid) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Paid</p>
+              </div>
+              <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 text-center">
+                <p className="text-lg font-semibold text-orange-600 dark:text-orange-400">
+                  ${claims.reduce((sum, c) => sum + (parseFloat(c.outstanding_amount) || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Outstanding</p>
+              </div>
+            </div>
+
+            {/* Claims Table */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead>
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Invoice #</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contact</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Paid</th>
+                    <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {claims.map((claim) => (
+                    <tr key={claim.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <td className="px-3 py-2 text-sm text-gray-900 dark:text-white font-medium">
+                        {claim.invoice_number}
+                        {claim.xero_invoice_id && (
+                          <span className="ml-1 text-xs text-blue-500" title="Linked to Xero">
+                            ●
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">
+                        {claim.date ? new Date(claim.date).toLocaleDateString() : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 max-w-[150px] truncate">
+                        {claim.contact_name || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-900 dark:text-white text-right">
+                        ${parseFloat(claim.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-right">
+                        <span className={claim.payment_percentage >= 100 ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>
+                          ${parseFloat(claim.amount_paid || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        {claim.payment_percentage > 0 && claim.payment_percentage < 100 && (
+                          <span className="ml-1 text-xs text-gray-400">({claim.payment_percentage}%)</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                          claim.status === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          claim.status === 'authorised' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                          claim.status === 'submitted' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                          claim.status === 'voided' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                          'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                        }`}>
+                          {claim.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

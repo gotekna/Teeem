@@ -642,8 +642,42 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/import_all_claims
+      # Import all Xero sales invoices (ACCREC) as JobClaims
+      def import_all_claims
+        begin
+          client = XeroApiClient.new
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render json: {
+              success: false,
+              error: 'Not authenticated with Xero. Please connect to Xero first.'
+            }, status: :unauthorized
+          end
+
+          service = XeroClaimImportService.new
+          result = service.import_all
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero import_all_claims auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero import_all_claims error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to import claims: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/xero/full_import
-      # Run full import: contacts, tracking categories, then bills
+      # Run full import: contacts, tracking categories, bills, and claims
       def full_import
         begin
           client = XeroApiClient.new
@@ -660,6 +694,7 @@ module Api
             contacts: nil,
             tracking_categories: nil,
             bills: nil,
+            claims: nil,
             success: true
           }
 
@@ -677,6 +712,11 @@ module Api
           Rails.logger.info("Full import: Starting bill import")
           bill_service = XeroFullBillImportService.new
           results[:bills] = bill_service.import_all
+
+          # Step 4: Import sales invoices as claims
+          Rails.logger.info("Full import: Starting claims import")
+          claim_service = XeroClaimImportService.new
+          results[:claims] = claim_service.import_all
 
           Rails.logger.info("Full import completed")
 

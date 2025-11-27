@@ -724,11 +724,9 @@ export default function TablePage({ embedded = false }) {
 
   const handleBulkDelete = async (entries) => {
     try {
-      await Promise.all(
-        entries.map(entry =>
-          api.delete(`/api/v1/foundations/${id}/records/${entry.id}`)
-        )
-      )
+      const ids = entries.map(entry => entry.id)
+      // Use batch endpoint - single request instead of N requests
+      await api.post(`/api/v1/foundations/${id}/records/bulk_delete`, { ids })
       await loadRecords()
     } catch (err) {
       console.error('Failed to bulk delete records:', err)
@@ -762,7 +760,92 @@ export default function TablePage({ embedded = false }) {
   }
 
   const handleImport = () => {
-    alert('Import functionality coming soon')
+    // Create a file input and trigger it
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv'
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      try {
+        const text = await file.text()
+        const lines = text.split('\n').filter(line => line.trim())
+        if (lines.length < 2) {
+          alert('CSV file must have a header row and at least one data row')
+          return
+        }
+
+        // Parse CSV header
+        const parseCSVLine = (line) => {
+          const result = []
+          let current = ''
+          let inQuotes = false
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i]
+            if (char === '"') {
+              inQuotes = !inQuotes
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim())
+              current = ''
+            } else {
+              current += char
+            }
+          }
+          result.push(current.trim())
+          return result
+        }
+
+        const headers = parseCSVLine(lines[0])
+        const columnNames = table.columns.map(col => col.column_name)
+        const columnDisplayNames = table.columns.map(col => col.name)
+
+        // Map CSV headers to column names (match by display name or column_name)
+        const headerMapping = headers.map(header => {
+          const cleanHeader = header.replace(/^["']|["']$/g, '').trim()
+          // Try exact match on column_name
+          let idx = columnNames.findIndex(cn => cn.toLowerCase() === cleanHeader.toLowerCase())
+          if (idx === -1) {
+            // Try match on display name
+            idx = columnDisplayNames.findIndex(dn => dn.toLowerCase() === cleanHeader.toLowerCase())
+          }
+          return idx >= 0 ? columnNames[idx] : null
+        })
+
+        // Parse data rows
+        const records = []
+        for (let i = 1; i < lines.length; i++) {
+          const values = parseCSVLine(lines[i])
+          const record = {}
+          headerMapping.forEach((colName, idx) => {
+            if (colName && values[idx] !== undefined) {
+              record[colName] = values[idx].replace(/^["']|["']$/g, '')
+            }
+          })
+          if (Object.keys(record).length > 0) {
+            records.push(record)
+          }
+        }
+
+        if (records.length === 0) {
+          alert('No valid records found in CSV')
+          return
+        }
+
+        // Use bulk_create endpoint - single request for all records
+        const response = await api.post(`/api/v1/foundations/${id}/records/bulk_create`, { records })
+        if (response.success) {
+          alert(`Successfully imported ${response.created_count} records`)
+          await loadRecords()
+        } else {
+          alert(`Import failed: ${response.errors?.map(e => `Row ${e.index + 1}: ${e.errors.join(', ')}`).join('\n') || 'Unknown error'}`)
+        }
+      } catch (err) {
+        console.error('Failed to import records:', err)
+        alert('Failed to import records: ' + (err.message || 'Unknown error'))
+      }
+    }
+    input.click()
   }
 
   const handleExport = () => {

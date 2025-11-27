@@ -102,23 +102,23 @@ export async function deleteItem(id) {
 
 /**
  * Delete multiple gold standard items
+ * Uses batch endpoint - single request instead of N requests
  * @param {Array<number>} ids - Array of item IDs to delete
  * @returns {Promise<{success: boolean, deleted_count: number}>}
  */
 export async function bulkDeleteItems(ids) {
-  const responses = await Promise.all(
-    ids.map(id => fetch(`${BASE_URL}/${id}`, { method: 'DELETE' }))
-  )
+  const response = await fetch(`${BASE_URL}/bulk_delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  })
 
-  const failed = responses.filter(r => !r.ok)
-  if (failed.length > 0) {
-    throw new Error(`Failed to delete ${failed.length} of ${ids.length} items`)
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to delete items: ${response.status}`)
   }
 
-  return {
-    success: true,
-    deleted_count: ids.length
-  }
+  return await response.json()
 }
 
 /**
