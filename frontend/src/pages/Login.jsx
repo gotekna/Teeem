@@ -36,16 +36,19 @@ export default function Login() {
       <div className="flex flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:px-20 xl:px-24">
         <div className="mx-auto w-full max-w-sm lg:w-96">
           <div>
-            <img
-              src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
-              alt="Your Company"
-              className="h-10 w-auto dark:hidden"
-            />
-            <img
-              src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
-              alt="Your Company"
-              className="hidden h-10 w-auto dark:block"
-            />
+            <div className="flex items-center gap-3">
+              <img
+                src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
+                alt="TEEEM"
+                className="h-10 w-auto dark:hidden"
+              />
+              <img
+                src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=500"
+                alt="TEEEM"
+                className="hidden h-10 w-auto dark:block"
+              />
+              <span className="text-2xl font-bold text-gray-900 dark:text-white">TEEEM</span>
+            </div>
             <h2 className="mt-8 text-2xl/9 font-bold tracking-tight text-gray-900 dark:text-white">
               Sign in to your account
             </h2>
