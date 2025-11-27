@@ -5705,7 +5705,7 @@ export default function TeeemTableView({
                                           className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
                                         >
                                           {/* Column dropdown - Searchable with smart positioning */}
-                                          <div className="relative flex-1 min-w-[120px]" data-filter-column-dropdown>
+                                          <div className="relative flex-1 min-w-[120px]" data-filter-column-dropdown={filter.id}>
                                             {filterColumnDropdownOpen === filter.id ? (
                                               // Search input replaces button when open
                                               <input
@@ -5742,11 +5742,22 @@ export default function TeeemTableView({
 
                                             {filterColumnDropdownOpen === filter.id && (
                                               <div
-                                                className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto"
+                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto"
                                                 style={{
-                                                  // Always open upward in the modal to avoid cutoff
-                                                  bottom: '100%',
-                                                  marginBottom: '4px'
+                                                  // Use fixed positioning to escape overflow containers
+                                                  ...((() => {
+                                                    const el = document.querySelector(`[data-filter-column-dropdown="${filter.id}"]`)
+                                                    if (el) {
+                                                      const rect = el.getBoundingClientRect()
+                                                      return {
+                                                        top: rect.bottom + 4,
+                                                        left: rect.left,
+                                                        width: rect.width,
+                                                        maxHeight: `min(40vh, ${window.innerHeight - rect.bottom - 20}px)`
+                                                      }
+                                                    }
+                                                    return { top: 0, left: 0 }
+                                                  })())
                                                 }}
                                               >
                                                 {COLUMNS
