@@ -1744,6 +1744,14 @@ export default function TeeemTableView({
         }
       }
 
+      // Handle empty/notEmpty operators directly
+      if (operator === 'empty') {
+        return entryValue === null || entryValue === undefined || entryValue === ''
+      }
+      if (operator === 'notEmpty') {
+        return entryValue !== null && entryValue !== undefined && entryValue !== ''
+      }
+
       // Handle relative filters (hasValue, empty) - works for any column type
       if (operator === 'relative') {
         switch (value) {
@@ -5821,10 +5829,10 @@ export default function TeeemTableView({
                                             onChange={(e) => {
                                               const newOp = e.target.value
                                               const columnLabel = COLUMNS.find(col => col.key === filter.column)?.label || filter.column
-                                              const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤' }
+                                              const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
                                               setCascadeFilters(cascadeFilters.map(f =>
                                                 f.id === filter.id
-                                                  ? { ...f, operator: newOp, label: filter.value ? `${columnLabel} ${opLabels[newOp]} ${filter.value}` : '' }
+                                                  ? { ...f, operator: newOp, label: (newOp === 'empty' || newOp === 'notEmpty') ? `${columnLabel} ${opLabels[newOp]}` : (filter.value ? `${columnLabel} ${opLabels[newOp]} ${filter.value}` : '') }
                                                   : f
                                               ))
                                             }}
@@ -5837,25 +5845,29 @@ export default function TeeemTableView({
                                             <option value="<">{'<'}</option>
                                             <option value=">=">≥</option>
                                             <option value="<=">≤</option>
+                                            <option value="empty">is empty</option>
+                                            <option value="notEmpty">is not empty</option>
                                           </select>
 
-                                          {/* Value input */}
-                                          <input
-                                            type="text"
-                                            value={filter.value}
-                                            onChange={(e) => {
-                                              const newValue = e.target.value
-                                              const columnLabel = COLUMNS.find(col => col.key === filter.column)?.label || filter.column
-                                              const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤' }
-                                              setCascadeFilters(cascadeFilters.map(f =>
-                                                f.id === filter.id
-                                                  ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
-                                                  : f
-                                              ))
-                                            }}
-                                            placeholder="Value..."
-                                            className="flex-1 min-w-[80px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400"
-                                          />
+                                          {/* Value input - hidden for empty/notEmpty operators */}
+                                          {filter.operator !== 'empty' && filter.operator !== 'notEmpty' && (
+                                            <input
+                                              type="text"
+                                              value={filter.value}
+                                              onChange={(e) => {
+                                                const newValue = e.target.value
+                                                const columnLabel = COLUMNS.find(col => col.key === filter.column)?.label || filter.column
+                                                const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
+                                                setCascadeFilters(cascadeFilters.map(f =>
+                                                  f.id === filter.id
+                                                    ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
+                                                    : f
+                                                ))
+                                              }}
+                                              placeholder="Value..."
+                                              className="flex-1 min-w-[80px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400"
+                                            />
+                                          )}
 
                                           {/* Delete button */}
                                           <button
