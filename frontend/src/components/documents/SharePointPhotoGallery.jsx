@@ -205,18 +205,22 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
               className="group relative aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all"
               onClick={() => setSelectedImage(file)}
             >
-              {/* Thumbnail - using OneDrive thumbnail URL */}
-              {file.thumbnails?.[0]?.large?.url ? (
+              {/* Thumbnail - using OneDrive thumbnail URL or download URL as fallback */}
+              {(file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']) ? (
                 <img
-                  src={file.thumbnails[0].large.url}
+                  src={file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']}
                   alt={file.name}
                   className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // If image fails to load, hide it and show placeholder
+                    e.target.style.display = 'none'
+                    e.target.nextSibling?.classList.remove('hidden')
+                  }}
                 />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <PhotoIcon className="h-12 w-12 text-gray-400" />
-                </div>
-              )}
+              ) : null}
+              <div className={`w-full h-full flex items-center justify-center ${(file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']) ? 'hidden' : ''}`}>
+                <PhotoIcon className="h-12 w-12 text-gray-400" />
+              </div>
 
               {/* Overlay with file info */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -263,11 +267,14 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
                 <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      {file.thumbnails?.[0]?.small?.url ? (
+                      {(file.thumbnails?.[0]?.small?.url || file['@microsoft.graph.downloadUrl']) ? (
                         <img
-                          src={file.thumbnails[0].small.url}
+                          src={file.thumbnails?.[0]?.small?.url || file['@microsoft.graph.downloadUrl']}
                           alt=""
                           className="h-10 w-10 rounded object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none'
+                          }}
                         />
                       ) : (
                         <div className="h-10 w-10 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
