@@ -9614,17 +9614,16 @@ export default function TeeemTableView({
                       console.log(`🔄 Bulk updating ${selectedIds.length} records, column: ${bulkUpdateColumn}, value: ${bulkUpdateValue}`)
 
                       // Call bulk update API
-                      if (onBulkUpdate) {
-                        await onBulkUpdate(selectedIds, bulkUpdateColumn, bulkUpdateValue)
-                      } else if (tableId) {
-                        // Direct API call if no callback provided
-                        await api.post(`/api/v1/foundations/${tableId}/records/bulk_update`, {
+                      if (foundationIdNumeric) {
+                        await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, {
                           ids: selectedIds,
                           column_key: bulkUpdateColumn,
                           value: bulkUpdateValue
                         })
                         // Refresh the data
                         if (onColumnUpdate) onColumnUpdate()
+                      } else {
+                        throw new Error('No foundation ID available for bulk update')
                       }
 
                       setShowBulkUpdateModal(false)
