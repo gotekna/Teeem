@@ -118,19 +118,20 @@ export default function TableBuilder() {
     try {
       // Step 1: Create the table
       const tableResponse = await api.post('/api/v1/foundations', {
-        table: {
+        foundation: {
           name: tableName,
           searchable: true
         }
       })
 
-      if (!tableResponse.success || !tableResponse.table) {
+      const tableData = tableResponse.foundation || tableResponse.table
+      if (!tableResponse.success || !tableData) {
         setError('Failed to create table')
         return
       }
 
-      const foundationId = tableResponse.table.id
-      const tableSlug = tableResponse.table.slug
+      const foundationId = tableData.id
+      const tableSlug = tableData.slug
 
       // Step 2: Create each column
       for (let index = 0; index < columns.length; index++) {

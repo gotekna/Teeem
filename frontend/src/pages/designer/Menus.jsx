@@ -39,7 +39,7 @@ export default function Menus() {
     try {
       // Update via API
       await api.patch(`/api/v1/foundations/${foundationId}`, {
-        table: { is_live: !currentStatus }
+        foundation: { is_live: !currentStatus }
       })
     } catch (err) {
       console.error('Error toggling live status:', err)

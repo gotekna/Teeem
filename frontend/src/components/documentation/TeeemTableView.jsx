@@ -78,6 +78,29 @@ const SEVERITY_COLORS = {
   critical: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
 }
 
+// Get dynamic sort direction label based on column type
+const getSortDirectionLabel = (columnType, direction) => {
+  // Numeric types
+  const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed']
+  if (numericTypes.includes(columnType)) {
+    return direction === 'asc' ? '1-9' : '9-1'
+  }
+
+  // Date types
+  const dateTypes = ['date', 'date_and_time']
+  if (dateTypes.includes(columnType)) {
+    return direction === 'asc' ? 'Old→New' : 'New→Old'
+  }
+
+  // Boolean type
+  if (columnType === 'boolean') {
+    return direction === 'asc' ? '☐→☑' : '☑→☐'
+  }
+
+  // Default to alphabetical for text and other types
+  return direction === 'asc' ? 'A-Z' : 'Z-A'
+}
+
 // Define default columns for Trinity documentation (Chapter 20: Checkbox column must be first, locked, and minimal size)
 const DEFAULT_TRINITY_COLUMNS = [
   { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
@@ -1097,13 +1120,23 @@ export default function TeeemTableView({
 
   // Close group by dropdown when clicking outside
   useEffect(() => {
-    if (!groupByDropdownOpen) return
+    if (groupByDropdownOpen === null) return
 
     const handleClickOutside = (e) => {
-      // Check if click is outside the dropdown
-      const dropdown = e.target.closest('[data-group-by-dropdown]')
-      if (!dropdown) {
-        setGroupByDropdownOpen(false)
+      // Check if click is inside any group-column-dropdown container
+      const dropdown = e.target.closest('[data-group-column-dropdown]')
+      if (dropdown) {
+        // Clicked inside a dropdown container - check if it's a different one
+        const clickedIndex = parseInt(dropdown.getAttribute('data-group-column-dropdown'), 10)
+        if (clickedIndex !== groupByDropdownOpen) {
+          // Clicking on a different dropdown - let its onClick handler open it
+          setGroupByDropdownOpen(null)
+          setGroupBySearchQuery('')
+        }
+        // Otherwise, clicked inside the currently open dropdown - do nothing
+      } else {
+        // Clicked completely outside - close the dropdown
+        setGroupByDropdownOpen(null)
         setGroupBySearchQuery('')
       }
     }
@@ -2066,7 +2099,7 @@ export default function TeeemTableView({
         : null
 
       const response = await api.post('/api/v1/foundation_views', {
-        table_view: {
+        foundation_view: {
           foundation_id: foundationIdNumeric,
           name: viewData.name,
           view_type: 'custom',
@@ -2160,7 +2193,7 @@ export default function TeeemTableView({
         : null
 
       const response = await api.put(`/api/v1/foundation_views/${viewId}`, {
-        table_view: {
+        foundation_view: {
           name: viewData.name,
           filters: {
             cascadeFilters: viewData.filters || [],
@@ -6074,7 +6107,7 @@ export default function TeeemTableView({
                                         : 'border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300'
                                     }`}
                                   >
-                                    {sort.dir === 'asc' ? '↑ A-Z' : '↓ Z-A'}
+                                    {sort.dir === 'asc' ? '↑ ' : '↓ '}{getSortDirectionLabel(COLUMNS.find(c => c.key === sort.column)?.column_type, sort.dir)}
                                   </button>
 
                                   {/* Move up/down buttons */}
@@ -6187,7 +6220,40 @@ export default function TeeemTableView({
                                 <div
                                   key={`${groupCol}-${index}`}
                                   className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/plain', index.toString())
+                                    e.dataTransfer.effectAllowed = 'move'
+                                    e.currentTarget.style.opacity = '0.5'
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.currentTarget.style.opacity = '1'
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault()
+                                    e.dataTransfer.dropEffect = 'move'
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault()
+                                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10)
+                                    const toIndex = index
+                                    if (fromIndex !== toIndex) {
+                                      const newGroupByColumns = [...groupByColumns]
+                                      const [removed] = newGroupByColumns.splice(fromIndex, 1)
+                                      newGroupByColumns.splice(toIndex, 0, removed)
+                                      setGroupByColumns(newGroupByColumns)
+                                      setGroupByColumn(newGroupByColumns[0])
+                                      setCollapsedGroups(new Set())
+                                    }
+                                  }}
                                 >
+                                  {/* Drag handle */}
+                                  <div className="cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300" title="Drag to reorder">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                                    </svg>
+                                  </div>
+
                                   {/* Order number */}
                                   <span className="w-6 h-6 flex items-center justify-center bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
                                     {index + 1}
@@ -6285,6 +6351,44 @@ export default function TeeemTableView({
                                     )}
                                   </div>
 
+                                  {/* Move up/down buttons */}
+                                  <div className="flex flex-col gap-0.5">
+                                    <button
+                                      onClick={() => {
+                                        if (index === 0) return
+                                        const newGroupByColumns = [...groupByColumns]
+                                        const temp = newGroupByColumns[index]
+                                        newGroupByColumns[index] = newGroupByColumns[index - 1]
+                                        newGroupByColumns[index - 1] = temp
+                                        setGroupByColumns(newGroupByColumns)
+                                        setGroupByColumn(newGroupByColumns[0])
+                                        setCollapsedGroups(new Set())
+                                      }}
+                                      disabled={index === 0}
+                                      className="text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 disabled:opacity-30 disabled:cursor-not-allowed text-[10px] leading-none"
+                                      title="Move up (higher priority)"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        if (index === groupByColumns.length - 1) return
+                                        const newGroupByColumns = [...groupByColumns]
+                                        const temp = newGroupByColumns[index]
+                                        newGroupByColumns[index] = newGroupByColumns[index + 1]
+                                        newGroupByColumns[index + 1] = temp
+                                        setGroupByColumns(newGroupByColumns)
+                                        setGroupByColumn(newGroupByColumns[0])
+                                        setCollapsedGroups(new Set())
+                                      }}
+                                      disabled={index === groupByColumns.length - 1}
+                                      className="text-purple-600 hover:text-purple-800 dark:text-purple-400 dark:hover:text-purple-300 disabled:opacity-30 disabled:cursor-not-allowed text-[10px] leading-none"
+                                      title="Move down (lower priority)"
+                                    >
+                                      ▼
+                                    </button>
+                                  </div>
+
                                   {/* Delete button */}
                                   <button
                                     onClick={() => {
@@ -6293,20 +6397,17 @@ export default function TeeemTableView({
                                       setGroupByColumn(newGroupByColumns[0] || null) // Keep legacy in sync
                                       setCollapsedGroups(new Set())
                                     }}
-                                    className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 rounded transition-colors"
+                                    className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 border border-gray-300 dark:border-gray-500 rounded hover:border-red-300 dark:hover:border-red-500 transition-colors"
                                     title="Remove group column"
                                   >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
+                                    <span className="text-xs font-bold">✕</span>
                                   </button>
                                 </div>
                               ))}
 
                               {/* Group info */}
                               <div className="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-1">
-                                Grouped by {groupByColumns.length} column{groupByColumns.length !== 1 ? 's' : ''} in order shown
-                              </div>
+                                Grouped by {groupByColumns.length} column{groupByColumns.length !== 1 ? 's' : ''} in order shown. Drag to reorder.</div>
                             </div>
                           )}
 

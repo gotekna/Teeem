@@ -70,19 +70,20 @@ export default function Dashboard() {
     try {
       // Step 1: Create the table
       const tableResponse = await api.post('/api/v1/foundations', {
-        table: {
+        foundation: {
           name: newTableName,
           searchable: true
         }
       })
 
-      if (!tableResponse.success || !tableResponse.table) {
+      const tableData = tableResponse.foundation || tableResponse.table
+      if (!tableResponse.success || !tableData) {
         setCreateError('Failed to create table')
         return
       }
 
-      const foundationId = tableResponse.table.id
-      const tableSlug = tableResponse.table.slug
+      const foundationId = tableData.id
+      const tableSlug = tableData.slug
 
       // Step 2: Create default columns
       const defaultColumns = [
@@ -116,7 +117,7 @@ export default function Dashboard() {
 
       // Step 3: Mark table as live
       await api.put(`/api/v1/foundations/${foundationId}`, {
-        table: { is_live: true }
+        foundation: { is_live: true }
       })
 
       // Step 4: Navigate to the spreadsheet view

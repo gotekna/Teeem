@@ -167,7 +167,7 @@ export default function TablesTab() {
     try {
       setSaving(true)
       await api.patch(`/api/v1/foundations/${foundationId}`, {
-        table: {
+        foundation: {
           name: editingName
         }
       })
@@ -196,7 +196,7 @@ export default function TablesTab() {
     try {
       setSaving(true)
       await api.patch(`/api/v1/foundations/${foundationId}`, {
-        table: {
+        foundation: {
           feature: newFeature || null
         }
       })
@@ -277,7 +277,7 @@ export default function TablesTab() {
     try {
       setSaving(true)
       await api.patch(`/api/v1/foundations/${foundationId}`, {
-        table: {
+        foundation: {
           has_ui: hasUi
         }
       })
