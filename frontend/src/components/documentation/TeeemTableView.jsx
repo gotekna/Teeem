@@ -6846,8 +6846,8 @@ export default function TeeemTableView({
                                   {column.label}
                                 </span>
                               </label>
-                              {/* Show Filter toggle - only for visible columns with filterable type */}
-                              {isVisible && showFilters && column.filterable !== false && (
+                              {/* Show Filter toggle - for all visible columns except select/actions */}
+                              {isVisible && showFilters && column.key !== 'select' && column.key !== 'actions' && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
@@ -7393,7 +7393,7 @@ export default function TeeemTableView({
                       <div className={`flex flex-col h-full gap-2 overflow-hidden ${
                         showFilters && (columnShowFilters[colKey] ?? true) && column.filterType ? 'justify-between' : 'justify-start'
                       }`}>
-                        <div className="flex items-start gap-1 min-w-0">
+                        <div className="flex items-center gap-1 min-w-0">
                           {/* Only show drag handle in edit mode */}
                           {editIndividualMode && column.resizable && (
                             <div
@@ -7421,6 +7421,26 @@ export default function TeeemTableView({
                           <span className="truncate" title={column.label}>{column.label}</span>
                           {isSystemGenerated && <span className="ml-1 text-sm">🔒</span>}
                           {column.sortable && <SortIcon column={colKey} />}
+                          {/* Filter toggle - click to show/hide this column's filter */}
+                          {showFilters && colKey !== 'select' && colKey !== 'actions' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setColumnShowFilters(prev => ({
+                                  ...prev,
+                                  [colKey]: !(prev[colKey] ?? true)
+                                }))
+                              }}
+                              className={`ml-1 p-0.5 rounded flex-shrink-0 transition-all ${
+                                columnShowFilters[colKey] ?? true
+                                  ? 'bg-white/20 text-white hover:bg-white/30'
+                                  : 'bg-white/10 text-white/40 hover:bg-white/20 hover:text-white/60'
+                              }`}
+                              title={columnShowFilters[colKey] ?? true ? 'Hide filter' : 'Show filter'}
+                            >
+                              <FunnelIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
                           {/* Schema Editor Cog Icon - only show in Edit Individual mode */}
                           {editIndividualMode && enableSchemaEditor && colKey !== 'select' && (
                             // Only show cog if column has a database ID (numeric) - system columns like 'id' primary key have no column record
