@@ -125,6 +125,16 @@ Rails.application.routes.draw do
         # Meetings (nested under jobs)
         resources :meetings, only: [:index, :create]
 
+        # Job claims (nested under jobs)
+        resources :job_claims, only: [:index, :create]
+      end
+
+      # Job claims (non-nested routes)
+      resources :job_claims, only: [:show, :update, :destroy] do
+        collection do
+          post :bulk_delete
+          post :bulk_create
+        end
       end
 
       # Schedule tasks (non-nested routes)
@@ -229,7 +239,11 @@ Rails.application.routes.draw do
       end
 
       # Gold Standard Table (Demo/Reference Price Book)
-      resources :gold_standard_table, only: [:index, :create, :update, :destroy]
+      resources :gold_standard_table, only: [:index, :create, :update, :destroy] do
+        collection do
+          post :bulk_delete
+        end
+      end
 
       # Column Types - Single Source of Truth from Gold Standard Reference Table
       resources :column_types, only: [:index, :show, :update]
@@ -261,6 +275,7 @@ Rails.application.routes.draw do
       resources :contacts do
         collection do
           patch :bulk_update
+          post :bulk_delete
           post :merge
           post :match_supplier
           get :validate_abn
@@ -309,7 +324,11 @@ Rails.application.routes.draw do
       end
 
       # Users management
-      resources :users, only: [:index, :show, :update, :destroy]
+      resources :users, only: [:index, :show, :update, :destroy] do
+        collection do
+          post :bulk_delete
+        end
+      end
 
       # Workflow management
       resources :workflow_definitions
@@ -465,6 +484,7 @@ Rails.application.routes.draw do
         # Template rows (nested under schedule_templates)
         resources :rows, controller: 'schedule_template_rows', except: [:index, :show] do
           collection do
+            post :bulk_delete
             post :bulk_update
             post :reorder
           end
@@ -787,6 +807,7 @@ Rails.application.routes.draw do
           get :search_contacts
           post :import_tracking_categories
           post :import_all_bills
+          post :import_all_claims
           post :full_import
         end
         member do
@@ -853,7 +874,12 @@ Rails.application.routes.draw do
         end
 
         # Record management for dynamic foundations
-        resources :records
+        resources :records do
+          collection do
+            post :bulk_delete
+            post :bulk_create
+          end
+        end
       end
 
       # Foundation views (user-specific saved views)

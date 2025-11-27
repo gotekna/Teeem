@@ -348,6 +348,44 @@ module Api
         }, status: :internal_server_error
       end
 
+      # POST /api/v1/contacts/bulk_delete
+      def bulk_delete
+        ids = params[:ids]
+        return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+
+        ids = ids.first(1000) if ids.is_a?(Array)
+        contacts = Contact.where(id: ids)
+
+        deleted_count = 0
+        errors = []
+
+        contacts.each do |contact|
+          # Check for linked suppliers with POs
+          if contact.suppliers.any?
+            suppliers_with_pos = contact.suppliers.joins(:purchase_orders).distinct
+            if suppliers_with_pos.any?
+              errors << { id: contact.id, name: contact.full_name, error: "Has purchase orders" }
+              next
+            end
+            errors << { id: contact.id, name: contact.full_name, error: "Has linked suppliers" }
+            next
+          end
+
+          contact.destroy
+          deleted_count += 1
+        end
+
+        render json: {
+          success: errors.empty?,
+          deleted_count: deleted_count,
+          requested_count: ids.size,
+          errors: errors.presence
+        }, status: errors.any? && deleted_count == 0 ? :unprocessable_entity : :ok
+      rescue => e
+        Rails.logger.error "Error bulk deleting contacts: #{e.class} - #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
       # PATCH /api/v1/contacts/bulk_update
       def bulk_update
         contact_ids = params[:contact_ids]

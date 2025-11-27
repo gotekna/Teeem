@@ -68,6 +68,24 @@ class Api::V1::UsersController < ApplicationController
     render json: { error: 'User not found' }, status: :not_found
   end
 
+  # POST /api/v1/users/bulk_delete
+  def bulk_delete
+    ids = params[:ids]
+    return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+
+    ids = ids.first(1000) if ids.is_a?(Array)
+    deleted_count = User.where(id: ids).destroy_all.count
+
+    render json: {
+      success: true,
+      deleted_count: deleted_count,
+      requested_count: ids.size
+    }
+  rescue => e
+    Rails.logger.error "Error bulk deleting users: #{e.class} - #{e.message}"
+    render json: { error: e.message }, status: :internal_server_error
+  end
+
   private
 
   def user_params

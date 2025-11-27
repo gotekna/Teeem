@@ -4,6 +4,7 @@ class Job < ApplicationRecord
 
   # Associations
   has_many :purchase_orders, dependent: :destroy
+  has_many :job_claims, dependent: :destroy
   has_many :schedule_tasks, dependent: :destroy
   has_one :project, dependent: :destroy
   has_one :one_drive_credential, dependent: :destroy

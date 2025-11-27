@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_27_062942) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_072214) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -958,6 +958,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_062942) do
     t.text "aussie_slang"
     t.index ["display_order"], name: "index_inspiring_quotes_on_display_order"
     t.index ["is_active"], name: "index_inspiring_quotes_on_is_active"
+  end
+
+  create_table "job_claims", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "invoice_number"
+    t.text "description"
+    t.decimal "amount", precision: 15, scale: 2
+    t.decimal "amount_paid", precision: 15, scale: 2, default: "0.0"
+    t.decimal "amount_due", precision: 15, scale: 2
+    t.string "status", default: "draft"
+    t.date "date"
+    t.date "due_date"
+    t.string "xero_invoice_id"
+    t.string "xero_contact_id"
+    t.string "contact_name"
+    t.bigint "contact_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_job_claims_on_contact_id"
+    t.index ["invoice_number"], name: "index_job_claims_on_invoice_number"
+    t.index ["job_id"], name: "index_job_claims_on_job_id"
+    t.index ["status"], name: "index_job_claims_on_status"
+    t.index ["xero_invoice_id"], name: "index_job_claims_on_xero_invoice_id", unique: true
   end
 
   create_table "job_contacts", force: :cascade do |t|
@@ -3122,6 +3145,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_062942) do
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
+  add_foreign_key "job_claims", "contacts"
+  add_foreign_key "job_claims", "jobs"
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"

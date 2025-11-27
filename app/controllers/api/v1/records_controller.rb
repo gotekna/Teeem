@@ -168,6 +168,81 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/foundations/:foundation_id/records/bulk_delete
+      # Batch delete multiple records in a single request
+      def bulk_delete
+        ids = params[:ids]
+        return render json: { success: false, error: 'No IDs provided' }, status: :bad_request if ids.blank?
+
+        # Cap at 1000 to prevent abuse
+        ids = ids.first(1000) if ids.is_a?(Array)
+
+        model = @foundation.dynamic_model
+        deleted_count = model.where(id: ids).delete_all
+
+        render json: {
+          success: true,
+          deleted_count: deleted_count,
+          requested_count: ids.size
+        }
+      rescue ActiveRecord::InvalidForeignKey => e
+        render json: { error: "Cannot delete: some records have dependent data. #{e.message}" }, status: :unprocessable_entity
+      rescue => e
+        Rails.logger.error "Error bulk deleting records: #{e.class} - #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/foundations/:foundation_id/records/bulk_create
+      # Batch create multiple records in a single request (for imports)
+      def bulk_create
+        records_data = params[:records]
+        return render json: { success: false, error: 'No records provided' }, status: :bad_request if records_data.blank?
+
+        # Cap at 1000 per batch to prevent timeout
+        records_data = records_data.first(1000) if records_data.is_a?(Array)
+
+        model = @foundation.dynamic_model
+        column_names = @foundation.columns.pluck(:column_name)
+
+        created_records = []
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          records_data.each_with_index do |record_data, index|
+            # Permit only valid columns
+            permitted = record_data.permit(*column_names).to_h
+            permitted = apply_default_values(model, permitted)
+
+            record = model.new(permitted)
+            if record.save
+              created_records << record
+            else
+              errors << { index: index, errors: record.errors.full_messages }
+            end
+          end
+
+          # Rollback if any errors (atomic operation)
+          raise ActiveRecord::Rollback if errors.any?
+        end
+
+        if errors.any?
+          render json: {
+            success: false,
+            created_count: 0,
+            errors: errors
+          }, status: :unprocessable_entity
+        else
+          render json: {
+            success: true,
+            created_count: created_records.size,
+            records: created_records.map { |r| record_to_json(r) }
+          }, status: :created
+        end
+      rescue => e
+        Rails.logger.error "Error bulk creating records: #{e.class} - #{e.message}"
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
       private
 
       def set_foundation
