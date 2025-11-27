@@ -5742,7 +5742,7 @@ export default function TeeemTableView({
 
                                             {filterColumnDropdownOpen === filter.id && (
                                               <div
-                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto"
+                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[40vh] overflow-y-auto whitespace-nowrap"
                                                 style={{
                                                   // Use fixed positioning to escape overflow containers
                                                   ...((() => {
@@ -5752,7 +5752,7 @@ export default function TeeemTableView({
                                                       return {
                                                         top: rect.bottom + 4,
                                                         left: rect.left,
-                                                        width: rect.width,
+                                                        minWidth: rect.width,
                                                         maxHeight: `min(40vh, ${window.innerHeight - rect.bottom - 20}px)`
                                                       }
                                                     }
