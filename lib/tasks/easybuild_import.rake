@@ -1,4 +1,29 @@
 namespace :easybuild do
+  desc "Export all contacts CSV to stdout (for download)"
+  task export_contacts_csv: :environment do
+    require 'csv'
+    contacts = Contact.order(:full_name)
+
+    csv_string = CSV.generate do |csv|
+      csv << ['TEEEM ID', 'Full Name', 'Email', 'Mobile Phone', 'Has Xero ID', 'Source', 'Entity Type', 'Contact Types', 'Company Name']
+      contacts.each do |c|
+        source = c.xero_id.present? ? 'Xero' : (c.sync_with_xero == false ? 'EasyBuild' : 'TEEEM')
+        csv << [
+          c.id,
+          c.full_name,
+          c.email,
+          c.mobile_phone,
+          c.xero_id.present? ? 'Yes' : 'No',
+          source,
+          c.entity_type,
+          c.contact_types&.join('; '),
+          c.company_name_or_trust
+        ]
+      end
+    end
+    puts csv_string
+  end
+
   desc "Export all contacts with source info"
   task export_contacts: :environment do
     require 'csv'
