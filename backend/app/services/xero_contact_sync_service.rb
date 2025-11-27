@@ -581,8 +581,8 @@ class XeroContactSyncService
   # Xero ContactPersons structure:
   # [{"FirstName": "Michael", "LastName": "Lyell", "EmailAddress": "michael@example.com", "IncludeInEmails": true}]
   #
-  # NEW BEHAVIOR: Primary contact persons (index 0) are created as separate Contact records
-  # linked to the company via primary_company_id. This allows the person to be a separate
+  # BEHAVIOR: ALL contact persons are created as separate Contact records
+  # linked to the company via primary_company_id. This allows each person to be a separate
   # searchable contact with their own details, while being associated with their company.
   def sync_contact_persons(teeem_contact, xero_contact)
     xero_persons = xero_contact['ContactPersons'] || []
@@ -599,9 +599,10 @@ class XeroContactSyncService
       email = xero_person['EmailAddress']
       include_in_emails = xero_person['IncludeInEmails'] != false # Default to true
 
-      # For primary contact (index 0), create as separate Contact record linked to company
-      if index == 0 && first_name.present?
-        create_or_update_primary_contact_as_person(teeem_contact, xero_person)
+      # Create ALL contact persons as separate Contact records linked to company
+      if first_name.present?
+        is_primary = (index == 0)
+        create_or_update_contact_person_as_contact(teeem_contact, xero_person, is_primary)
       end
 
       # Also maintain the legacy ContactPerson record for backwards compatibility
@@ -639,9 +640,9 @@ class XeroContactSyncService
     # Don't raise - contact person sync failure shouldn't fail the whole contact sync
   end
 
-  # Create primary contact person as a separate Contact record linked to the company
+  # Create contact person as a separate Contact record linked to the company
   # This allows searching/viewing the person independently while maintaining the company relationship
-  def create_or_update_primary_contact_as_person(company_contact, xero_person)
+  def create_or_update_contact_person_as_contact(company_contact, xero_person, is_primary = false)
     first_name = xero_person['FirstName'].to_s.strip
     last_name = xero_person['LastName'].to_s.strip
     email = xero_person['EmailAddress'].to_s.strip.downcase
@@ -694,8 +695,10 @@ class XeroContactSyncService
       @stats[:created_in_teeem] += 1
     end
 
-    # Link company back to this person as their director/primary contact
-    company_contact.update!(director_id: person_contact.id) if company_contact.director_id != person_contact.id
+    # Link company back to this person as their director/primary contact (only for primary person)
+    if is_primary && company_contact.director_id != person_contact.id
+      company_contact.update!(director_id: person_contact.id)
+    end
 
     person_contact
   rescue StandardError => e
