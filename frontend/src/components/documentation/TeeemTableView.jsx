@@ -516,6 +516,10 @@ export default function TeeemTableView({
   const [filterSectionCollapsed, setFilterSectionCollapsed] = useState(false) // Collapse View Filter section
   const [sortSectionCollapsed, setSortSectionCollapsed] = useState(false) // Collapse Sort By section
   const [groupSectionCollapsed, setGroupSectionCollapsed] = useState(false) // Collapse Group By section
+  const [visibleColumnsSectionCollapsed, setVisibleColumnsSectionCollapsed] = useState(false) // Collapse Visible Columns section
+  const [hiddenColumnsSectionCollapsed, setHiddenColumnsSectionCollapsed] = useState(false) // Collapse Hidden Columns section
+  const [filtersPanelCollapsed, setFiltersPanelCollapsed] = useState(false) // Collapse entire Filters panel (Column 2)
+  const [columnsPanelCollapsed, setColumnsPanelCollapsed] = useState(false) // Collapse entire Columns panel (Column 3)
 
   // Saved custom filters - load from localStorage on mount (per table)
   const [savedFilters, setSavedFilters] = useState([])
@@ -5685,8 +5689,20 @@ export default function TeeemTableView({
                   </div>
 
                   {/* Main content: 3 columns - Saved Views | Filter Builder | Column Visibility */}
-                  {/* Columns panel gets more space since it often has many items */}
-                  <div className={`grid ${cascadeFullscreen ? 'grid-cols-[220px,minmax(260px,1fr),minmax(550px,3fr)]' : 'grid-cols-[220px,minmax(240px,1fr),minmax(480px,2.5fr)]'} gap-4 flex-1 min-h-0 overflow-hidden cascade-popup-scroll`}>
+                  {/* Panels can be collapsed to give more room to each other */}
+                  <div className={`grid gap-4 flex-1 min-h-0 overflow-hidden cascade-popup-scroll`}
+                    style={{
+                      gridTemplateColumns: filtersPanelCollapsed && columnsPanelCollapsed
+                        ? '220px 40px 40px'
+                        : filtersPanelCollapsed
+                        ? '220px 40px 1fr'
+                        : columnsPanelCollapsed
+                        ? '220px 1fr 40px'
+                        : cascadeFullscreen
+                        ? '220px minmax(260px,1fr) minmax(550px,3fr)'
+                        : '220px minmax(240px,1fr) minmax(480px,2.5fr)'
+                    }}
+                  >
                     {/* COLUMN 1: Saved Views Section (moved to left) */}
                     <div className="border-r border-gray-200 dark:border-gray-700 pr-4 h-full overflow-hidden flex flex-col">
                       <div className="flex-1 min-h-0">
@@ -5724,7 +5740,29 @@ export default function TeeemTableView({
                     </div>
 
                     {/* COLUMN 2: Filter Builder, Sort By, Group By */}
-                    <div className="flex flex-col h-full min-h-0 overflow-y-auto pr-2 relative">
+                    <div className={`flex flex-col h-full min-h-0 relative ${filtersPanelCollapsed ? 'items-center justify-start pt-2' : 'overflow-y-auto pr-2'}`}>
+                      {/* Collapse/Expand button for entire panel */}
+                      {filtersPanelCollapsed ? (
+                        <button
+                          onClick={() => setFiltersPanelCollapsed(false)}
+                          className="flex flex-col items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors"
+                          title="Expand Filters panel"
+                        >
+                          <span className="text-lg">◀</span>
+                          <span className="text-[10px] font-medium [writing-mode:vertical-lr] rotate-180">Filters</span>
+                        </button>
+                      ) : (
+                      <>
+                      {/* Collapse button at top */}
+                      <div className="flex justify-end mb-1">
+                        <button
+                          onClick={() => setFiltersPanelCollapsed(true)}
+                          className="text-[10px] text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1"
+                          title="Collapse Filters panel"
+                        >
+                          <span>▶</span>
+                        </button>
+                      </div>
                       {/* Disabled overlay */}
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -6719,10 +6757,37 @@ export default function TeeemTableView({
                           </p>
                         </div>
                       </div>
+                      </>
+                      )}
                     </div>
 
                     {/* COLUMN 3: Column Visibility - Combined with Default */}
-                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 relative flex flex-col overflow-y-auto">
+                    <div className={`border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 relative flex flex-col ${columnsPanelCollapsed ? 'items-center justify-start pt-2' : 'overflow-y-auto'}`}>
+                      {/* Collapse/Expand button for entire panel */}
+                      {columnsPanelCollapsed ? (
+                        <button
+                          onClick={() => setColumnsPanelCollapsed(false)}
+                          className="flex flex-col items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors"
+                          title="Expand Columns panel"
+                        >
+                          <span className="text-lg">◀</span>
+                          <span className="text-[10px] font-medium [writing-mode:vertical-lr] rotate-180">Columns</span>
+                        </button>
+                      ) : (
+                      <>
+                      {/* Collapse button at top */}
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                          Columns:
+                        </label>
+                        <button
+                          onClick={() => setColumnsPanelCollapsed(true)}
+                          className="text-[10px] text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1"
+                          title="Collapse Columns panel"
+                        >
+                          <span>▶</span>
+                        </button>
+                      </div>
                       {/* Disabled overlay */}
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -6733,12 +6798,6 @@ export default function TeeemTableView({
                           </div>
                         </div>
                       )}
-                      {/* Header */}
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                          Columns:
-                        </label>
-                      </div>
                       {/* Column search input */}
                       <div className="relative mb-2">
                         <input
@@ -6760,8 +6819,8 @@ export default function TeeemTableView({
                           </button>
                         )}
                       </div>
-                      {/* Visible and Hidden columns - stacked vertically with scroll */}
-                      <div className="flex flex-col gap-3 flex-1 overflow-y-auto">
+                      {/* Visible columns on top, Hidden below - drag between them */}
+                      <div className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
                         {(() => {
                           // Filter columns by search query
                           const searchLower = columnSearchQuery.toLowerCase().trim()
@@ -6788,6 +6847,10 @@ export default function TeeemTableView({
                           const hiddenCols = filteredCols
                             .filter(col => visibleColumns[col.key] === false)
                             .sort((a, b) => a.label.localeCompare(b.label))
+
+                          // Calculate grid columns based on total columns (same for both sections)
+                          const totalCols = filteredCols.length
+                          const gridColumns = totalCols > 40 ? 'repeat(3, 1fr)' : totalCols > 20 ? 'repeat(2, 1fr)' : '1fr'
 
                           const renderColumnItem = (column, index, isVisible) => (
                             <div
@@ -6918,11 +6981,12 @@ export default function TeeemTableView({
                                   } focus:ring-offset-0`}
                                 />
                                 <span
-                                  className={`font-medium ${
+                                  className={`font-medium truncate ${
                                     isVisible
                                       ? 'text-green-800 dark:text-green-200'
                                       : 'text-gray-600 dark:text-gray-400'
                                   }`}
+                                  title={column.label}
                                 >
                                   {column.label}
                                 </span>
@@ -6982,20 +7046,27 @@ export default function TeeemTableView({
 
                           return (
                             <>
-                              {/* Visible Columns */}
-                              <div>
-                                <div className="text-[10px] font-semibold text-green-700 dark:text-green-400 mb-1 px-1 flex items-center justify-between">
+                              {/* Visible Columns - top section - Collapsible */}
+                              <div className="flex flex-col">
+                                <button
+                                  onClick={() => setVisibleColumnsSectionCollapsed(!visibleColumnsSectionCollapsed)}
+                                  className="w-full flex items-center justify-between text-[10px] font-semibold text-green-700 dark:text-green-400 mb-1 px-1 hover:text-green-800 dark:hover:text-green-300 transition-colors"
+                                >
                                   <div className="flex items-center gap-1">
                                     <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                                     Visible ({visibleCols.length})
                                   </div>
-                                  <button
-                                    onClick={handleHideAll}
-                                    className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
-                                  >
-                                    Deselect All
-                                  </button>
-                                </div>
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      onClick={(e) => { e.stopPropagation(); handleHideAll(); }}
+                                      className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                      Deselect All
+                                    </span>
+                                    <span className={`transform transition-transform ${visibleColumnsSectionCollapsed ? '' : 'rotate-180'}`}>▼</span>
+                                  </div>
+                                </button>
+                                {!visibleColumnsSectionCollapsed && (
                                 <div
                                   className={`border rounded p-1 transition-colors ${
                                     draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] === false
@@ -7010,7 +7081,10 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to show' : 'No visible columns'}
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col gap-0.5">
+                                    <div
+                                      className="grid gap-1"
+                                      style={{ gridTemplateColumns: gridColumns }}
+                                    >
                                       {visibleCols.map((col, idx) => (
                                         <div key={col.key}>
                                           {renderColumnItem(col, idx, true)}
@@ -7019,22 +7093,30 @@ export default function TeeemTableView({
                                     </div>
                                   )}
                                 </div>
+                                )}
                               </div>
 
-                              {/* Hidden Columns */}
-                              <div>
-                                <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1 px-1 flex items-center justify-between">
+                              {/* Hidden Columns - bottom section - Collapsible */}
+                              <div className="flex flex-col">
+                                <button
+                                  onClick={() => setHiddenColumnsSectionCollapsed(!hiddenColumnsSectionCollapsed)}
+                                  className="w-full flex items-center justify-between text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1 px-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                                >
                                   <div className="flex items-center gap-1">
                                     <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
                                     Hidden ({hiddenCols.length})
                                   </div>
-                                  <button
-                                    onClick={handleSelectAll}
-                                    className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
-                                  >
-                                    Select All
-                                  </button>
-                                </div>
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      onClick={(e) => { e.stopPropagation(); handleSelectAll(); }}
+                                      className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
+                                    >
+                                      Select All
+                                    </span>
+                                    <span className={`transform transition-transform ${hiddenColumnsSectionCollapsed ? '' : 'rotate-180'}`}>▼</span>
+                                  </div>
+                                </button>
+                                {!hiddenColumnsSectionCollapsed && (
                                 <div
                                   className={`border rounded p-1 transition-colors ${
                                     draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] !== false
@@ -7049,7 +7131,10 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to hide' : 'No hidden columns'}
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col gap-0.5">
+                                    <div
+                                      className="grid gap-1"
+                                      style={{ gridTemplateColumns: gridColumns }}
+                                    >
                                       {hiddenCols.map((col, idx) => (
                                         <div key={col.key}>
                                           {renderColumnItem(col, idx, false)}
@@ -7058,6 +7143,7 @@ export default function TeeemTableView({
                                     </div>
                                   )}
                                 </div>
+                                )}
                               </div>
                             </>
                           )

@@ -292,7 +292,10 @@ export default function ContactDetailPage() {
       // By default, select all categories
       setSelectedCategories(response.categories?.map(c => c.category) || [])
     } catch (err) {
-      console.error('Failed to load categories:', err)
+      // Silently ignore 422 errors (contact is not a supplier)
+      if (err.response?.status !== 422) {
+        console.error('Failed to load categories:', err)
+      }
       setSourceCategories([])
       setSelectedCategories([])
     } finally {
@@ -344,7 +347,7 @@ export default function ContactDetailPage() {
       setCurrentContactCategories(response.categories || [])
     } catch (err) {
       // Silently ignore 422 errors (contact is not a supplier)
-      if (err.status !== 422) {
+      if (err.response?.status !== 422) {
         console.error('Failed to load current contact categories:', err)
       }
       setCurrentContactCategories([])

@@ -18,7 +18,31 @@ git branch --show-current
 git status --short
 ```
 
-### Step 2 - Ask User Which Files
+### Step 2 - Check Root/Backend Sync (CRITICAL)
+
+**Heroku deploys from ROOT, not backend/. Check for drift:**
+```bash
+# Check if shared folders are in sync
+diff -rq app/models/ backend/app/models/ 2>/dev/null | grep -v "Only in" | head -10
+diff -rq app/controllers/ backend/app/controllers/ 2>/dev/null | grep -v "Only in" | head -10
+diff -rq app/services/ backend/app/services/ 2>/dev/null | grep -v "Only in" | head -10
+```
+
+If ANY files differ, **STOP and warn:**
+```
+⚠️ WARNING: Root and backend folders are OUT OF SYNC!
+Files that differ:
+[list differing files]
+
+Heroku deploys from ROOT (app/), not backend/app/.
+If you edited backend/ but not root/, your changes WON'T deploy!
+
+Fix: Copy changes from backend/ to root/ (or vice versa) before deploying.
+```
+
+**Ask user:** "Should I sync these files before deploying? (copy backend → root)"
+
+### Step 3 - Ask User Which Files
 
 **Use AskUserQuestion:**
 - Show the list of changed files from git status
@@ -28,7 +52,7 @@ git status --short
   - "All of these" (if user confirms all shown are from this chat)
   - "Let me specify" (user types file paths)
 
-### Step 3 - Stage Only Specified Files
+### Step 4 - Stage Only Specified Files
 ```bash
 git add [user-specified-files]
 git commit -m "[auto-generated message based on files]
@@ -38,20 +62,20 @@ git commit -m "[auto-generated message based on files]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push (GitHub Actions handles deployment)
+### Step 5 - Push (GitHub Actions handles deployment)
 ```bash
 git pull origin rob --rebase
 git push origin rob
 ```
 
-### Step 5 - Monitor Deployment
+### Step 6 - Monitor Deployment
 ```bash
 # Wait for GitHub Actions to start
 sleep 5
 gh run list --limit 3
 ```
 
-### Step 6 - Report Status
+### Step 7 - Report Status
 - ✅ Branch: rob
 - ✅ Committed: [list of files]
 - ✅ NOT committed: [remaining uncommitted files]

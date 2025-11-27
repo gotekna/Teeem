@@ -15,7 +15,31 @@ git status --short
 cd backend && bin/rails db:migrate:status
 ```
 
-### Step 2 - Verify No Main Merge (ONLY check if recent merge from main)
+### Step 2 - Check Root/Backend Sync (CRITICAL)
+
+**Heroku deploys from ROOT, not backend/. Check for drift:**
+```bash
+# Check if shared folders are in sync
+diff -rq app/models/ backend/app/models/ 2>/dev/null | grep -v "Only in" | head -10
+diff -rq app/controllers/ backend/app/controllers/ 2>/dev/null | grep -v "Only in" | head -10
+diff -rq app/services/ backend/app/services/ 2>/dev/null | grep -v "Only in" | head -10
+```
+
+If ANY files differ, **STOP and warn:**
+```
+⚠️ WARNING: Root and backend folders are OUT OF SYNC!
+Files that differ:
+[list differing files]
+
+Heroku deploys from ROOT (app/), not backend/app/.
+If you edited backend/ but not root/, your changes WON'T deploy!
+
+Fix: Copy changes from backend/ to root/ (or vice versa) before deploying.
+```
+
+**Ask user:** "Should I sync these files before deploying? (copy backend → root)"
+
+### Step 3 - Verify No Main Merge (ONLY check if recent merge from main)
 
 **ONLY block if someone just merged main into rob:**
 ```bash
@@ -32,7 +56,7 @@ Proper flow: rob → main (via PR), NEVER main → rob
 
 **Otherwise, proceed with deployment** (ignore if main and rob have different commits - that's normal)
 
-### Step 3 - Auto-Generate Commit Message and Commit
+### Step 4 - Auto-Generate Commit Message and Commit
 
 **Analyze git status and auto-generate message:**
 
@@ -55,20 +79,20 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to Rob (GitHub Actions handles deployment)
+### Step 5 - Push to Rob (GitHub Actions handles deployment)
 ```bash
 git pull origin rob --rebase
 git push origin rob
 ```
 
-### Step 5 - Monitor GitHub Actions Deployment
+### Step 6 - Monitor GitHub Actions Deployment
 ```bash
 # Wait for workflows to start
 sleep 5
 gh run list --limit 3
 ```
 
-### Step 6 - Wait and Verify Deployment (RUN IN PARALLEL after ~60s)
+### Step 7 - Wait and Verify Deployment (RUN IN PARALLEL after ~60s)
 ```bash
 # Check GitHub Actions status
 gh run list --limit 2
@@ -80,7 +104,7 @@ curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
 ```
 
-### Step 7 - Report Status
+### Step 8 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
 - ✅ GitHub Actions: [status - in_progress/success/failure]
