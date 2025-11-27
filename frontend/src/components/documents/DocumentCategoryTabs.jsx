@@ -14,15 +14,18 @@ function isPhotoCategory(categoryName) {
   return PHOTO_CATEGORIES.includes(categoryName?.toLowerCase())
 }
 
-// Get folder names to fetch based on category
+// Map tab names to actual SharePoint folder names
+// Tab names come from documentation_categories (Photo, Client Photo)
+// SharePoint folders are: 07 Photos, 07 Supervisor Photos
 function getFolderNamesForCategory(categoryName) {
   const name = categoryName?.toLowerCase()
   if (name === 'photo' || name === 'photos') {
-    // Photo tab shows both Photo and Client Photo folders
-    return ['Photo', 'Client Photo']
+    // Photo tab shows the main Photos folder and Supervisor Photos
+    return ['07 Photos', '07 Supervisor Photos']
   }
   if (name === 'client photo' || name === 'client photos') {
-    return ['Client Photo']
+    // Client Photo tab - use 07 Photos for now (client photos would be stored there)
+    return ['07 Photos']
   }
   return [categoryName]
 }
