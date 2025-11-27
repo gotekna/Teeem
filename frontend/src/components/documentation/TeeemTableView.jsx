@@ -6506,10 +6506,10 @@ export default function TeeemTableView({
                                     Visible ({visibleCols.length})
                                   </div>
                                   <button
-                                    onClick={handleSelectAll}
+                                    onClick={handleHideAll}
                                     className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
                                   >
-                                    Select All
+                                    Deselect All
                                   </button>
                                 </div>
                                 <div
@@ -6541,10 +6541,10 @@ export default function TeeemTableView({
                                     Hidden ({hiddenCols.length})
                                   </div>
                                   <button
-                                    onClick={handleHideAll}
+                                    onClick={handleSelectAll}
                                     className="text-[9px] text-blue-600 dark:text-blue-400 hover:underline"
                                   >
-                                    Hide All
+                                    Select All
                                   </button>
                                 </div>
                                 <div
