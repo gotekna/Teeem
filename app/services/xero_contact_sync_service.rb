@@ -223,6 +223,12 @@ class XeroContactSyncService
       xero_sync_error: nil
     }
 
+    # Extract contact types from Xero IsCustomer/IsSupplier flags
+    contact_types = []
+    contact_types << 'customer' if xero_contact['IsCustomer'] == true
+    contact_types << 'supplier' if xero_contact['IsSupplier'] == true
+    updates[:contact_types] = contact_types if contact_types.any?
+
     # Update fields if Xero has data and TEEEM doesn't, or if explicitly syncing
     updates[:full_name] = xero_contact['Name'] if xero_contact['Name'].present?
     updates[:first_name] = xero_contact['FirstName'] if xero_contact['FirstName'].present?
@@ -310,6 +316,11 @@ class XeroContactSyncService
   def create_teeem_contact_from_xero(xero_contact)
     Rails.logger.info("Creating TEEEM contact from Xero: #{xero_contact['Name']}")
 
+    # Extract contact types from Xero IsCustomer/IsSupplier flags
+    contact_types = []
+    contact_types << 'customer' if xero_contact['IsCustomer'] == true
+    contact_types << 'supplier' if xero_contact['IsSupplier'] == true
+
     contact_data = {
       xero_id: xero_contact['ContactID'],
       full_name: xero_contact['Name'],
@@ -317,6 +328,7 @@ class XeroContactSyncService
       last_name: xero_contact['LastName'],
       tax_number: normalize_tax_number(xero_contact['TaxNumber']),
       email: extract_xero_email(xero_contact),
+      contact_types: contact_types.any? ? contact_types : nil,
       sync_with_xero: true,
       last_synced_at: @sync_timestamp
     }
