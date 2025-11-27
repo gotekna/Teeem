@@ -47,7 +47,7 @@ export default function Login() {
                 alt="TEEEM"
                 className="hidden h-10 w-auto dark:block"
               />
-              <span className="text-2xl font-bold text-gray-900 dark:text-white">TEEEM</span>
+              <span className="text-2xl font-extrabold text-gray-900 dark:text-white">TEEEM</span>
             </div>
             <h2 className="mt-8 text-2xl/9 font-bold tracking-tight text-gray-900 dark:text-white">
               Sign in to your account
