@@ -62,6 +62,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [selectedLinkId, setSelectedLinkId] = useState(null)
   const [loadingLinks, setLoadingLinks] = useState(true)
 
+  // Xero contact data (fetched from Xero API)
+  const [xeroContactData, setXeroContactData] = useState(null)
+  const [loadingXeroContact, setLoadingXeroContact] = useState(false)
+
   // Define the field mappings between Xero and TEEEM
   const fieldMappings = [
     {
@@ -146,6 +150,13 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       loadTransactions()
     }
   }, [contact?.id, selectedLinkId])
+
+  // Load Xero contact data when links change
+  useEffect(() => {
+    if (contact?.id && (xeroLinks.length > 0 || contact?.xero_id)) {
+      loadXeroContactData()
+    }
+  }, [contact?.id, selectedLinkId, xeroLinks.length])
 
   const loadXeroLinks = async () => {
     setLoadingLinks(true)
@@ -247,6 +258,74 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     } finally {
       setLoadingTransactions(false)
     }
+  }
+
+  // Fetch raw Xero contact data to show what Xero has
+  const loadXeroContactData = async () => {
+    const selectedLink = xeroLinks.find(l => l.id === selectedLinkId)
+    const xeroContactId = selectedLink?.xero_contact_id || contact?.xero_id
+    const xeroTenantId = selectedLink?.xero_tenant_id
+
+    if (!xeroContactId) {
+      setXeroContactData(null)
+      return
+    }
+
+    try {
+      setLoadingXeroContact(true)
+      const tenantParam = xeroTenantId ? `?tenant_id=${xeroTenantId}` : ''
+      const response = await api.get(`/api/v1/xero/contacts/${xeroContactId}${tenantParam}`)
+      if (response.success && response.data?.contact) {
+        setXeroContactData(response.data.contact)
+      }
+    } catch (error) {
+      console.log('Could not fetch Xero contact data:', error.message)
+      setXeroContactData(null)
+    } finally {
+      setLoadingXeroContact(false)
+    }
+  }
+
+  // Helper to get value from Xero contact data
+  const getXeroValue = (xeroFieldName) => {
+    if (!xeroContactData || loadingXeroContact) return loadingXeroContact ? '...' : '-'
+
+    // Map our xeroField names to actual Xero API field names
+    const fieldMap = {
+      'Name': xeroContactData.Name,
+      'FirstName': xeroContactData.FirstName,
+      'LastName': xeroContactData.LastName,
+      'EmailAddress': xeroContactData.EmailAddress,
+      'IsSupplier/IsCustomer': xeroContactData.IsSupplier ? 'Supplier' : (xeroContactData.IsCustomer ? 'Customer' : '-'),
+      'ContactID': xeroContactData.ContactID,
+      'PhoneNumber (Mobile)': xeroContactData.Phones?.find(p => p.PhoneType === 'MOBILE')?.PhoneNumber,
+      'PhoneNumber (Office)': xeroContactData.Phones?.find(p => p.PhoneType === 'DEFAULT')?.PhoneNumber,
+      'PhoneNumber (Fax)': xeroContactData.Phones?.find(p => p.PhoneType === 'FAX')?.PhoneNumber,
+      'Website': xeroContactData.Website,
+      'TaxNumber': xeroContactData.TaxNumber,
+      'AccountNumber': xeroContactData.AccountNumber,
+      'ContactNumber': xeroContactData.ContactNumber,
+      'ContactStatus': xeroContactData.ContactStatus,
+      'CompanyNumber': xeroContactData.CompanyNumber,
+      'DefaultPurchaseAccount': xeroContactData.PurchasesDefaultAccountCode,
+      'PurchaseTerms (Days)': xeroContactData.PaymentTerms?.Bills?.Day,
+      'PurchaseTerms (Type)': xeroContactData.PaymentTerms?.Bills?.Type,
+      'AccountsPayable Outstanding': xeroContactData.Balances?.AccountsPayable?.Outstanding,
+      'AccountsPayable Overdue': xeroContactData.Balances?.AccountsPayable?.Overdue,
+      'DefaultSalesAccount': xeroContactData.SalesDefaultAccountCode,
+      'DefaultDiscount': xeroContactData.Discount,
+      'SalesTerms (Days)': xeroContactData.PaymentTerms?.Sales?.Day,
+      'SalesTerms (Type)': xeroContactData.PaymentTerms?.Sales?.Type,
+      'AccountsReceivable Outstanding': xeroContactData.Balances?.AccountsReceivable?.Outstanding,
+      'AccountsReceivable Overdue': xeroContactData.Balances?.AccountsReceivable?.Overdue,
+      'BankAccountBSB': xeroContactData.BankAccountDetails?.split(' ')[0],
+      'BankAccountNumber': xeroContactData.BankAccountDetails?.split(' ').slice(1).join(' '),
+      'BankAccountName': null, // Xero doesn't store this separately
+    }
+
+    const value = fieldMap[xeroFieldName]
+    if (value === undefined || value === null || value === '') return '-'
+    return value
   }
 
   const formatValue = (field) => {
@@ -957,7 +1036,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                     TEEEM Field
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Current Value
+                    TEEEM Value
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/20">
+                    Xero Value
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Status
@@ -965,27 +1047,38 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {section.fields.map((field, fieldIdx) => (
-                  <tr key={fieldIdx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {field.xeroField}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
-                      {field.teeemField}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                      {formatValue(field)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(field.syncStatus)}
-                        <span className="text-gray-700 dark:text-gray-300">
-                          {getStatusLabel(field.syncStatus)}
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {section.fields.map((field, fieldIdx) => {
+                  const xeroValue = getXeroValue(field.xeroField)
+                  const teeemValue = formatValue(field)
+                  const valuesMatch = xeroValue === teeemValue || (xeroValue === '-' && teeemValue === '-')
+                  const hasMismatch = xeroValue !== '-' && teeemValue !== '-' && xeroValue !== teeemValue
+
+                  return (
+                    <tr key={fieldIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                        {field.xeroField}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
+                        {field.teeemField}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                        {teeemValue}
+                      </td>
+                      <td className={`px-6 py-4 text-sm bg-blue-50 dark:bg-blue-900/20 ${hasMismatch ? 'text-yellow-700 dark:text-yellow-300 font-medium' : 'text-blue-700 dark:text-blue-300'}`}>
+                        {xeroValue}
+                        {hasMismatch && <span className="ml-2 text-yellow-500">⚠</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(field.syncStatus)}
+                          <span className="text-gray-700 dark:text-gray-300">
+                            {getStatusLabel(field.syncStatus)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
