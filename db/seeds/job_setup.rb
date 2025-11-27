@@ -1,22 +1,24 @@
-# Seed Job Types
+# Seed Job Types with icons
+# Icons use Heroicons names (outline style)
 job_types = [
-  'House',
-  'Duplex',
-  'Townhouse',
-  'Micro Apartment',
-  'Co Living',
-  'NDIS House',
-  'NDIS Units',
-  'Kitchen',
-  'House Renovation',
-  'Unit Renovation'
+  { name: 'House', icon: 'HomeIcon' },
+  { name: 'Duplex', icon: 'BuildingOfficeIcon' },
+  { name: 'Townhouse', icon: 'BuildingOfficeIcon' },
+  { name: 'Micro Apartment', icon: 'BuildingOfficeIcon' },
+  { name: 'Co Living', icon: 'UserGroupIcon' },
+  { name: 'NDIS House', icon: 'HomeIcon' },
+  { name: 'NDIS Units', icon: 'BuildingOfficeIcon' },
+  { name: 'Kitchen', icon: 'HomeModernIcon' },
+  { name: 'House Renovation', icon: 'WrenchIcon' },
+  { name: 'Unit Renovation', icon: 'WrenchIcon' }
 ]
 
-job_types.each_with_index do |name, index|
-  JobType.find_or_create_by!(name: name) do |jt|
-    jt.position = index
-    jt.is_active = true
-  end
+job_types.each_with_index do |type_data, index|
+  jt = JobType.find_or_initialize_by(name: type_data[:name])
+  jt.position = index
+  jt.is_active = true
+  jt.icon = type_data[:icon]
+  jt.save!
 end
 puts "Created #{JobType.count} job types"
 

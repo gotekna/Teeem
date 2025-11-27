@@ -37,7 +37,7 @@ module Api
         # Include job_type and job_status in response
         jobs_with_associations = @jobs.map do |job|
           job.as_json.merge(
-            job_type: job.job_type&.as_json(only: [:id, :name]),
+            job_type: job.job_type&.as_json(only: [:id, :name, :icon]),
             job_status: job.job_status&.as_json(only: [:id, :name, :color])
           )
         end
