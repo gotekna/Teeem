@@ -513,6 +513,9 @@ export default function TeeemTableView({
   })
   const [showCascadeDropdown, setShowCascadeDropdown] = useState(false)
   const [cascadeFullscreen, setCascadeFullscreen] = useState(false) // Fullscreen mode for cascade popup
+  const [filterSectionCollapsed, setFilterSectionCollapsed] = useState(false) // Collapse View Filter section
+  const [sortSectionCollapsed, setSortSectionCollapsed] = useState(false) // Collapse Sort By section
+  const [groupSectionCollapsed, setGroupSectionCollapsed] = useState(false) // Collapse Group By section
 
   // Saved custom filters - load from localStorage on mount (per table)
   const [savedFilters, setSavedFilters] = useState([])
@@ -5683,7 +5686,7 @@ export default function TeeemTableView({
 
                   {/* Main content: 3 columns - Saved Views | Filter Builder | Column Visibility */}
                   {/* Columns panel gets more space since it often has many items */}
-                  <div className={`grid ${cascadeFullscreen ? 'grid-cols-[260px,1fr,1.5fr]' : 'grid-cols-[260px,1fr,1.2fr]'} gap-4 flex-1 min-h-0 overflow-y-auto cascade-popup-scroll`}>
+                  <div className={`grid ${cascadeFullscreen ? 'grid-cols-[220px,minmax(260px,1fr),minmax(550px,3fr)]' : 'grid-cols-[220px,minmax(240px,1fr),minmax(480px,2.5fr)]'} gap-4 flex-1 min-h-0 overflow-hidden cascade-popup-scroll`}>
                     {/* COLUMN 1: Saved Views Section (moved to left) */}
                     <div className="border-r border-gray-200 dark:border-gray-700 pr-4 h-full overflow-hidden flex flex-col">
                       <div className="flex-1 min-h-0">
@@ -5720,8 +5723,8 @@ export default function TeeemTableView({
                     {/* END COLUMN 1 (Saved Views) */}
                     </div>
 
-                    {/* COLUMN 2: Filter Builder */}
-                    <div className="flex flex-col h-full min-h-0 overflow-hidden relative">
+                    {/* COLUMN 2: Filter Builder, Sort By, Group By */}
+                    <div className="flex flex-col h-full min-h-0 overflow-y-auto pr-2 relative">
                       {/* Disabled overlay */}
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -5732,11 +5735,21 @@ export default function TeeemTableView({
                           </div>
                         </div>
                       )}
-                      {/* View Filter - Filter Builder UI */}
-                      <div className="flex-1 min-h-0 overflow-visible">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          View Filter
-                        </label>
+                      {/* View Filter - Filter Builder UI - Collapsible */}
+                      <div className={`${filterSectionCollapsed ? '' : 'flex-1'} min-h-0 overflow-visible`}>
+                        <button
+                          onClick={() => setFilterSectionCollapsed(!filterSectionCollapsed)}
+                          className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            View Filter
+                            {cascadeFilters.length > 0 && (
+                              <span className="text-xs font-normal text-blue-600 dark:text-blue-400">({cascadeFilters.length} active)</span>
+                            )}
+                          </span>
+                          <span className={`transform transition-transform ${filterSectionCollapsed ? '' : 'rotate-180'}`}>▼</span>
+                        </button>
+                        {!filterSectionCollapsed && (
                         <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
                           {/* Top action bar */}
                           <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -6017,13 +6030,24 @@ export default function TeeemTableView({
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
 
-                      {/* Sort By Panel */}
+                      {/* Sort By Panel - Collapsible */}
                       <div className="mt-4">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Sort By
-                        </label>
+                        <button
+                          onClick={() => setSortSectionCollapsed(!sortSectionCollapsed)}
+                          className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            Sort By
+                            {sortColumns.length > 0 && (
+                              <span className="text-xs font-normal text-blue-600 dark:text-blue-400">({sortColumns.length} column{sortColumns.length !== 1 ? 's' : ''})</span>
+                            )}
+                          </span>
+                          <span className={`transform transition-transform ${sortSectionCollapsed ? '' : 'rotate-180'}`}>▼</span>
+                        </button>
+                        {!sortSectionCollapsed && (
                         <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
                           {/* Add sort column button */}
                           <div className="flex items-center gap-2 mb-3">
@@ -6319,13 +6343,24 @@ export default function TeeemTableView({
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
 
-                      {/* Group By Panel - Multiple Columns */}
+                      {/* Group By Panel - Multiple Columns - Collapsible */}
                       <div className="mt-4">
-                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                          Group By
-                        </label>
+                        <button
+                          onClick={() => setGroupSectionCollapsed(!groupSectionCollapsed)}
+                          className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                        >
+                          <span className="flex items-center gap-2">
+                            Group By
+                            {groupByColumns.length > 0 && (
+                              <span className="text-xs font-normal text-purple-600 dark:text-purple-400">({groupByColumns.length} column{groupByColumns.length !== 1 ? 's' : ''})</span>
+                            )}
+                          </span>
+                          <span className={`transform transition-transform ${groupSectionCollapsed ? '' : 'rotate-180'}`}>▼</span>
+                        </button>
+                        {!groupSectionCollapsed && (
                         <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
                           {/* Add group column button */}
                           <div className="flex items-center gap-2 mb-3">
@@ -6661,6 +6696,7 @@ export default function TeeemTableView({
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
 
                       {/* Display Options Panel */}
@@ -6686,7 +6722,7 @@ export default function TeeemTableView({
                     </div>
 
                     {/* COLUMN 3: Column Visibility - Combined with Default */}
-                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 w-[380px] min-w-[320px] relative flex flex-col">
+                    <div className="border-l border-gray-200 dark:border-gray-700 pl-4 pr-2 relative flex flex-col overflow-y-auto">
                       {/* Disabled overlay */}
                       {isViewEditingDisabled && (
                         <div className="absolute inset-0 bg-gray-100/70 dark:bg-gray-800/70 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -6808,7 +6844,7 @@ export default function TeeemTableView({
                                 setDraggedVisibilityColumn(null)
                                 setDragOverVisibilityColumn(null)
                               }}
-                              className={`relative flex items-center gap-1 px-1.5 py-1 rounded select-none transition-all text-[11px] cursor-grab active:cursor-grabbing ${
+                              className={`relative flex items-center gap-1 px-1.5 py-0.5 rounded select-none transition-all text-[10px] cursor-grab active:cursor-grabbing ${
                                 isVisible
                                   ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800'
                                   : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
@@ -6867,7 +6903,7 @@ export default function TeeemTableView({
                                   className="w-6 text-[9px] text-center text-green-700 dark:text-green-300 font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 hover:border-green-400 focus:border-green-500 focus:outline-none rounded [appearance:textfield]"
                                 />
                               )}
-                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0 overflow-hidden" onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={isVisible}
@@ -6882,7 +6918,7 @@ export default function TeeemTableView({
                                   } focus:ring-offset-0`}
                                 />
                                 <span
-                                  className={`font-medium whitespace-nowrap truncate ${
+                                  className={`font-medium ${
                                     isVisible
                                       ? 'text-green-800 dark:text-green-200'
                                       : 'text-gray-600 dark:text-gray-400'
@@ -6891,7 +6927,7 @@ export default function TeeemTableView({
                                   {column.label}
                                 </span>
                               </label>
-                              {/* Show Filter toggle - for all visible columns except select/actions */}
+                              {/* Show Filter toggle - pushed to end */}
                               {isVisible && showFilters && column.key !== 'select' && column.key !== 'actions' && (
                                 <button
                                   onClick={(e) => {
@@ -6901,7 +6937,7 @@ export default function TeeemTableView({
                                       [column.key]: !(prev[column.key] ?? true)
                                     }))
                                   }}
-                                  className={`flex-shrink-0 px-1 py-0.5 rounded text-[9px] font-medium transition-colors ${
+                                  className={`flex-shrink-0 ml-auto w-4 h-4 flex items-center justify-center rounded text-[9px] font-medium transition-colors ${
                                     columnShowFilters[column.key] ?? true
                                       ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60'
                                       : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -6946,8 +6982,8 @@ export default function TeeemTableView({
 
                           return (
                             <>
-                              {/* Visible Columns */}
-                              <div className="flex-1 min-w-0">
+                              {/* Visible Columns - auto width based on content */}
+                              <div className="min-w-0" style={{ flex: visibleCols.length <= 20 ? '0 0 auto' : '1 1 0%' }}>
                                 <div className="text-[10px] font-semibold text-green-700 dark:text-green-400 mb-1 px-1 flex items-center justify-between">
                                   <div className="flex items-center gap-1">
                                     <span className="w-2 h-2 bg-green-500 rounded-full"></span>
@@ -6974,14 +7010,21 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to show' : 'No visible columns'}
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col gap-0.5">
-                                      {visibleCols.map((col, idx) => renderColumnItem(col, idx, true))}
+                                    <div
+                                      className={`${visibleCols.length <= 20 ? 'columns-1' : visibleCols.length <= 40 ? 'columns-2' : 'columns-3'} gap-2`}
+                                      style={{ columnFill: 'balance' }}
+                                    >
+                                      {visibleCols.map((col, idx) => (
+                                        <div key={col.key} className="break-inside-avoid mb-1">
+                                          {renderColumnItem(col, idx, true)}
+                                        </div>
+                                      ))}
                                     </div>
                                   )}
                                 </div>
                               </div>
 
-                              {/* Hidden Columns */}
+                              {/* Hidden Columns - takes remaining space */}
                               <div className="flex-1 min-w-0">
                                 <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1 px-1 flex items-center justify-between">
                                   <div className="flex items-center gap-1">
@@ -7009,8 +7052,15 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to hide' : 'No hidden columns'}
                                     </div>
                                   ) : (
-                                    <div className="flex flex-col gap-0.5">
-                                      {hiddenCols.map((col, idx) => renderColumnItem(col, idx, false))}
+                                    <div
+                                      className={`${hiddenCols.length <= 20 ? 'columns-1' : hiddenCols.length <= 40 ? 'columns-2' : 'columns-3'} gap-2`}
+                                      style={{ columnFill: 'balance' }}
+                                    >
+                                      {hiddenCols.map((col, idx) => (
+                                        <div key={col.key} className="break-inside-avoid mb-1">
+                                          {renderColumnItem(col, idx, false)}
+                                        </div>
+                                      ))}
                                     </div>
                                   )}
                                 </div>
