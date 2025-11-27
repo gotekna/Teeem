@@ -39,7 +39,7 @@ const COLUMN_TYPE_DEFAULTS = {
 }
 
 // Convert API column format to TeeemTableView column format
-function convertColumnsToTEEEMFormat(apiColumns, tableSlug) {
+function convertColumnsToTEEEMFormat(apiColumns, tableSlug, foundationId) {
   // Start with select column for bulk actions
   const columns = [
     { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
@@ -54,6 +54,7 @@ function convertColumnsToTEEEMFormat(apiColumns, tableSlug) {
 
     columns.push({
       id: col.id, // Database column ID for schema editor
+      foundation_id: col.foundation_id || foundationId, // Foundation ID for API calls
       key: col.column_name,
       label: col.name,
       column_type: col.column_type,
@@ -261,7 +262,7 @@ export default function TablePage({ embedded = false }) {
   useEffect(() => {
     if (table && table.columns) {
       const startTime = performance.now()
-      let converted = convertColumnsToTEEEMFormat(table.columns, table.slug)
+      let converted = convertColumnsToTEEEMFormat(table.columns, table.slug, table.id)
 
       const endTime = performance.now()
 
