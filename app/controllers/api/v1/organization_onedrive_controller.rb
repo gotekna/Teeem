@@ -362,8 +362,7 @@ module Api
       # POST /api/v1/organization_onedrive/create_job_folders
       # Create folder structure for a specific job
       def create_job_folders
-        construction_id = params[:job_id]
-        construction = Job.find(construction_id)
+        job = Job.find(params[:job_id])
 
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -387,7 +386,7 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # Check if job folder already exists
-          existing_folder = client.find_job_folder(construction)
+          existing_folder = client.find_job_folder(job)
 
           if existing_folder
             return render json: {
@@ -398,7 +397,7 @@ module Api
           end
 
           # Create folder structure for this job
-          job_folder = client.create_job_folder_structure(construction, template)
+          job_folder = client.create_job_folder_structure(job, template)
 
           # Mark credential as synced
           credential.mark_synced!
@@ -424,8 +423,7 @@ module Api
       # GET /api/v1/organization_onedrive/job_folders
       # List folders and files for a specific job
       def list_job_items
-        construction_id = params[:job_id]
-        construction = Job.find(construction_id)
+        job = Job.find(params[:job_id])
 
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -437,7 +435,7 @@ module Api
           client = MicrosoftGraphClient.new(credential)
 
           # Find the job folder
-          job_folder = client.find_job_folder(construction)
+          job_folder = client.find_job_folder(job)
 
           unless job_folder
             return render json: {
@@ -471,8 +469,7 @@ module Api
       # POST /api/v1/organization_onedrive/upload
       # Upload file to OneDrive
       def upload
-        construction_id = params[:job_id]
-        construction = Job.find(construction_id)
+        job = Job.find(params[:job_id])
 
         credential = OrganizationOneDriveCredential.active_credential
 
