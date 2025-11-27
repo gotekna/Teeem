@@ -1154,7 +1154,114 @@ module Api
         }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/possible_duplicates
+      # Find contacts that might be duplicates based on name matching
+      def possible_duplicates
+        duplicates = []
+
+        # Find contacts with similar full_name (case insensitive, ignoring extra whitespace)
+        # Group by normalized name
+        contacts_by_name = Contact.where(deleted: [false, nil])
+          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
+          .group_by { |c| normalize_name(c.full_name) }
+
+        contacts_by_name.each do |normalized_name, contacts|
+          next if normalized_name.blank?
+          next if contacts.size < 2
+
+          # This is a potential duplicate group
+          duplicates << {
+            match_type: 'full_name',
+            match_value: normalized_name,
+            contacts: contacts.map { |c| contact_duplicate_json(c) }
+          }
+        end
+
+        # Also check for first_name + last_name combinations that match
+        contacts_by_first_last = Contact.where(deleted: [false, nil])
+          .where.not(first_name: [nil, ''])
+          .where.not(last_name: [nil, ''])
+          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
+          .group_by { |c| "#{normalize_name(c.first_name)}|#{normalize_name(c.last_name)}" }
+
+        contacts_by_first_last.each do |name_key, contacts|
+          next if name_key.blank? || name_key == '|'
+          next if contacts.size < 2
+
+          # Check if we already have this group from full_name matching
+          first_ids = contacts.map(&:id).sort
+          already_found = duplicates.any? do |d|
+            d[:contacts].map { |c| c[:id] }.sort == first_ids
+          end
+          next if already_found
+
+          duplicates << {
+            match_type: 'first_last_name',
+            match_value: name_key.gsub('|', ' '),
+            contacts: contacts.map { |c| contact_duplicate_json(c) }
+          }
+        end
+
+        # Check for same email (different contacts with same email)
+        contacts_by_email = Contact.where(deleted: [false, nil])
+          .where.not(email: [nil, ''])
+          .select(:id, :full_name, :first_name, :last_name, :email, :entity_type, :contact_types, :xero_id)
+          .group_by { |c| c.email&.downcase&.strip }
+
+        contacts_by_email.each do |email, contacts|
+          next if email.blank?
+          next if contacts.size < 2
+
+          # Check if we already have this group
+          email_ids = contacts.map(&:id).sort
+          already_found = duplicates.any? do |d|
+            d[:contacts].map { |c| c[:id] }.sort == email_ids
+          end
+          next if already_found
+
+          duplicates << {
+            match_type: 'email',
+            match_value: email,
+            contacts: contacts.map { |c| contact_duplicate_json(c) }
+          }
+        end
+
+        # Sort by number of potential duplicates (most first)
+        duplicates.sort_by! { |d| -d[:contacts].size }
+
+        render json: {
+          success: true,
+          total_duplicate_groups: duplicates.size,
+          total_contacts_involved: duplicates.sum { |d| d[:contacts].size },
+          duplicates: duplicates
+        }
+      rescue => e
+        Rails.logger.error("Possible duplicates error: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to find possible duplicates: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       private
+
+      def normalize_name(name)
+        return nil if name.blank?
+        name.to_s.downcase.gsub(/\s+/, ' ').strip
+      end
+
+      def contact_duplicate_json(contact)
+        {
+          id: contact.id,
+          full_name: contact.full_name,
+          first_name: contact.first_name,
+          last_name: contact.last_name,
+          email: contact.email,
+          entity_type: contact.entity_type,
+          contact_types: contact.contact_types,
+          has_xero: contact.xero_id.present?
+        }
+      end
 
       def set_contact
         @contact = Contact.find(params[:id])

@@ -279,6 +279,7 @@ Rails.application.routes.draw do
           post :merge
           post :match_supplier
           get :validate_abn
+          get :possible_duplicates
         end
         member do
           get :categories
