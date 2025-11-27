@@ -19,6 +19,7 @@ class Contact < ApplicationRecord
   # Supplier-specific associations (when contact is a supplier)
   # After migration, supplier_id in these tables points to contact_id
   has_many :pricebook_items, foreign_key: :supplier_id, dependent: :destroy
+  has_many :default_pricebook_items, class_name: 'PricebookItem', foreign_key: :default_supplier_id, dependent: :nullify
   has_many :purchase_orders, foreign_key: :supplier_id, dependent: :restrict_with_error
   has_many :price_histories, foreign_key: :supplier_id, dependent: :destroy
 
