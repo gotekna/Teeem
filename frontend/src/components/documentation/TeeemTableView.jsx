@@ -6488,7 +6488,7 @@ export default function TeeemTableView({
                                   Visible ({visibleCols.length})
                                 </div>
                                 <div
-                                  className={`border rounded p-1 max-h-[40vh] overflow-y-auto transition-colors ${
+                                  className={`border rounded p-1 transition-colors ${
                                     draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] === false
                                       ? 'border-green-400 border-2 bg-green-100/50 dark:bg-green-900/30'
                                       : 'border-green-200 dark:border-green-800 bg-green-50/30 dark:bg-green-900/10'
@@ -6515,7 +6515,7 @@ export default function TeeemTableView({
                                   Hidden ({hiddenCols.length})
                                 </div>
                                 <div
-                                  className={`border rounded p-1 max-h-[40vh] overflow-y-auto transition-colors ${
+                                  className={`border rounded p-1 transition-colors ${
                                     draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] !== false
                                       ? 'border-gray-400 border-2 bg-gray-200/50 dark:bg-gray-700/50'
                                       : 'border-gray-200 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/30'
