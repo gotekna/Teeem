@@ -219,30 +219,71 @@ const LookupEditor = ({ tableId, column, onUpdate, onClose }) => {
       </div>
 
       {/* Action Buttons */}
-      <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={onClose}
-          disabled={saving}
-          className="px-6 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={(e) => {
-            console.log('🟢 Button clicked!', {
-              disabled: saving || !selectedTableId || !selectedDisplayColumnId,
-              saving,
-              selectedTableId,
-              selectedDisplayColumnId,
-              event: e
-            });
-            handleSave();
-          }}
-          disabled={saving || !selectedTableId || !selectedDisplayColumnId}
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {saving ? 'Saving...' : 'Save Configuration'}
-        </button>
+      <div className="flex justify-between gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+        {/* Clear Lookup Button - only show if lookup is configured */}
+        <div>
+          {column?.lookup_table_id && (
+            <button
+              onClick={async () => {
+                if (!confirm('Are you sure you want to remove the lookup configuration? This will clear the link to the other table.')) {
+                  return;
+                }
+                try {
+                  setSaving(true);
+                  const response = await api.patch(
+                    `/api/v1/tables/${tableId}/columns/${column.id}`,
+                    {
+                      column: {
+                        lookup_table_id: null,
+                        lookup_display_column: null
+                      }
+                    }
+                  );
+                  if (response.success) {
+                    if (onUpdate) await onUpdate();
+                    if (onClose) onClose();
+                  } else {
+                    alert('Failed to clear lookup: ' + (response.errors?.join(', ') || 'Unknown error'));
+                  }
+                } catch (error) {
+                  console.error('Error clearing lookup:', error);
+                  alert('Error: ' + (error.response?.data?.error || error.message));
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              className="px-4 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-400 font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Clear Lookup
+            </button>
+          )}
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="px-6 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={(e) => {
+              console.log('🟢 Button clicked!', {
+                disabled: saving || !selectedTableId || !selectedDisplayColumnId,
+                saving,
+                selectedTableId,
+                selectedDisplayColumnId,
+                event: e
+              });
+              handleSave();
+            }}
+            disabled={saving || !selectedTableId || !selectedDisplayColumnId}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Saving...' : 'Save Configuration'}
+          </button>
+        </div>
       </div>
     </div>
   );

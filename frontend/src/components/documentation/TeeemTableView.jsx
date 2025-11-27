@@ -2104,9 +2104,32 @@ export default function TeeemTableView({
           showFilters: columns.showFilters !== false, // default true
           sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
           groupByColumn: response.view.group_by_column || null,
+          display_order: 1, // New views go to position 2 (after the first/default view)
           isDefault: response.view.is_default || false
         }
-        setSavedFilters([...savedFilters, newView])
+
+        // Insert new view at position 1 (second position) and shift others down
+        const reorderedFilters = [...savedFilters]
+        reorderedFilters.splice(1, 0, newView) // Insert at index 1
+
+        // Update display_order for all views
+        const updatedFilters = reorderedFilters.map((v, idx) => ({
+          ...v,
+          display_order: idx
+        }))
+
+        setSavedFilters(updatedFilters)
+
+        // Save new order to API in background
+        const orders = updatedFilters.map(v => ({
+          id: v.id,
+          display_order: v.display_order
+        }))
+
+        api.post('/api/v1/table_views/reorder', { orders })
+          .then(() => console.log('[Save View] View order updated - new view at position 2'))
+          .catch(err => console.error('[Save View] Failed to save view order:', err))
+
         return newView
       } else {
         console.error('Failed to save view:', response.error)
@@ -5595,7 +5618,7 @@ export default function TeeemTableView({
                         </div>
                       )}
                       {/* View Filter - Filter Builder UI */}
-                      <div className="flex-1 min-h-0 overflow-y-auto cascade-popup-scroll">
+                      <div className="flex-1 min-h-0 overflow-visible">
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                           View Filter
                         </label>
@@ -5701,7 +5724,7 @@ export default function TeeemTableView({
                                   </div>
 
                                   {/* Rules in this group */}
-                                  <div className="space-y-2">
+                                  <div className="space-y-2 overflow-visible">
                                     {groupFilters.length === 0 ? (
                                       <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-2 italic">
                                         No rules. Click +Rule to add one.
@@ -5710,7 +5733,7 @@ export default function TeeemTableView({
                                       groupFilters.map((filter) => (
                                         <div
                                           key={filter.id}
-                                          className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
+                                          className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-visible"
                                         >
                                           {/* Column dropdown - Searchable with smart positioning */}
                                           <div className="relative flex-1 min-w-[120px]" data-filter-column-dropdown={filter.id}>
@@ -5718,10 +5741,11 @@ export default function TeeemTableView({
                                               // Search input replaces button when open
                                               <input
                                                 type="text"
+                                                data-filter-input={filter.id}
                                                 value={filterColumnSearchQuery}
                                                 onChange={(e) => setFilterColumnSearchQuery(e.target.value)}
                                                 placeholder="Type to search..."
-                                                className="w-full px-2 py-1.5 border border-blue-500 rounded-t-lg rounded-b-none bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-2 py-1.5 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none"
                                                 autoFocus
                                                 onKeyDown={(e) => {
                                                   if (e.key === 'Escape') {
@@ -5750,24 +5774,8 @@ export default function TeeemTableView({
 
                                             {filterColumnDropdownOpen === filter.id && (
                                               <div
-                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-blue-500 border-t-0 rounded-b-lg shadow-lg overflow-y-auto whitespace-nowrap"
-                                                style={{
-                                                  // Use fixed positioning to escape overflow containers
-                                                  ...((() => {
-                                                    const el = document.querySelector(`[data-filter-column-dropdown="${filter.id}"]`)
-                                                    if (el) {
-                                                      const rect = el.getBoundingClientRect()
-                                                      const spaceBelow = window.innerHeight - rect.bottom - 20
-                                                      return {
-                                                        top: rect.bottom,
-                                                        left: rect.left,
-                                                        minWidth: rect.width,
-                                                        maxHeight: Math.max(200, spaceBelow)
-                                                      }
-                                                    }
-                                                    return { top: 0, left: 0 }
-                                                  })())
-                                                }}
+                                                className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
+                                                style={{ top: '100%', marginTop: '4px' }}
                                               >
                                                 {COLUMNS
                                                   .filter(col => col.key !== 'select' && col.key !== 'id')
@@ -6190,10 +6198,11 @@ export default function TeeemTableView({
                                     {groupByDropdownOpen === index ? (
                                       <input
                                         type="text"
+                                        data-group-input={index}
                                         value={groupBySearchQuery}
                                         onChange={(e) => setGroupBySearchQuery(e.target.value)}
                                         placeholder="Type to search..."
-                                        className="w-full px-3 py-1.5 border border-purple-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none"
+                                        className="w-full px-2 py-1.5 border border-purple-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none"
                                         autoFocus
                                         onKeyDown={(e) => {
                                           if (e.key === 'Escape') {
@@ -6209,10 +6218,10 @@ export default function TeeemTableView({
                                           setGroupByDropdownOpen(index)
                                           setGroupBySearchQuery('')
                                         }}
-                                        className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
+                                        className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 text-left flex items-center justify-between"
                                       >
                                         <span>{COLUMNS.find(c => c.key === groupCol)?.label || groupCol}</span>
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                         </svg>
                                       </button>
@@ -6221,20 +6230,7 @@ export default function TeeemTableView({
                                     {groupByDropdownOpen === index && (
                                       <div
                                         className="absolute z-50 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-[50vh] overflow-y-auto"
-                                        style={{
-                                          ...((() => {
-                                            const el = document.querySelector(`[data-group-column-dropdown="${index}"]`)
-                                            if (el) {
-                                              const rect = el.getBoundingClientRect()
-                                              const spaceBelow = window.innerHeight - rect.bottom
-                                              const spaceAbove = rect.top
-                                              if (spaceBelow < 200 && spaceAbove > spaceBelow) {
-                                                return { bottom: '100%', marginBottom: '4px' }
-                                              }
-                                            }
-                                            return { top: '100%', marginTop: '4px' }
-                                          })())
-                                        }}
+                                        style={{ top: '100%', marginTop: '4px' }}
                                       >
                                         {COLUMNS
                                           .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')

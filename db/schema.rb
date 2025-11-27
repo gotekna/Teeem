@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_012245) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -202,6 +202,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.string "header_align", default: "left"
     t.string "data_align", default: "left"
     t.string "column_group"
+    t.boolean "has_ui", default: false
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
     t.index ["lookup_table_id"], name: "index_columns_on_lookup_table_id"
     t.index ["table_id", "column_name"], name: "index_columns_on_table_id_and_column_name", unique: true
@@ -704,6 +705,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.index ["name"], name: "index_external_integrations_on_name", unique: true
   end
 
+  create_table "feature_chapters", force: :cascade do |t|
+    t.integer "chapter_number", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.integer "sort_order", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chapter_number"], name: "index_feature_chapters_on_chapter_number", unique: true
+    t.index ["sort_order"], name: "index_feature_chapters_on_sort_order"
+  end
+
   create_table "feature_trackers", force: :cascade do |t|
     t.string "chapter", null: false
     t.string "feature_name", null: false
@@ -729,7 +741,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.boolean "clickhome_has", default: false, null: false
     t.boolean "teeem_has", default: false, null: false
     t.boolean "clickup_has"
+    t.bigint "feature_chapter_id", null: false
     t.index ["chapter"], name: "index_feature_trackers_on_chapter"
+    t.index ["feature_chapter_id"], name: "index_feature_trackers_on_feature_chapter_id"
     t.index ["sort_order"], name: "index_feature_trackers_on_sort_order"
   end
 
@@ -901,15 +915,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
 
   create_table "job_contacts", force: :cascade do |t|
     t.bigint "job_id", null: false
-    t.bigint "contact_id", null: false
+    t.bigint "contact_id"
     t.boolean "primary", default: false, null: false
     t.string "role"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
     t.index ["contact_id"], name: "index_job_contacts_on_contact_id"
     t.index ["job_id", "contact_id"], name: "index_job_contacts_on_job_id_and_contact_id", unique: true
     t.index ["job_id", "primary"], name: "index_job_contacts_on_job_id_and_primary"
     t.index ["job_id"], name: "index_job_contacts_on_job_id"
+    t.index ["user_id"], name: "index_job_contacts_on_user_id"
   end
 
   create_table "job_documentation_tabs", force: :cascade do |t|
@@ -2505,6 +2521,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
     t.string "file_location"
     t.boolean "has_saved_views", default: true
     t.string "feature"
+    t.boolean "has_ui", default: false
     t.index ["database_table_name"], name: "index_tables_on_database_table_name"
     t.index ["model_class"], name: "index_tables_on_model_class"
     t.index ["slug"], name: "index_tables_on_slug", unique: true
@@ -3094,6 +3111,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
   add_foreign_key "estimate_line_items", "estimates"
   add_foreign_key "estimate_reviews", "estimates"
   add_foreign_key "estimates", "jobs"
+  add_foreign_key "feature_trackers", "feature_chapters"
   add_foreign_key "financial_transactions", "companies"
   add_foreign_key "financial_transactions", "jobs"
   add_foreign_key "financial_transactions", "users"
@@ -3103,6 +3121,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_103856) do
   add_foreign_key "grok_plans", "users"
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
+  add_foreign_key "job_contacts", "users"
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"

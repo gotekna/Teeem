@@ -1,6 +1,6 @@
 class Column < ApplicationRecord
-  belongs_to :table
-  belongs_to :lookup_table, class_name: 'Table', optional: true, foreign_key: :lookup_table_id
+  belongs_to :foundation
+  belongs_to :lookup_foundation, class_name: 'Foundation', optional: true, foreign_key: :lookup_foundation_id
 
   # Serialize available_choices as JSON array
   serialize :available_choices, coder: JSON, type: Array
@@ -9,7 +9,7 @@ class Column < ApplicationRecord
   serialize :choices_order, coder: JSON, type: Array
 
   validates :name, presence: true
-  validates :column_name, presence: true, uniqueness: { scope: :table_id }
+  validates :column_name, presence: true, uniqueness: { scope: :foundation_id }
   validates :column_type, presence: true, inclusion: {
     in: %w[
       single_line_text
@@ -125,14 +125,14 @@ class Column < ApplicationRecord
   end
 
   def lookup_configuration_valid
-    if lookup_table_id.blank?
-      errors.add(:lookup_table_id, "must be specified for lookup columns")
+    if lookup_foundation_id.blank?
+      errors.add(:lookup_foundation_id, "must be specified for lookup columns")
       return
     end
 
-    target = Table.find_by(id: lookup_table_id)
+    target = Foundation.find_by(id: lookup_foundation_id)
     if target.nil?
-      errors.add(:lookup_table_id, "table not found")
+      errors.add(:lookup_foundation_id, "foundation not found")
       return
     end
 
@@ -142,13 +142,13 @@ class Column < ApplicationRecord
     end
 
     unless target.columns.exists?(column_name: lookup_display_column)
-      errors.add(:lookup_display_column, "column '#{lookup_display_column}' not found in table '#{target.name}'")
+      errors.add(:lookup_display_column, "column '#{lookup_display_column}' not found in foundation '#{target.name}'")
     end
   end
 
-  # Remove this column from all saved views for this table
+  # Remove this column from all saved views for this foundation
   def remove_from_saved_views
-    views = TableView.where(table_id: table_id)
+    views = FoundationView.where(foundation_id: foundation_id)
     return if views.empty?
 
     views.find_each do |view|
@@ -183,6 +183,6 @@ class Column < ApplicationRecord
       view.save! if changed
     end
 
-    Rails.logger.info "[Column] Removed column '#{column_name}' from #{views.count} saved views for table #{table_id}"
+    Rails.logger.info "[Column] Removed column '#{column_name}' from #{views.count} saved views for foundation #{foundation_id}"
   end
 end

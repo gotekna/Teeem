@@ -1,7 +1,7 @@
-class Table < ApplicationRecord
-  has_many :columns, dependent: :destroy
+class Foundation < ApplicationRecord
+  has_many :columns, foreign_key: :foundation_id, dependent: :destroy
 
-  RESERVED_NAMES = %w[user users table tables column columns record records].freeze
+  RESERVED_NAMES = %w[user users table tables column columns record records foundation foundations].freeze
 
   validates :name, presence: true
   validates :database_table_name, presence: true
@@ -14,24 +14,24 @@ class Table < ApplicationRecord
   before_validation :generate_database_table_name, if: -> { database_table_name.blank? }
   before_validation :generate_slug, if: -> { slug.blank? || name_changed? }
 
-  # Get the dynamically created ActiveRecord model for this table
+  # Get the dynamically created ActiveRecord model for this foundation
   def dynamic_model
     return @dynamic_model if @dynamic_model
 
-    table_columns = columns.includes(:lookup_table) # Eager load for performance
+    foundation_columns = columns.includes(:lookup_foundation) # Eager load for performance
 
-    # For system tables with a model_class defined, use the existing Rails model
+    # For system foundations with a model_class defined, use the existing Rails model
     if table_type == 'system' && model_class.present?
       begin
         @dynamic_model = model_class.constantize
         return @dynamic_model
       rescue NameError => e
-        Rails.logger.error "Failed to find model class #{model_class} for system table #{id}: #{e.message}"
+        Rails.logger.error "Failed to find model class #{model_class} for system foundation #{id}: #{e.message}"
         # Fall through to dynamic model creation
       end
     end
 
-    # Generate a valid class name from the table name
+    # Generate a valid class name from the foundation name
     # Classify will handle spaces and special characters
     class_name = name.gsub(/[^a-zA-Z0-9_]/, '').classify
     table_name = database_table_name
@@ -58,14 +58,14 @@ class Table < ApplicationRecord
     rescue NameError => e
       # If we can't create the constant, create a generic class
       # This shouldn't happen with our sanitization, but just in case
-      Rails.logger.error "Failed to create dynamic model for table #{id}: #{e.message}"
+      Rails.logger.error "Failed to create dynamic model for foundation #{id}: #{e.message}"
       @dynamic_model = Class.new(ApplicationRecord) do
         self.table_name = table_name
       end
     end
 
     # Add belongs_to associations for lookup columns
-    add_lookup_associations(table_columns)
+    add_lookup_associations(foundation_columns)
 
     @dynamic_model
   end
@@ -109,7 +109,7 @@ class Table < ApplicationRecord
     counter = 1
 
     # Ensure uniqueness
-    while Table.where(slug: slug_candidate).where.not(id: id).exists?
+    while Foundation.where(slug: slug_candidate).where.not(id: id).exists?
       slug_candidate = "#{base_slug}-#{counter}"
       counter += 1
     end
@@ -117,13 +117,13 @@ class Table < ApplicationRecord
     self.slug = slug_candidate
   end
 
-  def add_lookup_associations(table_columns)
+  def add_lookup_associations(foundation_columns)
     # Add belongs_to associations for each lookup column
-    table_columns.where(column_type: 'lookup').each do |col|
-      next unless col.lookup_table
+    foundation_columns.where(column_type: 'lookup').each do |col|
+      next unless col.lookup_foundation
 
       association_name = col.column_name.to_sym
-      target_class_name = col.lookup_table.name.gsub(/[^a-zA-Z0-9_]/, '').classify
+      target_class_name = col.lookup_foundation.name.gsub(/[^a-zA-Z0-9_]/, '').classify
 
       # Skip if association already defined
       next if @dynamic_model.reflect_on_association(association_name)

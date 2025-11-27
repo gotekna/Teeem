@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_014054) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -174,7 +174,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
   end
 
   create_table "columns", force: :cascade do |t|
-    t.bigint "table_id", null: false
+    t.bigint "foundation_id", null: false
     t.string "name", null: false
     t.string "column_name", null: false
     t.string "column_type", null: false
@@ -190,7 +190,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
     t.decimal "max_value"
     t.text "validation_message"
     t.integer "position"
-    t.integer "lookup_table_id"
+    t.integer "lookup_foundation_id"
     t.string "lookup_display_column"
     t.boolean "is_multiple", default: false
     t.datetime "created_at", null: false
@@ -203,10 +203,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
     t.string "data_align", default: "left"
     t.string "column_group"
     t.boolean "has_ui", default: false
+    t.index ["foundation_id", "column_name"], name: "index_columns_on_foundation_id_and_column_name", unique: true
+    t.index ["foundation_id"], name: "index_columns_on_foundation_id"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
-    t.index ["lookup_table_id"], name: "index_columns_on_lookup_table_id"
-    t.index ["table_id", "column_name"], name: "index_columns_on_table_id_and_column_name", unique: true
-    t.index ["table_id"], name: "index_columns_on_table_id"
+    t.index ["lookup_foundation_id"], name: "index_columns_on_lookup_foundation_id"
   end
 
   create_table "companies", force: :cascade do |t|
@@ -807,6 +807,51 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
     t.index ["template_type"], name: "index_folder_templates_on_template_type"
   end
 
+  create_table "foundation_views", force: :cascade do |t|
+    t.integer "foundation_id"
+    t.integer "user_id"
+    t.string "name"
+    t.string "view_type"
+    t.json "filters"
+    t.json "columns"
+    t.json "sort_order"
+    t.boolean "is_default", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.integer "display_order", default: 0
+    t.string "group_by_column"
+    t.index ["foundation_id", "user_id", "display_order"], name: "index_foundation_views_on_foundation_user_order"
+    t.index ["foundation_id", "user_id"], name: "index_foundation_views_on_foundation_id_and_user_id"
+    t.index ["foundation_id"], name: "index_foundation_views_on_foundation_id"
+    t.index ["user_id"], name: "index_foundation_views_on_user_id"
+  end
+
+  create_table "foundations", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "singular_name"
+    t.string "plural_name"
+    t.string "database_table_name", null: false
+    t.string "icon"
+    t.string "title_column"
+    t.boolean "searchable", default: true
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "is_live", default: false, null: false
+    t.string "slug"
+    t.string "table_type", default: "user"
+    t.string "model_class"
+    t.string "api_endpoint"
+    t.string "file_location"
+    t.boolean "has_saved_views", default: true
+    t.string "feature"
+    t.boolean "has_ui", default: false
+    t.index ["database_table_name"], name: "index_foundations_on_database_table_name"
+    t.index ["model_class"], name: "index_foundations_on_model_class"
+    t.index ["slug"], name: "index_foundations_on_slug", unique: true
+    t.index ["table_type"], name: "index_foundations_on_table_type"
+  end
+
   create_table "gold_standard_table", force: :cascade do |t|
     t.string "email"
     t.string "phone", limit: 20
@@ -893,11 +938,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
     t.datetime "completed_at"
     t.text "error_message"
     t.json "result"
-    t.integer "table_id"
+    t.integer "foundation_id"
     t.text "file_data"
+    t.index ["foundation_id"], name: "index_import_sessions_on_foundation_id"
     t.index ["session_key"], name: "index_import_sessions_on_session_key", unique: true
     t.index ["status"], name: "index_import_sessions_on_status"
-    t.index ["table_id"], name: "index_import_sessions_on_table_id"
   end
 
   create_table "inspiring_quotes", force: :cascade do |t|
@@ -915,15 +960,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
 
   create_table "job_contacts", force: :cascade do |t|
     t.bigint "job_id", null: false
-    t.bigint "contact_id", null: false
+    t.bigint "contact_id"
     t.boolean "primary", default: false, null: false
     t.string "role"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "user_id"
     t.index ["contact_id"], name: "index_job_contacts_on_contact_id"
     t.index ["job_id", "contact_id"], name: "index_job_contacts_on_job_id_and_contact_id", unique: true
     t.index ["job_id", "primary"], name: "index_job_contacts_on_job_id_and_primary"
     t.index ["job_id"], name: "index_job_contacts_on_job_id"
+    t.index ["user_id"], name: "index_job_contacts_on_user_id"
   end
 
   create_table "job_documentation_tabs", force: :cascade do |t|
@@ -976,9 +1023,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
     t.string "color"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.integer "job_type_id"
     t.index ["is_active"], name: "index_job_status_on_is_active"
-    t.index ["job_type_id"], name: "index_job_status_on_job_type_id"
     t.index ["position"], name: "index_job_status_on_position"
   end
 
@@ -2483,51 +2528,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
-  create_table "table_views", force: :cascade do |t|
-    t.integer "table_id"
-    t.integer "user_id"
-    t.string "name"
-    t.string "view_type"
-    t.json "filters"
-    t.json "columns"
-    t.json "sort_order"
-    t.boolean "is_default", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.integer "display_order", default: 0
-    t.string "group_by_column"
-    t.index ["table_id", "user_id", "display_order"], name: "index_table_views_on_table_user_order"
-    t.index ["table_id", "user_id"], name: "index_table_views_on_table_id_and_user_id"
-    t.index ["table_id"], name: "index_table_views_on_table_id"
-    t.index ["user_id"], name: "index_table_views_on_user_id"
-  end
-
-  create_table "tables", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "singular_name"
-    t.string "plural_name"
-    t.string "database_table_name", null: false
-    t.string "icon"
-    t.string "title_column"
-    t.boolean "searchable", default: true
-    t.text "description"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "is_live", default: false, null: false
-    t.string "slug"
-    t.string "table_type", default: "user"
-    t.string "model_class"
-    t.string "api_endpoint"
-    t.string "file_location"
-    t.boolean "has_saved_views", default: true
-    t.string "feature"
-    t.boolean "has_ui", default: false
-    t.index ["database_table_name"], name: "index_tables_on_database_table_name"
-    t.index ["model_class"], name: "index_tables_on_model_class"
-    t.index ["slug"], name: "index_tables_on_slug", unique: true
-    t.index ["table_type"], name: "index_tables_on_table_type"
-  end
-
   create_table "task_dependencies", force: :cascade do |t|
     t.bigint "successor_task_id", null: false
     t.bigint "predecessor_task_id", null: false
@@ -3088,7 +3088,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
-  add_foreign_key "columns", "tables"
+  add_foreign_key "columns", "foundations"
   add_foreign_key "company_activities", "companies"
   add_foreign_key "company_activities", "users"
   add_foreign_key "company_compliance_items", "companies"
@@ -3121,6 +3121,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
   add_foreign_key "grok_plans", "users"
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
+  add_foreign_key "job_contacts", "users"
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
@@ -3129,7 +3130,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_26_215508) do
   add_foreign_key "job_status_stages", "job_types"
   add_foreign_key "job_type_statuses", "job_status"
   add_foreign_key "job_type_statuses", "job_types"
-  add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "designs"
   add_foreign_key "jobs", "job_stages"
   add_foreign_key "jobs", "job_status", on_delete: :nullify

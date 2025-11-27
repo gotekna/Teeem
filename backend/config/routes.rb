@@ -411,6 +411,7 @@ Rails.application.routes.draw do
 
       # User roles
       resources :roles, only: [:index]
+      resources :user_roles, only: [:index, :create, :destroy]
 
       # Permissions management
       get 'permissions', to: 'permissions#index'
@@ -824,8 +825,8 @@ Rails.application.routes.draw do
       post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
       post 'schema/sync_has_ui_from_production', to: 'schema#sync_has_ui_from_production'  # Sync has_ui from production
 
-      # Table management
-      resources :tables do
+      # Foundation management
+      resources :foundations do
         # Column management
         resources :columns, only: [:create, :update, :destroy] do
           collection do
@@ -843,12 +844,12 @@ Rails.application.routes.draw do
           end
         end
 
-        # Record management for dynamic tables
+        # Record management for dynamic foundations
         resources :records
       end
 
-      # Table views (user-specific saved views)
-      resources :table_views, only: [:index, :show, :create, :update, :destroy] do
+      # Foundation views (user-specific saved views)
+      resources :foundation_views, only: [:index, :show, :create, :update, :destroy] do
         collection do
           post :reorder
           post :create_all_setup_views

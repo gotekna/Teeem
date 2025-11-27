@@ -1,35 +1,35 @@
 module Api
   module V1
     class ColumnsController < ApplicationController
-      before_action :set_table
+      before_action :set_foundation
       before_action :set_column, only: [:update, :destroy]
 
-      # POST /api/v1/tables/:table_id/columns
+      # POST /api/v1/foundations/:foundation_id/columns
       def create
-        column = @table.columns.build(column_params)
-        column.position = @table.columns.maximum(:position).to_i + 1
+        column = @foundation.columns.build(column_params)
+        column.position = @foundation.columns.maximum(:position).to_i + 1
 
         if column.save
-          # Use add_column for existing tables (preserves data)
-          # Use create_database_table only for new tables
-          builder = TableBuilder.new(@table)
+          # Use add_column for existing foundations (preserves data)
+          # Use create_database_table only for new foundations
+          builder = TableBuilder.new(@foundation)
 
           # Check if table exists in database
-          table_exists = ActiveRecord::Base.connection.table_exists?(@table.database_table_name)
+          table_exists = ActiveRecord::Base.connection.table_exists?(@foundation.database_table_name)
 
           result = if table_exists
             # Add just the new column to existing table
             builder.add_column(column)
           else
-            # Create the entire table (for new tables only)
+            # Create the entire table (for new foundations only)
             builder.create_database_table
           end
 
           if result[:success]
-            # Reset the connection's schema cache for this table
-            ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(@table.database_table_name)
+            # Reset the connection's schema cache for this foundation
+            ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(@foundation.database_table_name)
 
-            # Add new column to all existing views for this table
+            # Add new column to all existing views for this foundation
             add_column_to_existing_views(column)
 
             render json: {
@@ -53,7 +53,7 @@ module Api
         end
       end
 
-      # PATCH/PUT /api/v1/tables/:table_id/columns/:id
+      # PATCH/PUT /api/v1/foundations/:foundation_id/columns/:id
       def update
         Rails.logger.info "🔴 COLUMN UPDATE - Before: header_align=#{@column.header_align}, data_align=#{@column.data_align}"
         Rails.logger.info "📥 COLUMN UPDATE - Params received: #{column_params.inspect}"
@@ -71,15 +71,15 @@ module Api
           # Only rebuild database table if structural changes were made
           # Display name changes don't require a rebuild
           if structural_change
-            table_reloaded = Table.includes(:columns).find(@table.id)
-            builder = TableBuilder.new(table_reloaded)
+            foundation_reloaded = Foundation.includes(:columns).find(@foundation.id)
+            builder = TableBuilder.new(foundation_reloaded)
             result = builder.create_database_table
 
             if result[:success]
               # Reload the dynamic model to pick up changes
-              table_reloaded.reload_dynamic_model
-              # Reset the connection's schema cache for this table
-              ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(table_reloaded.database_table_name)
+              foundation_reloaded.reload_dynamic_model
+              # Reset the connection's schema cache for this foundation
+              ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(foundation_reloaded.database_table_name)
             else
               render json: {
                 success: false,
@@ -101,7 +101,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/tables/:table_id/columns/:id
+      # DELETE /api/v1/foundations/:foundation_id/columns/:id
       def destroy
         # Check for references before deleting - block if any exist
         references = check_column_references(@column)
@@ -118,8 +118,8 @@ module Api
         @column.destroy
 
         # Rebuild the database table without this column
-        table_reloaded = Table.includes(:columns).find(@table.id)
-        builder = TableBuilder.new(table_reloaded)
+        foundation_reloaded = Foundation.includes(:columns).find(@foundation.id)
+        builder = TableBuilder.new(foundation_reloaded)
         result = builder.create_database_table
 
         if result[:success]
@@ -132,20 +132,20 @@ module Api
         end
       end
 
-      # GET /api/v1/tables/:table_id/columns/:id/lookup_options
+      # GET /api/v1/foundations/:foundation_id/columns/:id/lookup_options
       def lookup_options
-        column = @table.columns.find(params[:id])
+        column = @foundation.columns.find(params[:id])
 
         unless column.column_type.in?(['lookup', 'multiple_lookups'])
           return render json: { error: 'Not a lookup column' }, status: :bad_request
         end
 
-        unless column.lookup_table
-          return render json: { error: 'Lookup table not configured' }, status: :unprocessable_entity
+        unless column.lookup_foundation
+          return render json: { error: 'Lookup foundation not configured' }, status: :unprocessable_entity
         end
 
-        target_table = column.lookup_table
-        records = target_table.dynamic_model.limit(1000).order(:id)
+        target_foundation = column.lookup_foundation
+        records = target_foundation.dynamic_model.limit(1000).order(:id)
 
         options = records.map do |record|
           {
@@ -165,7 +165,7 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
-      # POST /api/v1/tables/:table_id/columns/test_formula
+      # POST /api/v1/foundations/:foundation_id/columns/test_formula
       def test_formula
         formula_expression = params[:formula]
 
@@ -175,7 +175,7 @@ module Api
 
         # Get a sample record to test with (first record or a specific one if provided)
         record_id = params[:record_id]
-        model = @table.dynamic_model
+        model = @foundation.dynamic_model
 
         if record_id.present?
           record = model.find_by(id: record_id)
@@ -192,12 +192,12 @@ module Api
 
         # Build record data hash
         record_data = {}
-        @table.columns.each do |column|
+        @foundation.columns.each do |column|
           record_data[column.column_name] = record.send(column.column_name) if record.respond_to?(column.column_name)
         end
 
         # Evaluate the formula
-        evaluator = FormulaEvaluator.new(@table)
+        evaluator = FormulaEvaluator.new(@foundation)
         result = evaluator.evaluate(formula_expression, record_data, record)
 
         # Check if formula uses cross-table references
@@ -218,34 +218,34 @@ module Api
         }, status: :unprocessable_entity
       end
 
-      # GET /api/v1/tables/:table_id/columns/:id/lookup_search?q=search_term
+      # GET /api/v1/foundations/:foundation_id/columns/:id/lookup_search?q=search_term
       def lookup_search
-        column = @table.columns.find(params[:id])
+        column = @foundation.columns.find(params[:id])
 
         unless column.column_type.in?(['lookup', 'multiple_lookups'])
           return render json: { error: 'Not a lookup column' }, status: :bad_request
         end
 
-        unless column.lookup_table
-          return render json: { error: 'Lookup table not configured' }, status: :unprocessable_entity
+        unless column.lookup_foundation
+          return render json: { error: 'Lookup foundation not configured' }, status: :unprocessable_entity
         end
 
         search_term = params[:q].to_s.strip
-        target_table = column.lookup_table
-        model = target_table.dynamic_model
+        target_foundation = column.lookup_foundation
+        model = target_foundation.dynamic_model
 
         # If no search term, return top 20 recent records
         if search_term.blank?
           records = model.limit(20).order(created_at: :desc)
         else
-          # Get all searchable columns from the target table
-          searchable_columns = target_table.columns
+          # Get all searchable columns from the target foundation
+          searchable_columns = target_foundation.columns
             .where(searchable: true)
             .pluck(:column_name)
 
           # If no searchable columns defined, search all text/string columns
           if searchable_columns.empty?
-            searchable_columns = target_table.columns
+            searchable_columns = target_foundation.columns
               .where(column_type: ['single_line_text', 'email', 'phone', 'url', 'multiple_lines_text'])
               .pluck(:column_name)
           end
@@ -273,7 +273,7 @@ module Api
         results = records.map do |record|
           # Get all text columns for context
           context_fields = {}
-          target_table.columns
+          target_foundation.columns
             .where(column_type: ['single_line_text', 'email', 'phone', 'url'])
             .limit(3)
             .each do |col|
@@ -305,7 +305,7 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
-      # GET /api/v1/tables/:table_id/columns/:id/choices
+      # GET /api/v1/foundations/:foundation_id/columns/:id/choices
       # Returns all unique values for a choice/select column with usage counts
       def choices
         column = find_column_by_id_or_name(params[:id])
@@ -314,7 +314,7 @@ module Api
           return render json: { error: 'Not a choice column' }, status: :bad_request
         end
 
-        model = @table.dynamic_model
+        model = @foundation.dynamic_model
         column_name = column.column_name
 
         # Get distinct values from actual data with counts
@@ -363,7 +363,7 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
-      # POST /api/v1/tables/:table_id/columns/:id/add_choice
+      # POST /api/v1/foundations/:foundation_id/columns/:id/add_choice
       # Adds a new choice value (stored as metadata, no data modification)
       def add_choice
         column = find_column_by_id_or_name(params[:id])
@@ -398,7 +398,7 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
-      # POST /api/v1/tables/:table_id/columns/:id/reorder_choices
+      # POST /api/v1/foundations/:foundation_id/columns/:id/reorder_choices
       # Saves the display order for choice values (drag-and-drop persistence)
       def reorder_choices
         column = find_column_by_id_or_name(params[:id])
@@ -424,7 +424,7 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
-      # POST /api/v1/tables/:table_id/columns/:id/rename_choice
+      # POST /api/v1/foundations/:foundation_id/columns/:id/rename_choice
       # Renames a choice value across all records
       def rename_choice
         column = find_column_by_id_or_name(params[:id])
@@ -435,7 +435,7 @@ module Api
           return render json: { error: 'Both old_value and new_value are required' }, status: :bad_request
         end
 
-        model = @table.dynamic_model
+        model = @foundation.dynamic_model
         column_name = column.column_name
 
         affected_rows = model.where(column_name => old_value).update_all(column_name => new_value)
@@ -456,7 +456,7 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
-      # POST /api/v1/tables/:table_id/columns/:id/merge_choices
+      # POST /api/v1/foundations/:foundation_id/columns/:id/merge_choices
       # Merges multiple choice values into one
       def merge_choices
         column = find_column_by_id_or_name(params[:id])
@@ -467,7 +467,7 @@ module Api
           return render json: { error: 'source_values and target_value are required' }, status: :bad_request
         end
 
-        model = @table.dynamic_model
+        model = @foundation.dynamic_model
         column_name = column.column_name
 
         affected_rows = model.where(column_name => source_values).update_all(column_name => target_value)
@@ -491,7 +491,7 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
-      # DELETE /api/v1/tables/:table_id/columns/:id/delete_choice
+      # DELETE /api/v1/foundations/:foundation_id/columns/:id/delete_choice
       # Deletes a choice by either clearing values or replacing with another value
       def delete_choice
         column = find_column_by_id_or_name(params[:id])
@@ -502,7 +502,7 @@ module Api
           return render json: { error: 'value is required' }, status: :bad_request
         end
 
-        model = @table.dynamic_model
+        model = @foundation.dynamic_model
         column_name = column.column_name
 
         # Update or clear data rows that use this choice
@@ -530,14 +530,14 @@ module Api
 
       private
 
-      def set_table
-        @table = Table.includes(:columns).find(params[:table_id])
+      def set_foundation
+        @foundation = Foundation.includes(:columns).find(params[:foundation_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { error: 'Table not found' }, status: :not_found
+        render json: { error: 'Foundation not found' }, status: :not_found
       end
 
       def set_column
-        @column = @table.columns.find(params[:id])
+        @column = @foundation.columns.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Column not found' }, status: :not_found
       end
@@ -545,9 +545,9 @@ module Api
       # Find column by numeric ID or by column_name string
       def find_column_by_id_or_name(id_or_name)
         if id_or_name.to_s.match?(/^\d+$/)
-          @table.columns.find(id_or_name)
+          @foundation.columns.find(id_or_name)
         else
-          @table.columns.find_by!(column_name: id_or_name)
+          @foundation.columns.find_by!(column_name: id_or_name)
         end
       rescue ActiveRecord::RecordNotFound
         raise ActiveRecord::RecordNotFound, "Column not found: #{id_or_name}"
@@ -570,7 +570,7 @@ module Api
           :min_value,
           :max_value,
           :validation_message,
-          :lookup_table_id,
+          :lookup_foundation_id,
           :lookup_display_column,
           :is_multiple,
           :header_align,
@@ -597,7 +597,7 @@ module Api
           max_value: column.max_value,
           validation_message: column.validation_message,
           position: column.position,
-          lookup_table_id: column.lookup_table_id,
+          lookup_foundation_id: column.lookup_foundation_id,
           lookup_display_column: column.lookup_display_column,
           is_multiple: column.is_multiple,
           has_cross_table_refs: column.has_cross_table_refs,
@@ -606,10 +606,10 @@ module Api
         }
       end
 
-      # Add a new column to all existing views for this table
+      # Add a new column to all existing views for this foundation
       # This ensures views stay in sync when columns are added
       def add_column_to_existing_views(column)
-        views = TableView.where(table_id: @table.id)
+        views = FoundationView.where(foundation_id: @foundation.id)
         updated_count = 0
 
         views.each do |view|
@@ -635,31 +635,31 @@ module Api
           end
         end
 
-        Rails.logger.info "[Column Create] Updated #{updated_count} views for table #{@table.id} with new column '#{column.column_name}'"
+        Rails.logger.info "[Column Create] Updated #{updated_count} views for foundation #{@foundation.id} with new column '#{column.column_name}'"
       end
 
       # Check if column is referenced by lookups or formulas
       def check_column_references(column)
         warnings = []
 
-        # Check if this column is used as a lookup display column by other tables
-        lookup_refs = Column.where(lookup_table_id: column.table_id, lookup_display_column: column.column_name)
+        # Check if this column is used as a lookup display column by other foundations
+        lookup_refs = Column.where(lookup_foundation_id: column.foundation_id, lookup_display_column: column.column_name)
         if lookup_refs.any?
           lookup_refs.each do |ref|
-            ref_table = ref.table
+            ref_foundation = ref.foundation
             warnings << {
               type: 'lookup',
-              message: "Column '#{ref.name}' in table '#{ref_table&.name || 'Unknown'}' uses this column as its display value",
+              message: "Column '#{ref.name}' in foundation '#{ref_foundation&.name || 'Unknown'}' uses this column as its display value",
               column_id: ref.id,
               column_name: ref.name,
-              table_id: ref_table&.id,
-              table_name: ref_table&.name
+              foundation_id: ref_foundation&.id,
+              foundation_name: ref_foundation&.name
             }
           end
         end
 
-        # Check if this column is referenced in computed/formula columns (same table)
-        formula_refs = @table.columns.where(column_type: 'computed')
+        # Check if this column is referenced in computed/formula columns (same foundation)
+        formula_refs = @foundation.columns.where(column_type: 'computed')
         formula_refs.each do |formula_col|
           # Check if the formula references this column name
           # Formulas typically reference columns by name like {column_name} or column_name
@@ -670,23 +670,23 @@ module Api
               message: "Formula column '#{formula_col.name}' references this column",
               column_id: formula_col.id,
               column_name: formula_col.name,
-              table_id: @table.id,
-              table_name: @table.name
+              foundation_id: @foundation.id,
+              foundation_name: @foundation.name
             }
           end
         end
 
-        # Check if this column is used as a lookup display column within the same table
-        same_table_lookups = @table.columns.where(column_type: ['lookup', 'multiple_lookups'])
+        # Check if this column is used as a lookup display column within the same foundation
+        same_foundation_lookups = @foundation.columns.where(column_type: ['lookup', 'multiple_lookups'])
           .where(lookup_display_column: column.column_name)
-        same_table_lookups.each do |lookup_col|
+        same_foundation_lookups.each do |lookup_col|
           warnings << {
             type: 'lookup_display',
             message: "Lookup column '#{lookup_col.name}' uses this column as its display value",
             column_id: lookup_col.id,
             column_name: lookup_col.name,
-            table_id: @table.id,
-            table_name: @table.name
+            foundation_id: @foundation.id,
+            foundation_name: @foundation.name
           }
         end
 

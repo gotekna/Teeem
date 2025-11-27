@@ -1,12 +1,12 @@
-class TableView < ApplicationRecord
+class FoundationView < ApplicationRecord
   belongs_to :user
-  belongs_to :table, optional: true  # optional because table_id might reference dynamic tables
+  belongs_to :foundation, optional: true  # optional because foundation_id might reference dynamic foundations
 
   validates :name, presence: true
   validates :user_id, presence: true
 
-  # Ensure only one default view per user per table
-  validates :is_default, uniqueness: { scope: [:user_id, :table_id] }, if: :is_default?
+  # Ensure only one default view per user per foundation
+  validates :is_default, uniqueness: { scope: [:user_id, :foundation_id] }, if: :is_default?
 
   # Protect the "Setup" view from being renamed
   validate :prevent_setup_view_rename, on: :update
@@ -21,7 +21,7 @@ class TableView < ApplicationRecord
 
   # Scopes
   scope :for_user, ->(user_id) { where(user_id: user_id) }
-  scope :for_table, ->(table_id) { where(table_id: table_id) }
+  scope :for_foundation, ->(foundation_id) { where(foundation_id: foundation_id) }
   scope :defaults, -> { where(is_default: true) }
 
   # Method to get visible columns from the columns JSON
@@ -31,10 +31,10 @@ class TableView < ApplicationRecord
   end
 
   # GOLD STANDARD RULE: display_order = 0 is always the default view
-  # The first view in the list (position 0) is the default view for that table
+  # The first view in the list (position 0) is the default view for that foundation
   after_save :ensure_first_view_is_default
 
-  # Before validating, if this view is being set as default, unset all other defaults for this user/table
+  # Before validating, if this view is being set as default, unset all other defaults for this user/foundation
   # This must run before validation so the uniqueness check passes
   before_validation :unset_other_defaults, if: :is_default?
 
@@ -52,13 +52,13 @@ class TableView < ApplicationRecord
 
     # Only update if there were duplicates
     if original_order.length != deduped_order.length
-      Rails.logger.warn "[TableView] Removed duplicate columns from view '#{name}': #{original_order - deduped_order}"
+      Rails.logger.warn "[FoundationView] Removed duplicate columns from view '#{name}': #{original_order - deduped_order}"
       columns['order'] = deduped_order
     end
   end
 
   def unset_other_defaults
-    TableView.where(user_id: user_id, table_id: table_id, is_default: true)
+    FoundationView.where(user_id: user_id, foundation_id: foundation_id, is_default: true)
              .where.not(id: id)
              .update_all(is_default: false)
   end
@@ -66,10 +66,10 @@ class TableView < ApplicationRecord
   # GOLD STANDARD RULE: Ensure display_order = 0 is always the default view
   # This runs after save to maintain consistency
   def ensure_first_view_is_default
-    return unless user_id && table_id
+    return unless user_id && foundation_id
 
-    # Find the view with display_order = 0 for this user/table
-    first_view = TableView.where(user_id: user_id, table_id: table_id)
+    # Find the view with display_order = 0 for this user/foundation
+    first_view = FoundationView.where(user_id: user_id, foundation_id: foundation_id)
                           .order(display_order: :asc)
                           .first
 
@@ -84,7 +84,7 @@ class TableView < ApplicationRecord
       end
 
       # Ensure all other views are not default
-      TableView.where(user_id: user_id, table_id: table_id)
+      FoundationView.where(user_id: user_id, foundation_id: foundation_id)
                .where.not(id: first_view.id)
                .where(is_default: true)
                .update_all(is_default: false)

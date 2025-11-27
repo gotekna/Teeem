@@ -3,41 +3,41 @@ module Api
     class SchemaController < ApplicationController
       # GET /api/v1/schema
       def index
-        # Get all user-defined tables with their columns and relationships
-        user_tables = Table.includes(:columns).all
+        # Get all user-defined foundations with their columns and relationships
+        user_foundations = Foundation.includes(:columns).all
 
-        # Build relationships map for user tables
+        # Build relationships map for user foundations
         user_relationships = []
-        Column.where(column_type: 'lookup').includes(:table, :lookup_table).each do |col|
-          next unless col.lookup_table
+        Column.where(column_type: 'lookup').includes(:foundation, :lookup_foundation).each do |col|
+          next unless col.lookup_foundation
 
           user_relationships << {
             id: "rel_#{col.id}",
-            from_table_id: "user_#{col.table_id}",
-            from_table_name: col.table.name,
-            from_table_slug: col.table.slug,
+            from_table_id: "user_#{col.foundation_id}",
+            from_table_name: col.foundation.name,
+            from_table_slug: col.foundation.slug,
             from_column_name: col.name,
-            to_table_id: "user_#{col.lookup_table_id}",
-            to_table_name: col.lookup_table.name,
-            to_table_slug: col.lookup_table.slug,
+            to_table_id: "user_#{col.lookup_foundation_id}",
+            to_table_name: col.lookup_foundation.name,
+            to_table_slug: col.lookup_foundation.slug,
             relationship_type: col.is_multiple ? 'many_to_many' : 'many_to_one',
             required: col.required
           }
         end
 
-        # Format user tables data
-        user_tables_data = user_tables.map do |table|
+        # Format user foundations data
+        user_foundations_data = user_foundations.map do |foundation|
           {
-            id: "user_#{table.id}",
-            name: table.name,
-            slug: table.slug,
-            database_table_name: table.database_table_name,
-            description: table.description,
-            is_live: table.is_live,
+            id: "user_#{foundation.id}",
+            name: foundation.name,
+            slug: foundation.slug,
+            database_table_name: foundation.database_table_name,
+            description: foundation.description,
+            is_live: foundation.is_live,
             is_system: false,
-            icon: table.icon,
-            record_count: get_record_count(table),
-            columns: table.columns.order(:position).map do |col|
+            icon: foundation.icon,
+            record_count: get_record_count(foundation),
+            columns: foundation.columns.order(:position).map do |col|
               {
                 id: col.id,
                 name: col.name,
@@ -46,8 +46,8 @@ module Api
                 required: col.required,
                 is_unique: col.is_unique,
                 is_title: col.is_title,
-                lookup_table_id: col.lookup_table_id,
-                lookup_table_name: col.lookup_table&.name,
+                lookup_foundation_id: col.lookup_foundation_id,
+                lookup_foundation_name: col.lookup_foundation&.name,
                 is_multiple: col.is_multiple
               }
             end
@@ -69,7 +69,7 @@ module Api
           'solid_queue_recurring_tasks',
           'solid_queue_scheduled_executions',
           'solid_queue_semaphores',
-          'tables',
+          'foundations',
           'columns',
           'versions'
         ]
@@ -99,7 +99,7 @@ module Api
         system_relationships = get_system_table_relationships(system_tables)
         all_relationships = user_relationships + system_relationships
 
-        all_tables = user_tables_data + system_tables_data
+        all_tables = user_foundations_data + system_tables_data
 
         render json: {
           success: true,
@@ -107,9 +107,9 @@ module Api
           relationships: all_relationships,
           stats: {
             total_tables: all_tables.count,
-            user_tables: user_tables_data.count,
+            user_tables: user_foundations_data.count,
             system_tables: system_tables_data.count,
-            live_tables: user_tables.where(is_live: true).count,
+            live_tables: user_foundations.where(is_live: true).count,
             total_relationships: all_relationships.count,
             total_columns: Column.count + system_tables_data.sum { |t| t[:columns].count }
           }
@@ -128,19 +128,19 @@ module Api
           solid_queue_semaphores
         ]
 
-        # Core TEEEM system tables (columns/tables metadata)
-        teeem_core_tables = %w[tables columns]
+        # Core TEEEM system tables (columns/foundations metadata)
+        teeem_core_tables = %w[foundations columns]
 
-        # Get all user-defined tables from the tables table
-        user_tables = Table.includes(:columns).all.map do |table|
-          db_name = table.database_table_name.to_s
+        # Get all user-defined foundations from the foundations table
+        user_foundations = Foundation.includes(:columns).all.map do |foundation|
+          db_name = foundation.database_table_name.to_s
 
           # Get column count - prefer columns table, fall back to actual DB columns
-          col_count = table.columns.count
+          col_count = foundation.columns.count
           has_column_metadata = col_count > 0
 
           if col_count == 0 && db_name.present?
-            # Fall back to actual database column count for tables without column metadata
+            # Fall back to actual database column count for foundations without column metadata
             col_count = begin
               ActiveRecord::Base.connection.columns(db_name).count
             rescue
@@ -148,8 +148,8 @@ module Api
             end
           end
 
-          # Determine table type and usage status
-          type = if table.table_type == 'system'
+          # Determine foundation type and usage status
+          type = if foundation.table_type == 'system'
                    'system'
                  elsif db_name.include?('_import_')
                    'import'
@@ -158,16 +158,16 @@ module Api
                  end
 
           # Determine usage_status for better categorization
-          usage_status = if table.table_type == 'system' && has_column_metadata
+          usage_status = if foundation.table_type == 'system' && has_column_metadata
                            'TEEEMTableView'
-                         elsif table.table_type == 'system'
+                         elsif foundation.table_type == 'system'
                            'Rails System'
                          elsif rails_internal_tables.include?(db_name)
-                           'Needs Deleting'  # Rails internal wrongly added to tables
+                           'Needs Deleting'  # Rails internal wrongly added to foundations
                          elsif teeem_core_tables.include?(db_name)
-                           'Needs Deleting'  # Core tables shouldn't be in tables table
+                           'Needs Deleting'  # Core tables shouldn't be in foundations table
                          elsif !has_column_metadata && type == 'user'
-                           # User table without column metadata - likely orphaned
+                           # User foundation without column metadata - likely orphaned
                            'Needs Deleting'
                          elsif type == 'import'
                            'Import'
@@ -178,35 +178,35 @@ module Api
                          end
 
           {
-            id: table.id,
-            name: table.name,
-            slug: table.slug,
+            id: foundation.id,
+            name: foundation.name,
+            slug: foundation.slug,
             database_table_name: db_name,
-            plural_name: table.plural_name,
-            icon: table.icon,
-            feature: table.feature,
-            is_live: table.is_live,
-            has_ui: table.has_ui,
+            plural_name: foundation.plural_name,
+            icon: foundation.icon,
+            feature: foundation.feature,
+            is_live: foundation.is_live,
+            has_ui: foundation.has_ui,
             columns_count: col_count,
             has_column_metadata: has_column_metadata,
             record_count: begin
-              table.dynamic_model.count
+              foundation.dynamic_model.count
             rescue
               0
             end,
             type: type,
             usage_status: usage_status,
-            created_at: table.created_at,
-            updated_at: table.updated_at
+            created_at: foundation.created_at,
+            updated_at: foundation.updated_at
           }
         end
 
-        # Tables already registered in the tables table - don't duplicate them
-        registered_table_names = Table.pluck(:database_table_name).compact
+        # Foundations already registered in the foundations table - don't duplicate them
+        registered_table_names = Foundation.pluck(:database_table_name).compact
 
-        # Skip database introspection entirely - all tables should be registered in the tables table
+        # Skip database introspection entirely - all foundations should be registered in the foundations table
         # The old system of adding "system_" prefixed tables from DB introspection created confusing duplicates
-        all_tables = user_tables
+        all_tables = user_foundations
 
         render json: {
           success: true,
@@ -215,43 +215,43 @@ module Api
       end
 
       # GET /api/v1/schema/in_memory_tables
-      # Returns registry of system tables (formerly "in-memory" tables)
-      # These are now properly registered in the tables table with numeric IDs
+      # Returns registry of system foundations (formerly "in-memory" tables)
+      # These are now properly registered in the foundations table with numeric IDs
       def in_memory_tables
-        # Get all system tables from the database
-        system_tables = Table.where(table_type: 'system').order(:name)
+        # Get all system foundations from the database
+        system_foundations = Foundation.where(table_type: 'system').order(:name)
 
-        tables = system_tables.map do |table|
+        foundations = system_foundations.map do |foundation|
           # Get column count and record count from the actual database table
-          actual_table_name = get_actual_table_name(table.model_class)
+          actual_table_name = get_actual_table_name(foundation.model_class)
           columns_count = get_system_columns_count(actual_table_name)
           record_count = get_system_record_count(actual_table_name)
 
           {
-            table_id: table.id,
-            legacy_id: table.slug, # Keep slug for backwards compatibility
-            name: table.name,
-            slug: table.slug,
-            icon: table.icon,
-            file: table.file_location,
-            model: table.model_class,
-            description: table.description,
-            has_saved_views: table.has_saved_views,
-            api_endpoint: table.api_endpoint,
-            is_live: table.is_live,
+            table_id: foundation.id,
+            legacy_id: foundation.slug, # Keep slug for backwards compatibility
+            name: foundation.name,
+            slug: foundation.slug,
+            icon: foundation.icon,
+            file: foundation.file_location,
+            model: foundation.model_class,
+            description: foundation.description,
+            has_saved_views: foundation.has_saved_views,
+            api_endpoint: foundation.api_endpoint,
+            is_live: foundation.is_live,
             columns_count: columns_count,
             record_count: record_count,
             database_table_name: actual_table_name,
-            created_at: table.created_at,
-            updated_at: table.updated_at
+            created_at: foundation.created_at,
+            updated_at: foundation.updated_at
           }
         end
 
         render json: {
           success: true,
-          tables: tables,
-          count: tables.length,
-          note: 'System tables now have proper numeric IDs in the tables registry. The legacy_id (slug) is preserved for backwards compatibility with existing saved views.'
+          tables: foundations,
+          count: foundations.length,
+          note: 'System foundations now have proper numeric IDs in the foundations registry. The legacy_id (slug) is preserved for backwards compatibility with existing saved views.'
         }
       end
 

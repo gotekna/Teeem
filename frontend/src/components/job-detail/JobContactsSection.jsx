@@ -52,8 +52,8 @@ export default function JobContactsSection({ jobId, contacts: initialContacts, o
   const loadContacts = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/jobs/${jobId}/construction_contacts`)
-      setContacts(response.construction_contacts || [])
+      const response = await api.get(`/api/v1/jobs/${jobId}/job_contacts`)
+      setContacts(response.job_contacts || [])
     } catch (err) {
       console.error('Failed to load contacts:', err)
       setError('Failed to load contacts')
@@ -102,8 +102,8 @@ export default function JobContactsSection({ jobId, contacts: initialContacts, o
   const handleAddContact = async (contactId) => {
     try {
       setError(null)
-      const response = await api.post(`/api/v1/jobs/${jobId}/construction_contacts`, {
-        construction_contact: {
+      const response = await api.post(`/api/v1/jobs/${jobId}/job_contacts`, {
+        job_contact: {
           contact_id: contactId,
           primary: contacts.length === 0, // Make first contact primary
           role: ''
@@ -131,7 +131,7 @@ export default function JobContactsSection({ jobId, contacts: initialContacts, o
 
     try {
       setError(null)
-      await api.delete(`/api/v1/jobs/${jobId}/construction_contacts/${constructionContactId}`)
+      await api.delete(`/api/v1/jobs/${jobId}/job_contacts/${constructionContactId}`)
       setContacts(contacts.filter(c => c.id !== constructionContactId))
       onUpdate?.()
     } catch (err) {
@@ -144,9 +144,9 @@ export default function JobContactsSection({ jobId, contacts: initialContacts, o
     try {
       setError(null)
       await api.put(
-        `/api/v1/jobs/${jobId}/construction_contacts/${constructionContactId}`,
+        `/api/v1/jobs/${jobId}/job_contacts/${constructionContactId}`,
         {
-          construction_contact: {
+          job_contact: {
             primary: true
           }
         }

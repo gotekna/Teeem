@@ -30,9 +30,11 @@ import LocationMapCard from '../components/job-detail/LocationMapCard'
 import AddressAutocomplete from '../components/common/AddressAutocomplete'
 import JobContactsSection from '../components/job-detail/JobContactsSection'
 import RainLogTab from '../components/rain-log/RainLogTab'
+import JobPeopleTab from '../components/job-detail/JobPeopleTab'
 
 const tabs = [
   { name: 'Overview', slug: 'overview' },
+  { name: 'People', slug: 'people' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
   { name: 'Estimates', slug: 'estimates' },
   { name: 'Activity', slug: 'activity' },
@@ -41,7 +43,6 @@ const tabs = [
   { name: 'Rain Log', slug: 'rain-log' },
   { name: 'Documents', slug: 'documents' },
   { name: 'Coms', slug: 'coms' },
-  { name: 'People', slug: 'people' },
   { name: 'Team', slug: 'team' },
   { name: 'Settings', slug: 'settings' },
   { name: 'Documentation', slug: 'documentation' },
@@ -740,6 +741,10 @@ export default function JobDetailPage() {
 
           {activeTab === 'coms' && (
             <CommunicationsTab entityType="job" entityId={id} entityName={job?.title} />
+          )}
+
+          {activeTab === 'people' && (
+            <JobPeopleTab jobId={id} onUpdate={loadJob} />
           )}
 
           {activeTab === 'team' && (
