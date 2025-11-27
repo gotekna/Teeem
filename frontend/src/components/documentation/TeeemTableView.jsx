@@ -6446,7 +6446,11 @@ export default function TeeemTableView({
                                     e.stopPropagation()
                                     e.target.select()
                                   }}
-                                  onFocus={(e) => e.target.select()}
+                                  onFocus={(e) => {
+                                    const target = e.target
+                                    setTimeout(() => target.select(), 0)
+                                  }}
+                                  onMouseUp={(e) => e.preventDefault()}
                                   onChange={(e) => {
                                     e.stopPropagation()
                                     const newPos = parseInt(e.target.value) || 1
