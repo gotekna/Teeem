@@ -115,27 +115,37 @@ module Api
           }, status: :conflict
         end
 
-        # Store column_name before destroying
+        # Store column info before destroying
         deleted_column_name = @column.column_name
+        column_to_remove = @column
 
+        # Remove the column from the database table first (preserves FK constraints)
+        builder = TableBuilder.new(@foundation)
+        table_exists = ActiveRecord::Base.connection.table_exists?(@foundation.database_table_name)
+
+        if table_exists
+          # Skip removing reserved columns from DB (they're Rails auto-generated)
+          unless TableBuilder::RESERVED_COLUMNS.include?(deleted_column_name)
+            result = builder.remove_column(column_to_remove)
+            unless result[:success]
+              return render json: {
+                success: false,
+                errors: result[:errors]
+              }, status: :unprocessable_entity
+            end
+          end
+        end
+
+        # Now destroy the column record
         @column.destroy
 
         # Remove column from all existing views for this foundation
         remove_column_from_views(deleted_column_name)
 
-        # Rebuild the database table without this column
-        foundation_reloaded = Foundation.includes(:columns).find(@foundation.id)
-        builder = TableBuilder.new(foundation_reloaded)
-        result = builder.create_database_table
+        # Reset the connection's schema cache
+        ActiveRecord::Base.connection.schema_cache.clear_data_source_cache!(@foundation.database_table_name)
 
-        if result[:success]
-          render json: { success: true }
-        else
-          render json: {
-            success: false,
-            errors: result[:errors]
-          }, status: :unprocessable_entity
-        end
+        render json: { success: true }
       end
 
       # GET /api/v1/foundations/:foundation_id/columns/:id/lookup_options
