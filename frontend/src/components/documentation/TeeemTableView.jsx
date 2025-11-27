@@ -6439,7 +6439,7 @@ export default function TeeemTableView({
                               {isVisible && (
                                 <span className="w-5 text-[9px] text-center text-green-600 dark:text-green-400 font-medium">{index + 1}</span>
                               )}
-                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                              <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={isVisible}
@@ -6454,12 +6454,11 @@ export default function TeeemTableView({
                                   } focus:ring-offset-0`}
                                 />
                                 <span
-                                  className={`truncate font-medium ${
+                                  className={`font-medium whitespace-nowrap ${
                                     isVisible
                                       ? 'text-green-800 dark:text-green-200'
                                       : 'text-gray-600 dark:text-gray-400'
                                   }`}
-                                  title={column.label}
                                 >
                                   {column.label}
                                 </span>
@@ -6502,7 +6501,7 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to show' : 'No visible columns'}
                                     </div>
                                   ) : (
-                                    <div className="grid grid-cols-2 gap-0.5">
+                                    <div className="grid grid-cols-2 grid-flow-col gap-0.5" style={{ gridTemplateRows: `repeat(${Math.ceil(visibleCols.length / 2)}, minmax(0, 1fr))` }}>
                                       {visibleCols.map((col, idx) => renderColumnItem(col, idx, true))}
                                     </div>
                                   )}
@@ -6529,7 +6528,7 @@ export default function TeeemTableView({
                                       {draggedVisibilityColumn ? '⬇️ Drop here to hide' : 'No hidden columns'}
                                     </div>
                                   ) : (
-                                    <div className="grid grid-cols-2 gap-0.5">
+                                    <div className="grid grid-cols-2 grid-flow-col gap-0.5" style={{ gridTemplateRows: `repeat(${Math.ceil(hiddenCols.length / 2)}, minmax(0, 1fr))` }}>
                                       {hiddenCols.map((col, idx) => renderColumnItem(col, idx, false))}
                                     </div>
                                   )}
