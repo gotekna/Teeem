@@ -5751,7 +5751,7 @@ export default function TeeemTableView({
                                                       const rect = el.getBoundingClientRect()
                                                       const spaceBelow = window.innerHeight - rect.bottom - 20
                                                       return {
-                                                        top: rect.bottom + 4,
+                                                        top: rect.bottom,
                                                         left: rect.left,
                                                         minWidth: rect.width,
                                                         maxHeight: Math.max(200, spaceBelow)
