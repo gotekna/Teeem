@@ -5721,7 +5721,7 @@ export default function TeeemTableView({
                                                 value={filterColumnSearchQuery}
                                                 onChange={(e) => setFilterColumnSearchQuery(e.target.value)}
                                                 placeholder="Type to search..."
-                                                className="w-full px-2 py-1.5 border border-blue-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-2 py-1.5 border border-blue-500 rounded-t-lg rounded-b-none bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                 autoFocus
                                                 onKeyDown={(e) => {
                                                   if (e.key === 'Escape') {
@@ -5750,7 +5750,7 @@ export default function TeeemTableView({
 
                                             {filterColumnDropdownOpen === filter.id && (
                                               <div
-                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 border-t-0 rounded-b-lg shadow-lg overflow-y-auto whitespace-nowrap"
+                                                className="fixed z-[100] bg-white dark:bg-gray-800 border border-blue-500 border-t-0 rounded-b-lg shadow-lg overflow-y-auto whitespace-nowrap"
                                                 style={{
                                                   // Use fixed positioning to escape overflow containers
                                                   ...((() => {
@@ -5759,7 +5759,7 @@ export default function TeeemTableView({
                                                       const rect = el.getBoundingClientRect()
                                                       const spaceBelow = window.innerHeight - rect.bottom - 20
                                                       return {
-                                                        top: rect.bottom - 1,
+                                                        top: rect.bottom,
                                                         left: rect.left,
                                                         minWidth: rect.width,
                                                         maxHeight: Math.max(200, spaceBelow)
