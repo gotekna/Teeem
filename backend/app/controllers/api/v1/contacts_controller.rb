@@ -124,10 +124,11 @@ module Api
         if @contact.is_supplier?
           # Get items where this contact is the supplier OR default_supplier OR has provided a quote (in price_histories)
           # Optimized to use a single query with LEFT JOIN instead of 3 separate queries
+          # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
           all_items = PricebookItem
             .left_joins(:price_histories)
             .where(
-              "pricebook_items.supplier_id = ? OR pricebook_items.default_supplier_id = ? OR price_histories.supplier_id = ?",
+              "pricebook.supplier_id = ? OR pricebook.default_supplier_id = ? OR price_histories.supplier_id = ?",
               @contact.id, @contact.id, @contact.id
             )
             .includes(:price_histories)
@@ -619,8 +620,9 @@ module Api
             .order(order_clause)
 
           # Filter by categories if provided
+          # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
           if categories.present? && categories.is_a?(Array) && categories.any?
-            source_price_histories = source_price_histories.where(pricebook_items: { category: categories })
+            source_price_histories = source_price_histories.where(pricebook: { category: categories })
           end
 
           source_price_histories.each do |selected_price_history|
@@ -730,9 +732,10 @@ module Api
 
           # Delete all price histories for this supplier in the selected categories
           # This removes the supplier's pricing from items even if they weren't the default
+          # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
           price_histories_to_delete = PriceHistory.joins(:pricebook_item)
             .where(supplier_id: contact.id)
-            .where(pricebook_items: { category: categories })
+            .where(pricebook: { category: categories })
 
           deleted_price_histories_count = price_histories_to_delete.count
           price_histories_to_delete.delete_all

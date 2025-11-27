@@ -59,8 +59,9 @@ class SmRolloverJob < ApplicationJob
                   .where(is_hold_task: false)
                   .order(:construction_id, :sequence_order)
 
+    # Note: Job model uses table_name = 'jobs' (renamed from 'constructions')
     if company_id
-      scope = scope.where(constructions: { company_id: company_id })
+      scope = scope.where(jobs: { company_id: company_id })
     end
 
     scope

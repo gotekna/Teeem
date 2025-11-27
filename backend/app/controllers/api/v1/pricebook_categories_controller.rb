@@ -11,9 +11,10 @@ module Api
         @categories = @categories.active if params[:active] == 'true'
 
         # Include items count if requested
+        # Note: PricebookItem uses table_name = 'pricebook', not 'pricebook_items'
         if params[:include_counts] == 'true'
           @categories = @categories.left_joins(:pricebook_items)
-                                   .select('pricebook_categories.*, COUNT(pricebook_items.id) as items_count')
+                                   .select('pricebook_categories.*, COUNT(pricebook.id) as items_count')
                                    .group('pricebook_categories.id')
         end
 
