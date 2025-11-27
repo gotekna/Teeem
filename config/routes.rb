@@ -815,6 +815,8 @@ Rails.application.routes.draw do
       get 'organization_onedrive/preview_pricebook_matches', to: 'organization_onedrive#preview_pricebook_matches'
       post 'organization_onedrive/apply_pricebook_matches', to: 'organization_onedrive#apply_pricebook_matches'
       post 'organization_onedrive/sync_pricebook_images', to: 'organization_onedrive#sync_pricebook_images'
+      get 'organization_onedrive/sharepoint_sites', to: 'organization_onedrive#sharepoint_sites'
+      post 'organization_onedrive/use_sharepoint_site', to: 'organization_onedrive#use_sharepoint_site'
 
       # Schema information
       get 'schema', to: 'schema#index'
