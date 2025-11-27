@@ -14,6 +14,7 @@ class XeroContactSyncService
       created_in_xero: 0,
       updated: 0,
       contact_persons_synced: 0,
+      deleted_from_teeem: 0,
       errors: [],
       skipped: 0
     }
@@ -32,7 +33,10 @@ class XeroContactSyncService
       Rails.logger.info("Fetched #{xero_contacts.length} Xero contacts and #{teeem_contacts.length} TEEEM contacts")
 
       # Process contacts
-      process_contacts(xero_contacts, teeem_contacts)
+      xero_ids = process_contacts(xero_contacts, teeem_contacts)
+
+      # Clean up TEEEM contacts that no longer exist in Xero
+      cleanup_deleted_xero_contacts(xero_ids)
 
       Rails.logger.info("Xero contact sync completed: #{@stats.inspect}")
 
@@ -144,6 +148,9 @@ class XeroContactSyncService
     unmatched_teeem = teeem_contacts.reject { |c| matched_teeem_ids.include?(c.id) }
     @stats[:skipped] = unmatched_teeem.count
     Rails.logger.info("ONE-WAY SYNC MODE: #{@stats[:skipped]} TEEEM contacts not pushed to Xero")
+
+    # Return set of all Xero IDs we processed
+    matched_xero_ids
   end
 
   def find_matching_teeem_contact(xero_contact, by_xero_id, by_tax_number, by_email, remaining_contacts)
@@ -235,6 +242,30 @@ class XeroContactSyncService
     updates[:last_name] = xero_contact['LastName'] if xero_contact['LastName'].present?
     updates[:tax_number] = normalize_tax_number(xero_contact['TaxNumber']) if xero_contact['TaxNumber'].present?
 
+    # Xero contact status and identifiers
+    updates[:xero_contact_status] = xero_contact['ContactStatus'] if xero_contact['ContactStatus'].present?
+    updates[:xero_contact_number] = xero_contact['ContactNumber'] if xero_contact['ContactNumber'].present?
+    updates[:xero_account_number] = xero_contact['AccountNumber'] if xero_contact['AccountNumber'].present?
+
+    # Website
+    updates[:website] = xero_contact['Website'] if xero_contact['Website'].present?
+
+    # Discount
+    updates[:default_discount] = xero_contact['Discount'] if xero_contact['Discount'].present?
+
+    # Outstanding balances from Xero
+    if xero_contact['Balances'].present?
+      balances = xero_contact['Balances']
+      if balances['AccountsReceivable'].present?
+        updates[:accounts_receivable_outstanding] = balances['AccountsReceivable']['Outstanding']
+        updates[:accounts_receivable_overdue] = balances['AccountsReceivable']['Overdue']
+      end
+      if balances['AccountsPayable'].present?
+        updates[:accounts_payable_outstanding] = balances['AccountsPayable']['Outstanding']
+        updates[:accounts_payable_overdue] = balances['AccountsPayable']['Overdue']
+      end
+    end
+
     # Extract email from Xero contact
     xero_email = extract_xero_email(xero_contact)
     updates[:email] = xero_email if xero_email.present?
@@ -247,7 +278,28 @@ class XeroContactSyncService
           updates[:mobile_phone] = phone['PhoneNumber'] if phone['PhoneNumber'].present?
         when 'DEFAULT', 'DDI'
           updates[:office_phone] = phone['PhoneNumber'] if phone['PhoneNumber'].present?
+        when 'FAX'
+          updates[:fax_phone] = phone['PhoneNumber'] if phone['PhoneNumber'].present?
         end
+      end
+    end
+
+    # Extract address from Xero (prefer STREET type)
+    if xero_contact['Addresses'].present?
+      street_address = xero_contact['Addresses'].find { |a| a['AddressType'] == 'STREET' }
+      address_to_use = street_address || xero_contact['Addresses'].first
+
+      if address_to_use
+        address_parts = [
+          address_to_use['AddressLine1'],
+          address_to_use['AddressLine2'],
+          address_to_use['AddressLine3'],
+          address_to_use['AddressLine4'],
+          [address_to_use['City'], address_to_use['Region'], address_to_use['PostalCode']].compact.join(' '),
+          address_to_use['Country']
+        ].compact.reject(&:blank?)
+
+        updates[:address] = address_parts.join(', ') if address_parts.any?
       end
     end
 
@@ -272,15 +324,30 @@ class XeroContactSyncService
       end
     end
 
-    # Extract purchase account and payment terms
-    if xero_contact['PurchaseDetails'].present? && xero_contact['PurchaseDetails']['AccountCode'].present?
-      updates[:default_purchase_account] = xero_contact['PurchaseDetails']['AccountCode']
+    # Extract purchase/sales account codes and payment terms
+    if xero_contact['DefaultCurrency'].present?
+      # Store default currency if needed in future
     end
 
-    if xero_contact['PaymentTerms'].present? && xero_contact['PaymentTerms']['Bills'].present?
-      bills = xero_contact['PaymentTerms']['Bills']
-      updates[:bill_due_day] = bills['Day'] if bills['Day'].present?
-      updates[:bill_due_type] = bills['Type'] if bills['Type'].present?
+    if xero_contact['PurchasesDefaultAccountCode'].present?
+      updates[:default_purchase_account] = xero_contact['PurchasesDefaultAccountCode']
+    end
+
+    if xero_contact['SalesDefaultAccountCode'].present?
+      updates[:default_sales_account] = xero_contact['SalesDefaultAccountCode']
+    end
+
+    if xero_contact['PaymentTerms'].present?
+      if xero_contact['PaymentTerms']['Bills'].present?
+        bills = xero_contact['PaymentTerms']['Bills']
+        updates[:bill_due_day] = bills['Day'] if bills['Day'].present?
+        updates[:bill_due_type] = bills['Type'] if bills['Type'].present?
+      end
+      if xero_contact['PaymentTerms']['Sales'].present?
+        sales = xero_contact['PaymentTerms']['Sales']
+        updates[:sales_due_day] = sales['Day'] if sales['Day'].present?
+        updates[:sales_due_type] = sales['Type'] if sales['Type'].present?
+      end
     end
 
     # Track changes for activity logging
@@ -330,8 +397,30 @@ class XeroContactSyncService
       email: extract_xero_email(xero_contact),
       contact_types: contact_types.any? ? contact_types : nil,
       sync_with_xero: true,
-      last_synced_at: @sync_timestamp
+      last_synced_at: @sync_timestamp,
+      # Xero identifiers
+      xero_contact_status: xero_contact['ContactStatus'],
+      xero_contact_number: xero_contact['ContactNumber'],
+      xero_account_number: xero_contact['AccountNumber'],
+      # Additional fields
+      website: xero_contact['Website'],
+      default_discount: xero_contact['Discount'],
+      default_purchase_account: xero_contact['PurchasesDefaultAccountCode'],
+      default_sales_account: xero_contact['SalesDefaultAccountCode']
     }
+
+    # Extract outstanding balances
+    if xero_contact['Balances'].present?
+      balances = xero_contact['Balances']
+      if balances['AccountsReceivable'].present?
+        contact_data[:accounts_receivable_outstanding] = balances['AccountsReceivable']['Outstanding']
+        contact_data[:accounts_receivable_overdue] = balances['AccountsReceivable']['Overdue']
+      end
+      if balances['AccountsPayable'].present?
+        contact_data[:accounts_payable_outstanding] = balances['AccountsPayable']['Outstanding']
+        contact_data[:accounts_payable_overdue] = balances['AccountsPayable']['Overdue']
+      end
+    end
 
     # Extract phone numbers
     if xero_contact['Phones'].present?
@@ -341,7 +430,42 @@ class XeroContactSyncService
           contact_data[:mobile_phone] = phone['PhoneNumber']
         when 'DEFAULT', 'DDI'
           contact_data[:office_phone] = phone['PhoneNumber']
+        when 'FAX'
+          contact_data[:fax_phone] = phone['PhoneNumber']
         end
+      end
+    end
+
+    # Extract address from Xero (prefer STREET type)
+    if xero_contact['Addresses'].present?
+      street_address = xero_contact['Addresses'].find { |a| a['AddressType'] == 'STREET' }
+      address_to_use = street_address || xero_contact['Addresses'].first
+
+      if address_to_use
+        address_parts = [
+          address_to_use['AddressLine1'],
+          address_to_use['AddressLine2'],
+          address_to_use['AddressLine3'],
+          address_to_use['AddressLine4'],
+          [address_to_use['City'], address_to_use['Region'], address_to_use['PostalCode']].compact.join(' '),
+          address_to_use['Country']
+        ].compact.reject(&:blank?)
+
+        contact_data[:address] = address_parts.join(', ') if address_parts.any?
+      end
+    end
+
+    # Extract payment terms
+    if xero_contact['PaymentTerms'].present?
+      if xero_contact['PaymentTerms']['Bills'].present?
+        bills = xero_contact['PaymentTerms']['Bills']
+        contact_data[:bill_due_day] = bills['Day'] if bills['Day'].present?
+        contact_data[:bill_due_type] = bills['Type'] if bills['Type'].present?
+      end
+      if xero_contact['PaymentTerms']['Sales'].present?
+        sales = xero_contact['PaymentTerms']['Sales']
+        contact_data[:sales_due_day] = sales['Day'] if sales['Day'].present?
+        contact_data[:sales_due_type] = sales['Type'] if sales['Type'].present?
       end
     end
 
@@ -573,5 +697,44 @@ class XeroContactSyncService
   # Helper to set sync timestamp (useful for job)
   def set_sync_timestamp(timestamp)
     @sync_timestamp = timestamp
+  end
+
+  # Clean up TEEEM contacts whose xero_id no longer exists in Xero
+  # This handles merged/deleted contacts in Xero
+  def cleanup_deleted_xero_contacts(active_xero_ids)
+    # Find TEEEM contacts with xero_id that are NOT in the active Xero contacts
+    orphaned_contacts = Contact.where.not(xero_id: [nil, ''])
+                               .where.not(xero_id: active_xero_ids.to_a)
+
+    count = orphaned_contacts.count
+    return if count == 0
+
+    Rails.logger.info("Found #{count} TEEEM contacts with xero_ids no longer in Xero - deleting")
+
+    orphaned_contacts.find_each do |contact|
+      begin
+        Rails.logger.info("Deleting orphaned contact: #{contact.display_name} (xero_id: #{contact.xero_id})")
+
+        # Log activity before deletion
+        ContactActivity.create(
+          contact_id: contact.id,
+          action: 'deleted',
+          details: {
+            reason: 'xero_id_no_longer_exists',
+            xero_id: contact.xero_id,
+            name: contact.display_name
+          }
+        ) rescue nil
+
+        contact.destroy!
+        @stats[:deleted_from_teeem] += 1
+      rescue StandardError => e
+        error_msg = "Failed to delete orphaned contact #{contact.id}: #{e.message}"
+        Rails.logger.error(error_msg)
+        @stats[:errors] << error_msg
+      end
+    end
+
+    Rails.logger.info("Deleted #{@stats[:deleted_from_teeem]} orphaned contacts from TEEEM")
   end
 end
