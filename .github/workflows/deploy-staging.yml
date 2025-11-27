@@ -4,41 +4,11 @@ on:
   push:
     branches:
       - rob  # Trigger on push to rob branch
+    paths:
+      - 'frontend/**'  # Only trigger for frontend changes
+      - '.github/workflows/deploy-staging.yml'
 
 jobs:
-  deploy-backend:
-    name: Deploy Backend to Heroku
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Full history for subtree
-
-      - name: Deploy backend to Heroku
-        uses: akhileshns/heroku-deploy@v3.13.15
-        with:
-          heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
-          heroku_app_name: "teeem-backend"
-          heroku_email: "robert@tekna.com.au"
-          appdir: "backend"  # Deploy only backend folder
-
-      - name: Run database migrations
-        env:
-          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
-        run: |
-          # Install Heroku CLI
-          curl https://cli-assets.heroku.com/install.sh | sh
-
-          # Run migrations
-          heroku run bin/rails db:migrate --app teeem-backend
-
-      - name: Notify deployment success
-        if: success()
-        run: |
-          echo "✅ Backend deployed successfully to Heroku"
-          echo "🔗 https://teeem-backend-447058022b51.herokuapp.com/"
-
   deploy-frontend:
     name: Deploy Frontend to Vercel
     runs-on: ubuntu-latest
@@ -46,17 +16,27 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-          working-directory: frontend
-          vercel-args: '--prod'  # Deploy to production environment
+          node-version: '20'
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          cd frontend
+          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+          vercel build --prod --token=$VERCEL_TOKEN
+          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
 
       - name: Notify deployment success
         if: success()
         run: |
           echo "✅ Frontend deployed successfully to Vercel"
-          echo "🔗 https://teeem-staging.vercel.app/"
+          echo "🔗 https://teeemrob.vercel.app/"
