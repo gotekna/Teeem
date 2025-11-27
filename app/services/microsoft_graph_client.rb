@@ -351,12 +351,22 @@ class MicrosoftGraphClient
   # Search for job folder by construction
   def find_job_folder(construction)
     job_code = construction.id.to_s.rjust(3, '0')
-    search_query = "#{job_code} - #{construction.title}"
+    expected_name = "#{job_code} - #{construction.title}"
 
-    results = search(search_query, @credential.root_folder_id)
+    # First try direct folder listing (more reliable than search for SharePoint)
+    if @credential.root_folder_id.present?
+      begin
+        results = get("/drives/#{@credential.drive_id}/items/#{@credential.root_folder_id}/children")
+        folder = results['value']&.find { |item| item['name'] == expected_name && item['folder'] }
+        return folder if folder
+      rescue APIError => e
+        Rails.logger.warn "Direct folder listing failed: #{e.message}"
+      end
+    end
 
-    # Find exact match
-    results['value']&.find { |item| item['name'] == search_query && item['folder'] }
+    # Fallback to search
+    results = search(expected_name, @credential.root_folder_id)
+    results['value']&.find { |item| item['name'] == expected_name && item['folder'] }
   end
 
   # Search for folder by name in drive root
