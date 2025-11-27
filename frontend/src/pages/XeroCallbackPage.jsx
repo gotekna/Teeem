@@ -26,7 +26,7 @@ export default function XeroCallbackPage() {
     const processedCode = sessionStorage.getItem('xero_processed_code')
     if (code && code === processedCode) {
       // Already processed this code, redirect immediately
-      navigate('/settings/integrations', { replace: true })
+      navigate('/settings', { replace: true })
       return
     }
 
@@ -37,7 +37,7 @@ export default function XeroCallbackPage() {
         success: false,
         error: `Authorization failed: ${error}`,
       })
-      setTimeout(() => navigate('/settings/integrations'), 3000)
+      setTimeout(() => navigate('/settings'), 3000)
       return
     }
 
@@ -48,7 +48,7 @@ export default function XeroCallbackPage() {
         success: false,
         error: 'No authorization code received',
       })
-      setTimeout(() => navigate('/settings/integrations'), 3000)
+      setTimeout(() => navigate('/settings'), 3000)
       return
     }
 
@@ -66,7 +66,7 @@ export default function XeroCallbackPage() {
       })
 
       // Redirect to integrations page after success
-      setTimeout(() => navigate('/settings/integrations'), 2000)
+      setTimeout(() => navigate('/settings'), 2000)
     } catch (err) {
       setStatus({
         loading: false,
@@ -75,7 +75,7 @@ export default function XeroCallbackPage() {
       })
 
       // Redirect to integrations page after error
-      setTimeout(() => navigate('/settings/integrations'), 3000)
+      setTimeout(() => navigate('/settings'), 3000)
     }
   }
 
