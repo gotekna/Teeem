@@ -118,7 +118,8 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
     const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
     if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'your_mapbox_access_token_here') {
-      throw new Error('Mapbox token not configured')
+      // Silently skip - will fallback to Nominatim
+      return null
     }
 
     const { country = 'au', limit = 10, types = 'address,place' } = options
