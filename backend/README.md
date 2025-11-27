@@ -91,3 +91,4 @@ rails test
 - `RAILS_ENV` - Rails environment (development/production)
 - `CORS_ORIGINS` - Comma-separated list of allowed origins
 - `SECRET_KEY_BASE` - Secret for sessions (generate with `rails secret`)
+# Force rebuild Thu Nov 27 12:18:06 AEST 2025
