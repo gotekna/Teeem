@@ -6438,10 +6438,15 @@ export default function TeeemTableView({
                               {/* Position number input for visible columns */}
                               {isVisible && (
                                 <input
-                                  type="number"
-                                  min="1"
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
                                   value={index + 1}
-                                  onClick={(e) => e.stopPropagation()}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    e.target.select()
+                                  }}
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => {
                                     e.stopPropagation()
                                     const newPos = parseInt(e.target.value) || 1
@@ -6471,7 +6476,7 @@ export default function TeeemTableView({
                                       setVisibilityColumnOrder([...visibleKeys, ...hiddenKeys])
                                     }
                                   }}
-                                  className="w-6 text-[9px] text-center text-green-600 dark:text-green-400 font-medium bg-transparent border border-transparent hover:border-green-300 focus:border-green-500 focus:outline-none rounded"
+                                  className="w-6 text-[9px] text-center text-green-600 dark:text-green-400 font-medium bg-transparent border border-transparent hover:border-green-300 focus:border-green-500 focus:outline-none rounded [appearance:textfield]"
                                 />
                               )}
                               <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
