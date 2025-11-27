@@ -102,7 +102,8 @@ export default function ExplorerSidebar({ onUploadClick }) {
       setLoadingPriceBooks(true)
       const response = await api.get('/api/v1/foundations')
       // Find tables tagged as "Price Book" or with name containing "price"
-      const priceBookTables = (response.tables || []).filter(table =>
+      const allTables = response.foundations || response.tables || []
+      const priceBookTables = allTables.filter(table =>
         table.is_live && (
           table.name.toLowerCase().includes('price') ||
           table.name.toLowerCase().includes('product') ||

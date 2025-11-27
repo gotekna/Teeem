@@ -7085,8 +7085,9 @@ export default function TeeemTableView({
                                   // Fetch the full column data from API to get all configuration including lookup settings
                                   try {
                                     const response = await api.get(`/api/v1/foundations/${foundationIdNumeric}`)
-                                    if (response.success && response.table) {
-                                      const fullColumn = response.table.columns.find(c => c.id === column.id)
+                                    const tableData = response.foundation || response.table
+                                    if (response.success && tableData) {
+                                      const fullColumn = tableData.columns.find(c => c.id === column.id)
                                       if (fullColumn) {
                                         setSelectedColumnForEdit(fullColumn)
                                       } else {

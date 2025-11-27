@@ -17,7 +17,8 @@ export default function Menus() {
       setLoading(true)
       const response = await api.get('/api/v1/foundations')
       // Add is_live property to each table (defaults to false)
-      const tablesWithLiveStatus = (response.tables || []).map(table => ({
+      const allTables = response.foundations || response.tables || []
+      const tablesWithLiveStatus = allTables.map(table => ({
         ...table,
         is_live: table.is_live || false
       }))

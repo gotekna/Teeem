@@ -30,7 +30,8 @@ export default function TableColumnManager({ table, onClose, onUpdate }) {
     try {
       setLoading(true)
       const response = await api.get(`/api/v1/foundations/${table.id}`)
-      setColumns(response.table.columns || [])
+      const tableData = response.foundation || response.table
+      setColumns(tableData?.columns || [])
     } catch (err) {
       console.error('Failed to load columns:', err)
       alert('Failed to load columns')

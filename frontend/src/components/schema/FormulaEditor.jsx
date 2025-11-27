@@ -35,8 +35,9 @@ const FormulaEditor = ({ foundationId, table, formula, onChange }) => {
       const fetchColumns = async () => {
         try {
           const response = await api.get(`/api/v1/foundations/${foundationId}`);
-          if (response.success && response.table?.columns) {
-            setAvailableColumns(response.table.columns);
+          const tableData = response.foundation || response.table;
+          if (response.success && tableData?.columns) {
+            setAvailableColumns(tableData.columns);
           }
         } catch (error) {
           console.error('Error fetching columns for formula editor:', error);
@@ -64,8 +65,9 @@ const FormulaEditor = ({ foundationId, table, formula, onChange }) => {
         if (lookupCol.lookup_foundation_id) {
           try {
             const response = await api.get(`/api/v1/foundations/${lookupCol.lookup_foundation_id}`);
-            if (response.success && response.table?.columns) {
-              linkedColumns[lookupCol.column_name] = response.table.columns;
+            const tableData = response.foundation || response.table;
+            if (response.success && tableData?.columns) {
+              linkedColumns[lookupCol.column_name] = tableData.columns;
             }
           } catch (error) {
             console.error(`Error fetching columns for linked table ${lookupCol.lookup_foundation_id}:`, error);

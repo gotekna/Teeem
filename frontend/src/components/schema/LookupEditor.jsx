@@ -20,7 +20,7 @@ const LookupEditor = ({ foundationId, column, onUpdate, onClose }) => {
         setLoading(true);
         const response = await api.get('/api/v1/foundations');
         if (response.success) {
-          setTables(response.tables || []);
+          setTables(response.foundations || response.tables || []);
         }
       } catch (error) {
         console.error('Error fetching tables:', error);
@@ -43,8 +43,9 @@ const LookupEditor = ({ foundationId, column, onUpdate, onClose }) => {
 
       try {
         const response = await api.get(`/api/v1/foundations/${selectedTableId}`);
-        if (response.success && response.table) {
-          const columns = response.table.columns || [];
+        const tableData = response.foundation || response.table;
+        if (response.success && tableData) {
+          const columns = tableData.columns || [];
           setAvailableColumns(columns);
 
           // If we have a lookup_display_column name from the column prop, find its ID and set it

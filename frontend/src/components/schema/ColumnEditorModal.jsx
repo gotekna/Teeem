@@ -89,8 +89,9 @@ const ColumnEditorModal = ({ isOpen, column, table, foundationId, onClose, onUpd
     const fetchColumns = async () => {
       try {
         const response = await api.get(`/api/v1/foundations/${foundationId}`);
-        if (response.success && response.table?.columns) {
-          setAvailableColumns(response.table.columns);
+        const tableData = response.foundation || response.table;
+        if (response.success && tableData?.columns) {
+          setAvailableColumns(tableData.columns);
         }
       } catch (error) {
         console.error('Error fetching columns for column editor:', error);

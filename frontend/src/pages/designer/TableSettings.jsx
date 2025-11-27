@@ -33,8 +33,9 @@ export default function TableSettings() {
     try {
       setLoading(true)
       const response = await api.get(`/api/v1/foundations/${id}`)
-      if (response.success && response.table) {
-        setTable(response.table)
+      const tableData = response.foundation || response.table
+      if (response.success && tableData) {
+        setTable(tableData)
       } else {
         setError('Failed to load table')
       }
@@ -48,9 +49,10 @@ export default function TableSettings() {
   const handleTableUpdate = async (updates) => {
     try {
       setSaving(true)
-      const response = await api.put(`/api/v1/foundations/${id}`, { table: updates })
-      if (response.success && response.table) {
-        setTable(response.table)
+      const response = await api.put(`/api/v1/foundations/${id}`, { foundation: updates })
+      const tableData = response.foundation || response.table
+      if (response.success && tableData) {
+        setTable(tableData)
       }
     } catch (err) {
       setError(err.message)

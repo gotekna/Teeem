@@ -329,12 +329,14 @@ export default function TablePage({ embedded = false }) {
     try {
       console.log('[Load Table] Loading table with ID/slug:', id)
       const response = await api.get(`/api/v1/foundations/${id}`)
-      console.log('[Load Table] ✅ Table loaded:', response.table?.name)
-      setTable(response.table)
+      // API returns 'foundation' key (renamed from tables to foundations)
+      const tableData = response.foundation || response.table
+      console.log('[Load Table] ✅ Table loaded:', tableData?.name)
+      setTable(tableData)
 
       // If URL only has ID (not ID/slug), redirect to include both
-      if (response.table && !slug && response.table.slug) {
-        const newUrl = `/tables/${response.table.id}/${response.table.slug}`
+      if (tableData && !slug && tableData.slug) {
+        const newUrl = `/tables/${tableData.id}/${tableData.slug}`
         console.log('[Load Table] 🔄 Redirecting to combined ID/slug URL:', newUrl)
         navigate(newUrl, { replace: true }) // replace: true keeps browser history clean
       }

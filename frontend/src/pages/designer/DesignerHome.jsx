@@ -23,7 +23,7 @@ export default function DesignerHome() {
     try {
       setLoading(true)
       const response = await api.get('/api/v1/foundations')
-      setTables(response.tables || [])
+      setTables(response.foundations || response.tables || [])
     } catch (err) {
       setError(err.message)
     } finally {

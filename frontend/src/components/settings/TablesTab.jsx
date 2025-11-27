@@ -247,7 +247,7 @@ export default function TablesTab() {
     try {
       setCreating(true)
       const response = await api.post('/api/v1/foundations', {
-        table: {
+        foundation: {
           name: newTableName,
           is_live: false
         }
@@ -262,7 +262,8 @@ export default function TablesTab() {
         setNewTableName('')
 
         // Navigate to the new table to add columns (combined ID/slug format)
-        navigate(`/tables/${response.table.id}/${response.table.slug}`)
+        const tableData = response.foundation || response.table
+        navigate(`/tables/${tableData.id}/${tableData.slug}`)
       }
     } catch (err) {
       console.error('Failed to create table:', err)

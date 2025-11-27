@@ -46,8 +46,9 @@ export default function Dashboard() {
     try {
       setLoading(true)
       const response = await api.get('/api/v1/foundations')
-      // Only show tables that are marked as live
-      const liveTables = (response.tables || []).filter(table => table.is_live)
+      // Only show tables that are marked as live (API returns 'foundations' key)
+      const allTables = response.foundations || response.tables || []
+      const liveTables = allTables.filter(table => table.is_live)
       setTables(liveTables)
     } catch (err) {
       setError('Failed to load tables')

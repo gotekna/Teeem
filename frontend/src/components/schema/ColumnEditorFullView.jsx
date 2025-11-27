@@ -52,15 +52,16 @@ const ColumnEditorFullView = ({ foundationId, tableName, onClose, isNewMode = fa
       setLoading(true);
       const response = await api.get(`/api/v1/foundations/${foundationId}`);
 
-      // Handle different response formats
+      // Handle different response formats (API returns 'foundation', legacy code expects 'table')
       if (response && response.success) {
-        // Direct format: { success: true, table: {...} }
-        setTable(response.table);
-        setColumns(response.table.columns || []);
+        const tableData = response.foundation || response.table;
+        setTable(tableData);
+        setColumns(tableData?.columns || []);
       } else if (response && response.data && response.data.success) {
-        // Nested format: { data: { success: true, table: {...} } }
-        setTable(response.data.table);
-        setColumns(response.data.table.columns || []);
+        // Nested format: { data: { success: true, foundation: {...} } }
+        const tableData = response.data.foundation || response.data.table;
+        setTable(tableData);
+        setColumns(tableData?.columns || []);
       } else {
         throw new Error('Invalid response format from API');
       }
