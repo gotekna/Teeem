@@ -58,6 +58,29 @@ class Contact < ApplicationRecord
   ENTITY_TYPES = %w[person company trust].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
+  # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
+  # These fields should only be updated via Xero sync, not manual edits
+  XERO_READ_ONLY_FIELDS = %w[
+    accounts_payable_outstanding
+    accounts_payable_overdue
+    accounts_receivable_outstanding
+    accounts_receivable_overdue
+    bank_bsb
+    bank_account_number
+    bank_account_name
+    default_purchase_account
+    default_sales_account
+    bill_due_day
+    bill_due_type
+    sales_due_day
+    sales_due_type
+    default_discount
+    xero_account_number
+    xero_contact_number
+    xero_contact_status
+    company_number
+  ].freeze
+
   # Validations
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP, allow_blank: true }
   validate :contact_types_must_be_valid
