@@ -574,6 +574,169 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/import_tracking_categories
+      # Import all Xero tracking categories as Jobs
+      def import_tracking_categories
+        begin
+          client = XeroApiClient.new
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render json: {
+              success: false,
+              error: 'Not authenticated with Xero. Please connect to Xero first.'
+            }, status: :unauthorized
+          end
+
+          service = XeroTrackingImportService.new
+          result = service.import_all
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero import_tracking_categories auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero import_tracking_categories error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to import tracking categories: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/import_all_bills
+      # Import all Xero bills as Purchase Orders
+      def import_all_bills
+        begin
+          client = XeroApiClient.new
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render json: {
+              success: false,
+              error: 'Not authenticated with Xero. Please connect to Xero first.'
+            }, status: :unauthorized
+          end
+
+          service = XeroFullBillImportService.new
+          result = service.import_all
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero import_all_bills auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero import_all_bills error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to import bills: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/import_all_claims
+      # Import all Xero sales invoices (ACCREC) as JobClaims
+      def import_all_claims
+        begin
+          client = XeroApiClient.new
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render json: {
+              success: false,
+              error: 'Not authenticated with Xero. Please connect to Xero first.'
+            }, status: :unauthorized
+          end
+
+          service = XeroClaimImportService.new
+          result = service.import_all
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero import_all_claims auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero import_all_claims error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to import claims: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/full_import
+      # Run full import: contacts, tracking categories, bills, and claims
+      def full_import
+        begin
+          client = XeroApiClient.new
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render json: {
+              success: false,
+              error: 'Not authenticated with Xero. Please connect to Xero first.'
+            }, status: :unauthorized
+          end
+
+          results = {
+            contacts: nil,
+            tracking_categories: nil,
+            bills: nil,
+            claims: nil,
+            success: true
+          }
+
+          # Step 1: Sync contacts
+          Rails.logger.info("Full import: Starting contact sync")
+          contact_service = XeroContactSyncService.new
+          results[:contacts] = contact_service.sync
+
+          # Step 2: Import tracking categories as jobs
+          Rails.logger.info("Full import: Starting tracking category import")
+          tracking_service = XeroTrackingImportService.new
+          results[:tracking_categories] = tracking_service.import_all
+
+          # Step 3: Import bills as purchase orders
+          Rails.logger.info("Full import: Starting bill import")
+          bill_service = XeroFullBillImportService.new
+          results[:bills] = bill_service.import_all
+
+          # Step 4: Import sales invoices as claims
+          Rails.logger.info("Full import: Starting claims import")
+          claim_service = XeroClaimImportService.new
+          results[:claims] = claim_service.import_all
+
+          Rails.logger.info("Full import completed")
+
+          render json: results
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero full_import auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero full_import error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render json: {
+            success: false,
+            error: "Full import failed: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/search_contacts?query=search_term
       # Search for Xero contacts by name, email, or tax number
       def search_contacts
@@ -650,6 +813,66 @@ module Api
           render json: {
             success: false,
             error: "Failed to search contacts: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/contacts/:id
+      # Fetch a single contact from Xero by ContactID
+      def show_contact
+        xero_contact_id = params[:id]
+        tenant_id = params[:tenant_id]
+
+        if xero_contact_id.blank?
+          return render json: {
+            success: false,
+            error: 'Contact ID is required'
+          }, status: :bad_request
+        end
+
+        begin
+          client = XeroApiClient.new
+
+          # Use tenant_id if provided (for multi-org support)
+          result = if tenant_id.present?
+            client.get("Contacts/#{xero_contact_id}", {}, tenant_id)
+          else
+            client.get("Contacts/#{xero_contact_id}")
+          end
+
+          if result[:success]
+            xero_contact = result[:data]['Contacts']&.first
+
+            if xero_contact
+              render json: {
+                success: true,
+                data: {
+                  contact: xero_contact
+                }
+              }
+            else
+              render json: {
+                success: false,
+                error: 'Contact not found in Xero'
+              }, status: :not_found
+            end
+          else
+            render json: {
+              success: false,
+              error: 'Failed to fetch contact from Xero'
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero show_contact auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero show_contact error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to fetch contact: #{e.message}"
           }, status: :internal_server_error
         end
       end
