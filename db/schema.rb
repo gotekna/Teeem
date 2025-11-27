@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_27_014054) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_27_020633) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -846,6 +846,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_014054) do
     t.boolean "has_saved_views", default: true
     t.string "feature"
     t.boolean "has_ui", default: false
+    t.boolean "allow_reserved_name", default: false
     t.index ["database_table_name"], name: "index_foundations_on_database_table_name"
     t.index ["model_class"], name: "index_foundations_on_model_class"
     t.index ["slug"], name: "index_foundations_on_slug", unique: true

@@ -66,11 +66,11 @@ class TableBuilder
       end
 
       # Add foreign key for lookup columns
-      if column.column_type == 'lookup' && column.lookup_table
+      if column.column_type == 'lookup' && column.lookup_foundation
         begin
           ActiveRecord::Migration.add_foreign_key(
             @table.database_table_name.to_sym,
-            column.lookup_table.database_table_name.to_sym,
+            column.lookup_foundation.database_table_name.to_sym,
             column: column.column_name.to_sym,
             on_delete: :nullify  # Set to NULL when referenced record is deleted
           )

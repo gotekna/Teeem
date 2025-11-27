@@ -1,9 +1,9 @@
 class ImportJob < ApplicationJob
   queue_as :default
 
-  def perform(import_session_id, table_id, column_mapping = {})
+  def perform(import_session_id, foundation_id, column_mapping = {})
     import_session = ImportSession.find(import_session_id)
-    table = Table.find(table_id)
+    foundation = Foundation.find(foundation_id)
 
     # Update progress: starting
     import_session.update(
@@ -26,7 +26,7 @@ class ImportJob < ApplicationJob
       end
 
       # Import the data using the saved file
-      importer = DataImporter.new(table, import_session.file_path, column_mapping)
+      importer = DataImporter.new(foundation, import_session.file_path, column_mapping)
 
       # Pass the import session to track progress
       import_result = importer.import do |current, total|
@@ -67,8 +67,8 @@ class ImportJob < ApplicationJob
         completed_at: Time.current
       )
 
-      # Clean up on error - destroy table but keep import session for error display
-      table&.destroy
+      # Clean up on error - destroy foundation but keep import session for error display
+      foundation&.destroy
       # Delete the file but DON'T destroy the import_session so user can see error
       File.delete(import_session.file_path) if import_session.file_exists?
 

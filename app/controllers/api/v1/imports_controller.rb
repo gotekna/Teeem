@@ -118,8 +118,8 @@ module Api
         table_name = params[:table_name]
         columns_data = params[:columns] || []
 
-        # Create the table record
-        table = Table.new(
+        # Create the foundation record
+        foundation = Foundation.new(
           name: table_name,
           singular_name: params[:singular_name],
           plural_name: params[:plural_name],
@@ -128,14 +128,14 @@ module Api
           description: params[:description]
         )
 
-        unless table.save
-          Rails.logger.error "Table save failed: #{table.errors.full_messages.join(', ')}"
-          return render json: { success: false, errors: table.errors.full_messages }, status: :unprocessable_entity
+        unless foundation.save
+          Rails.logger.error "Foundation save failed: #{foundation.errors.full_messages.join(', ')}"
+          return render json: { success: false, errors: foundation.errors.full_messages }, status: :unprocessable_entity
         end
 
         # Create column records
         columns_data.each_with_index do |col_data, index|
-          column = table.columns.build(
+          column = foundation.columns.build(
             name: col_data[:name],
             column_name: col_data[:column_name] || col_data[:name].parameterize(separator: '_'),
             column_type: col_data[:column_type],
@@ -148,31 +148,31 @@ module Api
 
           unless column.save
             Rails.logger.error "Column save failed: #{column.errors.full_messages.join(', ')}"
-            table.destroy
+            foundation.destroy
             return render json: { success: false, errors: column.errors.full_messages }, status: :unprocessable_entity
           end
         end
 
         # Create the actual database table
-        builder = TableBuilder.new(table)
+        builder = TableBuilder.new(foundation)
         build_result = builder.create_database_table
 
         unless build_result[:success]
-          Rails.logger.error "Table build failed: #{build_result[:errors].join(', ')}"
-          table.destroy
+          Rails.logger.error "Foundation build failed: #{build_result[:errors].join(', ')}"
+          foundation.destroy
           return render json: { success: false, errors: build_result[:errors] }, status: :unprocessable_entity
         end
 
-        # Link table to import session
-        import_session.update!(table_id: table.id, status: 'queued')
+        # Link foundation to import session
+        import_session.update!(foundation_id: foundation.id, status: 'queued')
 
         # Start background import job
-        ImportJob.perform_later(import_session.id, table.id, params[:column_mapping] || {})
+        ImportJob.perform_later(import_session.id, foundation.id, params[:column_mapping] || {})
 
         render json: {
           success: true,
           session_key: session_key,
-          table_id: table.id
+          foundation_id: foundation.id
         }
       end
 
@@ -199,7 +199,7 @@ module Api
         }
 
         if import_session.status == 'completed'
-          response[:table_id] = import_session.table_id
+          response[:foundation_id] = import_session.foundation_id
           response[:result] = import_session.result
         elsif import_session.status == 'failed'
           response[:error] = import_session.error_message

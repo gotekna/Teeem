@@ -37,10 +37,10 @@ class Api::V1::GrokController < ApplicationController
     }
 
     if table_id
-      table = Table.find_by(id: table_id)
+      foundation = Foundation.find_by(id: table_id)
       context[:current_table] = {
-        name: table&.name,
-        columns: table&.columns&.count
+        name: foundation&.name,
+        columns: foundation&.columns&.count
       }
     end
 

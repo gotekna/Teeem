@@ -4,9 +4,9 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types
   # Returns all column type definitions from the Gold Standard Reference table
   def index
-    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: 'Gold Standard Reference')
 
-    unless gold_standard_table
+    unless gold_standard_foundation
       render json: {
         success: false,
         error: 'Gold Standard Reference table not found',
@@ -19,7 +19,7 @@ class Api::V1::ColumnTypesController < ApplicationController
     sample_data = get_sample_data
 
     # Get all columns from Gold Standard table and convert to type definitions
-    column_types = gold_standard_table.columns.map do |column|
+    column_types = gold_standard_foundation.columns.map do |column|
       format_column_type(column, sample_data)
     end
 
@@ -31,7 +31,7 @@ class Api::V1::ColumnTypesController < ApplicationController
       data: sorted_types,
       total: sorted_types.count,
       source: 'Gold Standard Reference Table',
-      table_id: gold_standard_table.id,
+      table_id: gold_standard_foundation.id,
       has_sample_data: sample_data.present?
     }
   end
@@ -39,9 +39,9 @@ class Api::V1::ColumnTypesController < ApplicationController
   # GET /api/v1/column_types/:column_type
   # Returns specific column type definition
   def show
-    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: 'Gold Standard Reference')
 
-    unless gold_standard_table
+    unless gold_standard_foundation
       render json: {
         success: false,
         error: 'Gold Standard Reference table not found'
@@ -50,7 +50,7 @@ class Api::V1::ColumnTypesController < ApplicationController
     end
 
     # Find column by column_type value
-    column = gold_standard_table.columns.find_by(column_type: params[:id])
+    column = gold_standard_foundation.columns.find_by(column_type: params[:id])
 
     if column
       render json: {
@@ -68,9 +68,9 @@ class Api::V1::ColumnTypesController < ApplicationController
   # PATCH /api/v1/column_types/:column_type
   # Updates metadata for a specific column type in the Gold Standard table
   def update
-    gold_standard_table = Table.find_by(id: 1) || Table.find_by(name: 'Gold Standard Reference')
+    gold_standard_foundation = Foundation.find_by(id: 1) || Foundation.find_by(name: 'Gold Standard Reference')
 
-    unless gold_standard_table
+    unless gold_standard_foundation
       render json: {
         success: false,
         error: 'Gold Standard Reference table not found'
@@ -79,7 +79,7 @@ class Api::V1::ColumnTypesController < ApplicationController
     end
 
     # Find column by column_type value
-    column = gold_standard_table.columns.find_by(column_type: params[:id])
+    column = gold_standard_foundation.columns.find_by(column_type: params[:id])
 
     unless column
       render json: {
