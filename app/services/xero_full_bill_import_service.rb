@@ -82,7 +82,7 @@ class XeroFullBillImportService
     page = 1
 
     loop do
-      result = @client.get('Invoices', { where: 'Type=="ACCPAY"', page: page })
+      result = with_rate_limit_retry { @client.get('Invoices', { where: 'Type=="ACCPAY"', page: page }) }
       break unless result[:success]
 
       invoices = result[:data]['Invoices'] || []
@@ -93,22 +93,48 @@ class XeroFullBillImportService
 
       # Xero returns up to 100 per page
       break if invoices.length < 100
+
+      # Rate limit between pages
+      sleep(0.5)
     end
 
     Rails.logger.info("Found #{all_bills.length} bills in Xero, fetching full details...")
 
     # Now fetch each invoice individually to get line item tracking details
-    all_bills.map do |bill|
-      fetch_invoice_details(bill['InvoiceID']) || bill
+    # This is slow but necessary to get tracking data
+    all_bills.map.with_index do |bill, index|
+      Rails.logger.info("Fetching details for bill #{index + 1}/#{all_bills.length}...") if (index + 1) % 50 == 0
+      detail = fetch_invoice_details(bill['InvoiceID'])
+      # Rate limit between individual fetches - Xero allows ~60 calls/min
+      sleep(1.1)
+      detail || bill
     end.compact
   end
 
   def fetch_invoice_details(invoice_id)
-    result = @client.get("Invoices/#{invoice_id}")
+    result = with_rate_limit_retry { @client.get("Invoices/#{invoice_id}") }
     return nil unless result[:success]
 
     invoices = result[:data]['Invoices'] || []
     invoices.first
+  end
+
+  def with_rate_limit_retry(max_retries: 3)
+    retries = 0
+    begin
+      yield
+    rescue XeroApiClient::RateLimitError => e
+      retries += 1
+      if retries <= max_retries
+        # Parse retry-after from error message or default to 60 seconds
+        wait_time = e.message.match(/after (\d+) seconds/)&.captures&.first&.to_i || 60
+        Rails.logger.warn("Rate limit hit, waiting #{wait_time} seconds before retry #{retries}/#{max_retries}")
+        sleep(wait_time + 1)
+        retry
+      else
+        raise
+      end
+    end
   end
 
   def import_bill(bill)
