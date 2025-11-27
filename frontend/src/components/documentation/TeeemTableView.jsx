@@ -6507,6 +6507,26 @@ export default function TeeemTableView({
                                   {column.label}
                                 </span>
                               </label>
+                              {/* Group by toggle */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  // Toggle: if already grouped by this column, clear it; otherwise set it
+                                  if (groupByColumn === column.key) {
+                                    setGroupByColumn(null)
+                                  } else {
+                                    setGroupByColumn(column.key)
+                                  }
+                                }}
+                                title={groupByColumn === column.key ? 'Remove grouping' : 'Group by this column'}
+                                className={`ml-auto px-1 py-0.5 text-[8px] font-bold rounded ${
+                                  groupByColumn === column.key
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-400 hover:bg-purple-200 dark:hover:bg-purple-800'
+                                }`}
+                              >
+                                G
+                              </button>
                             </div>
                           )
 
