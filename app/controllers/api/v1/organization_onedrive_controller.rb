@@ -656,8 +656,8 @@ module Api
             if target_folder
               found_folders << { name: target_folder['name'], id: target_folder['id'], web_url: target_folder['webUrl'] }
 
-              # Get contents of this folder
-              folder_contents = client.list_folder_items(target_folder['id'])
+              # Get contents of this folder with thumbnails for images
+              folder_contents = client.list_folder_items(target_folder['id'], include_thumbnails: true)
               files = folder_contents['value'] || []
 
               # Add folder info to each file for context
