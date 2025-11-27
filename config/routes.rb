@@ -833,6 +833,7 @@ Rails.application.routes.draw do
       get 'organization_onedrive/browse_folders', to: 'organization_onedrive#browse_folders'
       patch 'organization_onedrive/change_root_folder', to: 'organization_onedrive#change_root_folder'
       post 'organization_onedrive/create_job_folders', to: 'organization_onedrive#create_job_folders'
+      post 'organization_onedrive/create_all_job_folders', to: 'organization_onedrive#create_all_job_folders'
       get 'organization_onedrive/job_folders', to: 'organization_onedrive#list_job_items'
       post 'organization_onedrive/upload', to: 'organization_onedrive#upload'
       get 'organization_onedrive/download', to: 'organization_onedrive#download'

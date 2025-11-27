@@ -359,6 +359,81 @@ module Api
         end
       end
 
+      # POST /api/v1/organization_onedrive/create_all_job_folders
+      # Create folder structure for ALL jobs that don't have folders yet
+      def create_all_job_folders
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+        end
+
+        # Get folder template (use default or specified)
+        template_id = params[:template_id]
+        template = if template_id
+          FolderTemplate.find(template_id)
+        else
+          FolderTemplate.where(is_system_default: true, is_active: true).first
+        end
+
+        unless template
+          return render json: { error: 'No folder template found' }, status: :not_found
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Get all jobs
+          jobs = Job.all
+          created_count = 0
+          skipped_count = 0
+          errors = []
+
+          jobs.each do |job|
+            begin
+              # Check if job folder already exists
+              existing_folder = client.find_job_folder(job)
+
+              if existing_folder
+                skipped_count += 1
+                Rails.logger.info "Skipping job ##{job.id} - folder already exists"
+                next
+              end
+
+              # Create folder structure for this job
+              job_folder = client.create_job_folder_structure(job, template)
+              created_count += 1
+
+              Rails.logger.info "Created folders for job ##{job.id}: #{job_folder['name']}"
+
+            rescue StandardError => e
+              errors << { job_id: job.id, job_title: job.title, error: e.message }
+              Rails.logger.error "Failed to create folders for job ##{job.id}: #{e.message}"
+            end
+          end
+
+          # Mark credential as synced
+          credential.mark_synced!
+
+          render json: {
+            message: "Bulk folder creation completed",
+            total_jobs: jobs.count,
+            created: created_count,
+            skipped: skipped_count,
+            errors: errors
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to create bulk job folders: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to create folders: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/organization_onedrive/create_job_folders
       # Create folder structure for a specific job
       def create_job_folders
