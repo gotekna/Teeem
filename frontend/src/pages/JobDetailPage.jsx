@@ -31,10 +31,12 @@ import AddressAutocomplete from '../components/common/AddressAutocomplete'
 import JobContactsSection from '../components/job-detail/JobContactsSection'
 import RainLogTab from '../components/rain-log/RainLogTab'
 import JobPeopleTab from '../components/job-detail/JobPeopleTab'
+import JobPeopleGridTab from '../components/job-detail/JobPeopleGridTab'
 
 const tabs = [
   { name: 'Overview', slug: 'overview' },
   { name: 'People', slug: 'people' },
+  { name: 'People Grid', slug: 'people-grid' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
   { name: 'Estimates', slug: 'estimates' },
   { name: 'Activity', slug: 'activity' },
@@ -745,6 +747,10 @@ export default function JobDetailPage() {
 
           {activeTab === 'people' && (
             <JobPeopleTab jobId={id} onUpdate={loadJob} />
+          )}
+
+          {activeTab === 'people-grid' && (
+            <JobPeopleGridTab jobId={id} onUpdate={loadJob} />
           )}
 
           {activeTab === 'team' && (

@@ -39,6 +39,6 @@ You are the **deploy-manager** agent.
 ## Key Points
 - Check current branch (should be `rob` for staging)
 - **Only commit what's specified** - don't auto-commit everything
-- Deploy backend to Heroku staging using git subtree
+- Push to GitHub - GitHub Actions auto-deploys backend to Heroku
 - Frontend auto-deploys via Vercel
-- Verify deployment completed successfully
+- Monitor GitHub Actions status with `gh run list`

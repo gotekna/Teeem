@@ -5,6 +5,7 @@ module Api
 
       # GET /api/v1/foundation_views
       # GET /api/v1/foundation_views?foundation_id=123
+      # GET /api/v1/table_views?table_id=123 (backward compatible)
       def index
         # Handle both authenticated and unauthenticated requests
         # Unauthenticated users see public/system views (user_id IS NULL)
@@ -14,16 +15,19 @@ module Api
           views = FoundationView.where(user_id: nil)
         end
 
-        if params[:foundation_id].present?
-          views = views.where(foundation_id: params[:foundation_id])
+        # Support both foundation_id and table_id (backward compatibility)
+        filter_id = params[:foundation_id] || params[:table_id]
+
+        if filter_id.present?
+          views = views.where(foundation_id: filter_id)
 
           # Auto-create "Setup" view if no views exist for this user/foundation combination
           if current_user && views.empty?
-            foundation = Foundation.find_by(id: params[:foundation_id])
+            foundation = Foundation.find_by(id: filter_id)
             if foundation
               create_default_setup_view(foundation, current_user)
               # Reload views to include the newly created Setup view
-              views = current_user.foundation_views.where(foundation_id: params[:foundation_id])
+              views = current_user.foundation_views.where(foundation_id: filter_id)
             end
           end
         end

@@ -19,7 +19,7 @@ export default function ContactRolesManagement() {
     const fetchContactTypes = async () => {
       try {
         const response = await api.get('/api/v1/contact_types')
-        setContactTypes(response.data || [])
+        setContactTypes(response || [])
       } catch (error) {
         console.error('Failed to fetch contact types:', error)
         // Fallback to hardcoded types

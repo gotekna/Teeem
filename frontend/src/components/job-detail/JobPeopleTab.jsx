@@ -13,6 +13,11 @@ import {
   CalculatorIcon,
   CurrencyDollarIcon,
   ClipboardDocumentListIcon,
+  LinkIcon,
+  EnvelopeIcon,
+  PhoneIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid'
 import { api } from '../../api'
@@ -74,6 +79,33 @@ const getRoleBadgeClasses = (color) => {
   return colorMap[color] || colorMap.gray
 }
 
+// Format relationship type for display
+const formatRelationshipType = (type) => {
+  const typeLabels = {
+    employee_of: 'Employee of',
+    contractor_for: 'Contractor for',
+    director_of: 'Director of',
+    shareholder_of: 'Shareholder of',
+    authorized_signatory_of: 'Authorized Signatory of',
+    beneficial_owner_of: 'Beneficial Owner of',
+    trustee_of: 'Trustee of',
+    beneficiary_of: 'Beneficiary of',
+    appointor_of: 'Appointor of',
+    owner_of: 'Owner of',
+    co_owner_with: 'Co-owner with',
+    partner_in: 'Partner in',
+    parent_company: 'Parent Company',
+    subsidiary: 'Subsidiary',
+    previous_client: 'Previous Client',
+    referral: 'Referral',
+    supplier_alternate: 'Supplier Alternate',
+    related_project: 'Related Project',
+    family_member: 'Family Member',
+    other: 'Related to'
+  }
+  return typeLabels[type] || type?.replace(/_/g, ' ') || 'Related to'
+}
+
 // Internal team roles that use users instead of contacts
 const INTERNAL_ROLES = ['supervisor', 'estimator', 'internal_sales', 'coordinator']
 
@@ -88,6 +120,14 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState(null)
+  const [expandedRelationships, setExpandedRelationships] = useState({}) // Track which contacts have expanded relationships
+
+  const toggleRelationships = (contactId) => {
+    setExpandedRelationships(prev => ({
+      ...prev,
+      [contactId]: !prev[contactId]
+    }))
+  }
 
   const isInternalRole = (role) => INTERNAL_ROLES.includes(role)
 
@@ -543,16 +583,79 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
                             )}
                           </div>
 
-                          {/* Email and Mobile */}
+                          {/* Email, Mobile and Relationships */}
                           <div className="mt-2 space-y-1">
                             {(contact.user?.email || contact.contact?.email) && (
-                              <div className="text-xs text-gray-600 dark:text-gray-400">
-                                <span className="font-medium">Email:</span> {contact.user?.email || contact.contact?.email}
+                              <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                                <EnvelopeIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                                <a href={`mailto:${contact.user?.email || contact.contact?.email}`} className="hover:text-indigo-600 dark:hover:text-indigo-400">
+                                  {contact.user?.email || contact.contact?.email}
+                                </a>
                               </div>
                             )}
                             {contact.contact?.mobile_phone && (
-                              <div className="text-xs text-gray-600 dark:text-gray-400">
-                                <span className="font-medium">Mobile:</span> {contact.contact.mobile_phone}
+                              <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                                <PhoneIcon className="h-3.5 w-3.5 flex-shrink-0" />
+                                <a href={`tel:${contact.contact.mobile_phone}`} className="hover:text-indigo-600 dark:hover:text-indigo-400">
+                                  {contact.contact.mobile_phone}
+                                </a>
+                              </div>
+                            )}
+
+                            {/* Relationships Section */}
+                            {contact.relationships_count > 0 && (
+                              <div className="mt-2">
+                                <button
+                                  onClick={() => toggleRelationships(contact.id)}
+                                  className="flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                                >
+                                  {expandedRelationships[contact.id] ? (
+                                    <ChevronDownIcon className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <ChevronRightIcon className="h-3.5 w-3.5" />
+                                  )}
+                                  <LinkIcon className="h-3.5 w-3.5" />
+                                  {contact.relationships_count} Relationship{contact.relationships_count !== 1 ? 's' : ''}
+                                </button>
+
+                                {expandedRelationships[contact.id] && contact.relationships && (
+                                  <div className="mt-2 ml-4 space-y-2">
+                                    {contact.relationships.map((rel) => (
+                                      <div
+                                        key={rel.id}
+                                        className="p-2 bg-white dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-600"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            {formatRelationshipType(rel.relationship_type)}
+                                          </span>
+                                          <button
+                                            onClick={() => navigate(`/contacts/${rel.related_contact.id}`)}
+                                            className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                                          >
+                                            {rel.related_contact.full_name || rel.related_contact.company_name}
+                                          </button>
+                                        </div>
+                                        {(rel.related_contact.email || rel.related_contact.mobile_phone) && (
+                                          <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500 dark:text-gray-400">
+                                            {rel.related_contact.email && (
+                                              <span className="flex items-center gap-1">
+                                                <EnvelopeIcon className="h-3 w-3" />
+                                                {rel.related_contact.email}
+                                              </span>
+                                            )}
+                                            {rel.related_contact.mobile_phone && (
+                                              <span className="flex items-center gap-1">
+                                                <PhoneIcon className="h-3 w-3" />
+                                                {rel.related_contact.mobile_phone}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

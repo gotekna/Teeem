@@ -540,6 +540,10 @@ export default function TeeemTableView({
   const [groupBySearchQuery, setGroupBySearchQuery] = useState('') // Search query for group by dropdown
   const [sortColumnDropdownOpen, setSortColumnDropdownOpen] = useState(null) // Track which sort column dropdown is open (by index)
   const [sortColumnSearchQuery, setSortColumnSearchQuery] = useState('') // Search query for sort column dropdown
+  const [editingSortOrderIndex, setEditingSortOrderIndex] = useState(null) // Track which sort order number is being edited
+  const [sortOrderInputValue, setSortOrderInputValue] = useState('') // Temp value for order number input
+  const [editingGroupOrderIndex, setEditingGroupOrderIndex] = useState(null) // Track which group order number is being edited
+  const [groupOrderInputValue, setGroupOrderInputValue] = useState('') // Temp value for group order number input
   const [filterColumnDropdownOpen, setFilterColumnDropdownOpen] = useState(null) // Track which filter column dropdown is open (by filter id)
   const [filterColumnSearchQuery, setFilterColumnSearchQuery] = useState('') // Search query for filter column dropdown
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState(() => {
@@ -1973,34 +1977,38 @@ export default function TeeemTableView({
     return result
   }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents])
 
-  // Collapse all groups by default when groupByColumn changes to a non-null value
+  // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
-    if (groupByColumn && filteredAndSorted.length > 0) {
-      const allGroups = new Set()
-      // Get column definition to check if it's a lookup column
-      const groupColumnDef = COLUMNS.find(c => c.key === groupByColumn)
-      const isLookupColumn = groupColumnDef?.column_type === 'lookup'
-      const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+    const activeGroupColumns = groupByColumns.length > 0 ? groupByColumns : (groupByColumn ? [groupByColumn] : [])
+    if (activeGroupColumns.length > 0 && filteredAndSorted.length > 0) {
+      const topLevelGroups = new Set()
 
-      filteredAndSorted.forEach(entry => {
-        const rawValue = entry[groupByColumn]
-        let groupValue
+      // Helper to get display value for a column
+      const getDisplayValue = (entry, colKey) => {
+        const groupColumnDef = COLUMNS.find(c => c.key === colKey)
+        const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+        const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+        const rawValue = entry[colKey]
 
         if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
-          groupValue = rawValue.display || '(empty)'
+          return rawValue.display || '(empty)'
         } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
           const matchingOption = lookupOptions.find(opt =>
             opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
           )
-          groupValue = matchingOption?.display || `ID: ${rawValue}`
-        } else {
-          groupValue = rawValue ?? '(empty)'
+          return matchingOption?.display || `ID: ${rawValue}`
         }
-        allGroups.add(groupValue)
+        return rawValue ?? '(empty)'
+      }
+
+      // Collapse only top-level groups (first column)
+      filteredAndSorted.forEach(entry => {
+        const topLevelValue = getDisplayValue(entry, activeGroupColumns[0])
+        topLevelGroups.add(topLevelValue)
       })
-      setCollapsedGroups(allGroups)
+      setCollapsedGroups(topLevelGroups)
     }
-  }, [groupByColumn, columnChoices, COLUMNS]) // Also trigger when columnChoices loads
+  }, [groupByColumns, groupByColumn, columnChoices, COLUMNS]) // Also trigger when columnChoices loads
 
   // Multi-column sort handler
   // Regular click: single column sort (cycles asc -> desc -> clear)
@@ -5084,20 +5092,13 @@ export default function TeeemTableView({
                             }
                             setDeletingColumnId(column.id || column.key)
                             try {
-                              const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/v1/foundations/${foundationIdNumeric}/columns/${column.id}`, {
-                                method: 'DELETE',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': `Bearer ${localStorage.getItem('token')}`
-                                }
-                              })
-                              if (response.ok) {
+                              const response = await api.delete(`/api/v1/foundations/${foundationIdNumeric}/columns/${column.id}`)
+                              if (response?.success !== false) {
                                 alert(`Column "${column.label}" deleted successfully. Please refresh the page to see changes.`)
                                 setShowDeleteColumnModal(false)
                                 window.location.reload()
                               } else {
-                                const error = await response.json()
-                                alert(`Failed to delete column: ${error.error || 'Unknown error'}`)
+                                alert(`Failed to delete column: ${response?.error || 'Unknown error'}`)
                               }
                             } catch (err) {
                               alert(`Failed to delete column: ${err.message}`)
@@ -6018,11 +6019,83 @@ export default function TeeemTableView({
                                 <div
                                   key={`${sort.column}-${index}`}
                                   className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg"
+                                  draggable
+                                  onDragStart={(e) => {
+                                    e.dataTransfer.setData('text/plain', `sort-${index}`)
+                                    e.dataTransfer.effectAllowed = 'move'
+                                    e.currentTarget.style.opacity = '0.5'
+                                  }}
+                                  onDragEnd={(e) => {
+                                    e.currentTarget.style.opacity = '1'
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault()
+                                    e.dataTransfer.dropEffect = 'move'
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault()
+                                    const data = e.dataTransfer.getData('text/plain')
+                                    if (data.startsWith('sort-')) {
+                                      const fromIndex = parseInt(data.replace('sort-', ''), 10)
+                                      const toIndex = index
+                                      if (fromIndex !== toIndex) {
+                                        const newSort = [...sortColumns]
+                                        const [removed] = newSort.splice(fromIndex, 1)
+                                        newSort.splice(toIndex, 0, removed)
+                                        setSortColumns(newSort)
+                                      }
+                                    }
+                                  }}
                                 >
-                                  {/* Sort priority number */}
-                                  <span className="w-6 h-6 flex items-center justify-center bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full">
-                                    {index + 1}
-                                  </span>
+                                  {/* Drag handle */}
+                                  <div className="cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300" title="Drag to reorder">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
+                                    </svg>
+                                  </div>
+
+                                  {/* Sort priority number - Click to edit */}
+                                  {editingSortOrderIndex === index ? (
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={sortColumns.length}
+                                      value={sortOrderInputValue}
+                                      onChange={(e) => setSortOrderInputValue(e.target.value)}
+                                      onBlur={() => {
+                                        const newPosition = parseInt(sortOrderInputValue, 10)
+                                        if (newPosition >= 1 && newPosition <= sortColumns.length && newPosition !== index + 1) {
+                                          const newSort = [...sortColumns]
+                                          const [removed] = newSort.splice(index, 1)
+                                          newSort.splice(newPosition - 1, 0, removed)
+                                          setSortColumns(newSort)
+                                        }
+                                        setEditingSortOrderIndex(null)
+                                        setSortOrderInputValue('')
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.target.blur()
+                                        } else if (e.key === 'Escape') {
+                                          setEditingSortOrderIndex(null)
+                                          setSortOrderInputValue('')
+                                        }
+                                      }}
+                                      className="w-8 h-6 text-center bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full border-2 border-blue-500 focus:outline-none"
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setEditingSortOrderIndex(index)
+                                        setSortOrderInputValue(String(index + 1))
+                                      }}
+                                      className="w-6 h-6 flex items-center justify-center bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full hover:bg-blue-200 dark:hover:bg-blue-800 cursor-pointer transition-colors"
+                                      title="Click to change order"
+                                    >
+                                      {index + 1}
+                                    </button>
+                                  )}
 
                                   {/* Column dropdown - Searchable with smart positioning */}
                                   <div className="relative flex-1 min-w-[120px]" data-sort-column-dropdown ref={(el) => {
@@ -6196,7 +6269,7 @@ export default function TeeemTableView({
                           {sortColumns.length > 0 && (
                             <div className="mt-2 text-center">
                               <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                                Sorted by {sortColumns.length} column{sortColumns.length !== 1 ? 's' : ''} in order shown
+                                Sorted by {sortColumns.length} column{sortColumns.length !== 1 ? 's' : ''} in order shown. Drag or click number to reorder.
                               </span>
                             </div>
                           )}
@@ -6290,10 +6363,50 @@ export default function TeeemTableView({
                                     </svg>
                                   </div>
 
-                                  {/* Order number */}
-                                  <span className="w-6 h-6 flex items-center justify-center bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium">
-                                    {index + 1}
-                                  </span>
+                                  {/* Order number - Click to edit */}
+                                  {editingGroupOrderIndex === index ? (
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      max={groupByColumns.length}
+                                      value={groupOrderInputValue}
+                                      onChange={(e) => setGroupOrderInputValue(e.target.value)}
+                                      onBlur={() => {
+                                        const newPosition = parseInt(groupOrderInputValue, 10)
+                                        if (newPosition >= 1 && newPosition <= groupByColumns.length && newPosition !== index + 1) {
+                                          const newGroupByColumns = [...groupByColumns]
+                                          const [removed] = newGroupByColumns.splice(index, 1)
+                                          newGroupByColumns.splice(newPosition - 1, 0, removed)
+                                          setGroupByColumns(newGroupByColumns)
+                                          setGroupByColumn(newGroupByColumns[0])
+                                          setCollapsedGroups(new Set())
+                                        }
+                                        setEditingGroupOrderIndex(null)
+                                        setGroupOrderInputValue('')
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                          e.target.blur()
+                                        } else if (e.key === 'Escape') {
+                                          setEditingGroupOrderIndex(null)
+                                          setGroupOrderInputValue('')
+                                        }
+                                      }}
+                                      className="w-8 h-6 text-center bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-xs font-bold rounded-full border-2 border-purple-500 focus:outline-none"
+                                      autoFocus
+                                    />
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setEditingGroupOrderIndex(index)
+                                        setGroupOrderInputValue(String(index + 1))
+                                      }}
+                                      className="w-6 h-6 flex items-center justify-center bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-800 cursor-pointer transition-colors"
+                                      title="Click to change order"
+                                    >
+                                      {index + 1}
+                                    </button>
+                                  )}
 
                                   {/* Column dropdown - Searchable with smart positioning */}
                                   <div className="relative flex-1 min-w-[120px]" data-group-column-dropdown={index}>
@@ -6443,7 +6556,7 @@ export default function TeeemTableView({
 
                               {/* Group info */}
                               <div className="text-[10px] text-gray-500 dark:text-gray-400 text-center mt-1">
-                                Grouped by {groupByColumns.length} column{groupByColumns.length !== 1 ? 's' : ''} in order shown. Drag to reorder.</div>
+                                Grouped by {groupByColumns.length} column{groupByColumns.length !== 1 ? 's' : ''} in order shown. Drag or click number to reorder.</div>
                             </div>
                           )}
 
@@ -6452,31 +6565,40 @@ export default function TeeemTableView({
                             <div className="mt-3 flex items-center gap-2">
                               <button
                                 onClick={() => {
-                                  // Collapse all groups - use first group column
-                                  const allGroups = new Set()
-                                  const firstGroupCol = groupByColumns[0]
-                                  // Get column definition to check if it's a lookup column
-                                  const groupColumnDef = COLUMNS.find(c => c.key === firstGroupCol)
-                                  const isLookupColumn = groupColumnDef?.column_type === 'lookup'
-                                  const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+                                  // Collapse all groups at all levels - build all possible paths
+                                  const allPaths = new Set()
 
-                                  filteredAndSorted.forEach(entry => {
-                                    const rawValue = entry[firstGroupCol]
-                                    let groupValue
+                                  // Helper to get display value for a column (matches getGroupDisplayValue in table render)
+                                  const getDisplayValue = (entry, colKey) => {
+                                    // Search by key or column_name to handle saved views with different formats
+                                    const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
+                                    const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                                    const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+                                    // Use column_name if different from key to access the entry data
+                                    const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+                                    const rawValue = entry[actualKey] ?? entry[colKey]
 
                                     if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
-                                      groupValue = rawValue.display || '(empty)'
+                                      return rawValue.display || '(empty)'
                                     } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
                                       const matchingOption = lookupOptions.find(opt =>
                                         opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
                                       )
-                                      groupValue = matchingOption?.display || `ID: ${rawValue}`
-                                    } else {
-                                      groupValue = rawValue ?? '(empty)'
+                                      return matchingOption?.display || `ID: ${rawValue}`
                                     }
-                                    allGroups.add(groupValue)
+                                    return rawValue ?? '(empty)'
+                                  }
+
+                                  // Build all paths for each row
+                                  filteredAndSorted.forEach(entry => {
+                                    let path = ''
+                                    groupByColumns.forEach((colKey, idx) => {
+                                      const value = getDisplayValue(entry, colKey)
+                                      path = path ? `${path}|${value}` : value
+                                      allPaths.add(path)
+                                    })
                                   })
-                                  setCollapsedGroups(allGroups)
+                                  setCollapsedGroups(allPaths)
                                 }}
                                 className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-300 rounded transition-colors"
                               >
@@ -6700,7 +6822,7 @@ export default function TeeemTableView({
                                   className="w-6 text-[9px] text-center text-green-700 dark:text-green-300 font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 hover:border-green-400 focus:border-green-500 focus:outline-none rounded [appearance:textfield]"
                                 />
                               )}
-                              <label className="flex items-center gap-1 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
                                 <input
                                   type="checkbox"
                                   checked={isVisible}
@@ -6715,7 +6837,7 @@ export default function TeeemTableView({
                                   } focus:ring-offset-0`}
                                 />
                                 <span
-                                  className={`font-medium whitespace-nowrap ${
+                                  className={`font-medium whitespace-nowrap truncate ${
                                     isVisible
                                       ? 'text-green-800 dark:text-green-200'
                                       : 'text-gray-600 dark:text-gray-400'
@@ -6724,6 +6846,26 @@ export default function TeeemTableView({
                                   {column.label}
                                 </span>
                               </label>
+                              {/* Show Filter toggle - for all visible columns except select/actions */}
+                              {isVisible && showFilters && column.key !== 'select' && column.key !== 'actions' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setColumnShowFilters(prev => ({
+                                      ...prev,
+                                      [column.key]: !(prev[column.key] ?? true)
+                                    }))
+                                  }}
+                                  className={`flex-shrink-0 px-1 py-0.5 rounded text-[9px] font-medium transition-colors ${
+                                    columnShowFilters[column.key] ?? true
+                                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/60'
+                                      : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                  }`}
+                                  title={columnShowFilters[column.key] ?? true ? 'Hide filter for this column' : 'Show filter for this column'}
+                                >
+                                  {columnShowFilters[column.key] ?? true ? '⊜' : '⊝'}
+                                </button>
+                              )}
                             </div>
                           )
 
@@ -7101,21 +7243,75 @@ export default function TeeemTableView({
             )}
           </div>
 
-          {/* Showing count - right aligned */}
-          <div className="flex justify-end ml-auto items-center gap-2">
-            {loadingMore && (
-              <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                <span className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></span>
-                Loading...
-              </span>
+          {/* Collapse/Expand buttons (left) and Record count (right) */}
+          <div className="flex justify-between items-center">
+            {/* Collapse/Expand All - shown when grouping is active */}
+            {groupByColumns.length > 0 && filteredAndSorted.length > 0 ? (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    // Collapse all groups - build all possible paths
+                    const allPaths = new Set()
+                    const getDisplayValue = (entry, colKey) => {
+                      const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
+                      const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                      const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+                      const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+                      const rawValue = entry[actualKey] ?? entry[colKey]
+                      if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+                        return rawValue.display || '(empty)'
+                      } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+                        const matchingOption = lookupOptions.find(opt =>
+                          opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
+                        )
+                        return matchingOption?.display || `ID: ${rawValue}`
+                      }
+                      return rawValue ?? '(empty)'
+                    }
+                    filteredAndSorted.forEach(entry => {
+                      let path = ''
+                      groupByColumns.forEach((colKey) => {
+                        const value = getDisplayValue(entry, colKey)
+                        path = path ? `${path}|${value}` : value
+                        allPaths.add(path)
+                      })
+                    })
+                    setCollapsedGroups(allPaths)
+                  }}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  title="Collapse All Groups"
+                >
+                  ▶ Collapse
+                </button>
+                <span className="text-xs text-gray-300 dark:text-gray-600">|</span>
+                <button
+                  onClick={() => setCollapsedGroups(new Set())}
+                  className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+                  title="Expand All Groups"
+                >
+                  ▼ Expand
+                </button>
+              </div>
+            ) : (
+              <div></div>
             )}
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {filteredAndSorted.length > MAX_RENDERED_ROWS
-                ? `Showing ${MAX_RENDERED_ROWS} of ${filteredAndSorted.length} matches (${entries.length} total)`
-                : filteredAndSorted.length === entries.length
-                  ? `${filteredAndSorted.length} records`
-                  : `${filteredAndSorted.length} of ${entries.length} records`}
-            </span>
+
+            {/* Showing count - right aligned */}
+            <div className="flex items-center gap-2">
+              {loadingMore && (
+                <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <span className="animate-spin h-3 w-3 border-2 border-blue-600 border-t-transparent rounded-full"></span>
+                  Loading...
+                </span>
+              )}
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {filteredAndSorted.length > MAX_RENDERED_ROWS
+                  ? `Showing ${MAX_RENDERED_ROWS} of ${filteredAndSorted.length} matches (${entries.length} total)`
+                  : filteredAndSorted.length === entries.length
+                    ? `${filteredAndSorted.length} records`
+                    : `${filteredAndSorted.length} of ${entries.length} records`}
+              </span>
+            </div>
           </div>
         </div>
         {/* END BOTTOM SECTION - Filters */}
@@ -7197,7 +7393,7 @@ export default function TeeemTableView({
                       <div className={`flex flex-col h-full gap-2 overflow-hidden ${
                         showFilters && (columnShowFilters[colKey] ?? true) && column.filterType ? 'justify-between' : 'justify-start'
                       }`}>
-                        <div className="flex items-start gap-1 min-w-0">
+                        <div className="flex items-center gap-1 min-w-0">
                           {/* Only show drag handle in edit mode */}
                           {editIndividualMode && column.resizable && (
                             <div
@@ -7478,8 +7674,10 @@ export default function TeeemTableView({
                         )}
 
                         {/* Default text filter for columns without specific filterType - Show only if showFilters is true */}
-                        {/* Exclude: select, component, columns with filterable: false, and columns with showFilter unchecked */}
-                        {showFilters && (columnShowFilters[colKey] ?? true) && !column.filterType && colKey !== 'component' && colKey !== 'select' && column.filterable !== false && (
+                        {/* Exclude: select, actions, component - everything else gets a filter if columnShowFilters allows */}
+                        {/* Also show for columns with filterType that doesn't have a specific handler (like currency, number, etc) */}
+                        {showFilters && (columnShowFilters[colKey] ?? true) && colKey !== 'component' && colKey !== 'select' && colKey !== 'actions' &&
+                         (!column.filterType || !['text', 'boolean', 'dropdown'].includes(column.filterType)) && (
                           <input
                             type="text"
                             placeholder="Filter..."
@@ -7505,117 +7703,110 @@ export default function TeeemTableView({
           </thead>
           <tbody className="bg-white dark:bg-gray-900">
             {filteredAndSorted.length > 0 ? (() => {
-              // Group rows if groupByColumn is set
-              if (groupByColumn) {
-                const groups = {}
-                // Get column definition to check if it's a lookup column
-                const groupColumnDef = COLUMNS.find(c => c.key === groupByColumn)
+              // Get active group columns - prefer array, fall back to legacy single column
+              const activeGroupColumns = groupByColumns.length > 0 ? groupByColumns : (groupByColumn ? [groupByColumn] : [])
+
+              // Helper to get display value for a column
+              const getGroupDisplayValue = (entry, colKey) => {
+                // Search by key or column_name to handle saved views with different formats
+                const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
                 const isLookupColumn = groupColumnDef?.column_type === 'lookup'
                 const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+                // Use column_name if different from key to access the entry data
+                const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+                const rawValue = entry[actualKey] ?? entry[colKey]
 
-                filteredAndSorted.forEach(entry => {
-                  // Handle lookup columns which return { id, display } objects OR just IDs
-                  const rawValue = entry[groupByColumn]
-                  let groupValue
+                if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+                  return rawValue.display || '(empty)'
+                } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+                  const matchingOption = lookupOptions.find(opt =>
+                    opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
+                  )
+                  return matchingOption?.display || `ID: ${rawValue}`
+                }
+                return rawValue ?? '(empty)'
+              }
 
-                  if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
-                    // Value is already an object with display
-                    groupValue = rawValue.display || '(empty)'
-                  } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
-                    // Value is just an ID - look up the display value from options
-                    const matchingOption = lookupOptions.find(opt =>
-                      opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
-                    )
-                    groupValue = matchingOption?.display || `ID: ${rawValue}`
-                  } else {
-                    // Plain value or empty
-                    groupValue = rawValue ?? '(empty)'
-                  }
+              // Helper to sort group keys naturally
+              const sortGroupKeys = (keys) => {
+                return keys.sort((a, b) => {
+                  const numA = parseInt(a.match(/\d+/)?.[0], 10)
+                  const numB = parseInt(b.match(/\d+/)?.[0], 10)
+                  if (!isNaN(numA) && !isNaN(numB)) return numA - numB
+                  return a.localeCompare(b)
+                })
+              }
 
+              // Build nested group structure recursively
+              const buildNestedGroups = (rows, columnIndex = 0) => {
+                if (columnIndex >= activeGroupColumns.length) {
+                  return { rows } // Leaf node - return rows directly
+                }
+
+                const colKey = activeGroupColumns[columnIndex]
+                const groups = {}
+
+                rows.forEach(entry => {
+                  const groupValue = getGroupDisplayValue(entry, colKey)
                   if (!groups[groupValue]) {
                     groups[groupValue] = []
                   }
                   groups[groupValue].push(entry)
                 })
 
-                // Sort group keys - use natural/numeric sorting for chapter-like keys
-                const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
-                  // Extract leading numbers if present (e.g., "Ch 1: ..." or just "1" or "10")
-                  const numA = parseInt(a.match(/\d+/)?.[0], 10)
-                  const numB = parseInt(b.match(/\d+/)?.[0], 10)
-
-                  // If both have numbers, sort numerically
-                  if (!isNaN(numA) && !isNaN(numB)) {
-                    return numA - numB
-                  }
-                  // Otherwise fall back to alphabetical
-                  return a.localeCompare(b)
+                // Recursively build sub-groups
+                const result = {}
+                Object.keys(groups).forEach(key => {
+                  result[key] = buildNestedGroups(groups[key], columnIndex + 1)
                 })
+
+                return { groups: result, columnIndex }
+              }
+
+              // Render nested groups recursively
+              const renderNestedGroups = (node, parentPath = '', level = 0) => {
                 const visibleColCount = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).length
 
-                let rowIndex = 0
-                return sortedGroupKeys.map(groupKey => {
-                  const groupRows = groups[groupKey]
-                  const isCollapsed = collapsedGroups.has(groupKey)
+                // Level-based colors for visual hierarchy
+                const levelColors = [
+                  'from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 text-indigo-800 dark:text-indigo-200',
+                  'from-blue-100 to-cyan-100 dark:from-blue-900/40 dark:to-cyan-900/40 text-blue-800 dark:text-blue-200',
+                  'from-green-100 to-teal-100 dark:from-green-900/40 dark:to-teal-900/40 text-green-800 dark:text-green-200',
+                  'from-amber-100 to-orange-100 dark:from-amber-900/40 dark:to-orange-900/40 text-amber-800 dark:text-amber-200',
+                ]
+                const colorClass = levelColors[level % levelColors.length]
 
-                  return (
-                    <React.Fragment key={`group-${groupKey}`}>
-                      {/* Group Header Row */}
+                if (node.rows) {
+                  // Leaf node - render actual data rows
+                  let rowIndex = 0
+                  return node.rows.map((entry) => {
+                    const currentIndex = rowIndex++
+                    return (
                       <tr
-                        className="bg-gradient-to-r from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 cursor-pointer hover:from-indigo-200 hover:to-purple-200 dark:hover:from-indigo-900/60 dark:hover:to-purple-900/60 transition-colors"
-                        onClick={() => {
-                          setCollapsedGroups(prev => {
-                            const newSet = new Set(prev)
-                            if (newSet.has(groupKey)) {
-                              newSet.delete(groupKey)
+                        key={entry.id}
+                        onDoubleClick={(e) => {
+                          if (!editModeActive) {
+                            e.stopPropagation()
+                            if (onRowDoubleClick) {
+                              onRowDoubleClick(entry)
                             } else {
-                              newSet.add(groupKey)
+                              setModalEditData({...entry})
+                              setShowEditableModal(true)
                             }
-                            return newSet
-                          })
+                          }
                         }}
+                        className={`${
+                          editingRowId === entry.id
+                            ? 'bg-white dark:bg-gray-800 ring-4 ring-blue-500 shadow-lg'
+                            : selectedRows.has(entry.id)
+                              ? 'bg-blue-200 dark:bg-blue-800/60 ring-2 ring-blue-400 dark:ring-blue-500'
+                              : currentIndex % 2 === 0
+                                ? 'bg-white dark:bg-gray-900'
+                                : editModeActive
+                                  ? 'bg-orange-50 dark:bg-orange-900/20'
+                                  : 'bg-blue-50 dark:bg-blue-900/20'
+                        } ${!editModeActive ? 'cursor-pointer' : ''} ${editModeActive ? 'hover:bg-orange-100 dark:hover:bg-orange-800/30' : 'hover:bg-blue-100 dark:hover:bg-blue-800/30'} transition-colors duration-150`}
                       >
-                        <td colSpan={visibleColCount} className="px-3 py-2 font-semibold text-indigo-800 dark:text-indigo-200">
-                          <div className="flex items-center gap-2">
-                            <span className={`transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
-                              ▶
-                            </span>
-                            <span>{groupKey}</span>
-                            <span className="text-sm font-normal text-indigo-600 dark:text-indigo-400">
-                              ({groupRows.length} row{groupRows.length !== 1 ? 's' : ''})
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                      {/* Group Child Rows */}
-                      {!isCollapsed && groupRows.map((entry) => {
-                        const currentIndex = rowIndex++
-                        return (
-                          <tr
-                            key={entry.id}
-                            onDoubleClick={(e) => {
-                              if (!editModeActive) {
-                                e.stopPropagation()
-                                if (onRowDoubleClick) {
-                                  onRowDoubleClick(entry)
-                                } else {
-                                  setModalEditData({...entry})
-                                  setShowEditableModal(true)
-                                }
-                              }
-                            }}
-                            className={`${
-                              editingRowId === entry.id
-                                ? 'bg-white dark:bg-gray-800 ring-4 ring-blue-500 shadow-lg'
-                                : selectedRows.has(entry.id)
-                                  ? 'bg-blue-200 dark:bg-blue-800/60 ring-2 ring-blue-400 dark:ring-blue-500'
-                                  : currentIndex % 2 === 0
-                                    ? 'bg-white dark:bg-gray-900'
-                                    : editModeActive
-                                      ? 'bg-orange-50 dark:bg-orange-900/20'
-                                      : 'bg-blue-50 dark:bg-blue-900/20'
-                            } ${!editModeActive ? 'cursor-pointer' : ''} ${editModeActive ? 'hover:bg-orange-100 dark:hover:bg-orange-800/30' : 'hover:bg-blue-100 dark:hover:bg-blue-800/30'} transition-colors duration-150`}
-                          >
                             {columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).map(colKey => {
                               const column = COLUMNS.find(c => c.key === colKey)
                               if (!column) return null
@@ -7625,7 +7816,6 @@ export default function TeeemTableView({
                                   key={colKey}
                                   onDoubleClick={(e) => {}}
                                   onClick={(e) => {
-                                    console.log('Cell clicked:', { colKey, editModeActive, isComputed: column.isComputed, currentEditingRowId: editingRowId, clickedRowId: entry.id });
                                     const textColumns = ['title', 'content'];
                                     if (textColumns.includes(colKey) && !editModeActive) {
                                       e.stopPropagation();
@@ -7692,10 +7882,74 @@ export default function TeeemTableView({
                             })}
                           </tr>
                         )
-                      })}
-                    </React.Fragment>
-                  )
-                })
+                      })
+                    }
+
+                // Has groups - render group headers and nested content
+                if (node.groups) {
+                  const sortedKeys = sortGroupKeys(Object.keys(node.groups))
+                  return sortedKeys.map(groupKey => {
+                    const groupPath = parentPath ? `${parentPath}|${groupKey}` : groupKey
+                    const isCollapsed = collapsedGroups.has(groupPath)
+                    const childNode = node.groups[groupKey]
+
+                    // Count total rows in this group (recursively)
+                    const countRows = (n) => {
+                      if (n.rows) return n.rows.length
+                      if (n.groups) return Object.values(n.groups).reduce((sum, child) => sum + countRows(child), 0)
+                      return 0
+                    }
+                    const rowCount = countRows(childNode)
+
+                    // Get column label for this level - search by key, column_name, or fall back to raw key
+                    const groupColKey = activeGroupColumns[level]
+                    const colDef = COLUMNS.find(c => c.key === groupColKey || c.column_name === groupColKey)
+                    const colLabel = colDef?.label || groupColKey
+
+                    return (
+                      <React.Fragment key={`group-${groupPath}`}>
+                        {/* Group Header Row */}
+                        <tr
+                          className={`bg-gradient-to-r ${colorClass} cursor-pointer hover:brightness-95 transition-all`}
+                          onClick={() => {
+                            setCollapsedGroups(prev => {
+                              const newSet = new Set(prev)
+                              if (newSet.has(groupPath)) {
+                                newSet.delete(groupPath)
+                              } else {
+                                newSet.add(groupPath)
+                              }
+                              return newSet
+                            })
+                          }}
+                        >
+                          <td colSpan={visibleColCount} className="px-3 py-2 font-semibold">
+                            <div className="flex items-center gap-2" style={{ paddingLeft: `${level * 20}px` }}>
+                              <span className={`transform transition-transform ${isCollapsed ? '' : 'rotate-90'}`}>
+                                ▶
+                              </span>
+                              <span className="text-xs font-normal opacity-60">{colLabel}:</span>
+                              <span>{groupKey}</span>
+                              <span className="text-sm font-normal opacity-70">
+                                ({rowCount} row{rowCount !== 1 ? 's' : ''})
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* Group Children (recursive) */}
+                        {!isCollapsed && renderNestedGroups(childNode, groupPath, level + 1)}
+                      </React.Fragment>
+                    )
+                  })
+                }
+
+                return null
+              }
+
+              // If we have grouping columns, build and render nested groups
+              if (activeGroupColumns.length > 0) {
+                const nestedGroups = buildNestedGroups(filteredAndSorted)
+                return renderNestedGroups(nestedGroups)
               }
 
               // No grouping - render flat list (limit rendered rows for performance)
