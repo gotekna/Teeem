@@ -6,6 +6,17 @@ Commits ALL pending changes and pushes to trigger GitHub Actions deployment to s
 
 **Run from teeem root. Auto-generate commit messages.**
 
+## 🔴 STAGING ONLY - NEVER DEPLOY TO LIVE
+
+**This command deploys to STAGING (rob branch) ONLY.**
+
+- ✅ Staging Frontend: https://teeemrob.vercel.app/
+- ✅ Staging Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- ❌ NEVER push to main/Live branch
+- ❌ NEVER deploy to https://teeem.vercel.app/ (production)
+
+**To deploy to production:** Create a PR from rob → main (Live branch).
+
 ## Parallel Execution Strategy
 
 ### Step 1 - Pre-Flight Checks (RUN IN PARALLEL)

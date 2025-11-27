@@ -691,23 +691,36 @@ export default function TablePage({ embedded = false }) {
 
   // Server-side search handler for TeeemTableView
   // Called by TeeemTableView when search term changes (with 300ms debounce)
-  const handleServerSearch = useCallback(async (searchTerm) => {
+  // searchAllColumns: when true, searches all text columns instead of just marked searchable ones
+  const handleServerSearch = useCallback(async (searchTerm, searchAllColumns = false) => {
     // Only enable server-side search for tables that need it (not Price Books which loads all)
     const isPriceBooks = id === '205' || id === 'price-books'
     if (isPriceBooks) return  // Price Books loads all records, use client-side search
+
+    const searchStartTime = performance.now()
+    console.log(`[Search] handleServerSearch called: "${searchTerm}"`)
 
     setCurrentSearchTerm(searchTerm)
     setServerSearchLoading(true)
 
     try {
       const searchParam = searchTerm ? `&search=${encodeURIComponent(searchTerm)}` : ''
-      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${PAGE_SIZE}&page=1${searchParam}`)
+      const searchAllParam = searchAllColumns ? '&search_all=true' : ''
+      const url = `/api/v1/foundations/${id}/records?per_page=${PAGE_SIZE}&page=1${searchParam}${searchAllParam}`
 
+      const apiStartTime = performance.now()
+      console.log(`[Search] API request starting...`)
+      const response = await api.get(url)
+      console.log(`[Search] API response received in ${(performance.now() - apiStartTime).toFixed(0)}ms, ${response.records?.length || 0} records`)
+
+      const renderStartTime = performance.now()
       setRecords(response.records || [])
       setCurrentPage(1)
       setTotalPages(response.pagination?.total_pages || 1)
       setTotalCount(response.pagination?.total_count || 0)
       setHasMore(1 < (response.pagination?.total_pages || 1))
+      console.log(`[Search] State updates queued in ${(performance.now() - renderStartTime).toFixed(0)}ms`)
+      console.log(`[Search] Total handleServerSearch time: ${(performance.now() - searchStartTime).toFixed(0)}ms`)
     } catch (err) {
       console.error('Server search failed:', err)
     } finally {

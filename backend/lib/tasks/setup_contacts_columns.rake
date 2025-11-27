@@ -73,7 +73,7 @@ namespace :teeem do
       ['created_at', 'Created', 'date_and_time', 27, {}],
       ['updated_at', 'Updated', 'date_and_time', 28, {}],
       ['last_synced_at', 'Last Synced', 'date_and_time', 29, {}],
-      ['portal_welcome_sent_at', 'Portal Welcome Sent', 'date_and_time', 30, {}],
+      # Note: portal_welcome_sent_at column was removed as unused
 
       # Notes - multi-line text
       ['notes', 'Notes', 'multiple_lines_text', 31, { searchable: true }],

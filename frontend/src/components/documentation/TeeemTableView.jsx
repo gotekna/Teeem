@@ -252,6 +252,7 @@ export default function TeeemTableView({
   // enableImport/enableExport: show import/export options in three-dot menu
   // onImport/onExport: callback functions for import/export actions
   const [search, setSearch] = useState('')
+  const [searchAllColumns, setSearchAllColumns] = useState(false) // Toggle to search all text columns
 
   // Server-side search with debouncing (Chapter 20.20 enhancement)
   // When onServerSearch is provided, triggers server search after 300ms of inactivity
@@ -259,11 +260,14 @@ export default function TeeemTableView({
     if (!onServerSearch) return  // Only activate if callback is provided
 
     const debounceTimer = setTimeout(() => {
-      onServerSearch(search)
+      const startTime = performance.now()
+      console.log(`[Search] Starting search for: "${search}" (searchAll: ${searchAllColumns})`)
+      onServerSearch(search, searchAllColumns)
+      console.log(`[Search] onServerSearch called in ${(performance.now() - startTime).toFixed(1)}ms`)
     }, 300)  // 300ms debounce delay
 
     return () => clearTimeout(debounceTimer)
-  }, [search, onServerSearch])
+  }, [search, searchAllColumns, onServerSearch])
 
   // Multi-column sorting: array of {column, dir} objects
   // First item is primary sort, second is secondary, etc.
@@ -4670,6 +4674,25 @@ export default function TeeemTableView({
               </button>
             )}
           </div>
+
+          {/* Search All Columns Toggle - Only show when server search is available */}
+          {onServerSearch && (
+            <label className="flex items-center gap-2 cursor-pointer select-none group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={searchAllColumns}
+                  onChange={(e) => setSearchAllColumns(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-200 dark:bg-gray-600 rounded-full peer peer-checked:bg-blue-600 transition-colors"></div>
+                <div className="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform peer-checked:translate-x-4"></div>
+              </div>
+              <span className="text-xs text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200 whitespace-nowrap">
+                Search all columns
+              </span>
+            </label>
+          )}
 
           {/* Custom Action Buttons (Chapter 20: Add, Import, etc.) */}
           {customActions && customActions}

@@ -20,6 +20,7 @@ module Api
         end
 
         search = params[:search]
+        search_all = params[:search_all] == 'true' # Search all text columns instead of just searchable ones
         sort_by = params[:sort_by]
         sort_direction = params[:sort_direction]&.downcase == 'desc' ? 'desc' : 'asc'
 
@@ -29,9 +30,25 @@ module Api
         # Apply search filter
         if search.present?
           searchable_columns = if @foundation.table_type == 'system'
-            # For system foundations, search text columns from the model
-            # Exclude array columns (e.g., contact_types) as ILIKE doesn't work on arrays
-            model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name)
+            if search_all
+              # Search all text columns from the model (slower but comprehensive)
+              # Exclude array columns (e.g., contact_types) as ILIKE doesn't work on arrays
+              model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name)
+            else
+              # For system tables, use a predefined list of key searchable columns (fast)
+              # These are the columns users typically want to search
+              system_searchable = {
+                'contacts' => %w[full_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
+                'constructions' => %w[name description address status],
+                'jobs' => %w[name description address status]
+              }
+              table_name = model.table_name
+              system_searchable[table_name] || model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name).first(5)
+            end
+          elsif search_all
+            # Search all text-like columns when search_all is enabled
+            text_types = %w[single_line_text multiple_lines_text email phone url]
+            @foundation.columns.where(column_type: text_types).pluck(:column_name)
           else
             @foundation.columns.where(searchable: true).pluck(:column_name)
           end

@@ -30,19 +30,15 @@ missing_columns = [
   { name: 'Company Number', column_name: 'company_number', column_type: 'single_line_text', description: 'Company registration number', position: max_position + 16 },
   { name: 'Fax Phone', column_name: 'fax_phone', column_type: 'phone', description: 'Fax number', position: max_position + 17 },
   { name: 'Director ID', column_name: 'director_id', column_type: 'single_line_text', description: 'Director identification number', position: max_position + 18 },
-  { name: 'Passport Number', column_name: 'passport_number', column_type: 'single_line_text', description: 'Passport number', position: max_position + 19 },
-  { name: 'Drivers License Number', column_name: 'drivers_license_number', column_type: 'single_line_text', description: 'Drivers license number', position: max_position + 20 },
-  { name: 'Place of Birth', column_name: 'place_of_birth', column_type: 'single_line_text', description: 'City/town of birth', position: max_position + 21 },
-  { name: 'Birth State', column_name: 'birth_state', column_type: 'single_line_text', description: 'State of birth', position: max_position + 22 },
-  { name: 'Birth Country', column_name: 'birth_country', column_type: 'single_line_text', description: 'Country of birth', position: max_position + 23 },
-  { name: 'Current Residential Address', column_name: 'current_residential_address', column_type: 'multiple_lines_text', description: 'Current home address', position: max_position + 24 },
-  { name: 'Company Name or Trust', column_name: 'company_name_or_trust', column_type: 'single_line_text', description: 'Associated company or trust name', position: max_position + 25 },
-  { name: 'Primary Company ID', column_name: 'primary_company_id', column_type: 'whole_number', description: 'Primary company identifier', position: max_position + 26 },
-  { name: 'Primary Role', column_name: 'primary_role', column_type: 'single_line_text', description: 'Primary job role/title', position: max_position + 27 },
-  { name: 'Employment Status', column_name: 'employment_status', column_type: 'choice', description: 'Current employment status', position: max_position + 28 },
-  { name: 'Employment Start Date', column_name: 'employment_start_date', column_type: 'date', description: 'Date employment started', position: max_position + 29 },
-  { name: 'Entity Type', column_name: 'entity_type', column_type: 'choice', description: 'Type of legal entity', position: max_position + 30 },
-  { name: 'LGAs', column_name: 'lgas', column_type: 'multiple_choice', description: 'Local Government Areas serviced', position: max_position + 31 }
+  # Note: passport_number, drivers_license_number, place_of_birth, birth_state, birth_country,
+  # current_residential_address columns were removed as unused
+  { name: 'Company Name or Trust', column_name: 'company_name_or_trust', column_type: 'single_line_text', description: 'Associated company or trust name', position: max_position + 19 },
+  { name: 'Primary Company ID', column_name: 'primary_company_id', column_type: 'whole_number', description: 'Primary company identifier', position: max_position + 20 },
+  { name: 'Primary Role', column_name: 'primary_role', column_type: 'single_line_text', description: 'Primary job role/title', position: max_position + 21 },
+  { name: 'Employment Status', column_name: 'employment_status', column_type: 'choice', description: 'Current employment status', position: max_position + 22 },
+  { name: 'Employment Start Date', column_name: 'employment_start_date', column_type: 'date', description: 'Date employment started', position: max_position + 23 },
+  { name: 'Entity Type', column_name: 'entity_type', column_type: 'choice', description: 'Type of legal entity', position: max_position + 24 },
+  { name: 'LGAs', column_name: 'lgas', column_type: 'multiple_choice', description: 'Local Government Areas serviced', position: max_position + 25 }
 ]
 
 puts "\nAdding #{missing_columns.length} missing columns to Table ID #{CONTACTS_TABLE_ID}..."

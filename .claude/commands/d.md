@@ -4,6 +4,17 @@
 
 Commits ONLY files worked on in THIS chat session, then pushes to trigger GitHub Actions deployment. Use `/fd` to commit everything.
 
+## 🔴 STAGING ONLY - NEVER DEPLOY TO LIVE
+
+**This command deploys to STAGING (rob branch) ONLY.**
+
+- ✅ Staging Frontend: https://teeemrob.vercel.app/
+- ✅ Staging Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- ❌ NEVER push to main/Live branch
+- ❌ NEVER deploy to https://teeem.vercel.app/ (production)
+
+**To deploy to production:** Create a PR from rob → main (Live branch).
+
 ## How It Works
 
 1. **ASK which files to commit** - Show `git status` and ask user to specify files
