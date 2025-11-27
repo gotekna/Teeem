@@ -76,10 +76,39 @@ class XeroClaimImportService
 
   def fetch_all_sales_invoices
     # Fetch all ACCREC (sales invoices/claims) invoices
-    result = @client.get('Invoices', { where: 'Type=="ACCREC"' })
-    return [] unless result[:success]
+    # Note: List endpoint doesn't include line item tracking details
+    # We'll fetch the list first, then get full details for each
+    all_invoices = []
+    page = 1
 
-    result[:data]['Invoices'] || []
+    loop do
+      result = @client.get('Invoices', { where: 'Type=="ACCREC"', page: page })
+      break unless result[:success]
+
+      invoices = result[:data]['Invoices'] || []
+      break if invoices.empty?
+
+      all_invoices.concat(invoices)
+      page += 1
+
+      # Xero returns up to 100 per page
+      break if invoices.length < 100
+    end
+
+    Rails.logger.info("Found #{all_invoices.length} sales invoices in Xero, fetching full details...")
+
+    # Now fetch each invoice individually to get line item tracking details
+    all_invoices.map do |invoice|
+      fetch_invoice_details(invoice['InvoiceID']) || invoice
+    end.compact
+  end
+
+  def fetch_invoice_details(invoice_id)
+    result = @client.get("Invoices/#{invoice_id}")
+    return nil unless result[:success]
+
+    invoices = result[:data]['Invoices'] || []
+    invoices.first
   end
 
   def import_invoice(invoice)
