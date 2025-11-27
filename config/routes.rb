@@ -785,6 +785,9 @@ Rails.application.routes.draw do
           get :tax_rates
           get :accounts
           get :search_contacts
+          post :import_tracking_categories
+          post :import_all_bills
+          post :full_import
         end
         member do
           get :sync_contacts_status
