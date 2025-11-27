@@ -6313,34 +6313,11 @@ export default function TeeemTableView({
                           </div>
                         </div>
                       )}
-                      {/* Header with tabs */}
+                      {/* Header */}
                       <div className="flex items-center justify-between mb-2">
                         <label className="text-xs font-medium text-gray-600 dark:text-gray-400">
                           Columns:
                         </label>
-                        {/* Tabs for Visible/Hidden */}
-                        <div className="flex rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600">
-                          <button
-                            onClick={() => setColumnVisibilityTab('visible')}
-                            className={`px-2.5 py-1 text-[10px] font-medium transition-colors ${
-                              columnVisibilityTab === 'visible'
-                                ? 'bg-green-500 text-white'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            Visible ({COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && visibleColumns[col.key] !== false).length})
-                          </button>
-                          <button
-                            onClick={() => setColumnVisibilityTab('hidden')}
-                            className={`px-2.5 py-1 text-[10px] font-medium transition-colors border-l border-gray-300 dark:border-gray-600 ${
-                              columnVisibilityTab === 'hidden'
-                                ? 'bg-gray-500 text-white'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            Hidden ({COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && visibleColumns[col.key] === false).length})
-                          </button>
-                        </div>
                       </div>
                       {/* Column search input */}
                       <div className="relative mb-2">
@@ -6363,46 +6340,181 @@ export default function TeeemTableView({
                           </button>
                         )}
                       </div>
-                      {/* Column header row with Expand/Collapse All - only show when there are multiple groups */}
+                      {/* Side-by-side Visible and Hidden columns */}
+                      <div className="flex gap-2">
+                        {(() => {
+                          // Filter columns by search query
+                          const searchLower = columnSearchQuery.toLowerCase().trim()
+                          const filteredCols = COLUMNS.filter(col =>
+                            col.key !== 'select' &&
+                            col.key !== 'actions' &&
+                            (!searchLower || col.label.toLowerCase().includes(searchLower) || col.key.toLowerCase().includes(searchLower))
+                          )
+
+                          // Get the current visibility order
+                          const currentOrder = visibilityColumnOrder || filteredCols.map(c => c.key)
+
+                          // Split into visible and hidden
+                          const visibleCols = filteredCols
+                            .filter(col => visibleColumns[col.key] !== false)
+                            .sort((a, b) => {
+                              const aIndex = currentOrder.indexOf(a.key)
+                              const bIndex = currentOrder.indexOf(b.key)
+                              if (aIndex === -1 && bIndex === -1) return a.label.localeCompare(b.label)
+                              if (aIndex === -1) return 1
+                              if (bIndex === -1) return -1
+                              return aIndex - bIndex
+                            })
+                          const hiddenCols = filteredCols
+                            .filter(col => visibleColumns[col.key] === false)
+                            .sort((a, b) => a.label.localeCompare(b.label))
+
+                          const renderColumnItem = (column, index, isVisible) => (
+                            <div
+                              key={column.key}
+                              draggable="false"
+                              onDragOver={(e) => {
+                                e.preventDefault()
+                                if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
+                                  setDragOverVisibilityColumn(column.key)
+                                }
+                              }}
+                              onDragLeave={() => setDragOverVisibilityColumn(null)}
+                              onDrop={(e) => {
+                                e.preventDefault()
+                                e.stopPropagation()
+                                if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
+                                  const existingOrder = visibilityColumnOrder || []
+                                  const allKeys = filteredCols.map(c => c.key)
+                                  const fullOrder = [...existingOrder]
+                                  allKeys.forEach(key => {
+                                    if (!fullOrder.includes(key)) fullOrder.push(key)
+                                  })
+
+                                  const draggedIndex = fullOrder.indexOf(draggedVisibilityColumn)
+                                  const targetIndex = fullOrder.indexOf(column.key)
+
+                                  if (draggedIndex !== -1 && targetIndex !== -1) {
+                                    fullOrder.splice(draggedIndex, 1)
+                                    fullOrder.splice(targetIndex, 0, draggedVisibilityColumn)
+                                    setVisibilityColumnOrder(fullOrder)
+                                  }
+                                }
+                                setDraggedVisibilityColumn(null)
+                                setDragOverVisibilityColumn(null)
+                              }}
+                              className={`relative flex items-center gap-1 px-1.5 py-1 rounded select-none transition-all text-[11px] ${
+                                isVisible
+                                  ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border border-green-200 dark:border-green-800'
+                                  : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
+                              } ${draggedVisibilityColumn === column.key ? 'opacity-50 scale-95 border-dashed border-orange-400' : ''} ${dragOverVisibilityColumn === column.key ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50' : ''}`}
+                            >
+                              {dragOverVisibilityColumn === column.key && draggedVisibilityColumn && (
+                                <div className="absolute -top-0.5 left-0 right-0 h-0.5 bg-blue-500 rounded-full z-10" />
+                              )}
+                              {isVisible && (
+                                <>
+                                  <span
+                                    draggable="true"
+                                    onDragStart={(e) => {
+                                      e.stopPropagation()
+                                      setDraggedVisibilityColumn(column.key)
+                                      e.dataTransfer.effectAllowed = 'move'
+                                    }}
+                                    onDragEnd={() => {
+                                      setTimeout(() => {
+                                        setDraggedVisibilityColumn(null)
+                                        setDragOverVisibilityColumn(null)
+                                      }, 0)
+                                    }}
+                                    className="text-gray-400 cursor-grab active:cursor-grabbing hover:text-gray-600 dark:hover:text-gray-300"
+                                    onClick={(e) => e.stopPropagation()}
+                                    title="Drag to reorder"
+                                  >⠿</span>
+                                  <span className="w-5 text-[9px] text-center text-green-600 dark:text-green-400 font-medium">{index + 1}</span>
+                                </>
+                              )}
+                              <label className="flex items-center gap-1 cursor-pointer flex-1 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isVisible}
+                                  onChange={(e) => {
+                                    e.stopPropagation()
+                                    setVisibleColumns({ ...visibleColumns, [column.key]: !isVisible })
+                                  }}
+                                  className={`w-3 h-3 rounded flex-shrink-0 ${
+                                    isVisible
+                                      ? 'border-green-400 text-green-600 focus:ring-green-500'
+                                      : 'border-gray-300 text-blue-600 focus:ring-blue-500'
+                                  } focus:ring-offset-0`}
+                                />
+                                <span
+                                  className={`truncate font-medium ${
+                                    isVisible
+                                      ? 'text-green-800 dark:text-green-200'
+                                      : 'text-gray-600 dark:text-gray-400'
+                                  }`}
+                                  title={column.label}
+                                >
+                                  {column.label}
+                                </span>
+                              </label>
+                            </div>
+                          )
+
+                          return (
+                            <>
+                              {/* Visible Columns */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-semibold text-green-700 dark:text-green-400 mb-1 px-1 flex items-center gap-1">
+                                  <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                  Visible ({visibleCols.length})
+                                </div>
+                                <div className="border border-green-200 dark:border-green-800 rounded p-1 bg-green-50/30 dark:bg-green-900/10 max-h-[40vh] overflow-y-auto">
+                                  {visibleCols.length === 0 ? (
+                                    <div className="text-[10px] text-gray-400 text-center py-2">No visible columns</div>
+                                  ) : (
+                                    <div className="flex flex-col gap-0.5">
+                                      {visibleCols.map((col, idx) => renderColumnItem(col, idx, true))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Hidden Columns */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1 px-1 flex items-center gap-1">
+                                  <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                  Hidden ({hiddenCols.length})
+                                </div>
+                                <div className="border border-gray-200 dark:border-gray-700 rounded p-1 bg-gray-50/30 dark:bg-gray-800/30 max-h-[40vh] overflow-y-auto">
+                                  {hiddenCols.length === 0 ? (
+                                    <div className="text-[10px] text-gray-400 text-center py-2">No hidden columns</div>
+                                  ) : (
+                                    <div className="flex flex-col gap-0.5">
+                                      {hiddenCols.map((col, idx) => renderColumnItem(col, idx, false))}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </>
+                          )
+                        })()}
+                      </div>
+                      {/* Grouped columns section - only when multiple groups exist */}
                       {(() => {
                         const uniqueGroups = new Set(
                           COLUMNS
                             .filter(col => col.key !== 'select' && col.key !== 'actions')
                             .map(col => col.column_group || 'Other')
                         )
-                        const hasMultipleGroups = uniqueGroups.size > 1
+                        // Only show grouped view if there are multiple column groups
+                        if (uniqueGroups.size <= 1) return null
 
-                        return (
-                          <div className="flex items-center justify-between px-1.5 py-1 border-b border-gray-300 dark:border-gray-600 text-[9px] font-medium text-gray-500 dark:text-gray-400">
-                            <div className="flex items-center gap-4">
-                              {columnVisibilityTab === 'visible' && <span className="w-8 text-center">#</span>}
-                              <span>Column</span>
-                            </div>
-                            {hasMultipleGroups && (
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => setCollapsedColumnGroups(new Set())}
-                                  className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
-                                  title="Expand all groups"
-                                >
-                                  Expand All
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setCollapsedColumnGroups(uniqueGroups)
-                                  }}
-                                  className="px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 text-[9px] rounded transition-colors"
-                                  title="Collapse all groups"
-                                >
-                                  Collapse All
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )
+                        return null // For now, skip grouped view - side by side is cleaner
                       })()}
-                      {/* Combined column list - grouped by column_group with collapsible sections */}
-                      <div className="border border-gray-200 dark:border-gray-700 rounded p-1 mt-1">
+                      {/* Legacy grouped column list - keeping for tables with column_group */}
+                      <div className="hidden">
                         {(() => {
                           // Filter columns by search query
                           const searchLower = columnSearchQuery.toLowerCase().trim()
@@ -6454,207 +6566,7 @@ export default function TeeemTableView({
                           const renderFlat = sortedGroups.length === 1
 
                           if (renderFlat) {
-                            // Flat list - show only selected tab's columns
-                            let allCols = groupedColumns[sortedGroups[0]]
-
-                            // Get the current visibility order
-                            const currentOrder = visibilityColumnOrder || allCols.map(c => c.key)
-
-                            // Filter by tab selection and sort by position order (not alphabetically)
-                            const checkedCols = allCols
-                              .filter(col => visibleColumns[col.key] !== false)
-                              .sort((a, b) => {
-                                // Sort by position in visibility order
-                                const aIndex = currentOrder.indexOf(a.key)
-                                const bIndex = currentOrder.indexOf(b.key)
-                                // If not in order, put at end alphabetically
-                                if (aIndex === -1 && bIndex === -1) return a.label.localeCompare(b.label)
-                                if (aIndex === -1) return 1
-                                if (bIndex === -1) return -1
-                                return aIndex - bIndex
-                              })
-                            const uncheckedCols = allCols
-                              .filter(col => visibleColumns[col.key] === false)
-                              .sort((a, b) => a.label.localeCompare(b.label))
-
-                            const displayCols = columnVisibilityTab === 'visible' ? checkedCols : uncheckedCols
-                            const isVisibleTab = columnVisibilityTab === 'visible'
-
-                            if (displayCols.length === 0) {
-                              return (
-                                <div className="flex flex-col items-center justify-center py-8 text-center">
-                                  <div className="text-3xl mb-2">{isVisibleTab ? '👁' : '🙈'}</div>
-                                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    {isVisibleTab ? 'No visible columns' : 'No hidden columns'}
-                                  </p>
-                                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                                    {isVisibleTab ? 'Switch to Hidden tab to show some columns' : 'All columns are currently visible'}
-                                  </p>
-                                </div>
-                              )
-                            }
-
-                            return (
-                              <div
-                                className="grid gap-1.5"
-                                style={{
-                                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))'
-                                }}
-                              >
-                                {displayCols.map((column, displayIndex) => {
-                                  // Calculate the position of this column in the visibility order
-                                  // Position is simply the display index + 1 since displayCols is already sorted by order
-                                  const position = isVisibleTab ? displayIndex + 1 : null
-
-                                  return (
-                                    <div
-                                      key={column.key}
-                                      draggable="false"
-                                      onDragOver={(e) => {
-                                        e.preventDefault()
-                                        if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
-                                          setDragOverVisibilityColumn(column.key)
-                                        }
-                                      }}
-                                      onDragLeave={() => setDragOverVisibilityColumn(null)}
-                                      onDrop={(e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
-                                          // Build full order including any columns not yet in the saved order
-                                          const existingOrder = visibilityColumnOrder || []
-                                          const allKeys = allCols.map(c => c.key)
-                                          const fullOrder = [...existingOrder]
-                                          // Add any missing columns to the end
-                                          allKeys.forEach(key => {
-                                            if (!fullOrder.includes(key)) fullOrder.push(key)
-                                          })
-
-                                          const draggedIndex = fullOrder.indexOf(draggedVisibilityColumn)
-                                          const targetIndex = fullOrder.indexOf(column.key)
-
-                                          if (draggedIndex !== -1 && targetIndex !== -1) {
-                                            fullOrder.splice(draggedIndex, 1)
-                                            fullOrder.splice(targetIndex, 0, draggedVisibilityColumn)
-                                            setVisibilityColumnOrder(fullOrder)
-                                          }
-                                        }
-                                        setDraggedVisibilityColumn(null)
-                                        setDragOverVisibilityColumn(null)
-                                      }}
-                                      className={`relative flex items-center gap-1.5 px-2 py-1.5 rounded-lg select-none transition-all ${
-                                        isVisibleTab
-                                          ? 'bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/40 border-2 border-green-200 dark:border-green-800 hover:border-green-300 dark:hover:border-green-700'
-                                          : 'bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                                      } ${draggedVisibilityColumn === column.key ? 'opacity-50 scale-95 border-dashed border-orange-400 bg-orange-50 dark:bg-orange-900/30' : ''} ${dragOverVisibilityColumn === column.key ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50' : ''}`}
-                                    >
-                                      {/* Drop indicator line */}
-                                      {dragOverVisibilityColumn === column.key && draggedVisibilityColumn && (
-                                        <div className="absolute -top-1 left-0 right-0 h-1 bg-blue-500 rounded-full shadow-lg shadow-blue-300 z-10">
-                                          <div className="absolute -left-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
-                                          <div className="absolute -right-1 -top-1 w-3 h-3 bg-blue-500 rounded-full" />
-                                        </div>
-                                      )}
-                                      {/* Drag handle */}
-                                      <span
-                                        draggable="true"
-                                        onDragStart={(e) => {
-                                          e.stopPropagation()
-                                          setDraggedVisibilityColumn(column.key)
-                                          e.dataTransfer.effectAllowed = 'move'
-                                        }}
-                                        onDragEnd={() => {
-                                          setTimeout(() => {
-                                            setDraggedVisibilityColumn(null)
-                                            setDragOverVisibilityColumn(null)
-                                          }, 0)
-                                        }}
-                                        className="text-gray-400 cursor-grab active:cursor-grabbing text-sm hover:text-gray-600 dark:hover:text-gray-300"
-                                        onClick={(e) => e.stopPropagation()}
-                                        title="Drag to reorder"
-                                      >⠿</span>
-                                      {/* Order number input - only show for visible columns */}
-                                      {isVisibleTab && (
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          max={displayCols.length}
-                                          value={position || ''}
-                                          onChange={(e) => {
-                                            const newPosition = parseInt(e.target.value, 10)
-                                            if (isNaN(newPosition) || newPosition < 1 || newPosition > displayCols.length) return
-
-                                            // Build full order including any columns not yet in the saved order
-                                            const existingOrder = visibilityColumnOrder || []
-                                            const allKeys = allCols.map(c => c.key)
-                                            const fullOrder = [...existingOrder]
-                                            allKeys.forEach(key => {
-                                              if (!fullOrder.includes(key)) fullOrder.push(key)
-                                            })
-
-                                            const currentIndex = fullOrder.indexOf(column.key)
-                                            if (currentIndex === -1) return
-
-                                            // Remove from current position
-                                            fullOrder.splice(currentIndex, 1)
-
-                                            // Find where to insert in the full order based on visible-only position
-                                            let visibleCount = 0
-                                            let insertIndex = fullOrder.length
-                                            for (let i = 0; i < fullOrder.length; i++) {
-                                              if (visibleColumns[fullOrder[i]] !== false) {
-                                                visibleCount++
-                                                if (visibleCount === newPosition) {
-                                                  insertIndex = i
-                                                  break
-                                                }
-                                              }
-                                            }
-
-                                            // If moving to position 1, insert before the first visible column
-                                            if (newPosition === 1) {
-                                              insertIndex = fullOrder.findIndex(key => visibleColumns[key] !== false)
-                                              if (insertIndex === -1) insertIndex = 0
-                                            }
-
-                                            fullOrder.splice(insertIndex, 0, column.key)
-                                            setVisibilityColumnOrder(fullOrder)
-                                          }}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="w-8 h-5 text-[10px] text-center border border-green-300 dark:border-green-700 rounded bg-white dark:bg-gray-800 text-green-700 dark:text-green-300 focus:outline-none focus:ring-1 focus:ring-green-500"
-                                          title={`Position ${position} - type a number to reorder`}
-                                        />
-                                      )}
-                                      <label className="flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
-                                        <input
-                                          type="checkbox"
-                                          checked={isVisibleTab}
-                                          onChange={(e) => {
-                                            e.stopPropagation()
-                                            setVisibleColumns({ ...visibleColumns, [column.key]: !isVisibleTab })
-                                          }}
-                                          className={`w-3.5 h-3.5 rounded flex-shrink-0 ${
-                                            isVisibleTab
-                                              ? 'border-green-400 text-green-600 focus:ring-green-500'
-                                              : 'border-gray-300 text-blue-600 focus:ring-blue-500'
-                                          } focus:ring-offset-0`}
-                                        />
-                                        <span
-                                          className={`truncate text-xs font-medium ${
-                                            isVisibleTab
-                                              ? 'text-green-800 dark:text-green-200'
-                                              : 'text-gray-600 dark:text-gray-400'
-                                          }`}
-                                          title={column.label}
-                                        >
-                                          {column.label}
-                                        </span>
-                                      </label>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            )
+                            return null // Using new side-by-side layout instead
                           }
 
                           return sortedGroups.map(groupName => {
