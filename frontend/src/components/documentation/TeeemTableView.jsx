@@ -486,6 +486,7 @@ export default function TeeemTableView({
   // Debounced filter state for actual filtering (300ms delay)
   const [columnFilters, setColumnFilters] = useState({})
   const [showFilters, setShowFilters] = useState(true) // Toggle to show/hide filter inputs
+  const [autoFitColumns, setAutoFitColumns] = useState(false) // Toggle to auto-fit column widths to content
 
   // Debounce filter inputs
   useEffect(() => {
@@ -655,6 +656,9 @@ export default function TeeemTableView({
       const newShowFilters = view.showFilters === undefined ? true : view.showFilters
       console.log('[loadViewState] Setting showFilters:', newShowFilters, 'from view.showFilters:', view.showFilters)
       setShowFilters(newShowFilters)
+      // Load autoFitColumns (default false if not specified)
+      const newAutoFitColumns = view.autoFitColumns === undefined ? false : view.autoFitColumns
+      setAutoFitColumns(newAutoFitColumns)
     }
 
     // Load sort (defensive validation)
@@ -798,6 +802,7 @@ export default function TeeemTableView({
               visibleColumns: columns.visible || {},
               columnOrder: columns.order || [],
               showFilters: columns.showFilters !== false, // default true
+              autoFitColumns: columns.autoFitColumns === true, // default false
               sortColumns: Array.isArray(view.sort_order) ? view.sort_order : [],
               groupByColumn: view.group_by_column || null,  // Legacy single
               groupByColumns: groupByColumns,  // New array
@@ -2243,7 +2248,8 @@ export default function TeeemTableView({
           columns: {
             visible: viewData.visibleColumns || {},
             order: viewData.columnOrder || [],
-            showFilters: viewData.showFilters === undefined ? true : viewData.showFilters
+            showFilters: viewData.showFilters === undefined ? true : viewData.showFilters,
+            autoFitColumns: viewData.autoFitColumns === true
           },
           sort_order: sortColumns,
           group_by_column: groupByColumn,
@@ -2267,6 +2273,7 @@ export default function TeeemTableView({
           visibleColumns: columns.visible || {},
           columnOrder: columns.order || [],
           showFilters: columns.showFilters !== false, // default true
+          autoFitColumns: columns.autoFitColumns === true, // default false
           sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
           groupByColumn: response.view.group_by_column || null,
           display_order: 1, // New views go to position 2 (after the first/default view)
@@ -2335,7 +2342,8 @@ export default function TeeemTableView({
           columns: {
             visible: viewData.visibleColumns || {},
             order: viewData.columnOrder || [],
-            showFilters: viewData.showFilters === undefined ? true : viewData.showFilters
+            showFilters: viewData.showFilters === undefined ? true : viewData.showFilters,
+            autoFitColumns: viewData.autoFitColumns === true
           },
           sort_order: sortColumns,
           group_by_column: groupByColumn,  // Legacy single column (backward compatible)
@@ -2366,6 +2374,7 @@ export default function TeeemTableView({
             visibleColumns: columns.visible || {},
             columnOrder: columns.order || [],
             showFilters: columns.showFilters !== false, // default true
+            autoFitColumns: columns.autoFitColumns === true, // default false
             sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
             groupByColumn: response.view.group_by_column || null,  // Legacy single
             groupByColumns: savedGroupByColumns,  // New array
@@ -5523,6 +5532,7 @@ export default function TeeemTableView({
                                     visibleColumns: { ...visibleColumns },
                                     columnOrder: visibilityColumnOrder,
                                     showFilters,
+                                    autoFitColumns,
                                     sortColumns: [...sortColumns],
                                     groupByColumns: [...groupByColumns]  // Save full array of group by columns
                                   })
@@ -5556,6 +5566,7 @@ export default function TeeemTableView({
                                     visibleColumns: { ...visibleColumns },
                                     columnOrder: visibilityColumnOrder,
                                     showFilters,
+                                    autoFitColumns,
                                     sortColumns: [...sortColumns],
                                     groupByColumns: [...groupByColumns]  // Save full array of group by columns
                                   })
@@ -5611,6 +5622,7 @@ export default function TeeemTableView({
                                     visibleColumns: columnsToSave,
                                     columnOrder: orderToSave,
                                     showFilters,
+                                    autoFitColumns,
                                     sortColumns: [...sortColumns],
                                     groupByColumn,
                                     isDefault: savedFilters.length === 0
@@ -5643,6 +5655,7 @@ export default function TeeemTableView({
                                   visibleColumns: columnsToSave,
                                   columnOrder: orderToSave,
                                   showFilters,
+                                  autoFitColumns,
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
@@ -5677,6 +5690,7 @@ export default function TeeemTableView({
                                   visibleColumns: columnsToSave,
                                   columnOrder: orderToSave,
                                   showFilters,
+                                  autoFitColumns,
                                   sortColumns: [...sortColumns],
                                   groupByColumn,
                                   isDefault: savedFilters.length === 0
@@ -6811,19 +6825,35 @@ export default function TeeemTableView({
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                           Display Options
                         </label>
-                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={showFilters}
-                              onChange={(e) => setShowFilters(e.target.checked)}
-                              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-gray-700 dark:text-gray-300">Show inline column filters</span>
-                          </label>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
-                            Display filter inputs in the table header row
-                          </p>
+                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30 space-y-3">
+                          <div>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={showFilters}
+                                onChange={(e) => setShowFilters(e.target.checked)}
+                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Show inline column filters</span>
+                            </label>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                              Display filter inputs in the table header row
+                            </p>
+                          </div>
+                          <div>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={autoFitColumns}
+                                onChange={(e) => setAutoFitColumns(e.target.checked)}
+                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">Auto-fit column widths</span>
+                            </label>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
+                              Expand columns to show full content (ignores set widths)
+                            </p>
+                          </div>
                         </div>
                       </div>
                       </>
@@ -7605,9 +7635,9 @@ export default function TeeemTableView({
                       }
                     }}
                     style={{
-                      width: columnWidths[colKey],
+                      width: autoFitColumns ? 'auto' : columnWidths[colKey],
                       minWidth: columnMinWidths[colKey] ?? 75,
-                      maxWidth: columnWidths[colKey],
+                      maxWidth: autoFitColumns ? 'none' : columnWidths[colKey],
                       position: 'relative',
                       fontSize: '16px',
                       fontWeight: '600',
@@ -8111,9 +8141,9 @@ export default function TeeemTableView({
                                     }
                                   }}
                                   style={{
-                                    width: columnWidths[colKey],
+                                    width: autoFitColumns ? 'auto' : columnWidths[colKey],
                                     minWidth: columnMinWidths[colKey] ?? 75,
-                                    maxWidth: columnWidths[colKey],
+                                    maxWidth: autoFitColumns ? 'none' : columnWidths[colKey],
                                     fontSize: '14px',
                                     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
                                   }}
@@ -8126,7 +8156,7 @@ export default function TeeemTableView({
                                     ['title', 'content'].includes(colKey) && !editModeActive ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
                                   } ${
                                     editModeActive && colKey !== 'select' && colKey !== 'id' && colKey !== 'user_id' && !column.isComputed ? 'cursor-pointer' : ''
-                                  } whitespace-nowrap overflow-hidden text-ellipsis max-w-0`}
+                                  } ${autoFitColumns ? '' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
                                 >
                                   {renderCellContent(entry, colKey)}
                                 </td>
@@ -8310,9 +8340,9 @@ export default function TeeemTableView({
                         }
                       }}
                       style={{
-                        width: columnWidths[colKey],
+                        width: autoFitColumns ? 'auto' : columnWidths[colKey],
                         minWidth: columnMinWidths[colKey] ?? 75,
-                        maxWidth: columnWidths[colKey],
+                        maxWidth: autoFitColumns ? 'none' : columnWidths[colKey],
                         fontSize: '14px',
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
                       }}
@@ -8329,7 +8359,7 @@ export default function TeeemTableView({
                       } ${
                         // Edit mode: make all cells clickable except select, id, user_id, and computed
                         editModeActive && colKey !== 'select' && colKey !== 'id' && colKey !== 'user_id' && !column.isComputed ? 'cursor-pointer' : ''
-                      } whitespace-nowrap overflow-hidden text-ellipsis max-w-0`}
+                      } ${autoFitColumns ? '' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
                     >
                       {renderCellContent(entry, colKey)}
                     </td>
@@ -8385,7 +8415,7 @@ export default function TeeemTableView({
                   <td
                     key={colKey}
                     style={{
-                      width: columnWidths[colKey],
+                      width: autoFitColumns ? 'auto' : columnWidths[colKey],
                       minWidth: columnMinWidths[colKey] ?? 75,
                     }}
                     className={`${colKey === 'select' ? 'px-2 py-1.5' : 'px-2 py-1.5'} ${
