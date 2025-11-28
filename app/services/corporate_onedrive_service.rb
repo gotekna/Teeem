@@ -335,7 +335,7 @@ class CorporateOnedriveService
       .strip
   end
 
-  def link_document_to_company(client, company, doc)
+  def link_document_to_company(client, company, doc, group_name = nil)
     # Determine document type
     doc_type = categorize_document(doc['name'])
 
@@ -359,7 +359,8 @@ class CorporateOnedriveService
       onedrive_download_url: download_url,
       file_size: doc.dig('size'),
       last_modified_at: doc.dig('lastModifiedDateTime')&.to_datetime,
-      storage_type: 'electronic'
+      storage_type: 'electronic',
+      register_folder: group_name
     )
 
     if company_doc.save
