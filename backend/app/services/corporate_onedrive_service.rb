@@ -1,10 +1,11 @@
 class CorporateOnedriveService
-  attr_reader :credential, :results
+  attr_reader :credential, :results, :folder_path
 
-  CORPORATE_ROOT_FOLDER = "00 - TEEEM/Corporate"
+  DEFAULT_FOLDER_PATH = "00 - TEEEM/Corporate"
 
-  def initialize(credential = nil)
+  def initialize(credential = nil, folder_path: nil)
     @credential = credential || OrganizationOneDriveCredential.active_credential
+    @folder_path = folder_path || DEFAULT_FOLDER_PATH
     @results = {
       companies_scanned: 0,
       documents_found: 0,
@@ -19,11 +20,11 @@ class CorporateOnedriveService
     return { success: false, error: "OneDrive not connected" } unless client
 
     # Find the corporate root folder
-    corporate_folder = find_folder_by_path(client, CORPORATE_ROOT_FOLDER)
+    corporate_folder = find_folder_by_path(client, @folder_path)
     unless corporate_folder
       return {
         success: false,
-        error: "Corporate folder not found at '#{CORPORATE_ROOT_FOLDER}'. Please create this folder in OneDrive."
+        error: "Corporate folder not found at '#{@folder_path}'. Please create this folder in OneDrive."
       }
     end
 
@@ -62,11 +63,11 @@ class CorporateOnedriveService
     return { success: false, error: "OneDrive not connected" } unless client
 
     # Find the corporate root folder
-    corporate_folder = find_folder_by_path(client, CORPORATE_ROOT_FOLDER)
+    corporate_folder = find_folder_by_path(client, @folder_path)
     unless corporate_folder
       return {
         success: false,
-        error: "Corporate folder not found at '#{CORPORATE_ROOT_FOLDER}'"
+        error: "Corporate folder not found at '#{@folder_path}'"
       }
     end
 
@@ -104,11 +105,11 @@ class CorporateOnedriveService
     client = get_onedrive_client
     return { success: false, error: "OneDrive not connected" } unless client
 
-    corporate_folder = find_folder_by_path(client, CORPORATE_ROOT_FOLDER)
+    corporate_folder = find_folder_by_path(client, @folder_path)
     unless corporate_folder
       return {
         success: false,
-        error: "Corporate folder not found at '#{CORPORATE_ROOT_FOLDER}'"
+        error: "Corporate folder not found at '#{@folder_path}'"
       }
     end
 
@@ -134,7 +135,7 @@ class CorporateOnedriveService
 
     {
       success: true,
-      corporate_folder: CORPORATE_ROOT_FOLDER,
+      corporate_folder: @folder_path,
       companies: preview_results,
       total_folders: preview_results.count,
       matched_folders: preview_results.count(&:matched),
