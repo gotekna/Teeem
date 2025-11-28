@@ -194,6 +194,7 @@ function App() {
         <Route path="/jobs/:id/sm-dashboard" element={<AppLayout><SmDashboardPage /></AppLayout>} />
         <Route path="/jobs/:id/sm-analytics" element={<AppLayout><SmAnalyticsPage /></AppLayout>} />
         <Route path="/jobs/:constructionId/field" element={<SmFieldPage />} />
+        <Route path="/jobs/:id/:tab/:subtab" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/jobs/:id/:tab" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/jobs/:id" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/meetings" element={<AppLayout><MeetingsPage /></AppLayout>} />

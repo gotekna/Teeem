@@ -28,7 +28,6 @@ import AddressAutocomplete from '../components/common/AddressAutocomplete'
 import JobContactsSection from '../components/job-detail/JobContactsSection'
 import RainLogTab from '../components/rain-log/RainLogTab'
 import JobPeopleTab from '../components/job-detail/JobPeopleTab'
-import JobXeroTab from '../components/job-detail/JobXeroTab'
 import JobInvoicesTab from '../components/jobs/JobInvoicesTab'
 import JobBillsTab from '../components/jobs/JobBillsTab'
 import JobProfitTab from '../components/jobs/JobProfitTab'
@@ -37,9 +36,6 @@ const tabs = [
   { name: 'Overview', slug: 'overview' },
   { name: 'People', slug: 'people' },
   { name: 'Profit', slug: 'profit' },
-  { name: 'Invoices', slug: 'invoices' },
-  { name: 'Costs', slug: 'costs' },
-  { name: 'Xero', slug: 'xero' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
   { name: 'Activity', slug: 'activity' },
   { name: 'Budget', slug: 'budget' },
@@ -49,12 +45,19 @@ const tabs = [
   { name: 'Coms', slug: 'coms' },
 ]
 
+// Sub-tabs for Profit section
+const profitSubTabs = [
+  { name: 'Summary', slug: 'profit' },
+  { name: 'Invoices', slug: 'profit/invoices' },
+  { name: 'Costs', slug: 'profit/costs' },
+]
+
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ')
 }
 
 export default function JobDetailPage() {
-  const { id, tab } = useParams()
+  const { id, tab, subtab } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [job, setJob] = useState(null)
@@ -64,7 +67,10 @@ export default function JobDetailPage() {
   const [editedJob, setEditedJob] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  const activeTab = tab || 'overview'
+  // Handle both main tab and subtab (e.g., profit/invoices)
+  const activeTab = subtab ? `${tab}/${subtab}` : (tab || 'overview')
+  const mainTab = tab || 'overview'
+  const isProfitSection = mainTab === 'profit'
   const returnTo = searchParams.get('returnTo') || sessionStorage.getItem('jobsTableView') || '/tables/204/jobs'
 
   // Purchase Orders state
@@ -328,7 +334,7 @@ export default function JobDetailPage() {
                     key={tabItem.name}
                     onClick={() => navigate(`/jobs/${id}/${tabItem.slug}`)}
                     className={classNames(
-                      activeTab === tabItem.slug
+                      mainTab === tabItem.slug
                         ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
                       'whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium'
@@ -692,20 +698,31 @@ export default function JobDetailPage() {
             <JobPeopleTab jobId={id} onUpdate={loadJob} />
           )}
 
-          {activeTab === 'profit' && (
-            <JobProfitTab job={job} />
-          )}
+          {isProfitSection && (
+            <div className="space-y-4">
+              {/* Profit Sub-tabs */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-1 inline-flex">
+                {profitSubTabs.map((subTab) => (
+                  <button
+                    key={subTab.slug}
+                    onClick={() => navigate(`/jobs/${id}/${subTab.slug}`)}
+                    className={classNames(
+                      activeTab === subTab.slug
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700',
+                      'px-4 py-2 text-sm font-medium rounded-md transition-colors'
+                    )}
+                  >
+                    {subTab.name}
+                  </button>
+                ))}
+              </div>
 
-          {activeTab === 'invoices' && (
-            <JobInvoicesTab job={job} />
-          )}
-
-          {activeTab === 'costs' && (
-            <JobBillsTab job={job} />
-          )}
-
-          {activeTab === 'xero' && (
-            <JobXeroTab jobId={id} job={job} onUpdate={loadJob} />
+              {/* Profit Sub-tab Content */}
+              {activeTab === 'profit' && <JobProfitTab job={job} />}
+              {activeTab === 'profit/invoices' && <JobInvoicesTab job={job} />}
+              {activeTab === 'profit/costs' && <JobBillsTab job={job} />}
+            </div>
           )}
         </div>
 
