@@ -451,7 +451,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
       }
 
       const response = await api.patch(`/api/v1/jobs/${jobId}`, {
-        construction: updateData
+        job: updateData
       })
       console.log('Save successful, response:', response)
 
@@ -684,7 +684,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
       setSaving(true)
       try {
         await api.patch(`/api/v1/jobs/${jobId}`, {
-          construction: {
+          job: {
             latitude: tempPosition[0],
             longitude: tempPosition[1]
           }
