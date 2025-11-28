@@ -44,6 +44,9 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
     quotes: false
   })
 
+  // Show/hide deleted items
+  const [showDeleted, setShowDeleted] = useState(false)
+
   // Load Xero links on mount
   useEffect(() => {
     if (contact?.id) {
@@ -397,209 +400,286 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
           </div>
 
           {/* Invoices Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <button
-              onClick={() => toggleSection('invoices')}
-              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <div className="flex items-center gap-2">
-                <DocumentTextIcon className="h-5 w-5 text-blue-500" />
-                <span className="font-medium text-gray-900 dark:text-white">
-                  Invoices ({xeroInvoices.length})
-                </span>
-              </div>
-              {expandedSections.invoices ? (
-                <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-              ) : (
-                <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-              )}
-            </button>
+          {(() => {
+            const filteredInvoices = showDeleted
+              ? xeroInvoices
+              : xeroInvoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED')
+            const deletedCount = xeroInvoices.length - xeroInvoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED').length
+            const invoiceTotal = filteredInvoices.reduce((sum, inv) => sum + (inv.Total || 0), 0)
+            const invoiceDueTotal = filteredInvoices.reduce((sum, inv) => sum + (inv.AmountDue || 0), 0)
 
-            {expandedSections.invoices && (
-              <div className="overflow-x-auto">
-                {xeroInvoices.length > 0 ? (
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due Date</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {xeroInvoices.map((invoice, idx) => (
-                        <tr
-                          key={idx}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-                          onClick={() => fetchInvoiceDetail(invoice.InvoiceID)}
-                        >
-                          <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
-                            {invoice.InvoiceNumber || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {invoice.Reference || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(invoice.Date)}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(invoice.DueDate)}
-                          </td>
-                          <td className="px-4 py-2">
-                            {getStatusBadge(invoice.Status)}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(invoice.Total)}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(invoice.AmountDue)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                    No invoices found in Xero
+            return (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('invoices')}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <DocumentTextIcon className="h-5 w-5 text-blue-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Invoices ({filteredInvoices.length})
+                    </span>
+                    {deletedCount > 0 && !showDeleted && (
+                      <span className="text-xs text-gray-400">
+                        +{deletedCount} deleted
+                      </span>
+                    )}
+                  </div>
+                  {expandedSections.invoices ? (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+
+                {expandedSections.invoices && (
+                  <div className="overflow-x-auto">
+                    {filteredInvoices.length > 0 ? (
+                      <>
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-900/50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due Date</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {filteredInvoices.map((invoice, idx) => (
+                              <tr
+                                key={idx}
+                                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                                onClick={() => fetchInvoiceDetail(invoice.InvoiceID)}
+                              >
+                                <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                                  {invoice.InvoiceNumber || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {invoice.Reference || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {formatDate(invoice.Date)}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {formatDate(invoice.DueDate)}
+                                </td>
+                                <td className="px-4 py-2">
+                                  {getStatusBadge(invoice.Status)}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                                  {formatCurrency(invoice.Total)}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                                  {formatCurrency(invoice.AmountDue)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
+                            <tr>
+                              <td colSpan={5} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                                Total
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right font-bold text-gray-900 dark:text-white">
+                                {formatCurrency(invoiceTotal)}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right font-bold text-gray-900 dark:text-white">
+                                {formatCurrency(invoiceDueTotal)}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        {deletedCount > 0 && (
+                          <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setShowDeleted(!showDeleted); }}
+                              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              {showDeleted ? 'Hide deleted/voided' : `Show ${deletedCount} deleted/voided`}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                        No invoices found in Xero
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            )
+          })()}
 
           {/* Payments Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <button
-              onClick={() => toggleSection('payments')}
-              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <div className="flex items-center gap-2">
-                <CurrencyDollarIcon className="h-5 w-5 text-green-500" />
-                <span className="font-medium text-gray-900 dark:text-white">
-                  Payments ({xeroPayments.length})
-                </span>
-              </div>
-              {expandedSections.payments ? (
-                <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-              ) : (
-                <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-              )}
-            </button>
+          {(() => {
+            const paymentTotal = xeroPayments.reduce((sum, p) => sum + (p.Amount || 0), 0)
 
-            {expandedSections.payments && (
-              <div className="overflow-x-auto">
-                {xeroPayments.length > 0 ? (
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Invoice</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {xeroPayments.map((payment, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                            {payment.InvoiceNumber || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(payment.Date)}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {payment.Reference || '-'}
-                          </td>
-                          <td className="px-4 py-2">
-                            {getStatusBadge(payment.Status)}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-right font-medium text-green-600 dark:text-green-400">
-                            {formatCurrency(payment.Amount)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                    No payments found for this contact
+            return (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('payments')}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <CurrencyDollarIcon className="h-5 w-5 text-green-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Payments ({xeroPayments.length})
+                    </span>
+                  </div>
+                  {expandedSections.payments ? (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+
+                {expandedSections.payments && (
+                  <div className="overflow-x-auto">
+                    {xeroPayments.length > 0 ? (
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-900/50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Invoice</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {xeroPayments.map((payment, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                                {payment.InvoiceNumber || '-'}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                {formatDate(payment.Date)}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                {payment.Reference || '-'}
+                              </td>
+                              <td className="px-4 py-2">
+                                {getStatusBadge(payment.Status)}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right font-medium text-green-600 dark:text-green-400">
+                                {formatCurrency(payment.Amount)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
+                          <tr>
+                            <td colSpan={4} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                              Total
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right font-bold text-green-600 dark:text-green-400">
+                              {formatCurrency(paymentTotal)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    ) : (
+                      <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                        No payments found for this contact
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            )
+          })()}
 
           {/* Credit Notes Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <button
-              onClick={() => toggleSection('creditNotes')}
-              className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <div className="flex items-center gap-2">
-                <ReceiptRefundIcon className="h-5 w-5 text-orange-500" />
-                <span className="font-medium text-gray-900 dark:text-white">
-                  Credit Notes ({xeroCreditNotes.length})
-                </span>
-              </div>
-              {expandedSections.creditNotes ? (
-                <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-              ) : (
-                <ChevronRightIcon className="h-5 w-5 text-gray-400" />
-              )}
-            </button>
+          {(() => {
+            const creditNoteTotal = xeroCreditNotes.reduce((sum, cn) => sum + (cn.Total || 0), 0)
+            const creditNoteRemaining = xeroCreditNotes.reduce((sum, cn) => sum + (cn.RemainingCredit || 0), 0)
 
-            {expandedSections.creditNotes && (
-              <div className="overflow-x-auto">
-                {xeroCreditNotes.length > 0 ? (
-                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remaining</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                      {xeroCreditNotes.map((cn, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                            {cn.CreditNoteNumber || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {cn.Reference || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(cn.Date)}
-                          </td>
-                          <td className="px-4 py-2">
-                            {getStatusBadge(cn.Status)}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(cn.Total)}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-right font-medium text-orange-600 dark:text-orange-400">
-                            {formatCurrency(cn.RemainingCredit)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                    No credit notes found in Xero
+            return (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('creditNotes')}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <ReceiptRefundIcon className="h-5 w-5 text-orange-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Credit Notes ({xeroCreditNotes.length})
+                    </span>
+                  </div>
+                  {expandedSections.creditNotes ? (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+
+                {expandedSections.creditNotes && (
+                  <div className="overflow-x-auto">
+                    {xeroCreditNotes.length > 0 ? (
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-900/50">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Remaining</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {xeroCreditNotes.map((cn, idx) => (
+                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                              <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                                {cn.CreditNoteNumber || '-'}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                {cn.Reference || '-'}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                {formatDate(cn.Date)}
+                              </td>
+                              <td className="px-4 py-2">
+                                {getStatusBadge(cn.Status)}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                                {formatCurrency(cn.Total)}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right font-medium text-orange-600 dark:text-orange-400">
+                                {formatCurrency(cn.RemainingCredit)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
+                          <tr>
+                            <td colSpan={4} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                              Total
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right font-bold text-gray-900 dark:text-white">
+                              {formatCurrency(creditNoteTotal)}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right font-bold text-orange-600 dark:text-orange-400">
+                              {formatCurrency(creditNoteRemaining)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    ) : (
+                      <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                        No credit notes found in Xero
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
+            )
+          })()}
 
           {/* Quotes Section */}
           {xeroQuotes.length > 0 && (
