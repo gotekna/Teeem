@@ -32,7 +32,7 @@ import JobsSection from '../components/contacts/JobsSection'
 import CommunicationsTab from '../components/communications/CommunicationsTab'
 import PortalUserSection from '../components/contacts/PortalUserSection'
 import XeroSyncTab from '../components/contacts/XeroSyncTab'
-import XeroActivityTab from '../components/contacts/XeroActivityTab'
+// import XeroActivityTab from '../components/contacts/XeroActivityTab'
 import XeroConnectionsSection from '../components/contacts/XeroConnectionsSection'
 
 // Helper function to format ABN as XX XXX XXX XXX
@@ -2957,13 +2957,9 @@ export default function ContactDetailPage() {
 
       {activeTab === 'xero-activity' && (
         <div className="mt-6">
-          <XeroActivityTab
-            contact={contact}
-            onContactUpdate={(updatedContact) => {
-              setContact(updatedContact)
-              loadContact()
-            }}
-          />
+          <div className="p-4 text-gray-500 dark:text-gray-400">
+            Xero Activity tab temporarily disabled while investigating bundle error.
+          </div>
         </div>
       )}
       </div>
