@@ -758,7 +758,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               </>
             ) : contact?.xero_id ? (
               <>
-                <span className="font-semibold">Linked to Xero (legacy)</span> • Contact ID: <span className="font-mono">{contact.xero_id?.substring(0, 8)}...</span>
+                <span className="font-semibold">Linked to Xero</span> • Contact ID: <span className="font-mono">{contact.xero_id?.substring(0, 8)}...</span>
               </>
             ) : (
               <>
