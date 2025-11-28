@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_28_205145) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_28_225922) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -786,6 +786,67 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_205145) do
     t.datetime "updated_at", null: false
     t.string "folder_path"
     t.index ["name"], name: "index_documentation_categories_on_name", unique: true
+  end
+
+  create_table "email_sync_statuses", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "status", default: "pending"
+    t.datetime "last_sync_at"
+    t.datetime "sync_started_at"
+    t.datetime "oldest_email_synced"
+    t.integer "total_emails_synced", default: 0
+    t.integer "emails_synced_this_run", default: 0
+    t.text "last_error"
+    t.string "sync_cursor"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_email_sync_statuses_on_user_id", unique: true
+  end
+
+  create_table "email_warehouse", force: :cascade do |t|
+    t.string "internet_message_id", null: false
+    t.string "outlook_id"
+    t.string "conversation_id"
+    t.string "subject"
+    t.text "body_text"
+    t.text "body_html"
+    t.string "from_email"
+    t.string "from_name"
+    t.text "to_emails", default: [], array: true
+    t.text "cc_emails", default: [], array: true
+    t.text "bcc_emails", default: [], array: true
+    t.datetime "received_at"
+    t.datetime "sent_at"
+    t.boolean "has_attachments", default: false
+    t.integer "attachment_count", default: 0
+    t.string "importance"
+    t.boolean "is_read", default: false
+    t.string "folder_name"
+    t.string "in_reply_to"
+    t.text "references", default: [], array: true
+    t.boolean "is_latest_in_thread", default: true
+    t.bigint "job_id"
+    t.string "match_type"
+    t.float "match_confidence"
+    t.datetime "matched_at"
+    t.bigint "synced_by_user_id"
+    t.datetime "first_synced_at"
+    t.datetime "last_synced_at"
+    t.tsvector "searchable"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
+    t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
+    t.index ["from_email"], name: "index_email_warehouse_on_from_email"
+    t.index ["internet_message_id"], name: "index_email_warehouse_on_internet_message_id", unique: true
+    t.index ["is_latest_in_thread"], name: "index_email_warehouse_on_is_latest_in_thread"
+    t.index ["job_id", "is_latest_in_thread"], name: "index_email_warehouse_on_job_id_and_is_latest_in_thread"
+    t.index ["job_id", "received_at"], name: "index_email_warehouse_on_job_id_and_received_at"
+    t.index ["job_id"], name: "index_email_warehouse_on_job_id"
+    t.index ["received_at"], name: "index_email_warehouse_on_received_at"
+    t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
+    t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
+    t.index ["to_emails"], name: "index_email_warehouse_on_to_emails", using: :gin
   end
 
   create_table "emails", force: :cascade do |t|
@@ -2963,6 +3024,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_205145) do
     t.index ["name"], name: "index_user_groups_on_name", unique: true
   end
 
+  create_table "user_outlook_credentials", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "email"
+    t.text "access_token"
+    t.text "refresh_token"
+    t.datetime "expires_at"
+    t.string "tenant_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_user_outlook_credentials_on_user_id", unique: true
+  end
+
   create_table "user_permissions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "permission_id", null: false
@@ -3463,6 +3536,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_205145) do
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "companies"
   add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "email_sync_statuses", "users"
+  add_foreign_key "email_warehouse", "jobs"
+  add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
   add_foreign_key "emails", "jobs"
   add_foreign_key "emails", "users"
   add_foreign_key "estimate_line_items", "estimates"
@@ -3642,6 +3718,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_205145) do
   add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
   add_foreign_key "task_updates", "project_tasks"
   add_foreign_key "task_updates", "users"
+  add_foreign_key "user_outlook_credentials", "users"
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"
   add_foreign_key "users", "user_groups"
