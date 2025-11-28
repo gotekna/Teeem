@@ -815,6 +815,7 @@ Rails.application.routes.draw do
           get :status
           delete :disconnect
           get :invoices
+          get 'invoices/:id', action: :invoice_detail, as: :invoice_detail
           get :payments
           get :credit_notes
           get :quotes

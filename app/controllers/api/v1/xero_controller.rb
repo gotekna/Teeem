@@ -218,6 +218,39 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/invoices/:id
+      # Fetches a single invoice with full details including line items
+      def invoice_detail
+        begin
+          client = XeroApiClient.new
+          invoice_id = params[:id]
+
+          # Fetch single invoice with full details (including line items)
+          result = client.get("Invoices/#{invoice_id}")
+
+          if result[:success]
+            invoice = result[:data]['Invoices']&.first
+
+            if invoice
+              render json: {
+                success: true,
+                data: invoice
+              }
+            else
+              render json: { success: false, error: 'Invoice not found' }, status: :not_found
+            end
+          else
+            render json: { success: false, error: 'Failed to fetch invoice' }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero invoice detail auth error: #{e.message}")
+          render json: { success: false, error: 'Not authenticated with Xero' }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero invoice detail error: #{e.message}")
+          render json: { success: false, error: "Failed to fetch invoice details" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/payments
       # Fetches payments from Xero (with optional contact filter)
       def payments
@@ -227,11 +260,13 @@ module Api
           query_params = {}
           where_clauses = []
 
-          # Filter by contact_id if provided (via invoice)
+          # Filter by contact_id - payments are linked via Invoice.Contact
           if params[:contact_id].present?
-            # Payments are linked to invoices, not directly to contacts
-            # We need to filter invoices by contact first, then get their payments
-            # For now, return empty - payments would need to be fetched per invoice
+            where_clauses << "Invoice.Contact.ContactID == Guid(\"#{params[:contact_id]}\")"
+          end
+
+          if where_clauses.any?
+            query_params[:where] = where_clauses.join(' AND ')
           end
 
           result = client.get('Payments', query_params)
