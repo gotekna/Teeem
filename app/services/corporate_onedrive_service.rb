@@ -1,7 +1,23 @@
 class CorporateOnedriveService
   attr_reader :credential, :results, :folder_path
 
+  # Try multiple possible paths for corporate documents
+  DEFAULT_FOLDER_PATHS = [
+    "Accounts - Internal/Corporate File",  # Robert's SharePoint structure
+    "Corporate File",                       # Direct Corporate File folder
+    "Corporate"                             # Simple Corporate folder
+  ].freeze
+
   DEFAULT_FOLDER_PATH = "Corporate"
+
+  # Known group folders that contain company subfolders
+  GROUP_FOLDERS = [
+    "Tekna Group",
+    "Team Harder Group",
+    "Team Harder Super Investment Group",
+    "The Promise Group",
+    "Co Invest Group"
+  ].freeze
 
   def initialize(credential = nil, folder_path: nil)
     @credential = credential || OrganizationOneDriveCredential.active_credential
@@ -19,30 +35,59 @@ class CorporateOnedriveService
     client = get_onedrive_client
     return { success: false, error: "OneDrive not connected" } unless client
 
-    # Find the corporate root folder
-    corporate_folder = find_folder_by_path(client, @folder_path)
+    # Try to find corporate folder - try multiple paths if auto-detect enabled
+    corporate_folder = nil
+    found_path = nil
+
+    if @folder_path == "auto"
+      # Auto-detect: try each possible path
+      DEFAULT_FOLDER_PATHS.each do |path|
+        corporate_folder = find_folder_by_path(client, path)
+        if corporate_folder
+          found_path = path
+          break
+        end
+      end
+    else
+      corporate_folder = find_folder_by_path(client, @folder_path)
+      found_path = @folder_path
+    end
+
     unless corporate_folder
       return {
         success: false,
-        error: "Corporate folder not found at '#{@folder_path}'. Please create this folder in OneDrive."
+        error: "Corporate folder not found. Tried: #{@folder_path == 'auto' ? DEFAULT_FOLDER_PATHS.join(', ') : @folder_path}"
       }
     end
 
-    Rails.logger.info "Found corporate folder: #{corporate_folder['name']} (#{corporate_folder['id']})"
+    Rails.logger.info "Found corporate folder: #{corporate_folder['name']} (#{corporate_folder['id']}) at '#{found_path}'"
 
-    # Get all company folders
-    company_folders = list_folder_children(client, corporate_folder['id'])
-    Rails.logger.info "Found #{company_folders.count} company folders"
+    # Get all items in corporate folder
+    top_level_folders = list_folder_children(client, corporate_folder['id'])
+    Rails.logger.info "Found #{top_level_folders.count} top-level folders"
 
-    # Process each company folder
-    company_folders.each do |folder|
-      next unless folder['folder'] # Skip files, only process folders
+    # Process folders - check if they are group folders or company folders
+    top_level_folders.each do |folder|
+      next unless folder['folder'] # Skip files
 
-      process_company_folder(client, folder)
+      if is_group_folder?(folder['name'])
+        # This is a group folder - scan its children for company folders
+        Rails.logger.info "Processing group folder: #{folder['name']}"
+        group_children = list_folder_children(client, folder['id'])
+
+        group_children.each do |company_folder|
+          next unless company_folder['folder']
+          process_company_folder(client, company_folder, nil, folder['name'])
+        end
+      else
+        # This is a company folder directly
+        process_company_folder(client, folder)
+      end
     end
 
     {
       success: true,
+      folder_path: found_path,
       companies_scanned: @results[:companies_scanned],
       documents_found: @results[:documents_found],
       documents_linked: @results[:documents_linked],
@@ -55,6 +100,12 @@ class CorporateOnedriveService
       success: false,
       error: e.message
     }
+  end
+
+  # Check if folder name is a group folder
+  def is_group_folder?(name)
+    GROUP_FOLDERS.any? { |g| name.downcase.include?(g.downcase.gsub(" group", "")) } ||
+      name.downcase.include?("group")
   end
 
   # Scan a specific company's OneDrive folder
@@ -193,18 +244,20 @@ class CorporateOnedriveService
     all_items
   end
 
-  def process_company_folder(client, folder, company = nil)
+  def process_company_folder(client, folder, company = nil, group_name = nil)
     @results[:companies_scanned] += 1
 
     # Try to match folder to a company if not provided
     company ||= find_matching_company(folder['name'])
 
     unless company
-      @results[:errors] << "No matching company found for folder '#{folder['name']}'"
+      folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder['name']
+      @results[:errors] << "No matching company found for folder '#{folder_display}'"
       return
     end
 
-    Rails.logger.info "Processing folder '#{folder['name']}' for company '#{company.name}'"
+    folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder['name']
+    Rails.logger.info "Processing folder '#{folder_display}' for company '#{company.name}'"
 
     # Scan all documents in this folder (recursively)
     documents = scan_folder_for_documents(client, folder['id'], recursive: true)
@@ -212,7 +265,7 @@ class CorporateOnedriveService
 
     # Link documents to company
     documents.each do |doc|
-      link_document_to_company(client, company, doc)
+      link_document_to_company(client, company, doc, group_name)
     end
   end
 

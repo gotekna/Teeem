@@ -43,22 +43,25 @@ module Api
 
       # GET /api/v1/companies/:id
       def show
-        render json: {
-          success: true,
-          company: @company.as_json(
-            include: {
-              current_directors: {
-                include: { contact: { only: [:id, :full_name, :email, :mobile_phone] } },
-                methods: [:formatted_position]
-              },
-              bank_accounts: { only: [:id, :institution_name, :status], methods: [:display_name, :masked_account_number] },
-              active_assets: { only: [:id, :name, :asset_type, :status], methods: [:display_name] },
-              pending_compliance_items: { only: [:id, :title, :due_date, :status], methods: [:days_until_due] },
-              company_xero_connection: { only: [:id, :connection_status, :xero_tenant_name, :last_sync_at] }
-            },
-            methods: [:formatted_acn, :formatted_abn, :has_xero_connection?, :total_asset_value]
+        company_json = @company.as_json(
+          include: {
+            bank_accounts: { only: [:id, :institution_name, :status], methods: [:display_name, :masked_account_number] },
+            active_assets: { only: [:id, :name, :asset_type, :status], methods: [:display_name] },
+            pending_compliance_items: { only: [:id, :title, :due_date, :status], methods: [:days_until_due] },
+            company_xero_connection: { only: [:id, :connection_status, :xero_tenant_name, :last_sync_at] }
+          },
+          methods: [:formatted_acn, :formatted_abn, :has_xero_connection?, :total_asset_value]
+        )
+
+        # Serialize current directors separately (company_directors.current returns CompanyDirector objects)
+        company_json['current_directors'] = @company.company_directors.current.includes(:contact).map do |director|
+          director.as_json(
+            include: { contact: { only: [:id, :full_name, :email, :mobile_phone] } },
+            methods: [:formatted_position]
           )
-        }
+        end
+
+        render json: { success: true, company: company_json }
       end
 
       # POST /api/v1/companies
