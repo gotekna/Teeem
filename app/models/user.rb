@@ -6,6 +6,7 @@ class User < ApplicationRecord
   has_many :chat_messages, dependent: :destroy
   has_many :schedule_template_row_audits, dependent: :nullify
   has_many :foundation_views, dependent: :destroy
+  has_one :outlook_credential, class_name: 'UserOutlookCredential', dependent: :destroy
 
   # Role constants
   ROLES = %w[user admin product_owner estimator supervisor builder].freeze
