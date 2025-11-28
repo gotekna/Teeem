@@ -81,8 +81,17 @@ export default function CompanyDirectorsTab({ company, onUpdate }) {
     }
   }
 
-  const currentDirectors = directors.filter(d => d.is_current)
-  const formerDirectors = directors.filter(d => !d.is_current)
+  // Filter by role type
+  const isDirectorPosition = (pos) => ['director', 'director_secretary', 'director_public_officer', 'director_secretary_public_officer', 'chairman'].includes(pos)
+  const isSecretaryPosition = (pos) => ['secretary', 'director_secretary', 'secretary_public_officer', 'director_secretary_public_officer'].includes(pos)
+  const isPublicOfficerPosition = (pos) => ['public_officer', 'director_public_officer', 'secretary_public_officer', 'director_secretary_public_officer'].includes(pos)
+
+  const currentDirectors = directors.filter(d => d.is_current && isDirectorPosition(d.position))
+  const formerDirectors = directors.filter(d => !d.is_current && isDirectorPosition(d.position))
+  const currentSecretaries = directors.filter(d => d.is_current && isSecretaryPosition(d.position))
+  const formerSecretaries = directors.filter(d => !d.is_current && isSecretaryPosition(d.position))
+  const currentPublicOfficers = directors.filter(d => d.is_current && isPublicOfficerPosition(d.position))
+  const formerPublicOfficers = directors.filter(d => !d.is_current && isPublicOfficerPosition(d.position))
 
   if (loading) {
     return <div className="text-center py-8 text-gray-500">Loading directors...</div>
@@ -94,7 +103,7 @@ export default function CompanyDirectorsTab({ company, onUpdate }) {
       <DirectorForm
         director={editingDirector}
         contacts={contacts}
-        existingDirectorIds={currentDirectors.map(d => d.contact?.id).filter(Boolean)}
+        existingDirectorIds={directors.filter(d => d.is_current).map(d => d.contact?.id).filter(Boolean)}
         onSave={handleSaveDirector}
         onCancel={() => { setShowForm(false); setEditingDirector(null) }}
       />
@@ -106,16 +115,16 @@ export default function CompanyDirectorsTab({ company, onUpdate }) {
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gray-50 rounded-lg p-4">
-          <div className="text-sm text-gray-500">Current Directors</div>
+          <div className="text-sm text-gray-500">Directors</div>
           <div className="text-2xl font-bold text-gray-900">{currentDirectors.length}</div>
         </div>
         <div className="bg-gray-50 rounded-lg p-4">
-          <div className="text-sm text-gray-500">Former Directors</div>
-          <div className="text-2xl font-bold text-gray-900">{formerDirectors.length}</div>
+          <div className="text-sm text-gray-500">Secretary</div>
+          <div className="text-2xl font-bold text-gray-900">{currentSecretaries.length}</div>
         </div>
         <div className="bg-gray-50 rounded-lg p-4">
-          <div className="text-sm text-gray-500">Total Officers</div>
-          <div className="text-2xl font-bold text-gray-900">{directors.length}</div>
+          <div className="text-sm text-gray-500">Public Officer</div>
+          <div className="text-2xl font-bold text-gray-900">{currentPublicOfficers.length}</div>
         </div>
       </div>
 
@@ -130,7 +139,7 @@ export default function CompanyDirectorsTab({ company, onUpdate }) {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Current ({currentDirectors.length})
+            Current
           </button>
           <button
             onClick={() => setActiveView('former')}
@@ -140,7 +149,7 @@ export default function CompanyDirectorsTab({ company, onUpdate }) {
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            Former ({formerDirectors.length})
+            Former
           </button>
         </nav>
       </div>
@@ -152,49 +161,162 @@ export default function CompanyDirectorsTab({ company, onUpdate }) {
           className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
         >
           <PlusIcon className="h-4 w-4 mr-1" />
-          Add Director
+          Add Officer
         </button>
       </div>
 
-      {/* Content */}
+      {/* Content - Three Sections */}
       {activeView === 'current' ? (
-        currentDirectors.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-semibold text-gray-900">No current directors</h3>
-            <p className="mt-1 text-sm text-gray-500">Add directors to this company.</p>
+        <div className="space-y-8">
+          {/* Directors Section */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+              <UserGroupIcon className="h-5 w-5 mr-2 text-indigo-500" />
+              Directors ({currentDirectors.length})
+            </h3>
+            {currentDirectors.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">No current directors</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {currentDirectors.map((d) => (
+                  <DirectorCard
+                    key={d.id}
+                    director={d}
+                    isCurrent={true}
+                    onEdit={() => { setEditingDirector(d); setShowForm(true) }}
+                    onResign={() => handleResignDirector(d.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3">
-            {currentDirectors.map((d) => (
-              <DirectorCard
-                key={d.id}
-                director={d}
-                isCurrent={true}
-                onEdit={() => { setEditingDirector(d); setShowForm(true) }}
-                onResign={() => handleResignDirector(d.id)}
-              />
-            ))}
+
+          {/* Secretary Section */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+              <UserGroupIcon className="h-5 w-5 mr-2 text-green-500" />
+              Secretary ({currentSecretaries.length})
+            </h3>
+            {currentSecretaries.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">No current secretary</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {currentSecretaries.map((d) => (
+                  <DirectorCard
+                    key={d.id}
+                    director={d}
+                    isCurrent={true}
+                    onEdit={() => { setEditingDirector(d); setShowForm(true) }}
+                    onResign={() => handleResignDirector(d.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )
+
+          {/* Public Officer Section */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+              <UserGroupIcon className="h-5 w-5 mr-2 text-amber-500" />
+              Public Officer ({currentPublicOfficers.length})
+            </h3>
+            {currentPublicOfficers.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">No current public officer</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {currentPublicOfficers.map((d) => (
+                  <DirectorCard
+                    key={d.id}
+                    director={d}
+                    isCurrent={true}
+                    onEdit={() => { setEditingDirector(d); setShowForm(true) }}
+                    onResign={() => handleResignDirector(d.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       ) : (
-        formerDirectors.length === 0 ? (
-          <div className="text-center py-12 bg-gray-50 rounded-lg">
-            <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-semibold text-gray-900">No former directors</h3>
+        <div className="space-y-8">
+          {/* Former Directors Section */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+              <UserGroupIcon className="h-5 w-5 mr-2 text-gray-400" />
+              Former Directors ({formerDirectors.length})
+            </h3>
+            {formerDirectors.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">No former directors</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {formerDirectors.map((d) => (
+                  <DirectorCard
+                    key={d.id}
+                    director={d}
+                    isCurrent={false}
+                    onEdit={() => { setEditingDirector(d); setShowForm(true) }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-3">
-            {formerDirectors.map((d) => (
-              <DirectorCard
-                key={d.id}
-                director={d}
-                isCurrent={false}
-                onEdit={() => { setEditingDirector(d); setShowForm(true) }}
-              />
-            ))}
+
+          {/* Former Secretary Section */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+              <UserGroupIcon className="h-5 w-5 mr-2 text-gray-400" />
+              Former Secretary ({formerSecretaries.length})
+            </h3>
+            {formerSecretaries.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">No former secretaries</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {formerSecretaries.map((d) => (
+                  <DirectorCard
+                    key={d.id}
+                    director={d}
+                    isCurrent={false}
+                    onEdit={() => { setEditingDirector(d); setShowForm(true) }}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        )
+
+          {/* Former Public Officer Section */}
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3 flex items-center">
+              <UserGroupIcon className="h-5 w-5 mr-2 text-gray-400" />
+              Former Public Officer ({formerPublicOfficers.length})
+            </h3>
+            {formerPublicOfficers.length === 0 ? (
+              <div className="text-center py-6 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-500">No former public officers</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {formerPublicOfficers.map((d) => (
+                  <DirectorCard
+                    key={d.id}
+                    director={d}
+                    isCurrent={false}
+                    onEdit={() => { setEditingDirector(d); setShowForm(true) }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
