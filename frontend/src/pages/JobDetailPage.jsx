@@ -31,6 +31,7 @@ import JobPeopleTab from '../components/job-detail/JobPeopleTab'
 import JobInvoicesTab from '../components/jobs/JobInvoicesTab'
 import JobBillsTab from '../components/jobs/JobBillsTab'
 import JobProfitTab from '../components/jobs/JobProfitTab'
+import JobActivityTab from '../components/jobs/JobActivityTab'
 
 const tabs = [
   { name: 'Overview', slug: 'overview' },
@@ -653,16 +654,7 @@ export default function JobDetailPage() {
           )}
 
           {activeTab === 'activity' && (
-            <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
-                  Recent Activity
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Activity tracking coming soon...
-                </p>
-              </div>
-            </div>
+            <JobActivityTab jobId={id} />
           )}
 
           {activeTab === 'budget' && (

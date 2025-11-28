@@ -93,6 +93,7 @@ Rails.application.routes.draw do
           get :saved_messages
           get :emails
           get :documentation_tabs
+          get :activities
           # Xero bill import
           post :import_xero_bills
           post :link_xero_tracking

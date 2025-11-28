@@ -25,6 +25,9 @@ class Job < ApplicationRecord
   has_many :sm_tasks, dependent: :destroy
   has_many :sm_rollover_logs, dependent: :destroy
 
+  # Activity tracking
+  has_many :job_activities, dependent: :destroy
+
   # Enums
   enum :onedrive_folder_creation_status, {
     not_requested: 'not_requested',
@@ -45,6 +48,9 @@ class Job < ApplicationRecord
   # Callbacks
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
+  after_create :log_job_created
+  before_update :track_status_and_stage_changes
+  after_update :log_status_and_stage_changes
 
   # Scopes
   scope :active, -> { where(status: 'Active') }
@@ -200,5 +206,30 @@ class Job < ApplicationRecord
     update_column(:onedrive_folder_creation_status, 'pending')
   rescue StandardError => e
     Rails.logger.error "Failed to queue OneDrive folder creation for job #{id}: #{e.message}"
+  end
+
+  # Activity logging callbacks
+  def log_job_created
+    JobActivity.log_job_created(self, user: Current.user)
+  rescue StandardError => e
+    Rails.logger.error "Failed to log job creation activity: #{e.message}"
+  end
+
+  def track_status_and_stage_changes
+    @status_was = status_was if status_changed?
+    @stage_was = job_stage&.name if job_stage_id_changed?
+  end
+
+  def log_status_and_stage_changes
+    if saved_change_to_status? && @status_was.present?
+      JobActivity.log_status_change(self, old_status: @status_was, new_status: status, user: Current.user)
+    end
+
+    if saved_change_to_job_stage_id?
+      new_stage = job_stage&.name
+      JobActivity.log_stage_change(self, old_stage: @stage_was, new_stage: new_stage, user: Current.user)
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to log status/stage change activity: #{e.message}"
   end
 end
