@@ -127,9 +127,9 @@ class XeroContactSyncService
 
   # Sync a single contact to a specific tenant
   def sync_contact_to_tenant(contact, tenant_id)
-    link = contact.xero_links.find_by(xero_tenant_id: tenant_id)
+    link = contact.xero_links.find_by(tenant_id: tenant_id)
 
-    if link&.xero_contact_id.present?
+    if link&.external_contact_id.present?
       # Update existing Xero contact
       update_xero_contact(contact, link)
     else
@@ -140,9 +140,9 @@ class XeroContactSyncService
 
   # Sync from Xero to TEEEM for a specific link
   def sync_from_xero(link)
-    return unless link.xero_contact_id.present?
+    return unless link.external_contact_id.present?
 
-    xero_contact = fetch_single_xero_contact(link.xero_contact_id, link.xero_tenant_id)
+    xero_contact = fetch_single_xero_contact(link.external_contact_id, link.tenant_id)
     return unless xero_contact
 
     update_teeem_from_xero(link.contact, xero_contact, link)
@@ -156,7 +156,7 @@ class XeroContactSyncService
 
   # Sync from TEEEM to Xero - push contact changes to Xero
   def sync_to_xero(contact, link)
-    return { success: false, error: 'No Xero link provided' } unless link&.xero_contact_id.present?
+    return { success: false, error: 'No Xero link provided' } unless link&.external_contact_id.present?
 
     result = update_xero_contact(contact, link)
 
@@ -215,7 +215,7 @@ class XeroContactSyncService
     Rails.logger.info("Processing contacts with sync direction: #{sync_direction} (import: #{import_enabled}, export: #{export_enabled})")
 
     # Get existing links for this tenant
-    existing_links = ContactXeroLink.where(xero_tenant_id: tenant_id).index_by(&:xero_contact_id)
+    existing_links = ContactExternalLink.xero.where(tenant_id: tenant_id).index_by(&:external_contact_id)
 
     # Build lookup maps for efficient matching
     teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
@@ -374,16 +374,17 @@ class XeroContactSyncService
     xero_id = xero_contact['ContactID']
 
     link = teeem_contact.xero_links.find_or_initialize_by(
-      xero_tenant_id: tenant_id,
-      xero_contact_id: xero_id
+      tenant_id: tenant_id,
+      external_contact_id: xero_id
     )
 
     link.assign_attributes(
-      xero_tenant_name: @sync_config&.xero_tenant_name || 'Unknown',
+      source: 'xero',
+      tenant_name: @sync_config&.xero_tenant_name || 'Unknown',
       sync_enabled: true,
       sync_direction: 'bidirectional',
       last_synced_at: @sync_timestamp,
-      xero_last_modified_at: parse_xero_date(xero_contact['UpdatedDateUTC']),
+      external_last_modified_at: parse_xero_date(xero_contact['UpdatedDateUTC']),
       sync_error: nil
     )
 
@@ -708,9 +709,10 @@ class XeroContactSyncService
       if created_contact
         # Create the link
         link = teeem_contact.xero_links.create!(
-          xero_tenant_id: tenant_id,
-          xero_tenant_name: @sync_config&.xero_tenant_name || 'Unknown',
-          xero_contact_id: created_contact['ContactID'],
+          source: 'xero',
+          tenant_id: tenant_id,
+          tenant_name: @sync_config&.xero_tenant_name || 'Unknown',
+          external_contact_id: created_contact['ContactID'],
           sync_enabled: true,
           sync_direction: 'bidirectional',
           last_synced_at: @sync_timestamp
@@ -741,17 +743,17 @@ class XeroContactSyncService
   end
 
   def update_xero_contact(teeem_contact, link)
-    Rails.logger.info("Updating Xero contact: #{link.xero_contact_id}")
+    Rails.logger.info("Updating Xero contact: #{link.external_contact_id}")
 
     xero_payload = {
       Contacts: [
-        build_xero_contact_payload(teeem_contact).merge(ContactID: link.xero_contact_id)
+        build_xero_contact_payload(teeem_contact).merge(ContactID: link.external_contact_id)
       ]
     }
 
     Rails.logger.info("Xero payload: #{xero_payload.to_json}")
 
-    result = @xero_client.post('Contacts', xero_payload, tenant_id: link.xero_tenant_id)
+    result = @xero_client.post('Contacts', xero_payload, tenant_id: link.tenant_id)
 
     Rails.logger.info("Xero result: #{result.inspect}")
 
@@ -1003,8 +1005,8 @@ class XeroContactSyncService
 
   def cleanup_deleted_xero_contacts_for_tenant(active_xero_ids, tenant_id)
     # Find links for this tenant that are no longer in Xero
-    orphaned_links = ContactXeroLink.where(xero_tenant_id: tenant_id)
-                                     .where.not(xero_contact_id: active_xero_ids.to_a)
+    orphaned_links = ContactExternalLink.xero.where(tenant_id: tenant_id)
+                                     .where.not(external_contact_id: active_xero_ids.to_a)
 
     count = orphaned_links.count
     return if count == 0
@@ -1018,7 +1020,7 @@ class XeroContactSyncService
       begin
         contact = link.contact
         if cleanup_options['unlink_deleted_xero_contacts']
-          Rails.logger.info("Unlinking orphaned contact: #{contact&.display_name} (xero_id: #{link.xero_contact_id})")
+          Rails.logger.info("Unlinking orphaned contact: #{contact&.display_name} (xero_id: #{link.external_contact_id})")
           link.destroy!
           @stats[:deleted_from_teeem] += 1
         else
