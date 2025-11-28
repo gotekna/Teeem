@@ -549,6 +549,7 @@ export default function TeeemTableView({
   const [bulkUpdateColumn, setBulkUpdateColumn] = useState('')
   const [bulkUpdateValue, setBulkUpdateValue] = useState('')
   const [bulkUpdateSaving, setBulkUpdateSaving] = useState(false)
+  const [bulkUpdateColumnSearch, setBulkUpdateColumnSearch] = useState('')
 
   // Edit mode state - when true, all cells are unlocked for editing
   const [editModeActive, setEditModeActive] = useState(false)
@@ -9933,7 +9934,7 @@ export default function TeeemTableView({
 
       {/* Bulk Update Modal */}
       {showBulkUpdateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowBulkUpdateModal(false)}>
+        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch('') }}>
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9947,26 +9948,81 @@ export default function TeeemTableView({
                 Bulk Update {selectedRows.size} {selectedRows.size === 1 ? 'Record' : 'Records'}
               </h3>
 
-              {/* Column Selection */}
+              {/* Column Selection with Search */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Select Column to Update
                 </label>
-                <select
-                  value={bulkUpdateColumn}
-                  onChange={(e) => {
-                    setBulkUpdateColumn(e.target.value)
-                    setBulkUpdateValue('')
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="">-- Select a column --</option>
-                  {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id').map(col => (
-                    <option key={col.key} value={col.column_key || col.key}>
-                      {col.display_name || col.label || col.key}
-                    </option>
-                  ))}
-                </select>
+                {/* Search input */}
+                <div className="relative mb-2">
+                  <input
+                    type="text"
+                    value={bulkUpdateColumnSearch}
+                    onChange={(e) => setBulkUpdateColumnSearch(e.target.value)}
+                    placeholder="Search columns..."
+                    className="w-full px-3 py-2 pl-9 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {bulkUpdateColumnSearch && (
+                    <button
+                      onClick={() => setBulkUpdateColumnSearch('')}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {/* Column list */}
+                <div className="max-h-48 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                  {COLUMNS
+                    .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                    .filter(col => {
+                      if (!bulkUpdateColumnSearch) return true
+                      const label = (col.display_name || col.label || col.key).toLowerCase()
+                      return label.includes(bulkUpdateColumnSearch.toLowerCase())
+                    })
+                    .map(col => {
+                      const colKey = col.column_key || col.key
+                      const isSelected = bulkUpdateColumn === colKey
+                      return (
+                        <button
+                          key={col.key}
+                          onClick={() => {
+                            setBulkUpdateColumn(colKey)
+                            setBulkUpdateValue('')
+                            setBulkUpdateColumnSearch('')
+                          }}
+                          className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                              : 'text-gray-900 dark:text-white'
+                          }`}
+                        >
+                          {col.display_name || col.label || col.key}
+                          {isSelected && (
+                            <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                      )
+                    })}
+                  {COLUMNS
+                    .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                    .filter(col => {
+                      if (!bulkUpdateColumnSearch) return true
+                      const label = (col.display_name || col.label || col.key).toLowerCase()
+                      return label.includes(bulkUpdateColumnSearch.toLowerCase())
+                    }).length === 0 && (
+                    <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                      No columns match "{bulkUpdateColumnSearch}"
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Value Input - depends on column type */}
@@ -10108,7 +10164,7 @@ export default function TeeemTableView({
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 mt-6">
                 <button
-                  onClick={() => setShowBulkUpdateModal(false)}
+                  onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch('') }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
                   Cancel
@@ -10138,6 +10194,7 @@ export default function TeeemTableView({
                       }
 
                       setShowBulkUpdateModal(false)
+                      setBulkUpdateColumnSearch('')
                       setSelectedRows(new Set())
                       setShowDeleteButton(false)
                       console.log('✅ Bulk update completed')
