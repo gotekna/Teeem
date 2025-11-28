@@ -131,6 +131,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
   // Mapbox geocoding helper
   const searchAddressMapbox = async (query, options = {}) => {
     const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+    console.log('🗺️ Mapbox token:', MAPBOX_TOKEN ? `${MAPBOX_TOKEN.substring(0, 10)}...` : 'NOT SET')
 
     if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'your_mapbox_access_token_here') {
       // Throw error to trigger fallback to Nominatim
