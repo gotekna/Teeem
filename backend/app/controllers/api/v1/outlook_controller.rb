@@ -1,6 +1,6 @@
 class Api::V1::OutlookController < ApplicationController
   # Skip authentication for OAuth callback - Microsoft redirects here without auth token
-  skip_before_action :authenticate_request, only: [:callback]
+  skip_before_action :authorize_request, only: [:callback]
 
   # GET /api/v1/outlook/auth_url
   # Get the OAuth authorization URL for connecting Outlook
