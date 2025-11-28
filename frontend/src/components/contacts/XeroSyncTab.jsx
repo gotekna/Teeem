@@ -191,10 +191,12 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     },
     {
       section: 'Addresses',
+      readOnly: true,
+      readOnlyMessage: 'Address sync not yet implemented - view only from Xero',
       fields: [
-        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: 'synced' },
-        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: 'synced' },
-        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: 'synced' }
+        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: 'xero_only' },
+        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: 'xero_only' },
+        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: 'xero_only' }
       ]
     },
     {
@@ -532,6 +534,14 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
           </svg>
         )
+      case 'xero_only':
+        // Eye icon for view-only from Xero (not synced to TEEEM)
+        return (
+          <svg className="h-5 w-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        )
       case 'error':
         return <XCircleIcon className="h-5 w-5 text-red-500" />
       default:
@@ -544,6 +554,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       case 'synced': return 'Synced'
       case 'not_linked': return 'Not Linked'
       case 'read_only': return 'Read Only (Xero)'
+      case 'xero_only': return 'View Only (Xero)'
       case 'enabled': return 'Enabled'
       case 'disabled': return 'Disabled'
       case 'never': return 'Never Synced'
@@ -1355,10 +1366,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       {/* Legend */}
       <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Status Legend</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
           <div className="flex items-center gap-2">
             <CheckCircleIcon className="h-4 w-4 text-green-500" />
-            <span className="text-gray-700 dark:text-gray-300">Synced (editable)</span>
+            <span className="text-gray-700 dark:text-gray-300">Synced</span>
           </div>
           <div className="flex items-center gap-2">
             <XCircleIcon className="h-4 w-4 text-gray-400" />
@@ -1368,7 +1379,14 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
             <svg className="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            <span className="text-gray-700 dark:text-gray-300">Read Only (edit in Xero)</span>
+            <span className="text-gray-700 dark:text-gray-300">Read Only</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            <span className="text-gray-700 dark:text-gray-300">View Only (Xero)</span>
           </div>
           <div className="flex items-center gap-2">
             <XCircleIcon className="h-4 w-4 text-red-500" />
@@ -1376,7 +1394,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           </div>
         </div>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          Read-only fields (Bank Details, Payment Terms, Balances) are synced from Xero for security. To update them, make changes in Xero and they will sync automatically.
+          <strong>View Only</strong> fields show data from Xero but are not synced to TEEEM. <strong>Read Only</strong> fields are synced from Xero - edit in Xero to update.
         </p>
       </div>
 
