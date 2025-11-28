@@ -1,31 +1,85 @@
 import { useState, useEffect } from 'react'
-import { MagnifyingGlassIcon, EnvelopeIcon, PaperClipIcon, CloudArrowDownIcon } from '@heroicons/react/24/outline'
+import { MagnifyingGlassIcon, EnvelopeIcon, PaperClipIcon, CloudArrowDownIcon, ArrowPathIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
 import DOMPurify from 'isomorphic-dompurify'
 import { api } from '../../api'
 import OutlookImportModal from './OutlookImportModal'
 
 export default function JobEmailsTab({ constructionId }) {
   const [emails, setEmails] = useState([])
+  const [suggestedEmails, setSuggestedEmails] = useState([])
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedEmail, setSelectedEmail] = useState(null)
   const [showOutlookModal, setShowOutlookModal] = useState(false)
+  const [showAllInThread, setShowAllInThread] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
 
   useEffect(() => {
     loadEmails()
+    loadSyncStatus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [constructionId])
 
   const loadEmails = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/jobs/${constructionId}/emails`)
-      setEmails(Array.isArray(response) ? response : [])
+      // Load from email warehouse
+      const response = await api.get(`/api/v1/email_warehouse/for_job/${constructionId}`, {
+        params: {
+          include_suggestions: true,
+          show_all_in_thread: showAllInThread
+        }
+      })
+      setEmails(response.emails || [])
+      setSuggestedEmails(response.suggested || [])
     } catch (error) {
       console.error('Failed to load emails:', error)
       setEmails([])
+      setSuggestedEmails([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadSyncStatus = async () => {
+    try {
+      const response = await api.get('/api/v1/email_warehouse/sync_status')
+      setSyncStatus(response)
+    } catch (error) {
+      console.error('Failed to load sync status:', error)
+    }
+  }
+
+  const handleSync = async (full = false) => {
+    try {
+      setSyncing(true)
+      // Sync emails for this specific job
+      await api.post('/api/v1/email_warehouse/sync_for_job', {
+        job_id: constructionId
+      })
+      // Reload emails after sync
+      await loadEmails()
+      await loadSyncStatus()
+    } catch (error) {
+      console.error('Failed to sync emails:', error)
+      alert(error.response?.data?.error || 'Failed to sync emails')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleAssignSuggested = async (suggestion) => {
+    try {
+      await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/assign_to_job`, {
+        job_id: constructionId,
+        assign_thread: true
+      })
+      // Reload emails
+      await loadEmails()
+    } catch (error) {
+      console.error('Failed to assign email:', error)
+      alert('Failed to assign email to this job')
     }
   }
 
@@ -35,7 +89,7 @@ export default function JobEmailsTab({ constructionId }) {
     return (
       email.subject?.toLowerCase().includes(searchLower) ||
       email.from_email?.toLowerCase().includes(searchLower) ||
-      email.body_text?.toLowerCase().includes(searchLower) ||
+      email.preview_body?.toLowerCase().includes(searchLower) ||
       email.to_emails?.some(to => to.toLowerCase().includes(searchLower))
     )
   })
@@ -46,6 +100,7 @@ export default function JobEmailsTab({ constructionId }) {
 
   const handleImportComplete = () => {
     loadEmails()
+    loadSyncStatus()
   }
 
   if (loading) {
@@ -58,7 +113,7 @@ export default function JobEmailsTab({ constructionId }) {
 
   return (
     <div className="flex flex-col h-[calc(100vh-16rem)] bg-white dark:bg-gray-900 rounded-lg shadow">
-      {/* Search bar with import button */}
+      {/* Search bar with sync/import buttons */}
       <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800">
         <div className="flex items-center gap-3">
           <div className="relative flex-1">
@@ -74,6 +129,15 @@ export default function JobEmailsTab({ constructionId }) {
             />
           </div>
           <button
+            onClick={() => handleSync()}
+            disabled={syncing}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            title="Sync emails from Outlook for this job"
+          >
+            <ArrowPathIcon className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync'}
+          </button>
+          <button
             onClick={() => setShowOutlookModal(true)}
             className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
           >
@@ -81,7 +145,74 @@ export default function JobEmailsTab({ constructionId }) {
             Import from Outlook
           </button>
         </div>
+
+        {/* Sync status */}
+        {syncStatus && (
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {syncStatus.status === 'syncing' ? (
+              <span className="text-yellow-600 dark:text-yellow-400">Sync in progress...</span>
+            ) : syncStatus.last_sync_at ? (
+              <span>Last synced: {new Date(syncStatus.last_sync_at).toLocaleString()}</span>
+            ) : (
+              <span>No emails synced yet. Click Sync to pull emails from Outlook.</span>
+            )}
+            {syncStatus.total_emails_synced > 0 && (
+              <span className="ml-2">({syncStatus.total_emails_synced} total emails in warehouse)</span>
+            )}
+          </div>
+        )}
+
+        {/* Thread toggle */}
+        <div className="mt-2 flex items-center">
+          <label className="flex items-center text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showAllInThread}
+              onChange={(e) => {
+                setShowAllInThread(e.target.checked)
+                loadEmails()
+              }}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mr-2"
+            />
+            Show all emails in conversations (instead of latest only)
+          </label>
+        </div>
       </div>
+
+      {/* Suggested emails section */}
+      {suggestedEmails.length > 0 && (
+        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 p-4 bg-yellow-50 dark:bg-yellow-900/20">
+          <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+            Suggested Emails ({suggestedEmails.length})
+          </h4>
+          <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
+            These emails might belong to this job based on contact matches or address mentions.
+          </p>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {suggestedEmails.slice(0, 5).map((suggestion) => (
+              <div
+                key={suggestion.email.id}
+                className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-yellow-200 dark:border-yellow-800"
+              >
+                <div className="flex-1 min-w-0 mr-3">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {suggestion.email.subject || '(No Subject)'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    From: {suggestion.email.from_email} • {suggestion.reason}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleAssignSuggested(suggestion)}
+                  className="flex-shrink-0 px-2 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded"
+                >
+                  Add to Job
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Emails list */}
       <div className="flex-1 overflow-y-auto p-4">
@@ -91,10 +222,10 @@ export default function JobEmailsTab({ constructionId }) {
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               {searchTerm ? 'No emails found' : 'No emails yet'}
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               {searchTerm
                 ? 'Try adjusting your search terms'
-                : 'Emails sent to this job will appear here'}
+                : 'Click "Sync" to pull emails from Outlook, or use "Import from Outlook" to search and select specific emails.'}
             </p>
           </div>
         ) : (
@@ -113,7 +244,7 @@ export default function JobEmailsTab({ constructionId }) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2 mb-1">
                         <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">
-                          {email.from_email}
+                          {email.display_from || email.from_email}
                         </span>
                         {email.has_attachments && (
                           <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
@@ -121,19 +252,30 @@ export default function JobEmailsTab({ constructionId }) {
                             {email.attachment_count}
                           </div>
                         )}
+                        {email.thread_count > 1 && (
+                          <div className="flex items-center text-xs text-indigo-500 dark:text-indigo-400">
+                            <ChatBubbleLeftRightIcon className="h-3 w-3 mr-1" />
+                            {email.thread_count} in thread
+                          </div>
+                        )}
+                        {email.match_type === 'auto' && (
+                          <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                            Auto-matched
+                          </span>
+                        )}
                       </div>
                       <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
                         {email.subject || '(No Subject)'}
                       </div>
                       {!selectedEmail || selectedEmail.id !== email.id ? (
                         <div className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1">
-                          {email.body_text?.substring(0, 100)}...
+                          {email.preview_body}
                         </div>
                       ) : null}
                     </div>
                     <div className="ml-4 flex-shrink-0">
                       <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {email.formatted_received_at || new Date(email.received_at).toLocaleString()}
+                        {email.received_at ? new Date(email.received_at).toLocaleString() : ''}
                       </span>
                     </div>
                   </div>

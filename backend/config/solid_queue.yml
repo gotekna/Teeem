@@ -14,6 +14,9 @@ production:
     - key: apply_price_updates
       class_name: ApplyPriceUpdatesJob
       schedule: every day at midnight
+    - key: email_warehouse_sync
+      class_name: EmailWarehouseSyncAllJob
+      schedule: every 10 minutes
 
 development:
   <<: *default
@@ -21,3 +24,6 @@ development:
     - key: apply_price_updates
       class_name: ApplyPriceUpdatesJob
       schedule: every day at midnight
+    - key: email_warehouse_sync
+      class_name: EmailWarehouseSyncAllJob
+      schedule: every 10 minutes
