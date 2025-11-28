@@ -124,11 +124,10 @@ module Api
 
       def default_tasks_for_category(category)
         case category
-        when 'site-plan'
+        when 'site', 'site-plan'
           [
-            { name: 'Site Survey', description: 'Professional site survey documentation', required: true },
-            { name: 'Boundary Plan', description: 'Property boundary plan', required: true },
-            { name: 'Topographic Survey', description: 'Topographic survey details', required: false }
+            { name: 'Survey Plan', description: 'Property survey plan documentation', required: true },
+            { name: 'Soil Test', description: 'Soil test report for foundations', required: true }
           ]
         when 'sales'
           [
