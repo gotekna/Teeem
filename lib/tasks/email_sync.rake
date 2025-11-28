@@ -55,4 +55,17 @@ namespace :email_warehouse do
     puts "Oldest email: #{EmailWarehouse.minimum(:received_at)}"
     puts "Newest email: #{EmailWarehouse.maximum(:received_at)}"
   end
+
+  desc "Clear stuck sync status"
+  task clear_status: :environment do
+    EmailSyncStatus.find_each do |status|
+      status.update(
+        status: 'completed',
+        last_sync_at: Time.current,
+        total_emails_synced: EmailWarehouse.count
+      )
+      puts "Cleared status for user #{status.user_id}"
+    end
+    puts "Done. Total emails in warehouse: #{EmailWarehouse.count}"
+  end
 end
