@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -1188,6 +1188,59 @@ module Api
           success: false,
           error: "Sync failed: #{e.message}"
         }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/sync_to_xero
+      # Push contact changes from TEEEM to Xero
+      def sync_to_xero
+        tenant_id = params[:tenant_id]
+
+        # Find the xero link to sync to
+        link = if tenant_id.present?
+          @contact.xero_links.find_by(xero_tenant_id: tenant_id)
+        else
+          @contact.xero_links.first
+        end
+
+        unless link&.xero_contact_id.present?
+          return render json: {
+            success: false,
+            error: 'Contact is not linked to any Xero organization'
+          }, status: :unprocessable_entity
+        end
+
+        begin
+          sync_service = XeroContactSyncService.new(tenant_id: link.xero_tenant_id)
+          result = sync_service.sync_to_xero(@contact, link)
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: 'Contact pushed to Xero successfully',
+              contact: @contact.reload.as_json(
+                only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
+                       :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
+                       :tax_number, :bank_bsb, :bank_account_number, :bank_account_name]
+              )
+            }
+          else
+            render json: {
+              success: false,
+              error: result[:error] || 'Failed to push contact to Xero'
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero. Please reconnect.'
+          }, status: :unauthorized
+        rescue => e
+          Rails.logger.error("Sync to Xero error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+          render json: {
+            success: false,
+            error: "Sync failed: #{e.message}"
+          }, status: :internal_server_error
+        end
       end
 
       # POST /api/v1/contacts/:id/portal_user
