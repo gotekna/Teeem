@@ -223,7 +223,10 @@ class JobAddressService
 
     return nil unless response.success?
 
+    # Parse JSON response - HTTParty may not auto-parse depending on content-type header
     data = response.parsed_response
+    data = JSON.parse(data) if data.is_a?(String)
+
     feature = data.dig('features', 0)
 
     return nil unless feature
