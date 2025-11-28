@@ -2459,7 +2459,7 @@ export default function AppLayout({ children }) {
         style={sidebarCollapsed ? undefined : { paddingLeft: sidebarWidth }}
       >
         {/* Top bar - always visible with help button */}
-        <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
+        <div className="z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
           <button
             type="button"
             onClick={() => setSidebarOpen(true)}
@@ -2613,10 +2613,10 @@ export default function AppLayout({ children }) {
 
         {/* Main content */}
         <main className={classNames(
-          "py-4 flex-1 flex flex-col min-h-0",
+          "py-4 flex-1 overflow-auto min-h-0",
           sidebarCollapsed ? "lg:pt-4" : ""
         )}>
-          <div className="px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0">
+          <div className="px-4 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>
