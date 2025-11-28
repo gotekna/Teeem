@@ -1380,24 +1380,22 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                       const valuesMatch = xeroValue === teeemValue || (xeroValue === '-' && teeemValue === '-')
                       const hasMismatch = xeroValue !== '-' && teeemValue !== '-' && xeroValue !== teeemValue
 
-                      // Determine actual sync status based on Xero connection and data
-                      let actualStatus = field.syncStatus
+                      // Determine actual sync status - simple: synced or failed
+                      let actualStatus = 'synced'
                       if (!hasXeroConnection) {
-                        // No Xero link at all
                         actualStatus = 'not_linked'
-                      } else if (xeroValue === '-' && !loadingXeroContact) {
-                        // Has Xero link but no data from Xero for this field
-                        actualStatus = 'empty_in_xero'
-                      } else if (hasXeroConnection && xeroValue !== '-') {
-                        // Has data from Xero - it's synced
-                        actualStatus = 'synced'
+                      } else if (field.syncError) {
+                        actualStatus = 'failed'
                       }
+
+                      // Check if this is a read-only field
+                      const isReadOnly = field.syncStatus === 'read_only'
 
                       // For display: show "No Data" instead of "-" when Xero has no value
                       const displayXeroValue = (xeroValue === '-' && hasXeroConnection && !loadingXeroContact) ? 'No Data' : xeroValue
 
                       return (
-                        <tr key={fieldIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
+                        <tr key={fieldIdx} className={`hover:bg-gray-100 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : isReadOnly ? 'bg-gray-50 dark:bg-gray-800/50' : ''}`}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                             {field.xeroField}
                           </td>
