@@ -462,21 +462,36 @@ module Api
         begin
           client = XeroApiClient.new
 
-          # Fetch all invoices with line items (need line items for tracking info)
-          # Use includeArchived=false to exclude deleted/archived invoices
-          result = client.get('Invoices', {
-            unitdp: 4,
-            summaryOnly: false  # Get full line item details including tracking
-          })
+          # Xero API only returns line item details (including tracking) when using pagination
+          # Without pagination, it returns summary data only (no line items)
+          # We need to paginate through all invoices to get line item tracking info
+          all_invoices = []
+          page = 1
+          max_pages = 50  # Safety limit (100 invoices per page = 5000 invoices max)
 
-          unless result[:success]
-            return render json: {
-              success: false,
-              error: 'Failed to fetch invoices from Xero'
-            }, status: :unprocessable_entity
+          loop do
+            Rails.logger.info("Fetching Xero invoices page #{page}")
+            result = client.get('Invoices', {
+              page: page,
+              unitdp: 4
+            })
+
+            unless result[:success]
+              return render json: {
+                success: false,
+                error: 'Failed to fetch invoices from Xero'
+              }, status: :unprocessable_entity
+            end
+
+            invoices_page = result[:data]['Invoices'] || []
+            break if invoices_page.empty?
+
+            all_invoices.concat(invoices_page)
+            page += 1
+            break if page > max_pages
           end
 
-          all_invoices = result[:data]['Invoices'] || []
+          Rails.logger.info("Fetched #{all_invoices.length} total invoices from Xero")
 
           # Filter invoices that have line items with matching tracking category
           matching_invoices = all_invoices.select do |invoice|
@@ -486,6 +501,8 @@ module Api
               tracking.any? { |t| t['Option'] == tracking_option_name }
             end
           end
+
+          Rails.logger.info("Found #{matching_invoices.length} invoices matching tracking '#{tracking_option_name}'")
 
           # Separate into invoices (ACCREC = sales) and bills (ACCPAY = purchases)
           invoices = matching_invoices.select { |inv| inv['Type'] == 'ACCREC' }
