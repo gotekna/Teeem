@@ -240,7 +240,8 @@ export default function TeeemTableView({
   serverSearchLoading = false,  // NEW: Shows loading indicator during server-side search
   customCellRenderer = null,  // NEW: Custom cell renderer function(entry, columnKey) => React element or null (null = use default)
   onRowUpdate = null,  // NEW: Callback for row updates (rowId, field, value) => void - enables inline editing
-  extraRowProps = null  // NEW: Extra props to pass to row rendering (e.g., suppliers list, allRows, etc.)
+  extraRowProps = null,  // NEW: Extra props to pass to row rendering (e.g., suppliers list, allRows, etc.)
+  onRefresh = null  // NEW: Callback to refresh data (used after bulk update)
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -10300,8 +10301,12 @@ export default function TeeemTableView({
                           record_ids: selectedIds,
                           updates: { [bulkUpdateColumn]: bulkUpdateValue }
                         })
-                        // Refresh the data
-                        if (onColumnUpdate) onColumnUpdate()
+                        // Refresh the data - prefer onRefresh (just reloads records) over onColumnUpdate (reloads everything)
+                        if (onRefresh) {
+                          await onRefresh()
+                        } else if (onColumnUpdate) {
+                          onColumnUpdate()
+                        }
                       } else {
                         throw new Error('No foundation ID available for bulk update')
                       }

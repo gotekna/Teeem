@@ -1063,6 +1063,10 @@ export default function TablePage({ embedded = false }) {
               // Reload table data when column schema is updated
               loadTable()
             }}
+            onRefresh={async () => {
+              // Reload just the records (faster than loadTable which reloads everything)
+              await loadRecords()
+            }}
             viewOnly={
               table.slug === 'pricebook' ||
               table.slug === 'pricebook-items' ||
