@@ -80,7 +80,7 @@ const navigation = [
   { name: 'Corporate', href: '/corporate/companies', icon: BuildingOfficeIcon },
   { name: 'Documents', href: '/documents', icon: DocumentTextIcon },
   { name: 'Training', href: '/training', icon: AcademicCapIcon },
-  { name: 'Outlook', href: '/outlook', icon: EnvelopeIcon },
+  { name: 'Outlook', href: 'https://outlook.office365.com/mail/', icon: EnvelopeIcon, external: true, popup: true },
   { name: 'OneDrive', href: '/onedrive', icon: CloudIcon },
   { name: 'Health', href: '/health', icon: PlusIcon },
   { name: 'System Admin', href: '/admin/system', icon: BeakerIcon },
@@ -839,6 +839,31 @@ export default function AppLayout({ children }) {
                     <ul role="list" className="-mx-2 space-y-1">
                       {navigation.map((item) => {
                         const current = isCurrentPath(item.href)
+
+                        // Handle external popup links (like Outlook)
+                        if (item.external && item.popup) {
+                          return (
+                            <li key={item.name}>
+                              <button
+                                onClick={() => {
+                                  setSidebarOpen(false)
+                                  window.open(item.href, item.name, 'width=1200,height=800,left=100,top=100')
+                                }}
+                                className={classNames(
+                                  'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                  'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold w-full text-left',
+                                )}
+                              >
+                                <item.icon
+                                  aria-hidden="true"
+                                  className="text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white size-6 shrink-0"
+                                />
+                                {item.name}
+                              </button>
+                            </li>
+                          )
+                        }
+
                         return (
                           <li key={item.name}>
                             <Link
@@ -2364,6 +2389,31 @@ export default function AppLayout({ children }) {
                                 })}
                             </ul>
                           )}
+                        </li>
+                      )
+                    }
+
+                    // Handle external popup links (like Outlook)
+                    if (item.external && item.popup) {
+                      return (
+                        <li key={item.name}>
+                          <button
+                            onClick={() => {
+                              window.open(item.href, item.name, 'width=1200,height=800,left=100,top=100')
+                            }}
+                            title={sidebarCollapsed ? item.name : undefined}
+                            className={classNames(
+                              'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                              'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold w-full text-left',
+                              sidebarCollapsed && 'justify-center'
+                            )}
+                          >
+                            <item.icon
+                              aria-hidden="true"
+                              className="text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white size-6 shrink-0"
+                            />
+                            {!sidebarCollapsed && item.name}
+                          </button>
                         </li>
                       )
                     }
