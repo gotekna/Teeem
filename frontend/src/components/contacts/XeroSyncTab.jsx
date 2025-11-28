@@ -196,10 +196,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       section: 'Basic Information',
       fields: [
         { xeroField: 'Name', teeemField: 'full_name', value: contact?.full_name, syncStatus: 'synced' },
-        { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: 'synced' },
-        { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: 'synced' },
+        { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: contact?.first_name ? 'synced' : 'empty_in_xero' },
+        { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: contact?.last_name ? 'synced' : 'empty_in_xero' },
         { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced' },
-        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'entity_type', value: contact?.entity_type ? (contact.entity_type.charAt(0).toUpperCase() + contact.entity_type.slice(1)) : '-', syncStatus: contact?.entity_type ? 'synced' : 'not_linked' },
+        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'contact_types', value: contact?.contact_types?.length > 0 ? contact.contact_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ') : '-', syncStatus: contact?.contact_types?.length > 0 ? 'synced' : 'empty_in_xero' },
         { xeroField: 'ContactID', teeemField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked' }
       ]
     },
