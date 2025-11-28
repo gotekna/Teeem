@@ -1900,10 +1900,18 @@ export default function TeeemTableView({
                                      column?.column_type === 'dropdown'
               const isLookupColumn = column?.column_type === 'lookup'
 
-              // Handle lookup columns - value is stored as {id, display} object
-              if (isLookupColumn && typeof entryValue === 'object' && entryValue.id !== undefined) {
-                // Filter value is the ID, compare as strings
-                return String(entryValue.id) === String(value)
+              // Handle lookup columns - value can be:
+              // 1. Object format {id, display} (user foundations)
+              // 2. Raw ID (number/string) for system foundations
+              if (isLookupColumn) {
+                if (typeof entryValue === 'object' && entryValue?.id !== undefined) {
+                  // Object format - compare the ID
+                  return String(entryValue.id) === String(value)
+                } else if (entryValue !== null && entryValue !== undefined) {
+                  // Raw ID format (system foundations) - compare directly
+                  return String(entryValue) === String(value)
+                }
+                return false
               }
 
               if (typeof entryValue === 'string') {
