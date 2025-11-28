@@ -6,7 +6,9 @@ import {
   XCircleIcon,
   ExclamationTriangleIcon,
   LinkIcon,
-  Cog6ToothIcon
+  Cog6ToothIcon,
+  ChevronDownIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
@@ -71,6 +73,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [xeroContactData, setXeroContactData] = useState(null)
   const [loadingXeroContact, setLoadingXeroContact] = useState(false)
 
+  // Collapsible sections state - track which sections are expanded
+  const [expandedSections, setExpandedSections] = useState({})
+
   // Xero-synced accounting fields that are READ-ONLY in TEEEM
   // These fields can only be updated via Xero sync, not manual edits
   const XERO_READ_ONLY_FIELDS = [
@@ -129,6 +134,37 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       addr.Country
     ].filter(Boolean)
     return parts.length > 0 ? parts.join(', ') : '-'
+  }
+
+  // Toggle a single section's expanded state
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }))
+  }
+
+  // Check if a section is expanded (default to expanded)
+  const isSectionExpanded = (sectionName) => {
+    return expandedSections[sectionName] !== false // Default to true (expanded)
+  }
+
+  // Expand all sections
+  const expandAllSections = () => {
+    const allExpanded = {}
+    fieldMappings.forEach(section => {
+      allExpanded[section.section] = true
+    })
+    setExpandedSections(allExpanded)
+  }
+
+  // Collapse all sections
+  const collapseAllSections = () => {
+    const allCollapsed = {}
+    fieldMappings.forEach(section => {
+      allCollapsed[section.section] = false
+    })
+    setExpandedSections(allCollapsed)
   }
 
   // Define the field mappings between Xero and TEEEM
@@ -1183,94 +1219,138 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         </div>
       )}
 
+      {/* Field Mappings Header with Expand/Collapse buttons */}
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+          Field Mappings
+        </h3>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={expandAllSections}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+          >
+            <ChevronDownIcon className="h-3.5 w-3.5" />
+            Expand All
+          </button>
+          <button
+            onClick={collapseAllSections}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+          >
+            <ChevronRightIcon className="h-3.5 w-3.5" />
+            Collapse All
+          </button>
+        </div>
+      </div>
+
       {/* Field Mappings Table */}
-      {fieldMappings.map((section, idx) => (
-        <div key={idx} className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {section.section}
-            </h3>
-            {section.readOnly && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                Read Only - Edit in Xero
-              </span>
+      {fieldMappings.map((section, idx) => {
+        const isExpanded = isSectionExpanded(section.section)
+        return (
+          <div key={idx} className="mb-4">
+            {/* Collapsible Section Header */}
+            <button
+              onClick={() => toggleSection(section.section)}
+              className={`w-full flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700 transition cursor-pointer ${isExpanded ? 'rounded-t-lg' : 'rounded-lg'}`}
+            >
+              <div className="flex items-center gap-3">
+                {isExpanded ? (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                )}
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  {section.section}
+                </h3>
+                {section.readOnly && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-200 text-gray-600 dark:bg-gray-600 dark:text-gray-300 border border-gray-300 dark:border-gray-500">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Read Only
+                  </span>
+                )}
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  ({section.fields.length} fields)
+                </span>
+              </div>
+            </button>
+
+            {/* Collapsible Content */}
+            {isExpanded && (
+              <div className={`bg-white dark:bg-gray-800 rounded-b-lg shadow-sm border border-t-0 overflow-hidden ${section.readOnly ? 'border-gray-300 dark:border-gray-600' : 'border-gray-200 dark:border-gray-700'}`}>
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-800/50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Xero Field
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        TEEEM Field
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        TEEEM Value
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/20">
+                        Xero Value
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {section.fields.map((field, fieldIdx) => {
+                      const xeroValue = getXeroValue(field.xeroField)
+                      const teeemValue = formatValue(field)
+                      const valuesMatch = xeroValue === teeemValue || (xeroValue === '-' && teeemValue === '-')
+                      const hasMismatch = xeroValue !== '-' && teeemValue !== '-' && xeroValue !== teeemValue
+
+                      // Determine actual sync status based on Xero connection and data
+                      let actualStatus = field.syncStatus
+                      if (!hasXeroConnection) {
+                        // No Xero link at all
+                        actualStatus = 'not_linked'
+                      } else if (field.syncStatus === 'synced' && xeroValue === '-' && !loadingXeroContact) {
+                        // Has Xero link but no data from Xero for this field
+                        actualStatus = 'not_linked'
+                      } else if (field.syncStatus === 'read_only') {
+                        // Keep read_only status for protected fields
+                        actualStatus = 'read_only'
+                      }
+
+                      return (
+                        <tr key={fieldIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            {field.xeroField}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
+                            {field.teeemField}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                            {teeemValue}
+                          </td>
+                          <td className={`px-6 py-4 text-sm bg-blue-50 dark:bg-blue-900/20 ${hasMismatch ? 'text-yellow-700 dark:text-yellow-300 font-medium' : 'text-blue-700 dark:text-blue-300'}`}>
+                            {xeroValue}
+                            {hasMismatch && <span className="ml-2 text-yellow-500">⚠</span>}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(actualStatus)}
+                              <span className="text-gray-700 dark:text-gray-300">
+                                {getStatusLabel(actualStatus)}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
-          <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border overflow-hidden ${section.readOnly ? 'border-gray-300 dark:border-gray-600' : 'border-gray-200 dark:border-gray-700'}`}>
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800/50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Xero Field
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    TEEEM Field
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    TEEEM Value
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/20">
-                    Xero Value
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {section.fields.map((field, fieldIdx) => {
-                  const xeroValue = getXeroValue(field.xeroField)
-                  const teeemValue = formatValue(field)
-                  const valuesMatch = xeroValue === teeemValue || (xeroValue === '-' && teeemValue === '-')
-                  const hasMismatch = xeroValue !== '-' && teeemValue !== '-' && xeroValue !== teeemValue
-
-                  // Determine actual sync status based on Xero connection and data
-                  let actualStatus = field.syncStatus
-                  if (!hasXeroConnection) {
-                    // No Xero link at all
-                    actualStatus = 'not_linked'
-                  } else if (field.syncStatus === 'synced' && xeroValue === '-' && !loadingXeroContact) {
-                    // Has Xero link but no data from Xero for this field
-                    actualStatus = 'not_linked'
-                  } else if (field.syncStatus === 'read_only') {
-                    // Keep read_only status for protected fields
-                    actualStatus = 'read_only'
-                  }
-
-                  return (
-                    <tr key={fieldIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                        {field.xeroField}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
-                        {field.teeemField}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                        {teeemValue}
-                      </td>
-                      <td className={`px-6 py-4 text-sm bg-blue-50 dark:bg-blue-900/20 ${hasMismatch ? 'text-yellow-700 dark:text-yellow-300 font-medium' : 'text-blue-700 dark:text-blue-300'}`}>
-                        {xeroValue}
-                        {hasMismatch && <span className="ml-2 text-yellow-500">⚠</span>}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(actualStatus)}
-                          <span className="text-gray-700 dark:text-gray-300">
-                            {getStatusLabel(actualStatus)}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
+        )
+      })}
 
       {/* Legend */}
       <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
