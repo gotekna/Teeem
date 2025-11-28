@@ -14,7 +14,7 @@ class Company < ApplicationRecord
   has_many :active_assets, -> { where(status: 'active') }, class_name: 'Asset'
 
   has_many :company_compliance_items, dependent: :destroy
-  has_many :pending_compliance_items, -> { where(status: 'pending') }, class_name: 'CompanyComplianceItem'
+  has_many :pending_compliance_items, -> { where(completed: false) }, class_name: 'CompanyComplianceItem'
 
   has_many :company_documents, dependent: :destroy
   has_many :company_activities, dependent: :destroy
@@ -51,7 +51,7 @@ class Company < ApplicationRecord
   scope :compliance_due_soon, -> {
     joins(:company_compliance_items)
       .where('company_compliance_items.due_date BETWEEN ? AND ?', Date.today, 90.days.from_now)
-      .where(company_compliance_items: { status: 'pending' })
+      .where(company_compliance_items: { completed: false })
       .distinct
   }
 
@@ -85,15 +85,15 @@ class Company < ApplicationRecord
   end
 
   def overdue_compliance_items
-    company_compliance_items.where('due_date < ? AND status = ?', Date.today, 'pending')
+    company_compliance_items.where('due_date < ? AND completed = ?', Date.today, false)
   end
 
   def upcoming_compliance_items(days = 30)
     company_compliance_items.where(
-      'due_date BETWEEN ? AND ? AND status = ?',
+      'due_date BETWEEN ? AND ? AND completed = ?',
       Date.today,
       days.days.from_now,
-      'pending'
+      false
     ).order(:due_date)
   end
 
