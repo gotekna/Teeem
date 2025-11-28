@@ -9935,7 +9935,7 @@ export default function TeeemTableView({
       {/* Bulk Update Modal */}
       {showBulkUpdateModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch('') }}>
-          <div className="flex min-h-screen items-center justify-center p-4">
+          <div className="flex min-h-screen items-start justify-center p-4 pt-16">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
 
@@ -9976,8 +9976,8 @@ export default function TeeemTableView({
                     </button>
                   )}
                 </div>
-                {/* Column list */}
-                <div className="max-h-48 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                {/* Column list - auto-sizes up to max-h-96 (384px), shows scrollbar when needed */}
+                <div className="max-h-96 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
                   {COLUMNS
                     .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
                     .filter(col => {
