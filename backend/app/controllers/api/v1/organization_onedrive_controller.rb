@@ -5,7 +5,7 @@ module Api
       skip_before_action :authorize_request, only: [:callback]
 
       # Require admin for sensitive operations
-      before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images]
+      before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images, :sync_corporate_documents]
 
       # GET /api/v1/organization_onedrive/status
       # Check if organization has OneDrive connected
@@ -897,6 +897,57 @@ module Api
           Rails.logger.error "[OneDrive Sync] Exception occurred: #{e.message}"
           Rails.logger.error "[OneDrive Sync] Backtrace:\n#{e.backtrace.join("\n")}"
           render json: { error: "Failed to sync images: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/sync_corporate_documents
+      # Sync corporate documents from OneDrive to company records
+      def sync_corporate_documents
+        credential = OrganizationOneDriveCredential.active_credential
+
+        Rails.logger.info "[OneDrive Corporate Sync] Starting corporate document sync"
+
+        unless credential&.valid_credential?
+          Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
+          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+        end
+
+        folder_path = params[:folder_path] || "Corporate File"
+        Rails.logger.info "[OneDrive Corporate Sync] Folder path: #{folder_path}"
+
+        begin
+          # Use the CorporateOnedriveService
+          service = CorporateOnedriveService.new(credential, folder_path: folder_path)
+          result = service.scan_all
+
+          Rails.logger.info "[OneDrive Corporate Sync] Sync completed"
+          Rails.logger.info "[OneDrive Corporate Sync] Success: #{result[:success]}"
+          Rails.logger.info "[OneDrive Corporate Sync] Companies scanned: #{result[:companies_scanned]}"
+          Rails.logger.info "[OneDrive Corporate Sync] Documents found: #{result[:documents_found]}"
+          Rails.logger.info "[OneDrive Corporate Sync] Documents linked: #{result[:documents_linked]}"
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: "Synced #{result[:documents_linked]} documents to #{result[:companies_scanned]} companies",
+              folder_path: result[:folder_path],
+              companies_scanned: result[:companies_scanned],
+              documents_found: result[:documents_found],
+              documents_linked: result[:documents_linked],
+              errors: result[:errors]
+            }
+          else
+            Rails.logger.error "[OneDrive Corporate Sync] Sync failed: #{result[:error]}"
+            render json: {
+              success: false,
+              error: result[:error]
+            }, status: :unprocessable_entity
+          end
+
+        rescue StandardError => e
+          Rails.logger.error "[OneDrive Corporate Sync] Exception occurred: #{e.message}"
+          Rails.logger.error "[OneDrive Corporate Sync] Backtrace:\n#{e.backtrace.join("\n")}"
+          render json: { error: "Failed to sync corporate documents: #{e.message}" }, status: :internal_server_error
         end
       end
 
