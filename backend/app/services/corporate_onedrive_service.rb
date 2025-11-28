@@ -138,7 +138,7 @@ class CorporateOnedriveService
       corporate_folder: @folder_path,
       companies: preview_results,
       total_folders: preview_results.count,
-      matched_folders: preview_results.count(&:matched),
+      matched_folders: preview_results.count { |r| r[:matched] },
       total_documents: preview_results.sum { |r| r[:document_count] }
     }
   rescue => e
