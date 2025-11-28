@@ -11,10 +11,11 @@ class CompanyDocument < ApplicationRecord
   STORAGE_TYPES = %w[manual electronic both].freeze
 
   # Validations
-  validates :document_name, presence: true
+  validates :title, presence: true
   validates :document_type, inclusion: {
     in: %w[constitution minutes loan_agreement security_deed setup share_certificate
-           tax_return financial_statement insurance_policy other]
+           tax_return financial_statement insurance_policy asic share_registry trust_deed
+           financial tax insurance contract certificate other]
   }, allow_blank: true
   validates :storage_type, inclusion: { in: STORAGE_TYPES }, allow_blank: true
 
@@ -40,7 +41,7 @@ class CompanyDocument < ApplicationRecord
   end
 
   def display_name
-    document_name
+    title
   end
 
   private
@@ -48,7 +49,7 @@ class CompanyDocument < ApplicationRecord
   def create_activity
     company.company_activities.create!(
       activity_type: 'document_uploaded',
-      description: "Document uploaded: #{document_name}",
+      description: "Document uploaded: #{title}",
       metadata: {
         document_type: document_type,
         file_name: file_name,

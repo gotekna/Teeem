@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_28_083523) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_28_091315) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -325,11 +325,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_083523) do
     t.string "storage_type"
     t.string "filed_by"
     t.bigint "document_type_id"
+    t.string "onedrive_file_id"
+    t.string "onedrive_download_url"
+    t.datetime "last_modified_at"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
     t.index ["document_date"], name: "index_company_documents_on_document_date"
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
     t.index ["folder"], name: "index_company_documents_on_folder"
+    t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
   end
 

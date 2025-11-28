@@ -1074,6 +1074,16 @@ Rails.application.routes.draw do
         end
       end
 
+      # Corporate OneDrive (document scanning for corporate entities)
+      resources :corporate_onedrive, only: [] do
+        collection do
+          get :status
+          get :preview
+          post :scan
+          post :scan_company
+        end
+      end
+
       # Document Types
       resources :document_types
 
