@@ -2,7 +2,7 @@
 
 **Shortcut:** `/fd` (full deploy)
 
-Commits ALL pending changes and pushes to trigger GitHub Actions deployment to staging.
+Commits ALL pending changes and deploys directly to Heroku staging via git subtree push.
 
 **Run from teeem root. Auto-generate commit messages.**
 
@@ -26,31 +26,7 @@ git status --short
 cd backend && bin/rails db:migrate:status
 ```
 
-### Step 2 - Check Root/Backend Sync (CRITICAL)
-
-**Heroku deploys from ROOT, not backend/. Check for drift:**
-```bash
-# Check if shared folders are in sync
-diff -rq app/models/ backend/app/models/ 2>/dev/null | grep -v "Only in" | head -10
-diff -rq app/controllers/ backend/app/controllers/ 2>/dev/null | grep -v "Only in" | head -10
-diff -rq app/services/ backend/app/services/ 2>/dev/null | grep -v "Only in" | head -10
-```
-
-If ANY files differ, **STOP and warn:**
-```
-⚠️ WARNING: Root and backend folders are OUT OF SYNC!
-Files that differ:
-[list differing files]
-
-Heroku deploys from ROOT (app/), not backend/app/.
-If you edited backend/ but not root/, your changes WON'T deploy!
-
-Fix: Copy changes from backend/ to root/ (or vice versa) before deploying.
-```
-
-**Ask user:** "Should I sync these files before deploying? (copy backend → root)"
-
-### Step 3 - Verify No Main Merge (ONLY check if recent merge from main)
+### Step 2 - Verify No Main Merge (ONLY check if recent merge from main)
 
 **ONLY block if someone just merged main into rob:**
 ```bash
@@ -67,7 +43,7 @@ Proper flow: rob → main (via PR), NEVER main → rob
 
 **Otherwise, proceed with deployment** (ignore if main and rob have different commits - that's normal)
 
-### Step 4 - Auto-Generate Commit Message and Commit
+### Step 3 - Auto-Generate Commit Message and Commit
 
 **Analyze git status and auto-generate message:**
 
@@ -90,60 +66,49 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 5 - Push to Rob (GitHub Actions handles deployment)
+### Step 4 - Push to GitHub (rob branch)
 ```bash
 git pull origin rob --rebase
 git push origin rob
 ```
 
-### Step 6 - Monitor GitHub Actions & Trigger if Needed
+### Step 5 - Deploy Backend Directly to Heroku
+
+**Use git subtree to deploy backend folder directly to Heroku:**
 ```bash
-# Wait for workflows to start
-sleep 5
-gh run list --limit 3 --branch rob
+# Create temp branch with just backend contents
+git subtree split --prefix backend -b temp-backend-deploy
+
+# Force push to Heroku (heroku-rob-dev remote)
+git push heroku-rob-dev temp-backend-deploy:main --force
+
+# Clean up temp branch
+git branch -D temp-backend-deploy
 ```
 
-**If workflow didn't auto-trigger** (check if latest run matches your commit):
+**Note:** The `heroku-rob-dev` remote should be configured as:
 ```bash
-# Manually trigger the deploy workflow
-gh workflow run "Deploy Backend Staging (Rob's Branch) to Heroku" --ref rob
-
-# Wait and verify it started
-sleep 5
-gh run list --limit 3 --branch rob
+git remote add heroku-rob-dev https://git.heroku.com/teeem-rob-dev.git
 ```
 
-### Step 7 - Wait for Deploy to Complete
+### Step 6 - Verify Deploy & Sync Version
 ```bash
-# Wait for deploy (~60s)
-sleep 60
-
-# Check GitHub Actions status
-gh run list --limit 2 --branch rob
-
-# Verify backend is up
+# Verify backend is up (wait a moment for dyno restart)
+sleep 5
 curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version
 
-# Check frontend
-curl -s -o /dev/null -w "%{http_code}" https://teeemrob.vercel.app/
-```
-
-### Step 8 - Sync Local Version with Staging
-
-**After deploy completes, sync local version to match staging:**
-```bash
-# Sync local to match staging
+# Sync local version to match staging
 cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
 ```
 
 **Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version number.
 
-### Step 9 - Report Status
+### Step 7 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
-- ✅ GitHub Actions: [status - in_progress/success/failure]
-- ✅ Backend: [version from /version endpoint] - https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
-- ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel)
+- ✅ Backend deployed to Heroku: [version from /version endpoint]
+- ✅ Backend URL: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
+- ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel on push)
 - ✅ Local version synced to: [version]
 - 🔴 Warnings (if any)
 
@@ -152,8 +117,8 @@ cd backend && bin/rails runner "Version.current.update(current_version: $(curl -
 ```
 Feature → rob (staging) → main (production)
           ↓                   ↑
-       Push triggers       Create PR
-       GitHub Actions
+       Direct Heroku      Create PR
+       subtree push
 ```
 
 **Critical Rule:** Rob and main are independent. NEVER merge main → rob.

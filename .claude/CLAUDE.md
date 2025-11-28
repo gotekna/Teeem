@@ -10,23 +10,33 @@
 - NEVER ask the user to create PRs or merge to Live - they will handle this themselves
 - NEVER mention "ready for PR" or "create a PR" - just push to the feature branch and move on
 
-### After Pushing to Rob Branch
+### After Pushing to Rob Branch - Deploy to Heroku
 
-When you push to the `rob` branch, ALWAYS:
+When you push to the `rob` branch, deploy directly to Heroku using git subtree:
 
-1. **Check if GitHub Actions workflow triggered** - if not, manually trigger:
-   ```bash
-   gh workflow run "Deploy Backend Staging (Rob's Branch) to Heroku" --ref rob
-   ```
+```bash
+# 1. Push to GitHub first
+git push origin rob
 
-2. **Wait for deploy to complete** (~60 seconds)
+# 2. Deploy backend to Heroku via subtree
+git subtree split --prefix backend -b temp-backend-deploy
+git push heroku-rob-dev temp-backend-deploy:main --force
+git branch -D temp-backend-deploy
 
-3. **Sync local version to match staging:**
-   ```bash
-   cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
-   ```
+# 3. Sync local version to match staging
+cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
+```
 
 **Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version.
+
+### Heroku Git Remote Setup
+
+The `heroku-rob-dev` remote must be configured:
+```bash
+git remote add heroku-rob-dev https://git.heroku.com/teeem-rob-dev.git
+```
+
+Verify with: `git remote -v | grep heroku`
 
 ### Heroku Environments
 
