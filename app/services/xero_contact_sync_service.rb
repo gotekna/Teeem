@@ -456,7 +456,7 @@ class XeroContactSyncService
       end
     end
 
-    # Address
+    # Address - sync to both legacy field and contact_addresses table
     if xero_contact['Addresses'].present?
       street_address = xero_contact['Addresses'].find { |a| a['AddressType'] == 'STREET' }
       address_to_use = street_address || xero_contact['Addresses'].first
@@ -473,6 +473,9 @@ class XeroContactSyncService
 
         updates[:address] = address_parts.join(', ') if address_parts.any?
       end
+
+      # Sync to contact_addresses table (two-way sync - TEEEM is source of truth)
+      sync_addresses_from_xero(teeem_contact, xero_contact['Addresses'])
     end
 
     # Track changes for activity logging
@@ -957,6 +960,56 @@ class XeroContactSyncService
   # Legacy method for backwards compatibility
   def cleanup_deleted_xero_contacts(active_xero_ids)
     cleanup_deleted_xero_contacts_for_tenant(active_xero_ids, @tenant_id) if @tenant_id
+  end
+
+  # Sync addresses from Xero to contact_addresses table (two-way sync)
+  # TEEEM is source of truth - only create/update if TEEEM doesn't have the address type
+  def sync_addresses_from_xero(teeem_contact, xero_addresses)
+    return unless xero_addresses.is_a?(Array)
+
+    xero_addresses.each do |xero_addr|
+      address_type = xero_addr['AddressType']
+      next unless address_type.present? && ContactAddress::ADDRESS_TYPES.include?(address_type)
+
+      # Check if TEEEM already has this address type
+      existing = teeem_contact.contact_addresses.find_by(address_type: address_type)
+
+      if existing
+        # TEEEM has this address - only update if TEEEM address is empty
+        if existing.line1.blank? && existing.city.blank?
+          existing.update!(
+            line1: xero_addr['AddressLine1'],
+            line2: xero_addr['AddressLine2'],
+            line3: xero_addr['AddressLine3'],
+            line4: xero_addr['AddressLine4'],
+            city: xero_addr['City'],
+            region: xero_addr['Region'],
+            postal_code: xero_addr['PostalCode'],
+            country: xero_addr['Country']
+          )
+          Rails.logger.info("Updated empty #{address_type} address for contact #{teeem_contact.id} from Xero")
+        end
+      else
+        # TEEEM doesn't have this address type - create it from Xero
+        # Only create if Xero has actual address data
+        if xero_addr['AddressLine1'].present? || xero_addr['City'].present?
+          teeem_contact.contact_addresses.create!(
+            address_type: address_type,
+            line1: xero_addr['AddressLine1'],
+            line2: xero_addr['AddressLine2'],
+            line3: xero_addr['AddressLine3'],
+            line4: xero_addr['AddressLine4'],
+            city: xero_addr['City'],
+            region: xero_addr['Region'],
+            postal_code: xero_addr['PostalCode'],
+            country: xero_addr['Country']
+          )
+          Rails.logger.info("Created #{address_type} address for contact #{teeem_contact.id} from Xero")
+        end
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error("Error syncing addresses for contact #{teeem_contact.id}: #{e.message}")
   end
 
   private
