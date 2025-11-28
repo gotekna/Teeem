@@ -1106,6 +1106,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # Compliance Calendar (dashboard view)
+      resources :compliance_calendar, only: [:index] do
+        collection do
+          get :summary
+          get :overdue
+          get :upcoming
+          get :by_company
+          post :generate
+          post :send_reminders
+        end
+      end
+
       # WHS (Workplace Health & Safety) Module
       # SWMS (Safe Work Method Statements)
       resources :whs_swms, only: [:index, :show, :create, :update, :destroy] do

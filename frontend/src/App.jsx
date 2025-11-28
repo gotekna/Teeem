@@ -115,6 +115,7 @@ const WhsInductionsPage = lazyWithRetry(() => import('./pages/WhsInductionsPage'
 const WhsActionItemsPage = lazyWithRetry(() => import('./pages/WhsActionItemsPage'))
 const CompaniesPage = lazyWithRetry(() => import('./pages/CompaniesPage'))
 const CompanyDetailPage = lazyWithRetry(() => import('./pages/CompanyDetailPage'))
+const ComplianceCalendarPage = lazyWithRetry(() => import('./pages/ComplianceCalendarPage'))
 const DirectorsRegistryPage = lazyWithRetry(() => import('./pages/DirectorsRegistryPage'))
 const AssetsPage = lazyWithRetry(() => import('./pages/AssetsPage'))
 const AssetDetailPage = lazyWithRetry(() => import('./pages/AssetDetailPage'))
@@ -268,6 +269,7 @@ function App() {
         <Route path="/corporate/companies/new" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id/edit" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
+        <Route path="/corporate/compliance-calendar" element={<AppLayout><ComplianceCalendarPage /></AppLayout>} />
         <Route path="/corporate/directors" element={<AppLayout><DirectorsRegistryPage /></AppLayout>} />
         <Route path="/corporate/assets" element={<AppLayout><AssetsPage /></AppLayout>} />
         <Route path="/corporate/assets/new" element={<AppLayout><AssetDetailPage /></AppLayout>} />
