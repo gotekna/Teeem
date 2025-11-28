@@ -341,8 +341,10 @@ module Api
           query_params = {}
           where_clauses = []
 
+          # Quotes API requires different GUID syntax than Invoices
+          # See: https://developer.xero.com/documentation/api/accounting/quotes
           if params[:contact_id].present?
-            where_clauses << "Contact.ContactID == Guid(\"#{params[:contact_id]}\")"
+            where_clauses << "Contact.ContactID.ToString().Equals(\"#{params[:contact_id]}\")"
           end
 
           if where_clauses.any?
