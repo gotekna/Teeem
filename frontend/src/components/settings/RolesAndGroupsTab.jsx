@@ -4,14 +4,12 @@ import { useSearchParams } from 'react-router-dom'
 import UserManagementTab from './UserManagementTab'
 import RolesManagement from './RolesManagement'
 import GroupsManagement from './GroupsManagement'
-import ContactRolesManagement from './ContactRolesManagement'
 
 // Map tab index to table ID for URL sync
 const TAB_TABLE_IDS = {
   0: 212,  // Users
   1: 413,  // User Roles
-  2: 364,  // Groups
-  3: 211   // Contact Roles
+  2: 364   // Groups
 }
 
 export default function RolesAndGroupsTab() {
@@ -88,18 +86,6 @@ export default function RolesAndGroupsTab() {
         >
           Groups
         </Tab>
-        <Tab
-          className={({ selected }) =>
-            `w-full rounded-lg py-2.5 px-4 text-sm font-medium leading-5 transition-all
-            ${
-              selected
-                ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
-                : 'text-gray-700 dark:text-gray-300 hover:bg-white/[0.12] hover:text-gray-900 dark:hover:text-white'
-            }`
-          }
-        >
-          Contact Roles
-        </Tab>
       </TabList>
 
       <TabPanels>
@@ -111,9 +97,6 @@ export default function RolesAndGroupsTab() {
         </TabPanel>
         <TabPanel>
           <GroupsManagement />
-        </TabPanel>
-        <TabPanel>
-          <ContactRolesManagement />
         </TabPanel>
       </TabPanels>
     </TabGroup>

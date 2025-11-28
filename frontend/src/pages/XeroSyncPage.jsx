@@ -74,7 +74,7 @@ export default function XeroSyncPage() {
   const loadSyncHistory = async () => {
     try {
       const response = await api.get('/api/v1/xero/sync_history')
-      setSyncHistory(response.data.history || [])
+      setSyncHistory(response.history || [])
     } catch (err) {
       console.error('Failed to load sync history:', err)
       setSyncHistory([])

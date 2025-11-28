@@ -91,7 +91,7 @@ export default function SyncConfigPage({ embedded = false }) {
 
       // Load sync configurations
       const configsResponse = await api.get('/api/v1/sync_configurations')
-      const configsList = configsResponse.data.sync_configurations || []
+      const configsList = configsResponse.sync_configurations || []
       setConfigs(configsList)
 
       // Select the first config if available
@@ -101,7 +101,7 @@ export default function SyncConfigPage({ embedded = false }) {
 
       // Load available field mappings
       const mappingsResponse = await api.get('/api/v1/sync_configurations/field_mappings')
-      setFieldMappings(mappingsResponse.data.available_fields || [])
+      setFieldMappings(mappingsResponse.available_fields || [])
     } catch (err) {
       console.error('Failed to load sync configurations:', err)
       setError('Failed to load sync configurations. Please try again.')
@@ -113,7 +113,7 @@ export default function SyncConfigPage({ embedded = false }) {
   const loadHealthData = async () => {
     try {
       const response = await api.get('/api/v1/sync_configurations/health')
-      setHealthData(response.data.health)
+      setHealthData(response.health)
     } catch (err) {
       console.error('Failed to load sync health:', err)
       // Non-critical error, don't show to user
@@ -181,7 +181,7 @@ export default function SyncConfigPage({ embedded = false }) {
     try {
       setShowPreview(true)
       const response = await api.post(`/api/v1/sync_configurations/${selectedConfig.xero_tenant_id}/preview`)
-      setPreviewData(response.data.preview)
+      setPreviewData(response.preview)
     } catch (err) {
       console.error('Failed to load preview:', err)
       setPreviewData({ error: 'Failed to load preview' })
