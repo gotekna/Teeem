@@ -335,13 +335,10 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
                               <PhotoIcon className="h-12 w-12 text-gray-400" />
                             </div>
 
-                            {/* Overlay with file info */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* Overlay with file info - always visible */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
                               <div className="absolute bottom-0 left-0 right-0 p-2">
                                 <p className="text-xs text-white truncate">{file.name}</p>
-                                {file.source_folder && (
-                                  <p className="text-xs text-gray-300">{file.source_folder}</p>
-                                )}
                               </div>
                             </div>
 
