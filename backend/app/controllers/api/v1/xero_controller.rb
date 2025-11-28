@@ -848,14 +848,22 @@ module Api
         end
 
         begin
-          client = XeroApiClient.new
-
-          # Use tenant_id if provided (for multi-org support)
-          result = if tenant_id.present?
-            client.get("Contacts/#{xero_contact_id}", {}, tenant_id)
+          # Find the credential for the specific tenant if provided
+          credential = if tenant_id.present?
+            XeroCredential.find_by(tenant_id: tenant_id)
           else
-            client.get("Contacts/#{xero_contact_id}")
+            XeroCredential.current
           end
+
+          unless credential
+            return render json: {
+              success: false,
+              error: tenant_id.present? ? "No Xero credential found for tenant #{tenant_id}" : 'Not connected to Xero'
+            }, status: :unauthorized
+          end
+
+          # Make direct request using the specific credential
+          result = make_xero_request(credential, "Contacts/#{xero_contact_id}")
 
           if result[:success]
             xero_contact = result[:data]['Contacts']&.first
@@ -895,6 +903,47 @@ module Api
       end
 
       private
+
+      # Make a direct Xero API request using a specific credential
+      # This allows us to support multi-tenant (multi-org) requests
+      def make_xero_request(credential, endpoint, params = {})
+        # Refresh token if expired
+        if credential.expired?
+          client = XeroApiClient.new
+          client.refresh_access_token_for(credential)
+          credential.reload
+        end
+
+        url = "https://api.xero.com/api.xro/2.0/#{endpoint}"
+
+        headers = {
+          'Authorization' => "Bearer #{credential.access_token}",
+          'Xero-tenant-id' => credential.tenant_id,
+          'Content-Type' => 'application/json',
+          'Accept' => 'application/json'
+        }
+
+        response = HTTParty.get(url, headers: headers, query: params, timeout: 30)
+
+        if response.success?
+          {
+            success: true,
+            data: JSON.parse(response.body)
+          }
+        else
+          Rails.logger.error("Xero API error: #{response.code} - #{response.body}")
+          {
+            success: false,
+            error: "Xero API error: #{response.code}"
+          }
+        end
+      rescue StandardError => e
+        Rails.logger.error("Xero request error: #{e.message}")
+        {
+          success: false,
+          error: e.message
+        }
+      end
 
       # Determine what sync action was taken for a contact
       def determine_sync_action(contact)
