@@ -229,7 +229,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
   // Load Xero contact data when links change
   useEffect(() => {
-    if (contact?.id && (xeroLinks.length > 0 || contact?.xero_id)) {
+    if (contact?.id && xeroLinks.length > 0) {
       loadXeroContactData()
     }
   }, [contact?.id, selectedLinkId, xeroLinks.length])
@@ -280,7 +280,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       }
 
       // Fetch Xero data if a link is selected
-      const xeroContactId = selectedLink?.xero_contact_id || contact?.xero_id
+      const xeroContactId = selectedLink?.xero_contact_id
       const xeroTenantId = selectedLink?.xero_tenant_id
 
       if (xeroContactId) {
@@ -339,7 +339,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   // Fetch raw Xero contact data to show what Xero has
   const loadXeroContactData = async () => {
     const selectedLink = xeroLinks.find(l => l.id === selectedLinkId)
-    const xeroContactId = selectedLink?.xero_contact_id || contact?.xero_id
+    const xeroContactId = selectedLink?.xero_contact_id
     const xeroTenantId = selectedLink?.xero_tenant_id
 
     if (!xeroContactId) {
@@ -469,7 +469,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
   const handleSync = async () => {
     // Check if we have a link to sync
-    const xeroContactId = selectedLink?.xero_contact_id || contact?.xero_id
+    const xeroContactId = selectedLink?.xero_contact_id
     if (!xeroContactId) {
       setSyncError('Contact must be linked to Xero first')
       return
@@ -590,8 +590,8 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     }
   }
 
-  // Determine if we have any Xero connection
-  const hasXeroConnection = xeroLinks.length > 0 || contact?.xero_id
+  // Determine if we have any Xero connection (only use contact_xero_links, not legacy xero_id)
+  const hasXeroConnection = xeroLinks.length > 0
 
   return (
     <div className="py-6">
@@ -756,10 +756,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                   <> • Viewing: <span className="font-mono">{selectedLink.xero_contact_id?.substring(0, 8)}...</span></>
                 )}
               </>
-            ) : contact?.xero_id ? (
-              <>
-                <span className="font-semibold">Linked to Xero</span> • Contact ID: <span className="font-mono">{contact.xero_id?.substring(0, 8)}...</span>
-              </>
             ) : (
               <>
                 <span className="font-semibold">Not Linked</span> • Use the Accounting Connections panel in the sidebar to link this contact
@@ -910,7 +906,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               </div>
 
               {/* Xero Invoices */}
-              {(selectedLink || contact?.xero_id) && (
+              {selectedLink && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
                     Invoices in Xero ({xeroInvoices.length})
@@ -970,7 +966,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               )}
 
               {/* Xero Credit Notes */}
-              {(selectedLink || contact?.xero_id) && xeroCreditNotes.length > 0 && (
+              {selectedLink && xeroCreditNotes.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
                     Credit Notes in Xero ({xeroCreditNotes.length})
@@ -1011,7 +1007,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
               )}
 
               {/* Xero Payments */}
-              {(selectedLink || contact?.xero_id) && xeroPayments.length > 0 && (
+              {selectedLink && xeroPayments.length > 0 && (
                 <div className="mb-6">
                   <h4 className="text-md font-semibold text-gray-800 dark:text-gray-200 mb-3">
                     Payments in Xero ({xeroPayments.length})
