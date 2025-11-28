@@ -1,5 +1,16 @@
 # Claude Code Instructions for TEEEM Project
 
+## 🔴 CRITICAL: Git Branch Protection
+
+**NEVER push directly to the `Live` branch.** This is our production branch (equivalent to main/master).
+
+- ALWAYS work on feature branches (like `rob`, `jake`, etc.)
+- ALWAYS create Pull Requests to merge into `Live`
+- NEVER run `git push origin Live` or `git push --force` to Live
+- If asked to push, push to the current feature branch only
+
+---
+
 ## 🔴 CRITICAL: Efficient Documentation Access
 
 **ALWAYS use the Dense Index pattern to find relevant documentation before reading full files.**

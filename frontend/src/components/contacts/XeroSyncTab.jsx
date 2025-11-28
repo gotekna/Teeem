@@ -1102,6 +1102,19 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                   const valuesMatch = xeroValue === teeemValue || (xeroValue === '-' && teeemValue === '-')
                   const hasMismatch = xeroValue !== '-' && teeemValue !== '-' && xeroValue !== teeemValue
 
+                  // Determine actual sync status based on Xero connection and data
+                  let actualStatus = field.syncStatus
+                  if (!hasXeroConnection) {
+                    // No Xero link at all
+                    actualStatus = 'not_linked'
+                  } else if (field.syncStatus === 'synced' && xeroValue === '-' && !loadingXeroContact) {
+                    // Has Xero link but no data from Xero for this field
+                    actualStatus = 'not_linked'
+                  } else if (field.syncStatus === 'read_only') {
+                    // Keep read_only status for protected fields
+                    actualStatus = 'read_only'
+                  }
+
                   return (
                     <tr key={fieldIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
@@ -1119,9 +1132,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex items-center gap-2">
-                          {getStatusIcon(field.syncStatus)}
+                          {getStatusIcon(actualStatus)}
                           <span className="text-gray-700 dark:text-gray-300">
-                            {getStatusLabel(field.syncStatus)}
+                            {getStatusLabel(actualStatus)}
                           </span>
                         </div>
                       </td>
