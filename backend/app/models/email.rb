@@ -1,5 +1,5 @@
 class Email < ApplicationRecord
-  belongs_to :construction, optional: true
+  belongs_to :job, optional: true
   belongs_to :user, optional: true
 
   validates :from_email, presence: true
@@ -12,8 +12,8 @@ class Email < ApplicationRecord
   serialize :references, coder: JSON
 
   scope :recent, ->(limit = 50) { order(received_at: :desc).limit(limit) }
-  scope :for_construction, ->(construction_id) { where(construction_id: construction_id).order(received_at: :desc) }
-  scope :unassigned, -> { where(construction_id: nil).order(received_at: :desc) }
+  scope :for_job, ->(job_id) { where(job_id: job_id).order(received_at: :desc) }
+  scope :unassigned, -> { where(job_id: nil).order(received_at: :desc) }
   scope :with_attachments, -> { where(has_attachments: true) }
 
   def formatted_received_at
@@ -36,7 +36,7 @@ class Email < ApplicationRecord
   def as_json(options = {})
     super(options.merge(
       include: {
-        construction: { only: [:id, :title] },
+        job: { only: [:id, :title] },
         user: { only: [:id, :email, :name] }
       },
       methods: [:formatted_received_at, :short_subject]

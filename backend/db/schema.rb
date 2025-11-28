@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_28_104056) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_28_205145) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1184,6 +1184,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_104056) do
     t.index ["is_active"], name: "index_inspiring_quotes_on_is_active"
   end
 
+  create_table "job_activities", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "user_id"
+    t.string "activity_type", null: false
+    t.text "description"
+    t.jsonb "metadata", default: {}
+    t.string "related_type"
+    t.bigint "related_id"
+    t.string "related_url"
+    t.datetime "occurred_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["activity_type"], name: "index_job_activities_on_activity_type"
+    t.index ["job_id"], name: "index_job_activities_on_job_id"
+    t.index ["occurred_at"], name: "index_job_activities_on_occurred_at"
+    t.index ["related_type", "related_id"], name: "index_job_activities_on_related_type_and_related_id"
+    t.index ["user_id"], name: "index_job_activities_on_user_id"
+  end
+
   create_table "job_claims", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "invoice_number"
@@ -1320,7 +1339,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_104056) do
     t.decimal "live_profit", precision: 15, scale: 2
     t.decimal "profit_percentage", precision: 10, scale: 2
     t.string "stage"
-    t.string "status"
     t.string "ted_number"
     t.string "certifier_job_no"
     t.date "start_date"
@@ -1349,7 +1367,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_104056) do
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
-    t.index ["status"], name: "index_jobs_on_status"
   end
 
   create_table "kudos_events", force: :cascade do |t|
@@ -3461,6 +3478,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_104056) do
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
+  add_foreign_key "job_activities", "jobs"
+  add_foreign_key "job_activities", "users"
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
   add_foreign_key "job_contacts", "contacts"

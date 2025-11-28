@@ -8,7 +8,7 @@ class CorporateOnedriveService
     "Corporate"                             # Simple Corporate folder
   ].freeze
 
-  DEFAULT_FOLDER_PATH = "Accounts - Internal/Corporate File"
+  DEFAULT_FOLDER_PATH = "Corporate File"
 
   # Known group folders that contain company subfolders
   GROUP_FOLDERS = [
@@ -209,7 +209,9 @@ class CorporateOnedriveService
   def find_folder_by_path(client, path)
     path_parts = path.split('/')
     current_folder = nil
-    current_parent_path = "/me/drive/root"
+    # Use SharePoint drive if available, otherwise fall back to personal OneDrive
+    drive_path = @credential&.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
+    current_parent_path = "#{drive_path}/root"
 
     path_parts.each do |folder_name|
       response = client.get("#{current_parent_path}/children")
@@ -217,7 +219,7 @@ class CorporateOnedriveService
       current_folder = folders.find { |f| f['name'] == folder_name && f['folder'] }
 
       return nil unless current_folder
-      current_parent_path = "/me/drive/items/#{current_folder['id']}"
+      current_parent_path = "#{drive_path}/items/#{current_folder['id']}"
     end
 
     current_folder
@@ -228,7 +230,9 @@ class CorporateOnedriveService
 
   def list_folder_children(client, folder_id)
     all_items = []
-    next_link = "/me/drive/items/#{folder_id}/children"
+    # Use SharePoint drive if available, otherwise fall back to personal OneDrive
+    drive_path = @credential&.drive_id ? "/drives/#{@credential.drive_id}" : "/me/drive"
+    next_link = "#{drive_path}/items/#{folder_id}/children"
 
     while next_link
       response = client.get(next_link)
