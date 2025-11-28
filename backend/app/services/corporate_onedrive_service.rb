@@ -8,7 +8,7 @@ class CorporateOnedriveService
     "Corporate"                             # Simple Corporate folder
   ].freeze
 
-  DEFAULT_FOLDER_PATH = "Corporate"
+  DEFAULT_FOLDER_PATH = "Accounts - Internal/Corporate File"
 
   # Known group folders that contain company subfolders
   GROUP_FOLDERS = [

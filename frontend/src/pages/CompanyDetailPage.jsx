@@ -80,8 +80,9 @@ export default function CompanyDetailPage() {
   const getSharePointUrl = (companyName) => {
     // URL encode the company name for the path
     const encodedName = encodeURIComponent(companyName)
-    // SharePoint URL structure: Corporate/[Company Name]
-    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FCorporate%2F${encodedName}`
+    // SharePoint URL structure: Accounts - Internal/Corporate File/[Group]/[Company Name]
+    // For now, link to the Corporate File folder - user can navigate to company from there
+    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FAccounts%20%2D%20Internal%2FCorporate%20File`
   }
 
   if (loading) {

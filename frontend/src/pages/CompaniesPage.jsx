@@ -117,7 +117,7 @@ export default function CompaniesPage() {
 
   // Build SharePoint URL for corporate folder
   const getSharePointUrl = () => {
-    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FCorporate`
+    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FAccounts%20%2D%20Internal%2FCorporate%20File`
   }
 
   const handleEdit = async (entry) => {
