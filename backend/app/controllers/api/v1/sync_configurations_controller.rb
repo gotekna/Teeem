@@ -96,12 +96,24 @@ module Api
       private
 
       def set_sync_configuration
-        @sync_configuration = SyncConfiguration.find_by!(xero_tenant_id: params[:xero_tenant_id])
-      rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          errors: ["Sync configuration not found for tenant #{params[:xero_tenant_id]}"]
-        }, status: :not_found
+        @sync_configuration = SyncConfiguration.find_by(xero_tenant_id: params[:xero_tenant_id])
+
+        # Auto-create config if it doesn't exist (for GET/PUT requests)
+        unless @sync_configuration
+          # Try to get tenant name from xero_links
+          link = ContactXeroLink.find_by(xero_tenant_id: params[:xero_tenant_id])
+          tenant_name = link&.xero_tenant_name || 'Unknown'
+
+          @sync_configuration = SyncConfiguration.create!(
+            xero_tenant_id: params[:xero_tenant_id],
+            xero_tenant_name: tenant_name,
+            accounting_system: 'xero',
+            sync_enabled: true,
+            field_mappings: SyncConfiguration::DEFAULT_FIELD_MAPPINGS,
+            cleanup_options: SyncConfiguration::DEFAULT_CLEANUP_OPTIONS,
+            default_sync_direction: SyncConfiguration::DEFAULT_SYNC_DIRECTION
+          )
+        end
       end
 
       def sync_configuration_params
