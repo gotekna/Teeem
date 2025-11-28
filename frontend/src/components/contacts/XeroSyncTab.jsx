@@ -190,34 +190,41 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     return 'empty_in_xero'
   }
 
+  // Sync direction types:
+  // 'xero_to_teeem' = Xero is source of truth, pulls from Xero only
+  // 'teeem_to_xero' = TEEEM is source of truth, pushes to Xero only (not yet implemented)
+  // 'bidirectional' = Two-way sync, TEEEM wins conflicts
+  // 'teeem_wins' = Two-way sync, but only pulls from Xero if TEEEM is empty
+  // 'none' = Display only, not synced
+
   // Define the field mappings between Xero and TEEEM
   const fieldMappings = [
     {
       section: 'Basic Information',
       fields: [
-        { xeroField: 'Name', teeemField: 'full_name', value: contact?.full_name, syncStatus: 'synced' },
-        { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: contact?.first_name ? 'synced' : 'empty_in_xero' },
-        { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: contact?.last_name ? 'synced' : 'empty_in_xero' },
-        { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced' },
-        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'contact_types', value: contact?.contact_types?.length > 0 ? contact.contact_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ') : '-', syncStatus: contact?.contact_types?.length > 0 ? 'synced' : 'empty_in_xero' },
-        { xeroField: 'ContactID', teeemField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked' }
+        { xeroField: 'Name', teeemField: 'full_name', value: contact?.full_name, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: contact?.first_name ? 'synced' : 'empty_in_xero', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: contact?.last_name ? 'synced' : 'empty_in_xero', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'contact_types', value: contact?.contact_types?.length > 0 ? contact.contact_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ') : '-', syncStatus: contact?.contact_types?.length > 0 ? 'synced' : 'empty_in_xero', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'ContactID', teeemField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked', syncDirection: 'xero_to_teeem' }
       ]
     },
     {
       section: 'Contact Details',
       fields: [
-        { xeroField: 'PhoneNumber (Mobile)', teeemField: 'mobile_phone', value: contact?.mobile_phone, syncStatus: 'synced' },
-        { xeroField: 'PhoneNumber (Office)', teeemField: 'office_phone', value: contact?.office_phone, syncStatus: 'synced' },
-        { xeroField: 'PhoneNumber (Fax)', teeemField: 'fax_phone', value: contact?.fax_phone, syncStatus: 'synced' },
-        { xeroField: 'Website', teeemField: 'website', value: contact?.website, syncStatus: 'synced' }
+        { xeroField: 'PhoneNumber (Mobile)', teeemField: 'mobile_phone', value: contact?.mobile_phone, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'PhoneNumber (Office)', teeemField: 'office_phone', value: contact?.office_phone, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'PhoneNumber (Fax)', teeemField: 'fax_phone', value: contact?.fax_phone, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'Website', teeemField: 'website', value: contact?.website, syncStatus: 'synced', syncDirection: 'xero_to_teeem' }
       ]
     },
     {
       section: 'Addresses',
       fields: [
-        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: getAddressSyncStatus('STREET') },
-        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: getAddressSyncStatus('POBOX') },
-        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: getAddressSyncStatus('DELIVERY') }
+        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: getAddressSyncStatus('STREET'), syncDirection: 'teeem_wins' },
+        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: getAddressSyncStatus('POBOX'), syncDirection: 'teeem_wins' },
+        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: getAddressSyncStatus('DELIVERY'), syncDirection: 'teeem_wins' }
       ]
     },
     {
@@ -225,11 +232,11 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       readOnly: true,
       readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'TaxNumber', teeemField: 'tax_number', value: contact?.tax_number, syncStatus: 'synced' },
-        { xeroField: 'AccountNumber', teeemField: 'xero_account_number', value: contact?.xero_account_number, syncStatus: 'read_only' },
-        { xeroField: 'ContactNumber', teeemField: 'xero_contact_number', value: contact?.xero_contact_number, syncStatus: 'read_only' },
-        { xeroField: 'ContactStatus', teeemField: 'xero_contact_status', value: contact?.xero_contact_status, syncStatus: 'read_only' },
-        { xeroField: 'CompanyNumber', teeemField: 'company_number', value: contact?.company_number, syncStatus: 'read_only' }
+        { xeroField: 'TaxNumber', teeemField: 'tax_number', value: contact?.tax_number, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'AccountNumber', teeemField: 'xero_account_number', value: contact?.xero_account_number, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'ContactNumber', teeemField: 'xero_contact_number', value: contact?.xero_contact_number, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'ContactStatus', teeemField: 'xero_contact_status', value: contact?.xero_contact_status, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'CompanyNumber', teeemField: 'company_number', value: contact?.company_number, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' }
       ]
     },
     {
@@ -237,11 +244,11 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       readOnly: true,
       readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'DefaultPurchaseAccount', teeemField: 'default_purchase_account', value: contact?.default_purchase_account, syncStatus: 'read_only' },
-        { xeroField: 'PurchaseTerms (Days)', teeemField: 'bill_due_day', value: contact?.bill_due_day, syncStatus: 'read_only' },
-        { xeroField: 'PurchaseTerms (Type)', teeemField: 'bill_due_type', value: contact?.bill_due_type, syncStatus: 'read_only' },
-        { xeroField: 'AccountsPayable Outstanding', teeemField: 'accounts_payable_outstanding', value: contact?.accounts_payable_outstanding, syncStatus: 'read_only', type: 'currency' },
-        { xeroField: 'AccountsPayable Overdue', teeemField: 'accounts_payable_overdue', value: contact?.accounts_payable_overdue, syncStatus: 'read_only', type: 'currency' }
+        { xeroField: 'DefaultPurchaseAccount', teeemField: 'default_purchase_account', value: contact?.default_purchase_account, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'PurchaseTerms (Days)', teeemField: 'bill_due_day', value: contact?.bill_due_day, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'PurchaseTerms (Type)', teeemField: 'bill_due_type', value: contact?.bill_due_type, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'AccountsPayable Outstanding', teeemField: 'accounts_payable_outstanding', value: contact?.accounts_payable_outstanding, syncStatus: 'read_only', syncDirection: 'xero_to_teeem', type: 'currency' },
+        { xeroField: 'AccountsPayable Overdue', teeemField: 'accounts_payable_overdue', value: contact?.accounts_payable_overdue, syncStatus: 'read_only', syncDirection: 'xero_to_teeem', type: 'currency' }
       ]
     },
     {
@@ -249,12 +256,12 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       readOnly: true,
       readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'DefaultSalesAccount', teeemField: 'default_sales_account', value: contact?.default_sales_account, syncStatus: 'read_only' },
-        { xeroField: 'DefaultDiscount', teeemField: 'default_discount', value: contact?.default_discount, syncStatus: 'read_only', type: 'percentage' },
-        { xeroField: 'SalesTerms (Days)', teeemField: 'sales_due_day', value: contact?.sales_due_day, syncStatus: 'read_only' },
-        { xeroField: 'SalesTerms (Type)', teeemField: 'sales_due_type', value: contact?.sales_due_type, syncStatus: 'read_only' },
-        { xeroField: 'AccountsReceivable Outstanding', teeemField: 'accounts_receivable_outstanding', value: contact?.accounts_receivable_outstanding, syncStatus: 'read_only', type: 'currency' },
-        { xeroField: 'AccountsReceivable Overdue', teeemField: 'accounts_receivable_overdue', value: contact?.accounts_receivable_overdue, syncStatus: 'read_only', type: 'currency' }
+        { xeroField: 'DefaultSalesAccount', teeemField: 'default_sales_account', value: contact?.default_sales_account, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'DefaultDiscount', teeemField: 'default_discount', value: contact?.default_discount, syncStatus: 'read_only', syncDirection: 'xero_to_teeem', type: 'percentage' },
+        { xeroField: 'SalesTerms (Days)', teeemField: 'sales_due_day', value: contact?.sales_due_day, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'SalesTerms (Type)', teeemField: 'sales_due_type', value: contact?.sales_due_type, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'AccountsReceivable Outstanding', teeemField: 'accounts_receivable_outstanding', value: contact?.accounts_receivable_outstanding, syncStatus: 'read_only', syncDirection: 'xero_to_teeem', type: 'currency' },
+        { xeroField: 'AccountsReceivable Overdue', teeemField: 'accounts_receivable_overdue', value: contact?.accounts_receivable_overdue, syncStatus: 'read_only', syncDirection: 'xero_to_teeem', type: 'currency' }
       ]
     },
     {
@@ -262,20 +269,43 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       readOnly: true,
       readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'BankAccountBSB', teeemField: 'bank_bsb', value: contact?.bank_bsb, syncStatus: 'read_only' },
-        { xeroField: 'BankAccountNumber', teeemField: 'bank_account_number', value: contact?.bank_account_number, syncStatus: 'read_only' },
-        { xeroField: 'BankAccountName', teeemField: 'bank_account_name', value: contact?.bank_account_name, syncStatus: 'read_only' }
+        { xeroField: 'BankAccountBSB', teeemField: 'bank_bsb', value: contact?.bank_bsb, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'BankAccountNumber', teeemField: 'bank_account_number', value: contact?.bank_account_number, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'BankAccountName', teeemField: 'bank_account_name', value: contact?.bank_account_name, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' }
       ]
     },
     {
       section: 'Sync Status',
       fields: [
-        { xeroField: 'SyncEnabled', teeemField: 'sync_with_xero', value: contact?.sync_with_xero ? 'Yes' : 'No', syncStatus: contact?.sync_with_xero ? 'enabled' : 'disabled' },
-        { xeroField: 'LastSyncedAt', teeemField: 'last_synced_at', value: contact?.last_synced_at ? new Date(contact.last_synced_at).toLocaleString() : 'Never', syncStatus: contact?.last_synced_at ? 'synced' : 'never' },
-        { xeroField: 'SyncError', teeemField: 'xero_sync_error', value: contact?.xero_sync_error || 'None', syncStatus: contact?.xero_sync_error ? 'error' : 'ok' }
+        { xeroField: 'SyncEnabled', teeemField: 'sync_with_xero', value: contact?.sync_with_xero ? 'Yes' : 'No', syncStatus: contact?.sync_with_xero ? 'enabled' : 'disabled', syncDirection: 'none' },
+        { xeroField: 'LastSyncedAt', teeemField: 'last_synced_at', value: contact?.last_synced_at ? new Date(contact.last_synced_at).toLocaleString() : 'Never', syncStatus: contact?.last_synced_at ? 'synced' : 'never', syncDirection: 'none' },
+        { xeroField: 'SyncError', teeemField: 'xero_sync_error', value: contact?.xero_sync_error || 'None', syncStatus: contact?.xero_sync_error ? 'error' : 'ok', syncDirection: 'none' }
       ]
     }
   ]
+
+  // Helper to get sync direction display
+  const getSyncDirectionLabel = (direction) => {
+    switch (direction) {
+      case 'xero_to_teeem': return 'Xero → TEEEM'
+      case 'teeem_to_xero': return 'TEEEM → Xero'
+      case 'bidirectional': return 'Two-way'
+      case 'teeem_wins': return 'TEEEM wins'
+      case 'none': return '-'
+      default: return '-'
+    }
+  }
+
+  const getSyncDirectionTooltip = (direction) => {
+    switch (direction) {
+      case 'xero_to_teeem': return 'Data flows from Xero to TEEEM only'
+      case 'teeem_to_xero': return 'Data flows from TEEEM to Xero only'
+      case 'bidirectional': return 'Data syncs both ways'
+      case 'teeem_wins': return 'Pulls from Xero only if TEEEM is empty'
+      case 'none': return 'Not synced'
+      default: return ''
+    }
+  }
 
   // Load xero links when component mounts
   useEffect(() => {
@@ -1337,6 +1367,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Status
                       </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Sync
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -1381,6 +1414,20 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                                 {getStatusLabel(actualStatus)}
                               </span>
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span
+                              className={`inline-flex items-center gap-1 text-xs font-medium ${
+                                field.syncDirection === 'xero_to_teeem' ? 'text-blue-600 dark:text-blue-400' :
+                                field.syncDirection === 'teeem_to_xero' ? 'text-green-600 dark:text-green-400' :
+                                field.syncDirection === 'bidirectional' ? 'text-purple-600 dark:text-purple-400' :
+                                field.syncDirection === 'teeem_wins' ? 'text-amber-600 dark:text-amber-400' :
+                                'text-gray-400 dark:text-gray-500'
+                              }`}
+                              title={getSyncDirectionTooltip(field.syncDirection)}
+                            >
+                              {getSyncDirectionLabel(field.syncDirection)}
+                            </span>
                           </td>
                         </tr>
                       )
@@ -1433,6 +1480,29 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
           <strong>Empty in Xero</strong> = field is synced but has no data in Xero. <strong>View Only</strong> = shows Xero data but not synced to TEEEM. <strong>Read Only</strong> = synced from Xero - edit in Xero to update.
         </p>
+      </div>
+
+      {/* Sync Direction Legend */}
+      <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Sync Direction Legend</h4>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">Xero → TEEEM</span>
+            <span className="text-gray-500 dark:text-gray-400">- Data flows from Xero to TEEEM only</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-green-600 dark:text-green-400">TEEEM → Xero</span>
+            <span className="text-gray-500 dark:text-gray-400">- Data flows from TEEEM to Xero only</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-purple-600 dark:text-purple-400">Two-way</span>
+            <span className="text-gray-500 dark:text-gray-400">- Data syncs both directions</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-amber-600 dark:text-amber-400">TEEEM wins</span>
+            <span className="text-gray-500 dark:text-gray-400">- Pulls from Xero only if TEEEM is empty</span>
+          </div>
+        </div>
       </div>
 
       {/* Convert to Contact Person Modal */}
