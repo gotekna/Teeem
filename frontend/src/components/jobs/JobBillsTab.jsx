@@ -8,18 +8,22 @@ import {
   ChevronRightIcon,
   LinkIcon,
   XMarkIcon,
-  BuildingOfficeIcon
+  BuildingOfficeIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
 export default function JobBillsTab({ job }) {
-  // Transaction data from Xero
+  // Transaction data from cached bills
   const [bills, setBills] = useState([])
 
   // Loading states
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState(null)
+
+  // Sync metadata
+  const [lastSyncedAt, setLastSyncedAt] = useState(null)
 
   // Bill detail modal
   const [selectedBill, setSelectedBill] = useState(null)
@@ -36,29 +40,30 @@ export default function JobBillsTab({ job }) {
 
   // Load transactions when job changes
   useEffect(() => {
-    if (job?.xero_tracking_option_name) {
+    if (job?.id) {
       loadTransactions()
     } else {
       setLoading(false)
     }
-  }, [job?.id, job?.xero_tracking_option_name])
+  }, [job?.id])
 
   const loadTransactions = async () => {
     setLoading(true)
     setError(null)
 
     try {
-      const trackingName = encodeURIComponent(job.xero_tracking_option_name)
-      const response = await api.get(`/api/v1/xero/invoices_by_tracking?tracking_option_name=${trackingName}`)
+      // Use the new fast endpoint that reads from local cache
+      const response = await api.get(`/api/v1/external_invoices/by_job/${job.id}`)
 
       if (response.success) {
         setBills(response.data?.bills || [])
+        setLastSyncedAt(response.meta?.last_synced_at)
       } else {
         setError(response.error || 'Failed to load bills')
       }
     } catch (err) {
-      console.error('Failed to load job Xero bills:', err)
-      setError('Failed to load Xero bills')
+      console.error('Failed to load job bills:', err)
+      setError('Failed to load bills')
     } finally {
       setLoading(false)
     }
@@ -81,7 +86,7 @@ export default function JobBillsTab({ job }) {
   const fetchBillDetail = async (invoiceId) => {
     setLoadingBillDetail(true)
     try {
-      const response = await api.get(`/api/v1/xero/invoices/${invoiceId}`)
+      const response = await api.get(`/api/v1/external_invoices/${invoiceId}`)
       if (response.success && response.data) {
         setSelectedBill(response.data)
       }
@@ -108,13 +113,14 @@ export default function JobBillsTab({ job }) {
   }
 
   const getStatusBadge = (status) => {
+    // Using normalized status values (lowercase)
     const statusMap = {
-      'DRAFT': { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', label: 'Draft' },
-      'SUBMITTED': { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', label: 'Submitted' },
-      'AUTHORISED': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', label: 'Authorised' },
-      'PAID': { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', label: 'Paid' },
-      'VOIDED': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Voided' },
-      'DELETED': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Deleted' },
+      'draft': { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', label: 'Draft' },
+      'submitted': { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', label: 'Submitted' },
+      'approved': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', label: 'Approved' },
+      'paid': { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', label: 'Paid' },
+      'voided': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Voided' },
+      'deleted': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Deleted' },
     }
     const statusInfo = statusMap[status] || { color: 'bg-gray-100 text-gray-800', label: status }
     return (
@@ -124,18 +130,19 @@ export default function JobBillsTab({ job }) {
     )
   }
 
-  // Extract payments from bills
+  // Extract payments from bills (using normalized snake_case fields)
   const getAllPayments = () => {
     const payments = []
 
     bills.forEach(bill => {
-      if (bill.Payments && bill.Payments.length > 0) {
-        bill.Payments.forEach(payment => {
+      const billPayments = bill.payments || []
+      if (billPayments.length > 0) {
+        billPayments.forEach(payment => {
           payments.push({
             ...payment,
-            InvoiceNumber: bill.InvoiceNumber,
-            InvoiceID: bill.InvoiceID,
-            SupplierName: bill.Contact?.Name
+            invoice_number: bill.invoice_number,
+            invoice_id: bill.id,
+            supplier_name: bill.contact_name
           })
         })
       }
@@ -143,8 +150,8 @@ export default function JobBillsTab({ job }) {
 
     // Sort by date descending
     payments.sort((a, b) => {
-      const dateA = a.Date ? new Date(a.Date.replace('/Date(', '').replace(')/', '')) : 0
-      const dateB = b.Date ? new Date(b.Date.replace('/Date(', '').replace(')/', '')) : 0
+      const dateA = a.Date ? new Date(a.Date) : 0
+      const dateB = b.Date ? new Date(b.Date) : 0
       return dateB - dateA
     })
 
@@ -153,43 +160,43 @@ export default function JobBillsTab({ job }) {
 
   const payments = getAllPayments()
 
-  // No tracking category linked
-  if (!job?.xero_tracking_option_name) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-          <BuildingOfficeIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No Xero Tracking Category</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            This job is not linked to a Xero tracking category.
-          </p>
-          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-            Jobs imported from Xero will automatically have their tracking category linked.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  // No tracking category linked - show message but still display any linked bills
+  const noTrackingCategory = !job?.xero_tracking_option_name
 
-  // Filter out deleted/voided unless showDeleted is true
+  // Filter out deleted/voided unless showDeleted is true (using lowercase status)
   const filteredBills = showDeleted
     ? bills
-    : bills.filter(bill => bill.Status !== 'DELETED' && bill.Status !== 'VOIDED')
-  const deletedCount = bills.length - bills.filter(bill => bill.Status !== 'DELETED' && bill.Status !== 'VOIDED').length
+    : bills.filter(bill => bill.status !== 'deleted' && bill.status !== 'voided')
+  const deletedCount = bills.length - bills.filter(bill => bill.status !== 'deleted' && bill.status !== 'voided').length
 
-  // Calculate totals
-  const billTotal = filteredBills.reduce((sum, bill) => sum + (bill.Total || 0), 0)
-  const billDueTotal = filteredBills.reduce((sum, bill) => sum + (bill.AmountDue || 0), 0)
-  const billPaidTotal = filteredBills.reduce((sum, bill) => sum + ((bill.Total || 0) - (bill.AmountDue || 0)), 0)
+  // Calculate totals (using snake_case fields)
+  const billTotal = filteredBills.reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0)
+  const billDueTotal = filteredBills.reduce((sum, bill) => sum + (parseFloat(bill.amount_due) || 0), 0)
+  const billPaidTotal = filteredBills.reduce((sum, bill) => sum + ((parseFloat(bill.total) || 0) - (parseFloat(bill.amount_due) || 0)), 0)
+
+  // Format last synced time
+  const formatLastSynced = (dateString) => {
+    if (!dateString) return 'Never'
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now - date
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} min ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    return date.toLocaleDateString('en-AU')
+  }
 
   // Group bills by supplier
   const billsBySupplier = filteredBills.reduce((acc, bill) => {
-    const supplierName = bill.Contact?.Name || 'Unknown Supplier'
+    const supplierName = bill.contact_name || 'Unknown Supplier'
     if (!acc[supplierName]) {
       acc[supplierName] = { bills: [], total: 0 }
     }
     acc[supplierName].bills.push(bill)
-    acc[supplierName].total += bill.Total || 0
+    acc[supplierName].total += parseFloat(bill.total) || 0
     return acc
   }, {})
 
@@ -204,8 +211,18 @@ export default function JobBillsTab({ job }) {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Supplier Bills & Costs</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Bills from suppliers for: <span className="font-medium text-amber-600 dark:text-amber-400">{job.xero_tracking_option_name}</span>
+            {job.xero_tracking_option_name ? (
+              <>Bills from suppliers for: <span className="font-medium text-amber-600 dark:text-amber-400">{job.xero_tracking_option_name}</span></>
+            ) : (
+              <>Bills linked to this job</>
+            )}
           </p>
+          {lastSyncedAt && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-1">
+              <ClockIcon className="h-3 w-3" />
+              Last synced: {formatLastSynced(lastSyncedAt)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -370,33 +387,33 @@ export default function JobBillsTab({ job }) {
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {filteredBills.map((bill, idx) => (
                         <tr
-                          key={idx}
+                          key={bill.id || idx}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-                          onClick={() => fetchBillDetail(bill.InvoiceID)}
+                          onClick={() => fetchBillDetail(bill.id)}
                         >
                           <td className="px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:underline">
-                            {bill.InvoiceNumber || '-'}
+                            {bill.invoice_number || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {bill.Contact?.Name || '-'}
+                            {bill.contact_name || '-'}
                           </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={bill.LineItems?.[0]?.Description || ''}>
-                            {bill.LineItems?.[0]?.Description || '-'}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(bill.Date)}
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={bill.line_items?.[0]?.Description || ''}>
+                            {bill.line_items?.[0]?.Description || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(bill.DueDate)}
+                            {formatDate(bill.invoice_date)}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {formatDate(bill.due_date)}
                           </td>
                           <td className="px-4 py-2">
-                            {getStatusBadge(bill.Status)}
+                            {getStatusBadge(bill.status)}
                           </td>
                           <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(bill.Total)}
+                            {formatCurrency(bill.total)}
                           </td>
                           <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(bill.AmountDue)}
+                            {formatCurrency(bill.amount_due)}
                           </td>
                         </tr>
                       ))}
@@ -460,10 +477,10 @@ export default function JobBillsTab({ job }) {
                       {payments.map((payment, idx) => (
                         <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400">
-                            {payment.InvoiceNumber || '-'}
+                            {payment.invoice_number || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {payment.SupplierName || '-'}
+                            {payment.supplier_name || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
                             {formatDate(payment.Date)}

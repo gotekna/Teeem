@@ -8,18 +8,22 @@ import {
   ChevronRightIcon,
   LinkIcon,
   XMarkIcon,
-  BuildingOfficeIcon
+  BuildingOfficeIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
 export default function JobInvoicesTab({ job }) {
-  // Transaction data from Xero
+  // Transaction data from cached invoices
   const [invoices, setInvoices] = useState([])
 
   // Loading states
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState(null)
+
+  // Sync metadata
+  const [lastSyncedAt, setLastSyncedAt] = useState(null)
 
   // Invoice detail modal
   const [selectedInvoice, setSelectedInvoice] = useState(null)
@@ -36,29 +40,30 @@ export default function JobInvoicesTab({ job }) {
 
   // Load transactions when job changes
   useEffect(() => {
-    if (job?.xero_tracking_option_name) {
+    if (job?.id) {
       loadTransactions()
     } else {
       setLoading(false)
     }
-  }, [job?.id, job?.xero_tracking_option_name])
+  }, [job?.id])
 
   const loadTransactions = async () => {
     setLoading(true)
     setError(null)
 
     try {
-      const trackingName = encodeURIComponent(job.xero_tracking_option_name)
-      const response = await api.get(`/api/v1/xero/invoices_by_tracking?tracking_option_name=${trackingName}`)
+      // Use the new fast endpoint that reads from local cache
+      const response = await api.get(`/api/v1/external_invoices/by_job/${job.id}`)
 
       if (response.success) {
         setInvoices(response.data?.invoices || [])
+        setLastSyncedAt(response.meta?.last_synced_at)
       } else {
         setError(response.error || 'Failed to load invoices')
       }
     } catch (err) {
-      console.error('Failed to load job Xero invoices:', err)
-      setError('Failed to load Xero invoices')
+      console.error('Failed to load job invoices:', err)
+      setError('Failed to load invoices')
     } finally {
       setLoading(false)
     }
@@ -81,7 +86,7 @@ export default function JobInvoicesTab({ job }) {
   const fetchInvoiceDetail = async (invoiceId) => {
     setLoadingInvoiceDetail(true)
     try {
-      const response = await api.get(`/api/v1/xero/invoices/${invoiceId}`)
+      const response = await api.get(`/api/v1/external_invoices/${invoiceId}`)
       if (response.success && response.data) {
         setSelectedInvoice(response.data)
       }
@@ -108,13 +113,14 @@ export default function JobInvoicesTab({ job }) {
   }
 
   const getStatusBadge = (status) => {
+    // Using normalized status values (lowercase)
     const statusMap = {
-      'DRAFT': { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', label: 'Draft' },
-      'SUBMITTED': { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', label: 'Submitted' },
-      'AUTHORISED': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', label: 'Authorised' },
-      'PAID': { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', label: 'Paid' },
-      'VOIDED': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Voided' },
-      'DELETED': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Deleted' },
+      'draft': { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300', label: 'Draft' },
+      'submitted': { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300', label: 'Submitted' },
+      'approved': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', label: 'Approved' },
+      'paid': { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', label: 'Paid' },
+      'voided': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Voided' },
+      'deleted': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Deleted' },
     }
     const statusInfo = statusMap[status] || { color: 'bg-gray-100 text-gray-800', label: status }
     return (
@@ -124,18 +130,20 @@ export default function JobInvoicesTab({ job }) {
     )
   }
 
-  // Extract payments from invoices
+  // Extract payments from invoices (using normalized snake_case fields)
   const getAllPayments = () => {
     const payments = []
 
     invoices.forEach(invoice => {
-      if (invoice.Payments && invoice.Payments.length > 0) {
-        invoice.Payments.forEach(payment => {
+      // Payments are stored in the payments array (snake_case)
+      const invoicePayments = invoice.payments || []
+      if (invoicePayments.length > 0) {
+        invoicePayments.forEach(payment => {
           payments.push({
             ...payment,
-            InvoiceNumber: invoice.InvoiceNumber,
-            InvoiceID: invoice.InvoiceID,
-            ContactName: invoice.Contact?.Name
+            invoice_number: invoice.invoice_number,
+            invoice_id: invoice.id,
+            contact_name: invoice.contact_name
           })
         })
       }
@@ -143,8 +151,8 @@ export default function JobInvoicesTab({ job }) {
 
     // Sort by date descending
     payments.sort((a, b) => {
-      const dateA = a.Date ? new Date(a.Date.replace('/Date(', '').replace(')/', '')) : 0
-      const dateB = b.Date ? new Date(b.Date.replace('/Date(', '').replace(')/', '')) : 0
+      const dateA = a.Date ? new Date(a.Date) : 0
+      const dateB = b.Date ? new Date(b.Date) : 0
       return dateB - dateA
     })
 
@@ -153,34 +161,34 @@ export default function JobInvoicesTab({ job }) {
 
   const payments = getAllPayments()
 
-  // No tracking category linked
-  if (!job?.xero_tracking_option_name) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-          <BuildingOfficeIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No Xero Tracking Category</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            This job is not linked to a Xero tracking category.
-          </p>
-          <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-            Jobs imported from Xero will automatically have their tracking category linked.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  // No tracking category linked - show message but still display any linked invoices
+  const noTrackingCategory = !job?.xero_tracking_option_name
 
-  // Filter out deleted/voided unless showDeleted is true
+  // Filter out deleted/voided unless showDeleted is true (using lowercase status)
   const filteredInvoices = showDeleted
     ? invoices
-    : invoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED')
-  const deletedCount = invoices.length - invoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED').length
+    : invoices.filter(inv => inv.status !== 'deleted' && inv.status !== 'voided')
+  const deletedCount = invoices.length - invoices.filter(inv => inv.status !== 'deleted' && inv.status !== 'voided').length
 
-  // Calculate totals
-  const invoiceTotal = filteredInvoices.reduce((sum, inv) => sum + (inv.Total || 0), 0)
-  const invoiceDueTotal = filteredInvoices.reduce((sum, inv) => sum + (inv.AmountDue || 0), 0)
-  const invoicePaidTotal = filteredInvoices.reduce((sum, inv) => sum + ((inv.Total || 0) - (inv.AmountDue || 0)), 0)
+  // Calculate totals (using snake_case fields)
+  const invoiceTotal = filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0)
+  const invoiceDueTotal = filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.amount_due) || 0), 0)
+  const invoicePaidTotal = filteredInvoices.reduce((sum, inv) => sum + ((parseFloat(inv.total) || 0) - (parseFloat(inv.amount_due) || 0)), 0)
+
+  // Format last synced time
+  const formatLastSynced = (dateString) => {
+    if (!dateString) return 'Never'
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now - date
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins} min ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    return date.toLocaleDateString('en-AU')
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -189,8 +197,18 @@ export default function JobInvoicesTab({ job }) {
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Sales Invoices</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            Invoices to customers for: <span className="font-medium text-indigo-600 dark:text-indigo-400">{job.xero_tracking_option_name}</span>
+            {job.xero_tracking_option_name ? (
+              <>Invoices to customers for: <span className="font-medium text-indigo-600 dark:text-indigo-400">{job.xero_tracking_option_name}</span></>
+            ) : (
+              <>Invoices linked to this job</>
+            )}
           </p>
+          {lastSyncedAt && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1 mt-1">
+              <ClockIcon className="h-3 w-3" />
+              Last synced: {formatLastSynced(lastSyncedAt)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -318,33 +336,33 @@ export default function JobInvoicesTab({ job }) {
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {filteredInvoices.map((invoice, idx) => (
                         <tr
-                          key={idx}
+                          key={invoice.id || idx}
                           className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
-                          onClick={() => fetchInvoiceDetail(invoice.InvoiceID)}
+                          onClick={() => fetchInvoiceDetail(invoice.id)}
                         >
                           <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
-                            {invoice.InvoiceNumber || '-'}
+                            {invoice.invoice_number || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {invoice.Contact?.Name || '-'}
+                            {invoice.contact_name || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {invoice.Reference || '-'}
+                            {invoice.reference || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(invoice.Date)}
+                            {formatDate(invoice.invoice_date)}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {formatDate(invoice.DueDate)}
+                            {formatDate(invoice.due_date)}
                           </td>
                           <td className="px-4 py-2">
-                            {getStatusBadge(invoice.Status)}
+                            {getStatusBadge(invoice.status)}
                           </td>
                           <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(invoice.Total)}
+                            {formatCurrency(invoice.total)}
                           </td>
                           <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
-                            {formatCurrency(invoice.AmountDue)}
+                            {formatCurrency(invoice.amount_due)}
                           </td>
                         </tr>
                       ))}
@@ -408,10 +426,10 @@ export default function JobInvoicesTab({ job }) {
                       {payments.map((payment, idx) => (
                         <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
-                            {payment.InvoiceNumber || '-'}
+                            {payment.invoice_number || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-                            {payment.ContactName || '-'}
+                            {payment.contact_name || '-'}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
                             {formatDate(payment.Date)}
@@ -467,16 +485,16 @@ export default function JobInvoicesTab({ job }) {
                     <div>
                       <div className="flex items-center gap-3">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                          Invoice {selectedInvoice.InvoiceNumber}
+                          Invoice {selectedInvoice.invoice_number}
                         </h2>
                         <span className={`px-3 py-1 rounded text-sm font-medium border ${
-                          selectedInvoice.Status === 'PAID' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' :
-                          selectedInvoice.Status === 'DRAFT' ? 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600' :
-                          selectedInvoice.Status === 'AUTHORISED' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' :
-                          selectedInvoice.Status === 'DELETED' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' :
+                          selectedInvoice.status === 'paid' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' :
+                          selectedInvoice.status === 'draft' ? 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600' :
+                          selectedInvoice.status === 'approved' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' :
+                          selectedInvoice.status === 'deleted' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' :
                           'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800'
                         }`}>
-                          {selectedInvoice.Status}
+                          {selectedInvoice.status?.charAt(0).toUpperCase() + selectedInvoice.status?.slice(1)}
                         </span>
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -495,24 +513,24 @@ export default function JobInvoicesTab({ job }) {
                   <div className="grid grid-cols-2 gap-6 mb-6 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
                     <div>
                       <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Customer</h3>
-                      <p className="text-blue-600 dark:text-blue-400 font-medium">{selectedInvoice.Contact?.Name}</p>
+                      <p className="text-blue-600 dark:text-blue-400 font-medium">{selectedInvoice.contact_name}</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">Issue Date</span>
-                        <p className="font-medium text-gray-900 dark:text-white">{formatDate(selectedInvoice.Date)}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{formatDate(selectedInvoice.invoice_date)}</p>
                       </div>
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">Due Date</span>
-                        <p className="font-medium text-gray-900 dark:text-white">{formatDate(selectedInvoice.DueDate)}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{formatDate(selectedInvoice.due_date)}</p>
                       </div>
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">Number</span>
-                        <p className="font-medium text-gray-900 dark:text-white">{selectedInvoice.InvoiceNumber}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{selectedInvoice.invoice_number}</p>
                       </div>
                       <div>
                         <span className="text-gray-500 dark:text-gray-400">Reference</span>
-                        <p className="font-medium text-gray-900 dark:text-white">{selectedInvoice.Reference || '-'}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{selectedInvoice.reference || '-'}</p>
                       </div>
                     </div>
                   </div>
@@ -530,7 +548,7 @@ export default function JobInvoicesTab({ job }) {
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                        {selectedInvoice.LineItems?.map((item, idx) => (
+                        {selectedInvoice.line_items?.map((item, idx) => (
                           <tr key={idx}>
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.Description}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
@@ -552,20 +570,20 @@ export default function JobInvoicesTab({ job }) {
                     <div className="w-72 space-y-2">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                        <span className="text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.SubTotal)}</span>
+                        <span className="text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.subtotal)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600 dark:text-gray-400">Tax</span>
-                        <span className="text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.TotalTax)}</span>
+                        <span className="text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.total_tax)}</span>
                       </div>
                       <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-600 pt-2">
                         <span className="text-gray-900 dark:text-white">Total</span>
-                        <span className="text-green-600 dark:text-green-400">{formatCurrency(selectedInvoice.Total)}</span>
+                        <span className="text-green-600 dark:text-green-400">{formatCurrency(selectedInvoice.total)}</span>
                       </div>
                       <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-600 pt-2">
                         <span className="text-gray-900 dark:text-white">Amount Due</span>
-                        <span className={selectedInvoice.AmountDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}>
-                          {formatCurrency(selectedInvoice.AmountDue)}
+                        <span className={selectedInvoice.amount_due > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}>
+                          {formatCurrency(selectedInvoice.amount_due)}
                         </span>
                       </div>
                     </div>
@@ -574,7 +592,7 @@ export default function JobInvoicesTab({ job }) {
                   {/* Footer Actions */}
                   <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <a
-                      href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${selectedInvoice.InvoiceID}`}
+                      href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${selectedInvoice.external_id}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition"
