@@ -567,6 +567,9 @@ export default function TeeemTableView({
   const [showFileModal, setShowFileModal] = useState(false)
   const [fileModalTab, setFileModalTab] = useState('upload') // 'upload' or 'url'
   const [fileModalValue, setFileModalValue] = useState('')
+
+  // Assigned roles dropdown state (for multi-select)
+  const [showRolesDropdown, setShowRolesDropdown] = useState(false)
   const [selectedFile, setSelectedFile] = useState(null)
   const [dragActive, setDragActive] = useState(false)
 
@@ -1100,6 +1103,11 @@ export default function TeeemTableView({
   // Component multi-select checkbox state
   const [selectedComponents, setSelectedComponents] = useState(new Set())
   const [showComponentDropdown, setShowComponentDropdown] = useState(false)
+
+  // Close roles dropdown when editing row changes
+  useEffect(() => {
+    setShowRolesDropdown(false)
+  }, [editingRowId])
 
   // Modal state for viewing full row details
   const [selectedEntry, setSelectedEntry] = useState(null)
@@ -2973,33 +2981,61 @@ export default function TeeemTableView({
         )
 
       case 'assigned_roles': {
-        // Multi-select dropdown for assigned roles (e.g., admin, sales, site, supervisor, builder, estimator)
+        // Multi-select checkbox dropdown for assigned roles (e.g., admin, sales, site, supervisor, builder, estimator)
         const currentRoles = Array.isArray(entry.assigned_roles) ? entry.assigned_roles : []
         const rolesColumn = COLUMNS.find(c => c.key === 'assigned_roles')
         const availableRoles = rolesColumn?.options || ['admin', 'sales', 'site', 'supervisor', 'builder', 'estimator']
 
         if (editingRowId === entry.id) {
           const editingRoles = Array.isArray(editingData.assigned_roles) ? editingData.assigned_roles : currentRoles
+
+          const toggleRole = (role) => {
+            const newRoles = editingRoles.includes(role)
+              ? editingRoles.filter(r => r !== role)
+              : [...editingRoles, role]
+            setEditingData({ ...editingData, assigned_roles: newRoles })
+          }
+
           return (
             <div className="relative">
-              <select
-                multiple
-                value={editingRoles}
-                onChange={(e) => {
-                  const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
-                  setEditingData({ ...editingData, assigned_roles: selectedOptions })
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowRolesDropdown(!showRolesDropdown)
                 }}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                size={Math.min(availableRoles.length, 6)}
+                className="w-full text-left px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 cursor-pointer flex items-center justify-between"
               >
-                {availableRoles.map(role => (
-                  <option key={`role-${role}`} value={role}>
-                    {role.charAt(0).toUpperCase() + role.slice(1)}
-                  </option>
-                ))}
-              </select>
+                <span className="truncate">
+                  {editingRoles.length > 0
+                    ? editingRoles.map(r => r.charAt(0).toUpperCase() + r.slice(1)).join(', ')
+                    : 'Select roles...'}
+                </span>
+                <span className="ml-1 text-gray-400">▼</span>
+              </button>
+              {showRolesDropdown && (
+                <div
+                  className="absolute top-full left-0 mt-1 w-full min-w-[150px] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-[200] max-h-48 overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {availableRoles.map(role => (
+                    <label
+                      key={`edit-role-${role}`}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer text-sm"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editingRoles.includes(role)}
+                        onChange={() => toggleRole(role)}
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span className="text-gray-900 dark:text-white">
+                        {role.charAt(0).toUpperCase() + role.slice(1)}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           )
         }
