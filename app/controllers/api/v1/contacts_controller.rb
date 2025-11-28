@@ -1410,16 +1410,19 @@ module Api
       # Sync addresses from Xero to TEEEM (two-way sync)
       # TEEEM is source of truth - only create/update if TEEEM doesn't have the address type
       def sync_addresses_from_xero(xero_addresses)
+        Rails.logger.info("sync_addresses_from_xero called with: #{xero_addresses.inspect}")
         return unless xero_addresses.is_a?(Array)
 
         xero_addresses.each do |xero_addr|
           address_type = xero_addr['AddressType']
+          Rails.logger.info("Processing address type: #{address_type}, data: #{xero_addr.inspect}")
           next unless address_type.present? && ContactAddress::ADDRESS_TYPES.include?(address_type)
 
           # Check if TEEEM already has this address type
           existing = @contact.contact_addresses.find_by(address_type: address_type)
 
           if existing
+            Rails.logger.info("Existing address found: line1=#{existing.line1}, city=#{existing.city}")
             # TEEEM has this address - only update if TEEEM address is empty
             if existing.line1.blank? && existing.city.blank?
               existing.update!(
@@ -1433,12 +1436,15 @@ module Api
                 country: xero_addr['Country']
               )
               Rails.logger.info("Updated empty #{address_type} address for contact #{@contact.id} from Xero")
+            else
+              Rails.logger.info("Skipping update - TEEEM has data for #{address_type}")
             end
           else
+            Rails.logger.info("No existing address for #{address_type}, checking Xero data: AddressLine1=#{xero_addr['AddressLine1']}, City=#{xero_addr['City']}")
             # TEEEM doesn't have this address type - create it from Xero
             # Only create if Xero has actual address data
             if xero_addr['AddressLine1'].present? || xero_addr['City'].present?
-              @contact.contact_addresses.create!(
+              new_addr = @contact.contact_addresses.create!(
                 address_type: address_type,
                 line1: xero_addr['AddressLine1'],
                 line2: xero_addr['AddressLine2'],
@@ -1449,7 +1455,9 @@ module Api
                 postal_code: xero_addr['PostalCode'],
                 country: xero_addr['Country']
               )
-              Rails.logger.info("Created #{address_type} address for contact #{@contact.id} from Xero")
+              Rails.logger.info("Created #{address_type} address for contact #{@contact.id} from Xero: #{new_addr.inspect}")
+            else
+              Rails.logger.info("Skipping create - Xero has no data for #{address_type}")
             end
           end
         end
