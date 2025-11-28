@@ -1069,7 +1069,7 @@ module Api
 
         # Find the xero link to sync from
         link = if tenant_id.present?
-          @contact.xero_links.find_by(xero_tenant_id: tenant_id)
+          @contact.xero_links.find_by(tenant_id: tenant_id)
         else
           @contact.xero_links.first
         end
@@ -1088,7 +1088,7 @@ module Api
         end
 
         begin
-          sync_service = XeroContactSyncService.new(tenant_id: link.xero_tenant_id)
+          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
           result = sync_service.sync_from_xero(link)
 
           if result[:success]
@@ -1197,12 +1197,12 @@ module Api
 
         # Find the xero link to sync to
         link = if tenant_id.present?
-          @contact.xero_links.find_by(xero_tenant_id: tenant_id)
+          @contact.xero_links.find_by(tenant_id: tenant_id)
         else
           @contact.xero_links.first
         end
 
-        unless link&.xero_contact_id.present?
+        unless link&.external_contact_id.present?
           return render json: {
             success: false,
             error: 'Contact is not linked to any Xero organization'
@@ -1210,7 +1210,7 @@ module Api
         end
 
         begin
-          sync_service = XeroContactSyncService.new(tenant_id: link.xero_tenant_id)
+          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
           result = sync_service.sync_to_xero(@contact, link)
 
           if result[:success]

@@ -11,7 +11,9 @@ class Contact < ApplicationRecord
   has_many :contact_addresses, dependent: :destroy
   has_many :contact_group_memberships, dependent: :destroy
   has_many :contact_groups, through: :contact_group_memberships
-  has_many :xero_links, class_name: 'ContactXeroLink', dependent: :destroy
+  has_many :external_links, class_name: 'ContactExternalLink', dependent: :destroy
+  has_many :xero_links, -> { where(source: 'xero') }, class_name: 'ContactExternalLink', dependent: :destroy
+  has_many :external_invoices, dependent: :nullify
 
   # Enable nested attributes for Xero associations
   accepts_nested_attributes_for :contact_persons, allow_destroy: true
@@ -305,11 +307,11 @@ class Contact < ApplicationRecord
   end
 
   def xero_tenants
-    xero_links.enabled.pluck(:xero_tenant_id)
+    xero_links.enabled.pluck(:tenant_id)
   end
 
   def xero_link_for_tenant(tenant_id)
-    xero_links.find_by(xero_tenant_id: tenant_id)
+    xero_links.find_by(tenant_id: tenant_id)
   end
 
   def has_xero_conflicts?

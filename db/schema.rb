@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_28_054947) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_28_062918) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -403,6 +403,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_054947) do
     t.index ["contact_id"], name: "index_contact_addresses_on_contact_id"
   end
 
+  create_table "contact_external_links", force: :cascade do |t|
+    t.bigint "contact_id", null: false
+    t.string "tenant_id", null: false
+    t.string "tenant_name"
+    t.string "external_contact_id", null: false
+    t.boolean "sync_enabled", default: true
+    t.string "sync_direction", default: "bidirectional"
+    t.datetime "last_synced_at"
+    t.datetime "external_last_modified_at"
+    t.string "sync_error"
+    t.jsonb "conflict_fields", default: {}
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "source", default: "xero", null: false
+    t.index ["contact_id", "source", "tenant_id"], name: "idx_contact_external_links_unique", unique: true
+    t.index ["contact_id"], name: "index_contact_external_links_on_contact_id"
+    t.index ["source", "tenant_id", "external_contact_id"], name: "idx_contact_external_links_external", unique: true
+    t.index ["source"], name: "index_contact_external_links_on_source"
+    t.index ["sync_enabled"], name: "index_contact_external_links_on_sync_enabled"
+    t.index ["tenant_id"], name: "index_contact_external_links_on_tenant_id"
+  end
+
   create_table "contact_group_memberships", force: :cascade do |t|
     t.bigint "contact_id", null: false
     t.bigint "contact_group_id", null: false
@@ -483,27 +506,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_054947) do
     t.datetime "updated_at", null: false
     t.index ["name"], name: "index_contact_types_on_name", unique: true
     t.index ["position"], name: "index_contact_types_on_position"
-  end
-
-  create_table "contact_xero_links", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.string "xero_tenant_id", null: false
-    t.string "xero_tenant_name"
-    t.string "xero_contact_id", null: false
-    t.boolean "sync_enabled", default: true
-    t.string "sync_direction", default: "bidirectional"
-    t.datetime "last_synced_at"
-    t.datetime "xero_last_modified_at"
-    t.string "sync_error"
-    t.jsonb "conflict_fields", default: {}
-    t.jsonb "metadata", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["contact_id", "xero_tenant_id"], name: "idx_contact_xero_links_contact_tenant", unique: true
-    t.index ["contact_id"], name: "index_contact_xero_links_on_contact_id"
-    t.index ["sync_enabled"], name: "index_contact_xero_links_on_sync_enabled"
-    t.index ["xero_tenant_id", "xero_contact_id"], name: "idx_contact_xero_links_tenant_xero_id", unique: true
-    t.index ["xero_tenant_id"], name: "index_contact_xero_links_on_xero_tenant_id"
   end
 
   create_table "contacts", force: :cascade do |t|
@@ -721,6 +723,58 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_054947) do
     t.datetime "updated_at", null: false
     t.index ["is_active"], name: "index_external_integrations_on_is_active"
     t.index ["name"], name: "index_external_integrations_on_name", unique: true
+  end
+
+  create_table "external_invoices", force: :cascade do |t|
+    t.string "source", null: false
+    t.string "external_id"
+    t.string "tenant_id"
+    t.string "invoice_number"
+    t.string "reference"
+    t.string "invoice_type", null: false
+    t.string "status"
+    t.date "invoice_date"
+    t.date "due_date"
+    t.date "fully_paid_date"
+    t.decimal "subtotal", precision: 15, scale: 4
+    t.decimal "total_tax", precision: 15, scale: 4
+    t.decimal "total", precision: 15, scale: 4
+    t.decimal "amount_due", precision: 15, scale: 4
+    t.decimal "amount_paid", precision: 15, scale: 4
+    t.string "currency_code", default: "AUD"
+    t.string "external_contact_id"
+    t.string "contact_name"
+    t.bigint "contact_id"
+    t.bigint "job_id"
+    t.jsonb "raw_data", default: {}
+    t.jsonb "line_items", default: []
+    t.jsonb "payments", default: []
+    t.jsonb "tracking_data", default: []
+    t.boolean "sync_enabled", default: true
+    t.string "sync_direction", default: "bidirectional"
+    t.boolean "created_in_teeem", default: false
+    t.boolean "pending_push", default: false
+    t.jsonb "conflict_fields", default: {}
+    t.datetime "external_updated_at"
+    t.datetime "teeem_updated_at"
+    t.datetime "last_synced_at"
+    t.string "sync_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
+    t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
+    t.index ["external_contact_id"], name: "index_external_invoices_on_external_contact_id"
+    t.index ["external_id"], name: "index_external_invoices_on_external_id"
+    t.index ["invoice_date"], name: "index_external_invoices_on_invoice_date"
+    t.index ["invoice_type"], name: "index_external_invoices_on_invoice_type"
+    t.index ["job_id"], name: "index_external_invoices_on_job_id"
+    t.index ["pending_push"], name: "index_external_invoices_on_pending_push"
+    t.index ["source", "tenant_id", "external_id"], name: "idx_external_invoices_unique", unique: true
+    t.index ["source"], name: "index_external_invoices_on_source"
+    t.index ["status"], name: "index_external_invoices_on_status"
+    t.index ["sync_enabled"], name: "index_external_invoices_on_sync_enabled"
+    t.index ["tenant_id"], name: "index_external_invoices_on_tenant_id"
+    t.index ["tracking_data"], name: "index_external_invoices_on_tracking_data", using: :gin
   end
 
   create_table "feature_chapters", force: :cascade do |t|
@@ -3172,12 +3226,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_054947) do
   add_foreign_key "company_xero_connections", "companies"
   add_foreign_key "contact_activities", "contacts"
   add_foreign_key "contact_addresses", "contacts"
+  add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
   add_foreign_key "contact_persons", "contacts"
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
-  add_foreign_key "contact_xero_links", "contacts"
   add_foreign_key "contacts", "contacts", column: "primary_company_id"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "emails", "jobs"
@@ -3185,6 +3239,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_054947) do
   add_foreign_key "estimate_line_items", "estimates"
   add_foreign_key "estimate_reviews", "estimates"
   add_foreign_key "estimates", "jobs"
+  add_foreign_key "external_invoices", "contacts"
+  add_foreign_key "external_invoices", "jobs"
   add_foreign_key "feature_trackers", "feature_chapters"
   add_foreign_key "financial_transactions", "companies"
   add_foreign_key "financial_transactions", "jobs"

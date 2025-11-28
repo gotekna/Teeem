@@ -25,6 +25,7 @@ module Api
       # POST /api/v1/contacts/:contact_id/xero_links
       def create
         @xero_link = @contact.xero_links.build(xero_link_params)
+        @xero_link.source = 'xero'
 
         if @xero_link.save
           render json: {
@@ -124,32 +125,38 @@ module Api
 
       def xero_link_params
         params.require(:xero_link).permit(
-          :xero_tenant_id,
-          :xero_tenant_name,
-          :xero_contact_id,
+          :tenant_id,
+          :tenant_name,
+          :external_contact_id,
           :sync_enabled,
           :sync_direction
         )
       end
 
       def serialize_xero_link(link)
-        config = SyncConfiguration.find_by(xero_tenant_id: link.xero_tenant_id)
+        config = SyncConfiguration.find_by(xero_tenant_id: link.tenant_id)
 
         {
           id: link.id,
           contact_id: link.contact_id,
-          xero_tenant_id: link.xero_tenant_id,
-          xero_tenant_name: link.xero_tenant_name,
-          xero_contact_id: link.xero_contact_id,
+          source: link.source,
+          # Legacy field names for backwards compatibility with frontend
+          xero_tenant_id: link.tenant_id,
+          xero_tenant_name: link.tenant_name,
+          xero_contact_id: link.external_contact_id,
+          # New generic field names
+          tenant_id: link.tenant_id,
+          tenant_name: link.tenant_name,
+          external_contact_id: link.external_contact_id,
           sync_enabled: link.sync_enabled,
           sync_direction: link.sync_direction,
           last_synced_at: link.last_synced_at,
-          xero_last_modified_at: link.xero_last_modified_at,
+          external_last_modified_at: link.external_last_modified_at,
           sync_error: link.sync_error,
           has_conflicts: link.has_conflicts?,
           conflict_count: link.conflict_fields.keys.count,
           badge_color: config&.badge_color || 'blue',
-          accounting_system: config&.accounting_system || 'xero',
+          accounting_system: config&.accounting_system || link.source,
           created_at: link.created_at,
           updated_at: link.updated_at
         }
