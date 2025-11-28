@@ -40,10 +40,30 @@ export default function OutlookConnection() {
       const response = await api.get('/api/v1/outlook/auth_url')
 
       if (response.auth_url) {
-        // Redirect to Microsoft OAuth
-        window.location.href = response.auth_url
+        // Open OAuth in popup window
+        const width = 600
+        const height = 700
+        const left = window.screenX + (window.outerWidth - width) / 2
+        const top = window.screenY + (window.outerHeight - height) / 2
+
+        const popup = window.open(
+          response.auth_url,
+          'outlook_oauth',
+          `width=${width},height=${height},left=${left},top=${top},scrollbars=yes`
+        )
+
+        // Poll for popup close and check for success
+        const pollTimer = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(pollTimer)
+            setConnecting(false)
+            // Refresh status after popup closes
+            checkStatus()
+          }
+        }, 500)
       } else {
         alert('Failed to get authorization URL. Please check server configuration.')
+        setConnecting(false)
       }
     } catch (error) {
       console.error('Failed to initiate Outlook connection:', error)
