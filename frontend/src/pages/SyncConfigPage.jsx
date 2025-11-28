@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowPathIcon,
@@ -707,63 +707,59 @@ export default function SyncConfigPage({ embedded = false }) {
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {ALL_FIELD_MAPPINGS.map((section) => (
-                      <Fragment key={`section-${section.section}`}>
-                        {/* Section Header Row */}
-                        <tr className="bg-gray-100 dark:bg-gray-700/50">
-                          <td colSpan={4} className="px-6 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                            {section.section}
-                            {section.readOnly && (
-                              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-                                (Synced from Xero - edit in Xero to update)
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                        {/* Field Rows */}
-                        {section.fields.map((field) => {
-                          const mapping = selectedConfig.field_mappings?.[field.field] || { direction: 'import' }
-                          const isReadOnly = field.readOnly
-                          return (
-                            <tr key={field.field} className={isReadOnly ? 'bg-gray-50 dark:bg-gray-800/50' : ''}>
-                              <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                {field.xeroField}
-                              </td>
-                              <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
-                                {field.field}
-                              </td>
-                              <td className="px-6 py-3 whitespace-nowrap text-sm">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                                  <span className="text-gray-700 dark:text-gray-300">Enabled</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-3 whitespace-nowrap text-sm">
-                                {isReadOnly ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                    </svg>
-                                    Xero → TEEEM
-                                  </span>
-                                ) : (
-                                  <select
-                                    value={mapping.direction || 'import'}
-                                    onChange={(e) => handleFieldDirectionChange(field.field, e.target.value)}
-                                    className="text-sm border border-blue-300 dark:border-blue-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                                  >
-                                    <option value="import">Xero → TEEEM</option>
-                                    <option value="export">TEEEM → Xero</option>
-                                    <option value="bidirectional">↔ Both Ways</option>
-                                    <option value="none">Disabled</option>
-                                  </select>
-                                )}
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </Fragment>
-                    ))}
+                    {ALL_FIELD_MAPPINGS.flatMap((section) => [
+                      <tr key={`section-${section.section}`} className="bg-gray-100 dark:bg-gray-700/50">
+                        <td colSpan={4} className="px-6 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          {section.section}
+                          {section.readOnly && (
+                            <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                              (Synced from Xero - edit in Xero to update)
+                            </span>
+                          )}
+                        </td>
+                      </tr>,
+                      ...section.fields.map((field) => {
+                        const mapping = selectedConfig.field_mappings?.[field.field] || { direction: 'import' }
+                        const isReadOnly = field.readOnly
+                        return (
+                          <tr key={`${section.section}-${field.field}`} className={isReadOnly ? 'bg-gray-50 dark:bg-gray-800/50' : ''}>
+                            <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                              {field.xeroField}
+                            </td>
+                            <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
+                              {field.field}
+                            </td>
+                            <td className="px-6 py-3 whitespace-nowrap text-sm">
+                              <div className="flex items-center gap-2">
+                                <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                <span className="text-gray-700 dark:text-gray-300">Enabled</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-3 whitespace-nowrap text-sm">
+                              {isReadOnly ? (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                  </svg>
+                                  Xero → TEEEM
+                                </span>
+                              ) : (
+                                <select
+                                  value={mapping.direction || 'import'}
+                                  onChange={(e) => handleFieldDirectionChange(field.field, e.target.value)}
+                                  className="text-sm border border-blue-300 dark:border-blue-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                >
+                                  <option value="import">Xero → TEEEM</option>
+                                  <option value="export">TEEEM → Xero</option>
+                                  <option value="bidirectional">↔ Both Ways</option>
+                                  <option value="none">Disabled</option>
+                                </select>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    ])}
                   </tbody>
                 </table>
               </div>
