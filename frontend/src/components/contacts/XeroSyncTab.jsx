@@ -751,9 +751,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           <p className="text-sm text-blue-800 dark:text-blue-300">
             {xeroLinks.length > 0 ? (
               <>
-                <span className="font-semibold">Linked to {xeroLinks.length} Xero organization{xeroLinks.length > 1 ? 's' : ''}</span>
+                <span className="font-semibold">Synced with Xero</span>
                 {selectedLink && (
-                  <> • Viewing: <span className="font-mono">{selectedLink.xero_contact_id?.substring(0, 8)}...</span></>
+                  <> • {selectedLink.xero_tenant_name || 'Unknown Organization'}</>
                 )}
               </>
             ) : (
