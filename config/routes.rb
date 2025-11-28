@@ -1079,6 +1079,7 @@ Rails.application.routes.draw do
         collection do
           get :status
           get :preview
+          get :browse
           post :scan
           post :scan_company
         end
