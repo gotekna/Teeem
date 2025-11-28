@@ -391,6 +391,8 @@ Rails.application.routes.draw do
           post :search
           post :import
           post :import_for_job
+          post :search_for_job
+          get 'job_search_suggestions/:job_id', action: :job_search_suggestions
         end
       end
 

@@ -1,21 +1,40 @@
 import { useState, useEffect } from 'react'
-import { XMarkIcon, MagnifyingGlassIcon, FolderIcon, CloudArrowDownIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, MagnifyingGlassIcon, FolderIcon, CloudArrowDownIcon, CheckIcon, EnvelopeIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
 export default function OutlookImportModal({ isOpen, onClose, constructionId, onImportComplete }) {
   const [loading, setLoading] = useState(false)
+  const [searching, setSearching] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedFolder, setSelectedFolder] = useState('inbox')
   const [folders, setFolders] = useState([])
   const [maxResults, setMaxResults] = useState(50)
   const [importStatus, setImportStatus] = useState(null)
   const [error, setError] = useState(null)
+  const [suggestions, setSuggestions] = useState([])
+  const [searchResults, setSearchResults] = useState(null)
+  const [selectedEmails, setSelectedEmails] = useState(new Set())
+  const [outlookStatus, setOutlookStatus] = useState(null)
 
   useEffect(() => {
     if (isOpen) {
       loadFolders()
+      checkOutlookStatus()
+      if (constructionId) {
+        loadSuggestions()
+      }
     }
-  }, [isOpen])
+  }, [isOpen, constructionId])
+
+  const checkOutlookStatus = async () => {
+    try {
+      const response = await api.get('/api/v1/outlook/status')
+      setOutlookStatus(response)
+    } catch (error) {
+      console.error('Failed to check Outlook status:', error)
+      setOutlookStatus({ configured: false })
+    }
+  }
 
   const loadFolders = async () => {
     try {
@@ -23,31 +42,74 @@ export default function OutlookImportModal({ isOpen, onClose, constructionId, on
       setFolders(response.folders || [])
     } catch (error) {
       console.error('Failed to load Outlook folders:', error)
-      setError('Failed to load folders. Please check your Outlook configuration.')
+      // Don't show error if Outlook not connected - will be handled by status check
+    }
+  }
+
+  const loadSuggestions = async () => {
+    if (!constructionId) return
+    try {
+      const response = await api.get(`/api/v1/outlook/job_search_suggestions/${constructionId}`)
+      setSuggestions(response.suggestions || [])
+    } catch (error) {
+      console.error('Failed to load search suggestions:', error)
+    }
+  }
+
+  const handleSearch = async () => {
+    if (!searchTerm.trim()) {
+      setError('Please enter a search term')
+      return
+    }
+
+    try {
+      setSearching(true)
+      setError(null)
+      setSearchResults(null)
+      setSelectedEmails(new Set())
+
+      const response = await api.post('/api/v1/outlook/search_for_job', {
+        job_id: constructionId,
+        search: searchTerm,
+        folder: selectedFolder,
+        top: maxResults
+      })
+
+      setSearchResults(response)
+
+      // Auto-select all non-imported emails
+      const newEmailIds = new Set(
+        response.emails
+          .filter(e => !e.already_imported)
+          .map(e => e.message_id)
+      )
+      setSelectedEmails(newEmailIds)
+    } catch (error) {
+      console.error('Failed to search emails:', error)
+      setError(error.response?.data?.error || 'Failed to search Outlook')
+    } finally {
+      setSearching(false)
     }
   }
 
   const handleImport = async () => {
+    if (selectedEmails.size === 0) {
+      setError('Please select at least one email to import')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
       setImportStatus(null)
 
-      const endpoint = constructionId
-        ? '/api/v1/outlook/import_for_job'
-        : '/api/v1/outlook/import'
-
-      const payload = {
+      const response = await api.post('/api/v1/outlook/import_for_job', {
+        job_id: constructionId,
         search: searchTerm,
         folder: selectedFolder,
-        top: maxResults
-      }
-
-      if (constructionId) {
-        payload.construction_id = constructionId
-      }
-
-      const response = await api.post(endpoint, payload)
+        top: maxResults,
+        message_ids: Array.from(selectedEmails)
+      })
 
       setImportStatus({
         success: true,
@@ -71,31 +133,79 @@ export default function OutlookImportModal({ isOpen, onClose, constructionId, on
     }
   }
 
-  const handleSearch = async () => {
-    try {
-      setLoading(true)
-      setError(null)
+  const toggleEmailSelection = (messageId) => {
+    setSelectedEmails(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId)
+      } else {
+        newSet.add(messageId)
+      }
+      return newSet
+    })
+  }
 
-      const response = await api.post('/api/v1/outlook/search', {
-        search: searchTerm,
-        folder: selectedFolder,
-        top: maxResults
-      })
-
-      setImportStatus({
-        success: false,
-        count: response.count,
-        message: `Found ${response.count} emails matching your search`
-      })
-    } catch (error) {
-      console.error('Failed to search emails:', error)
-      setError(error.response?.data?.error || 'Failed to search Outlook')
-    } finally {
-      setLoading(false)
+  const toggleSelectAll = () => {
+    if (!searchResults) return
+    const selectableEmails = searchResults.emails.filter(e => !e.already_imported)
+    if (selectedEmails.size === selectableEmails.length) {
+      setSelectedEmails(new Set())
+    } else {
+      setSelectedEmails(new Set(selectableEmails.map(e => e.message_id)))
     }
   }
 
+  const useSuggestion = (suggestion) => {
+    setSearchTerm(suggestion.value)
+    setSearchResults(null)
+    setSelectedEmails(new Set())
+  }
+
+  const formatDate = (dateString) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-AU', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
   if (!isOpen) return null
+
+  // Show connect prompt if Outlook not connected
+  if (outlookStatus && !outlookStatus.configured) {
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex min-h-screen items-center justify-center px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+          <div
+            className="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity"
+            onClick={onClose}
+          />
+          <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full sm:p-6">
+            <div className="text-center">
+              <EnvelopeIcon className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-white">
+                Connect Outlook First
+              </h3>
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                You need to connect your Outlook account before you can import emails.
+                Go to Settings → Integrations to connect.
+              </p>
+              <button
+                onClick={onClose}
+                className="mt-4 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -107,137 +217,260 @@ export default function OutlookImportModal({ isOpen, onClose, constructionId, on
         />
 
         {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-          <div className="absolute top-0 right-0 pt-4 pr-4">
+        <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900">
+                <CloudArrowDownIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  Import from Outlook
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Search and import emails for this job
+                </p>
+              </div>
+            </div>
             <button
               onClick={onClose}
-              className="bg-white dark:bg-gray-800 rounded-md text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 focus:outline-none"
+              className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
             >
               <XMarkIcon className="h-6 w-6" />
             </button>
           </div>
 
-          <div className="sm:flex sm:items-start">
-            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-indigo-100 dark:bg-indigo-900 sm:mx-0 sm:h-10 sm:w-10">
-              <CloudArrowDownIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left flex-1">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
-                Import from Outlook
-              </h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {constructionId
-                  ? 'Search and import emails for this job from your Outlook inbox'
-                  : 'Search and import emails from your Outlook inbox'}
-              </p>
-            </div>
-          </div>
+          <div className="px-6 py-4 max-h-[70vh] overflow-y-auto">
+            {/* Search suggestions */}
+            {suggestions.length > 0 && !searchResults && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Quick Search Suggestions
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {suggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => useSuggestion(suggestion)}
+                      className="inline-flex items-center px-3 py-1.5 rounded-full text-sm bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                    >
+                      <span className="text-xs text-indigo-500 dark:text-indigo-400 mr-1.5">
+                        {suggestion.type === 'email' ? '@' : suggestion.type === 'address' ? '📍' : '🏠'}
+                      </span>
+                      {suggestion.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          <div className="mt-5 space-y-4">
             {/* Search input */}
-            <div>
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Search Query
               </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    placeholder="Search by address, email, subject..."
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
                 </div>
+                <button
+                  onClick={handleSearch}
+                  disabled={searching || !searchTerm.trim()}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {searching ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <MagnifyingGlassIcon className="h-4 w-4" />
+                      Search
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Folder and max results row */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Folder
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FolderIcon className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <select
+                    value={selectedFolder}
+                    onChange={(e) => setSelectedFolder(e.target.value)}
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="inbox">Inbox</option>
+                    <option value="sentitems">Sent Items</option>
+                    {folders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name} {folder.unread_count > 0 && `(${folder.unread_count})`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Max Results
+                </label>
                 <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Enter keywords or leave blank for all emails"
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  type="number"
+                  value={maxResults}
+                  onChange={(e) => setMaxResults(parseInt(e.target.value) || 50)}
+                  min="1"
+                  max="200"
+                  className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
             </div>
 
-            {/* Folder selector */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Folder
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <FolderIcon className="h-5 w-5 text-gray-400" />
+            {/* Search results */}
+            {searchResults && (
+              <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 flex items-center justify-between">
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    Found <strong>{searchResults.count}</strong> emails
+                    {searchResults.new_count < searchResults.count && (
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {' '}({searchResults.count - searchResults.new_count} already imported)
+                      </span>
+                    )}
+                  </div>
+                  {searchResults.new_count > 0 && (
+                    <button
+                      onClick={toggleSelectAll}
+                      className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                    >
+                      {selectedEmails.size === searchResults.new_count ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
                 </div>
-                <select
-                  value={selectedFolder}
-                  onChange={(e) => setSelectedFolder(e.target.value)}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="inbox">Inbox</option>
-                  {folders.map((folder) => (
-                    <option key={folder.id} value={folder.id}>
-                      {folder.name} {folder.unread_count > 0 && `(${folder.unread_count})`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
-            {/* Max results */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Maximum Results
-              </label>
-              <input
-                type="number"
-                value={maxResults}
-                onChange={(e) => setMaxResults(parseInt(e.target.value) || 50)}
-                min="1"
-                max="999"
-                className="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
+                <div className="max-h-64 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-700">
+                  {searchResults.emails.map((email) => (
+                    <div
+                      key={email.message_id}
+                      className={`px-4 py-3 flex items-start gap-3 ${
+                        email.already_imported
+                          ? 'bg-gray-100 dark:bg-gray-800/50 opacity-60'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer'
+                      }`}
+                      onClick={() => !email.already_imported && toggleEmailSelection(email.message_id)}
+                    >
+                      <div className="flex-shrink-0 pt-0.5">
+                        {email.already_imported ? (
+                          <div className="h-5 w-5 rounded border border-gray-300 dark:border-gray-600 bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
+                            <CheckIcon className="h-3 w-3 text-gray-500" />
+                          </div>
+                        ) : (
+                          <div
+                            className={`h-5 w-5 rounded border ${
+                              selectedEmails.has(email.message_id)
+                                ? 'bg-indigo-600 border-indigo-600'
+                                : 'border-gray-300 dark:border-gray-600'
+                            } flex items-center justify-center`}
+                          >
+                            {selectedEmails.has(email.message_id) && (
+                              <CheckIcon className="h-3 w-3 text-white" />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {email.from || 'Unknown Sender'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 ml-2 flex-shrink-0">
+                            {formatDate(email.received_at)}
+                          </p>
+                        </div>
+                        <p className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                          {email.subject || '(No Subject)'}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                          {email.preview_body || ''}
+                        </p>
+                        {email.already_imported && (
+                          <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300">
+                            Already imported
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Status messages */}
             {importStatus && (
-              <div
-                className={`rounded-md p-4 ${
-                  importStatus.success
-                    ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
-                    : 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                }`}
-              >
-                <p
-                  className={`text-sm ${
-                    importStatus.success
-                      ? 'text-green-800 dark:text-green-200'
-                      : 'text-blue-800 dark:text-blue-200'
-                  }`}
-                >
+              <div className="mt-4 rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-4">
+                <p className="text-sm text-green-800 dark:text-green-200">
                   {importStatus.message}
                 </p>
               </div>
             )}
 
             {error && (
-              <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+              <div className="mt-4 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
                 <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
               </div>
             )}
           </div>
 
-          {/* Action buttons */}
-          <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-            <button
-              type="button"
-              onClick={handleImport}
-              disabled={loading}
-              className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Importing...' : 'Import'}
-            </button>
-            <button
-              type="button"
-              onClick={handleSearch}
-              disabled={loading}
-              className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Searching...' : 'Preview Search'}
-            </button>
+          {/* Footer */}
+          <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {selectedEmails.size > 0 && (
+                <span>{selectedEmails.size} email{selectedEmails.size !== 1 ? 's' : ''} selected</span>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={loading || selectedEmails.size === 0}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Importing...
+                  </>
+                ) : (
+                  <>
+                    <CloudArrowDownIcon className="h-4 w-4" />
+                    Import {selectedEmails.size > 0 ? `(${selectedEmails.size})` : ''}
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
