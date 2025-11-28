@@ -1155,35 +1155,46 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                       <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead className="bg-gray-50 dark:bg-gray-800/50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Invoice Number</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Type</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount Due</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">How It Links</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Paid Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                           {xeroInvoices.slice(0, 10).map((invoice, idx) => (
                             <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{invoice.InvoiceNumber || '-'}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{invoice.Type}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                  invoice.Status === 'PAID' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
-                                  invoice.Status === 'DRAFT' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
-                                  'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
+                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">{invoice.InvoiceNumber || '-'}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{invoice.Reference || '-'}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(invoice.Date)}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                                {invoice.DueDate && new Date(invoice.DueDate) < new Date() && invoice.Status !== 'PAID' ? (
+                                  <span className="text-red-600 dark:text-red-400">⏰ {formatDate(invoice.DueDate)}</span>
+                                ) : formatDate(invoice.DueDate)}
+                              </td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(invoice.FullyPaidOnDate) || '-'}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm">
+                                <span className={`px-2 py-1 rounded text-xs font-medium border ${
+                                  invoice.Status === 'PAID' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' :
+                                  invoice.Status === 'DRAFT' ? 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600' :
+                                  invoice.Status === 'AUTHORISED' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' :
+                                  'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800'
                                 }`}>
                                   {invoice.Status}
                                 </span>
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatCurrency(invoice.Total)}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatCurrency(invoice.AmountDue)}</td>
-                              <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
-                                Fetched from Xero API via <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">contact.xero_id</code> filter
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">{formatCurrency(invoice.Total)}</td>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm text-right">
+                                {invoice.AmountDue > 0 ? (
+                                  <span className="text-red-600 dark:text-red-400 font-medium">{formatCurrency(invoice.AmountDue)}</span>
+                                ) : (
+                                  <span className="text-gray-500 dark:text-gray-400">{formatCurrency(0)}</span>
+                                )}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(invoice.Date)}</td>
                             </tr>
                           ))}
                         </tbody>
