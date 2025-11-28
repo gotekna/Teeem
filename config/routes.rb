@@ -996,7 +996,74 @@ Rails.application.routes.draw do
           get :documents
           get :assets
         end
+
+        # Shareholdings (nested under companies)
+        resources :shareholdings, controller: 'company_shareholdings', only: [:index, :show, :create, :update, :destroy] do
+          collection do
+            post :transfer
+          end
+        end
+
+        # Share Transfers (nested under companies)
+        resources :share_transfers, only: [:index, :show, :create, :update, :destroy]
+
+        # Loans (nested under companies)
+        resources :loans, controller: 'company_loans', only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :payment
+          end
+        end
+
+        # Dividends (nested under companies)
+        resources :dividends, only: [:index, :show, :create, :update, :destroy] do
+          member do
+            get :payments
+            post :calculate_payments
+            post :create_payments
+            post :mark_paid
+          end
+        end
+
+        # Minutes (nested under companies)
+        resources :minutes, controller: 'company_minutes', only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :sign
+            post :generate_from_template
+          end
+          collection do
+            post :create_from_template
+          end
+        end
       end
+
+      # Company Groups
+      resources :company_groups do
+        member do
+          get :companies
+        end
+      end
+
+      # Company Loans (global view)
+      get 'company_loans', to: 'company_loans#all'
+
+      # Minute Templates
+      resources :minute_templates do
+        member do
+          post :preview
+        end
+      end
+
+      # Xero Chart of Accounts (Standard COA per group)
+      resources :xero_chart_of_accounts do
+        collection do
+          get 'for_company/:company_id', action: :for_company
+          post :sync_from_xero
+          post :copy_to_group
+        end
+      end
+
+      # Document Types
+      resources :document_types
 
       # Bank Accounts
       resources :bank_accounts

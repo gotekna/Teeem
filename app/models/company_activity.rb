@@ -1,17 +1,17 @@
 class CompanyActivity < ApplicationRecord
   # Associations
   belongs_to :company
-  belongs_to :performed_by, polymorphic: true
+  belongs_to :user, optional: true
+  alias_method :performed_by, :user
 
   # Validations
   validates :activity_type, presence: true
-  validates :occurred_at, presence: true
 
   # Scopes
-  scope :recent, -> { order(occurred_at: :desc) }
+  scope :recent, -> { order(created_at: :desc) }
   scope :by_type, ->(type) { where(activity_type: type) }
-  scope :since, ->(date) { where('occurred_at >= ?', date) }
-  scope :between, ->(start_date, end_date) { where(occurred_at: start_date..end_date) }
+  scope :since, ->(date) { where('created_at >= ?', date) }
+  scope :between, ->(start_date, end_date) { where(created_at: start_date..end_date) }
 
   # Instance methods
   def formatted_activity_type
@@ -28,7 +28,7 @@ class CompanyActivity < ApplicationRecord
   end
 
   def time_ago
-    distance = Time.current - occurred_at
+    distance = Time.current - created_at
 
     case distance
     when 0..59
@@ -40,7 +40,7 @@ class CompanyActivity < ApplicationRecord
     when 86400..2591999
       "#{(distance / 86400).to_i} days ago"
     else
-      occurred_at.strftime('%d %b %Y')
+      created_at.strftime('%d %b %Y')
     end
   end
 end

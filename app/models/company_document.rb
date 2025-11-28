@@ -2,9 +2,13 @@ class CompanyDocument < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :user, optional: true
+  belongs_to :document_type_record, class_name: 'DocumentType', foreign_key: 'document_type_id', optional: true
 
   # Active Storage for file upload
   has_one_attached :file
+
+  # Storage types for Company Register tracking
+  STORAGE_TYPES = %w[manual electronic both].freeze
 
   # Validations
   validates :document_name, presence: true
@@ -12,10 +16,14 @@ class CompanyDocument < ApplicationRecord
     in: %w[constitution minutes loan_agreement security_deed setup share_certificate
            tax_return financial_statement insurance_policy other]
   }, allow_blank: true
+  validates :storage_type, inclusion: { in: STORAGE_TYPES }, allow_blank: true
 
   # Scopes
   scope :by_type, ->(type) { where(document_type: type) }
   scope :by_year, ->(year) { where(year: year) }
+  scope :by_folder, ->(folder) { where(folder: folder) }
+  scope :electronic, -> { where(storage_type: 'electronic') }
+  scope :manual, -> { where(storage_type: 'manual') }
   scope :recent, -> { order(created_at: :desc) }
 
   # Callbacks
