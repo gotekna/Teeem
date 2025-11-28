@@ -1,5 +1,7 @@
 class Company < ApplicationRecord
   # Associations
+  belongs_to :company_group, optional: true
+
   has_many :company_directors, dependent: :destroy
   has_many :directors, through: :company_directors, source: :contact
   has_many :current_directors, -> { where(company_directors: { is_current: true }) },
@@ -18,6 +20,15 @@ class Company < ApplicationRecord
   has_many :company_activities, dependent: :destroy
   has_one :company_xero_connection, dependent: :destroy
 
+  # New corporate associations
+  has_many :company_shareholdings, dependent: :destroy
+  has_many :shareholders, through: :company_shareholdings, source: :shareholder
+  has_many :share_transfers, dependent: :destroy
+  has_many :dividends, dependent: :destroy
+  has_many :company_minutes, dependent: :destroy
+  has_many :loans_as_lender, class_name: 'CompanyLoan', foreign_key: 'lender_company_id', dependent: :destroy
+  has_many :loans_as_borrower, class_name: 'CompanyLoan', foreign_key: 'borrower_company_id', dependent: :destroy
+
   # Encrypted attributes
   encrypts :tfn, deterministic: true
   encrypts :encrypted_asic_password
@@ -28,7 +39,8 @@ class Company < ApplicationRecord
   validates :acn, uniqueness: { allow_blank: true }, format: { with: /\A\d{9}\z/, message: "must be 9 digits", allow_blank: true }
   validates :abn, uniqueness: { allow_blank: true }, format: { with: /\A\d{11}\z/, message: "must be 11 digits", allow_blank: true }
   validates :status, inclusion: { in: %w[active struck_off in_liquidation dormant] }
-  validates :company_group, inclusion: { in: %w[tekna team_harder promise charity other] }, allow_blank: true
+  # Legacy company_group validation - now using company_group_id relation
+  # validates :company_group, inclusion: { in: %w[tekna team_harder promise charity other] }, allow_blank: true
   validates :gst_registration_status, inclusion: { in: %w[registered not_registered] }, allow_blank: true
   validates :accounting_method, inclusion: { in: %w[cash accrual] }, allow_blank: true
 
@@ -89,26 +101,55 @@ class Company < ApplicationRecord
     assets.where(status: 'active').sum(:current_book_value) || 0
   end
 
+  # All loans (as lender or borrower)
+  def all_loans
+    CompanyLoan.where('lender_company_id = ? OR borrower_company_id = ?', id, id)
+  end
+
+  # Total owed to this company
+  def total_loans_receivable
+    loans_as_lender.active.sum(:current_balance) || 0
+  end
+
+  # Total owed by this company
+  def total_loans_payable
+    loans_as_borrower.active.sum(:current_balance) || 0
+  end
+
+  # Group name for display
+  def group_name
+    company_group&.name || company_group_legacy
+  end
+
+  # Legacy company_group field (string) - for backwards compatibility
+  def company_group_legacy
+    read_attribute(:company_group)
+  end
+
   private
 
   def create_initial_activity
+    user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
+    user ||= User.first
+
     company_activities.create!(
       activity_type: 'company_created',
       description: "Company #{name} was created",
-      performed_by: Current.user || User.first,
-      occurred_at: Time.current
+      user: user
     )
   end
 
   def create_update_activity
     return unless saved_changes.any?
 
+    user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
+    user ||= User.first
+
     company_activities.create!(
       activity_type: 'company_updated',
       description: "Company information was updated",
-      metadata: { changes: saved_changes.except('updated_at') },
-      performed_by: Current.user || User.first,
-      occurred_at: Time.current
+      user: user,
+      change_details: saved_changes.except('updated_at')
     )
   end
 end

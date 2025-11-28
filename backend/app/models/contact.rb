@@ -55,6 +55,17 @@ class Contact < ApplicationRecord
   has_many :subcontractor_invoices, dependent: :destroy
   has_many :pay_now_requests, dependent: :destroy
 
+  # Corporate director/shareholder associations
+  has_many :company_directorships, class_name: 'CompanyDirector', dependent: :destroy
+  has_many :directed_companies, through: :company_directorships, source: :company
+  has_many :current_directorships, -> { where(is_current: true) }, class_name: 'CompanyDirector'
+  has_many :company_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
+  has_many :shareholding_companies, through: :company_shareholdings, source: :company
+  has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
+
+  # Encrypted TFN for directors
+  encrypts :tfn, deterministic: true
+
   # Constants
   CONTACT_TYPES = %w[customer supplier sales land_agent].freeze
   ENTITY_TYPES = %w[person company trust].freeze
