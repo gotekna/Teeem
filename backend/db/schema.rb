@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_28_000847) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_28_023557) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -464,7 +464,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_000847) do
 
   create_table "contact_roles", force: :cascade do |t|
     t.string "name", null: false
-    t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "contact_types", default: [], array: true
@@ -2577,6 +2576,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_000847) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "default_sync_direction", default: "import_only"
     t.index ["accounting_system"], name: "index_sync_configurations_on_accounting_system"
     t.index ["xero_tenant_id"], name: "index_sync_configurations_on_xero_tenant_id", unique: true
   end

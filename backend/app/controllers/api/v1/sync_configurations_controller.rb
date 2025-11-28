@@ -109,6 +109,7 @@ module Api
           :xero_tenant_name,
           :sync_enabled,
           :webhooks_enabled,
+          :default_sync_direction,
           field_mappings: {},
           cleanup_options: {}
         )
@@ -123,6 +124,10 @@ module Api
           badge_color: config.badge_color,
           sync_enabled: config.sync_enabled,
           webhooks_enabled: config.webhooks_enabled,
+          default_sync_direction: config.effective_sync_direction,
+          import_enabled: config.import_enabled?,
+          export_enabled: config.export_enabled?,
+          available_sync_directions: SyncConfiguration::SYNC_DIRECTIONS,
           field_mappings: config.field_mappings.presence || SyncConfiguration::DEFAULT_FIELD_MAPPINGS,
           cleanup_options: config.cleanup_options.presence || SyncConfiguration::DEFAULT_CLEANUP_OPTIONS,
           last_full_sync_at: config.last_full_sync_at,

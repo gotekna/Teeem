@@ -69,6 +69,11 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [loadingTenants, setLoadingTenants] = useState(true)
   const [linkingToTenant, setLinkingToTenant] = useState(null)
 
+  // Global sync configuration for the selected tenant
+  const [syncConfig, setSyncConfig] = useState(null)
+  const [loadingSyncConfig, setLoadingSyncConfig] = useState(false)
+  const [savingSyncDirection, setSavingSyncDirection] = useState(false)
+
   // Xero contact data (fetched from Xero API)
   const [xeroContactData, setXeroContactData] = useState(null)
   const [loadingXeroContact, setLoadingXeroContact] = useState(false)
@@ -394,6 +399,52 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   useEffect(() => {
     loadAvailableTenants()
   }, [])
+
+  // Load sync configuration when a link is selected
+  useEffect(() => {
+    if (selectedLink?.xero_tenant_id) {
+      loadSyncConfig(selectedLink.xero_tenant_id)
+    }
+  }, [selectedLink?.xero_tenant_id])
+
+  // Load global sync configuration for a tenant
+  const loadSyncConfig = async (tenantId) => {
+    setLoadingSyncConfig(true)
+    try {
+      const response = await api.get(`/api/v1/sync_configurations/${tenantId}`)
+      if (response.success) {
+        setSyncConfig(response.sync_configuration)
+      }
+    } catch (err) {
+      console.error('Failed to load sync configuration:', err)
+      setSyncConfig(null)
+    } finally {
+      setLoadingSyncConfig(false)
+    }
+  }
+
+  // Save global sync direction (applies to ALL contacts for this tenant)
+  const handleSaveSyncDirection = async (newDirection) => {
+    if (!selectedLink?.xero_tenant_id || !syncConfig) return
+
+    setSavingSyncDirection(true)
+    try {
+      const response = await api.put(`/api/v1/sync_configurations/${selectedLink.xero_tenant_id}`, {
+        sync_configuration: {
+          default_sync_direction: newDirection
+        }
+      })
+      if (response.success) {
+        setSyncConfig(response.sync_configuration)
+      } else {
+        setSyncError(response.error || 'Failed to update sync direction')
+      }
+    } catch (err) {
+      setSyncError(err.message || 'Failed to update sync direction')
+    } finally {
+      setSavingSyncDirection(false)
+    }
+  }
 
   const loadTransactions = async () => {
     setLoadingTransactions(true)
@@ -955,6 +1006,64 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         </div>
       </div>
 
+      {/* Global Sync Settings - Admin Only */}
+      {xeroLinks.length > 0 && syncConfig && (
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cog6ToothIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  Global Sync Direction
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Applies to ALL contacts for {selectedLink?.xero_tenant_name || 'this organization'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {loadingSyncConfig ? (
+                <ArrowPathIcon className="h-5 w-5 text-amber-600 animate-spin" />
+              ) : (
+                <>
+                  <select
+                    className="text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    value={syncConfig.default_sync_direction || 'import_only'}
+                    onChange={(e) => handleSaveSyncDirection(e.target.value)}
+                    disabled={savingSyncDirection}
+                  >
+                    <option value="import_only">Xero → TEEEM (Import Only)</option>
+                    <option value="export_only">TEEEM → Xero (Export Only)</option>
+                    <option value="bidirectional">↔ Bidirectional</option>
+                    <option value="disabled">⏸ Disabled</option>
+                  </select>
+                  {savingSyncDirection && (
+                    <ArrowPathIcon className="h-4 w-4 text-amber-600 animate-spin" />
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Explanation of current setting */}
+          <div className="mt-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 rounded p-2">
+            {syncConfig.default_sync_direction === 'import_only' && (
+              <><strong>Import Only:</strong> Data flows from Xero to TEEEM. Xero is the source of truth. Changes in TEEEM won't push to Xero.</>
+            )}
+            {syncConfig.default_sync_direction === 'export_only' && (
+              <><strong>Export Only:</strong> Data flows from TEEEM to Xero. TEEEM is the source of truth. Creates/updates contacts in Xero.</>
+            )}
+            {syncConfig.default_sync_direction === 'bidirectional' && (
+              <><strong>Bidirectional:</strong> Data syncs both ways. Most recent change wins. Use with caution - conflicts may occur.</>
+            )}
+            {syncConfig.default_sync_direction === 'disabled' && (
+              <><strong>Disabled:</strong> No automatic syncing. Manual sync only.</>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Connection Guide */}
       <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -1384,12 +1493,16 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                       if (!hasXeroConnection) {
                         // No Xero link at all
                         actualStatus = 'not_linked'
+                      } else if (field.syncStatus === 'read_only') {
+                        // Check if read_only field has data from Xero
+                        if (xeroValue === '-' && !loadingXeroContact) {
+                          actualStatus = 'empty_in_xero'
+                        } else {
+                          actualStatus = 'read_only'
+                        }
                       } else if (field.syncStatus === 'synced' && xeroValue === '-' && !loadingXeroContact) {
                         // Has Xero link but no data from Xero for this field
-                        actualStatus = 'not_linked'
-                      } else if (field.syncStatus === 'read_only') {
-                        // Keep read_only status for protected fields
-                        actualStatus = 'read_only'
+                        actualStatus = 'empty_in_xero'
                       }
 
                       return (
@@ -1416,18 +1529,31 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <span
-                              className={`inline-flex items-center gap-1 text-xs font-medium ${
-                                field.syncDirection === 'xero_to_teeem' ? 'text-blue-600 dark:text-blue-400' :
-                                field.syncDirection === 'teeem_to_xero' ? 'text-green-600 dark:text-green-400' :
-                                field.syncDirection === 'bidirectional' ? 'text-purple-600 dark:text-purple-400' :
-                                field.syncDirection === 'teeem_wins' ? 'text-amber-600 dark:text-amber-400' :
-                                'text-gray-400 dark:text-gray-500'
-                              }`}
-                              title={getSyncDirectionTooltip(field.syncDirection)}
-                            >
-                              {getSyncDirectionLabel(field.syncDirection)}
-                            </span>
+                            {field.syncStatus === 'read_only' ? (
+                              // Read-only fields are locked to Xero → TEEEM
+                              <span
+                                className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400"
+                                title="Read-only field - can only sync from Xero to TEEEM"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                                Xero → TEEEM
+                              </span>
+                            ) : (
+                              <span
+                                className={`inline-flex items-center gap-1 text-xs font-medium ${
+                                  field.syncDirection === 'xero_to_teeem' ? 'text-blue-600 dark:text-blue-400' :
+                                  field.syncDirection === 'teeem_to_xero' ? 'text-green-600 dark:text-green-400' :
+                                  field.syncDirection === 'bidirectional' ? 'text-purple-600 dark:text-purple-400' :
+                                  field.syncDirection === 'teeem_wins' ? 'text-amber-600 dark:text-amber-400' :
+                                  'text-gray-400 dark:text-gray-500'
+                                }`}
+                                title={getSyncDirectionTooltip(field.syncDirection)}
+                              >
+                                {getSyncDirectionLabel(field.syncDirection)}
+                              </span>
+                            )}
                           </td>
                         </tr>
                       )
