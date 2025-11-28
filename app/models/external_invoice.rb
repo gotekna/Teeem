@@ -6,10 +6,15 @@ class ExternalInvoice < ApplicationRecord
   SOURCES = %w[xero myob quickbooks].freeze
 
   # Normalized invoice types (across all systems)
-  INVOICE_TYPES = %w[sales_invoice bill].freeze
+  # - sales_invoice: Customer-facing invoice (Xero ACCREC)
+  # - bill: Supplier bill/purchase invoice (Xero ACCPAY)
+  # - credit_note: Credit note (Xero ACCRECREDIT or ACCPAYCREDIT)
+  # - quote: Quote/Estimate (Xero Quote)
+  INVOICE_TYPES = %w[sales_invoice bill credit_note quote].freeze
 
   # Normalized statuses (across all systems)
-  STATUSES = %w[draft submitted approved paid voided deleted].freeze
+  # Note: quotes have their own status set: draft, sent, accepted, declined, invoiced
+  STATUSES = %w[draft submitted approved paid voided deleted sent accepted declined invoiced].freeze
 
   # Sync directions
   SYNC_DIRECTIONS = %w[import_only export_only bidirectional].freeze
@@ -26,6 +31,9 @@ class ExternalInvoice < ApplicationRecord
   # Scopes by type
   scope :sales_invoices, -> { where(invoice_type: 'sales_invoice') }
   scope :bills, -> { where(invoice_type: 'bill') }
+  scope :credit_notes, -> { where(invoice_type: 'credit_note') }
+  scope :quotes, -> { where(invoice_type: 'quote') }
+  scope :invoices_and_bills, -> { where(invoice_type: %w[sales_invoice bill]) }
 
   # Scopes by status
   scope :draft, -> { where(status: 'draft') }
@@ -58,13 +66,32 @@ class ExternalInvoice < ApplicationRecord
 
   # Type mappings from Xero to normalized
   XERO_TYPE_MAP = {
-    'ACCREC' => 'sales_invoice',  # Accounts Receivable = Sales Invoice
-    'ACCPAY' => 'bill'            # Accounts Payable = Bill/Purchase
+    'ACCREC' => 'sales_invoice',       # Accounts Receivable = Sales Invoice
+    'ACCPAY' => 'bill',                # Accounts Payable = Bill/Purchase
+    'ACCRECREDIT' => 'credit_note',    # Sales Credit Note
+    'ACCPAYCREDIT' => 'credit_note',   # Supplier Credit Note
+    'QUOTE' => 'quote'                 # Quote/Estimate
+  }.freeze
+
+  # Credit note type mappings (sales vs supplier)
+  XERO_CREDIT_NOTE_TYPES = {
+    'ACCRECREDIT' => 'sales_credit',    # Credit given to customer
+    'ACCPAYCREDIT' => 'supplier_credit' # Credit from supplier
   }.freeze
 
   # Reverse mappings for export
   NORMALIZED_TO_XERO_STATUS = XERO_STATUS_MAP.invert.freeze
   NORMALIZED_TO_XERO_TYPE = XERO_TYPE_MAP.invert.freeze
+
+  # Quote status mappings from Xero
+  XERO_QUOTE_STATUS_MAP = {
+    'DRAFT' => 'draft',
+    'SENT' => 'sent',
+    'ACCEPTED' => 'accepted',
+    'DECLINED' => 'declined',
+    'INVOICED' => 'invoiced',
+    'DELETED' => 'deleted'
+  }.freeze
 
   # Class method to normalize Xero status
   def self.normalize_xero_status(xero_status)
@@ -94,6 +121,21 @@ class ExternalInvoice < ApplicationRecord
   # Is this a bill?
   def bill?
     invoice_type == 'bill'
+  end
+
+  # Is this a credit note?
+  def credit_note?
+    invoice_type == 'credit_note'
+  end
+
+  # Is this a quote?
+  def quote?
+    invoice_type == 'quote'
+  end
+
+  # Is this an invoice or bill (not credit note or quote)?
+  def invoice_or_bill?
+    sales_invoice? || bill?
   end
 
   # Has this been synced to external system?

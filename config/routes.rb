@@ -869,11 +869,12 @@ Rails.application.routes.draw do
       end
 
       # External Invoices (cached invoice data from Xero/MYOB/QuickBooks)
-      resources :external_invoices, only: [:index, :show] do
+      resources :external_invoices, only: [:index, :show, :create, :update] do
         collection do
           get :sync_status
           get :by_tracking
           post :trigger_sync
+          post :push_pending
         end
       end
       get 'external_invoices/by_job/:job_id', to: 'external_invoices#by_job', as: :external_invoices_by_job

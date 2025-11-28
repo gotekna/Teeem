@@ -71,6 +71,8 @@ module Api
 
         sales_invoices = invoices.sales_invoices
         bills = invoices.bills
+        credit_notes = invoices.credit_notes
+        quotes = invoices.quotes
 
         # Get last sync time
         last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
@@ -80,8 +82,12 @@ module Api
           data: {
             invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
             bills: bills.map { |inv| serialize_invoice(inv) },
+            credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
+            quotes: quotes.map { |inv| serialize_invoice(inv) },
             total_invoices: sales_invoices.count,
             total_bills: bills.count,
+            total_credit_notes: credit_notes.count,
+            total_quotes: quotes.count,
             job_id: job.id,
             job_title: job.title,
             tracking_option_name: job.xero_tracking_option_name
@@ -155,6 +161,8 @@ module Api
 
         sales_invoices = invoices.sales_invoices
         bills = invoices.bills
+        credit_notes = invoices.credit_notes
+        quotes = invoices.quotes
 
         # Get last sync time
         last_sync = ExternalInvoice.where(source: 'xero').maximum(:last_synced_at)
@@ -164,8 +172,12 @@ module Api
           data: {
             invoices: sales_invoices.map { |inv| serialize_invoice(inv) },
             bills: bills.map { |inv| serialize_invoice(inv) },
+            credit_notes: credit_notes.map { |inv| serialize_invoice(inv) },
+            quotes: quotes.map { |inv| serialize_invoice(inv) },
             total_invoices: sales_invoices.count,
             total_bills: bills.count,
+            total_credit_notes: credit_notes.count,
+            total_quotes: quotes.count,
             contact_id: contact.id,
             contact_name: contact.display_name
           },
@@ -223,6 +235,132 @@ module Api
           success: false,
           error: "Sync failed: #{e.message}"
         }, status: :internal_server_error
+      end
+
+      # POST /api/v1/external_invoices/push_pending
+      # Push all pending invoices to Xero
+      def push_pending
+        source = params[:source] || 'xero'
+        tenant_id = params[:tenant_id]
+
+        service = ExternalInvoiceSyncService.new(source: source, tenant_id: tenant_id)
+        result = service.push_pending
+
+        render json: {
+          success: result[:errors].empty?,
+          data: result
+        }
+      rescue StandardError => e
+        Rails.logger.error("Push pending failed: #{e.message}")
+        render json: {
+          success: false,
+          error: "Push failed: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/external_invoices
+      # Create a new invoice (optionally push to Xero)
+      def create
+        tenant_id = params[:tenant_id]
+        push_to_xero = params[:push_to_xero] != false
+
+        unless tenant_id.present?
+          return render json: { success: false, error: 'tenant_id is required' }, status: :bad_request
+        end
+
+        # Build invoice attributes from params
+        invoice_attrs = {
+          invoice_type: params[:invoice_type] || 'sales_invoice',
+          status: params[:status] || 'draft',
+          invoice_date: params[:invoice_date] || Date.current,
+          due_date: params[:due_date],
+          reference: params[:reference],
+          contact_id: params[:contact_id],
+          job_id: params[:job_id],
+          line_items: params[:line_items] || [],
+          currency_code: params[:currency_code] || 'AUD',
+          subtotal: params[:subtotal],
+          total_tax: params[:total_tax],
+          total: params[:total]
+        }
+
+        # Link to contact's Xero ID if contact specified
+        if invoice_attrs[:contact_id].present?
+          link = ContactExternalLink.find_by(
+            contact_id: invoice_attrs[:contact_id],
+            source: 'xero',
+            tenant_id: tenant_id
+          )
+          invoice_attrs[:external_contact_id] = link&.external_contact_id
+          invoice_attrs[:contact_name] = link&.contact&.display_name
+        end
+
+        service = ExternalInvoiceSyncService.new(source: 'xero', tenant_id: tenant_id)
+
+        if push_to_xero
+          invoice = service.create_and_push(invoice_attrs, tenant_id: tenant_id)
+        else
+          invoice = ExternalInvoice.create!(
+            source: 'xero',
+            tenant_id: tenant_id,
+            created_in_teeem: true,
+            pending_push: true,
+            sync_direction: 'export_only',
+            teeem_updated_at: Time.current,
+            **invoice_attrs
+          )
+        end
+
+        render json: {
+          success: true,
+          data: serialize_invoice(invoice, include_details: true)
+        }, status: :created
+      rescue StandardError => e
+        Rails.logger.error("Create invoice failed: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to create invoice: #{e.message}"
+        }, status: :unprocessable_entity
+      end
+
+      # PATCH /api/v1/external_invoices/:id
+      # Update an invoice and optionally sync to Xero
+      def update
+        invoice = ExternalInvoice.find(params[:id])
+        push_to_xero = params[:push_to_xero] == true
+
+        # Update allowed attributes
+        update_attrs = {}
+        %i[reference status invoice_date due_date line_items contact_id job_id].each do |attr|
+          update_attrs[attr] = params[attr] if params.key?(attr)
+        end
+
+        # Mark as needing push if we're doing two-way sync
+        if invoice.can_export? && update_attrs.any?
+          update_attrs[:pending_push] = true
+          update_attrs[:teeem_updated_at] = Time.current
+        end
+
+        invoice.update!(update_attrs)
+
+        # Optionally push to Xero immediately
+        if push_to_xero && invoice.can_export?
+          service = ExternalInvoiceSyncService.new(source: invoice.source, tenant_id: invoice.tenant_id)
+          service.send(:push_invoice_to_xero, invoice)
+        end
+
+        render json: {
+          success: true,
+          data: serialize_invoice(invoice, include_details: true)
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: 'Invoice not found' }, status: :not_found
+      rescue StandardError => e
+        Rails.logger.error("Update invoice failed: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to update invoice: #{e.message}"
+        }, status: :unprocessable_entity
       end
 
       private

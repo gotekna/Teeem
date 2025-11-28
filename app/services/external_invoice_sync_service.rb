@@ -13,7 +13,9 @@ class ExternalInvoiceSyncService
       linked_to_contacts: 0,
       errors: [],
       pages_fetched: 0,
-      total_invoices: 0
+      total_invoices: 0,
+      total_credit_notes: 0,
+      total_quotes: 0
     }
     @sync_timestamp = Time.current
 
@@ -77,7 +79,29 @@ class ExternalInvoiceSyncService
         process_invoice(invoice_data, tenant_id)
       end
 
-      Rails.logger.info("Invoice sync completed: #{@stats.inspect}")
+      # Fetch all credit notes
+      all_credit_notes = fetch_all_credit_notes(tenant_id)
+      @stats[:total_credit_notes] = all_credit_notes.length
+
+      Rails.logger.info("Fetched #{all_credit_notes.length} credit notes from #{@source}")
+
+      # Process each credit note
+      all_credit_notes.each do |cn_data|
+        process_credit_note(cn_data, tenant_id)
+      end
+
+      # Fetch all quotes
+      all_quotes = fetch_all_quotes(tenant_id)
+      @stats[:total_quotes] = all_quotes.length
+
+      Rails.logger.info("Fetched #{all_quotes.length} quotes from #{@source}")
+
+      # Process each quote
+      all_quotes.each do |quote_data|
+        process_quote(quote_data, tenant_id)
+      end
+
+      Rails.logger.info("Full sync completed: #{@stats.inspect}")
 
       {
         success: true,
@@ -105,6 +129,60 @@ class ExternalInvoiceSyncService
     else
       sync_all_tenants_incremental(since)
     end
+  end
+
+  # Push pending invoices created in TEEEM to Xero
+  def push_pending
+    pending = ExternalInvoice.pending_push.where(source: @source)
+    pending = pending.for_tenant(@tenant_id) if @tenant_id
+
+    Rails.logger.info("Found #{pending.count} invoices pending push to #{@source}")
+
+    results = { pushed: 0, errors: [] }
+
+    pending.find_each do |invoice|
+      # Check sync configuration allows export
+      config = SyncConfiguration.for_tenant(invoice.tenant_id)
+      unless config&.export_enabled?
+        Rails.logger.info("Skipping #{invoice.invoice_number} - export disabled for tenant")
+        next
+      end
+
+      begin
+        push_invoice_to_xero(invoice)
+        results[:pushed] += 1
+      rescue StandardError => e
+        error_msg = "Failed to push #{invoice.invoice_number}: #{e.message}"
+        Rails.logger.error(error_msg)
+        results[:errors] << error_msg
+        invoice.record_error!(error_msg)
+      end
+    end
+
+    results
+  end
+
+  # Create a new invoice in TEEEM and mark for sync to Xero
+  def create_and_push(attributes, tenant_id:)
+    config = SyncConfiguration.for_tenant(tenant_id)
+    unless config&.export_enabled?
+      raise "Export not enabled for this tenant"
+    end
+
+    invoice = ExternalInvoice.new(
+      source: @source,
+      tenant_id: tenant_id,
+      created_in_teeem: true,
+      pending_push: true,
+      sync_direction: 'export_only',
+      teeem_updated_at: Time.current,
+      **attributes
+    )
+
+    invoice.save!
+    push_invoice_to_xero(invoice)
+
+    invoice
   end
 
   private
@@ -350,5 +428,277 @@ class ExternalInvoiceSyncService
     Rails.logger.error(error.backtrace.join("\n")) if include_backtrace
     @stats[:errors] << error_msg
     { success: false, error: error_msg, stats: @stats }
+  end
+
+  # Fetch all credit notes from Xero
+  def fetch_all_credit_notes(tenant_id)
+    all_credit_notes = []
+    page = 1
+    max_pages = 50
+
+    loop do
+      Rails.logger.info("Fetching #{@source} credit notes page #{page}")
+
+      result = @api_client.get('CreditNotes', {
+        page: page,
+        tenant_id: tenant_id
+      })
+
+      unless result[:success]
+        Rails.logger.warn("Failed to fetch credit notes: #{result[:error]}")
+        break
+      end
+
+      credit_notes_page = result[:data]['CreditNotes'] || []
+      break if credit_notes_page.empty?
+
+      all_credit_notes.concat(credit_notes_page)
+      @stats[:pages_fetched] += 1
+
+      page += 1
+      break if page > max_pages
+
+      sleep(RATE_LIMIT_SLEEP / 1000.0)
+    end
+
+    all_credit_notes
+  end
+
+  # Process a single credit note
+  def process_credit_note(cn_data, tenant_id)
+    external_id = cn_data['CreditNoteID']
+
+    record = ExternalInvoice.find_or_initialize_by(
+      source: @source,
+      tenant_id: tenant_id,
+      external_id: external_id
+    )
+
+    is_new = record.new_record?
+
+    record.assign_attributes(
+      invoice_number: cn_data['CreditNoteNumber'],
+      reference: cn_data['Reference'],
+      invoice_type: 'credit_note',
+      status: ExternalInvoice.normalize_xero_status(cn_data['Status']),
+      invoice_date: parse_xero_date(cn_data['DateString'] || cn_data['Date']),
+      due_date: nil,
+      subtotal: cn_data['SubTotal'],
+      total_tax: cn_data['TotalTax'],
+      total: cn_data['Total'],
+      amount_due: cn_data['RemainingCredit'],
+      amount_paid: (cn_data['Total'] || 0) - (cn_data['RemainingCredit'] || 0),
+      currency_code: cn_data['CurrencyCode'] || 'AUD',
+      external_contact_id: cn_data.dig('Contact', 'ContactID'),
+      contact_name: cn_data.dig('Contact', 'Name'),
+      line_items: cn_data['LineItems'] || [],
+      payments: [],
+      tracking_data: extract_tracking_categories_from_lines(cn_data['LineItems']),
+      raw_data: cn_data,
+      external_updated_at: parse_xero_date(cn_data['UpdatedDateUTC']),
+      last_synced_at: @sync_timestamp,
+      sync_error: nil
+    )
+
+    record.save!
+    is_new ? @stats[:created] += 1 : @stats[:updated] += 1
+
+    link_to_job(record) if record.job_id.nil?
+    link_to_contact(record) if record.contact_id.nil?
+
+  rescue StandardError => e
+    error_msg = "Error processing credit note #{cn_data['CreditNoteNumber']}: #{e.message}"
+    Rails.logger.error(error_msg)
+    @stats[:errors] << error_msg
+  end
+
+  # Fetch all quotes from Xero
+  def fetch_all_quotes(tenant_id)
+    all_quotes = []
+    page = 1
+    max_pages = 50
+
+    loop do
+      Rails.logger.info("Fetching #{@source} quotes page #{page}")
+
+      result = @api_client.get('Quotes', {
+        page: page,
+        tenant_id: tenant_id
+      })
+
+      unless result[:success]
+        Rails.logger.warn("Failed to fetch quotes: #{result[:error]}")
+        break
+      end
+
+      quotes_page = result[:data]['Quotes'] || []
+      break if quotes_page.empty?
+
+      all_quotes.concat(quotes_page)
+      @stats[:pages_fetched] += 1
+
+      page += 1
+      break if page > max_pages
+
+      sleep(RATE_LIMIT_SLEEP / 1000.0)
+    end
+
+    all_quotes
+  end
+
+  # Process a single quote
+  def process_quote(quote_data, tenant_id)
+    external_id = quote_data['QuoteID']
+
+    record = ExternalInvoice.find_or_initialize_by(
+      source: @source,
+      tenant_id: tenant_id,
+      external_id: external_id
+    )
+
+    is_new = record.new_record?
+
+    record.assign_attributes(
+      invoice_number: quote_data['QuoteNumber'],
+      reference: quote_data['Reference'] || quote_data['Title'],
+      invoice_type: 'quote',
+      status: ExternalInvoice::XERO_QUOTE_STATUS_MAP[quote_data['Status']] || 'draft',
+      invoice_date: parse_xero_date(quote_data['DateString'] || quote_data['Date']),
+      due_date: parse_xero_date(quote_data['ExpiryDateString'] || quote_data['ExpiryDate']),
+      subtotal: quote_data['SubTotal'],
+      total_tax: quote_data['TotalTax'],
+      total: quote_data['Total'],
+      amount_due: quote_data['Total'],
+      amount_paid: 0,
+      currency_code: quote_data['CurrencyCode'] || 'AUD',
+      external_contact_id: quote_data.dig('Contact', 'ContactID'),
+      contact_name: quote_data.dig('Contact', 'Name'),
+      line_items: quote_data['LineItems'] || [],
+      payments: [],
+      tracking_data: extract_tracking_categories_from_lines(quote_data['LineItems']),
+      raw_data: quote_data,
+      external_updated_at: parse_xero_date(quote_data['UpdatedDateUTC']),
+      last_synced_at: @sync_timestamp,
+      sync_error: nil
+    )
+
+    record.save!
+    is_new ? @stats[:created] += 1 : @stats[:updated] += 1
+
+    link_to_job(record) if record.job_id.nil?
+    link_to_contact(record) if record.contact_id.nil?
+
+  rescue StandardError => e
+    error_msg = "Error processing quote #{quote_data['QuoteNumber']}: #{e.message}"
+    Rails.logger.error(error_msg)
+    @stats[:errors] << error_msg
+  end
+
+  # Extract tracking categories from line items (reusable helper)
+  def extract_tracking_categories_from_lines(line_items)
+    tracking = []
+    (line_items || []).each do |line_item|
+      (line_item['Tracking'] || []).each do |t|
+        unless tracking.any? { |existing| existing['Name'] == t['Name'] && existing['Option'] == t['Option'] }
+          tracking << {
+            'Name' => t['Name'],
+            'Option' => t['Option'],
+            'TrackingCategoryID' => t['TrackingCategoryID'],
+            'TrackingOptionID' => t['TrackingOptionID']
+          }
+        end
+      end
+    end
+    tracking
+  end
+
+  # Push a single invoice to Xero
+  def push_invoice_to_xero(invoice)
+    Rails.logger.info("Pushing invoice #{invoice.invoice_number} to Xero")
+
+    # Build Xero invoice payload
+    xero_invoice = build_xero_invoice_payload(invoice)
+
+    # Determine if create or update
+    if invoice.external_id.present?
+      # Update existing invoice
+      result = @api_client.put("Invoices/#{invoice.external_id}", {
+        tenant_id: invoice.tenant_id,
+        body: { Invoices: [xero_invoice] }
+      })
+    else
+      # Create new invoice
+      result = @api_client.post('Invoices', {
+        tenant_id: invoice.tenant_id,
+        body: { Invoices: [xero_invoice] }
+      })
+    end
+
+    unless result[:success]
+      raise "Xero API error: #{result[:error]}"
+    end
+
+    # Update local record with Xero response
+    xero_response = result[:data]['Invoices']&.first
+    if xero_response
+      invoice.update!(
+        external_id: xero_response['InvoiceID'],
+        invoice_number: xero_response['InvoiceNumber'],
+        status: ExternalInvoice.normalize_xero_status(xero_response['Status']),
+        external_updated_at: parse_xero_date(xero_response['UpdatedDateUTC']),
+        last_synced_at: Time.current,
+        pending_push: false,
+        sync_error: nil
+      )
+    end
+
+    Rails.logger.info("Successfully pushed invoice #{invoice.invoice_number} to Xero")
+    invoice
+  end
+
+  # Build Xero-compatible invoice payload from ExternalInvoice
+  def build_xero_invoice_payload(invoice)
+    payload = {
+      'Type' => invoice.xero_type,
+      'Status' => invoice.xero_status,
+      'Reference' => invoice.reference,
+      'CurrencyCode' => invoice.currency_code || 'AUD'
+    }
+
+    # Add invoice number if present (for updates)
+    payload['InvoiceNumber'] = invoice.invoice_number if invoice.invoice_number.present?
+
+    # Add contact
+    if invoice.external_contact_id.present?
+      payload['Contact'] = { 'ContactID' => invoice.external_contact_id }
+    elsif invoice.contact_id.present?
+      # Find the Xero contact ID from the TEEEM contact
+      xero_link = ContactExternalLink.find_by(
+        contact_id: invoice.contact_id,
+        source: 'xero',
+        tenant_id: invoice.tenant_id
+      )
+      payload['Contact'] = { 'ContactID' => xero_link.external_contact_id } if xero_link
+    end
+
+    # Add dates
+    payload['Date'] = invoice.invoice_date.iso8601 if invoice.invoice_date
+    payload['DueDate'] = invoice.due_date.iso8601 if invoice.due_date
+
+    # Add line items
+    if invoice.line_items.present?
+      payload['LineItems'] = invoice.line_items.map do |item|
+        {
+          'Description' => item['Description'],
+          'Quantity' => item['Quantity'] || 1,
+          'UnitAmount' => item['UnitAmount'],
+          'AccountCode' => item['AccountCode'],
+          'TaxType' => item['TaxType'],
+          'Tracking' => item['Tracking']
+        }.compact
+      end
+    end
+
+    payload
   end
 end
