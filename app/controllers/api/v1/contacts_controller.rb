@@ -60,7 +60,7 @@ module Api
         include_jobs = params[:include_jobs] == 'true'
 
         contacts_json = @contacts.as_json(
-          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status],
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status],
           include: {
             portal_user: { only: [:id, :email, :portal_type, :active] }
           },
@@ -108,7 +108,7 @@ module Api
         contact_json = @contact.as_json(
           only: [
             :id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :fax_phone, :website,
-            :tax_number, :xero_id, :sync_with_xero, :last_synced_at, :xero_sync_error,
+            :tax_number, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :xero_sync_error,
             :sys_type_id, :deleted, :parent_id, :parent,
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,

@@ -1,18 +1,35 @@
 import { useState, useEffect } from 'react'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react'
-import { PlusIcon, PencilIcon, TrashIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import { PlusIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 import TeeemTableView from '../documentation/TeeemTableView'
+import Toast from '../Toast'
+
+// Table ID for Contact Roles (from foundations table)
+const CONTACT_ROLES_TABLE_ID = 211
+
+// Column definitions matching the contact_roles table columns
+// These will be enriched with IDs from the API
+const buildContactRolesColumns = () => [
+  { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
+  { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
+  { key: 'name', label: 'Role Name', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 200, is_title: true },
+  { key: 'contact_types', label: 'Contact Types', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 200 },
+  { key: 'active', label: 'Status', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'boolean', width: 100 },
+  { key: 'created_at', label: 'Created', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 },
+  { key: 'updated_at', label: 'Updated', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 }
+]
 
 export default function ContactRolesManagement() {
   const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
-  const [editingRole, setEditingRole] = useState(null)
+  const [columns, setColumns] = useState(buildContactRolesColumns())
   const [newRole, setNewRole] = useState('')
   const [newRoleTypes, setNewRoleTypes] = useState([])
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedTabIndex, setSelectedTabIndex] = useState(0)
   const [contactTypes, setContactTypes] = useState([])
+  const [toast, setToast] = useState(null)
 
   // Fetch contact types from API (RULE #1.13 - Single Source of Truth)
   useEffect(() => {
@@ -34,33 +51,53 @@ export default function ContactRolesManagement() {
 
   useEffect(() => {
     fetchRoles()
+    fetchColumnIds()
   }, [])
 
   const fetchRoles = async () => {
     try {
       const response = await api.get('/api/v1/contact_roles')
-      // Transform roles to Trinity format
-      const trinityRoles = response.map((role, index) => ({
-        id: role.id,
-        category: 'contact_roles',
-        chapter_number: 0,
-        chapter_name: 'Contact Roles',
-        section_number: String(index + 1),
-        title: role.name,
-        entry_type: (!role.contact_types || role.contact_types.length === 0)
-          ? 'universal'
-          : role.contact_types.join(', '),
-        description: (!role.contact_types || role.contact_types.length === 0)
-          ? 'Universal (All Types)'
-          : role.contact_types.map(t => contactTypes.find(ct => ct.value === t)?.label).join(', '),
-        status: role.active ? 'active' : 'inactive',
-        _original: role // Keep original for operations
+      // Transform contact_types array to displayable string for the table
+      const transformedRoles = (response || []).map(role => ({
+        ...role,
+        contact_types_display: (!role.contact_types || role.contact_types.length === 0)
+          ? 'Universal'
+          : role.contact_types.join(', ')
       }))
-      setRoles(trinityRoles)
+      setRoles(transformedRoles)
     } catch (error) {
       console.error('Failed to fetch contact roles:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Fetch column IDs from API and merge with static config
+  const fetchColumnIds = async () => {
+    try {
+      const response = await api.get(`/api/v1/foundations/${CONTACT_ROLES_TABLE_ID}`)
+      // API returns { success: true, foundation: { columns: [...] } }
+      const dbColumns = response?.foundation?.columns || []
+      console.log('📥 Contact Roles: Received', dbColumns.length, 'columns from API')
+
+      // Merge database column data with static column config
+      const updatedColumns = buildContactRolesColumns().map(col => {
+        const dbCol = dbColumns.find(dc => dc.column_name === col.key)
+        if (dbCol) {
+          console.log(`🔀 Merged column ${col.key}: id=${dbCol.id}`)
+          return {
+            ...col,
+            id: dbCol.id,
+            header_align: dbCol.header_align,
+            data_align: dbCol.data_align
+          }
+        }
+        return col
+      })
+
+      setColumns(updatedColumns)
+    } catch (err) {
+      console.error('Failed to fetch column IDs:', err)
     }
   }
 
@@ -76,31 +113,22 @@ export default function ContactRolesManagement() {
         }
       })
 
-      // Transform new role to Trinity format
-      const trinityRole = {
-        id: response.id,
-        category: 'contact_roles',
-        chapter_number: 0,
-        chapter_name: 'Contact Roles',
-        section_number: String(roles.length + 1),
-        title: response.name,
-        entry_type: (!response.contact_types || response.contact_types.length === 0)
-          ? 'universal'
-          : response.contact_types.join(', '),
-        description: (!response.contact_types || response.contact_types.length === 0)
-          ? 'Universal (All Types)'
-          : response.contact_types.map(t => contactTypes.find(ct => ct.value === t)?.label).join(', '),
-        status: response.active ? 'active' : 'inactive',
-        _original: response
+      // Add transformed role to list
+      const newRoleData = {
+        ...response,
+        contact_types_display: (!response.contact_types || response.contact_types.length === 0)
+          ? 'Universal'
+          : response.contact_types.join(', ')
       }
 
-      setRoles([...roles, trinityRole])
+      setRoles([...roles, newRoleData])
       setNewRole('')
       setNewRoleTypes([])
       setShowAddForm(false)
+      setToast({ message: 'Role created successfully', type: 'success' })
     } catch (error) {
       console.error('Failed to add role:', error)
-      alert(error.message || 'Failed to add role')
+      setToast({ message: error.message || 'Failed to add role', type: 'error' })
     }
   }
 
@@ -117,48 +145,56 @@ export default function ContactRolesManagement() {
     setNewRoleTypes([])
   }
 
-  const handleUpdateRole = async (role) => {
+  const handleEdit = async (entry) => {
     try {
-      const response = await api.patch(`/api/v1/contact_roles/${role.id}`, {
+      const response = await api.patch(`/api/v1/contact_roles/${entry.id}`, {
         contact_role: {
-          name: role.name,
-          contact_types: role.contact_types || [],
-          active: role.active
+          name: entry.name,
+          active: entry.active
         }
       })
-      setRoles(roles.map(r => r.id === role.id ? response : r))
-      setEditingRole(null)
+
+      // Update transformed role in list
+      const updatedRole = {
+        ...response,
+        contact_types_display: (!response.contact_types || response.contact_types.length === 0)
+          ? 'Universal'
+          : response.contact_types.join(', ')
+      }
+
+      setRoles(roles.map(r => r.id === entry.id ? updatedRole : r))
+      setToast({ message: 'Role updated successfully', type: 'success' })
     } catch (error) {
       console.error('Failed to update role:', error)
-      alert(error.message || 'Failed to update role')
+      setToast({ message: error.message || 'Failed to update role', type: 'error' })
     }
   }
 
-  const handleToggleActive = async (role) => {
-    try {
-      const response = await api.patch(`/api/v1/contact_roles/${role.id}`, {
-        contact_role: {
-          active: !role.active
-        }
-      })
-      setRoles(roles.map(r => r.id === role.id ? response : r))
-    } catch (error) {
-      console.error('Failed to toggle role status:', error)
-      alert('Failed to update role status')
-    }
-  }
-
-  const handleDeleteRole = async (roleId) => {
-    if (!confirm('Are you sure you want to delete this role? This action cannot be undone.')) {
+  const handleDelete = async (entry) => {
+    if (!confirm(`Are you sure you want to delete "${entry.name}"? This action cannot be undone.`)) {
       return
     }
 
     try {
-      await api.delete(`/api/v1/contact_roles/${roleId}`)
-      setRoles(roles.filter(r => r.id !== roleId))
+      await api.delete(`/api/v1/contact_roles/${entry.id}`)
+      setRoles(roles.filter(r => r.id !== entry.id))
+      setToast({ message: 'Role deleted successfully', type: 'success' })
     } catch (error) {
       console.error('Failed to delete role:', error)
-      alert('Failed to delete role')
+      setToast({ message: 'Failed to delete role', type: 'error' })
+    }
+  }
+
+  // Bulk delete handler
+  const handleBulkDelete = async (entries) => {
+    try {
+      const ids = entries.map(e => e.id)
+      await Promise.all(ids.map(id => api.delete(`/api/v1/contact_roles/${id}`)))
+      setRoles(roles.filter(r => !ids.includes(r.id)))
+      setToast({ message: `Successfully deleted ${entries.length} roles`, type: 'success' })
+    } catch (error) {
+      console.error('Failed to bulk delete roles:', error)
+      setToast({ message: 'Failed to delete roles', type: 'error' })
     }
   }
 
@@ -166,56 +202,44 @@ export default function ContactRolesManagement() {
   // Roles with empty contact_types array appear in ALL tabs (universal roles)
   const getFilteredRoles = (contactTypeValue) => {
     return roles.filter(role => {
-      const original = role._original
       // Show role if it has no types (universal) OR includes this specific type
-      return (!original.contact_types || original.contact_types.length === 0) ||
-             (original.contact_types && original.contact_types.includes(contactTypeValue))
+      return (!role.contact_types || role.contact_types.length === 0) ||
+             (role.contact_types && role.contact_types.includes(contactTypeValue))
     })
   }
 
-  const handleEdit = (entry) => {
-    // TODO: Open edit modal
-    console.log('Edit role:', entry._original)
-  }
-
-  const handleDelete = async (entry) => {
-    const role = entry._original
-    if (!confirm(`Are you sure you want to delete ${role.name}? This action cannot be undone.`)) {
-      return
-    }
-
-    try {
-      await api.delete(`/api/v1/contact_roles/${role.id}`)
-      setRoles(roles.filter(r => r.id !== role.id))
-    } catch (error) {
-      console.error('Failed to delete role:', error)
-      alert('Failed to delete role')
-    }
-  }
-
-  // Render a table for a specific contact type
+  // Render a table for a specific contact type using TeeemTableView
   const renderRolesTable = (contactTypeValue) => {
     const filteredRoles = getFilteredRoles(contactTypeValue)
-
-    // Custom action button for adding roles (Chapter 20: h-[42px] alignment)
-    const addRoleButton = (
-      <button
-        onClick={handleOpenAddForm}
-        className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
-      >
-        <PlusIcon className="h-5 w-5" />
-        Add Role
-      </button>
-    )
 
     return (
       <div className="h-full flex flex-col">
         <TeeemTableView
+          foundationId={`contact-roles-${contactTypeValue}`}
+          foundationIdNumeric={CONTACT_ROLES_TABLE_ID}
+          tableName="Contact Roles"
           entries={filteredRoles}
+          columns={columns}
           onEdit={handleEdit}
           onDelete={handleDelete}
-          category="contact_roles"
-          customActions={addRoleButton}
+          onBulkDelete={handleBulkDelete}
+          enableImport={false}
+          enableExport={true}
+          enableSchemaEditor={true}
+          hideUpdateViewButton={true}
+          onColumnUpdate={() => {
+            console.log('Contact Roles: Refreshing columns after schema update')
+            fetchColumnIds()
+          }}
+          customActions={
+            <button
+              onClick={handleOpenAddForm}
+              className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+            >
+              <PlusIcon className="h-5 w-5" />
+              Add Role
+            </button>
+          }
         />
       </div>
     )
@@ -241,7 +265,7 @@ export default function ContactRolesManagement() {
       </div>
 
       <TabList className="flex space-x-1 rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
-        {contactTypes.map((type, index) => {
+        {contactTypes.map((type) => {
           const count = getFilteredRoles(type.value).length
           return (
             <Tab
@@ -350,6 +374,15 @@ export default function ContactRolesManagement() {
           <strong>Tip:</strong> Roles can be assigned to multiple contact types by editing them and checking the desired types. Roles with no types selected become universal and appear in all tabs. Inactive roles won't appear in dropdowns but existing contact persons will still display them.
         </p>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </TabGroup>
   )
 }

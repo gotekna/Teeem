@@ -86,6 +86,9 @@ class Contact < ApplicationRecord
   validate :contact_types_must_be_valid
   # Note: primary_contact_type column removed - use contact_types[0] instead
 
+  # Callbacks
+  before_save :update_xero_synced_status
+
   # Scopes
   scope :with_email, -> { where.not(email: [nil, '']) }
   scope :with_phone, -> { where.not(mobile_phone: [nil, '']).or(where.not(office_phone: [nil, ''])) }
@@ -412,6 +415,10 @@ class Contact < ApplicationRecord
     if invalid_types.any?
       errors.add(:contact_types, "contains invalid types: #{invalid_types.join(', ')}")
     end
+  end
+
+  def update_xero_synced_status
+    self.xero_synced = xero_id.present?
   end
 
 end
