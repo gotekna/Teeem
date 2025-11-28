@@ -92,6 +92,7 @@ Rails.application.routes.draw do
         member do
           get :saved_messages
           get :emails
+          get :sms_messages
           get :documentation_tabs
           get :activities
           # Xero bill import
