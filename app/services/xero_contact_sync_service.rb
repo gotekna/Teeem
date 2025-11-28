@@ -749,17 +749,25 @@ class XeroContactSyncService
       ]
     }
 
+    Rails.logger.info("Xero payload: #{xero_payload.to_json}")
+
     result = @xero_client.post('Contacts', xero_payload, tenant_id: link.xero_tenant_id)
+
+    Rails.logger.info("Xero result: #{result.inspect}")
 
     if result[:success]
       link.mark_synced!
       @stats[:updated] += 1
       { success: true, link: link }
     else
-      raise XeroApiClient::ApiError, "Failed to update contact in Xero"
+      error_msg = result[:error] || "Failed to update contact in Xero"
+      Rails.logger.error("Xero update failed: #{error_msg}")
+      link.update!(sync_error: error_msg)
+      { success: false, error: error_msg }
     end
   rescue StandardError => e
     error_msg = "Failed to update Xero contact: #{e.message}"
+    Rails.logger.error("Xero update exception: #{error_msg}\n#{e.backtrace.first(5).join("\n")}")
     link.update!(sync_error: error_msg)
     { success: false, error: error_msg }
   end
