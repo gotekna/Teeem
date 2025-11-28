@@ -39,10 +39,13 @@ export default function DocumentTaskList({ jobId, category }) {
 
   const getDefaultTasks = (categoryId) => {
     const tasksByCategory = {
+      'site': [
+        { id: 1, name: 'Survey Plan', description: 'Property survey plan documentation', required: true },
+        { id: 2, name: 'Soil Test', description: 'Soil test report for foundations', required: true },
+      ],
       'site-plan': [
-        { id: 1, name: 'Site Survey', description: 'Professional site survey documentation', required: true },
-        { id: 2, name: 'Boundary Plan', description: 'Property boundary plan', required: true },
-        { id: 3, name: 'Topographic Survey', description: 'Topographic survey details', required: false },
+        { id: 1, name: 'Survey Plan', description: 'Property survey plan documentation', required: true },
+        { id: 2, name: 'Soil Test', description: 'Soil test report for foundations', required: true },
       ],
       'sales': [
         { id: 4, name: 'Sales Contract', description: 'Signed sales contract', required: true },
