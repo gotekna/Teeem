@@ -8,7 +8,8 @@ import {
   CheckCircleIcon,
   ClockIcon,
   DocumentTextIcon,
-  CalendarDaysIcon
+  CalendarDaysIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline'
 import api from '../api'
 
@@ -20,7 +21,9 @@ export default function CorporateDashboardPage() {
     activeCompanies: 0,
     totalAssets: 0,
     complianceDueSoon: 0,
-    insuranceExpiring: 0
+    insuranceExpiring: 0,
+    healthScore: 0,
+    criticalCompanies: 0
   })
   const [recentActivity, setRecentActivity] = useState([])
   const [upcomingCompliance, setUpcomingCompliance] = useState([])
@@ -47,13 +50,19 @@ export default function CorporateDashboardPage() {
       const assetsResponse = await api.get('/api/v1/assets')
       const assets = assetsResponse.assets || []
 
+      // Load health report
+      const healthResponse = await api.get('/api/v1/companies/health_report')
+      const healthSummary = healthResponse.summary || {}
+
       // Calculate stats
       setStats({
         totalCompanies: companies.length,
         activeCompanies: companies.filter(c => c.status === 'active').length,
         totalAssets: assets.length,
         complianceDueSoon: compliance.length,
-        insuranceExpiring: assets.filter(a => a.needs_attention).length
+        insuranceExpiring: assets.filter(a => a.needs_attention).length,
+        healthScore: healthSummary.average_score || 0,
+        criticalCompanies: healthSummary.critical || 0
       })
 
       setUpcomingCompliance(compliance.slice(0, 5))
@@ -68,9 +77,10 @@ export default function CorporateDashboardPage() {
   const statCards = [
     { name: 'Total Companies', value: stats.totalCompanies, icon: BuildingOfficeIcon, href: '/corporate/companies' },
     { name: 'Active Companies', value: stats.activeCompanies, icon: CheckCircleIcon, href: '/corporate/companies?status=active' },
+    { name: 'Health Score', value: `${stats.healthScore}%`, icon: HeartIcon, href: '/corporate/health', alert: stats.criticalCompanies > 0, alertColor: stats.healthScore >= 80 ? 'green' : stats.healthScore >= 60 ? 'yellow' : 'red' },
+    { name: 'Critical Companies', value: stats.criticalCompanies, icon: ExclamationTriangleIcon, href: '/corporate/health', alert: stats.criticalCompanies > 0 },
     { name: 'Total Assets', value: stats.totalAssets, icon: TruckIcon, href: '/corporate/assets' },
-    { name: 'Compliance Due (30 days)', value: stats.complianceDueSoon, icon: ClockIcon, href: '/corporate/companies', alert: stats.complianceDueSoon > 0 },
-    { name: 'Insurance Expiring', value: stats.insuranceExpiring, icon: ExclamationTriangleIcon, href: '/corporate/assets', alert: stats.insuranceExpiring > 0 }
+    { name: 'Compliance Due (30 days)', value: stats.complianceDueSoon, icon: ClockIcon, href: '/corporate/companies', alert: stats.complianceDueSoon > 0 }
   ]
 
   if (loading) {
@@ -122,6 +132,13 @@ export default function CorporateDashboardPage() {
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <button
+              onClick={() => navigate('/corporate/health')}
+              className="inline-flex items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700"
+            >
+              <HeartIcon className="h-5 w-5 mr-2" />
+              Health Report
+            </button>
             <button
               onClick={() => navigate('/corporate/companies/new')}
               className="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"

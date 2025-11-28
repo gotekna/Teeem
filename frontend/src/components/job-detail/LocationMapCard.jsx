@@ -908,9 +908,9 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
             )}
 
             {/* Search fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 overflow-visible">
               {/* Address Search */}
-              <div className="relative">
+              <div className="relative overflow-visible">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Search Address
                 </label>
@@ -956,7 +956,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
               </div>
 
               {/* Suburb Search */}
-              <div className="relative">
+              <div className="relative overflow-visible">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Search Suburb
                 </label>

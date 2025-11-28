@@ -93,6 +93,7 @@ const SamPage = lazyWithRetry(() => import('./pages/SamPage')) // Sam page
 
 // Corporate pages
 const CorporateDashboardPage = lazyWithRetry(() => import('./pages/CorporateDashboardPage'))
+const CorporateHealthPage = lazyWithRetry(() => import('./pages/CorporateHealthPage'))
 
 // Portal pages (subcontractor portal)
 const PortalLayout = lazyWithRetry(() => import('./pages/portal/PortalLayout'))
@@ -267,6 +268,7 @@ function App() {
         {/* Corporate routes */}
         <Route path="/corporate" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
         <Route path="/corporate/dashboard" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
+        <Route path="/corporate/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
         <Route path="/corporate/companies" element={<AppLayout><CompaniesPage /></AppLayout>} />
         <Route path="/corporate/companies/new" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
