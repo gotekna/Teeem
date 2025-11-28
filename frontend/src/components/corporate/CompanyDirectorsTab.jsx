@@ -12,7 +12,11 @@ import api from '../../api'
 const POSITION_OPTIONS = [
   { value: 'director', label: 'Director' },
   { value: 'secretary', label: 'Secretary' },
+  { value: 'public_officer', label: 'Public Officer' },
   { value: 'director_secretary', label: 'Director / Secretary' },
+  { value: 'director_public_officer', label: 'Director / Public Officer' },
+  { value: 'secretary_public_officer', label: 'Secretary / Public Officer' },
+  { value: 'director_secretary_public_officer', label: 'Director / Secretary / Public Officer' },
   { value: 'chairman', label: 'Chairman' }
 ]
 
