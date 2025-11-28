@@ -529,24 +529,29 @@ export default function SyncConfigPage({ embedded = false }) {
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Cog6ToothIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <p className="text-sm text-blue-800 dark:text-blue-300">
-                <span className="font-semibold">Global Sync Direction</span>
-                <span className="text-blue-600 dark:text-blue-400"> • {selectedConfig.xero_tenant_name || 'All Contacts'}</span>
+                <span className="font-semibold">Sync Direction</span>
+                {selectedConfig.xero_tenant_name && (
+                  <> • {selectedConfig.xero_tenant_name}</>
+                )}
               </p>
             </div>
 
             <div className="flex items-center gap-2">
+              <span className="text-xs text-blue-600 dark:text-blue-400">
+                Direction:
+              </span>
               <select
                 className="text-sm border border-blue-300 dark:border-blue-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                 value={selectedConfig.default_sync_direction || 'import_only'}
                 onChange={(e) => handleSyncDirectionChange(e.target.value)}
                 disabled={savingSyncDirection}
               >
-                <option value="import_only">Xero → TEEEM (Import Only)</option>
-                <option value="export_only">TEEEM → Xero (Export Only)</option>
-                <option value="bidirectional">↔ Bidirectional</option>
-                <option value="disabled">⏸ Disabled</option>
+                <option value="import_only">Xero → TEEEM</option>
+                <option value="export_only">TEEEM → Xero</option>
+                <option value="bidirectional">↔ Both Ways</option>
+                <option value="disabled">Disabled</option>
               </select>
               {savingSyncDirection && (
                 <ArrowPathIcon className="h-4 w-4 text-blue-600 animate-spin" />
