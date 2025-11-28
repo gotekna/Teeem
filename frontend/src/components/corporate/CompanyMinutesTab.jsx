@@ -4,11 +4,11 @@ import {
   DocumentTextIcon,
   DocumentDuplicateIcon,
   CheckCircleIcon,
-  PencilSquareIcon
+  PencilSquareIcon,
+  PencilIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline'
 import api from '../../api'
-import TEEEMTableView from '../TEEEMTableView'
-import SlideOver from '../SlideOver'
 
 export default function CompanyMinutesTab({ company, onUpdate }) {
   const [minutes, setMinutes] = useState([])
@@ -37,29 +37,6 @@ export default function CompanyMinutesTab({ company, onUpdate }) {
     } finally {
       setLoading(false)
     }
-  }
-
-  const handleAddMinute = () => {
-    setEditingMinute(null)
-    setSelectedTemplate(null)
-    setShowForm(true)
-  }
-
-  const handleCreateFromTemplate = () => {
-    setShowTemplateSelector(true)
-  }
-
-  const handleSelectTemplate = (template) => {
-    setSelectedTemplate(template)
-    setShowTemplateSelector(false)
-    setEditingMinute(null)
-    setShowForm(true)
-  }
-
-  const handleEditMinute = (minute) => {
-    setEditingMinute(minute)
-    setSelectedTemplate(null)
-    setShowForm(true)
   }
 
   const handleDeleteMinute = async (id) => {
@@ -115,78 +92,71 @@ export default function CompanyMinutesTab({ company, onUpdate }) {
     }
   }
 
+  const handleSelectTemplate = (template) => {
+    setSelectedTemplate(template)
+    setShowTemplateSelector(false)
+    setEditingMinute(null)
+    setShowForm(true)
+  }
+
   // Group by status
   const draftMinutes = minutes.filter(m => m.status === 'draft')
   const signedMinutes = minutes.filter(m => m.status === 'signed' || m.status === 'approved')
   const filedMinutes = minutes.filter(m => m.status === 'filed')
 
-  const columns = [
-    {
-      key: 'meeting_date',
-      label: 'Date',
-      render: (row) => row.meeting_date ? new Date(row.meeting_date).toLocaleDateString() : '-'
-    },
-    {
-      key: 'title',
-      label: 'Title',
-      render: (row) => (
-        <div>
-          <div className="font-medium text-gray-900">{row.title}</div>
-          {row.minute_template && (
-            <div className="text-xs text-gray-500">
-              Template: {row.minute_template.name}
-            </div>
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (row) => (
-        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-          row.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-          row.status === 'approved' ? 'bg-blue-100 text-blue-800' :
-          row.status === 'signed' ? 'bg-green-100 text-green-800' :
-          row.status === 'filed' ? 'bg-gray-100 text-gray-800' :
-          'bg-gray-100 text-gray-800'
-        }`}>
-          {row.status === 'draft' && <PencilSquareIcon className="h-3 w-3 mr-1" />}
-          {row.status === 'signed' && <CheckCircleIcon className="h-3 w-3 mr-1" />}
-          {row.status}
-        </span>
-      )
-    },
-    {
-      key: 'signed_by',
-      label: 'Signed By',
-      render: (row) => row.signed_by || '-'
-    },
-    {
-      key: 'signed_date',
-      label: 'Signed Date',
-      render: (row) => row.signed_date ? new Date(row.signed_date).toLocaleDateString() : '-'
-    },
-    {
-      key: 'actions',
-      label: '',
-      render: (row) => (
-        <div className="flex space-x-2">
-          {row.status === 'draft' && (
-            <button
-              onClick={(e) => { e.stopPropagation(); handleSignMinute(row.id) }}
-              className="text-xs text-green-600 hover:text-green-800"
-            >
-              Sign
-            </button>
-          )}
-        </div>
-      )
-    }
-  ]
-
   if (loading) {
     return <div className="text-center py-8 text-gray-500">Loading minutes...</div>
+  }
+
+  // Show template selector
+  if (showTemplateSelector) {
+    return (
+      <div className="bg-gray-50 rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Select Template</h3>
+        <p className="text-sm text-gray-500 mb-4">Choose a template to generate minutes from:</p>
+
+        {templates.length === 0 ? (
+          <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+            <p className="text-sm text-gray-500">No templates available.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {templates.map((template) => (
+              <button
+                key={template.id}
+                onClick={() => handleSelectTemplate(template)}
+                className="w-full text-left p-4 rounded-lg border border-gray-200 bg-white hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
+              >
+                <div className="font-medium text-gray-900">{template.name}</div>
+                <div className="text-sm text-gray-500">{template.template_type}</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end pt-4">
+          <button
+            onClick={() => setShowTemplateSelector(false)}
+            className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Show form view
+  if (showForm) {
+    return (
+      <MinuteForm
+        minute={editingMinute}
+        template={selectedTemplate}
+        company={company}
+        onSave={handleSaveMinute}
+        onCancel={() => { setShowForm(false); setEditingMinute(null); setSelectedTemplate(null) }}
+      />
+    )
   }
 
   return (
@@ -220,14 +190,14 @@ export default function CompanyMinutesTab({ company, onUpdate }) {
       {/* Actions */}
       <div className="flex justify-end space-x-3">
         <button
-          onClick={handleCreateFromTemplate}
+          onClick={() => setShowTemplateSelector(true)}
           className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
         >
           <DocumentDuplicateIcon className="h-4 w-4 mr-1" />
           From Template
         </button>
         <button
-          onClick={handleAddMinute}
+          onClick={() => { setEditingMinute(null); setSelectedTemplate(null); setShowForm(true) }}
           className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
         >
           <PlusIcon className="h-4 w-4 mr-1" />
@@ -243,14 +213,14 @@ export default function CompanyMinutesTab({ company, onUpdate }) {
           <p className="mt-1 text-sm text-gray-500">Create corporate minutes from templates or from scratch.</p>
           <div className="mt-4 flex justify-center space-x-3">
             <button
-              onClick={handleCreateFromTemplate}
+              onClick={() => setShowTemplateSelector(true)}
               className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
             >
               <DocumentDuplicateIcon className="h-4 w-4 mr-1" />
               From Template
             </button>
             <button
-              onClick={handleAddMinute}
+              onClick={() => { setEditingMinute(null); setSelectedTemplate(null); setShowForm(true) }}
               className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
             >
               <PlusIcon className="h-4 w-4 mr-1" />
@@ -259,69 +229,67 @@ export default function CompanyMinutesTab({ company, onUpdate }) {
           </div>
         </div>
       ) : (
-        <TEEEMTableView
-          data={minutes}
-          columns={columns}
-          onRowClick={handleEditMinute}
-          onDelete={handleDeleteMinute}
-          idField="id"
-        />
-      )}
-
-      {/* Template Selector SlideOver */}
-      <SlideOver
-        open={showTemplateSelector}
-        onClose={() => setShowTemplateSelector(false)}
-        title="Select Template"
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">Choose a template to generate minutes from:</p>
-
-          {templates.length === 0 ? (
-            <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">No templates available.</p>
+        <div className="space-y-3">
+          {minutes.map((minute) => (
+            <div key={minute.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:border-indigo-300">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center">
+                    <h4 className="text-sm font-medium text-gray-900">{minute.title}</h4>
+                    <span className={`ml-2 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      minute.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+                      minute.status === 'approved' ? 'bg-blue-100 text-blue-800' :
+                      minute.status === 'signed' ? 'bg-green-100 text-green-800' :
+                      minute.status === 'filed' ? 'bg-gray-100 text-gray-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {minute.status === 'draft' && <PencilSquareIcon className="h-3 w-3 mr-1" />}
+                      {minute.status === 'signed' && <CheckCircleIcon className="h-3 w-3 mr-1" />}
+                      {minute.status}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-gray-500">
+                    {minute.meeting_date ? new Date(minute.meeting_date).toLocaleDateString() : '-'}
+                    {minute.minute_template && (
+                      <span className="ml-2 text-xs text-gray-400">
+                        Template: {minute.minute_template.name}
+                      </span>
+                    )}
+                  </div>
+                  {minute.signed_by && (
+                    <div className="mt-1 text-xs text-gray-400">
+                      Signed by: {minute.signed_by}
+                      {minute.signed_date && ` on ${new Date(minute.signed_date).toLocaleDateString()}`}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2 ml-4">
+                  {minute.status === 'draft' && (
+                    <button
+                      onClick={() => handleSignMinute(minute.id)}
+                      className="inline-flex items-center rounded-md bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100"
+                    >
+                      Sign
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setEditingMinute(minute); setSelectedTemplate(null); setShowForm(true) }}
+                    className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                  >
+                    <PencilIcon className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteMinute(minute.id)}
+                    className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-red-50"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {templates.map((template) => (
-                <button
-                  key={template.id}
-                  onClick={() => handleSelectTemplate(template)}
-                  className="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-indigo-500 hover:bg-indigo-50 transition-colors"
-                >
-                  <div className="font-medium text-gray-900">{template.name}</div>
-                  <div className="text-sm text-gray-500">{template.template_type}</div>
-                </button>
-              ))}
-            </div>
-          )}
-
-          <div className="flex justify-end pt-4">
-            <button
-              onClick={() => setShowTemplateSelector(false)}
-              className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-            >
-              Cancel
-            </button>
-          </div>
+          ))}
         </div>
-      </SlideOver>
-
-      {/* Add/Edit Minute SlideOver */}
-      <SlideOver
-        open={showForm}
-        onClose={() => { setShowForm(false); setEditingMinute(null); setSelectedTemplate(null) }}
-        title={editingMinute ? 'Edit Minute' : selectedTemplate ? `New: ${selectedTemplate.name}` : 'New Minute'}
-        size="lg"
-      >
-        <MinuteForm
-          minute={editingMinute}
-          template={selectedTemplate}
-          company={company}
-          onSave={handleSaveMinute}
-          onCancel={() => { setShowForm(false); setEditingMinute(null); setSelectedTemplate(null) }}
-        />
-      </SlideOver>
+      )}
     </div>
   )
 }
@@ -398,105 +366,110 @@ function MinuteForm({ minute, template, company, onSave, onCancel }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <div className="rounded-md bg-red-50 p-4">
-          <div className="text-sm text-red-700">{error}</div>
-        </div>
-      )}
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Title</label>
-        <input
-          type="text"
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          required
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Meeting Date</label>
-        <input
-          type="date"
-          value={formData.meeting_date}
-          onChange={(e) => setFormData({ ...formData, meeting_date: e.target.value })}
-          required
-          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-        />
-      </div>
-
-      {/* Template Fields */}
-      {template && requiredFields.length > 0 && (
-        <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
-          <h4 className="text-sm font-medium text-gray-700">Template Fields</h4>
-          {requiredFields.map((field) => (
-            <div key={field}>
-              <label className="block text-sm font-medium text-gray-700 capitalize">
-                {field.replace(/_/g, ' ')}
-              </label>
-              <input
-                type="text"
-                value={templateFields[field] || ''}
-                onChange={(e) => setTemplateFields({ ...templateFields, [field]: e.target.value })}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Content</label>
-        <textarea
-          value={template ? previewContent : formData.content}
-          onChange={(e) => {
-            if (!template) setFormData({ ...formData, content: e.target.value })
-          }}
-          rows={15}
-          readOnly={!!template}
-          className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-sm ${template ? 'bg-gray-50' : ''}`}
-        />
-        {template && (
-          <p className="mt-1 text-xs text-gray-500">
-            Content is generated from template. Fill in the fields above to customize.
-          </p>
+    <div className="bg-gray-50 rounded-lg p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">
+        {minute ? 'Edit Minute' : template ? `New: ${template.name}` : 'New Minute'}
+      </h3>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="rounded-md bg-red-50 p-4">
+            <div className="text-sm text-red-700">{error}</div>
+          </div>
         )}
-      </div>
 
-      {minute && (
         <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
-          <select
-            value={formData.status}
-            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          <label className="block text-sm font-medium text-gray-700">Title</label>
+          <input
+            type="text"
+            value={formData.title}
+            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+            required
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          >
-            <option value="draft">Draft</option>
-            <option value="approved">Approved</option>
-            <option value="signed">Signed</option>
-            <option value="filed">Filed</option>
-          </select>
+          />
         </div>
-      )}
 
-      <div className="flex justify-end space-x-3 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {saving ? 'Saving...' : (minute ? 'Update' : 'Create')}
-        </button>
-      </div>
-    </form>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Meeting Date</label>
+          <input
+            type="date"
+            value={formData.meeting_date}
+            onChange={(e) => setFormData({ ...formData, meeting_date: e.target.value })}
+            required
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+
+        {/* Template Fields */}
+        {template && requiredFields.length > 0 && (
+          <div className="space-y-4 p-4 bg-white rounded-lg border border-gray-200">
+            <h4 className="text-sm font-medium text-gray-700">Template Fields</h4>
+            {requiredFields.map((field) => (
+              <div key={field}>
+                <label className="block text-sm font-medium text-gray-700 capitalize">
+                  {field.replace(/_/g, ' ')}
+                </label>
+                <input
+                  type="text"
+                  value={templateFields[field] || ''}
+                  onChange={(e) => setTemplateFields({ ...templateFields, [field]: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700">Content</label>
+          <textarea
+            value={template ? previewContent : formData.content}
+            onChange={(e) => {
+              if (!template) setFormData({ ...formData, content: e.target.value })
+            }}
+            rows={15}
+            readOnly={!!template}
+            className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-sm ${template ? 'bg-white' : ''}`}
+          />
+          {template && (
+            <p className="mt-1 text-xs text-gray-500">
+              Content is generated from template. Fill in the fields above to customize.
+            </p>
+          )}
+        </div>
+
+        {minute && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Status</label>
+            <select
+              value={formData.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            >
+              <option value="draft">Draft</option>
+              <option value="approved">Approved</option>
+              <option value="signed">Signed</option>
+              <option value="filed">Filed</option>
+            </select>
+          </div>
+        )}
+
+        <div className="flex justify-end space-x-3 pt-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : (minute ? 'Update' : 'Create')}
+          </button>
+        </div>
+      </form>
+    </div>
   )
 }
