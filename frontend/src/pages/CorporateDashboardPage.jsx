@@ -27,6 +27,7 @@ export default function CorporateDashboardPage() {
   })
   const [recentActivity, setRecentActivity] = useState([])
   const [upcomingCompliance, setUpcomingCompliance] = useState([])
+  const [companiesWithHealth, setCompaniesWithHealth] = useState([])
 
   useEffect(() => {
     loadDashboardData()
@@ -53,6 +54,7 @@ export default function CorporateDashboardPage() {
       // Load health report
       const healthResponse = await api.get('/api/v1/companies/health_report')
       const healthSummary = healthResponse.summary || {}
+      const healthCompanies = healthResponse.companies || []
 
       // Calculate stats
       setStats({
@@ -65,6 +67,8 @@ export default function CorporateDashboardPage() {
         criticalCompanies: healthSummary.critical || 0
       })
 
+      // Sort companies by health score (worst first)
+      setCompaniesWithHealth(healthCompanies.sort((a, b) => a.health_score - b.health_score))
       setUpcomingCompliance(compliance.slice(0, 5))
 
     } catch (error) {
@@ -75,12 +79,12 @@ export default function CorporateDashboardPage() {
   }
 
   const statCards = [
-    { name: 'Total Companies', value: stats.totalCompanies, icon: BuildingOfficeIcon, href: '/corporate/companies' },
-    { name: 'Active Companies', value: stats.activeCompanies, icon: CheckCircleIcon, href: '/corporate/companies?status=active' },
+    { name: 'Total Companies', value: stats.totalCompanies, icon: BuildingOfficeIcon, href: '/corporate/companies/list' },
+    { name: 'Active Companies', value: stats.activeCompanies, icon: CheckCircleIcon, href: '/corporate/companies/list?status=active' },
     { name: 'Health Score', value: `${stats.healthScore}%`, icon: HeartIcon, href: '/corporate/health', alert: stats.criticalCompanies > 0, alertColor: stats.healthScore >= 80 ? 'green' : stats.healthScore >= 60 ? 'yellow' : 'red' },
     { name: 'Critical Companies', value: stats.criticalCompanies, icon: ExclamationTriangleIcon, href: '/corporate/health', alert: stats.criticalCompanies > 0 },
     { name: 'Total Assets', value: stats.totalAssets, icon: TruckIcon, href: '/corporate/assets' },
-    { name: 'Compliance Due (30 days)', value: stats.complianceDueSoon, icon: ClockIcon, href: '/corporate/companies', alert: stats.complianceDueSoon > 0 }
+    { name: 'Compliance Due (30 days)', value: stats.complianceDueSoon, icon: ClockIcon, href: '/corporate/companies/list', alert: stats.complianceDueSoon > 0 }
   ]
 
   if (loading) {
@@ -193,6 +197,103 @@ export default function CorporateDashboardPage() {
         </div>
       </div>
 
+      {/* Companies with Health Status */}
+      <div className="bg-white shadow rounded-lg">
+        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">All Companies</h3>
+          <p className="mt-1 text-sm text-gray-500">Click a company to view details</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ACN</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ABN</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Directors</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {companiesWithHealth.map((company) => {
+                const getStatusColor = (status) => {
+                  if (status === 'excellent') return 'bg-green-100 text-green-800'
+                  if (status === 'good') return 'bg-blue-100 text-blue-800'
+                  if (status === 'needs_attention') return 'bg-yellow-100 text-yellow-800'
+                  return 'bg-red-100 text-red-800'
+                }
+                const getScoreColor = (score) => {
+                  if (score >= 80) return 'text-green-600'
+                  if (score >= 60) return 'text-yellow-600'
+                  return 'text-red-600'
+                }
+                return (
+                  <tr
+                    key={company.id}
+                    onClick={() => navigate(`/corporate/companies/${company.id}?tab=health`)}
+                    className="hover:bg-gray-50 cursor-pointer"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <BuildingOfficeIcon className="h-5 w-5 text-gray-400 mr-2" />
+                        <span className="text-sm font-medium text-gray-900">{company.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-lg font-bold ${getScoreColor(company.health_score)}`}>
+                          {company.health_score}%
+                        </span>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(company.health_status)}`}>
+                          {company.health_status.replace('_', ' ')}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {company.has_acn ? (
+                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {company.has_abn ? (
+                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                      ) : (
+                        <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`text-sm ${company.director_count > 0 ? 'text-gray-900' : 'text-red-600 font-medium'}`}>
+                        {company.director_count || 0}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex gap-1">
+                        {company.issues.length > 0 && (
+                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                            {company.issues.length} issues
+                          </span>
+                        )}
+                        {company.warnings.length > 0 && (
+                          <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+                            {company.warnings.length} warnings
+                          </span>
+                        )}
+                        {company.issues.length === 0 && company.warnings.length === 0 && (
+                          <span className="text-xs text-green-600">All clear</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Upcoming Compliance */}
       {upcomingCompliance.length > 0 && (
         <div className="bg-white shadow rounded-lg">
@@ -222,7 +323,7 @@ export default function CorporateDashboardPage() {
             </div>
             <div className="mt-4">
               <button
-                onClick={() => navigate('/corporate/companies')}
+                onClick={() => navigate('/corporate/compliance-calendar')}
                 className="text-sm text-indigo-600 hover:text-indigo-500"
               >
                 View all compliance items →

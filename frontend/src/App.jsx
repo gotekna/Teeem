@@ -270,7 +270,8 @@ function App() {
         <Route path="/corporate" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
         <Route path="/corporate/dashboard" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
         <Route path="/corporate/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
-        <Route path="/corporate/companies" element={<AppLayout><CompaniesPage /></AppLayout>} />
+        <Route path="/corporate/companies" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
+        <Route path="/corporate/companies/list" element={<AppLayout><CompaniesPage /></AppLayout>} />
         <Route path="/corporate/companies/new" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id/edit" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
