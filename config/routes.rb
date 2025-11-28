@@ -349,6 +349,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # User groups management
+      resources :user_groups, only: [:index, :create, :destroy]
+
       # Workflow management
       resources :workflow_definitions
       resources :workflow_steps, only: [:index, :show] do
