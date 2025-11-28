@@ -54,6 +54,11 @@ class UserOutlookCredential < ApplicationRecord
     access_token
   end
 
+  # Check if the credential is valid (has required tokens)
+  def valid_credential?
+    access_token.present? && refresh_token.present?
+  end
+
   private
 
   def tenant_id_or_common
