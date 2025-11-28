@@ -26,6 +26,7 @@ import CompanyShareholdingsTab from '../components/corporate/CompanyShareholding
 import CompanyLoansTab from '../components/corporate/CompanyLoansTab'
 import CompanyDividendsTab from '../components/corporate/CompanyDividendsTab'
 import CompanyMinutesTab from '../components/corporate/CompanyMinutesTab'
+import CompanyDirectorsTab from '../components/corporate/CompanyDirectorsTab'
 
 export default function CompanyDetailPage() {
   const { id } = useParams()
@@ -217,7 +218,7 @@ export default function CompanyDetailPage() {
       {/* Tab Content */}
       <div className="bg-white shadow rounded-lg p-6">
         {activeTab === 'overview' && <OverviewTab company={company} />}
-        {activeTab === 'directors' && <DirectorsTab company={company} onUpdate={loadCompany} />}
+        {activeTab === 'directors' && <CompanyDirectorsTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'shareholdings' && <CompanyShareholdingsTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'financial' && <CompanyFinancialTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'loans' && <CompanyLoansTab company={company} onUpdate={loadCompany} />}
@@ -290,6 +291,3 @@ function OverviewTab({ company }) {
   )
 }
 
-function DirectorsTab({ company, onUpdate }) {
-  return <div>Directors tab - Component will be created separately</div>
-}
