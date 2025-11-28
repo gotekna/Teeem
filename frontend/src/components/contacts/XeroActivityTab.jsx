@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import {
   ArrowPathIcon,
   CheckCircleIcon,
@@ -642,8 +642,8 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {activityFieldMappings.map(section => (
-                    <>
-                      <tr key={`section-${section.section}`} className="bg-gray-100 dark:bg-gray-700/50">
+                    <Fragment key={`section-${section.section}`}>
+                      <tr className="bg-gray-100 dark:bg-gray-700/50">
                         <td colSpan={3} className="px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
                           {section.section}
                         </td>
@@ -661,7 +661,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                           </td>
                         </tr>
                       ))}
-                    </>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

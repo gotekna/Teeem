@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowPathIcon,
@@ -708,9 +708,9 @@ export default function SyncConfigPage({ embedded = false }) {
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {ALL_FIELD_MAPPINGS.map((section) => (
-                      <>
+                      <Fragment key={`section-${section.section}`}>
                         {/* Section Header Row */}
-                        <tr key={`section-${section.section}`} className="bg-gray-100 dark:bg-gray-700/50">
+                        <tr className="bg-gray-100 dark:bg-gray-700/50">
                           <td colSpan={4} className="px-6 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                             {section.section}
                             {section.readOnly && (
@@ -762,7 +762,7 @@ export default function SyncConfigPage({ embedded = false }) {
                             </tr>
                           )
                         })}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>
