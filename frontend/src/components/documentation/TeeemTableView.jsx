@@ -550,6 +550,7 @@ export default function TeeemTableView({
   const [bulkUpdateValue, setBulkUpdateValue] = useState('')
   const [bulkUpdateSaving, setBulkUpdateSaving] = useState(false)
   const [bulkUpdateColumnSearch, setBulkUpdateColumnSearch] = useState('')
+  const [bulkUpdateValueSearch, setBulkUpdateValueSearch] = useState('')
 
   // Edit mode state - when true, all cells are unlocked for editing
   const [editModeActive, setEditModeActive] = useState(false)
@@ -9934,237 +9935,349 @@ export default function TeeemTableView({
 
       {/* Bulk Update Modal */}
       {showBulkUpdateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch('') }}>
-          <div className="flex min-h-screen items-start justify-center p-4 pt-16">
+        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}>
+          <div className="flex min-h-screen items-start justify-center p-4 pt-12">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
 
-            {/* Modal */}
+            {/* Modal - wider for side-by-side layout */}
             <div
-              className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6"
+              className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Bulk Update {selectedRows.size} {selectedRows.size === 1 ? 'Record' : 'Records'}
               </h3>
 
-              {/* Column Selection with Search */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select Column to Update
-                </label>
-                {/* Search input */}
-                <div className="relative mb-2">
-                  <input
-                    type="text"
-                    value={bulkUpdateColumnSearch}
-                    onChange={(e) => setBulkUpdateColumnSearch(e.target.value)}
-                    placeholder="Search columns..."
-                    className="w-full px-3 py-2 pl-9 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  />
-                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  {bulkUpdateColumnSearch && (
-                    <button
-                      onClick={() => setBulkUpdateColumnSearch('')}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-                {/* Column list - auto-sizes up to max-h-96 (384px), shows scrollbar when needed */}
-                <div className="max-h-96 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-100 dark:scrollbar-thumb-gray-600 dark:scrollbar-track-gray-800">
-                  {COLUMNS
-                    .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
-                    .filter(col => {
-                      if (!bulkUpdateColumnSearch) return true
-                      const label = (col.display_name || col.label || col.key).toLowerCase()
-                      return label.includes(bulkUpdateColumnSearch.toLowerCase())
-                    })
-                    .map(col => {
-                      const colKey = col.column_key || col.key
-                      const isSelected = bulkUpdateColumn === colKey
-                      return (
-                        <button
-                          key={col.key}
-                          onClick={() => {
-                            setBulkUpdateColumn(colKey)
-                            setBulkUpdateValue('')
-                            setBulkUpdateColumnSearch('')
-                          }}
-                          className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
-                            isSelected
-                              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
-                              : 'text-gray-900 dark:text-white'
-                          }`}
-                        >
-                          {col.display_name || col.label || col.key}
-                          {isSelected && (
-                            <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                      )
-                    })}
-                  {COLUMNS
-                    .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
-                    .filter(col => {
-                      if (!bulkUpdateColumnSearch) return true
-                      const label = (col.display_name || col.label || col.key).toLowerCase()
-                      return label.includes(bulkUpdateColumnSearch.toLowerCase())
-                    }).length === 0 && (
-                    <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
-                      No columns match "{bulkUpdateColumnSearch}"
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Value Input - depends on column type */}
-              {bulkUpdateColumn && (() => {
-                const selectedCol = COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)
-                const colType = selectedCol?.column_type
-
-                // Get choices/options from columnChoices state (fetched from API)
-                const availableChoices = selectedCol?.id ? (columnChoices[selectedCol.id] || []) : []
-
-                // For lookup columns, show dropdown with lookup options
-                if (colType === 'lookup' || colType === 'single_lookup') {
-                  const isObjectFormat = availableChoices.length > 0 && typeof availableChoices[0] === 'object'
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <select
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
-                        <option value="">-- Select a value --</option>
-                        {availableChoices.map((option, idx) => {
-                          if (isObjectFormat) {
-                            return (
-                              <option key={option.id || idx} value={option.id}>
-                                {option.display || option.name || `ID: ${option.id}`}
-                              </option>
-                            )
-                          }
-                          return (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          )
-                        })}
-                      </select>
-                    </div>
-                  )
-                }
-
-                // For choice/select columns, show dropdown
-                if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <select
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
-                        <option value="">-- Select a value --</option>
-                        {availableChoices.map(choice => (
-                          <option key={choice.value || choice} value={choice.value || choice}>
-                            {choice.label || choice.value || choice}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )
-                }
-
-                // For boolean columns
-                if (colType === 'boolean' || colType === 'checkbox') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <select
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
-                        <option value="">-- Select a value --</option>
-                        <option value="true">Yes / True</option>
-                        <option value="false">No / False</option>
-                      </select>
-                    </div>
-                  )
-                }
-
-                // For number columns
-                if (colType === 'number' || colType === 'integer' || colType === 'decimal' || colType === 'currency') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <input
-                        type="number"
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        placeholder="Enter number..."
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                  )
-                }
-
-                // For date columns
-                if (colType === 'date' || colType === 'datetime') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <input
-                        type={colType === 'datetime' ? 'datetime-local' : 'date'}
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                  )
-                }
-
-                // Default: text input
-                return (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      New Value
-                    </label>
+              {/* Side-by-side layout for Column and Value selection */}
+              <div className="grid grid-cols-2 gap-6">
+                {/* Column Selection with Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select Column to Update
+                  </label>
+                  {/* Search input with selected column display */}
+                  <div className="relative mb-2">
                     <input
                       type="text"
-                      value={bulkUpdateValue}
-                      onChange={(e) => setBulkUpdateValue(e.target.value)}
-                      placeholder="Enter new value..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={bulkUpdateColumnSearch}
+                      onChange={(e) => setBulkUpdateColumnSearch(e.target.value)}
+                      placeholder={bulkUpdateColumn
+                        ? COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)?.display_name ||
+                          COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)?.label ||
+                          bulkUpdateColumn
+                        : "Search columns..."}
+                      className={`w-full px-3 py-2 pl-9 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                        bulkUpdateColumn && !bulkUpdateColumnSearch
+                          ? 'border-indigo-500 dark:border-indigo-400'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}
                     />
+                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    {(bulkUpdateColumnSearch || bulkUpdateColumn) && (
+                      <button
+                        onClick={() => { setBulkUpdateColumnSearch(''); if (!bulkUpdateColumnSearch) { setBulkUpdateColumn(''); setBulkUpdateValue('') } }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
-                )
-              })()}
+                  {/* Column list */}
+                  <div className="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    {COLUMNS
+                      .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                      .filter(col => {
+                        if (!bulkUpdateColumnSearch) return true
+                        const label = (col.display_name || col.label || col.key).toLowerCase()
+                        return label.includes(bulkUpdateColumnSearch.toLowerCase())
+                      })
+                      .map(col => {
+                        const colKey = col.column_key || col.key
+                        const isSelected = bulkUpdateColumn === colKey
+                        return (
+                          <button
+                            key={col.key}
+                            onClick={() => {
+                              setBulkUpdateColumn(colKey)
+                              setBulkUpdateValue('')
+                              setBulkUpdateColumnSearch('')
+                              setBulkUpdateValueSearch('')
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                              isSelected
+                                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                : 'text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            {col.display_name || col.label || col.key}
+                            {isSelected && (
+                              <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        )
+                      })}
+                    {COLUMNS
+                      .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                      .filter(col => {
+                        if (!bulkUpdateColumnSearch) return true
+                        const label = (col.display_name || col.label || col.key).toLowerCase()
+                        return label.includes(bulkUpdateColumnSearch.toLowerCase())
+                      }).length === 0 && (
+                      <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No columns match "{bulkUpdateColumnSearch}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Value Selection - always visible */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    New Value
+                  </label>
+                  {!bulkUpdateColumn ? (
+                    <div className="h-[calc(100%-2rem)] border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                      <p className="text-sm text-gray-400 dark:text-gray-500">Select a column first</p>
+                    </div>
+                  ) : (() => {
+                    const selectedCol = COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)
+                    const colType = selectedCol?.column_type
+                    const availableChoices = selectedCol?.id ? (columnChoices[selectedCol.id] || []) : []
+
+                    // For lookup columns with searchable list
+                    if (colType === 'lookup' || colType === 'single_lookup') {
+                      const isObjectFormat = availableChoices.length > 0 && typeof availableChoices[0] === 'object'
+                      const filteredChoices = availableChoices.filter(option => {
+                        if (!bulkUpdateValueSearch) return true
+                        const label = isObjectFormat
+                          ? (option.display || option.name || '').toLowerCase()
+                          : String(option).toLowerCase()
+                        return label.includes(bulkUpdateValueSearch.toLowerCase())
+                      })
+                      const selectedOption = isObjectFormat
+                        ? availableChoices.find(o => String(o.id) === String(bulkUpdateValue))
+                        : bulkUpdateValue
+
+                      return (
+                        <>
+                          <div className="relative mb-2">
+                            <input
+                              type="text"
+                              value={bulkUpdateValueSearch}
+                              onChange={(e) => setBulkUpdateValueSearch(e.target.value)}
+                              placeholder={selectedOption
+                                ? (isObjectFormat ? (selectedOption.display || selectedOption.name) : selectedOption)
+                                : "Search values..."}
+                              className={`w-full px-3 py-2 pl-9 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                                bulkUpdateValue && !bulkUpdateValueSearch
+                                  ? 'border-indigo-500 dark:border-indigo-400'
+                                  : 'border-gray-300 dark:border-gray-600'
+                              }`}
+                            />
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {(bulkUpdateValueSearch || bulkUpdateValue) && (
+                              <button
+                                onClick={() => { setBulkUpdateValueSearch(''); if (!bulkUpdateValueSearch) setBulkUpdateValue('') }}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          <div className="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                            {filteredChoices.map((option, idx) => {
+                              const optionId = isObjectFormat ? option.id : option
+                              const optionLabel = isObjectFormat ? (option.display || option.name || `ID: ${option.id}`) : option
+                              const isSelected = String(bulkUpdateValue) === String(optionId)
+                              return (
+                                <button
+                                  key={optionId || idx}
+                                  onClick={() => { setBulkUpdateValue(String(optionId)); setBulkUpdateValueSearch('') }}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                                    isSelected
+                                      ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                      : 'text-gray-900 dark:text-white'
+                                  }`}
+                                >
+                                  {optionLabel}
+                                  {isSelected && (
+                                    <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )
+                            })}
+                            {filteredChoices.length === 0 && (
+                              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                {bulkUpdateValueSearch ? `No values match "${bulkUpdateValueSearch}"` : 'No options available'}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )
+                    }
+
+                    // For choice/select columns with searchable list
+                    if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
+                      const filteredChoices = availableChoices.filter(choice => {
+                        if (!bulkUpdateValueSearch) return true
+                        const label = (choice.label || choice.value || choice || '').toLowerCase()
+                        return label.includes(bulkUpdateValueSearch.toLowerCase())
+                      })
+                      const selectedChoice = availableChoices.find(c => (c.value || c) === bulkUpdateValue)
+
+                      return (
+                        <>
+                          <div className="relative mb-2">
+                            <input
+                              type="text"
+                              value={bulkUpdateValueSearch}
+                              onChange={(e) => setBulkUpdateValueSearch(e.target.value)}
+                              placeholder={selectedChoice
+                                ? (selectedChoice.label || selectedChoice.value || selectedChoice)
+                                : "Search values..."}
+                              className={`w-full px-3 py-2 pl-9 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                                bulkUpdateValue && !bulkUpdateValueSearch
+                                  ? 'border-indigo-500 dark:border-indigo-400'
+                                  : 'border-gray-300 dark:border-gray-600'
+                              }`}
+                            />
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {(bulkUpdateValueSearch || bulkUpdateValue) && (
+                              <button
+                                onClick={() => { setBulkUpdateValueSearch(''); if (!bulkUpdateValueSearch) setBulkUpdateValue('') }}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          <div className="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                            {filteredChoices.map((choice, idx) => {
+                              const choiceValue = choice.value || choice
+                              const choiceLabel = choice.label || choice.value || choice
+                              const isSelected = bulkUpdateValue === choiceValue
+                              return (
+                                <button
+                                  key={choiceValue || idx}
+                                  onClick={() => { setBulkUpdateValue(choiceValue); setBulkUpdateValueSearch('') }}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                                    isSelected
+                                      ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                      : 'text-gray-900 dark:text-white'
+                                  }`}
+                                >
+                                  {choiceLabel}
+                                  {isSelected && (
+                                    <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )
+                            })}
+                            {filteredChoices.length === 0 && (
+                              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                {bulkUpdateValueSearch ? `No values match "${bulkUpdateValueSearch}"` : 'No options available'}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )
+                    }
+
+                    // For boolean columns - simple list
+                    if (colType === 'boolean' || colType === 'checkbox') {
+                      const boolOptions = [
+                        { value: 'true', label: 'Yes / True' },
+                        { value: 'false', label: 'No / False' }
+                      ]
+                      return (
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                          {boolOptions.map(opt => {
+                            const isSelected = bulkUpdateValue === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => setBulkUpdateValue(opt.value)}
+                                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                                  isSelected
+                                    ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                    : 'text-gray-900 dark:text-white'
+                                }`}
+                              >
+                                {opt.label}
+                                {isSelected && (
+                                  <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    }
+
+                    // For number columns
+                    if (colType === 'number' || colType === 'integer' || colType === 'decimal' || colType === 'currency') {
+                      return (
+                        <input
+                          type="number"
+                          value={bulkUpdateValue}
+                          onChange={(e) => setBulkUpdateValue(e.target.value)}
+                          placeholder="Enter number..."
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      )
+                    }
+
+                    // For date columns
+                    if (colType === 'date' || colType === 'datetime') {
+                      return (
+                        <input
+                          type={colType === 'datetime' ? 'datetime-local' : 'date'}
+                          value={bulkUpdateValue}
+                          onChange={(e) => setBulkUpdateValue(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      )
+                    }
+
+                    // Default: text input
+                    return (
+                      <input
+                        type="text"
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder="Enter new value..."
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    )
+                  })()}
+                </div>
+              </div>
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 mt-6">
                 <button
-                  onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch('') }}
+                  onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
                   Cancel
@@ -10195,6 +10308,7 @@ export default function TeeemTableView({
 
                       setShowBulkUpdateModal(false)
                       setBulkUpdateColumnSearch('')
+                      setBulkUpdateValueSearch('')
                       setSelectedRows(new Set())
                       setShowDeleteButton(false)
                       console.log('✅ Bulk update completed')
