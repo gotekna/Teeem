@@ -8037,7 +8037,7 @@ export default function TeeemTableView({
                           </select>
                         )}
 
-                        {showFilters && (columnShowFilters[colKey] ?? true) && column.filterType === 'dropdown' && colKey !== 'component' && (
+                        {showFilters && (columnShowFilters[colKey] ?? true) && (column.filterType === 'dropdown' || column.column_type === 'lookup') && colKey !== 'component' && (
                           <select
                             value={columnFilterInputs[colKey] || ''}
                             onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}

@@ -42,12 +42,12 @@ class Api::V1::OutlookController < ApplicationController
 
     if error.present?
       Rails.logger.error "Outlook OAuth error: #{error} - #{error_description}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_description || error)}"
+      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_description || error)}", allow_other_host: true
       return
     end
 
     if code.blank?
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=No authorization code received"
+      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=No authorization code received", allow_other_host: true
       return
     end
 
@@ -86,15 +86,15 @@ class Api::V1::OutlookController < ApplicationController
       )
 
       Rails.logger.info "Outlook connected successfully for #{user_email}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_success=true"
+      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_success=true", allow_other_host: true
     else
       error_message = response.parse['error_description'] || response.parse['error'] || 'Failed to exchange code for token'
       Rails.logger.error "Failed to get Outlook token: #{response.status} - #{error_message}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_message)}"
+      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_message)}", allow_other_host: true
     end
   rescue => e
     Rails.logger.error "Error in Outlook callback: #{e.message}"
-    redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(e.message)}"
+    redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(e.message)}", allow_other_host: true
   end
 
   # GET /api/v1/outlook/status
