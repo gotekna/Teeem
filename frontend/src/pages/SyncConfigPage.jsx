@@ -526,23 +526,19 @@ export default function SyncConfigPage({ embedded = false }) {
 
       {/* Global Sync Direction Setting */}
       {selectedConfig && (
-        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Cog6ToothIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                  Global Sync Direction
-                </p>
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Applies to ALL contacts for {selectedConfig.xero_tenant_name || 'this organization'}
-                </p>
-              </div>
+              <Cog6ToothIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <p className="text-sm text-blue-800 dark:text-blue-300">
+                <span className="font-semibold">Global Sync Direction</span>
+                <span className="text-blue-600 dark:text-blue-400"> • {selectedConfig.xero_tenant_name || 'All Contacts'}</span>
+              </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <select
-                className="text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                className="text-sm border border-blue-300 dark:border-blue-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
                 value={selectedConfig.default_sync_direction || 'import_only'}
                 onChange={(e) => handleSyncDirectionChange(e.target.value)}
                 disabled={savingSyncDirection}
@@ -553,25 +549,9 @@ export default function SyncConfigPage({ embedded = false }) {
                 <option value="disabled">⏸ Disabled</option>
               </select>
               {savingSyncDirection && (
-                <ArrowPathIcon className="h-4 w-4 text-amber-600 animate-spin" />
+                <ArrowPathIcon className="h-4 w-4 text-blue-600 animate-spin" />
               )}
             </div>
-          </div>
-
-          {/* Explanation of current setting */}
-          <div className="mt-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 rounded p-2">
-            {selectedConfig.default_sync_direction === 'import_only' && (
-              <><strong>Import Only:</strong> Data flows from Xero to TEEEM. Xero is the source of truth. Changes in TEEEM won't push to Xero.</>
-            )}
-            {selectedConfig.default_sync_direction === 'export_only' && (
-              <><strong>Export Only:</strong> Data flows from TEEEM to Xero. TEEEM is the source of truth. Creates/updates contacts in Xero.</>
-            )}
-            {selectedConfig.default_sync_direction === 'bidirectional' && (
-              <><strong>Bidirectional:</strong> Data syncs both ways. Most recent change wins. Use with caution - conflicts may occur.</>
-            )}
-            {(selectedConfig.default_sync_direction === 'disabled' || !selectedConfig.default_sync_direction) && (
-              <><strong>Disabled:</strong> No automatic syncing. Manual sync only.</>
-            )}
           </div>
         </div>
       )}
