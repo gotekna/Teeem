@@ -120,7 +120,13 @@ Rails.application.routes.draw do
         end
 
         # Rain logs (nested under jobs)
-        resources :rain_logs, only: [:index, :show, :create, :update, :destroy]
+        resources :rain_logs, only: [:index, :show, :create, :update, :destroy] do
+          collection do
+            get :weather_status
+            post :fetch_weather
+            post :auto_log
+          end
+        end
 
         # Meetings (nested under jobs)
         resources :meetings, only: [:index, :create]
@@ -861,6 +867,17 @@ Rails.application.routes.draw do
           get :health
         end
       end
+
+      # External Invoices (cached invoice data from Xero/MYOB/QuickBooks)
+      resources :external_invoices, only: [:index, :show] do
+        collection do
+          get :sync_status
+          get :by_tracking
+          post :trigger_sync
+        end
+      end
+      get 'external_invoices/by_job/:job_id', to: 'external_invoices#by_job', as: :external_invoices_by_job
+      get 'external_invoices/by_contact/:contact_id', to: 'external_invoices#by_contact', as: :external_invoices_by_contact
 
       # OneDrive integration (per-job - legacy)
       get 'onedrive/authorize', to: 'one_drive#authorize'
