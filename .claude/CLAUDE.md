@@ -10,6 +10,24 @@
 - NEVER ask the user to create PRs or merge to Live - they will handle this themselves
 - NEVER mention "ready for PR" or "create a PR" - just push to the feature branch and move on
 
+### After Pushing to Rob Branch
+
+When you push to the `rob` branch, ALWAYS:
+
+1. **Check if GitHub Actions workflow triggered** - if not, manually trigger:
+   ```bash
+   gh workflow run "Deploy Backend Staging (Rob's Branch) to Heroku" --ref rob
+   ```
+
+2. **Wait for deploy to complete** (~60 seconds)
+
+3. **Sync local version to match staging:**
+   ```bash
+   cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
+   ```
+
+**Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version.
+
 ---
 
 ## 🔴 CRITICAL: Efficient Documentation Access

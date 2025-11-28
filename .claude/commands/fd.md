@@ -96,37 +96,47 @@ git pull origin rob --rebase
 git push origin rob
 ```
 
-### Step 6 - Monitor GitHub Actions Deployment
+### Step 6 - Monitor GitHub Actions & Trigger if Needed
 ```bash
 # Wait for workflows to start
 sleep 5
-gh run list --limit 3
+gh run list --limit 3 --branch rob
 ```
 
-### Step 7 - Wait and Verify Deployment (RUN IN PARALLEL after ~60s)
+**If workflow didn't auto-trigger** (check if latest run matches your commit):
 ```bash
+# Manually trigger the deploy workflow
+gh workflow run "Deploy Backend Staging (Rob's Branch) to Heroku" --ref rob
+
+# Wait and verify it started
+sleep 5
+gh run list --limit 3 --branch rob
+```
+
+### Step 7 - Wait for Deploy to Complete
+```bash
+# Wait for deploy (~60s)
+sleep 60
+
 # Check GitHub Actions status
-gh run list --limit 2
+gh run list --limit 2 --branch rob
 
 # Verify backend is up
 curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 
 # Check frontend
-curl -s -o /dev/null -w "%{http_code}" https://teeem.vercel.app/
+curl -s -o /dev/null -w "%{http_code}" https://teeemrob.vercel.app/
 ```
 
 ### Step 8 - Sync Local Version with Staging
 
-**After successful deploy, sync local version number to match staging:**
+**After deploy completes, sync local version to match staging:**
 ```bash
-# Get staging version number
-STAGING_VERSION=$(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '"version":"v[0-9]*"' | grep -o '[0-9]*')
-
-# Update local database to match
-cd backend && bin/rails runner "Version.current.update(current_version: ${STAGING_VERSION})"
+# Sync local to match staging
+cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
 ```
 
-This keeps local and staging version numbers in sync.
+**Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version number.
 
 ### Step 9 - Report Status
 - ✅ Branch: rob
