@@ -1,7 +1,7 @@
 class CorporateOnedriveService
   attr_reader :credential, :results, :folder_path
 
-  DEFAULT_FOLDER_PATH = "00 - TEEEM/Corporate"
+  DEFAULT_FOLDER_PATH = "Corporate"
 
   def initialize(credential = nil, folder_path: nil)
     @credential = credential || OrganizationOneDriveCredential.active_credential
