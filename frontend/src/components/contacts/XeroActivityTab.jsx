@@ -641,28 +641,26 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {activityFieldMappings.map(section => (
-                    <Fragment key={`section-${section.section}`}>
-                      <tr className="bg-gray-100 dark:bg-gray-700/50">
-                        <td colSpan={3} className="px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
-                          {section.section}
+                  {activityFieldMappings.flatMap(section => [
+                    <tr key={`section-${section.section}`} className="bg-gray-100 dark:bg-gray-700/50">
+                      <td colSpan={3} className="px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase">
+                        {section.section}
+                      </td>
+                    </tr>,
+                    ...section.fields.map(field => (
+                      <tr key={`${section.section}-${field.xeroField}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
+                          {field.xeroField}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 font-mono">
+                          {field.teeemField}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400">
+                          Xero → TEEEM
                         </td>
                       </tr>
-                      {section.fields.map(field => (
-                        <tr key={field.xeroField} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-4 py-2 text-sm font-medium text-gray-900 dark:text-white">
-                            {field.xeroField}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 font-mono">
-                            {field.teeemField}
-                          </td>
-                          <td className="px-4 py-2 text-sm text-blue-600 dark:text-blue-400">
-                            Xero → TEEEM
-                          </td>
-                        </tr>
-                      ))}
-                    </Fragment>
-                  ))}
+                    ))
+                  ])}
                 </tbody>
               </table>
             </div>
