@@ -68,4 +68,32 @@ namespace :email_warehouse do
     end
     puts "Done. Total emails in warehouse: #{EmailWarehouse.count}"
   end
+
+  desc "Auto-match all unassigned emails to jobs"
+  task auto_match: :environment do
+    unassigned = EmailWarehouse.unassigned
+    total = unassigned.count
+    matched = 0
+
+    puts "Auto-matching #{total} unassigned emails..."
+
+    unassigned.find_each.with_index do |email, index|
+      if (index + 1) % 100 == 0
+        puts "  Progress: #{index + 1}/#{total} (#{matched} matched so far)"
+      end
+
+      begin
+        job = email.auto_assign_to_job!(min_confidence: 0.7)
+        matched += 1 if job
+      rescue => e
+        puts "  Error matching email #{email.id}: #{e.message}"
+      end
+    end
+
+    puts ""
+    puts "Auto-matching complete!"
+    puts "  Total processed: #{total}"
+    puts "  Matched to jobs: #{matched}"
+    puts "  Still unassigned: #{EmailWarehouse.unassigned.count}"
+  end
 end
