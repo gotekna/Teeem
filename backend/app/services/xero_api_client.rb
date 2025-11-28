@@ -128,13 +128,20 @@ class XeroApiClient
   end
 
   # Make authenticated GET request to Xero API
+  # Options can include :tenant_id to specify which tenant to use
   def get(endpoint, params = {})
-    make_request(:get, endpoint, params)
+    # Extract tenant_id from params if provided
+    options = {}
+    if params.is_a?(Hash) && params[:tenant_id].present?
+      options[:tenant_id] = params.delete(:tenant_id)
+    end
+    make_request(:get, endpoint, params, options)
   end
 
   # Make authenticated POST request to Xero API
-  def post(endpoint, data = {})
-    make_request(:post, endpoint, data)
+  # Options can include :tenant_id to specify which tenant to use
+  def post(endpoint, data = {}, options = {})
+    make_request(:post, endpoint, data, options)
   end
 
   # Make authenticated PUT request to Xero API
@@ -331,8 +338,15 @@ class XeroApiClient
     end
   end
 
-  def make_request(method, endpoint, data = {})
-    credential = XeroCredential.current
+  def make_request(method, endpoint, data = {}, options = {})
+    # Support specifying a specific tenant_id
+    tenant_id = options[:tenant_id]
+
+    credential = if tenant_id.present?
+      XeroCredential.find_by(tenant_id: tenant_id) || XeroCredential.current
+    else
+      XeroCredential.current
+    end
 
     unless credential
       raise AuthenticationError, 'Not authenticated with Xero'
@@ -350,7 +364,7 @@ class XeroApiClient
     end
 
     # Refresh token if expired
-    refresh_access_token if credential.expired?
+    refresh_access_token_for(credential) if credential.expired?
 
     # Reload credential to get updated token
     credential.reload
