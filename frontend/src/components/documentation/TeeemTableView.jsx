@@ -8397,7 +8397,7 @@ export default function TeeemTableView({
                                     ['title', 'content'].includes(colKey) && !editModeActive ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
                                   } ${
                                     editModeActive && colKey !== 'select' && colKey !== 'id' && colKey !== 'user_id' && !column.isComputed ? 'cursor-pointer' : ''
-                                  } ${autoFitColumns ? '' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
+                                  } ${autoFitColumns ? 'whitespace-nowrap' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
                                 >
                                   {renderCellContent(entry, colKey)}
                                 </td>
@@ -8600,7 +8600,7 @@ export default function TeeemTableView({
                       } ${
                         // Edit mode: make all cells clickable except select, id, user_id, and computed
                         editModeActive && colKey !== 'select' && colKey !== 'id' && colKey !== 'user_id' && !column.isComputed ? 'cursor-pointer' : ''
-                      } ${autoFitColumns ? '' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
+                      } ${autoFitColumns ? 'whitespace-nowrap' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
                     >
                       {renderCellContent(entry, colKey)}
                     </td>
