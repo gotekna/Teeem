@@ -191,12 +191,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     },
     {
       section: 'Addresses',
-      readOnly: true,
-      readOnlyMessage: 'Address sync not yet implemented - view only from Xero',
       fields: [
-        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: 'xero_only' },
-        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: 'xero_only' },
-        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: 'xero_only' }
+        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: 'synced' },
+        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: 'synced' },
+        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: 'synced' }
       ]
     },
     {

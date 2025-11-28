@@ -1169,13 +1169,17 @@ module Api
 
         @contact.update!(updates)
 
+        # Sync addresses from Xero (two-way sync - TEEEM is source of truth)
+        sync_addresses_from_xero(xero_contact['Addresses'])
+
         render json: {
           success: true,
           message: 'Contact synced from Xero successfully (legacy)',
           contact: @contact.reload.as_json(
             only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
                    :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
-                   :tax_number, :accounts_payable_outstanding, :accounts_receivable_outstanding]
+                   :tax_number, :accounts_payable_outstanding, :accounts_receivable_outstanding],
+            include: { contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country] } }
           )
         }
       rescue => e
@@ -1401,6 +1405,54 @@ module Api
         @contact = Contact.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Contact not found" }, status: :not_found
+      end
+
+      # Sync addresses from Xero to TEEEM (two-way sync)
+      # TEEEM is source of truth - only create/update if TEEEM doesn't have the address type
+      def sync_addresses_from_xero(xero_addresses)
+        return unless xero_addresses.is_a?(Array)
+
+        xero_addresses.each do |xero_addr|
+          address_type = xero_addr['AddressType']
+          next unless address_type.present? && ContactAddress::ADDRESS_TYPES.include?(address_type)
+
+          # Check if TEEEM already has this address type
+          existing = @contact.contact_addresses.find_by(address_type: address_type)
+
+          if existing
+            # TEEEM has this address - only update if TEEEM address is empty
+            if existing.line1.blank? && existing.city.blank?
+              existing.update!(
+                line1: xero_addr['AddressLine1'],
+                line2: xero_addr['AddressLine2'],
+                line3: xero_addr['AddressLine3'],
+                line4: xero_addr['AddressLine4'],
+                city: xero_addr['City'],
+                region: xero_addr['Region'],
+                postal_code: xero_addr['PostalCode'],
+                country: xero_addr['Country']
+              )
+              Rails.logger.info("Updated empty #{address_type} address for contact #{@contact.id} from Xero")
+            end
+          else
+            # TEEEM doesn't have this address type - create it from Xero
+            # Only create if Xero has actual address data
+            if xero_addr['AddressLine1'].present? || xero_addr['City'].present?
+              @contact.contact_addresses.create!(
+                address_type: address_type,
+                line1: xero_addr['AddressLine1'],
+                line2: xero_addr['AddressLine2'],
+                line3: xero_addr['AddressLine3'],
+                line4: xero_addr['AddressLine4'],
+                city: xero_addr['City'],
+                region: xero_addr['Region'],
+                postal_code: xero_addr['PostalCode'],
+                country: xero_addr['Country']
+              )
+              Rails.logger.info("Created #{address_type} address for contact #{@contact.id} from Xero")
+            end
+          end
+        end
       end
 
       def handle_contact_groups
