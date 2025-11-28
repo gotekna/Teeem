@@ -727,6 +727,66 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     }
   }
 
+  // Push changes from TEEEM to Xero
+  const handleSyncToXero = async () => {
+    const xeroContactId = selectedLink?.xero_contact_id
+    if (!xeroContactId) {
+      setSyncError('Contact must be linked to Xero first')
+      return
+    }
+
+    setSyncing(true)
+    setSyncError(null)
+
+    try {
+      const tenantParam = selectedLink?.xero_tenant_id ? `?tenant_id=${selectedLink.xero_tenant_id}` : ''
+      const response = await api.post(`/api/v1/contacts/${contact.id}/sync_to_xero${tenantParam}`)
+      if (response.success) {
+        onContactUpdate(response.contact)
+      } else {
+        setSyncError(response.error || 'Failed to push to Xero')
+      }
+    } catch (error) {
+      setSyncError(error.message || 'Failed to push to Xero')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  // Bidirectional sync - pull from Xero then push to Xero
+  const handleBidirectionalSync = async () => {
+    const xeroContactId = selectedLink?.xero_contact_id
+    if (!xeroContactId) {
+      setSyncError('Contact must be linked to Xero first')
+      return
+    }
+
+    setSyncing(true)
+    setSyncError(null)
+
+    try {
+      // First pull from Xero
+      const pullResponse = await api.post(`/api/v1/contacts/${contact.id}/sync_from_xero`)
+      if (!pullResponse.success) {
+        setSyncError(pullResponse.error || 'Failed to pull from Xero')
+        return
+      }
+
+      // Then push TEEEM changes to Xero
+      const tenantParam = selectedLink?.xero_tenant_id ? `?tenant_id=${selectedLink.xero_tenant_id}` : ''
+      const pushResponse = await api.post(`/api/v1/contacts/${contact.id}/sync_to_xero${tenantParam}`)
+      if (pushResponse.success) {
+        onContactUpdate(pushResponse.contact)
+      } else {
+        setSyncError(pushResponse.error || 'Failed to push to Xero')
+      }
+    } catch (error) {
+      setSyncError(error.message || 'Failed to sync with Xero')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const handleChangeToSoleTrader = async () => {
     if (!confirm('Change this contact from Person to Sole Trader (Company)?\n\nThis will:\n1. Update entity_type to "company"\n2. Create a ContactPerson record with the same details\n3. Mark as primary contact\n\nThis matches Xero\'s model where sole traders are companies with a primary contact person.')) {
       return
@@ -847,6 +907,19 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
             Settings
           </Link>
           <button
+            onClick={handleSyncToXero}
+            disabled={syncing || !hasXeroConnection}
+            className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              hasXeroConnection
+                ? 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+            title="Push TEEEM changes to Xero"
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Pushing...' : 'Push to Xero'}
+          </button>
+          <button
             onClick={handleSync}
             disabled={syncing || !hasXeroConnection}
             className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
@@ -854,9 +927,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                 ? 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
+            title="Pull data from Xero"
           >
             <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync from Xero'}
+            {syncing ? 'Pulling...' : 'Pull from Xero'}
           </button>
         </div>
       </div>

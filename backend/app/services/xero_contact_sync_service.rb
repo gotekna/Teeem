@@ -154,6 +154,25 @@ class XeroContactSyncService
     { success: false, error: e.message }
   end
 
+  # Sync from TEEEM to Xero - push contact changes to Xero
+  def sync_to_xero(contact, link)
+    return { success: false, error: 'No Xero link provided' } unless link&.xero_contact_id.present?
+
+    result = update_xero_contact(contact, link)
+
+    if result[:success]
+      contact.update!(last_synced_at: Time.current, xero_sync_error: nil)
+      { success: true, contact: contact.reload }
+    else
+      { success: false, error: result[:error] }
+    end
+  rescue StandardError => e
+    error_msg = "Failed to sync to Xero: #{e.message}"
+    link.update!(sync_error: error_msg)
+    contact.update!(xero_sync_error: error_msg)
+    { success: false, error: error_msg }
+  end
+
   # Make methods public for use by XeroContactSyncJob
   def fetch_xero_contacts(tenant_id = nil)
     options = {}
