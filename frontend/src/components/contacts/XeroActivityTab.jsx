@@ -801,6 +801,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Item</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Description</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Job/Tracking</th>
                           <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qty</th>
                           <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Unit Price</th>
                           <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
@@ -811,6 +812,11 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                           <tr key={idx}>
                             <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{item.ItemCode || '-'}</td>
                             <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">{item.Description}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                              {item.Tracking?.length > 0
+                                ? item.Tracking.map(t => t.Option || t.Name).join(', ')
+                                : '-'}
+                            </td>
                             <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">{item.Quantity}</td>
                             <td className="px-4 py-3 text-sm text-right text-gray-900 dark:text-white">{formatCurrency(item.UnitAmount)}</td>
                             <td className="px-4 py-3 text-sm text-right font-medium text-gray-900 dark:text-white">{formatCurrency(item.LineAmount)}</td>
