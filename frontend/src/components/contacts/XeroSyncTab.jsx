@@ -167,6 +167,29 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     setExpandedSections(allCollapsed)
   }
 
+  // Helper to get Xero address by type
+  const getXeroAddress = (type) => {
+    if (!xeroContactData?.Addresses) return null
+    return xeroContactData.Addresses.find(a => a.AddressType === type)
+  }
+
+  // Helper to check if Xero address has data
+  const xeroAddressHasData = (type) => {
+    const addr = getXeroAddress(type)
+    if (!addr) return false
+    return addr.AddressLine1 || addr.City
+  }
+
+  // Helper to determine sync status for address fields
+  const getAddressSyncStatus = (type) => {
+    const teeemAddr = contact?.contact_addresses?.find(a => a.address_type === type)
+    const xeroHasData = xeroAddressHasData(type)
+
+    if (teeemAddr && (teeemAddr.line1 || teeemAddr.city)) return 'synced'
+    if (xeroHasData) return 'synced' // Will sync when user clicks sync
+    return 'empty_in_xero'
+  }
+
   // Define the field mappings between Xero and TEEEM
   const fieldMappings = [
     {
@@ -192,9 +215,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     {
       section: 'Addresses',
       fields: [
-        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: 'synced' },
-        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: 'synced' },
-        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: 'synced' }
+        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: getAddressSyncStatus('STREET') },
+        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: getAddressSyncStatus('POBOX') },
+        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: getAddressSyncStatus('DELIVERY') }
       ]
     },
     {
@@ -521,6 +544,14 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       case 'enabled':
       case 'ok':
         return <CheckCircleIcon className="h-5 w-5 text-green-500" />
+      case 'empty_in_xero':
+        // Empty circle/dash icon for fields that exist but are empty in Xero
+        return (
+          <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9" strokeWidth={2} />
+            <path strokeLinecap="round" strokeWidth={2} d="M8 12h8" />
+          </svg>
+        )
       case 'not_linked':
       case 'disabled':
       case 'never':
@@ -551,6 +582,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     switch (status) {
       case 'synced': return 'Synced'
       case 'not_linked': return 'Not Linked'
+      case 'empty_in_xero': return 'Empty in Xero'
       case 'read_only': return 'Read Only (Xero)'
       case 'xero_only': return 'View Only (Xero)'
       case 'enabled': return 'Enabled'
@@ -1364,10 +1396,17 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       {/* Legend */}
       <div className="mt-8 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Status Legend</h4>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
           <div className="flex items-center gap-2">
             <CheckCircleIcon className="h-4 w-4 text-green-500" />
             <span className="text-gray-700 dark:text-gray-300">Synced</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="9" strokeWidth={2} />
+              <path strokeLinecap="round" strokeWidth={2} d="M8 12h8" />
+            </svg>
+            <span className="text-gray-700 dark:text-gray-300">Empty in Xero</span>
           </div>
           <div className="flex items-center gap-2">
             <XCircleIcon className="h-4 w-4 text-gray-400" />
@@ -1392,7 +1431,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           </div>
         </div>
         <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
-          <strong>View Only</strong> fields show data from Xero but are not synced to TEEEM. <strong>Read Only</strong> fields are synced from Xero - edit in Xero to update.
+          <strong>Empty in Xero</strong> = field is synced but has no data in Xero. <strong>View Only</strong> = shows Xero data but not synced to TEEEM. <strong>Read Only</strong> = synced from Xero - edit in Xero to update.
         </p>
       </div>
 
