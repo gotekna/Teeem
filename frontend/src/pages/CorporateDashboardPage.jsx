@@ -102,19 +102,28 @@ export default function CorporateDashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6">
         {statCards.map((stat) => {
           const Icon = stat.icon
+          // Determine colors based on alertColor or default
+          const getColors = () => {
+            if (stat.alertColor === 'green') return { bg: 'bg-green-500', ring: 'ring-green-500' }
+            if (stat.alertColor === 'yellow') return { bg: 'bg-yellow-500', ring: 'ring-yellow-500' }
+            if (stat.alertColor === 'red') return { bg: 'bg-red-500', ring: 'ring-red-500' }
+            if (stat.alert) return { bg: 'bg-orange-500', ring: 'ring-orange-500' }
+            return { bg: 'bg-indigo-500', ring: '' }
+          }
+          const colors = getColors()
           return (
             <div
               key={stat.name}
               onClick={() => navigate(stat.href)}
               className={`relative overflow-hidden rounded-lg bg-white px-4 py-5 shadow cursor-pointer hover:shadow-md transition-shadow ${
-                stat.alert ? 'ring-2 ring-orange-500' : ''
+                colors.ring ? `ring-2 ${colors.ring}` : ''
               }`}
             >
               <dt>
-                <div className={`absolute rounded-md p-3 ${stat.alert ? 'bg-orange-500' : 'bg-indigo-500'}`}>
+                <div className={`absolute rounded-md p-3 ${colors.bg}`}>
                   <Icon className="h-6 w-6 text-white" aria-hidden="true" />
                 </div>
                 <p className="ml-16 truncate text-sm font-medium text-gray-500">{stat.name}</p>
