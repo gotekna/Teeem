@@ -6,7 +6,9 @@ import {
   TruckIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  ClockIcon
+  ClockIcon,
+  DocumentTextIcon,
+  CalendarDaysIcon
 } from '@heroicons/react/24/outline'
 import api from '../api'
 
@@ -140,6 +142,20 @@ export default function CorporateDashboardPage() {
             >
               <UserGroupIcon className="h-5 w-5 mr-2" />
               View Directors
+            </button>
+            <button
+              onClick={() => navigate('/corporate/compliance-calendar')}
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <CalendarDaysIcon className="h-5 w-5 mr-2" />
+              Compliance Calendar
+            </button>
+            <button
+              onClick={() => navigate('/corporate/minute-templates')}
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <DocumentTextIcon className="h-5 w-5 mr-2" />
+              Minute Templates
             </button>
             <button
               onClick={() => navigate('/corporate/xero')}
