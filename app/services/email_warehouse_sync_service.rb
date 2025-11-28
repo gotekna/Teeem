@@ -145,7 +145,7 @@ class EmailWarehouseSyncService
       "$top=#{BATCH_SIZE}",
       "$skip=#{skip}",
       "$orderby=receivedDateTime DESC",
-      "$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,body,internetMessageId,conversationId,importance,isRead,inReplyTo"
+      "$select=id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,body,internetMessageId,conversationId,importance,isRead"
     ]
 
     url = "#{OutlookService::GRAPH_API_BASE}#{endpoint}?#{params.join('&')}"
@@ -185,8 +185,7 @@ class EmailWarehouseSyncService
         sent_at: email['sentDateTime'],
         has_attachments: email['hasAttachments'] || false,
         importance: email['importance'],
-        is_read: email['isRead'],
-        in_reply_to: email['inReplyTo']
+        is_read: email['isRead']
       }
     end
   end
