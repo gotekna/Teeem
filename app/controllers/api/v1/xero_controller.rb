@@ -102,6 +102,23 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/tenants
+      # Returns all available Xero tenants (organizations) from stored credentials
+      def tenants
+        tenants = XeroCredential.all.map do |cred|
+          {
+            tenant_id: cred.tenant_id,
+            tenant_name: cred.tenant_name,
+            connected_at: cred.created_at
+          }
+        end
+
+        render json: {
+          success: true,
+          tenants: tenants
+        }
+      end
+
       # DELETE /api/v1/xero/disconnect
       # Disconnects from Xero and removes stored credentials
       def disconnect
