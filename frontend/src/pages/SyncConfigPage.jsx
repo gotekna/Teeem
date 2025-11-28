@@ -53,6 +53,81 @@ function DirectionArrow({ direction }) {
   }
 }
 
+// All field mappings grouped by section - mirrors XeroSyncTab
+const ALL_FIELD_MAPPINGS = [
+  {
+    section: 'Basic Information',
+    fields: [
+      { field: 'full_name', xeroField: 'Name', label: 'Contact Name', readOnly: false },
+      { field: 'first_name', xeroField: 'FirstName', label: 'First Name', readOnly: false },
+      { field: 'last_name', xeroField: 'LastName', label: 'Last Name', readOnly: false },
+      { field: 'email', xeroField: 'EmailAddress', label: 'Email', readOnly: false },
+      { field: 'contact_types', xeroField: 'IsSupplier/IsCustomer', label: 'Contact Types', readOnly: false },
+      { field: 'xero_id', xeroField: 'ContactID', label: 'Xero ID', readOnly: true }
+    ]
+  },
+  {
+    section: 'Contact Details',
+    fields: [
+      { field: 'mobile_phone', xeroField: 'PhoneNumber (Mobile)', label: 'Mobile Phone', readOnly: false },
+      { field: 'office_phone', xeroField: 'PhoneNumber (Office)', label: 'Office Phone', readOnly: false },
+      { field: 'fax_phone', xeroField: 'PhoneNumber (Fax)', label: 'Fax', readOnly: false },
+      { field: 'website', xeroField: 'Website', label: 'Website', readOnly: false }
+    ]
+  },
+  {
+    section: 'Addresses',
+    fields: [
+      { field: 'address_street', xeroField: 'Address (STREET)', label: 'Street Address', readOnly: false },
+      { field: 'address_pobox', xeroField: 'Address (POBOX)', label: 'PO Box Address', readOnly: false },
+      { field: 'address_delivery', xeroField: 'Address (DELIVERY)', label: 'Delivery Address', readOnly: false }
+    ]
+  },
+  {
+    section: 'Tax & Registration',
+    readOnly: true,
+    fields: [
+      { field: 'tax_number', xeroField: 'TaxNumber', label: 'ABN/Tax Number', readOnly: false },
+      { field: 'xero_account_number', xeroField: 'AccountNumber', label: 'Account Number', readOnly: true },
+      { field: 'xero_contact_number', xeroField: 'ContactNumber', label: 'Contact Number', readOnly: true },
+      { field: 'xero_contact_status', xeroField: 'ContactStatus', label: 'Contact Status', readOnly: true },
+      { field: 'company_number', xeroField: 'CompanyNumber', label: 'Company Number', readOnly: true }
+    ]
+  },
+  {
+    section: 'Purchase (Accounts Payable)',
+    readOnly: true,
+    fields: [
+      { field: 'default_purchase_account', xeroField: 'DefaultPurchaseAccount', label: 'Default Purchase Account', readOnly: true },
+      { field: 'bill_due_day', xeroField: 'PurchaseTerms (Days)', label: 'Bill Due Day', readOnly: true },
+      { field: 'bill_due_type', xeroField: 'PurchaseTerms (Type)', label: 'Bill Due Type', readOnly: true },
+      { field: 'accounts_payable_outstanding', xeroField: 'AccountsPayable Outstanding', label: 'AP Outstanding', readOnly: true },
+      { field: 'accounts_payable_overdue', xeroField: 'AccountsPayable Overdue', label: 'AP Overdue', readOnly: true }
+    ]
+  },
+  {
+    section: 'Sales (Accounts Receivable)',
+    readOnly: true,
+    fields: [
+      { field: 'default_sales_account', xeroField: 'DefaultSalesAccount', label: 'Default Sales Account', readOnly: true },
+      { field: 'default_discount', xeroField: 'DefaultDiscount', label: 'Default Discount', readOnly: true },
+      { field: 'sales_due_day', xeroField: 'SalesTerms (Days)', label: 'Sales Due Day', readOnly: true },
+      { field: 'sales_due_type', xeroField: 'SalesTerms (Type)', label: 'Sales Due Type', readOnly: true },
+      { field: 'accounts_receivable_outstanding', xeroField: 'AccountsReceivable Outstanding', label: 'AR Outstanding', readOnly: true },
+      { field: 'accounts_receivable_overdue', xeroField: 'AccountsReceivable Overdue', label: 'AR Overdue', readOnly: true }
+    ]
+  },
+  {
+    section: 'Bank Details',
+    readOnly: true,
+    fields: [
+      { field: 'bank_bsb', xeroField: 'BankAccountBSB', label: 'Bank BSB', readOnly: true },
+      { field: 'bank_account_number', xeroField: 'BankAccountNumber', label: 'Bank Account Number', readOnly: true },
+      { field: 'bank_account_name', xeroField: 'BankAccountName', label: 'Bank Account Name', readOnly: true }
+    ]
+  }
+]
+
 // Badge component for accounting system
 function AccountingBadge({ system }) {
   const colors = {
@@ -605,12 +680,12 @@ export default function SyncConfigPage({ embedded = false }) {
               </div>
             </div>
 
-            {/* Field Mapping Table */}
+            {/* Field Mapping Table - mirrors XeroSyncTab layout with sections */}
             <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
               <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">Field Mappings</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Configure which fields sync in which direction.
+                  Configure sync direction for each field. Read-only fields can only sync from Xero.
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -618,55 +693,77 @@ export default function SyncConfigPage({ embedded = false }) {
                   <thead className="bg-gray-50 dark:bg-gray-900/50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        TEEEM Field
-                      </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Direction
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Xero Field
                       </th>
-                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Required
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        TEEEM Field
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Status
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Sync
                       </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {fieldMappings.map((field) => {
-                      const mapping = selectedConfig.field_mappings?.[field.field] || { direction: 'bidirectional' }
-                      return (
-                        <tr key={field.field}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                            {field.label}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <DirectionArrow direction={mapping.direction} />
-                              <select
-                                value={mapping.direction || 'bidirectional'}
-                                onChange={(e) => handleFieldDirectionChange(field.field, e.target.value)}
-                                className="ml-2 text-sm border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                              >
-                                <option value="bidirectional">Two-way</option>
-                                <option value="import">Import only</option>
-                                <option value="export">Export only</option>
-                                <option value="none">Don't sync</option>
-                              </select>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {field.xero_field}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            {field.required ? (
-                              <CheckCircleIcon className="h-5 w-5 text-green-500 mx-auto" />
-                            ) : (
-                              <span className="text-gray-400">-</span>
+                    {ALL_FIELD_MAPPINGS.map((section) => (
+                      <>
+                        {/* Section Header Row */}
+                        <tr key={`section-${section.section}`} className="bg-gray-100 dark:bg-gray-700/50">
+                          <td colSpan={4} className="px-6 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                            {section.section}
+                            {section.readOnly && (
+                              <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                                (Synced from Xero - edit in Xero to update)
+                              </span>
                             )}
                           </td>
                         </tr>
-                      )
-                    })}
+                        {/* Field Rows */}
+                        {section.fields.map((field) => {
+                          const mapping = selectedConfig.field_mappings?.[field.field] || { direction: 'import' }
+                          const isReadOnly = field.readOnly
+                          return (
+                            <tr key={field.field} className={isReadOnly ? 'bg-gray-50 dark:bg-gray-800/50' : ''}>
+                              <td className="px-6 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                                {field.xeroField}
+                              </td>
+                              <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
+                                {field.field}
+                              </td>
+                              <td className="px-6 py-3 whitespace-nowrap text-sm">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                                  <span className="text-gray-700 dark:text-gray-300">Enabled</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-3 whitespace-nowrap text-sm">
+                                {isReadOnly ? (
+                                  <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                    Xero → TEEEM
+                                  </span>
+                                ) : (
+                                  <select
+                                    value={mapping.direction || 'import'}
+                                    onChange={(e) => handleFieldDirectionChange(field.field, e.target.value)}
+                                    className="text-sm border border-blue-300 dark:border-blue-700 rounded-lg px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                                  >
+                                    <option value="import">Xero → TEEEM</option>
+                                    <option value="export">TEEEM → Xero</option>
+                                    <option value="bidirectional">↔ Both Ways</option>
+                                    <option value="none">Disabled</option>
+                                  </select>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </>
+                    ))}
                   </tbody>
                 </table>
               </div>
