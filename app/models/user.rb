@@ -17,7 +17,7 @@ class User < ApplicationRecord
   validates :password, length: { minimum: 8 }, if: :password_required?
   validate :password_complexity, if: :password_required?
   validates :role, inclusion: { in: ROLES }
-  validates :assigned_role, inclusion: { in: ASSIGNABLE_ROLES }, allow_nil: true
+  validate :validate_assigned_roles
 
   # Role helper methods
   def admin?
@@ -129,7 +129,26 @@ class User < ApplicationRecord
     provider.present? && uid.present?
   end
 
+  # Helper method to check if user has a specific assigned role
+  def has_assigned_role?(role_name)
+    assigned_roles&.include?(role_name.to_s)
+  end
+
   private
+
+  def validate_assigned_roles
+    return if assigned_roles.blank?
+
+    unless assigned_roles.is_a?(Array)
+      errors.add(:assigned_roles, 'must be an array')
+      return
+    end
+
+    invalid_roles = assigned_roles - ASSIGNABLE_ROLES
+    if invalid_roles.any?
+      errors.add(:assigned_roles, "contains invalid roles: #{invalid_roles.join(', ')}")
+    end
+  end
 
   def password_required?
     # Password is required for non-OAuth users or when explicitly setting password

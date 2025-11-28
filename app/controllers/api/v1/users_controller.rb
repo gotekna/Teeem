@@ -2,14 +2,14 @@ class Api::V1::UsersController < ApplicationController
   # GET /api/v1/users
   # Returns list of all users for chat/contact purposes
   def index
-    @users = User.select(:id, :name, :email, :mobile_phone, :role, :assigned_role, :last_login_at).order(:name)
-    render json: @users.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_role, :last_login_at])
+    @users = User.select(:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at).order(:name)
+    render json: @users.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at])
   end
 
   # GET /api/v1/users/:id
   def show
     @user = User.find(params[:id])
-    render json: @user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_role, :last_login_at])
+    render json: @user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at])
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'User not found' }, status: :not_found
   end
@@ -21,7 +21,7 @@ class Api::V1::UsersController < ApplicationController
     if @user.update(user_params)
       render json: {
         success: true,
-        user: @user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_role, :last_login_at])
+        user: @user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at])
       }
     else
       render json: {
@@ -89,6 +89,6 @@ class Api::V1::UsersController < ApplicationController
   private
 
   def user_params
-    params.require(:user).permit(:name, :email, :mobile_phone, :role, :assigned_role)
+    params.require(:user).permit(:name, :email, :mobile_phone, :role, assigned_roles: [])
   end
 end
