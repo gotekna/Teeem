@@ -14,7 +14,8 @@ import {
   ArrowsRightLeftIcon,
   CurrencyDollarIcon,
   DocumentDuplicateIcon,
-  FolderIcon
+  FolderIcon,
+  HeartIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import CompanyFinancialTab from '../components/corporate/CompanyFinancialTab'
@@ -27,6 +28,7 @@ import CompanyLoansTab from '../components/corporate/CompanyLoansTab'
 import CompanyDividendsTab from '../components/corporate/CompanyDividendsTab'
 import CompanyMinutesTab from '../components/corporate/CompanyMinutesTab'
 import CompanyDirectorsTab from '../components/corporate/CompanyDirectorsTab'
+import CompanyHealthTab from '../components/corporate/CompanyHealthTab'
 
 export default function CompanyDetailPage() {
   const { id } = useParams()
@@ -39,6 +41,7 @@ export default function CompanyDetailPage() {
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: BuildingOfficeIcon },
+    { id: 'health', name: 'Health', icon: HeartIcon },
     { id: 'directors', name: 'Directors', icon: UserGroupIcon },
     { id: 'shareholdings', name: 'Shareholdings', icon: UsersIcon },
     { id: 'financial', name: 'Financial', icon: BanknotesIcon },
@@ -218,6 +221,7 @@ export default function CompanyDetailPage() {
       {/* Tab Content */}
       <div className="bg-white shadow rounded-lg p-6">
         {activeTab === 'overview' && <OverviewTab company={company} />}
+        {activeTab === 'health' && <CompanyHealthTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'directors' && <CompanyDirectorsTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'shareholdings' && <CompanyShareholdingsTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'financial' && <CompanyFinancialTab company={company} onUpdate={loadCompany} />}

@@ -1008,6 +1008,8 @@ Rails.application.routes.draw do
       resources :companies do
         collection do
           post :import
+          post :reload
+          get :health_report
         end
         member do
           get :directors
