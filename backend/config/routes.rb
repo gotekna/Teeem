@@ -1062,6 +1062,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # ASIC Lookup (ABR API for ABN/ACN lookups)
+      resources :asic, only: [] do
+        collection do
+          get :lookup_abn
+          get :lookup_acn
+          get :search
+          get :validate_abn
+          get :validate_acn
+          post :auto_populate
+        end
+      end
+
       # Document Types
       resources :document_types
 
