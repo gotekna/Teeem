@@ -8,7 +8,11 @@ import {
   LinkIcon,
   Cog6ToothIcon,
   ChevronDownIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  XMarkIcon,
+  DocumentTextIcon,
+  PrinterIcon,
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
@@ -78,6 +82,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
   // Collapsible sections state - track which sections are expanded
   const [expandedSections, setExpandedSections] = useState({})
+
+  // Invoice detail modal
+  const [selectedInvoice, setSelectedInvoice] = useState(null)
+  const [loadingInvoiceDetail, setLoadingInvoiceDetail] = useState(false)
 
   // Xero-synced accounting fields that are READ-ONLY in TEEEM
   // These fields can only be updated via Xero sync, not manual edits
@@ -614,6 +622,21 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const formatDate = (dateString) => {
     if (!dateString) return '-'
     return new Date(dateString).toLocaleDateString('en-AU')
+  }
+
+  // Fetch full invoice details for modal
+  const fetchInvoiceDetail = async (invoiceId) => {
+    setLoadingInvoiceDetail(true)
+    try {
+      const response = await api.get(`/api/v1/xero/invoices/${invoiceId}`)
+      if (response.data.success) {
+        setSelectedInvoice(response.data.data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch invoice details:', err)
+    } finally {
+      setLoadingInvoiceDetail(false)
+    }
   }
 
   const getStatusIcon = (status) => {
@@ -1167,8 +1190,8 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                           {xeroInvoices.slice(0, 10).map((invoice, idx) => (
-                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400">{invoice.InvoiceNumber || '-'}</td>
+                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer" onClick={() => fetchInvoiceDetail(invoice.InvoiceID)}>
+                              <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">{invoice.InvoiceNumber || '-'}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{invoice.Reference || '-'}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(invoice.Date)}</td>
                               <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
@@ -1668,6 +1691,183 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                   {converting ? 'Converting...' : 'Convert'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Detail Modal */}
+      {(selectedInvoice || loadingInvoiceDetail) && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:p-0">
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-80 transition-opacity"
+              onClick={() => setSelectedInvoice(null)}
+            />
+
+            {/* Modal */}
+            <div className="relative inline-block w-full max-w-4xl p-6 my-8 text-left align-middle bg-white dark:bg-gray-800 rounded-lg shadow-xl transform transition-all">
+              {loadingInvoiceDetail ? (
+                <div className="flex items-center justify-center py-12">
+                  <ArrowPathIcon className="h-8 w-8 animate-spin text-blue-500" />
+                  <span className="ml-3 text-gray-600 dark:text-gray-300">Loading invoice details...</span>
+                </div>
+              ) : selectedInvoice && (
+                <>
+                  {/* Header */}
+                  <div className="flex items-start justify-between mb-6">
+                    <div>
+                      <div className="flex items-center gap-3">
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                          Invoice {selectedInvoice.InvoiceNumber}
+                        </h2>
+                        <span className={`px-3 py-1 rounded text-sm font-medium border ${
+                          selectedInvoice.Status === 'PAID' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' :
+                          selectedInvoice.Status === 'DRAFT' ? 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600' :
+                          selectedInvoice.Status === 'AUTHORISED' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' :
+                          'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800'
+                        }`}>
+                          {selectedInvoice.Status}
+                        </span>
+                        {selectedInvoice.SentToContact && (
+                          <span className="text-green-600 dark:text-green-400 text-sm font-medium">✓ Sent</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        {selectedInvoice.Type === 'ACCREC' ? 'Sales Invoice' : 'Bill'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedInvoice(null)}
+                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      <XMarkIcon className="h-6 w-6" />
+                    </button>
+                  </div>
+
+                  {/* Contact & Invoice Info */}
+                  <div className="grid grid-cols-2 gap-6 mb-6 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                    <div>
+                      <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase mb-2">Contact</h3>
+                      <p className="text-blue-600 dark:text-blue-400 font-medium">{selectedInvoice.Contact?.Name}</p>
+                      {selectedInvoice.Contact?.Addresses?.[0] && (
+                        <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                          {selectedInvoice.Contact.Addresses[0].AddressLine1 && <div>{selectedInvoice.Contact.Addresses[0].AddressLine1}</div>}
+                          <div>
+                            {[selectedInvoice.Contact.Addresses[0].City, selectedInvoice.Contact.Addresses[0].Region, selectedInvoice.Contact.Addresses[0].PostalCode].filter(Boolean).join(', ')}
+                          </div>
+                          {selectedInvoice.Contact.Addresses[0].Country && <div>{selectedInvoice.Contact.Addresses[0].Country}</div>}
+                        </div>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Issue Date</span>
+                        <p className="font-medium text-gray-900 dark:text-white">{formatDate(selectedInvoice.Date)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Due Date</span>
+                        <p className="font-medium text-gray-900 dark:text-white">{formatDate(selectedInvoice.DueDate)}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Invoice Number</span>
+                        <p className="font-medium text-gray-900 dark:text-white">{selectedInvoice.InvoiceNumber}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 dark:text-gray-400">Reference</span>
+                        <p className="font-medium text-gray-900 dark:text-white">{selectedInvoice.Reference || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Line Items */}
+                  <div className="mb-6">
+                    <div className="text-right text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      Amounts are {selectedInvoice.LineAmountTypes === 'Inclusive' ? 'tax inclusive' : 'tax exclusive'}
+                    </div>
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-700/50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Item</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Description</th>
+                          <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 dark:text-gray-400">Qty</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Price</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Account</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400">Tax</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {selectedInvoice.LineItems?.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">{item.ItemCode || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300 max-w-xs truncate">{item.Description}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-center">{item.Quantity}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right">{formatCurrency(item.UnitAmount)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.AccountCode}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{item.TaxType}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900 dark:text-white text-right font-medium">{formatCurrency(item.LineAmount)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Totals */}
+                  <div className="flex justify-end">
+                    <div className="w-72 space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                        <span className="text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.SubTotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">Tax</span>
+                        <span className="text-gray-900 dark:text-white">{formatCurrency(selectedInvoice.TotalTax)}</span>
+                      </div>
+                      <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-600 pt-2">
+                        <span className="text-gray-900 dark:text-white">Total</span>
+                        <span className="text-green-600 dark:text-green-400">{formatCurrency(selectedInvoice.Total)}</span>
+                      </div>
+                      {selectedInvoice.Payments?.length > 0 && (
+                        <>
+                          {selectedInvoice.Payments.map((payment, idx) => (
+                            <div key={idx} className="flex justify-between text-sm">
+                              <span className="text-blue-600 dark:text-blue-400">Less: Payment ({formatDate(payment.Date)})</span>
+                              <span className="text-gray-900 dark:text-white">{formatCurrency(payment.Amount)}</span>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      <div className="flex justify-between text-lg font-bold border-t border-gray-200 dark:border-gray-600 pt-2">
+                        <span className="text-gray-900 dark:text-white">Amount Due</span>
+                        <span className={selectedInvoice.AmountDue > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}>
+                          {formatCurrency(selectedInvoice.AmountDue)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <a
+                      href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${selectedInvoice.InvoiceID}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      Open in Xero
+                    </a>
+                    <button
+                      onClick={() => setSelectedInvoice(null)}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
