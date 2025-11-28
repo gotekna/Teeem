@@ -211,30 +211,130 @@ class Api::V1::OutlookController < ApplicationController
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
+  # GET /api/v1/outlook/job_search_suggestions/:job_id
+  # Get search suggestions based on job data (title, location, client emails)
+  def job_search_suggestions
+    job = Job.find(params[:job_id])
+
+    suggestions = []
+
+    # Add job title (usually address)
+    if job.title.present?
+      suggestions << { type: 'address', value: job.title, label: "Address: #{job.title}" }
+
+      # Extract street name from title (e.g., "32 Mcilwraith Street" -> "Mcilwraith")
+      street_match = job.title.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Boulevard|Blvd)/i)
+      if street_match
+        street_name = street_match[1]
+        suggestions << { type: 'street', value: street_name, label: "Street: #{street_name}" }
+      end
+    end
+
+    # Add location
+    if job.location.present? && job.location != job.title
+      suggestions << { type: 'location', value: job.location, label: "Location: #{job.location}" }
+    end
+
+    # Add client/contact emails
+    job.contacts.each do |contact|
+      if contact.email.present?
+        suggestions << { type: 'email', value: contact.email, label: "Contact: #{contact.full_name || contact.email}" }
+      end
+    end
+
+    # Add site supervisor email
+    if job.site_supervisor_email.present?
+      suggestions << { type: 'email', value: job.site_supervisor_email, label: "Site Supervisor: #{job.site_supervisor_name}" }
+    end
+
+    render json: {
+      job_id: job.id,
+      job_title: job.title,
+      suggestions: suggestions.uniq { |s| s[:value] }
+    }
+  rescue => e
+    Rails.logger.error "Failed to get job search suggestions: #{e.message}"
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/outlook/search_for_job
+  # Search Outlook emails for a job with preview (without importing)
+  def search_for_job
+    job = Job.find(params[:job_id])
+    outlook = OutlookService.new(current_user)
+
+    # Use provided search or build from job details
+    search_query = params[:search].presence
+
+    options = {
+      search: search_query,
+      top: params[:top] || 50,
+      folder: params[:folder] || 'inbox'
+    }
+
+    emails_data = outlook.search_emails(options)
+
+    # Mark which emails are already imported
+    existing_message_ids = Email.where(message_id: emails_data.map { |e| e[:message_id] }).pluck(:message_id)
+
+    emails_with_status = emails_data.map do |email|
+      email.merge(
+        already_imported: existing_message_ids.include?(email[:message_id]),
+        preview_body: email[:body_text]&.truncate(200)
+      )
+    end
+
+    render json: {
+      job_id: job.id,
+      emails: emails_with_status,
+      count: emails_with_status.length,
+      new_count: emails_with_status.count { |e| !e[:already_imported] }
+    }
+  rescue OutlookService::NotConnectedError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  rescue => e
+    Rails.logger.error "Failed to search Outlook for job: #{e.message}"
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   # POST /api/v1/outlook/import_for_job
   # Import emails for a specific job from current user's Outlook
   def import_for_job
     job = Job.find(params[:job_id])
     outlook = OutlookService.new(current_user)
 
-    # Build search query based on job details
-    search_terms = []
-    search_terms << job.title if job.title.present?
-    search_terms << job.id.to_s
+    # Use provided search or build default from job details
+    search_query = params[:search].presence
+    if search_query.blank?
+      search_terms = []
+      search_terms << job.title if job.title.present?
+      search_query = search_terms.first # Use just the title/address
+    end
 
     options = {
-      search: search_terms.join(' OR '),
+      search: search_query,
       top: params[:top] || 50,
       folder: params[:folder] || 'inbox'
     }
 
-    # Import and try to match to this specific job
+    # If specific message IDs provided, only import those
+    message_ids_to_import = params[:message_ids]
+
     emails_data = outlook.search_emails(options)
     imported_count = 0
+    skipped_count = 0
 
     emails_data.each do |email_data|
+      # If specific IDs requested, skip emails not in the list
+      if message_ids_to_import.present?
+        next unless message_ids_to_import.include?(email_data[:message_id])
+      end
+
       # Check if email already exists
-      next if Email.exists?(message_id: email_data[:message_id])
+      if Email.exists?(message_id: email_data[:message_id])
+        skipped_count += 1
+        next
+      end
 
       # Parse and create email
       parser = EmailParserService.new(email_data)
@@ -257,6 +357,7 @@ class Api::V1::OutlookController < ApplicationController
     render json: {
       success: true,
       imported_count: imported_count,
+      skipped_count: skipped_count,
       job_id: job.id,
       message: "Successfully imported #{imported_count} emails for #{job.title}"
     }
