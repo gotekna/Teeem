@@ -440,6 +440,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                           <thead className="bg-gray-50 dark:bg-gray-900/50">
                             <tr>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Description</th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due Date</th>
@@ -457,6 +458,9 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                               >
                                 <td className="px-4 py-2 text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
                                   {invoice.InvoiceNumber || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={invoice.LineItems?.[0]?.Description || ''}>
+                                  {invoice.LineItems?.[0]?.Description || '-'}
                                 </td>
                                 <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
                                   {invoice.Reference || '-'}
@@ -481,7 +485,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                           </tbody>
                           <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
                             <tr>
-                              <td colSpan={5} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                              <td colSpan={6} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
                                 Total
                               </td>
                               <td className="px-4 py-2 text-sm text-right font-bold text-gray-900 dark:text-white">
