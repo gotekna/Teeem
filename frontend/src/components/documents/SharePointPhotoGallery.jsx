@@ -29,7 +29,7 @@ function formatFileSize(bytes) {
   return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
-export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photos', '07 Supervisor Photos'], onPhotoCountChange }) {
+export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photos', '07 Supervisor Photos'], filenameFilter = null, onPhotoCountChange }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [files, setFiles] = useState([])
@@ -41,7 +41,7 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
   useEffect(() => {
     fetchFolderContents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, folderNames.join(',')])
+  }, [jobId, folderNames.join(','), filenameFilter])
 
   const fetchFolderContents = async () => {
     try {
@@ -52,12 +52,20 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
         `/api/v1/organization_onedrive/folder_contents?job_id=${jobId}&folder_names=${folderNames.join(',')}`
       )
 
-      const loadedFiles = response.files || []
+      let loadedFiles = response.files || []
+
+      // Apply filename filter if specified (e.g., only show files with "client" in the name)
+      if (filenameFilter) {
+        loadedFiles = loadedFiles.filter(f =>
+          f.name?.toLowerCase().includes(filenameFilter.toLowerCase())
+        )
+      }
+
       setFiles(loadedFiles)
       setFoundFolders(response.found_folders || [])
       setJobFolderUrl(response.job_folder_web_url)
 
-      // Notify parent component of photo count
+      // Notify parent component of photo count (after filtering)
       if (onPhotoCountChange) {
         const imageCount = loadedFiles.filter(f => isImageFile(f.name)).length
         onPhotoCountChange(imageCount)
@@ -191,9 +199,14 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
       {files.length === 0 && (
         <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
           <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-4 text-sm font-medium text-gray-900 dark:text-white">No photos yet</h3>
+          <h3 className="mt-4 text-sm font-medium text-gray-900 dark:text-white">
+            {filenameFilter ? `No photos with "${filenameFilter}" in filename` : 'No photos yet'}
+          </h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Upload photos to the {folderNames.join(' or ')} folder in SharePoint
+            {filenameFilter
+              ? `Photos must include "${filenameFilter}" in the filename to appear here`
+              : `Upload photos to the ${folderNames.join(' or ')} folder in SharePoint`
+            }
           </p>
           {jobFolderUrl && (
             <button

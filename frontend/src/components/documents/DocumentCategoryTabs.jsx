@@ -20,14 +20,25 @@ function isPhotoCategory(categoryName) {
 function getFolderNamesForCategory(categoryName) {
   const name = categoryName?.toLowerCase()
   if (name === 'photo' || name === 'photos') {
-    // Photo tab shows the main Photos folder and Supervisor Photos
-    return ['07 Photos', '07 Supervisor Photos']
+    // Photo tab shows the main Photos folder
+    return ['07 Photos']
   }
   if (name === 'client photo' || name === 'client photos') {
-    // Client Photo tab - use 07 Photos for now (client photos would be stored there)
+    // Client Photo tab - same folder, but will filter by filename
     return ['07 Photos']
   }
   return [categoryName]
+}
+
+// Get filename filter for category (used to filter photos by naming convention)
+function getFilenameFilterForCategory(categoryName) {
+  const name = categoryName?.toLowerCase()
+  if (name === 'client photo' || name === 'client photos') {
+    // Client Photo tab only shows photos with "client" in the filename
+    return 'client'
+  }
+  // Photo tab shows all photos (no filter)
+  return null
 }
 
 export default function DocumentCategoryTabs({ jobId, onCategoryChange, children }) {
@@ -129,6 +140,7 @@ export default function DocumentCategoryTabs({ jobId, onCategoryChange, children
               <SharePointPhotoGallery
                 jobId={jobId}
                 folderNames={getFolderNamesForCategory(category.name)}
+                filenameFilter={getFilenameFilterForCategory(category.name)}
                 onPhotoCountChange={(count) => handlePhotoCountChange(category.id, count)}
               />
             ) : (
