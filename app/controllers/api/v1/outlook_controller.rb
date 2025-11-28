@@ -48,13 +48,11 @@ class Api::V1::OutlookController < ApplicationController
 
     if error.present?
       Rails.logger.error "Outlook OAuth error: #{error} - #{error_description}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_description || error)}", allow_other_host: true
-      return
+      return render_popup_close_page(success: false, error: error_description || error)
     end
 
     if code.blank?
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=No authorization code received", allow_other_host: true
-      return
+      return render_popup_close_page(success: false, error: 'No authorization code received')
     end
 
     # Decode state to get user_id
@@ -69,14 +67,12 @@ class Api::V1::OutlookController < ApplicationController
     end
 
     unless user_id
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=Invalid OAuth state - please try again", allow_other_host: true
-      return
+      return render_popup_close_page(success: false, error: 'Invalid OAuth state - please try again')
     end
 
     user = User.find_by(id: user_id)
     unless user
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=User not found - please try again", allow_other_host: true
-      return
+      return render_popup_close_page(success: false, error: 'User not found - please try again')
     end
 
     # Exchange code for tokens
@@ -114,15 +110,15 @@ class Api::V1::OutlookController < ApplicationController
       )
 
       Rails.logger.info "Outlook connected successfully for user #{user.id} (#{outlook_email})"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_success=true", allow_other_host: true
+      render_popup_close_page(success: true, email: outlook_email)
     else
       error_message = response.parse['error_description'] || response.parse['error'] || 'Failed to exchange code for token'
       Rails.logger.error "Failed to get Outlook token: #{response.status} - #{error_message}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_message)}", allow_other_host: true
+      render_popup_close_page(success: false, error: error_message)
     end
   rescue => e
     Rails.logger.error "Error in Outlook callback: #{e.message}"
-    redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(e.message)}", allow_other_host: true
+    render_popup_close_page(success: false, error: e.message)
   end
 
   # GET /api/v1/outlook/status
@@ -273,4 +269,47 @@ class Api::V1::OutlookController < ApplicationController
 
   private
 
+  def render_popup_close_page(success:, email: nil, error: nil)
+    html = <<~HTML
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>#{success ? 'Connected' : 'Error'}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #{success ? '#f0fdf4' : '#fef2f2'};
+          }
+          .container {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          }
+          .icon { font-size: 48px; margin-bottom: 16px; }
+          h1 { color: #{success ? '#166534' : '#991b1b'}; margin: 0 0 8px 0; }
+          p { color: #6b7280; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="icon">#{success ? '✓' : '✕'}</div>
+          <h1>#{success ? 'Connected!' : 'Connection Failed'}</h1>
+          <p>#{success ? "Connected as #{email}" : error}</p>
+          <p style="margin-top: 16px; font-size: 14px;">This window will close automatically...</p>
+        </div>
+        <script>
+          setTimeout(function() { window.close(); }, 2000);
+        </script>
+      </body>
+      </html>
+    HTML
+    render html: html.html_safe
+  end
 end
