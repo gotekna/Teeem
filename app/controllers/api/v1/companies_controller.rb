@@ -266,6 +266,46 @@ module Api
         }
       end
 
+      # POST /api/v1/companies/reload
+      def reload
+        file_path = ENV['CORPORATE_FILE_PATH'] || '/Users/robertharder/Library/CloudStorage/OneDrive-Tekna/Accounts - Internal/Corporate File/Corporate File.xlsx'
+
+        unless File.exist?(file_path)
+          return render json: { success: false, error: 'Corporate File not found' }, status: :unprocessable_entity
+        end
+
+        service = CompanyImportService.new(file_path)
+        result = service.reload_all
+
+        render json: {
+          success: true,
+          message: 'Company data reloaded from spreadsheet',
+          result: result
+        }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # GET /api/v1/companies/health_report
+      def health_report
+        report = CompanyImportService.health_report
+
+        summary = {
+          total: report.count,
+          excellent: report.count { |r| r[:health_status] == 'excellent' },
+          good: report.count { |r| r[:health_status] == 'good' },
+          needs_attention: report.count { |r| r[:health_status] == 'needs_attention' },
+          critical: report.count { |r| r[:health_status] == 'critical' },
+          average_score: report.any? ? (report.sum { |r| r[:health_score] } / report.count.to_f).round(1) : 0
+        }
+
+        render json: {
+          success: true,
+          summary: summary,
+          companies: report
+        }
+      end
+
       private
 
       def set_company

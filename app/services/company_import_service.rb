@@ -1,4 +1,11 @@
 class CompanyImportService
+  # Individual company sheets that have detailed data
+  COMPANY_SHEETS = [
+    'Co Invest Homes', 'Co Invest Capital', 'W2G', 'THSI', 'Team Harder Family Trust',
+    'Prov1322', 'Gen2612', 'Team Harder Super Fund', 'Team Harder', 'Tekna Homes',
+    'Tekna Drafting', 'Tekna Admin', 'Tekna', 'The Promise Family Trust', 'The Promise QLD PTY LTD'
+  ].freeze
+
   def initialize(file_path)
     @file_path = file_path
     @spreadsheet = Roo::Spreadsheet.open(file_path)
@@ -17,7 +24,7 @@ class CompanyImportService
     }
 
     ActiveRecord::Base.transaction do
-      # Import companies
+      # Import companies from All Companies sheet
       result[:companies_imported] = import_companies
 
       # Import directors
@@ -29,6 +36,9 @@ class CompanyImportService
       # Import shareholdings (if data available)
       result[:shareholdings_imported] = import_shareholdings
 
+      # Enrich companies from individual sheets
+      enrich_from_company_sheets
+
       result[:errors] = @errors
     end
 
@@ -39,7 +49,334 @@ class CompanyImportService
     result
   end
 
+  # Reload all company data from spreadsheet (update existing records)
+  def reload_all
+    result = {
+      companies_updated: 0,
+      directors_updated: 0,
+      bank_accounts_updated: 0,
+      shareholdings_updated: 0,
+      errors: []
+    }
+
+    # Reload from All Companies sheet
+    result[:companies_updated] = reload_companies
+
+    # Reload directors
+    result[:directors_updated] = reload_directors
+
+    # Reload from individual company sheets
+    enrich_from_company_sheets
+
+    # Reload bank accounts
+    result[:bank_accounts_updated] = reload_bank_accounts
+
+    result[:errors] = @errors
+    result
+  rescue StandardError => e
+    Rails.logger.error("Reload failed: #{e.message}")
+    result[:errors] << "Reload failed: #{e.message}"
+    result
+  end
+
+  # Generate health report for all companies
+  def self.health_report
+    companies = Company.includes(:company_directors, :bank_accounts, :company_shareholdings, :company_compliance_items).all
+
+    companies.map do |company|
+      issues = []
+      warnings = []
+
+      # Critical issues
+      issues << 'Missing ACN' if company.acn.blank?
+      issues << 'Missing ABN' if company.abn.blank?
+      issues << 'No current directors' if company.company_directors.current.empty?
+      issues << 'Missing registered office address' if company.registered_office_address.blank?
+
+      # Warnings
+      warnings << 'Missing TFN' if company.tfn.blank?
+      warnings << 'No bank accounts' if company.bank_accounts.empty?
+      warnings << 'No shareholders recorded' if company.company_shareholdings.empty?
+      warnings << 'Missing date of incorporation' if company.date_incorporated.blank?
+      warnings << 'No secretary appointed' unless company.company_directors.current.any? { |d| d.position&.include?('secretary') }
+      warnings << 'No public officer appointed' unless company.company_directors.current.any? { |d| d.position&.include?('public_officer') }
+      warnings << 'Missing corporate key' if company.corporate_key.blank?
+      warnings << 'Missing ASIC credentials' if company.asic_username.blank?
+      warnings << 'Review date overdue' if company.review_date.present? && company.review_date < Date.today
+      warnings << 'Missing principal place of business' if company.principal_place_of_business.blank?
+
+      # Compliance warnings
+      overdue = company.company_compliance_items.where('due_date < ? AND completed = ?', Date.today, false).count
+      warnings << "#{overdue} overdue compliance items" if overdue > 0
+
+      upcoming = company.company_compliance_items.where('due_date BETWEEN ? AND ?', Date.today, 30.days.from_now).where(completed: false).count
+      warnings << "#{upcoming} compliance items due within 30 days" if upcoming > 0
+
+      # Calculate health score
+      total_checks = 15
+      passed = total_checks - issues.count - (warnings.count * 0.5)
+      health_score = [(passed / total_checks * 100).round, 0].max
+
+      health_status = case health_score
+                      when 90..100 then 'excellent'
+                      when 70..89 then 'good'
+                      when 50..69 then 'needs_attention'
+                      else 'critical'
+                      end
+
+      {
+        id: company.id,
+        name: company.name,
+        group: company.group_name,
+        status: company.status,
+        health_score: health_score,
+        health_status: health_status,
+        issues: issues,
+        warnings: warnings,
+        director_count: company.company_directors.current.count,
+        bank_account_count: company.bank_accounts.where(status: 'active').count,
+        shareholder_count: company.company_shareholdings.count,
+        has_acn: company.acn.present?,
+        has_abn: company.abn.present?,
+        has_tfn: company.tfn.present?,
+        has_registered_office: company.registered_office_address.present?,
+        has_corporate_key: company.corporate_key.present?,
+        review_date: company.review_date,
+        review_overdue: company.review_date.present? && company.review_date < Date.today
+      }
+    end.sort_by { |h| h[:health_score] }
+  end
+
+  # Enrich company data from individual sheets
+  def enrich_from_company_sheets
+    COMPANY_SHEETS.each do |sheet_name|
+      next unless @spreadsheet.sheets.include?(sheet_name)
+
+      begin
+        enrich_company_from_sheet(sheet_name)
+      rescue StandardError => e
+        @errors << "Failed to enrich #{sheet_name}: #{e.message}"
+      end
+    end
+  end
+
   private
+
+  def reload_companies
+    count = 0
+    sheet = @spreadsheet.sheet('All Companies')
+    return 0 unless sheet.present?
+
+    (2..sheet.last_row).each do |row_num|
+      row = sheet.row(row_num)
+      next if row[1].blank? # Skip if company name is blank
+
+      company_name = row[1].to_s.strip
+      company = Company.find_by('LOWER(name) LIKE ?', "%#{company_name.downcase.gsub(/\s+pty\s+ltd.*$/i, '').strip}%")
+
+      next unless company
+
+      updates = {}
+      updates[:review_date] = parse_date(row[2]) if row[2].present?
+      updates[:acn] = clean_acn(row[3]) if row[3].present? && company.acn.blank?
+      updates[:abn] = clean_abn(row[4]) if row[4].present? && company.abn.blank?
+      updates[:tfn] = row[5].to_s.gsub(/\s/, '') if row[5].present? && company.tfn.blank?
+      updates[:date_incorporated] = parse_date(row[7]) if row[7].present? && company.date_incorporated.blank?
+      updates[:corporate_key] = row[8].to_s if row[8].present? && company.corporate_key.blank?
+      updates[:asic_username] = row[9].to_s if row[9].present? && company.asic_username.blank?
+      updates[:encrypted_asic_password] = row[10].to_s if row[10].present? && company.encrypted_asic_password.blank?
+      updates[:recovery_question] = row[11].to_s if row[11].present? && company.recovery_question.blank?
+      updates[:encrypted_recovery_answer] = row[12].to_s if row[12].present? && company.encrypted_recovery_answer.blank?
+
+      if updates.any?
+        company.update!(updates)
+        count += 1
+        @import_log << "Updated company: #{company.name}"
+      end
+    rescue StandardError => e
+      @errors << "Row #{row_num}: Failed to reload company - #{e.message}"
+    end
+
+    count
+  end
+
+  def reload_directors
+    count = 0
+    sheet = @spreadsheet.sheet('Director Details (2)')
+    return 0 unless sheet.present?
+
+    (2..sheet.last_row).each do |row_num|
+      row = sheet.row(row_num)
+      next if row[0].blank? # Skip if given name is blank
+
+      contact = Contact.find_or_initialize_by(
+        first_name: row[0].to_s.strip,
+        last_name: row[1].to_s.strip
+      )
+
+      updates = {
+        full_name: "#{row[0]} #{row[1]}".strip,
+        date_of_birth: parse_date(row[3]),
+        place_of_birth: row[4].to_s,
+        birth_state: row[5].to_s,
+        birth_country: row[6].to_s,
+        address: row[7].to_s,
+        tfn: row[8].to_s.gsub(/\s/, ''),
+        director_id: row[9].to_s.gsub(/\s/, '')
+      }
+
+      contact.assign_attributes(updates.compact_blank)
+      if contact.new_record? || contact.changed?
+        contact.save!
+        count += 1
+      end
+    rescue StandardError => e
+      @errors << "Director row #{row_num}: #{e.message}"
+    end
+
+    count
+  end
+
+  def reload_bank_accounts
+    count = 0
+    sheet = @spreadsheet.sheet('Bank Accounts ')
+    return 0 unless sheet.present?
+
+    (3..sheet.last_row).each do |row_num|
+      row = sheet.row(row_num)
+      next if row[1].blank? # Skip if entity name is blank
+
+      entity_name = row[1].to_s.strip
+      company = Company.find_by('LOWER(name) LIKE ?', "%#{entity_name.downcase}%")
+      next unless company
+
+      bsb = clean_bsb(row[3])
+      account_number = row[4].to_s.strip
+
+      next if bsb.blank? || account_number.blank?
+
+      bank_account = company.bank_accounts.find_or_initialize_by(
+        bsb: bsb,
+        account_number: account_number
+      )
+
+      bank_account.assign_attributes(
+        institution_name: row[2].to_s.strip,
+        date_opened: parse_date(row[5]),
+        date_closed: parse_date(row[6]),
+        status: row[6].present? ? 'closed' : 'active'
+      )
+
+      if bank_account.new_record? || bank_account.changed?
+        bank_account.save!
+        count += 1
+      end
+    rescue StandardError => e
+      @errors << "Bank account row #{row_num}: #{e.message}"
+    end
+
+    count
+  end
+
+  def enrich_company_from_sheet(sheet_name)
+    sheet = @spreadsheet.sheet(sheet_name)
+    return unless sheet.present?
+
+    # Find company name in row 3
+    company_name = nil
+    (1..10).each do |row_num|
+      row = sheet.row(row_num)
+      if row[0].to_s.match?(/pty\s+ltd|trust|fund/i)
+        company_name = row[0].to_s.strip
+        break
+      end
+    end
+
+    return unless company_name.present?
+
+    # Find company by partial name match
+    search_name = company_name.gsub(/\s+pty\s+ltd.*$/i, '').strip
+    company = Company.find_by('LOWER(name) LIKE ?', "%#{search_name.downcase}%")
+
+    return unless company
+
+    # Parse the sheet for additional data
+    updates = {}
+    directors_data = []
+    shareholdings_data = []
+    bank_accounts_data = []
+
+    (1..50).each do |row_num|
+      break if row_num > sheet.last_row
+      row = sheet.row(row_num)
+      next if row.compact.empty?
+
+      label = row[0].to_s.strip.downcase
+
+      case label
+      when 'acn:'
+        updates[:acn] = clean_acn(row[1]) if row[1].present? && company.acn.blank?
+      when 'abn:'
+        # ABN is in column after ACN
+      when 'tfn:'
+        updates[:tfn] = row[1].to_s.gsub(/\s/, '') if row[1].present? && company.tfn.blank?
+      when 'date incorporated'
+        updates[:date_incorporated] = parse_date(row[1]) if row[1].present? && company.date_incorporated.blank?
+      when 'shares on issue'
+        updates[:shares_on_issue] = row[1].to_i if row[1].present?
+      when 'purpose:'
+        updates[:purpose] = row[1].to_s if row[1].present? && company.purpose.blank?
+      when 'registered office'
+        updates[:registered_office_address] = row[1].to_s if row[1].present? && company.registered_office_address.blank?
+      when 'principal place of business'
+        # Principal place is in a different column
+        updates[:principal_place_of_business] = row[5].to_s if row[5].present? && company.principal_place_of_business.blank?
+      when 'current director'
+        directors_data << { name: row[1].to_s, position: 'director', date: parse_date(row[2]) }
+      when 'current secretary'
+        directors_data << { name: row[1].to_s, position: 'secretary', date: parse_date(row[2]) }
+      when 'current shareholdings'
+        if row[1].present?
+          shareholdings_data << { name: row[1].to_s, shares: row[3].to_i }
+        end
+      end
+
+      # Check for bank account rows
+      if row[1].to_s.match?(/westpac|nab|cba|anz|bank/i)
+        bank_accounts_data << {
+          institution: row[1].to_s,
+          bsb: row[2].to_s,
+          account: row[3].to_s,
+          opened: parse_date(row[4])
+        }
+      end
+    end
+
+    # Apply updates
+    company.update!(updates) if updates.any?
+
+    # Link directors
+    directors_data.each do |dir_data|
+      next if dir_data[:name].blank?
+
+      names = dir_data[:name].split(' ')
+      contact = Contact.find_by('LOWER(full_name) LIKE ?', "%#{dir_data[:name].downcase}%")
+
+      next unless contact
+
+      existing = company.company_directors.find_by(contact: contact, is_current: true)
+      next if existing
+
+      company.company_directors.find_or_create_by!(
+        contact: contact,
+        position: dir_data[:position],
+        appointment_date: dir_data[:date] || company.date_incorporated,
+        is_current: true
+      )
+    end
+
+    @import_log << "Enriched company: #{company.name}"
+  end
 
   def import_companies
     count = 0
