@@ -92,7 +92,30 @@ export default function SyncConfigPage({ embedded = false }) {
 
       // Load sync configurations
       const configsResponse = await api.get('/api/v1/sync_configurations')
-      const configsList = configsResponse.sync_configurations || []
+      let configsList = configsResponse.sync_configurations || []
+
+      // If no configs exist, try to get available tenants and create configs for them
+      if (configsList.length === 0) {
+        try {
+          const tenantsResponse = await api.get('/api/v1/xero/tenants')
+          const tenants = tenantsResponse.tenants || []
+
+          // For each tenant, fetch its config (which will auto-create if missing)
+          for (const tenant of tenants) {
+            try {
+              const configResponse = await api.get(`/api/v1/sync_configurations/${tenant.tenant_id}`)
+              if (configResponse.sync_configuration) {
+                configsList.push(configResponse.sync_configuration)
+              }
+            } catch (err) {
+              console.error(`Failed to load/create config for tenant ${tenant.tenant_name}:`, err)
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load Xero tenants:', err)
+        }
+      }
+
       setConfigs(configsList)
 
       // Select the first config if available

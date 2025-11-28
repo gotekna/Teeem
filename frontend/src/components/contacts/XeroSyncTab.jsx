@@ -69,11 +69,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [loadingTenants, setLoadingTenants] = useState(true)
   const [linkingToTenant, setLinkingToTenant] = useState(null)
 
-  // Global sync configuration for the selected tenant
-  const [syncConfig, setSyncConfig] = useState(null)
-  const [loadingSyncConfig, setLoadingSyncConfig] = useState(false)
-  const [savingSyncDirection, setSavingSyncDirection] = useState(false)
-
   // Xero contact data (fetched from Xero API)
   const [xeroContactData, setXeroContactData] = useState(null)
   const [loadingXeroContact, setLoadingXeroContact] = useState(false)
@@ -399,52 +394,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   useEffect(() => {
     loadAvailableTenants()
   }, [])
-
-  // Load sync configuration when a link is selected
-  useEffect(() => {
-    if (selectedLink?.xero_tenant_id) {
-      loadSyncConfig(selectedLink.xero_tenant_id)
-    }
-  }, [selectedLink?.xero_tenant_id])
-
-  // Load global sync configuration for a tenant
-  const loadSyncConfig = async (tenantId) => {
-    setLoadingSyncConfig(true)
-    try {
-      const response = await api.get(`/api/v1/sync_configurations/${tenantId}`)
-      if (response.success) {
-        setSyncConfig(response.sync_configuration)
-      }
-    } catch (err) {
-      console.error('Failed to load sync configuration:', err)
-      setSyncConfig(null)
-    } finally {
-      setLoadingSyncConfig(false)
-    }
-  }
-
-  // Save global sync direction (applies to ALL contacts for this tenant)
-  const handleSaveSyncDirection = async (newDirection) => {
-    if (!selectedLink?.xero_tenant_id || !syncConfig) return
-
-    setSavingSyncDirection(true)
-    try {
-      const response = await api.put(`/api/v1/sync_configurations/${selectedLink.xero_tenant_id}`, {
-        sync_configuration: {
-          default_sync_direction: newDirection
-        }
-      })
-      if (response.success) {
-        setSyncConfig(response.sync_configuration)
-      } else {
-        setSyncError(response.error || 'Failed to update sync direction')
-      }
-    } catch (err) {
-      setSyncError(err.message || 'Failed to update sync direction')
-    } finally {
-      setSavingSyncDirection(false)
-    }
-  }
 
   const loadTransactions = async () => {
     setLoadingTransactions(true)
@@ -1005,64 +954,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           )}
         </div>
       </div>
-
-      {/* Global Sync Settings - Admin Only */}
-      {xeroLinks.length > 0 && syncConfig && (
-        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Cog6ToothIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
-                  Global Sync Direction
-                </p>
-                <p className="text-xs text-amber-600 dark:text-amber-400">
-                  Applies to ALL contacts for {selectedLink?.xero_tenant_name || 'this organization'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {loadingSyncConfig ? (
-                <ArrowPathIcon className="h-5 w-5 text-amber-600 animate-spin" />
-              ) : (
-                <>
-                  <select
-                    className="text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500"
-                    value={syncConfig.default_sync_direction || 'import_only'}
-                    onChange={(e) => handleSaveSyncDirection(e.target.value)}
-                    disabled={savingSyncDirection}
-                  >
-                    <option value="import_only">Xero → TEEEM (Import Only)</option>
-                    <option value="export_only">TEEEM → Xero (Export Only)</option>
-                    <option value="bidirectional">↔ Bidirectional</option>
-                    <option value="disabled">⏸ Disabled</option>
-                  </select>
-                  {savingSyncDirection && (
-                    <ArrowPathIcon className="h-4 w-4 text-amber-600 animate-spin" />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Explanation of current setting */}
-          <div className="mt-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 rounded p-2">
-            {syncConfig.default_sync_direction === 'import_only' && (
-              <><strong>Import Only:</strong> Data flows from Xero to TEEEM. Xero is the source of truth. Changes in TEEEM won't push to Xero.</>
-            )}
-            {syncConfig.default_sync_direction === 'export_only' && (
-              <><strong>Export Only:</strong> Data flows from TEEEM to Xero. TEEEM is the source of truth. Creates/updates contacts in Xero.</>
-            )}
-            {syncConfig.default_sync_direction === 'bidirectional' && (
-              <><strong>Bidirectional:</strong> Data syncs both ways. Most recent change wins. Use with caution - conflicts may occur.</>
-            )}
-            {syncConfig.default_sync_direction === 'disabled' && (
-              <><strong>Disabled:</strong> No automatic syncing. Manual sync only.</>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Connection Guide */}
       <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
