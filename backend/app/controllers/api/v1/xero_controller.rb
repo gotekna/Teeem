@@ -446,6 +446,76 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/invoices_by_tracking
+      # Fetches all invoices (bills and sales invoices) that have a specific tracking category
+      # This is used for the Job Xero Activity tab to show all invoices/bills for a job
+      def invoices_by_tracking
+        tracking_option_name = params[:tracking_option_name]
+
+        unless tracking_option_name.present?
+          return render json: {
+            success: false,
+            error: 'tracking_option_name is required'
+          }, status: :bad_request
+        end
+
+        begin
+          client = XeroApiClient.new
+
+          # Fetch all invoices with line items (need line items for tracking info)
+          # Use includeArchived=false to exclude deleted/archived invoices
+          result = client.get('Invoices', {
+            unitdp: 4,
+            summaryOnly: false  # Get full line item details including tracking
+          })
+
+          unless result[:success]
+            return render json: {
+              success: false,
+              error: 'Failed to fetch invoices from Xero'
+            }, status: :unprocessable_entity
+          end
+
+          all_invoices = result[:data]['Invoices'] || []
+
+          # Filter invoices that have line items with matching tracking category
+          matching_invoices = all_invoices.select do |invoice|
+            line_items = invoice['LineItems'] || []
+            line_items.any? do |line_item|
+              tracking = line_item['Tracking'] || []
+              tracking.any? { |t| t['Option'] == tracking_option_name }
+            end
+          end
+
+          # Separate into invoices (ACCREC = sales) and bills (ACCPAY = purchases)
+          invoices = matching_invoices.select { |inv| inv['Type'] == 'ACCREC' }
+          bills = matching_invoices.select { |inv| inv['Type'] == 'ACCPAY' }
+
+          render json: {
+            success: true,
+            data: {
+              invoices: invoices,
+              bills: bills,
+              total_invoices: invoices.length,
+              total_bills: bills.length,
+              tracking_option_name: tracking_option_name
+            }
+          }
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero invoices_by_tracking auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero invoices_by_tracking error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to fetch invoices: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/xero/webhook
       # Receives Xero webhooks (for future use)
       def webhook

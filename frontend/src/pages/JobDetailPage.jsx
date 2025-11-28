@@ -31,10 +31,14 @@ import JobContactsSection from '../components/job-detail/JobContactsSection'
 import RainLogTab from '../components/rain-log/RainLogTab'
 import JobPeopleTab from '../components/job-detail/JobPeopleTab'
 import JobXeroTab from '../components/job-detail/JobXeroTab'
+import JobInvoicesTab from '../components/jobs/JobInvoicesTab'
+import JobBillsTab from '../components/jobs/JobBillsTab'
 
 const tabs = [
   { name: 'Overview', slug: 'overview' },
   { name: 'People', slug: 'people' },
+  { name: 'Invoices', slug: 'invoices' },
+  { name: 'Costs', slug: 'costs' },
   { name: 'Xero', slug: 'xero' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
   { name: 'Estimates', slug: 'estimates' },
@@ -693,6 +697,14 @@ export default function JobDetailPage() {
 
           {activeTab === 'people' && (
             <JobPeopleTab jobId={id} onUpdate={loadJob} />
+          )}
+
+          {activeTab === 'invoices' && (
+            <JobInvoicesTab job={job} />
+          )}
+
+          {activeTab === 'costs' && (
+            <JobBillsTab job={job} />
           )}
 
           {activeTab === 'xero' && (
