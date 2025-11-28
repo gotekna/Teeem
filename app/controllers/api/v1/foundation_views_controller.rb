@@ -176,8 +176,10 @@ module Api
           ],
           columns: [
             :showFilters,
+            :autoFitColumns,
             order: [],
-            visible: {}
+            visible: {},
+            widths: {}
           ],
           sort_order: [:column, :dir],
           group_by_columns: []
