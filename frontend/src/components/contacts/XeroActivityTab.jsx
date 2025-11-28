@@ -9,7 +9,8 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   LinkIcon,
-  XMarkIcon
+  XMarkIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
@@ -24,6 +25,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState(null)
+  const [lastSyncedAt, setLastSyncedAt] = useState(null)
 
   // Invoice detail modal
   const [selectedInvoice, setSelectedInvoice] = useState(null)
@@ -91,8 +93,6 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
         return
       }
 
-      const tenantParam = xeroTenantId ? `&tenant_id=${xeroTenantId}` : ''
-
       // Load sync config
       if (xeroTenantId) {
         try {
@@ -105,16 +105,63 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
         }
       }
 
-      // Load invoices
+      // Load invoices from local cache (fast) instead of Xero API (slow)
       try {
-        const invoicesResponse = await api.get(`/api/v1/xero/invoices?contact_id=${xeroContactId}${tenantParam}`)
+        const invoicesResponse = await api.get(`/api/v1/external_invoices/by_contact/${contact.id}`)
         if (invoicesResponse.success) {
           const invoices = invoicesResponse.data?.invoices || []
-          setXeroInvoices(invoices)
+          const bills = invoicesResponse.data?.bills || []
 
-          // Extract payments from invoices (already filtered by contact)
+          // Combine invoices and bills, converting to Xero-compatible format for existing UI
+          const allInvoices = [
+            ...invoices.map(inv => ({
+              InvoiceID: inv.external_id,
+              InvoiceNumber: inv.invoice_number,
+              Reference: inv.reference,
+              Type: 'ACCREC',
+              Status: inv.status?.toUpperCase() === 'APPROVED' ? 'AUTHORISED' : inv.status?.toUpperCase(),
+              Date: inv.invoice_date,
+              DueDate: inv.due_date,
+              SubTotal: inv.subtotal,
+              TotalTax: inv.total_tax,
+              Total: inv.total,
+              AmountDue: inv.amount_due,
+              AmountPaid: inv.amount_paid,
+              CurrencyCode: inv.currency_code,
+              Contact: { Name: inv.contact_name },
+              LineItems: inv.line_items || [],
+              Payments: inv.payments || []
+            })),
+            ...bills.map(inv => ({
+              InvoiceID: inv.external_id,
+              InvoiceNumber: inv.invoice_number,
+              Reference: inv.reference,
+              Type: 'ACCPAY',
+              Status: inv.status?.toUpperCase() === 'APPROVED' ? 'AUTHORISED' : inv.status?.toUpperCase(),
+              Date: inv.invoice_date,
+              DueDate: inv.due_date,
+              SubTotal: inv.subtotal,
+              TotalTax: inv.total_tax,
+              Total: inv.total,
+              AmountDue: inv.amount_due,
+              AmountPaid: inv.amount_paid,
+              CurrencyCode: inv.currency_code,
+              Contact: { Name: inv.contact_name },
+              LineItems: inv.line_items || [],
+              Payments: inv.payments || []
+            }))
+          ]
+
+          setXeroInvoices(allInvoices)
+
+          // Set last synced timestamp
+          if (invoicesResponse.meta?.last_synced_at) {
+            setLastSyncedAt(invoicesResponse.meta.last_synced_at)
+          }
+
+          // Extract payments from invoices
           const extractedPayments = []
-          invoices.forEach(invoice => {
+          allInvoices.forEach(invoice => {
             if (invoice.Payments && invoice.Payments.length > 0) {
               invoice.Payments.forEach(payment => {
                 extractedPayments.push({
@@ -127,15 +174,20 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
           })
           // Sort by date descending
           extractedPayments.sort((a, b) => {
-            const dateA = a.Date ? new Date(a.Date.replace('/Date(', '').replace(')/', '')) : 0
-            const dateB = b.Date ? new Date(b.Date.replace('/Date(', '').replace(')/', '')) : 0
+            const dateA = a.Date ? new Date(a.Date) : 0
+            const dateB = b.Date ? new Date(b.Date) : 0
             return dateB - dateA
           })
           setXeroPayments(extractedPayments)
         }
       } catch (err) {
-        console.error('Failed to load invoices:', err)
+        console.error('Failed to load invoices from cache:', err)
+        setError('Failed to load invoices')
       }
+
+      // Credit notes and quotes - still need to hit Xero API for now
+      // (could be added to local cache later)
+      const tenantParam = xeroTenantId ? `&tenant_id=${xeroTenantId}` : ''
 
       // Load credit notes
       try {
@@ -309,6 +361,12 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Invoices, payments, and credit notes from Xero
           </p>
+          {lastSyncedAt && (
+            <div className="flex items-center gap-1 mt-1 text-xs text-gray-400 dark:text-gray-500">
+              <ClockIcon className="h-3 w-3" />
+              <span>Last synced: {new Date(lastSyncedAt).toLocaleString()}</span>
+            </div>
+          )}
         </div>
         <button
           onClick={handleSyncTransactions}
