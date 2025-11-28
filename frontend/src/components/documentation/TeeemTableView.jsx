@@ -2972,6 +2972,56 @@ export default function TeeemTableView({
           </span>
         )
 
+      case 'assigned_roles':
+        // Multi-select dropdown for assigned roles (e.g., admin, sales, site, supervisor, builder, estimator)
+        const currentRoles = Array.isArray(entry.assigned_roles) ? entry.assigned_roles : []
+        const column = COLUMNS.find(c => c.key === 'assigned_roles')
+        const availableRoles = column?.options || ['admin', 'sales', 'site', 'supervisor', 'builder', 'estimator']
+
+        if (editingRowId === entry.id) {
+          const editingRoles = Array.isArray(editingData.assigned_roles) ? editingData.assigned_roles : currentRoles
+          return (
+            <div className="relative">
+              <select
+                multiple
+                value={editingRoles}
+                onChange={(e) => {
+                  const selectedOptions = Array.from(e.target.selectedOptions, option => option.value)
+                  setEditingData({ ...editingData, assigned_roles: selectedOptions })
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                size={Math.min(availableRoles.length, 6)}
+              >
+                {availableRoles.map(role => (
+                  <option key={`role-${role}`} value={role}>
+                    {role.charAt(0).toUpperCase() + role.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )
+        }
+
+        // Display mode - show pills/tags for each role
+        if (currentRoles.length === 0) {
+          return <span className="text-gray-400 text-xs">none</span>
+        }
+
+        return (
+          <div className="flex flex-wrap gap-1">
+            {currentRoles.map(role => (
+              <span
+                key={`display-role-${role}`}
+                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200"
+              >
+                {role.charAt(0).toUpperCase() + role.slice(1)}
+              </span>
+            ))}
+          </div>
+        )
+
       case 'audit':
       case 'updated_at':
       case 'created_at':

@@ -24,6 +24,9 @@ import {
   ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline'
 
+// Available assigned roles (matches backend User::ASSIGNABLE_ROLES)
+const ASSIGNABLE_ROLES = ['admin', 'sales', 'site', 'supervisor', 'builder', 'estimator']
+
 // Define user-specific columns for the Quick View table
 const USER_COLUMNS = [
   { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
@@ -33,7 +36,7 @@ const USER_COLUMNS = [
   { key: 'entry_type', label: 'Role', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 140 },
   { key: 'component', label: 'Mobile', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 140 },
   { key: 'status', label: 'Status', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
-  { key: 'severity', label: 'Assigned Role', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 140 }
+  { key: 'assigned_roles', label: 'Assigned Role', resizable: true, sortable: true, filterable: true, filterType: 'multiselect', width: 180, options: ASSIGNABLE_ROLES }
 ]
 
 export default function UserManagementTab() {
@@ -62,7 +65,7 @@ export default function UserManagementTab() {
         description: user.email,
         component: user.mobile_phone || '',
         status: user.last_login_at ? 'active' : 'inactive',
-        severity: user.assigned_role || 'none',
+        assigned_roles: user.assigned_roles || [],
         _original: user // Keep original for editing
       }))
       setUsers(trinityUsers)
