@@ -26,8 +26,17 @@ class SyncConfiguration < ApplicationRecord
     'standardize_abn_format' => true
   }.freeze
 
+  # Valid sync directions for the overall sync configuration
+  # - import_only: Only pull data from Xero to TEEEM (Xero is source of truth)
+  # - export_only: Only push data from TEEEM to Xero (TEEEM is source of truth)
+  # - bidirectional: Sync both ways (most recent change wins)
+  # - disabled: No syncing
+  SYNC_DIRECTIONS = %w[import_only export_only bidirectional disabled].freeze
+  DEFAULT_SYNC_DIRECTION = 'import_only'.freeze
+
   validates :xero_tenant_id, presence: true, uniqueness: true
   validates :accounting_system, inclusion: { in: ACCOUNTING_SYSTEMS }
+  validates :default_sync_direction, inclusion: { in: SYNC_DIRECTIONS }, allow_nil: true
 
   scope :for_tenant, ->(tenant_id) { find_by(xero_tenant_id: tenant_id) }
   scope :enabled, -> { where(sync_enabled: true) }
@@ -80,6 +89,49 @@ class SyncConfiguration < ApplicationRecord
   # Should standardize ABN format?
   def standardize_abn_format?
     cleanup_option('standardize_abn_format')
+  end
+
+  # Get the effective sync direction (uses default if not set)
+  def effective_sync_direction
+    default_sync_direction.presence || DEFAULT_SYNC_DIRECTION
+  end
+
+  # Set the default sync direction for this tenant
+  def set_sync_direction!(direction)
+    raise ArgumentError, "Invalid sync direction: #{direction}" unless SYNC_DIRECTIONS.include?(direction)
+    update!(default_sync_direction: direction)
+  end
+
+  # Should import from Xero? (based on overall sync direction)
+  def import_enabled?
+    %w[import_only bidirectional].include?(effective_sync_direction)
+  end
+
+  # Should export to Xero? (based on overall sync direction)
+  def export_enabled?
+    %w[export_only bidirectional].include?(effective_sync_direction)
+  end
+
+  # Is sync disabled entirely?
+  def sync_disabled?
+    effective_sync_direction == 'disabled'
+  end
+
+  # Set all field mappings to a specific direction
+  def set_all_fields_direction!(direction)
+    valid_directions = %w[import export bidirectional none]
+    raise ArgumentError, "Invalid field direction: #{direction}" unless valid_directions.include?(direction)
+
+    new_mappings = (field_mappings.presence || DEFAULT_FIELD_MAPPINGS).deep_dup
+    new_mappings.each do |field, config|
+      config['direction'] = direction
+    end
+    update!(field_mappings: new_mappings)
+  end
+
+  # Reset field mappings to defaults
+  def reset_field_mappings!
+    update!(field_mappings: DEFAULT_FIELD_MAPPINGS)
   end
 
   # Generate a webhook key if not set
