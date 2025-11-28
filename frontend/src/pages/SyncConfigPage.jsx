@@ -73,6 +73,7 @@ export default function SyncConfigPage({ embedded = false }) {
   const [fieldMappings, setFieldMappings] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [savingSyncDirection, setSavingSyncDirection] = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [showPreview, setShowPreview] = useState(false)
   const [error, setError] = useState(null)
@@ -147,6 +148,41 @@ export default function SyncConfigPage({ embedded = false }) {
         [optionName]: value
       }
     })
+  }
+
+  // Handle global sync direction change (applies to ALL contacts for this tenant)
+  const handleSyncDirectionChange = async (newDirection) => {
+    if (!selectedConfig) return
+
+    setSavingSyncDirection(true)
+    try {
+      const response = await api.put(`/api/v1/sync_configurations/${selectedConfig.xero_tenant_id}`, {
+        sync_configuration: {
+          default_sync_direction: newDirection
+        }
+      })
+
+      if (response.sync_configuration) {
+        // Update local state
+        setSelectedConfig({
+          ...selectedConfig,
+          default_sync_direction: response.sync_configuration.default_sync_direction,
+          import_enabled: response.sync_configuration.import_enabled,
+          export_enabled: response.sync_configuration.export_enabled
+        })
+        // Update in configs list too
+        setConfigs(prev => prev.map(c =>
+          c.xero_tenant_id === selectedConfig.xero_tenant_id
+            ? { ...c, default_sync_direction: response.sync_configuration.default_sync_direction }
+            : c
+        ))
+      }
+    } catch (err) {
+      console.error('Failed to update sync direction:', err)
+      setError('Failed to update sync direction. Please try again.')
+    } finally {
+      setSavingSyncDirection(false)
+    }
   }
 
   const handleSave = async () => {
@@ -462,6 +498,58 @@ export default function SyncConfigPage({ embedded = false }) {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Global Sync Direction Setting */}
+      {selectedConfig && (
+        <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Cog6ToothIcon className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                  Global Sync Direction
+                </p>
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Applies to ALL contacts for {selectedConfig.xero_tenant_name || 'this organization'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <select
+                className="text-sm border border-amber-300 dark:border-amber-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                value={selectedConfig.default_sync_direction || 'import_only'}
+                onChange={(e) => handleSyncDirectionChange(e.target.value)}
+                disabled={savingSyncDirection}
+              >
+                <option value="import_only">Xero → TEEEM (Import Only)</option>
+                <option value="export_only">TEEEM → Xero (Export Only)</option>
+                <option value="bidirectional">↔ Bidirectional</option>
+                <option value="disabled">⏸ Disabled</option>
+              </select>
+              {savingSyncDirection && (
+                <ArrowPathIcon className="h-4 w-4 text-amber-600 animate-spin" />
+              )}
+            </div>
+          </div>
+
+          {/* Explanation of current setting */}
+          <div className="mt-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 rounded p-2">
+            {selectedConfig.default_sync_direction === 'import_only' && (
+              <><strong>Import Only:</strong> Data flows from Xero to TEEEM. Xero is the source of truth. Changes in TEEEM won't push to Xero.</>
+            )}
+            {selectedConfig.default_sync_direction === 'export_only' && (
+              <><strong>Export Only:</strong> Data flows from TEEEM to Xero. TEEEM is the source of truth. Creates/updates contacts in Xero.</>
+            )}
+            {selectedConfig.default_sync_direction === 'bidirectional' && (
+              <><strong>Bidirectional:</strong> Data syncs both ways. Most recent change wins. Use with caution - conflicts may occur.</>
+            )}
+            {(selectedConfig.default_sync_direction === 'disabled' || !selectedConfig.default_sync_direction) && (
+              <><strong>Disabled:</strong> No automatic syncing. Manual sync only.</>
+            )}
+          </div>
         </div>
       )}
 
