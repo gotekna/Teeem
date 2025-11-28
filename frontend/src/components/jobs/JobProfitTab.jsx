@@ -96,24 +96,55 @@ export default function JobProfitTab({ job }) {
   const activeCreditNotes = creditNotes.filter(cn => cn.status !== 'DELETED' && cn.status !== 'VOIDED')
   const activeSupplierCredits = supplierCreditNotes.filter(cn => cn.status !== 'DELETED' && cn.status !== 'VOIDED')
 
-  // Revenue calculations
-  const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0)
-  const totalCreditNotes = activeCreditNotes.reduce((sum, cn) => sum + (parseFloat(cn.total) || 0), 0)
-  const netRevenue = totalInvoiced - totalCreditNotes
+  // Revenue calculations - Gross (inc GST)
+  const totalInvoicedGross = activeInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0)
+  const totalCreditNotesGross = activeCreditNotes.reduce((sum, cn) => sum + (parseFloat(cn.total) || 0), 0)
+  const netRevenueGross = totalInvoicedGross - totalCreditNotesGross
+
+  // Revenue calculations - Net (ex GST)
+  const totalInvoicedNet = activeInvoices.reduce((sum, inv) => sum + (parseFloat(inv.subtotal) || parseFloat(inv.total) / 1.1 || 0), 0)
+  const totalCreditNotesNet = activeCreditNotes.reduce((sum, cn) => sum + (parseFloat(cn.subtotal) || parseFloat(cn.total) / 1.1 || 0), 0)
+  const netRevenueNet = totalInvoicedNet - totalCreditNotesNet
+
+  // GST calculations for revenue
+  const invoiceGst = activeInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total_tax) || 0), 0)
+  const creditNoteGst = activeCreditNotes.reduce((sum, cn) => sum + (parseFloat(cn.total_tax) || 0), 0)
+  const revenueGst = invoiceGst - creditNoteGst
 
   // Paid invoices
   const paidInvoices = activeInvoices.filter(inv => inv.status === 'PAID')
   const totalPaid = paidInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0)
-  const totalOutstanding = netRevenue - totalPaid
+  const totalOutstanding = netRevenueGross - totalPaid
 
-  // Cost calculations
-  const totalBills = activeBills.reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0)
-  const totalSupplierCredits = activeSupplierCredits.reduce((sum, cn) => sum + (parseFloat(cn.total) || 0), 0)
-  const netCosts = totalBills - totalSupplierCredits
+  // Cost calculations - Gross (inc GST)
+  const totalBillsGross = activeBills.reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0)
+  const totalSupplierCreditsGross = activeSupplierCredits.reduce((sum, cn) => sum + (parseFloat(cn.total) || 0), 0)
+  const netCostsGross = totalBillsGross - totalSupplierCreditsGross
 
-  // Profit calculations
-  const grossProfit = netRevenue - netCosts
-  const profitMargin = netRevenue > 0 ? (grossProfit / netRevenue) * 100 : 0
+  // Cost calculations - Net (ex GST)
+  const totalBillsNet = activeBills.reduce((sum, bill) => sum + (parseFloat(bill.subtotal) || parseFloat(bill.total) / 1.1 || 0), 0)
+  const totalSupplierCreditsNet = activeSupplierCredits.reduce((sum, cn) => sum + (parseFloat(cn.subtotal) || parseFloat(cn.total) / 1.1 || 0), 0)
+  const netCostsNet = totalBillsNet - totalSupplierCreditsNet
+
+  // GST calculations for costs
+  const billGst = activeBills.reduce((sum, bill) => sum + (parseFloat(bill.total_tax) || 0), 0)
+  const supplierCreditGst = activeSupplierCredits.reduce((sum, cn) => sum + (parseFloat(cn.total_tax) || 0), 0)
+  const costsGst = billGst - supplierCreditGst
+
+  // Profit calculations - using ex-GST figures for true profit
+  const grossProfit = netRevenueNet - netCostsNet
+  const profitMargin = netRevenueNet > 0 ? (grossProfit / netRevenueNet) * 100 : 0
+
+  // Net GST position (what you owe/are owed from ATO)
+  const netGstPosition = revenueGst - costsGst
+
+  // Legacy aliases for backwards compatibility
+  const totalInvoiced = totalInvoicedGross
+  const totalCreditNotes = totalCreditNotesGross
+  const netRevenue = netRevenueGross
+  const totalBills = totalBillsGross
+  const totalSupplierCredits = totalSupplierCreditsGross
+  const netCosts = netCostsGross
 
   // Quote totals (potential)
   const acceptedQuotes = quotes.filter(q => q.status === 'ACCEPTED')
@@ -242,12 +273,26 @@ export default function JobProfitTab({ job }) {
               </div>
             )}
 
-            {/* Net Revenue */}
-            <div className="flex items-center justify-between pt-3 border-t-2 border-blue-200 dark:border-blue-800">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">Net Revenue</span>
-              <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {formatCurrency(netRevenue)}
-              </span>
+            {/* Net Revenue with GST breakdown */}
+            <div className="pt-3 border-t-2 border-blue-200 dark:border-blue-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Net (ex GST)</span>
+                <span className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                  {formatCurrency(netRevenueNet)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">GST</span>
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {formatCurrency(revenueGst)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-600">
+                <span className="text-lg font-bold text-gray-900 dark:text-white">Total (inc GST)</span>
+                <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {formatCurrency(netRevenueGross)}
+                </span>
+              </div>
             </div>
 
             {/* Payment Status */}
@@ -321,12 +366,26 @@ export default function JobProfitTab({ job }) {
               </div>
             )}
 
-            {/* Net Costs */}
-            <div className="flex items-center justify-between pt-3 border-t-2 border-orange-200 dark:border-orange-800">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">Net Costs</span>
-              <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                {formatCurrency(netCosts)}
-              </span>
+            {/* Net Costs with GST breakdown */}
+            <div className="pt-3 border-t-2 border-orange-200 dark:border-orange-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">Net (ex GST)</span>
+                <span className="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                  {formatCurrency(netCostsNet)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600 dark:text-gray-400">GST</span>
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                  {formatCurrency(costsGst)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-600">
+                <span className="text-lg font-bold text-gray-900 dark:text-white">Total (inc GST)</span>
+                <span className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                  {formatCurrency(netCostsGross)}
+                </span>
+              </div>
             </div>
 
             {/* Cost Breakdown */}
@@ -353,7 +412,7 @@ export default function JobProfitTab({ job }) {
       </div>
 
       {/* Summary Statistics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 mb-1">
             <DocumentTextIcon className="h-4 w-4 text-blue-500" />
@@ -387,6 +446,18 @@ export default function JobProfitTab({ job }) {
             {formatPercentage(profitMargin)}
           </p>
         </div>
+
+        <div className={`rounded-xl p-4 border ${netGstPosition >= 0 ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-700' : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <ReceiptPercentIcon className={`h-4 w-4 ${netGstPosition >= 0 ? 'text-purple-500' : 'text-green-500'}`} />
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              {netGstPosition >= 0 ? 'GST Payable' : 'GST Refund'}
+            </span>
+          </div>
+          <p className={`text-xl font-bold ${netGstPosition >= 0 ? 'text-purple-600 dark:text-purple-400' : 'text-green-600 dark:text-green-400'}`}>
+            {formatCurrency(Math.abs(netGstPosition))}
+          </p>
+        </div>
       </div>
 
       {/* Detailed P&L Table */}
@@ -398,47 +469,67 @@ export default function JobProfitTab({ job }) {
         </div>
         <div className="p-6">
           <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide"></th>
+                <th className="py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Ex GST</th>
+                <th className="py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">GST</th>
+                <th className="py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Inc GST</th>
+              </tr>
+            </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {/* Revenue Section */}
               <tr>
-                <td colSpan="2" className="py-3">
+                <td colSpan="4" className="py-3">
                   <span className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">Revenue</span>
                 </td>
               </tr>
               <tr>
                 <td className="py-2 pl-4 text-sm text-gray-600 dark:text-gray-400">Sales Invoices</td>
-                <td className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(totalInvoiced)}</td>
+                <td className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(totalInvoicedNet)}</td>
+                <td className="py-2 text-right text-sm text-gray-500 dark:text-gray-400">{formatCurrency(invoiceGst)}</td>
+                <td className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(totalInvoicedGross)}</td>
               </tr>
-              {totalCreditNotes > 0 && (
+              {totalCreditNotesGross > 0 && (
                 <tr>
                   <td className="py-2 pl-4 text-sm text-gray-600 dark:text-gray-400">Less: Credit Notes</td>
-                  <td className="py-2 text-right text-sm font-medium text-red-600 dark:text-red-400">({formatCurrency(totalCreditNotes)})</td>
+                  <td className="py-2 text-right text-sm font-medium text-red-600 dark:text-red-400">({formatCurrency(totalCreditNotesNet)})</td>
+                  <td className="py-2 text-right text-sm text-red-500 dark:text-red-400">({formatCurrency(creditNoteGst)})</td>
+                  <td className="py-2 text-right text-sm font-medium text-red-600 dark:text-red-400">({formatCurrency(totalCreditNotesGross)})</td>
                 </tr>
               )}
               <tr className="bg-blue-50 dark:bg-blue-900/20">
                 <td className="py-3 pl-4 text-sm font-bold text-blue-900 dark:text-blue-300">Net Revenue</td>
-                <td className="py-3 text-right text-sm font-bold text-blue-900 dark:text-blue-300">{formatCurrency(netRevenue)}</td>
+                <td className="py-3 text-right text-sm font-bold text-blue-900 dark:text-blue-300">{formatCurrency(netRevenueNet)}</td>
+                <td className="py-3 text-right text-sm font-bold text-blue-700 dark:text-blue-400">{formatCurrency(revenueGst)}</td>
+                <td className="py-3 text-right text-sm font-bold text-blue-900 dark:text-blue-300">{formatCurrency(netRevenueGross)}</td>
               </tr>
 
               {/* Costs Section */}
               <tr>
-                <td colSpan="2" className="py-3 pt-6">
+                <td colSpan="4" className="py-3 pt-6">
                   <span className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">Cost of Sales</span>
                 </td>
               </tr>
               <tr>
                 <td className="py-2 pl-4 text-sm text-gray-600 dark:text-gray-400">Bills / Expenses</td>
-                <td className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(totalBills)}</td>
+                <td className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(totalBillsNet)}</td>
+                <td className="py-2 text-right text-sm text-gray-500 dark:text-gray-400">{formatCurrency(billGst)}</td>
+                <td className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(totalBillsGross)}</td>
               </tr>
-              {totalSupplierCredits > 0 && (
+              {totalSupplierCreditsGross > 0 && (
                 <tr>
                   <td className="py-2 pl-4 text-sm text-gray-600 dark:text-gray-400">Less: Supplier Credits</td>
-                  <td className="py-2 text-right text-sm font-medium text-green-600 dark:text-green-400">({formatCurrency(totalSupplierCredits)})</td>
+                  <td className="py-2 text-right text-sm font-medium text-green-600 dark:text-green-400">({formatCurrency(totalSupplierCreditsNet)})</td>
+                  <td className="py-2 text-right text-sm text-green-500 dark:text-green-400">({formatCurrency(supplierCreditGst)})</td>
+                  <td className="py-2 text-right text-sm font-medium text-green-600 dark:text-green-400">({formatCurrency(totalSupplierCreditsGross)})</td>
                 </tr>
               )}
               <tr className="bg-orange-50 dark:bg-orange-900/20">
                 <td className="py-3 pl-4 text-sm font-bold text-orange-900 dark:text-orange-300">Net Costs</td>
-                <td className="py-3 text-right text-sm font-bold text-orange-900 dark:text-orange-300">{formatCurrency(netCosts)}</td>
+                <td className="py-3 text-right text-sm font-bold text-orange-900 dark:text-orange-300">{formatCurrency(netCostsNet)}</td>
+                <td className="py-3 text-right text-sm font-bold text-orange-700 dark:text-orange-400">{formatCurrency(costsGst)}</td>
+                <td className="py-3 text-right text-sm font-bold text-orange-900 dark:text-orange-300">{formatCurrency(netCostsGross)}</td>
               </tr>
 
               {/* Profit Section */}
@@ -446,14 +537,43 @@ export default function JobProfitTab({ job }) {
                 <td className={`py-4 pl-4 text-base font-bold ${grossProfit >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-red-900 dark:text-red-300'}`}>
                   GROSS PROFIT
                 </td>
-                <td className={`py-4 text-right text-xl font-bold ${grossProfit >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-red-900 dark:text-red-300'}`}>
+                <td className={`py-4 text-right text-lg font-bold ${grossProfit >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-red-900 dark:text-red-300'}`}>
                   {formatCurrency(grossProfit)}
+                </td>
+                <td className={`py-4 text-right text-sm font-bold ${netGstPosition >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
+                  {formatCurrency(netGstPosition)}
+                </td>
+                <td className={`py-4 text-right text-lg font-bold ${(grossProfit + netGstPosition) >= 0 ? 'text-emerald-900 dark:text-emerald-300' : 'text-red-900 dark:text-red-300'}`}>
+                  {formatCurrency(grossProfit + netGstPosition)}
                 </td>
               </tr>
               <tr>
                 <td className="py-2 pl-4 text-sm text-gray-600 dark:text-gray-400">Gross Profit Margin</td>
-                <td className={`py-2 text-right text-sm font-bold ${profitMargin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                <td className={`py-2 text-right text-sm font-bold ${profitMargin >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`} colSpan="3">
                   {formatPercentage(profitMargin)}
+                </td>
+              </tr>
+
+              {/* GST Summary Section */}
+              <tr>
+                <td colSpan="4" className="py-3 pt-6">
+                  <span className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide">GST Summary</span>
+                </td>
+              </tr>
+              <tr>
+                <td className="py-2 pl-4 text-sm text-gray-600 dark:text-gray-400">GST Collected (Sales)</td>
+                <td colSpan="3" className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">{formatCurrency(revenueGst)}</td>
+              </tr>
+              <tr>
+                <td className="py-2 pl-4 text-sm text-gray-600 dark:text-gray-400">GST Paid (Purchases)</td>
+                <td colSpan="3" className="py-2 text-right text-sm font-medium text-gray-900 dark:text-white">({formatCurrency(costsGst)})</td>
+              </tr>
+              <tr className={`${netGstPosition >= 0 ? 'bg-purple-50 dark:bg-purple-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
+                <td className={`py-3 pl-4 text-sm font-bold ${netGstPosition >= 0 ? 'text-purple-900 dark:text-purple-300' : 'text-green-900 dark:text-green-300'}`}>
+                  {netGstPosition >= 0 ? 'GST Payable to ATO' : 'GST Refund from ATO'}
+                </td>
+                <td colSpan="3" className={`py-3 text-right text-sm font-bold ${netGstPosition >= 0 ? 'text-purple-900 dark:text-purple-300' : 'text-green-900 dark:text-green-300'}`}>
+                  {formatCurrency(Math.abs(netGstPosition))}
                 </td>
               </tr>
             </tbody>
