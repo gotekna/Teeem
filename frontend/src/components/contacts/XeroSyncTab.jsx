@@ -250,9 +250,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     {
       section: 'Addresses',
       fields: [
-        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: getAddressSyncStatus('STREET'), syncDirection: getFieldSyncDirection('address_street') },
-        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: getAddressSyncStatus('POBOX'), syncDirection: getFieldSyncDirection('address_pobox') },
-        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: getAddressSyncStatus('DELIVERY'), syncDirection: getFieldSyncDirection('address_delivery') }
+        { xeroField: 'Address (STREET)', teeemField: 'Street Address', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: getAddressSyncStatus('STREET'), syncDirection: getFieldSyncDirection('address_street') },
+        { xeroField: 'Address (POBOX)', teeemField: 'PO Box Address', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: getAddressSyncStatus('POBOX'), syncDirection: getFieldSyncDirection('address_pobox') },
+        { xeroField: 'Address (DELIVERY)', teeemField: 'Delivery Address', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: getAddressSyncStatus('DELIVERY'), syncDirection: getFieldSyncDirection('address_delivery') }
       ]
     },
     {
