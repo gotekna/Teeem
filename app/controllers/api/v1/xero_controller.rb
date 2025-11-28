@@ -218,6 +218,39 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/invoices/:id
+      # Fetches a single invoice with full details including line items
+      def invoice_detail
+        begin
+          client = XeroApiClient.new
+          invoice_id = params[:id]
+
+          # Fetch single invoice with full details (including line items)
+          result = client.get("Invoices/#{invoice_id}")
+
+          if result[:success]
+            invoice = result[:data]['Invoices']&.first
+
+            if invoice
+              render json: {
+                success: true,
+                data: invoice
+              }
+            else
+              render json: { success: false, error: 'Invoice not found' }, status: :not_found
+            end
+          else
+            render json: { success: false, error: 'Failed to fetch invoice' }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero invoice detail auth error: #{e.message}")
+          render json: { success: false, error: 'Not authenticated with Xero' }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero invoice detail error: #{e.message}")
+          render json: { success: false, error: "Failed to fetch invoice details" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/xero/payments
       # Fetches payments from Xero (with optional contact filter)
       def payments
