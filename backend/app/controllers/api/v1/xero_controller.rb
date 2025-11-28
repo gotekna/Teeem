@@ -219,14 +219,15 @@ module Api
       end
 
       # GET /api/v1/xero/invoices/:id
-      # Fetches a single invoice with full details including line items
+      # Fetches a single invoice with full details including line items and tracking
       def invoice_detail
         begin
           client = XeroApiClient.new
           invoice_id = params[:id]
 
-          # Fetch single invoice with full details (including line items)
-          result = client.get("Invoices/#{invoice_id}")
+          # Fetch single invoice with full details (including line items and tracking)
+          # unitdp=4 gives full decimal precision, and Xero returns Tracking on LineItems by default
+          result = client.get("Invoices/#{invoice_id}", { unitdp: 4 })
 
           if result[:success]
             invoice = result[:data]['Invoices']&.first
