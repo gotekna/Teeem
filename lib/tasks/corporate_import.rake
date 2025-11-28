@@ -265,8 +265,27 @@ namespace :corporate do
       directors: []
     }
 
+    in_shareholdings_section = false
+    in_bank_section = false
+
     (1..sheet.last_row).each do |row|
       row_data = (1..10).map { |col| sheet.cell(row, col).to_s.strip }
+      row_text = row_data.join(' ').downcase
+
+      # Track sections
+      if row_text.include?('current shareholdings')
+        in_shareholdings_section = true
+        in_bank_section = false
+        next
+      elsif row_text.include?('current bank accounts') || row_text.include?('bank') && row_text.include?('bsb')
+        in_shareholdings_section = false
+        in_bank_section = true
+        next
+      elsif row_text.include?('folder storage') || row_text.include?('company register')
+        in_shareholdings_section = false
+        in_bank_section = false
+        next
+      end
 
       # Parse key-value pairs
       row_data.each_with_index do |cell, idx|
@@ -297,23 +316,47 @@ namespace :corporate do
             from_date = row_data[idx + 2]
             data[:directors] << { name: next_cell, position: 'Secretary', from_date: from_date }
           end
-        when /current shareholdings/i
-          # Parse shareholding rows that follow
-          # Format: Name, Share Type, Shares, Beneficially Held, Beneficial Owner
         end
       end
 
-      # Check if this is a shareholding row (after "Current Shareholdings" header)
-      if row_data[1].present? && !row_data[1].match?(/^(current|does|folder)/i) &&
-         (row_data[4].to_s.match?(/^\d+$/) || row_data[3].to_s.match?(/^\d+$/))
-        shares = row_data[4].to_s.match?(/^\d+$/) ? row_data[4] : row_data[3]
-        data[:shareholdings] << {
-          name: row_data[1],
-          share_class: row_data[3].to_s.downcase.include?('ordinary') ? 'ordinary' : row_data[3],
-          shares: shares,
-          beneficially_held: row_data[5].to_s.strip,
-          beneficial_owner: row_data[6].to_s.strip.presence
-        }
+      # Parse shareholdings only in the shareholdings section
+      if in_shareholdings_section
+        # Name could be in column 2 or 3 depending on layout
+        # Check both - prefer column 3 if it looks like a name
+        name = nil
+        if row_data[2].present? && row_data[2].length > 3 && !row_data[2].match?(/^(shares|beneficially|current|does|bank|\d)/i)
+          name = row_data[2]
+        elsif row_data[1].present? && row_data[1].length > 3 && !row_data[1].match?(/^(shares|beneficially|current|does|bank|\d)/i)
+          name = row_data[1]
+        end
+
+        next if name.blank?
+        next if name.match?(/^\d{4}-\d{2}-\d{2}/)  # Skip date rows
+
+        # Shares could be in column 4 or 5 depending on layout
+        shares = nil
+        [4, 5, 3].each do |col|
+          val = row_data[col].to_s.gsub(/[^\d]/, '')
+          if val.present? && val.to_i > 0 && val.to_i < 1000000  # Reasonable share count
+            shares = val.to_i
+            break
+          end
+        end
+
+        if shares && shares > 0
+          # Beneficially held is usually after shares column
+          beneficially_held = row_data[5].to_s.strip.downcase
+          if beneficially_held.blank?
+            beneficially_held = row_data[6].to_s.strip.downcase
+          end
+          data[:shareholdings] << {
+            name: name,
+            share_class: 'ordinary',
+            shares: shares,
+            beneficially_held: beneficially_held == 'yes' ? 'Yes' : 'No',
+            beneficial_owner: row_data[7].to_s.strip.presence
+          }
+        end
       end
     end
 
@@ -322,20 +365,43 @@ namespace :corporate do
 
   def import_bank_accounts(xlsx)
     sheet = xlsx.sheet('Bank Accounts ')
-    headers = sheet.row(1).map { |h| h.to_s.strip.downcase.gsub(/\s+/, '_') }
+
+    # Track current entity as some rows inherit from previous
+    current_entity = nil
 
     (2..sheet.last_row).each do |row_num|
-      row = Hash[headers.zip(sheet.row(row_num))]
-      entity_name = row['entity_'].to_s.strip
-      next if entity_name.blank?
+      row = (1..8).map { |col| sheet.cell(row_num, col).to_s.strip }
+      # Columns: Group, Entity, Institution, BSB, Account Number, Acc Open, Acc Close
 
-      # Find the company
-      company = Company.find_by("name ILIKE ?", "%#{entity_name}%")
-      next unless company
+      group = row[0]
+      entity = row[1]
+      institution = row[2]
+      bsb = row[3].to_s.gsub(/[^\d]/, '')  # Strip all non-digits
+      # Normalize BSB to 6 digits (pad with leading zeros if needed)
+      bsb = bsb.rjust(6, '0') if bsb.present? && bsb.length < 6 && bsb.length >= 5
+      account_number = row[4].to_s.gsub(/[^\d]/, '')
+      acc_open = row[5]
+      acc_close = row[6]
 
-      bsb = row['bsb_'].to_s.gsub(/[^\d-]/, '')
-      account_number = row['account_number_'].to_s.gsub(/[^\d]/, '')
-      next if account_number.blank?
+      # Update current entity if specified
+      current_entity = entity if entity.present?
+      next if current_entity.blank?
+      next if account_number.blank? || account_number.length < 5
+
+      # Find the company - try various name matches
+      search_name = current_entity.gsub(/\s*(Pty Ltd|Ltd|ATF.*|Pty)?\s*$/i, '').strip
+      company = Company.find_by("name ILIKE ?", "%#{search_name}%")
+
+      unless company
+        # Try first word
+        first_word = search_name.split.first
+        company = Company.find_by("name ILIKE ?", "%#{first_word}%") if first_word.length > 3
+      end
+
+      unless company
+        puts "  WARNING: Company not found for '#{current_entity}' - skipping bank account"
+        next
+      end
 
       bank_account = BankAccount.find_or_initialize_by(
         company: company,
@@ -343,17 +409,17 @@ namespace :corporate do
         account_number: account_number
       )
       bank_account.assign_attributes(
-        bank_name: row['institution_'].to_s.strip,
-        account_name: entity_name,
-        opened_date: parse_date(row['acc_open']),
-        closed_date: parse_date(row['acc_close']),
-        status: row['acc_close'].present? ? 'closed' : 'active'
+        institution_name: institution,
+        account_name: current_entity,
+        date_opened: parse_date(acc_open),
+        date_closed: parse_date(acc_close),
+        status: acc_close.present? ? 'closed' : 'active'
       )
 
       if bank_account.save
-        puts "  Created/updated bank account: #{entity_name} - #{bsb} #{account_number}"
+        puts "  Created/updated bank account: #{current_entity} - #{bsb} #{account_number}"
       else
-        puts "  ERROR: #{entity_name} - #{bank_account.errors.full_messages.join(', ')}"
+        puts "  ERROR: #{current_entity} - #{bank_account.errors.full_messages.join(', ')}"
       end
     end
   end

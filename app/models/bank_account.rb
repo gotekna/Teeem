@@ -49,23 +49,23 @@ class BankAccount < ApplicationRecord
   end
 
   def create_activity
+    user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
     company.company_activities.create!(
       activity_type: 'bank_account_added',
       description: "Bank account added: #{display_name}",
-      metadata: { bank_account_id: id, institution: institution_name },
-      performed_by: Current.user || User.first,
-      occurred_at: Time.current
+      change_details: { bank_account_id: id, institution: institution_name },
+      user: user || User.first
     )
   end
 
   def create_update_activity
     if status == 'closed'
+      user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
       company.company_activities.create!(
         activity_type: 'bank_account_closed',
         description: "Bank account closed: #{display_name}",
-        metadata: { bank_account_id: id, date_closed: date_closed },
-        performed_by: Current.user || User.first,
-        occurred_at: Time.current
+        change_details: { bank_account_id: id, date_closed: date_closed },
+        user: user || User.first
       )
     end
   end
