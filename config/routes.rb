@@ -815,6 +815,9 @@ Rails.application.routes.draw do
           get :status
           delete :disconnect
           get :invoices
+          get :payments
+          get :credit_notes
+          get :quotes
           post :match_invoice
           post :sync_contacts
           get :sync_status

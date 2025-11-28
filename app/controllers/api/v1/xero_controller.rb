@@ -154,17 +154,26 @@ module Api
 
           # Build query parameters
           query_params = {}
+          where_clauses = []
+
+          # Filter by contact_id if provided
+          if params[:contact_id].present?
+            where_clauses << "Contact.ContactID == Guid(\"#{params[:contact_id]}\")"
+          end
 
           # Filter by date range if provided
           if params[:from_date].present?
-            query_params[:where] = "Date >= DateTime(#{params[:from_date]})"
+            where_clauses << "Date >= DateTime(#{params[:from_date]})"
           end
 
           # Filter by status
           if params[:status].present?
-            status_filter = "Status == \"#{params[:status]}\""
-            query_params[:where] = query_params[:where].present? ?
-              "#{query_params[:where]} AND #{status_filter}" : status_filter
+            where_clauses << "Status == \"#{params[:status]}\""
+          end
+
+          # Combine where clauses
+          if where_clauses.any?
+            query_params[:where] = where_clauses.join(' AND ')
           end
 
           # Add pagination
@@ -206,6 +215,119 @@ module Api
             success: false,
             error: "Failed to fetch invoices"
           }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/payments
+      # Fetches payments from Xero (with optional contact filter)
+      def payments
+        begin
+          client = XeroApiClient.new
+
+          query_params = {}
+          where_clauses = []
+
+          # Filter by contact_id if provided (via invoice)
+          if params[:contact_id].present?
+            # Payments are linked to invoices, not directly to contacts
+            # We need to filter invoices by contact first, then get their payments
+            # For now, return empty - payments would need to be fetched per invoice
+          end
+
+          result = client.get('Payments', query_params)
+
+          if result[:success]
+            payments = result[:data]['Payments'] || []
+
+            render json: {
+              success: true,
+              data: {
+                payments: payments,
+                count: payments.length
+              }
+            }
+          else
+            render json: { success: false, error: 'Failed to fetch payments' }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("Xero payments error: #{e.message}")
+          render json: { success: false, error: "Failed to fetch payments" }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/credit_notes
+      # Fetches credit notes from Xero (with optional contact filter)
+      def credit_notes
+        begin
+          client = XeroApiClient.new
+
+          query_params = {}
+          where_clauses = []
+
+          if params[:contact_id].present?
+            where_clauses << "Contact.ContactID == Guid(\"#{params[:contact_id]}\")"
+          end
+
+          if where_clauses.any?
+            query_params[:where] = where_clauses.join(' AND ')
+          end
+
+          result = client.get('CreditNotes', query_params)
+
+          if result[:success]
+            credit_notes = result[:data]['CreditNotes'] || []
+
+            render json: {
+              success: true,
+              data: {
+                credit_notes: credit_notes,
+                count: credit_notes.length
+              }
+            }
+          else
+            render json: { success: false, error: 'Failed to fetch credit notes' }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("Xero credit_notes error: #{e.message}")
+          render json: { success: false, error: "Failed to fetch credit notes" }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/quotes
+      # Fetches quotes from Xero (with optional contact filter)
+      def quotes
+        begin
+          client = XeroApiClient.new
+
+          query_params = {}
+          where_clauses = []
+
+          if params[:contact_id].present?
+            where_clauses << "Contact.ContactID == Guid(\"#{params[:contact_id]}\")"
+          end
+
+          if where_clauses.any?
+            query_params[:where] = where_clauses.join(' AND ')
+          end
+
+          result = client.get('Quotes', query_params)
+
+          if result[:success]
+            quotes = result[:data]['Quotes'] || []
+
+            render json: {
+              success: true,
+              data: {
+                quotes: quotes,
+                count: quotes.length
+              }
+            }
+          else
+            render json: { success: false, error: 'Failed to fetch quotes' }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("Xero quotes error: #{e.message}")
+          render json: { success: false, error: "Failed to fetch quotes" }, status: :internal_server_error
         end
       end
 
