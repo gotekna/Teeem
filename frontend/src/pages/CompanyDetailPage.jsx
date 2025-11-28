@@ -146,9 +146,11 @@ export default function CompanyDetailPage() {
                   {company.formatted_abn && (
                     <span>ABN: {company.formatted_abn}</span>
                   )}
-                  {company.company_group && (
+                  {(company.company_group || company.group_name) && (
                     <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
-                      {company.company_group.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                      {typeof company.company_group === 'string'
+                        ? company.company_group.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                        : (company.company_group?.name || company.group_name || '')}
                     </span>
                   )}
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
