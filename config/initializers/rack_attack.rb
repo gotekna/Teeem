@@ -11,8 +11,13 @@ class Rack::Attack
     req.ip == '127.0.0.1' || req.ip == '::1' || req.ip == 'localhost'
   end
 
+  # Determine rate limit based on environment
+  # Staging (teeem-rob-dev) gets higher limits for development/testing
+  is_staging = ENV['HEROKU_APP_NAME']&.include?('rob-dev')
+  general_limit = is_staging ? 1000 : 300
+
   # Throttle all requests by IP (prevent general abuse)
-  throttle('req/ip', limit: 300, period: 5.minutes) do |req|
+  throttle('req/ip', limit: general_limit, period: 5.minutes) do |req|
     req.ip
   end
 
