@@ -81,6 +81,7 @@ const navigation = [
   { name: 'Documents', href: '/documents', icon: DocumentTextIcon },
   { name: 'Training', href: '/training', icon: AcademicCapIcon },
   { name: 'Outlook', href: 'https://outlook.office365.com/mail/', icon: EnvelopeIcon, external: true, popup: true },
+  { name: 'SharePoint', href: 'https://teklogscomau.sharepoint.com/', icon: FolderOpenIcon, external: true, popup: true },
   { name: 'OneDrive', href: '/onedrive', icon: CloudIcon },
   { name: 'Health', href: '/health', icon: PlusIcon },
   { name: 'System Admin', href: '/admin/system', icon: BeakerIcon },
