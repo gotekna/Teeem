@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_27_235401) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_28_000847) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -574,6 +574,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_27_235401) do
     t.string "abn_entity_type"
     t.boolean "abn_gst_registered"
     t.datetime "abn_verified_at"
+    t.boolean "xero_synced", default: false, null: false
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
