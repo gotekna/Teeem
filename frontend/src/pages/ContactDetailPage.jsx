@@ -32,6 +32,7 @@ import JobsSection from '../components/contacts/JobsSection'
 import CommunicationsTab from '../components/communications/CommunicationsTab'
 import PortalUserSection from '../components/contacts/PortalUserSection'
 import XeroSyncTab from '../components/contacts/XeroSyncTab'
+import XeroActivityTab from '../components/contacts/XeroActivityTab'
 import XeroConnectionsSection from '../components/contacts/XeroConnectionsSection'
 
 // Helper function to format ABN as XX XXX XXX XXX
@@ -971,6 +972,16 @@ export default function ContactDetailPage() {
               } whitespace-nowrap py-1 px-1 border-b-2 font-medium text-xs transition-colors`}
             >
               XERO Sync
+            </button>
+            <button
+              onClick={() => setSearchParams({ tab: 'xero-activity' })}
+              className={`${
+                activeTab === 'xero-activity'
+                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+              } whitespace-nowrap py-1 px-1 border-b-2 font-medium text-xs transition-colors`}
+            >
+              XERO Activity
             </button>
           </nav>
         </div>
@@ -2935,6 +2946,18 @@ export default function ContactDetailPage() {
       {activeTab === 'xero-sync' && (
         <div className="mt-6">
           <XeroSyncTab
+            contact={contact}
+            onContactUpdate={(updatedContact) => {
+              setContact(updatedContact)
+              loadContact()
+            }}
+          />
+        </div>
+      )}
+
+      {activeTab === 'xero-activity' && (
+        <div className="mt-6">
+          <XeroActivityTab
             contact={contact}
             onContactUpdate={(updatedContact) => {
               setContact(updatedContact)
