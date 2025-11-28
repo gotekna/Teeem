@@ -2,8 +2,8 @@ module Api
   module V1
     class CompaniesController < ApplicationController
       before_action :set_company, only: [:show, :update, :destroy, :directors, :add_director,
-                                         :remove_director, :compliance_items, :activities,
-                                         :documents, :assets]
+                                         :update_director, :remove_director, :compliance_items,
+                                         :activities, :documents, :assets]
 
       # GET /api/v1/companies
       def index
@@ -154,6 +154,27 @@ module Api
         end
       end
 
+      # PUT /api/v1/companies/:id/directors/:director_id
+      def update_director
+        director = @company.company_directors.find(params[:director_id])
+
+        if director.update(director_params)
+          render json: {
+            success: true,
+            message: 'Director updated successfully',
+            director: director.as_json(
+              include: { contact: { only: [:id, :full_name, :email] } },
+              methods: [:formatted_position]
+            )
+          }
+        else
+          render json: {
+            success: false,
+            errors: director.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       # DELETE /api/v1/companies/:id/directors/:director_id
       def remove_director
         director = @company.company_directors.find(params[:director_id])
@@ -262,6 +283,10 @@ module Api
           :shares_on_issue, :carry_forward_losses, :franking_balance, :amount_owing,
           metadata: {}
         )
+      end
+
+      def director_params
+        params.permit(:position, :appointment_date, :resignation_date, :notes)
       end
     end
   end

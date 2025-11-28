@@ -993,6 +993,7 @@ Rails.application.routes.draw do
         member do
           get :directors
           post :add_director
+          put 'directors/:director_id', to: 'companies#update_director'
           delete 'directors/:director_id', to: 'companies#remove_director'
           get :compliance_items
           get :activities
