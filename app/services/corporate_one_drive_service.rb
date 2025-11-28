@@ -342,9 +342,15 @@ class CorporateOneDriveService
     find_folder(doc_type.folder, general_folder['id']) || find_folder(document_type, general_folder['id'])
   end
 
-  def format_document_name(date:, type:, description:, extension:)
+  def format_document_name(date:, type:, description:, extension:, company: nil)
     date_str = date.strftime('%Y-%m-%d')
-    "#{date_str} - #{type} - #{description}#{extension}"
+    # Standard format: {Company Code} - {YYYY-MM-DD} - {Document Type} - {Description}.{ext}
+    if company
+      company_identifier = company.company_code.presence || company.abbreviation.presence || company.name.split.map(&:first).join.upcase
+      "#{company_identifier} - #{date_str} - #{type} - #{description}#{extension}"
+    else
+      "#{date_str} - #{type} - #{description}#{extension}"
+    end
   end
 
   def parse_document_name(filename)
