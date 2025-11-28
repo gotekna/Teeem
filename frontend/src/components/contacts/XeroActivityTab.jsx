@@ -39,6 +39,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState({
     invoices: true,
+    bills: true,
     creditNotes: true,
     payments: true,
     quotes: false
@@ -360,51 +361,70 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
       ) : (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <DocumentTextIcon className="h-5 w-5 text-blue-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Invoices</span>
-              </div>
-              <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {xeroInvoices.length}
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <CurrencyDollarIcon className="h-5 w-5 text-green-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Payments</span>
-              </div>
-              <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {xeroPayments.length}
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <ReceiptRefundIcon className="h-5 w-5 text-orange-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Credit Notes</span>
-              </div>
-              <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {xeroCreditNotes.length}
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <ClipboardDocumentListIcon className="h-5 w-5 text-purple-500" />
-                <span className="text-sm text-gray-500 dark:text-gray-400">Quotes</span>
-              </div>
-              <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                {xeroQuotes.length}
-              </div>
-            </div>
-          </div>
-
-          {/* Invoices Section */}
           {(() => {
+            // Separate invoices (ACCREC) from bills (ACCPAY)
+            const salesInvoices = xeroInvoices.filter(inv => inv.Type === 'ACCREC')
+            const bills = xeroInvoices.filter(inv => inv.Type === 'ACCPAY')
+
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <DocumentTextIcon className="h-5 w-5 text-blue-500" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Invoices</span>
+                  </div>
+                  <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {salesInvoices.length}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <DocumentTextIcon className="h-5 w-5 text-amber-500" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Bills</span>
+                  </div>
+                  <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {bills.length}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CurrencyDollarIcon className="h-5 w-5 text-green-500" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Payments</span>
+                  </div>
+                  <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {xeroPayments.length}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ReceiptRefundIcon className="h-5 w-5 text-orange-500" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Credit Notes</span>
+                  </div>
+                  <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {xeroCreditNotes.length}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ClipboardDocumentListIcon className="h-5 w-5 text-purple-500" />
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Quotes</span>
+                  </div>
+                  <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                    {xeroQuotes.length}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Invoices Section (ACCREC = Sales Invoices only) */}
+          {(() => {
+            // Filter for ACCREC (sales invoices) only
+            const salesInvoices = xeroInvoices.filter(inv => inv.Type === 'ACCREC')
             const filteredInvoices = showDeleted
-              ? xeroInvoices
-              : xeroInvoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED')
-            const deletedCount = xeroInvoices.length - xeroInvoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED').length
+              ? salesInvoices
+              : salesInvoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED')
+            const deletedCount = salesInvoices.length - salesInvoices.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED').length
             const invoiceTotal = filteredInvoices.reduce((sum, inv) => sum + (inv.Total || 0), 0)
             const invoiceDueTotal = filteredInvoices.reduce((sum, inv) => sum + (inv.AmountDue || 0), 0)
 
@@ -511,6 +531,128 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                     ) : (
                       <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                         No invoices found in Xero
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* Bills Section (ACCPAY = Supplier Bills only) */}
+          {(() => {
+            // Filter for ACCPAY (bills/supplier invoices) only
+            const bills = xeroInvoices.filter(inv => inv.Type === 'ACCPAY')
+            const filteredBills = showDeleted
+              ? bills
+              : bills.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED')
+            const deletedBillsCount = bills.length - bills.filter(inv => inv.Status !== 'DELETED' && inv.Status !== 'VOIDED').length
+            const billTotal = filteredBills.reduce((sum, inv) => sum + (inv.Total || 0), 0)
+            const billDueTotal = filteredBills.reduce((sum, inv) => sum + (inv.AmountDue || 0), 0)
+
+            return (
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <button
+                  onClick={() => toggleSection('bills')}
+                  className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <div className="flex items-center gap-2">
+                    <DocumentTextIcon className="h-5 w-5 text-amber-500" />
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      Bills ({filteredBills.length})
+                    </span>
+                    {deletedBillsCount > 0 && !showDeleted && (
+                      <span className="text-xs text-gray-400">
+                        +{deletedBillsCount} deleted
+                      </span>
+                    )}
+                  </div>
+                  {expandedSections.bills ? (
+                    <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                  ) : (
+                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                  )}
+                </button>
+
+                {expandedSections.bills && (
+                  <div className="overflow-x-auto">
+                    {filteredBills.length > 0 ? (
+                      <>
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-900/50">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Description</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due Date</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Due</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {filteredBills.map((bill, idx) => (
+                              <tr
+                                key={idx}
+                                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                                onClick={() => fetchInvoiceDetail(bill.InvoiceID)}
+                              >
+                                <td className="px-4 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:underline">
+                                  {bill.InvoiceNumber || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={bill.LineItems?.[0]?.Description || ''}>
+                                  {bill.LineItems?.[0]?.Description || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {bill.Reference || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {formatDate(bill.Date)}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                                  {formatDate(bill.DueDate)}
+                                </td>
+                                <td className="px-4 py-2">
+                                  {getStatusBadge(bill.Status)}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                                  {formatCurrency(bill.Total)}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                                  {formatCurrency(bill.AmountDue)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
+                            <tr>
+                              <td colSpan={6} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                                Total
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right font-bold text-gray-900 dark:text-white">
+                                {formatCurrency(billTotal)}
+                              </td>
+                              <td className="px-4 py-2 text-sm text-right font-bold text-gray-900 dark:text-white">
+                                {formatCurrency(billDueTotal)}
+                              </td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                        {deletedBillsCount > 0 && (
+                          <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setShowDeleted(!showDeleted); }}
+                              className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            >
+                              {showDeleted ? 'Hide deleted/voided' : `Show ${deletedBillsCount} deleted/voided`}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                        No bills found in Xero
                       </div>
                     )}
                   </div>
@@ -813,7 +955,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                     <div>
                       <div className="flex items-center gap-3">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                          Invoice {selectedInvoice.InvoiceNumber}
+                          {selectedInvoice.Type === 'ACCPAY' ? 'Bill' : 'Invoice'} {selectedInvoice.InvoiceNumber}
                         </h2>
                         <span className={`px-3 py-1 rounded text-sm font-medium border ${
                           selectedInvoice.Status === 'PAID' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' :
@@ -865,7 +1007,7 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                         <p className="font-medium text-gray-900 dark:text-white">{formatDate(selectedInvoice.DueDate)}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500 dark:text-gray-400">Invoice Number</span>
+                        <span className="text-gray-500 dark:text-gray-400">{selectedInvoice.Type === 'ACCPAY' ? 'Bill Number' : 'Invoice Number'}</span>
                         <p className="font-medium text-gray-900 dark:text-white">{selectedInvoice.InvoiceNumber}</p>
                       </div>
                       <div>
@@ -947,7 +1089,10 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
                   {/* Footer Actions */}
                   <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
                     <a
-                      href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${selectedInvoice.InvoiceID}`}
+                      href={selectedInvoice.Type === 'ACCPAY'
+                        ? `https://go.xero.com/AccountsPayable/View.aspx?invoiceID=${selectedInvoice.InvoiceID}`
+                        : `https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${selectedInvoice.InvoiceID}`
+                      }
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition"
