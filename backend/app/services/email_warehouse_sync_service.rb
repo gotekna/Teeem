@@ -149,14 +149,22 @@ class EmailWarehouseSyncService
     ]
 
     url = "#{OutlookService::GRAPH_API_BASE}#{endpoint}?#{params.join('&')}"
+    Rails.logger.info "[EmailSync] Fetching from: #{folder}, skip: #{skip}"
 
     response = make_graph_request(url)
-    return [] unless response.is_a?(Net::HTTPSuccess)
+
+    unless response.is_a?(Net::HTTPSuccess)
+      Rails.logger.error "[EmailSync] API error: #{response.code} - #{response.body}"
+      return []
+    end
 
     data = JSON.parse(response.body)
-    parse_outlook_emails(data['value'] || [])
+    emails = parse_outlook_emails(data['value'] || [])
+    Rails.logger.info "[EmailSync] Fetched #{emails.count} emails from #{folder}"
+    emails
   rescue StandardError => e
-    Rails.logger.error "Failed to fetch emails: #{e.message}"
+    Rails.logger.error "[EmailSync] Failed to fetch emails: #{e.class} - #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
     []
   end
 

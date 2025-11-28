@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
@@ -58,6 +59,20 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
   const [pendingSaveData, setPendingSaveData] = useState(null)
   const [extractedNumber, setExtractedNumber] = useState('')
   const [numberType, setNumberType] = useState('lot') // 'lot' or 'street'
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const addressInputRef = useRef(null)
+
+  // Update dropdown position when showing suggestions
+  useEffect(() => {
+    if (showAddressSuggestions && addressInputRef.current) {
+      const rect = addressInputRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      })
+    }
+  }, [showAddressSuggestions, addressSuggestions])
 
   useEffect(() => {
     // If we have saved coordinates, use them
@@ -241,9 +256,19 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
 
       // Fallback to Nominatim (old method)
       try {
+        // Add Queensland/Brisbane bias and "street" hint for better matching
+        let searchQuery = query
+        if (!query.toLowerCase().includes('qld') && !query.toLowerCase().includes('queensland')) {
+          searchQuery = `${query}, Queensland`
+        }
+        // Add "street" if query looks like a street number + partial name
+        if (/^\d+\s+\w+$/i.test(query.trim()) && !query.toLowerCase().includes('street')) {
+          searchQuery = `${query} street, Queensland`
+        }
+
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?` +
-          `q=${encodeURIComponent(query)}&` +
+          `q=${encodeURIComponent(searchQuery)}&` +
           `format=json&` +
           `addressdetails=1&` +
           `countrycodes=au&` +
@@ -915,6 +940,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                   Search Address
                 </label>
                 <input
+                  ref={addressInputRef}
                   type="text"
                   value={searchAddress}
                   onChange={(e) => setSearchAddress(e.target.value)}
@@ -926,15 +952,19 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>
                   </div>
                 )}
-                {showAddressSuggestions && (
+                {/* Portal dropdown to body to avoid any clipping issues */}
+                {showAddressSuggestions && createPortal(
                   <div
-                    className="absolute z-[9999] w-full top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    style={{
+                      position: 'fixed',
+                      top: dropdownPosition.top,
+                      left: dropdownPosition.left,
+                      width: dropdownPosition.width,
+                      zIndex: 99999
+                    }}
+                    className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
                     onMouseDown={(e) => e.preventDefault()}
                   >
-                    {(() => {
-                      console.log('Rendering dropdown - showAddressSuggestions:', showAddressSuggestions, 'suggestions count:', addressSuggestions.length)
-                      return null
-                    })()}
                     {addressSuggestions.length > 0 ? (
                       addressSuggestions.map((suggestion, index) => (
                         <button
@@ -951,7 +981,8 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                         No addresses found. Try a different search.
                       </div>
                     )}
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
 
