@@ -69,10 +69,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [loadingTenants, setLoadingTenants] = useState(true)
   const [linkingToTenant, setLinkingToTenant] = useState(null)
 
-  // Global sync configuration for the selected tenant
-  const [syncConfig, setSyncConfig] = useState(null)
-  const [savingSyncDirection, setSavingSyncDirection] = useState(false)
-
   // Xero contact data (fetched from Xero API)
   const [xeroContactData, setXeroContactData] = useState(null)
   const [loadingXeroContact, setLoadingXeroContact] = useState(false)
@@ -398,47 +394,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   useEffect(() => {
     loadAvailableTenants()
   }, [])
-
-  // Load sync configuration when a link is selected
-  useEffect(() => {
-    if (selectedLink?.xero_tenant_id) {
-      loadSyncConfig(selectedLink.xero_tenant_id)
-    }
-  }, [selectedLink?.xero_tenant_id])
-
-  // Load global sync configuration for a tenant
-  const loadSyncConfig = async (tenantId) => {
-    try {
-      const response = await api.get(`/api/v1/sync_configurations/${tenantId}`)
-      if (response.sync_configuration) {
-        setSyncConfig(response.sync_configuration)
-      }
-    } catch (err) {
-      console.error('Failed to load sync configuration:', err)
-      setSyncConfig(null)
-    }
-  }
-
-  // Save global sync direction
-  const handleSaveSyncDirection = async (newDirection) => {
-    if (!selectedLink?.xero_tenant_id) return
-
-    setSavingSyncDirection(true)
-    try {
-      const response = await api.put(`/api/v1/sync_configurations/${selectedLink.xero_tenant_id}`, {
-        sync_configuration: {
-          default_sync_direction: newDirection
-        }
-      })
-      if (response.sync_configuration) {
-        setSyncConfig(response.sync_configuration)
-      }
-    } catch (err) {
-      setSyncError(err.message || 'Failed to update sync direction')
-    } finally {
-      setSavingSyncDirection(false)
-    }
-  }
 
   const loadTransactions = async () => {
     setLoadingTransactions(true)
@@ -999,37 +954,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           )}
         </div>
       </div>
-
-      {/* Sync Direction */}
-      {xeroLinks.length > 0 && syncConfig && (
-        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Cog6ToothIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                <span className="font-semibold">Sync Direction</span>
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                className="text-sm border border-blue-300 dark:border-blue-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-                value={syncConfig.default_sync_direction || 'import_only'}
-                onChange={(e) => handleSaveSyncDirection(e.target.value)}
-                disabled={savingSyncDirection}
-              >
-                <option value="import_only">Xero → TEEEM</option>
-                <option value="export_only">TEEEM → Xero</option>
-                <option value="bidirectional">↔ Both Ways</option>
-                <option value="disabled">Disabled</option>
-              </select>
-              {savingSyncDirection && (
-                <ArrowPathIcon className="h-4 w-4 text-blue-600 animate-spin" />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Connection Guide */}
       <div className="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
