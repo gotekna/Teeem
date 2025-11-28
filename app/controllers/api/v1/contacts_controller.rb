@@ -1062,6 +1062,130 @@ module Api
         end
       end
 
+      # POST /api/v1/contacts/:id/sync_from_xero
+      # Sync a contact from Xero (pull data from Xero into TEEEM)
+      def sync_from_xero
+        tenant_id = params[:tenant_id]
+
+        # Find the xero link to sync from
+        link = if tenant_id.present?
+          @contact.xero_links.find_by(xero_tenant_id: tenant_id)
+        else
+          @contact.xero_links.first
+        end
+
+        # Fall back to legacy xero_id if no link found
+        if link.nil? && @contact.xero_id.present?
+          # Create a temporary sync using the legacy xero_id
+          return sync_from_xero_legacy
+        end
+
+        unless link
+          return render json: {
+            success: false,
+            error: 'Contact is not linked to any Xero organization'
+          }, status: :unprocessable_entity
+        end
+
+        begin
+          sync_service = XeroContactSyncService.new(tenant_id: link.xero_tenant_id)
+          result = sync_service.sync_from_xero(link)
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: 'Contact synced from Xero successfully',
+              contact: result[:contact].as_json(
+                only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
+                       :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
+                       :tax_number, :bank_bsb, :bank_account_number, :bank_account_name,
+                       :accounts_payable_outstanding, :accounts_receivable_outstanding]
+              )
+            }
+          else
+            render json: {
+              success: false,
+              error: result[:error] || 'Sync failed'
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero. Please reconnect.'
+          }, status: :unauthorized
+        rescue => e
+          Rails.logger.error("Sync from Xero error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+          render json: {
+            success: false,
+            error: "Sync failed: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # Legacy sync using xero_id field (for contacts not yet migrated to xero_links)
+      def sync_from_xero_legacy
+        client = XeroApiClient.new
+        result = client.get("Contacts/#{@contact.xero_id}")
+
+        unless result[:success]
+          return render json: {
+            success: false,
+            error: 'Failed to fetch contact from Xero'
+          }, status: :unprocessable_entity
+        end
+
+        xero_contact = result[:data]['Contacts']&.first
+
+        unless xero_contact
+          return render json: {
+            success: false,
+            error: 'Contact not found in Xero'
+          }, status: :not_found
+        end
+
+        # Update basic contact info from Xero
+        updates = {}
+        updates[:email] = xero_contact['EmailAddress'] if xero_contact['EmailAddress'].present?
+        updates[:tax_number] = xero_contact['TaxNumber'] if xero_contact['TaxNumber'].present?
+        updates[:last_synced_at] = Time.current
+        updates[:xero_sync_error] = nil
+
+        # Update phone numbers from Xero
+        phones = xero_contact['Phones'] || []
+        mobile = phones.find { |p| p['PhoneType'] == 'MOBILE' }
+        office = phones.find { |p| p['PhoneType'] == 'DEFAULT' }
+        updates[:mobile_phone] = mobile['PhoneNumber'] if mobile&.dig('PhoneNumber').present?
+        updates[:office_phone] = office['PhoneNumber'] if office&.dig('PhoneNumber').present?
+
+        # Update financial balances
+        if xero_contact['Balances']
+          ap = xero_contact.dig('Balances', 'AccountsPayable')
+          ar = xero_contact.dig('Balances', 'AccountsReceivable')
+          updates[:accounts_payable_outstanding] = ap['Outstanding'] if ap
+          updates[:accounts_payable_overdue] = ap['Overdue'] if ap
+          updates[:accounts_receivable_outstanding] = ar['Outstanding'] if ar
+          updates[:accounts_receivable_overdue] = ar['Overdue'] if ar
+        end
+
+        @contact.update!(updates)
+
+        render json: {
+          success: true,
+          message: 'Contact synced from Xero successfully (legacy)',
+          contact: @contact.reload.as_json(
+            only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
+                   :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
+                   :tax_number, :accounts_payable_outstanding, :accounts_receivable_outstanding]
+          )
+        }
+      rescue => e
+        Rails.logger.error("Legacy sync from Xero error: #{e.message}")
+        render json: {
+          success: false,
+          error: "Sync failed: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # POST /api/v1/contacts/:id/portal_user
       def create_portal_user
         portal_type = params[:portal_type] || 'supplier'

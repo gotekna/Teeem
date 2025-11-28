@@ -291,6 +291,7 @@ Rails.application.routes.draw do
           delete :delete_price_column
           get :activities
           post :link_xero_contact
+          post :sync_from_xero
           post :portal_user, to: 'contacts#create_portal_user'
           patch :portal_user, to: 'contacts#update_portal_user'
           delete :portal_user, to: 'contacts#delete_portal_user'
