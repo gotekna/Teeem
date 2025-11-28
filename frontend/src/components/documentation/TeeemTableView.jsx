@@ -10119,9 +10119,8 @@ export default function TeeemTableView({
                       // Call bulk update API
                       if (foundationIdNumeric) {
                         await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, {
-                          ids: selectedIds,
-                          column_key: bulkUpdateColumn,
-                          value: bulkUpdateValue
+                          record_ids: selectedIds,
+                          updates: { [bulkUpdateColumn]: bulkUpdateValue }
                         })
                         // Refresh the data
                         if (onColumnUpdate) onColumnUpdate()
