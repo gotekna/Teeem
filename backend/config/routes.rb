@@ -1082,6 +1082,7 @@ Rails.application.routes.draw do
           get :browse
           post :scan
           post :scan_company
+          post :import_documents
         end
       end
 

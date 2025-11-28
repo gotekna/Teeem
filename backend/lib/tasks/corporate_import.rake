@@ -671,4 +671,58 @@ namespace :corporate do
       puts "Sync failed: #{result[:error]}"
     end
   end
+
+  # ==============================
+  # IMPORT FROM JSON
+  # ==============================
+  desc "Import company documents from JSON file (for staging/prod)"
+  task import_from_json: :environment do
+    json_data = ENV['DOCS_JSON']
+    unless json_data.present?
+      puts "ERROR: Set DOCS_JSON environment variable with JSON data"
+      puts "Usage: heroku run 'DOCS_JSON=\"[...]\" bundle exec rails corporate:import_from_json'"
+      exit 1
+    end
+
+    docs = JSON.parse(json_data)
+    puts "=== Importing #{docs.count} Company Documents from JSON ==="
+
+    imported = 0
+    errors = 0
+
+    docs.each do |doc|
+      company = Company.find_by(name: doc['company_name'])
+      unless company
+        puts "  Company not found: #{doc['company_name']}"
+        errors += 1
+        next
+      end
+
+      company_doc = CompanyDocument.find_or_initialize_by(
+        company: company,
+        title: doc['title']
+      )
+
+      company_doc.assign_attributes(
+        document_type: doc['document_type'],
+        document_date: doc['document_date'],
+        storage_type: doc['storage_type'],
+        description: doc['description'],
+        expected_onedrive_path: doc['expected_onedrive_path'],
+        register_folder: doc['register_folder']
+      )
+
+      if company_doc.save
+        imported += 1
+      else
+        puts "  Error: #{doc['title']} - #{company_doc.errors.full_messages.join(', ')}"
+        errors += 1
+      end
+    end
+
+    puts "\n=== Import Complete ==="
+    puts "Documents imported: #{imported}"
+    puts "Errors: #{errors}"
+    puts "Total documents: #{CompanyDocument.count}"
+  end
 end

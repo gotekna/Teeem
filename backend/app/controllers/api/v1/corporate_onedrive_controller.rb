@@ -67,6 +67,53 @@ module Api
         render json: result
       end
 
+      # POST /api/v1/corporate_onedrive/import_documents
+      # Import document metadata from JSON
+      def import_documents
+        docs = params[:documents]
+        unless docs.is_a?(Array)
+          return render json: { success: false, error: "documents must be an array" }
+        end
+
+        imported = 0
+        errors = []
+
+        docs.each do |doc|
+          company = Company.find_by(name: doc[:company_name])
+          unless company
+            errors << "Company not found: #{doc[:company_name]}"
+            next
+          end
+
+          company_doc = CompanyDocument.find_or_initialize_by(
+            company: company,
+            title: doc[:title]
+          )
+
+          company_doc.assign_attributes(
+            document_type: doc[:document_type],
+            document_date: doc[:document_date],
+            storage_type: doc[:storage_type],
+            description: doc[:description],
+            expected_onedrive_path: doc[:expected_onedrive_path],
+            register_folder: doc[:register_folder]
+          )
+
+          if company_doc.save
+            imported += 1
+          else
+            errors << "#{doc[:title]}: #{company_doc.errors.full_messages.join(', ')}"
+          end
+        end
+
+        render json: {
+          success: true,
+          imported: imported,
+          errors: errors,
+          total_documents: CompanyDocument.count
+        }
+      end
+
       # GET /api/v1/corporate_onedrive/browse
       # Browse OneDrive folders
       def browse
