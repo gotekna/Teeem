@@ -13,7 +13,8 @@ import {
   UsersIcon,
   ArrowsRightLeftIcon,
   CurrencyDollarIcon,
-  DocumentDuplicateIcon
+  DocumentDuplicateIcon,
+  FolderIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import CompanyFinancialTab from '../components/corporate/CompanyFinancialTab'
@@ -73,6 +74,14 @@ export default function CompanyDetailPage() {
 
   const handleTabChange = (tabId) => {
     setSearchParams({ tab: tabId })
+  }
+
+  // Build SharePoint URL for company folder
+  const getSharePointUrl = (companyName) => {
+    // URL encode the company name for the path
+    const encodedName = encodeURIComponent(companyName)
+    // SharePoint URL structure: Corporate/[Company Name]
+    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FCorporate%2F${encodedName}`
   }
 
   if (loading) {
@@ -149,13 +158,24 @@ export default function CompanyDetailPage() {
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => navigate(`/corporate/companies/${id}/edit`)}
-              className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-            >
-              <PencilIcon className="h-4 w-4 mr-2" />
-              Edit
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={getSharePointUrl(company.name)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-md bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-inset ring-blue-200 hover:bg-blue-100"
+              >
+                <FolderIcon className="h-4 w-4 mr-2" />
+                SharePoint
+              </a>
+              <button
+                onClick={() => navigate(`/corporate/companies/${id}/edit`)}
+                className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+              >
+                <PencilIcon className="h-4 w-4 mr-2" />
+                Edit
+              </button>
+            </div>
           </div>
         </div>
       </div>

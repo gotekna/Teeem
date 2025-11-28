@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { PlusIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, FolderIcon } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import TeeemTableView from '../components/documentation/TeeemTableView'
 import Toast from '../components/Toast'
@@ -115,6 +115,11 @@ export default function CompaniesPage() {
     navigate(`/corporate/companies/${entry.id}`)
   }
 
+  // Build SharePoint URL for corporate folder
+  const getSharePointUrl = () => {
+    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FCorporate`
+  }
+
   const handleEdit = async (entry) => {
     // Navigate to edit page
     navigate(`/corporate/companies/${entry.id}`)
@@ -216,13 +221,24 @@ export default function CompaniesPage() {
           fetchColumnIds()
         }}
         customActions={
-          <button
-            onClick={() => navigate('/corporate/companies/new')}
-            className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
-          >
-            <PlusIcon className="h-5 w-5" />
-            Add Company
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={getSharePointUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded-lg transition-colors h-[42px] ring-1 ring-inset ring-blue-200"
+            >
+              <FolderIcon className="h-5 w-5" />
+              SharePoint
+            </a>
+            <button
+              onClick={() => navigate('/corporate/companies/new')}
+              className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+            >
+              <PlusIcon className="h-5 w-5" />
+              Add Company
+            </button>
+          </div>
         }
       />
 
