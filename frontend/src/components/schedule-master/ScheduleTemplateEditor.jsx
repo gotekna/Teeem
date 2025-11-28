@@ -816,44 +816,86 @@ export default function ScheduleTemplateEditor() {
         const data = new Uint8Array(e.target.result)
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet)
 
-        if (jsonData.length === 0) {
+        // Try to detect if file has headers or not
+        // Read as array of arrays first to check
+        const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 })
+
+        if (rawData.length === 0) {
           showToast('No data found in Excel file', 'error')
           return
         }
 
-        // Helper function to parse predecessors from format "2FS+3, 5SS-1"
-        // Note: Excel row numbers include the header, so row 2 = task 1, row 3 = task 2, etc.
-        // We need to subtract 1 to convert from Excel row number to task sequence number
+        // Check if first row looks like headers (contains "Task" or similar)
+        const firstRow = rawData[0]
+        const hasHeaders = firstRow && typeof firstRow[0] === 'string' &&
+          (firstRow[0].toLowerCase().includes('task') ||
+           firstRow[0].toLowerCase() === 'name' ||
+           firstRow[0].toLowerCase().includes('header'))
+
+        // Parse data based on whether we have headers
+        let jsonData
+        if (hasHeaders) {
+          jsonData = XLSX.utils.sheet_to_json(firstSheet)
+        } else {
+          // No headers - treat columns as: A=Task Name, B=Predecessors, C=Duration
+          jsonData = rawData.map(row => ({
+            'Task Name': row[0],
+            'Predecessors': row[1],
+            'Duration': row[2]
+          }))
+        }
+
+        // Helper function to parse predecessors
+        // Supports both formats:
+        // - Simple: "1", "3, 4", "4, 6" (just row numbers, defaults to FS)
+        // - Full: "2FS+3", "5SS-1" (with relationship type and lag)
         const parsePredecessors = (predecessorStr, currentRowIndex) => {
-          if (!predecessorStr || predecessorStr === 'None' || predecessorStr.trim() === '') {
+          if (!predecessorStr || predecessorStr === 'None' || String(predecessorStr).trim() === '') {
             return []
           }
 
           const predecessors = []
-          const parts = predecessorStr.split(',').map(p => p.trim())
+          const parts = String(predecessorStr).split(',').map(p => p.trim())
 
           for (const part of parts) {
-            // Parse format like "2FS+3" (where 2 is the Excel row number including header)
-            const match = part.match(/^(\d+)([A-Z]{2})([+-]?\d+)?$/)
-            if (match) {
-              const excelRowNumber = parseInt(match[1])
-              // Convert Excel row number to task sequence (Excel row 2 = task 1, so subtract 1)
-              const taskSequence = excelRowNumber - 1
+            if (!part) continue
 
-              // Only add valid predecessors (must reference earlier tasks)
+            // Try full format first: "2FS+3"
+            const fullMatch = part.match(/^(\d+)([A-Z]{2})([+-]?\d+)?$/)
+            if (fullMatch) {
+              const taskSequence = parseInt(fullMatch[1])
               if (taskSequence > 0 && taskSequence <= currentRowIndex + 1) {
                 predecessors.push({
                   id: taskSequence,
-                  type: match[2],
-                  lag: match[3] ? parseInt(match[3]) : 0
+                  type: fullMatch[2],
+                  lag: fullMatch[3] ? parseInt(fullMatch[3]) : 0
                 })
+              }
+            } else {
+              // Simple format: just a number like "1" or "3"
+              const simpleMatch = part.match(/^(\d+)$/)
+              if (simpleMatch) {
+                const taskSequence = parseInt(simpleMatch[1])
+                if (taskSequence > 0 && taskSequence <= currentRowIndex + 1) {
+                  predecessors.push({
+                    id: taskSequence,
+                    type: 'FS', // Default to Finish-to-Start
+                    lag: 0
+                  })
+                }
               }
             }
           }
 
           return predecessors
+        }
+
+        // Helper function to parse duration (handles "1d", "21d", or just numbers)
+        const parseDuration = (durationStr) => {
+          if (!durationStr) return 0
+          const str = String(durationStr).toLowerCase().replace('d', '').trim()
+          return parseInt(str) || 0
         }
 
         // Helper function to parse individual documentation category columns
@@ -875,7 +917,7 @@ export default function ScheduleTemplateEditor() {
           name: row['Task Name'] || `Task ${index + 1}`,
           supplier_id: null, // Will need to be mapped manually
           predecessor_ids: parsePredecessors(row['Predecessors'], index),
-          duration: parseInt(row['Duration']) || 0,
+          duration: parseDuration(row['Duration']),
           start_date: parseInt(row['Start Date']) || 0,
           documentation_category_ids: parseDocumentationCategoryIds(row),
           po_required: row['PO Required'] === 'Yes',

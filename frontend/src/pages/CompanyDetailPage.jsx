@@ -9,7 +9,11 @@ import {
   DocumentTextIcon,
   ClockIcon,
   PencilIcon,
-  ArrowLeftIcon
+  ArrowLeftIcon,
+  UsersIcon,
+  ArrowsRightLeftIcon,
+  CurrencyDollarIcon,
+  DocumentDuplicateIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import CompanyFinancialTab from '../components/corporate/CompanyFinancialTab'
@@ -17,6 +21,10 @@ import CompanyAssetsTab from '../components/corporate/CompanyAssetsTab'
 import CompanyComplianceTab from '../components/corporate/CompanyComplianceTab'
 import CompanyDocumentsTab from '../components/corporate/CompanyDocumentsTab'
 import CompanyActivityTab from '../components/corporate/CompanyActivityTab'
+import CompanyShareholdingsTab from '../components/corporate/CompanyShareholdingsTab'
+import CompanyLoansTab from '../components/corporate/CompanyLoansTab'
+import CompanyDividendsTab from '../components/corporate/CompanyDividendsTab'
+import CompanyMinutesTab from '../components/corporate/CompanyMinutesTab'
 
 export default function CompanyDetailPage() {
   const { id } = useParams()
@@ -30,10 +38,14 @@ export default function CompanyDetailPage() {
   const tabs = [
     { id: 'overview', name: 'Overview', icon: BuildingOfficeIcon },
     { id: 'directors', name: 'Directors', icon: UserGroupIcon },
+    { id: 'shareholdings', name: 'Shareholdings', icon: UsersIcon },
     { id: 'financial', name: 'Financial', icon: BanknotesIcon },
+    { id: 'loans', name: 'Loans', icon: ArrowsRightLeftIcon },
+    { id: 'dividends', name: 'Dividends', icon: CurrencyDollarIcon },
     { id: 'assets', name: 'Assets', icon: TruckIcon },
     { id: 'compliance', name: 'Compliance', icon: ClipboardDocumentCheckIcon },
     { id: 'documents', name: 'Documents', icon: DocumentTextIcon },
+    { id: 'minutes', name: 'Minutes', icon: DocumentDuplicateIcon },
     { id: 'activity', name: 'Activity', icon: ClockIcon }
   ]
 
@@ -183,10 +195,14 @@ export default function CompanyDetailPage() {
       <div className="bg-white shadow rounded-lg p-6">
         {activeTab === 'overview' && <OverviewTab company={company} />}
         {activeTab === 'directors' && <DirectorsTab company={company} onUpdate={loadCompany} />}
+        {activeTab === 'shareholdings' && <CompanyShareholdingsTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'financial' && <CompanyFinancialTab company={company} onUpdate={loadCompany} />}
+        {activeTab === 'loans' && <CompanyLoansTab company={company} onUpdate={loadCompany} />}
+        {activeTab === 'dividends' && <CompanyDividendsTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'assets' && <CompanyAssetsTab company={company} />}
         {activeTab === 'compliance' && <CompanyComplianceTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'documents' && <CompanyDocumentsTab company={company} onUpdate={loadCompany} />}
+        {activeTab === 'minutes' && <CompanyMinutesTab company={company} onUpdate={loadCompany} />}
         {activeTab === 'activity' && <CompanyActivityTab company={company} />}
       </div>
     </div>
