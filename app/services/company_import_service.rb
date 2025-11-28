@@ -214,15 +214,17 @@ class CompanyImportService
         last_name: row[1].to_s.strip
       )
 
+      # Columns: Given Names, Family Name, Director Number, Date Of Birth, Place of Birth, State, Country, Residential Address, TFN, Directors ID
+      # Indices: 0            1            2                3               4               5      6        7                    8    10 (column K)
       updates = {
         full_name: "#{row[0]} #{row[1]}".strip,
         date_of_birth: parse_date(row[3]),
         place_of_birth: row[4].to_s,
         birth_state: row[5].to_s,
         birth_country: row[6].to_s,
-        address: row[7].to_s,
+        residential_address: row[7].to_s,
         tfn: row[8].to_s.gsub(/\s/, ''),
-        director_id: row[9].to_s.gsub(/\s/, '')
+        director_id: row[10].to_s.gsub(/\s/, '') # Column K (index 10)
       }
 
       contact.assign_attributes(updates.compact_blank)
