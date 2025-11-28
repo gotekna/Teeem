@@ -47,16 +47,16 @@ class CompanyDocument < ApplicationRecord
   private
 
   def create_activity
+    performer = user || (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
     company.company_activities.create!(
       activity_type: 'document_uploaded',
       description: "Document uploaded: #{title}",
-      metadata: {
+      change_details: {
         document_type: document_type,
         file_name: file_name,
         file_size: file_size
       },
-      performed_by: user || Current.user || User.first,
-      occurred_at: Time.current
+      user: performer
     )
   end
 end

@@ -449,4 +449,226 @@ namespace :corporate do
       end
     end
   end
+
+  # ==============================
+  # DOCUMENT IMPORT TASK
+  # ==============================
+  desc "Import company documents from Corporate File.xlsx spreadsheet"
+  task import_documents: :environment do
+    require 'roo'
+
+    xlsx_path = Rails.root.join('..', 'Corporate File.xlsx')
+    unless File.exist?(xlsx_path)
+      puts "ERROR: Corporate File.xlsx not found at #{xlsx_path}"
+      exit 1
+    end
+
+    xlsx = Roo::Excelx.new(xlsx_path.to_s)
+    puts "=== Importing Company Documents ==="
+
+    # Map sheet names to company names
+    company_sheets = {
+      "Tekna" => { name: "Tekna", group: "Tekna Group", folder: "Tekna" },
+      "Tekna Admin" => { name: "Tekna Admin Pty LTd", group: "Tekna Group", folder: "Tekna Admin" },
+      "Tekna Drafting" => { name: "Tekna Drafting (formerly Rock Invest Qld)", group: "Tekna Group", folder: "Tekna Drafting" },
+      "Tekna Homes" => { name: "Tekna Homes formerly Tekna Licence", group: "Tekna Group", folder: "Tekna Homes" },
+      "Team Harder" => { name: "Team Harder", group: "Team Harder Group", folder: "Team Harder" },
+      "Team Harder Super Fund" => { name: "Team Harder ATF Team Harder Super Fund", group: "Team Harder Super Investment Group", folder: "Team Harder Super Fund" },
+      "Gen2612" => { name: "Gen2612", group: "Team Harder Group", folder: "Gen2612" },
+      "Prov1322" => { name: "Prov1322 Global", group: "Team Harder Group", folder: "Prov1322 Global" },
+      "Team Harder Family Trust" => { name: "Prov1322 Global ATF Team Harder Family Trust", group: "Team Harder Group", folder: "Team Harder Family Trust" },
+      "THSI" => { name: "Team Harder Super Investments", group: "Team Harder Super Investment Group", folder: "Team Harder Super Investments" },
+      "W2G" => { name: "W2G Assets", group: "Team Harder Super Investment Group", folder: "W2G Assets" },
+      "The Promise QLD PTY LTD" => { name: "The Promise QLD Pty Ltd", group: "The Promise Group", folder: "The Promise QLD" },
+      "The Promise Family Trust" => { name: "The Promise Family Trust", group: "The Promise Group", folder: "The Promise Family Trust" },
+      "Co Invest Capital" => { name: "Co Invest Capital Pty Ltd", group: "Tekna Group", folder: "Co Invest Capital" },
+      "Co Invest Homes" => { name: "Co Invest Homes Pty Ltd", group: "Tekna Group", folder: "Co Invest Homes" }
+    }
+
+    total_documents = 0
+    total_errors = 0
+
+    company_sheets.each do |sheet_name, config|
+      company = Company.find_by(name: config[:name])
+      unless company
+        puts "  Company not found: #{config[:name]}"
+        next
+      end
+
+      begin
+        sheet = xlsx.sheet(sheet_name)
+      rescue
+        puts "  Sheet not found: #{sheet_name}"
+        next
+      end
+
+      puts "\n=== #{sheet_name} -> #{config[:name]} ==="
+
+      # Find the Company Register section
+      register_row = nil
+      folder_storage = nil
+      abbreviation = nil
+
+      (1..50).each do |row|
+        row_data = (1..10).map { |col| sheet.cell(row, col).to_s.strip }
+        row_text = row_data.join(' ')
+
+        # Find folder storage
+        if row_text.include?('Folder Storage')
+          folder_storage = row_data[2].presence || row_data[3].presence
+          abbreviation = row_data[4].presence || row_data[5].presence
+          puts "  Folder: #{folder_storage}, Abbreviation: #{abbreviation}"
+        end
+
+        # Find Company Register header
+        if row_data[1] == 'Company Register' || row_text.include?('Company Register') && row_text.include?('Type')
+          register_row = row + 1
+          break
+        end
+      end
+
+      unless register_row
+        puts "  No Company Register section found"
+        next
+      end
+
+      # Parse document rows
+      doc_count = 0
+      (register_row..sheet.last_row).each do |row|
+        row_data = (1..10).map { |col| sheet.cell(row, col) }
+
+        # Stop at empty row
+        break if row_data[1].to_s.blank? || row_data[1].to_s.include?('#N/A')
+
+        doc_name = row_data[1].to_s.strip
+        next if doc_name.blank? || doc_name == 'Company Register'
+
+        doc_type_raw = row_data[2].to_s.strip
+        folder_name = row_data[3].to_s.strip
+        doc_date = row_data[4]
+        is_manual = row_data[5].to_s.strip.present?
+        electronic_ref = row_data[6].to_s.strip
+        by_whom = row_data[7].to_s.strip
+
+        # Parse date
+        document_date = nil
+        if doc_date.is_a?(Date) || doc_date.is_a?(DateTime)
+          document_date = doc_date.to_date
+        elsif doc_date.to_s =~ /\d{4}-\d{2}-\d{2}/
+          document_date = Date.parse(doc_date.to_s) rescue nil
+        end
+
+        # Normalize document type
+        doc_type = normalize_document_type(doc_type_raw)
+
+        # Build expected OneDrive path
+        onedrive_path = build_document_path(config[:group], folder_storage || config[:folder], folder_name)
+
+        # Create or update document
+        company_doc = CompanyDocument.find_or_initialize_by(
+          company: company,
+          title: doc_name
+        )
+
+        # Determine storage type (manual = physical paper copy)
+        storage = if is_manual && electronic_ref.present?
+                    'both'
+                  elsif is_manual
+                    'manual'
+                  elsif electronic_ref.present?
+                    'electronic'
+                  else
+                    nil  # Allow nil to pass validation
+                  end
+
+        company_doc.assign_attributes(
+          document_type: doc_type,
+          document_date: document_date,
+          storage_type: storage,
+          description: [electronic_ref, "Filed by: #{by_whom}"].reject(&:blank?).join("\n"),
+          expected_onedrive_path: onedrive_path,
+          register_folder: folder_name
+        )
+
+        if company_doc.save
+          doc_count += 1
+          total_documents += 1
+        else
+          puts "    Error: #{doc_name} - #{company_doc.errors.full_messages.join(', ')}"
+          total_errors += 1
+        end
+      end
+
+      puts "  Imported #{doc_count} documents"
+    end
+
+    puts "\n=== Document Import Complete ==="
+    puts "Documents created/updated: #{total_documents}"
+    puts "Errors: #{total_errors}"
+    puts "Total documents in database: #{CompanyDocument.count}"
+  end
+
+  def normalize_document_type(type_raw)
+    return 'other' if type_raw.blank?
+
+    type = type_raw.to_s.downcase.strip
+
+    type_map = {
+      'members' => 'share_registry',
+      'register of members' => 'share_registry',
+      'constitution' => 'constitution',
+      'minutes' => 'minutes',
+      'loan agreement' => 'loan_agreement',
+      'loans and security' => 'loan_agreement',
+      'security deed' => 'security_deed',
+      'company setup' => 'certificate',
+      'asic docs' => 'asic',
+      'eoy asic' => 'asic',
+      'eoy ato' => 'tax',
+      'ato tax return' => 'tax',
+      'tax consolidation' => 'tax',
+      'bas' => 'tax',
+      'bank statements' => 'financial',
+      'financial' => 'financial',
+      'corporate key' => 'other',
+      'asset' => 'other',
+      'assets' => 'other',
+      'general' => 'other'
+    }
+
+    type_map[type] || 'other'
+  end
+
+  def build_document_path(group, folder_storage, sub_folder)
+    parts = ["Corporate File"]
+    parts << group if group.present?
+    parts << folder_storage if folder_storage.present?
+    parts << sub_folder if sub_folder.present? && sub_folder != '#N/A'
+    parts.join("/")
+  end
+
+  # ==============================
+  # ONEDRIVE SYNC TASK
+  # ==============================
+  desc "Scan OneDrive Corporate folder and link documents"
+  task sync_onedrive: :environment do
+    puts "=== Syncing OneDrive Corporate Documents ==="
+
+    service = CorporateOnedriveService.new(nil, folder_path: "Corporate File")
+    result = service.scan_all
+
+    if result[:success]
+      puts "\nSync Complete!"
+      puts "  Companies scanned: #{result[:companies_scanned]}"
+      puts "  Documents found: #{result[:documents_found]}"
+      puts "  Documents linked: #{result[:documents_linked]}"
+
+      if result[:errors].present?
+        puts "\nErrors:"
+        result[:errors].each { |e| puts "  - #{e}" }
+      end
+    else
+      puts "Sync failed: #{result[:error]}"
+    end
+  end
 end
