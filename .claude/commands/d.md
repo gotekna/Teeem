@@ -9,7 +9,7 @@ Commits ONLY files worked on in THIS chat session, then pushes to trigger GitHub
 **This command deploys to STAGING (rob branch) ONLY.**
 
 - ✅ Staging Frontend: https://teeemrob.vercel.app/
-- ✅ Staging Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- ✅ Staging Backend: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
 - ❌ NEVER push to main/Live branch
 - ❌ NEVER deploy to https://teeem.vercel.app/ (production)
 
@@ -104,10 +104,10 @@ gh run list --limit 3 --branch rob
 sleep 60
 
 # Check staging version
-curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
+curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version
 
 # Sync local to match staging
-cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
+cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
 ```
 
 **Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version number.

@@ -11,7 +11,7 @@ Commits ALL pending changes and pushes to trigger GitHub Actions deployment to s
 **This command deploys to STAGING (rob branch) ONLY.**
 
 - ✅ Staging Frontend: https://teeemrob.vercel.app/
-- ✅ Staging Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
+- ✅ Staging Backend: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
 - ❌ NEVER push to main/Live branch
 - ❌ NEVER deploy to https://teeem.vercel.app/ (production)
 
@@ -122,7 +122,7 @@ sleep 60
 gh run list --limit 2 --branch rob
 
 # Verify backend is up
-curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
+curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version
 
 # Check frontend
 curl -s -o /dev/null -w "%{http_code}" https://teeemrob.vercel.app/
@@ -133,7 +133,7 @@ curl -s -o /dev/null -w "%{http_code}" https://teeemrob.vercel.app/
 **After deploy completes, sync local version to match staging:**
 ```bash
 # Sync local to match staging
-cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
+cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
 ```
 
 **Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version number.
@@ -142,7 +142,7 @@ cd backend && bin/rails runner "Version.current.update(current_version: $(curl -
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
 - ✅ GitHub Actions: [status - in_progress/success/failure]
-- ✅ Backend: [version from /version endpoint] - https://teeem-backend-39604ccca45a.herokuapp.com/
+- ✅ Backend: [version from /version endpoint] - https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
 - ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel)
 - ✅ Local version synced to: [version]
 - 🔴 Warnings (if any)

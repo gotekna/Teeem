@@ -23,10 +23,21 @@ When you push to the `rob` branch, ALWAYS:
 
 3. **Sync local version to match staging:**
    ```bash
-   cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
+   cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
    ```
 
 **Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version.
+
+### Heroku Environments
+
+| Environment | Heroku App | Branch | Frontend |
+|-------------|-----------|--------|----------|
+| **Production** | `teeem-backend` | Live | https://teeem.vercel.app |
+| **Staging/Dev** | `teeem-rob-dev` | rob | https://teeemrob.vercel.app |
+
+**Staging URLs:**
+- Backend: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
+- Frontend: https://teeemrob.vercel.app/
 
 ---
 
@@ -43,7 +54,7 @@ The Trinity system uses a **database-first architecture** with three categories:
 - **Teacher (HOW-TO):** Step-by-step implementation patterns and code examples
 - **Lexicon (KNOWLEDGE):** Bug history, architecture decisions, test catalog
 
-**Base API:** `https://teeem-backend-39604ccca45a.herokuapp.com/api/v1/trinity`
+**Base API:** `https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/api/v1/trinity`
 
 ---
 

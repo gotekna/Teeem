@@ -1,6 +1,11 @@
 # Pull Heroku Database to Local
 
-Pull the production Heroku PostgreSQL database to your local development environment.
+Pull the Heroku PostgreSQL database to your local development environment.
+
+## Available Environments
+
+- **Production:** `teeem-backend` (Live branch)
+- **Staging/Dev:** `teeem-rob-dev` (Rob branch)
 
 ## Instructions
 
@@ -9,16 +14,32 @@ Run the following commands to pull the Heroku database to local:
 1. First, stop any running Rails server to free database connections
 2. Drop and recreate the local database, then pull from Heroku:
 
+**For Production (teeem-backend):**
 ```bash
 cd backend && bin/rails db:drop db:create
 heroku pg:pull DATABASE_URL teeem_development --app teeem-backend
 ```
 
+**For Staging/Dev (teeem-rob-dev):**
+```bash
+cd backend && bin/rails db:drop db:create
+heroku pg:pull DATABASE_URL teeem_development --app teeem-rob-dev
+```
+
 If `pg:pull` fails due to connection issues, use the backup method:
 
+**For Production:**
 ```bash
 heroku pg:backups:capture --app teeem-backend
 heroku pg:backups:download --app teeem-backend
+pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump
+rm latest.dump
+```
+
+**For Staging/Dev:**
+```bash
+heroku pg:backups:capture --app teeem-rob-dev
+heroku pg:backups:download --app teeem-rob-dev
 pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump
 rm latest.dump
 ```
