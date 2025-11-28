@@ -62,6 +62,11 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [selectedLinkId, setSelectedLinkId] = useState(null)
   const [loadingLinks, setLoadingLinks] = useState(true)
 
+  // Available Xero tenants (organizations) to link to
+  const [availableTenants, setAvailableTenants] = useState([])
+  const [loadingTenants, setLoadingTenants] = useState(true)
+  const [linkingToTenant, setLinkingToTenant] = useState(null)
+
   // Xero contact data (fetched from Xero API)
   const [xeroContactData, setXeroContactData] = useState(null)
   const [loadingXeroContact, setLoadingXeroContact] = useState(false)
@@ -255,6 +260,51 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
   // Get the currently selected Xero link
   const selectedLink = xeroLinks.find(l => l.id === selectedLinkId)
+
+  // Load available Xero tenants (organizations)
+  const loadAvailableTenants = async () => {
+    setLoadingTenants(true)
+    try {
+      const response = await api.get('/api/v1/xero/tenants')
+      if (response.success) {
+        setAvailableTenants(response.tenants || [])
+      }
+    } catch (err) {
+      console.error('Failed to load Xero tenants:', err)
+    } finally {
+      setLoadingTenants(false)
+    }
+  }
+
+  // Link contact to a Xero organization
+  const handleLinkToTenant = async (tenantId, tenantName) => {
+    setLinkingToTenant(tenantId)
+    try {
+      const response = await api.post(`/api/v1/contacts/${contact.id}/xero_links`, {
+        xero_link: {
+          xero_tenant_id: tenantId,
+          xero_tenant_name: tenantName,
+          sync_enabled: true,
+          sync_direction: 'bidirectional'
+        }
+      })
+      if (response.success) {
+        // Reload links
+        await loadXeroLinks()
+      } else {
+        setSyncError(response.error || 'Failed to link to Xero')
+      }
+    } catch (err) {
+      setSyncError(err.message || 'Failed to link to Xero')
+    } finally {
+      setLinkingToTenant(null)
+    }
+  }
+
+  // Load available tenants on mount
+  useEffect(() => {
+    loadAvailableTenants()
+  }, [])
 
   const loadTransactions = async () => {
     setLoadingTransactions(true)
@@ -746,22 +796,55 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
       {/* Link Status */}
       <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-        <div className="flex items-center gap-2">
-          <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-          <p className="text-sm text-blue-800 dark:text-blue-300">
-            {xeroLinks.length > 0 ? (
-              <>
-                <span className="font-semibold">Synced with Xero</span>
-                {selectedLink && (
-                  <> • {selectedLink.xero_tenant_name || 'Unknown Organization'}</>
-                )}
-              </>
-            ) : (
-              <>
-                <span className="font-semibold">Not Linked</span> • Use the Accounting Connections panel in the sidebar to link this contact
-              </>
-            )}
-          </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <LinkIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              {xeroLinks.length > 0 ? (
+                <>
+                  <span className="font-semibold">Synced with Xero</span>
+                  {selectedLink && (
+                    <> • {selectedLink.xero_tenant_name || 'Unknown Organization'}</>
+                  )}
+                </>
+              ) : (
+                <span className="font-semibold">Not Linked to Xero</span>
+              )}
+            </p>
+          </div>
+
+          {/* Dropdown to link to available Xero organizations */}
+          {availableTenants.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-blue-600 dark:text-blue-400">
+                {xeroLinks.length > 0 ? 'Add to:' : 'Link to:'}
+              </span>
+              <select
+                className="text-sm border border-blue-300 dark:border-blue-700 rounded-lg px-3 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                value=""
+                onChange={(e) => {
+                  const tenant = availableTenants.find(t => t.tenant_id === e.target.value)
+                  if (tenant) {
+                    handleLinkToTenant(tenant.tenant_id, tenant.tenant_name)
+                  }
+                }}
+                disabled={linkingToTenant}
+              >
+                <option value="">Select organization...</option>
+                {availableTenants
+                  .filter(t => !xeroLinks.some(l => l.xero_tenant_id === t.tenant_id))
+                  .map(tenant => (
+                    <option key={tenant.tenant_id} value={tenant.tenant_id}>
+                      {tenant.tenant_name}
+                    </option>
+                  ))
+                }
+              </select>
+              {linkingToTenant && (
+                <ArrowPathIcon className="h-4 w-4 text-blue-600 animate-spin" />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
