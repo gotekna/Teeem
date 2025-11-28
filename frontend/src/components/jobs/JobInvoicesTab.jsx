@@ -16,6 +16,8 @@ import { api } from '../../api'
 export default function JobInvoicesTab({ job }) {
   // Transaction data from cached invoices
   const [invoices, setInvoices] = useState([])
+  const [creditNotes, setCreditNotes] = useState([])
+  const [quotes, setQuotes] = useState([])
 
   // Loading states
   const [loading, setLoading] = useState(true)
@@ -32,6 +34,8 @@ export default function JobInvoicesTab({ job }) {
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState({
     invoices: true,
+    creditNotes: false,
+    quotes: false,
     payments: true
   })
 
@@ -57,6 +61,8 @@ export default function JobInvoicesTab({ job }) {
 
       if (response.success) {
         setInvoices(response.data?.invoices || [])
+        setCreditNotes(response.data?.credit_notes || [])
+        setQuotes(response.data?.quotes || [])
         setLastSyncedAt(response.meta?.last_synced_at)
       } else {
         setError(response.error || 'Failed to load invoices')
@@ -121,6 +127,11 @@ export default function JobInvoicesTab({ job }) {
       'paid': { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', label: 'Paid' },
       'voided': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Voided' },
       'deleted': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Deleted' },
+      // Quote-specific statuses
+      'sent': { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300', label: 'Sent' },
+      'accepted': { color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300', label: 'Accepted' },
+      'declined': { color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300', label: 'Declined' },
+      'invoiced': { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300', label: 'Invoiced' },
     }
     const statusInfo = statusMap[status] || { color: 'bg-gray-100 text-gray-800', label: status }
     return (
@@ -170,10 +181,30 @@ export default function JobInvoicesTab({ job }) {
     : invoices.filter(inv => inv.status !== 'deleted' && inv.status !== 'voided')
   const deletedCount = invoices.length - invoices.filter(inv => inv.status !== 'deleted' && inv.status !== 'voided').length
 
+  // Filter credit notes (sales credit notes only)
+  const filteredCreditNotes = showDeleted
+    ? creditNotes
+    : creditNotes.filter(cn => cn.status !== 'deleted' && cn.status !== 'voided')
+  const creditNotesDeletedCount = creditNotes.length - creditNotes.filter(cn => cn.status !== 'deleted' && cn.status !== 'voided').length
+
+  // Filter quotes
+  const filteredQuotes = showDeleted
+    ? quotes
+    : quotes.filter(q => q.status !== 'deleted' && q.status !== 'declined')
+  const quotesDeletedCount = quotes.length - quotes.filter(q => q.status !== 'deleted' && q.status !== 'declined').length
+
   // Calculate totals (using snake_case fields)
   const invoiceTotal = filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0)
   const invoiceDueTotal = filteredInvoices.reduce((sum, inv) => sum + (parseFloat(inv.amount_due) || 0), 0)
   const invoicePaidTotal = filteredInvoices.reduce((sum, inv) => sum + ((parseFloat(inv.total) || 0) - (parseFloat(inv.amount_due) || 0)), 0)
+
+  // Credit note totals
+  const creditNoteTotal = filteredCreditNotes.reduce((sum, cn) => sum + (parseFloat(cn.total) || 0), 0)
+
+  // Quote totals (only accepted quotes)
+  const acceptedQuotes = filteredQuotes.filter(q => q.status === 'accepted' || q.status === 'invoiced')
+  const quoteTotal = filteredQuotes.reduce((sum, q) => sum + (parseFloat(q.total) || 0), 0)
+  const acceptedQuoteTotal = acceptedQuotes.reduce((sum, q) => sum + (parseFloat(q.total) || 0), 0)
 
   // Format last synced time
   const formatLastSynced = (dateString) => {
@@ -253,7 +284,7 @@ export default function JobInvoicesTab({ job }) {
         </div>
       ) : (
         <>
-          {/* Summary cards */}
+          {/* Summary cards - Row 1: Invoices */}
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
               <div className="flex items-center gap-2 mb-1">
@@ -292,6 +323,62 @@ export default function JobInvoicesTab({ job }) {
               </div>
             </div>
           </div>
+
+          {/* Summary cards - Row 2: Credit Notes & Quotes (only show if any exist) */}
+          {(filteredCreditNotes.length > 0 || filteredQuotes.length > 0) && (
+            <div className="grid grid-cols-4 gap-4">
+              {filteredCreditNotes.length > 0 && (
+                <>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DocumentTextIcon className="h-5 w-5 text-red-500" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Credit Notes</span>
+                    </div>
+                    <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                      {filteredCreditNotes.length}
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CurrencyDollarIcon className="h-5 w-5 text-red-500" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Credit Total</span>
+                    </div>
+                    <div className="text-2xl font-semibold text-red-600 dark:text-red-400">
+                      -{formatCurrency(creditNoteTotal)}
+                    </div>
+                  </div>
+                </>
+              )}
+              {filteredQuotes.length > 0 && (
+                <>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <DocumentTextIcon className="h-5 w-5 text-purple-500" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Quotes</span>
+                    </div>
+                    <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                      {filteredQuotes.length}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      {acceptedQuotes.length} accepted/invoiced
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CurrencyDollarIcon className="h-5 w-5 text-purple-500" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">Quote Total</span>
+                    </div>
+                    <div className="text-2xl font-semibold text-purple-600 dark:text-purple-400">
+                      {formatCurrency(quoteTotal)}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      {formatCurrency(acceptedQuoteTotal)} accepted
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Invoices Section */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -389,6 +476,174 @@ export default function JobInvoicesTab({ job }) {
               </div>
             )}
           </div>
+
+          {/* Credit Notes Section */}
+          {filteredCreditNotes.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                onClick={() => toggleSection('creditNotes')}
+                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="flex items-center gap-2">
+                  <DocumentTextIcon className="h-5 w-5 text-red-500" />
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Credit Notes ({filteredCreditNotes.length})
+                  </span>
+                  {creditNotesDeletedCount > 0 && !showDeleted && (
+                    <span className="text-xs text-gray-400">
+                      +{creditNotesDeletedCount} deleted
+                    </span>
+                  )}
+                </div>
+                {expandedSections.creditNotes ? (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+
+              {expandedSections.creditNotes && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Customer</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredCreditNotes.map((cn, idx) => (
+                        <tr
+                          key={cn.id || idx}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                          onClick={() => fetchInvoiceDetail(cn.id)}
+                        >
+                          <td className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:underline">
+                            {cn.invoice_number || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {cn.contact_name || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {cn.reference || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {formatDate(cn.invoice_date)}
+                          </td>
+                          <td className="px-4 py-2">
+                            {getStatusBadge(cn.status)}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-right font-medium text-red-600 dark:text-red-400">
+                            -{formatCurrency(cn.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                          Total Credits
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right font-bold text-red-600 dark:text-red-400">
+                          -{formatCurrency(creditNoteTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Quotes Section */}
+          {filteredQuotes.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                onClick={() => toggleSection('quotes')}
+                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="flex items-center gap-2">
+                  <DocumentTextIcon className="h-5 w-5 text-purple-500" />
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Quotes ({filteredQuotes.length})
+                  </span>
+                  {quotesDeletedCount > 0 && !showDeleted && (
+                    <span className="text-xs text-gray-400">
+                      +{quotesDeletedCount} hidden
+                    </span>
+                  )}
+                </div>
+                {expandedSections.quotes ? (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+
+              {expandedSections.quotes && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Customer</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Title</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Expiry</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredQuotes.map((quote, idx) => (
+                        <tr
+                          key={quote.id || idx}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                          onClick={() => fetchInvoiceDetail(quote.id)}
+                        >
+                          <td className="px-4 py-2 text-sm font-medium text-purple-600 dark:text-purple-400 hover:underline">
+                            {quote.invoice_number || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {quote.contact_name || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate" title={quote.reference || ''}>
+                            {quote.reference || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {formatDate(quote.invoice_date)}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {formatDate(quote.due_date)}
+                          </td>
+                          <td className="px-4 py-2">
+                            {getStatusBadge(quote.status)}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-right font-medium text-gray-900 dark:text-white">
+                            {formatCurrency(quote.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
+                      <tr>
+                        <td colSpan={6} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                          Total
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right font-bold text-gray-900 dark:text-white">
+                          {formatCurrency(quoteTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Payments Section */}
           {payments.length > 0 && (

@@ -16,6 +16,7 @@ import { api } from '../../api'
 export default function JobBillsTab({ job }) {
   // Transaction data from cached bills
   const [bills, setBills] = useState([])
+  const [supplierCreditNotes, setSupplierCreditNotes] = useState([])
 
   // Loading states
   const [loading, setLoading] = useState(true)
@@ -32,6 +33,7 @@ export default function JobBillsTab({ job }) {
   // Collapsible sections
   const [expandedSections, setExpandedSections] = useState({
     bills: true,
+    creditNotes: false,
     payments: true
   })
 
@@ -57,6 +59,8 @@ export default function JobBillsTab({ job }) {
 
       if (response.success) {
         setBills(response.data?.bills || [])
+        // Credit notes from suppliers (ACCPAYCREDIT) - credits we receive
+        setSupplierCreditNotes(response.data?.credit_notes || [])
         setLastSyncedAt(response.meta?.last_synced_at)
       } else {
         setError(response.error || 'Failed to load bills')
@@ -169,10 +173,19 @@ export default function JobBillsTab({ job }) {
     : bills.filter(bill => bill.status !== 'deleted' && bill.status !== 'voided')
   const deletedCount = bills.length - bills.filter(bill => bill.status !== 'deleted' && bill.status !== 'voided').length
 
+  // Filter supplier credit notes
+  const filteredCreditNotes = showDeleted
+    ? supplierCreditNotes
+    : supplierCreditNotes.filter(cn => cn.status !== 'deleted' && cn.status !== 'voided')
+  const creditNotesDeletedCount = supplierCreditNotes.length - supplierCreditNotes.filter(cn => cn.status !== 'deleted' && cn.status !== 'voided').length
+
   // Calculate totals (using snake_case fields)
   const billTotal = filteredBills.reduce((sum, bill) => sum + (parseFloat(bill.total) || 0), 0)
   const billDueTotal = filteredBills.reduce((sum, bill) => sum + (parseFloat(bill.amount_due) || 0), 0)
   const billPaidTotal = filteredBills.reduce((sum, bill) => sum + ((parseFloat(bill.total) || 0) - (parseFloat(bill.amount_due) || 0)), 0)
+
+  // Supplier credit note totals (credits we receive from suppliers reduce our costs)
+  const creditNoteTotal = filteredCreditNotes.reduce((sum, cn) => sum + (parseFloat(cn.total) || 0), 0)
 
   // Format last synced time
   const formatLastSynced = (dateString) => {
@@ -267,7 +280,7 @@ export default function JobBillsTab({ job }) {
         </div>
       ) : (
         <>
-          {/* Summary cards */}
+          {/* Summary cards - Row 1: Bills */}
           <div className="grid grid-cols-4 gap-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
               <div className="flex items-center gap-2 mb-1">
@@ -309,6 +322,45 @@ export default function JobBillsTab({ job }) {
               </div>
             </div>
           </div>
+
+          {/* Summary cards - Row 2: Supplier Credits (only show if any exist) */}
+          {filteredCreditNotes.length > 0 && (
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <DocumentTextIcon className="h-5 w-5 text-green-500" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Supplier Credits</span>
+                </div>
+                <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                  {filteredCreditNotes.length}
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <CurrencyDollarIcon className="h-5 w-5 text-green-500" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Credit Total</span>
+                </div>
+                <div className="text-2xl font-semibold text-green-600 dark:text-green-400">
+                  {formatCurrency(creditNoteTotal)}
+                </div>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  reduces costs
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <CurrencyDollarIcon className="h-5 w-5 text-blue-500" />
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Net Costs</span>
+                </div>
+                <div className="text-2xl font-semibold text-blue-600 dark:text-blue-400">
+                  {formatCurrency(billTotal - creditNoteTotal)}
+                </div>
+                <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                  bills minus credits
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Supplier Breakdown */}
           {sortedSuppliers.length > 1 && (
@@ -440,6 +492,88 @@ export default function JobBillsTab({ job }) {
               </div>
             )}
           </div>
+
+          {/* Supplier Credit Notes Section */}
+          {filteredCreditNotes.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <button
+                onClick={() => toggleSection('creditNotes')}
+                className="w-full px-4 py-3 flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <div className="flex items-center gap-2">
+                  <DocumentTextIcon className="h-5 w-5 text-green-500" />
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Supplier Credits ({filteredCreditNotes.length})
+                  </span>
+                  {creditNotesDeletedCount > 0 && !showDeleted && (
+                    <span className="text-xs text-gray-400">
+                      +{creditNotesDeletedCount} deleted
+                    </span>
+                  )}
+                </div>
+                {expandedSections.creditNotes ? (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+
+              {expandedSections.creditNotes && (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-900/50">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Number</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Supplier</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Credit Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredCreditNotes.map((cn, idx) => (
+                        <tr
+                          key={cn.id || idx}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                          onClick={() => fetchBillDetail(cn.id)}
+                        >
+                          <td className="px-4 py-2 text-sm font-medium text-green-600 dark:text-green-400 hover:underline">
+                            {cn.invoice_number || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {cn.contact_name || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {cn.reference || '-'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+                            {formatDate(cn.invoice_date)}
+                          </td>
+                          <td className="px-4 py-2">
+                            {getStatusBadge(cn.status)}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-right font-medium text-green-600 dark:text-green-400">
+                            {formatCurrency(cn.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-50 dark:bg-gray-900/50 border-t-2 border-gray-300 dark:border-gray-600">
+                      <tr>
+                        <td colSpan={5} className="px-4 py-2 text-sm font-semibold text-gray-900 dark:text-white text-right">
+                          Total Credits
+                        </td>
+                        <td className="px-4 py-2 text-sm text-right font-bold text-green-600 dark:text-green-400">
+                          {formatCurrency(creditNoteTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Payments Section */}
           {payments.length > 0 && (
