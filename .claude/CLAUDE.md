@@ -5,9 +5,10 @@
 **NEVER push directly to the `Live` branch.** This is our production branch (equivalent to main/master).
 
 - ALWAYS work on feature branches (like `rob`, `jake`, etc.)
-- ALWAYS create Pull Requests to merge into `Live`
 - NEVER run `git push origin Live` or `git push --force` to Live
 - If asked to push, push to the current feature branch only
+- NEVER ask the user to create PRs or merge to Live - they will handle this themselves
+- NEVER mention "ready for PR" or "create a PR" - just push to the feature branch and move on
 
 ---
 
