@@ -4,8 +4,12 @@ require 'json'
 class OutlookService
   GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
 
-  def initialize(access_token = nil)
-    @access_token = access_token || fetch_valid_token
+  class NotConnectedError < StandardError; end
+
+  # Initialize with a user to get their personal credentials
+  def initialize(user)
+    @user = user
+    @access_token = fetch_valid_token
   end
 
   # Search for emails in Outlook
@@ -72,10 +76,11 @@ class OutlookService
       parsed_data = parser.parse
 
       email = Email.new(parsed_data)
+      email.user = @user
 
-      # Try to auto-match to a construction
-      matched_construction = parser.match_construction
-      email.construction = matched_construction if matched_construction
+      # Try to auto-match to a job
+      matched_job = parser.match_job
+      email.job = matched_job if matched_job
 
       if email.save
         imported_count += 1
@@ -96,7 +101,7 @@ class OutlookService
 
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
-      data['value'].map { |folder| { id: folder['id'], name: folder['displayName'], unread_count: folder['unreadItemCount'] } }
+      data['value'].map { |folder| { id: folder['id'], name: folder['displayName'], unread_count: folder['unreadItemCount'], total_items: folder['totalItemCount'] } }
     else
       Rails.logger.error "Failed to list Outlook folders: #{response.code} - #{response.body}"
       []
@@ -106,10 +111,10 @@ class OutlookService
   private
 
   def fetch_valid_token
-    credential = OrganizationOutlookCredential.current
+    credential = @user.outlook_credential
 
     if credential.nil?
-      raise 'Outlook not configured. Please connect your Office 365 account in settings.'
+      raise NotConnectedError, 'Outlook not connected. Please connect your Outlook account in settings.'
     end
 
     # This will automatically refresh the token if expired
