@@ -75,6 +75,22 @@ class XeroContactSyncService
       )
     end
 
+    # Check if sync is disabled for this tenant
+    if @sync_config.sync_disabled?
+      Rails.logger.info("Sync is disabled for tenant #{tenant_id}, skipping")
+      return {
+        success: true,
+        tenant_id: tenant_id,
+        tenant_name: @sync_config.xero_tenant_name,
+        stats: @stats,
+        synced_at: @sync_timestamp,
+        message: 'Sync disabled for this tenant'
+      }
+    end
+
+    sync_direction = @sync_config.effective_sync_direction
+    Rails.logger.info("Sync direction for tenant #{tenant_id}: #{sync_direction}")
+
     begin
       # Fetch all contacts from Xero for this tenant
       xero_contacts = fetch_xero_contacts(tenant_id)
@@ -172,6 +188,13 @@ class XeroContactSyncService
     matched_teeem_ids = Set.new
     matched_xero_ids = Set.new
 
+    # Get sync direction from config
+    import_enabled = @sync_config&.import_enabled? != false
+    export_enabled = @sync_config&.export_enabled? == true
+    sync_direction = @sync_config&.effective_sync_direction || 'import_only'
+
+    Rails.logger.info("Processing contacts with sync direction: #{sync_direction} (import: #{import_enabled}, export: #{export_enabled})")
+
     # Get existing links for this tenant
     existing_links = ContactXeroLink.where(xero_tenant_id: tenant_id).index_by(&:xero_contact_id)
 
@@ -182,59 +205,85 @@ class XeroContactSyncService
     teeem_by_email = teeem_contacts.select { |c| c.email.present? }
                                      .index_by { |c| c.email.downcase.strip }
 
-    # Process each Xero contact
-    xero_contacts.each do |xero_contact|
-      begin
-        xero_id = xero_contact['ContactID']
+    # Process each Xero contact (import from Xero)
+    if import_enabled
+      xero_contacts.each do |xero_contact|
+        begin
+          xero_id = xero_contact['ContactID']
 
-        # Check if we already have a link for this Xero contact
-        if existing_links[xero_id]
-          link = existing_links[xero_id]
-          teeem_contact = link.contact
-          if teeem_contact
-            matched_teeem_ids.add(teeem_contact.id)
-            matched_xero_ids.add(xero_id)
-            sync_matched_contact(teeem_contact, xero_contact, link)
-            @stats[:matched] += 1
-          end
-        else
-          # Try to find matching TEEEM contact
-          teeem_contact = find_matching_teeem_contact(
-            xero_contact,
-            {},  # No xero_id lookup for new matches
-            teeem_by_tax_number,
-            teeem_by_email,
-            teeem_contacts - matched_teeem_ids.map { |id| teeem_contacts.find { |c| c.id == id } }.compact
-          )
-
-          if teeem_contact
-            # Match found - create link and update
-            matched_teeem_ids.add(teeem_contact.id)
-            matched_xero_ids.add(xero_id)
-            link = create_or_update_xero_link(teeem_contact, xero_contact, tenant_id)
-            sync_matched_contact(teeem_contact, xero_contact, link)
-            @stats[:matched] += 1
+          # Check if we already have a link for this Xero contact
+          if existing_links[xero_id]
+            link = existing_links[xero_id]
+            teeem_contact = link.contact
+            if teeem_contact
+              matched_teeem_ids.add(teeem_contact.id)
+              matched_xero_ids.add(xero_id)
+              sync_matched_contact(teeem_contact, xero_contact, link)
+              @stats[:matched] += 1
+            end
           else
-            # No match - create in TEEEM with link
-            new_contact = create_teeem_contact_from_xero(xero_contact, tenant_id)
-            matched_xero_ids.add(xero_id)
-            @stats[:created_in_teeem] += 1
-          end
-        end
+            # Try to find matching TEEEM contact
+            teeem_contact = find_matching_teeem_contact(
+              xero_contact,
+              {},  # No xero_id lookup for new matches
+              teeem_by_tax_number,
+              teeem_by_email,
+              teeem_contacts - matched_teeem_ids.map { |id| teeem_contacts.find { |c| c.id == id } }.compact
+            )
 
-        # Small delay to avoid rate limits
-        sleep(RATE_LIMIT_SLEEP / 1000.0)
-      rescue StandardError => e
-        error_msg = "Error processing Xero contact #{xero_contact['Name']}: #{e.message}"
-        Rails.logger.error(error_msg)
-        @stats[:errors] << error_msg
+            if teeem_contact
+              # Match found - create link and update
+              matched_teeem_ids.add(teeem_contact.id)
+              matched_xero_ids.add(xero_id)
+              link = create_or_update_xero_link(teeem_contact, xero_contact, tenant_id)
+              sync_matched_contact(teeem_contact, xero_contact, link)
+              @stats[:matched] += 1
+            else
+              # No match - create in TEEEM with link
+              new_contact = create_teeem_contact_from_xero(xero_contact, tenant_id)
+              matched_xero_ids.add(xero_id)
+              @stats[:created_in_teeem] += 1
+            end
+          end
+
+          # Small delay to avoid rate limits
+          sleep(RATE_LIMIT_SLEEP / 1000.0)
+        rescue StandardError => e
+          error_msg = "Error processing Xero contact #{xero_contact['Name']}: #{e.message}"
+          Rails.logger.error(error_msg)
+          @stats[:errors] << error_msg
+        end
       end
+    else
+      Rails.logger.info("Import disabled - skipping Xero contact processing")
     end
 
-    # Count TEEEM-only contacts that won't be pushed to Xero
+    # Process unmatched TEEEM contacts (export to Xero)
     unmatched_teeem = teeem_contacts.reject { |c| matched_teeem_ids.include?(c.id) }
-    @stats[:skipped] = unmatched_teeem.count
-    Rails.logger.info("ONE-WAY SYNC MODE: #{@stats[:skipped]} TEEEM contacts not pushed to Xero")
+
+    if export_enabled
+      Rails.logger.info("Export enabled - pushing #{unmatched_teeem.count} unmatched TEEEM contacts to Xero")
+      unmatched_teeem.each do |teeem_contact|
+        begin
+          # Only export contacts that are marked for sync
+          next unless teeem_contact.sync_with_xero
+
+          result = create_xero_contact_for_tenant(teeem_contact, tenant_id)
+          if result[:success]
+            matched_teeem_ids.add(teeem_contact.id)
+          end
+
+          sleep(RATE_LIMIT_SLEEP / 1000.0)
+        rescue StandardError => e
+          error_msg = "Error exporting TEEEM contact #{teeem_contact.display_name}: #{e.message}"
+          Rails.logger.error(error_msg)
+          @stats[:errors] << error_msg
+        end
+      end
+    else
+      @stats[:skipped] = unmatched_teeem.count
+      Rails.logger.info("Export disabled - #{@stats[:skipped]} TEEEM contacts not pushed to Xero")
+    end
 
     # Return set of all Xero IDs we processed
     matched_xero_ids
@@ -456,7 +505,7 @@ class XeroContactSyncService
       end
     end
 
-    # Address
+    # Address - sync to both legacy field and contact_addresses table
     if xero_contact['Addresses'].present?
       street_address = xero_contact['Addresses'].find { |a| a['AddressType'] == 'STREET' }
       address_to_use = street_address || xero_contact['Addresses'].first
@@ -473,6 +522,9 @@ class XeroContactSyncService
 
         updates[:address] = address_parts.join(', ') if address_parts.any?
       end
+
+      # Sync to contact_addresses table (two-way sync - TEEEM is source of truth)
+      sync_addresses_from_xero(teeem_contact, xero_contact['Addresses'])
     end
 
     # Track changes for activity logging
@@ -957,6 +1009,56 @@ class XeroContactSyncService
   # Legacy method for backwards compatibility
   def cleanup_deleted_xero_contacts(active_xero_ids)
     cleanup_deleted_xero_contacts_for_tenant(active_xero_ids, @tenant_id) if @tenant_id
+  end
+
+  # Sync addresses from Xero to contact_addresses table (two-way sync)
+  # TEEEM is source of truth - only create/update if TEEEM doesn't have the address type
+  def sync_addresses_from_xero(teeem_contact, xero_addresses)
+    return unless xero_addresses.is_a?(Array)
+
+    xero_addresses.each do |xero_addr|
+      address_type = xero_addr['AddressType']
+      next unless address_type.present? && ContactAddress::ADDRESS_TYPES.include?(address_type)
+
+      # Check if TEEEM already has this address type
+      existing = teeem_contact.contact_addresses.find_by(address_type: address_type)
+
+      if existing
+        # TEEEM has this address - only update if TEEEM address is empty
+        if existing.line1.blank? && existing.city.blank?
+          existing.update!(
+            line1: xero_addr['AddressLine1'],
+            line2: xero_addr['AddressLine2'],
+            line3: xero_addr['AddressLine3'],
+            line4: xero_addr['AddressLine4'],
+            city: xero_addr['City'],
+            region: xero_addr['Region'],
+            postal_code: xero_addr['PostalCode'],
+            country: xero_addr['Country']
+          )
+          Rails.logger.info("Updated empty #{address_type} address for contact #{teeem_contact.id} from Xero")
+        end
+      else
+        # TEEEM doesn't have this address type - create it from Xero
+        # Only create if Xero has actual address data
+        if xero_addr['AddressLine1'].present? || xero_addr['City'].present?
+          teeem_contact.contact_addresses.create!(
+            address_type: address_type,
+            line1: xero_addr['AddressLine1'],
+            line2: xero_addr['AddressLine2'],
+            line3: xero_addr['AddressLine3'],
+            line4: xero_addr['AddressLine4'],
+            city: xero_addr['City'],
+            region: xero_addr['Region'],
+            postal_code: xero_addr['PostalCode'],
+            country: xero_addr['Country']
+          )
+          Rails.logger.info("Created #{address_type} address for contact #{teeem_contact.id} from Xero")
+        end
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error("Error syncing addresses for contact #{teeem_contact.id}: #{e.message}")
   end
 
   private

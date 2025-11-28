@@ -1,10 +1,20 @@
 class AssetReminderJob < ApplicationJob
   queue_as :default
 
+  # Run daily to check for asset insurance and service reminders
   def perform
+    Rails.logger.info("Starting daily asset reminder check...")
+
     service = AssetReminderService.new
     result = service.send_reminders
 
-    Rails.logger.info "AssetReminderJob completed: #{result[:insurance_reminders_sent]} insurance reminders, #{result[:service_reminders_sent]} service reminders sent at #{result[:timestamp]}"
+    if result[:success]
+      Rails.logger.info("Asset reminders completed: #{result[:reminders_sent]} reminders sent")
+    else
+      Rails.logger.error("Asset reminders failed: #{result[:error]}")
+    end
+  rescue StandardError => e
+    Rails.logger.error("Asset reminder job failed: #{e.message}")
+    raise
   end
 end

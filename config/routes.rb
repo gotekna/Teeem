@@ -125,6 +125,16 @@ Rails.application.routes.draw do
         # Meetings (nested under jobs)
         resources :meetings, only: [:index, :create]
 
+        # Job claims (nested under jobs)
+        resources :job_claims, only: [:index, :create]
+      end
+
+      # Job claims (non-nested routes)
+      resources :job_claims, only: [:show, :update, :destroy] do
+        collection do
+          post :bulk_delete
+          post :bulk_create
+        end
       end
 
       # Schedule tasks (non-nested routes)
@@ -229,7 +239,11 @@ Rails.application.routes.draw do
       end
 
       # Gold Standard Table (Demo/Reference Price Book)
-      resources :gold_standard_table, only: [:index, :create, :update, :destroy]
+      resources :gold_standard_table, only: [:index, :create, :update, :destroy] do
+        collection do
+          post :bulk_delete
+        end
+      end
 
       # Column Types - Single Source of Truth from Gold Standard Reference Table
       resources :column_types, only: [:index, :show, :update]
@@ -261,9 +275,12 @@ Rails.application.routes.draw do
       resources :contacts do
         collection do
           patch :bulk_update
+          post :bulk_delete
           post :merge
           post :match_supplier
           get :validate_abn
+          get :possible_duplicates
+          get :read_only_fields
         end
         member do
           get :categories
@@ -274,13 +291,29 @@ Rails.application.routes.draw do
           delete :delete_price_column
           get :activities
           post :link_xero_contact
+          post :sync_from_xero
           post :portal_user, to: 'contacts#create_portal_user'
           patch :portal_user, to: 'contacts#update_portal_user'
           delete :portal_user, to: 'contacts#delete_portal_user'
         end
 
         # Contact relationships (nested under contacts)
-        resources :relationships, controller: 'contact_relationships', only: [:index, :create, :show, :update, :destroy]
+        resources :relationships, controller: 'contact_relationships', only: [:index, :create, :show, :update, :destroy] do
+          collection do
+            get :summary
+          end
+        end
+
+        # Xero links (nested under contacts)
+        resources :xero_links, controller: 'contact_xero_links', only: [:index, :create, :show, :update, :destroy] do
+          member do
+            post :sync
+            post :resolve_conflict
+          end
+          collection do
+            get :conflicts
+          end
+        end
 
         # SMS messages (nested under contacts)
         resources :sms_messages, only: [:index, :create]
@@ -309,7 +342,11 @@ Rails.application.routes.draw do
       end
 
       # Users management
-      resources :users, only: [:index, :show, :update, :destroy]
+      resources :users, only: [:index, :show, :update, :destroy] do
+        collection do
+          post :bulk_delete
+        end
+      end
 
       # Workflow management
       resources :workflow_definitions
@@ -465,6 +502,7 @@ Rails.application.routes.draw do
         # Template rows (nested under schedule_templates)
         resources :rows, controller: 'schedule_template_rows', except: [:index, :show] do
           collection do
+            post :bulk_delete
             post :bulk_update
             post :reorder
           end
@@ -778,16 +816,40 @@ Rails.application.routes.draw do
           delete :disconnect
           get :invoices
           post :match_invoice
-          post :webhook
           post :sync_contacts
           get :sync_status
           get :sync_history
           get :tax_rates
           get :accounts
           get :search_contacts
+          post :import_tracking_categories
+          post :import_all_bills
+          post :import_all_claims
+          post :full_import
         end
         member do
           get :sync_contacts_status
+        end
+      end
+
+      # Xero contact lookup (separate route for /api/v1/xero/contacts/:id)
+      get 'xero/contacts/:id', to: 'xero#show_contact'
+
+      # Xero tenants (available organizations)
+      get 'xero/tenants', to: 'xero#tenants'
+
+      # Xero Webhooks (separate controller for webhook handling)
+      post 'xero/webhooks', to: 'xero_webhooks#receive'
+      get 'xero/webhooks/intent', to: 'xero_webhooks#verify_intent'
+
+      # Sync Configurations (per-Xero-org settings for contact sync)
+      resources :sync_configurations, param: :xero_tenant_id, only: [:index, :show, :update] do
+        member do
+          post :preview
+        end
+        collection do
+          get :field_mappings
+          get :health
         end
       end
 
@@ -813,9 +875,12 @@ Rails.application.routes.draw do
       get 'organization_onedrive/job_folders', to: 'organization_onedrive#list_job_items'
       post 'organization_onedrive/upload', to: 'organization_onedrive#upload'
       get 'organization_onedrive/download', to: 'organization_onedrive#download'
+      get 'organization_onedrive/folder_contents', to: 'organization_onedrive#folder_contents'
       get 'organization_onedrive/preview_pricebook_matches', to: 'organization_onedrive#preview_pricebook_matches'
       post 'organization_onedrive/apply_pricebook_matches', to: 'organization_onedrive#apply_pricebook_matches'
       post 'organization_onedrive/sync_pricebook_images', to: 'organization_onedrive#sync_pricebook_images'
+      get 'organization_onedrive/sharepoint_sites', to: 'organization_onedrive#sharepoint_sites'
+      post 'organization_onedrive/use_sharepoint_site', to: 'organization_onedrive#use_sharepoint_site'
 
       # Schema information
       get 'schema', to: 'schema#index'
@@ -826,31 +891,9 @@ Rails.application.routes.draw do
       post 'schema/sync_system_tables', to: 'schema#sync_system_tables'  # Audit system tables sync status
       post 'schema/sync_has_ui_from_production', to: 'schema#sync_has_ui_from_production'  # Sync has_ui from production
 
-      # Foundation management (renamed from tables)
-      # Legacy alias for backward compatibility with frontend
-      resources :tables, controller: 'foundations' do
-        resources :columns, only: [:create, :update, :destroy] do
-          collection do
-            post :test_formula
-          end
-          member do
-            get :lookup_options
-            get :lookup_search
-            get :choices
-            post :add_choice
-            post :reorder_choices
-            post :rename_choice
-            post :merge_choices
-            delete :delete_choice
-          end
-        end
-        resources :records
-      end
-      resources :table_views, controller: 'foundation_views', only: [:index, :show, :create, :update, :destroy] do
-        collection do
-          post :reorder
-        end
-      end
+      # Foundation management (tables renamed to foundations)
+      # Backward-compatible alias for /api/v1/tables
+      resources :tables, controller: 'foundations', only: [:index, :show, :create, :update, :destroy]
 
       resources :foundations do
         # Column management
@@ -871,10 +914,24 @@ Rails.application.routes.draw do
         end
 
         # Record management for dynamic foundations
-        resources :records
+        resources :records do
+          collection do
+            post :bulk_delete
+            post :bulk_update
+            post :bulk_create
+          end
+        end
       end
 
       # Foundation views (user-specific saved views)
+      # Backward-compatible alias for /api/v1/table_views
+      resources :table_views, controller: 'foundation_views', only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :reorder
+          post :create_all_setup_views
+        end
+      end
+
       resources :foundation_views, only: [:index, :show, :create, :update, :destroy] do
         collection do
           post :reorder
