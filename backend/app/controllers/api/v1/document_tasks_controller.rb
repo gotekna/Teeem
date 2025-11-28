@@ -3,13 +3,22 @@ module Api
     class DocumentTasksController < ApplicationController
       before_action :set_job
 
-      # GET /api/v1/constructions/:job_id/document_tasks
+      # GET /api/v1/jobs/:job_id/document_tasks
       def index
-        category = params[:category]
+        category_param = params[:category]
 
-        # Get or create document tasks for this construction and category
+        # Support both category ID (numeric) and category name (string)
+        if category_param =~ /^\d+$/
+          # Numeric ID - look up the category name from documentation_categories
+          doc_category = DocumentationCategory.find_by(id: category_param)
+          category = doc_category&.name&.downcase&.gsub(' ', '-') || category_param
+        else
+          category = category_param
+        end
+
+        # Get or create document tasks for this job and category
         tasks = DocumentTask.where(
-          construction_id: @job.id,
+          job_id: @job.id,
           category: category
         )
 
@@ -23,11 +32,11 @@ module Api
         }
       end
 
-      # POST /api/v1/constructions/:job_id/document_tasks/:id/upload
+      # POST /api/v1/jobs/:job_id/document_tasks/:id/upload
       def upload
         task = DocumentTask.find_or_create_by(
           id: params[:id],
-          construction_id: @job.id,
+          job_id: @job.id,
           category: params[:category]
         )
 
@@ -52,7 +61,7 @@ module Api
         render json: { error: e.message }, status: :unprocessable_entity
       end
 
-      # POST /api/v1/constructions/:job_id/document_tasks/:id/validate
+      # POST /api/v1/jobs/:job_id/document_tasks/:id/validate
       def validate
         task = DocumentTask.find(params[:id])
 
@@ -102,7 +111,7 @@ module Api
 
         tasks_data.map do |task_data|
           DocumentTask.create!(
-            construction_id: @job.id,
+            job_id: @job.id,
             category: category,
             name: task_data[:name],
             description: task_data[:description],
@@ -115,11 +124,10 @@ module Api
 
       def default_tasks_for_category(category)
         case category
-        when 'site-plan'
+        when 'site', 'site-plan'
           [
-            { name: 'Site Survey', description: 'Professional site survey documentation', required: true },
-            { name: 'Boundary Plan', description: 'Property boundary plan', required: true },
-            { name: 'Topographic Survey', description: 'Topographic survey details', required: false }
+            { name: 'Survey Plan', description: 'Property survey plan documentation', required: true },
+            { name: 'Soil Test', description: 'Soil test report for foundations', required: true }
           ]
         when 'sales'
           [
