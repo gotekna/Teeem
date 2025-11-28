@@ -122,6 +122,16 @@ class Job < ApplicationRecord
     job_contacts.primary.first&.contact
   end
 
+  # Get client contact (from invoices)
+  def client
+    job_contacts.find_by(role: 'client')&.contact
+  end
+
+  # Link client from invoice contacts
+  def link_client_from_invoices!
+    JobClientLinkerService.new.link_client_to_job(self)
+  end
+
   # Get all contacts with their relationship info
   def contacts_with_details
     job_contacts.includes(contact: :outgoing_relationships).map do |cc|
