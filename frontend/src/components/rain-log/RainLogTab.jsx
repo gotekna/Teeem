@@ -6,7 +6,11 @@ import {
   TrashIcon,
   PencilIcon,
   XMarkIcon,
-  CheckIcon
+  CheckIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  MapPinIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
@@ -15,6 +19,9 @@ export default function RainLogTab({ constructionId }) {
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingLog, setEditingLog] = useState(null)
+  const [weatherStatus, setWeatherStatus] = useState(null)
+  const [fetchingWeather, setFetchingWeather] = useState(false)
+  const [weatherResult, setWeatherResult] = useState(null)
   const [formData, setFormData] = useState({
     date: '',
     rainfall_mm: '',
@@ -24,6 +31,7 @@ export default function RainLogTab({ constructionId }) {
 
   useEffect(() => {
     loadRainLogs()
+    loadWeatherStatus()
   }, [constructionId])
 
   const loadRainLogs = async () => {
@@ -35,6 +43,31 @@ export default function RainLogTab({ constructionId }) {
       console.error('Failed to load rain logs:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadWeatherStatus = async () => {
+    try {
+      const response = await api.get(`/api/v1/jobs/${constructionId}/rain_logs/weather_status`)
+      setWeatherStatus(response)
+    } catch (err) {
+      console.error('Failed to load weather status:', err)
+    }
+  }
+
+  const fetchYesterdayWeather = async () => {
+    setFetchingWeather(true)
+    setWeatherResult(null)
+    try {
+      const response = await api.post(`/api/v1/jobs/${constructionId}/rain_logs/auto_log`)
+      setWeatherResult(response)
+      if (response.rain_log_created) {
+        await loadRainLogs()
+      }
+    } catch (err) {
+      setWeatherResult({ error: err.response?.data?.error || 'Failed to fetch weather' })
+    } finally {
+      setFetchingWeather(false)
     }
   }
 
@@ -143,6 +176,78 @@ export default function RainLogTab({ constructionId }) {
 
   return (
     <div className="space-y-6">
+      {/* Weather Status Card */}
+      {weatherStatus && (
+        <div className={`rounded-lg p-4 border ${
+          weatherStatus.api_configured && weatherStatus.job_has_location
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+            : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+        }`}>
+          <div className="flex items-start justify-between">
+            <div className="flex items-start gap-3">
+              {weatherStatus.api_configured && weatherStatus.job_has_location ? (
+                <CheckCircleIcon className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5" />
+              ) : (
+                <ExclamationTriangleIcon className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+              )}
+              <div>
+                <h4 className={`text-sm font-medium ${
+                  weatherStatus.api_configured && weatherStatus.job_has_location
+                    ? 'text-green-800 dark:text-green-200'
+                    : 'text-yellow-800 dark:text-yellow-200'
+                }`}>
+                  Weather Station Status
+                </h4>
+                <p className={`text-sm mt-1 ${
+                  weatherStatus.api_configured && weatherStatus.job_has_location
+                    ? 'text-green-700 dark:text-green-300'
+                    : 'text-yellow-700 dark:text-yellow-300'
+                }`}>
+                  {weatherStatus.message}
+                </p>
+                {weatherStatus.job_location && (
+                  <p className="text-xs mt-1 text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                    <MapPinIcon className="h-3 w-3" />
+                    Location: {weatherStatus.job_location}
+                  </p>
+                )}
+              </div>
+            </div>
+            {weatherStatus.api_configured && weatherStatus.job_has_location && (
+              <button
+                onClick={fetchYesterdayWeather}
+                disabled={fetchingWeather}
+                className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/40 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/60 disabled:opacity-50"
+              >
+                <ArrowPathIcon className={`h-4 w-4 mr-1.5 ${fetchingWeather ? 'animate-spin' : ''}`} />
+                {fetchingWeather ? 'Checking...' : 'Check Yesterday'}
+              </button>
+            )}
+          </div>
+          {weatherResult && (
+            <div className={`mt-3 p-3 rounded-lg ${
+              weatherResult.error
+                ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+            }`}>
+              {weatherResult.error ? (
+                <p className="text-sm">{weatherResult.error}</p>
+              ) : weatherResult.rain_log_created ? (
+                <p className="text-sm">
+                  <CheckCircleIcon className="h-4 w-4 inline mr-1 text-green-600" />
+                  Rain log created: {weatherResult.rain_log?.rainfall_mm}mm recorded
+                </p>
+              ) : (
+                <p className="text-sm">
+                  <CheckCircleIcon className="h-4 w-4 inline mr-1 text-blue-600" />
+                  {weatherResult.message || `No rainfall detected (${weatherResult.rainfall_mm || 0}mm)`}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

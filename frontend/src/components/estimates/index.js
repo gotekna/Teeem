@@ -1,2 +1,2 @@
-export { default as EstimatesTab } from './EstimatesTab'
-export { default as EstimateStatusBadge } from './EstimateStatusBadge'
+export { default as AiReviewModal } from './AiReviewModal'
+export { default as SeverityBadge } from './SeverityBadge'

@@ -37,8 +37,14 @@ export default function CompanyDetailPage() {
     { id: 'activity', name: 'Activity', icon: ClockIcon }
   ]
 
+  const isNewCompany = !id
+
   useEffect(() => {
-    loadCompany()
+    if (id) {
+      loadCompany()
+    } else {
+      setLoading(false)
+    }
   }, [id])
 
   const loadCompany = async () => {
@@ -65,10 +71,29 @@ export default function CompanyDetailPage() {
     )
   }
 
-  if (!company) {
+  if (!company && !isNewCompany) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-gray-500">Company not found</div>
+      </div>
+    )
+  }
+
+  // TODO: Add new company form when isNewCompany is true
+  if (isNewCompany) {
+    return (
+      <div className="space-y-6">
+        <button
+          onClick={() => navigate('/corporate/companies')}
+          className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeftIcon className="h-4 w-4 mr-1" />
+          Back to Companies
+        </button>
+        <div className="bg-white shadow rounded-lg p-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">New Company</h1>
+          <p className="text-gray-500">Company creation form coming soon...</p>
+        </div>
       </div>
     )
   }

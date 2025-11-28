@@ -20,9 +20,7 @@ import { api } from '../api'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 import { POSummaryCards, POTable, PurchaseOrderModal } from '../components/purchase-orders'
 import JobDocumentsTab from '../components/documents/JobDocumentsTab'
-import EstimatesTab from '../components/estimates/EstimatesTab'
 import ScheduleMasterTab from '../components/schedule-master/ScheduleMasterTab'
-import DocumentationTab from '../components/documentation/DocumentationTab'
 import SetupGuideModal from '../components/documentation/SetupGuideModal'
 import CommunicationsTab from '../components/communications/CommunicationsTab'
 import LocationMapCard from '../components/job-detail/LocationMapCard'
@@ -41,15 +39,12 @@ const tabs = [
   { name: 'Costs', slug: 'costs' },
   { name: 'Xero', slug: 'xero' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
-  { name: 'Estimates', slug: 'estimates' },
   { name: 'Activity', slug: 'activity' },
   { name: 'Budget', slug: 'budget' },
   { name: 'Schedule Master', slug: 'schedule-master' },
   { name: 'Rain Log', slug: 'rain-log' },
   { name: 'Documents', slug: 'documents' },
   { name: 'Coms', slug: 'coms' },
-  { name: 'Settings', slug: 'settings' },
-  { name: 'Documentation', slug: 'documentation' },
 ]
 
 function classNames(...classes) {
@@ -649,10 +644,6 @@ export default function JobDetailPage() {
             </div>
           )}
 
-          {activeTab === 'estimates' && (
-            <EstimatesTab jobId={id} />
-          )}
-
           {activeTab === 'activity' && (
             <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700">
               <div className="px-4 py-5 sm:p-6">
@@ -709,23 +700,6 @@ export default function JobDetailPage() {
 
           {activeTab === 'xero' && (
             <JobXeroTab jobId={id} job={job} onUpdate={loadJob} />
-          )}
-
-          {activeTab === 'settings' && (
-            <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
-                  Job Settings
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Settings management coming soon...
-                </p>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'documentation' && (
-            <DocumentationTab />
           )}
         </div>
 

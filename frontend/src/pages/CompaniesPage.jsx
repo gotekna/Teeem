@@ -206,7 +206,7 @@ export default function CompaniesPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
-        onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowClick}
         enableImport={false}
         enableExport={true}
         enableSchemaEditor={true}
