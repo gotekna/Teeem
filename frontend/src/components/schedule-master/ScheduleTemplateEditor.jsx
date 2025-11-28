@@ -22,6 +22,7 @@ import DHtmlxGanttView from './DHtmlxGanttView'
 import GanttRulesModal from './GanttRulesModal'
 import GanttBugHunterModal from './GanttBugHunterModal'
 import { bugHunter } from '../../utils/ganttDebugger'
+import ScheduleTemplateTable from './ScheduleTemplateTable'
 
 /**
  * Schedule Template Editor - Full 14-column grid interface for creating/editing schedule templates
@@ -132,6 +133,7 @@ export default function ScheduleTemplateEditor() {
   const [showRulesModal, setShowRulesModal] = useState(false)
   const [showBugHunterModal, setShowBugHunterModal] = useState(false)
   const [showCopyDropdown, setShowCopyDropdown] = useState(false)
+  const [useGoldStandardTable, setUseGoldStandardTable] = useState(true) // Use new TEEEMTableView-based table
   const hasCollapsedOnLoad = useRef(false)
 
   // Cascade update batching (prevents multiple reloads from backend cascade updates)
@@ -2053,13 +2055,28 @@ export default function ScheduleTemplateEditor() {
               )}
             </div>
 
-            {/* Column Settings Button */}
+            {/* Column Settings Button - Only show for legacy table */}
+            {!useGoldStandardTable && (
+              <button
+                onClick={() => setShowColumnSettings(!showColumnSettings)}
+                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Cog6ToothIcon className="h-4 w-4 mr-2" />
+                Columns
+              </button>
+            )}
+
+            {/* Gold Standard Table Toggle */}
             <button
-              onClick={() => setShowColumnSettings(!showColumnSettings)}
-              className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              onClick={() => setUseGoldStandardTable(!useGoldStandardTable)}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-lg text-sm font-medium transition-colors ${
+                useGoldStandardTable
+                  ? 'border-green-500 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+              title={useGoldStandardTable ? 'Using Gold Standard Table (TEEEMTableView)' : 'Using Legacy Table'}
             >
-              <Cog6ToothIcon className="h-4 w-4 mr-2" />
-              Columns
+              {useGoldStandardTable ? '✓ Gold Std' : 'Legacy'}
             </button>
 
             {/* Quick Toggle Doc Tabs Button */}
@@ -2333,8 +2350,41 @@ export default function ScheduleTemplateEditor() {
         </div>
       )}
 
-      {/* Dynamic Column Table */}
-      {selectedTemplate && (
+      {/* Gold Standard Table (TEEEMTableView) */}
+      {selectedTemplate && useGoldStandardTable && (
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
+          <ScheduleTemplateTable
+            rows={filteredAndSortedRows}
+            suppliers={suppliers}
+            selectedTemplate={selectedTemplate}
+            onUpdateRow={handleUpdateRow}
+            onDeleteRow={handleDeleteRow}
+            onMoveRow={(rowId, direction) => {
+              const rowIndex = rows.findIndex(r => r.id === rowId)
+              if (rowIndex !== -1) {
+                handleMoveRow(rowIndex, direction)
+              }
+            }}
+            selectedRows={selectedRows}
+            onSelectRow={handleSelectRow}
+            onSelectAll={handleSelectAll}
+            documentationCategories={documentationCategories}
+          />
+          {/* Add Row Button */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={handleAddRow}
+              className="inline-flex items-center px-3 py-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
+            >
+              <PlusIcon className="h-4 w-4 mr-1" />
+              Add Row
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Legacy Dynamic Column Table */}
+      {selectedTemplate && !useGoldStandardTable && (
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-300px)] overflow-y-auto">
           <table className="border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
             <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">

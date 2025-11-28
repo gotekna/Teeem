@@ -237,7 +237,10 @@ export default function TeeemTableView({
   hideUpdateViewButton = false,  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)
   initialGroupByColumn = null,  // NEW: Initial column to group by (for tables that default to grouped view)
   onServerSearch = null,  // NEW: Callback for server-side search (called with debounced search term)
-  serverSearchLoading = false  // NEW: Shows loading indicator during server-side search
+  serverSearchLoading = false,  // NEW: Shows loading indicator during server-side search
+  customCellRenderer = null,  // NEW: Custom cell renderer function(entry, columnKey) => React element or null (null = use default)
+  onRowUpdate = null,  // NEW: Callback for row updates (rowId, field, value) => void - enables inline editing
+  extraRowProps = null  // NEW: Extra props to pass to row rendering (e.g., suppliers list, allRows, etc.)
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -2670,6 +2673,29 @@ export default function TeeemTableView({
   }
 
   const renderCellContent = (entry, columnKey) => {
+    // Check for custom cell renderer first
+    if (customCellRenderer) {
+      const customContent = customCellRenderer(entry, columnKey, {
+        extraRowProps,
+        onRowUpdate: onRowUpdate ? (field, value) => onRowUpdate(entry.id, field, value) : null,
+        selectedRows,
+        onSelectRow: (id) => {
+          setSelectedRows(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+              next.delete(id)
+            } else {
+              next.add(id)
+            }
+            return next
+          })
+        }
+      })
+      if (customContent !== null && customContent !== undefined) {
+        return customContent
+      }
+    }
+
     switch (columnKey) {
       case 'select':
         return (
