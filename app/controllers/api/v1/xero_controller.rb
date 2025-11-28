@@ -179,6 +179,9 @@ module Api
           # Add pagination
           query_params[:page] = params[:page] || 1
 
+          # Include line items for description display (summaryOnly=false is default, but explicit)
+          query_params[:unitdp] = 4
+
           result = client.get('Invoices', query_params)
 
           if result[:success]
