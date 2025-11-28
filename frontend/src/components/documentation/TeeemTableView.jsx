@@ -2972,11 +2972,11 @@ export default function TeeemTableView({
           </span>
         )
 
-      case 'assigned_roles':
+      case 'assigned_roles': {
         // Multi-select dropdown for assigned roles (e.g., admin, sales, site, supervisor, builder, estimator)
         const currentRoles = Array.isArray(entry.assigned_roles) ? entry.assigned_roles : []
-        const column = COLUMNS.find(c => c.key === 'assigned_roles')
-        const availableRoles = column?.options || ['admin', 'sales', 'site', 'supervisor', 'builder', 'estimator']
+        const rolesColumn = COLUMNS.find(c => c.key === 'assigned_roles')
+        const availableRoles = rolesColumn?.options || ['admin', 'sales', 'site', 'supervisor', 'builder', 'estimator']
 
         if (editingRowId === entry.id) {
           const editingRoles = Array.isArray(editingData.assigned_roles) ? editingData.assigned_roles : currentRoles
@@ -3021,6 +3021,7 @@ export default function TeeemTableView({
             ))}
           </div>
         )
+      }
 
       case 'audit':
       case 'updated_at':
@@ -3758,12 +3759,12 @@ export default function TeeemTableView({
           </div>
         )
 
-      case 'total_cost':
+      case 'total_cost': {
         // Computed column - calculated value (e.g., price × quantity)
         // Find the column definition to get the compute function
-        const column = COLUMNS.find(col => col.key === columnKey)
-        if (column?.isComputed && column?.computeFunction) {
-          const computedValue = column.computeFunction(entry)
+        const computedColumn = COLUMNS.find(col => col.key === columnKey)
+        if (computedColumn?.isComputed && computedColumn?.computeFunction) {
+          const computedValue = computedColumn.computeFunction(entry)
           return (
             <div className="text-right font-medium bg-blue-50 dark:bg-blue-900/20">
               {computedValue != null ? new Intl.NumberFormat('en-AU', {
@@ -3774,6 +3775,7 @@ export default function TeeemTableView({
           )
         }
         return <span className="text-gray-400">-</span>
+      }
 
       case 'boolean':
         // Boolean column with toggle switch (green = checked/true, gray = unchecked/false)
