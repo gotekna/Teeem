@@ -80,10 +80,17 @@ class XeroApiClient
     credential = XeroCredential.current
     return { success: false, error: 'No credentials found' } unless credential
 
+    refresh_access_token_for(credential)
+  end
+
+  # Refresh the access token for a specific credential (multi-tenant support)
+  def refresh_access_token_for(credential)
+    return { success: false, error: 'No credentials provided' } unless credential
+
     begin
       # Try to access encrypted fields to check if decryption works
       access_token = credential.access_token
-      refresh_token = credential.refresh_token
+      refresh_token_value = credential.refresh_token
     rescue ActiveRecord::Encryption::Errors::Decryption => e
       Rails.logger.error("Xero credential decryption failed in refresh_access_token - deleting corrupted credentials: #{e.message}")
       # Delete the corrupted credential
@@ -96,7 +103,7 @@ class XeroApiClient
       old_token = OAuth2::AccessToken.new(
         client,
         access_token,
-        refresh_token: refresh_token
+        refresh_token: refresh_token_value
       )
 
       new_token = old_token.refresh!
@@ -108,7 +115,7 @@ class XeroApiClient
         expires_at: Time.current + new_token.expires_in.seconds
       )
 
-      Rails.logger.info("Xero token refreshed successfully")
+      Rails.logger.info("Xero token refreshed successfully for tenant #{credential.tenant_name}")
 
       {
         success: true,
