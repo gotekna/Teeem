@@ -11,6 +11,14 @@ class Rack::Attack
     req.ip == '127.0.0.1' || req.ip == '::1' || req.ip == 'localhost'
   end
 
+  # Disable rate limiting entirely for staging environment
+  is_staging = ENV['HEROKU_APP_NAME']&.include?('rob-dev')
+  if is_staging
+    safelist('allow-all-staging') do |_req|
+      true
+    end
+  end
+
   # Determine rate limit based on environment
   # Staging (teeem-rob-dev) gets higher limits for development/testing
   is_staging = ENV['HEROKU_APP_NAME']&.include?('rob-dev')
