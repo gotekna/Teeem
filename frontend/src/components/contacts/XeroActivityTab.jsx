@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   ArrowPathIcon,
-  CheckCircleIcon,
   XCircleIcon,
-  ExclamationTriangleIcon,
   DocumentTextIcon,
   CurrencyDollarIcon,
   ReceiptRefundIcon,
@@ -208,44 +206,41 @@ export default function XeroActivityTab({ contact, onContactUpdate }) {
   const activityFieldMappings = [
     {
       section: 'Invoice Fields',
-      icon: DocumentTextIcon,
       fields: [
-        { xeroField: 'InvoiceNumber', teeemField: 'invoice_number', label: 'Invoice Number', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Reference', teeemField: 'reference', label: 'Reference', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Type', teeemField: 'invoice_type', label: 'Type (ACCPAY/ACCREC)', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Status', teeemField: 'status', label: 'Status', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Date', teeemField: 'issue_date', label: 'Issue Date', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'DueDate', teeemField: 'due_date', label: 'Due Date', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'SubTotal', teeemField: 'subtotal', label: 'Subtotal', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'TotalTax', teeemField: 'total_tax', label: 'Total Tax', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Total', teeemField: 'total', label: 'Total', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'AmountDue', teeemField: 'amount_due', label: 'Amount Due', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'AmountPaid', teeemField: 'amount_paid', label: 'Amount Paid', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'CurrencyCode', teeemField: 'currency', label: 'Currency', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'InvoiceNumber', teeemField: 'invoice_number' },
+        { xeroField: 'Reference', teeemField: 'reference' },
+        { xeroField: 'Type', teeemField: 'invoice_type' },
+        { xeroField: 'Status', teeemField: 'status' },
+        { xeroField: 'Date', teeemField: 'issue_date' },
+        { xeroField: 'DueDate', teeemField: 'due_date' },
+        { xeroField: 'SubTotal', teeemField: 'subtotal' },
+        { xeroField: 'TotalTax', teeemField: 'total_tax' },
+        { xeroField: 'Total', teeemField: 'total' },
+        { xeroField: 'AmountDue', teeemField: 'amount_due' },
+        { xeroField: 'AmountPaid', teeemField: 'amount_paid' },
+        { xeroField: 'CurrencyCode', teeemField: 'currency' },
       ]
     },
     {
       section: 'Payment Fields',
-      icon: CurrencyDollarIcon,
       fields: [
-        { xeroField: 'PaymentID', teeemField: 'xero_payment_id', label: 'Payment ID', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Date', teeemField: 'payment_date', label: 'Payment Date', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Amount', teeemField: 'amount', label: 'Amount', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Reference', teeemField: 'reference', label: 'Reference', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Status', teeemField: 'status', label: 'Status', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'PaymentID', teeemField: 'xero_payment_id' },
+        { xeroField: 'Date', teeemField: 'payment_date' },
+        { xeroField: 'Amount', teeemField: 'amount' },
+        { xeroField: 'Reference', teeemField: 'reference' },
+        { xeroField: 'Status', teeemField: 'status' },
       ]
     },
     {
       section: 'Credit Note Fields',
-      icon: ReceiptRefundIcon,
       fields: [
-        { xeroField: 'CreditNoteNumber', teeemField: 'credit_note_number', label: 'Credit Note Number', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Reference', teeemField: 'reference', label: 'Reference', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Type', teeemField: 'type', label: 'Type', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Status', teeemField: 'status', label: 'Status', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Date', teeemField: 'date', label: 'Date', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Total', teeemField: 'total', label: 'Total', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'RemainingCredit', teeemField: 'remaining_credit', label: 'Remaining Credit', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'CreditNoteNumber', teeemField: 'credit_note_number' },
+        { xeroField: 'Reference', teeemField: 'reference' },
+        { xeroField: 'Type', teeemField: 'type' },
+        { xeroField: 'Status', teeemField: 'status' },
+        { xeroField: 'Date', teeemField: 'date' },
+        { xeroField: 'Total', teeemField: 'total' },
+        { xeroField: 'RemainingCredit', teeemField: 'remaining_credit' },
       ]
     }
   ]
