@@ -1000,6 +1000,9 @@ Rails.application.routes.draw do
           get :assets
         end
 
+        # Bank Accounts (nested under companies)
+        resources :bank_accounts, only: [:index]
+
         # Shareholdings (nested under companies)
         resources :shareholdings, controller: 'company_shareholdings', only: [:index, :show, :create, :update, :destroy] do
           collection do

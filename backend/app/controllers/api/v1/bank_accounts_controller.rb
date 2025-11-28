@@ -4,11 +4,13 @@ module Api
       before_action :set_bank_account, only: [:show, :update, :destroy]
 
       # GET /api/v1/bank_accounts
+      # GET /api/v1/companies/:company_id/bank_accounts
       def index
         @bank_accounts = BankAccount.includes(:company).all
 
-        # Filter by company
-        @bank_accounts = @bank_accounts.where(company_id: params[:company_id]) if params[:company_id].present?
+        # Filter by company (from nested route or query param)
+        company_id = params[:company_id]
+        @bank_accounts = @bank_accounts.where(company_id: company_id) if company_id.present?
 
         # Filter by status
         @bank_accounts = @bank_accounts.where(status: params[:status]) if params[:status].present?
