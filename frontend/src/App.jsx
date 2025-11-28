@@ -222,7 +222,8 @@ function App() {
         <Route path="/contacts/:id" element={<AppLayout><ContactDetailPage /></AppLayout>} />
         <Route path="/accounts" element={<AppLayout><AccountsPage /></AppLayout>} />
         <Route path="/users" element={<Navigate to="/tables/212/user-management" replace />} />
-        <Route path="/health" element={<AppLayout><HealthPage /></AppLayout>} />
+        <Route path="/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
+        <Route path="/system-health" element={<AppLayout><HealthPage /></AppLayout>} />
         <Route path="/permissions" element={<Navigate to="/admin/system?tab=permissions" replace />} />
         <Route path="/system/performance" element={<Navigate to="/admin/system?tab=performance" replace />} />
         <Route path="/suppliers" element={<Navigate to="/contacts" replace />} />
