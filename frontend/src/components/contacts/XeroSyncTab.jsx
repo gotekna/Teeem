@@ -482,10 +482,26 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         // Build tenant query param if available
         const tenantParam = xeroTenantId ? `&tenant_id=${xeroTenantId}` : ''
 
-        // Invoices
+        // Invoices (includes payments data)
         const invoicesResponse = await api.get(`/api/v1/xero/invoices?contact_id=${xeroContactId}${tenantParam}`)
         if (invoicesResponse.success) {
-          setXeroInvoices(invoicesResponse.data?.invoices || [])
+          const invoices = invoicesResponse.data?.invoices || []
+          setXeroInvoices(invoices)
+
+          // Extract payments from invoices (Xero Payments API doesn't support contact filtering)
+          const paymentsFromInvoices = []
+          invoices.forEach(invoice => {
+            if (invoice.Payments && invoice.Payments.length > 0) {
+              invoice.Payments.forEach(payment => {
+                paymentsFromInvoices.push({
+                  ...payment,
+                  InvoiceNumber: invoice.InvoiceNumber,
+                  InvoiceID: invoice.InvoiceID
+                })
+              })
+            }
+          })
+          setXeroPayments(paymentsFromInvoices)
         }
 
         // Credit Notes
@@ -496,16 +512,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
           }
         } catch (e) {
           console.log('Credit Notes endpoint not available yet')
-        }
-
-        // Payments
-        try {
-          const paymentsResponse = await api.get(`/api/v1/xero/payments?contact_id=${xeroContactId}${tenantParam}`)
-          if (paymentsResponse.success) {
-            setXeroPayments(paymentsResponse.data?.payments || [])
-          }
-        } catch (e) {
-          console.log('Payments endpoint not available yet')
         }
 
         // Quotes
@@ -1289,25 +1295,36 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                     <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                       <thead className="bg-gray-50 dark:bg-gray-800/50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Payment Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">How It Links</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Invoice</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Reference</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                          <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Amount</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                         {xeroPayments.slice(0, 10).map((payment, idx) => (
                           <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatDate(payment.Date)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400">{formatCurrency(payment.Amount)}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{payment.Reference || '-'}</td>
-                            <td className="px-6 py-4 text-xs text-gray-600 dark:text-gray-400">
-                              Linked to invoices via <code className="bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">InvoiceID</code>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{formatDate(payment.Date)}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-blue-600 dark:text-blue-400">{payment.InvoiceNumber || '-'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{payment.Reference || '-'}</td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm">
+                              <span className="px-2 py-1 rounded text-xs font-medium border bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">
+                                {payment.Status || 'AUTHORISED'}
+                              </span>
                             </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-green-600 dark:text-green-400 text-right">{formatCurrency(payment.Amount)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                    {xeroPayments.length > 10 && (
+                      <div className="px-6 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          Showing 10 of {xeroPayments.length} payments
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
