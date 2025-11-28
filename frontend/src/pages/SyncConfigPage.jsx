@@ -219,7 +219,7 @@ export default function SyncConfigPage({ embedded = false }) {
     }
   }
 
-  const handleFieldDirectionChange = (fieldName, newDirection) => {
+  const handleFieldDirectionChange = async (fieldName, newDirection) => {
     if (!selectedConfig) return
 
     const updatedMappings = {
@@ -230,22 +230,49 @@ export default function SyncConfigPage({ embedded = false }) {
       }
     }
 
+    // Update local state immediately for responsive UI
     setSelectedConfig({
       ...selectedConfig,
       field_mappings: updatedMappings
     })
+
+    // Auto-save to backend
+    try {
+      await api.patch(`/api/v1/sync_configurations/${selectedConfig.xero_tenant_id}`, {
+        sync_configuration: {
+          field_mappings: updatedMappings
+        }
+      })
+    } catch (err) {
+      console.error('Failed to save field direction:', err)
+      // Optionally show error to user
+    }
   }
 
-  const handleCleanupOptionChange = (optionName, value) => {
+  const handleCleanupOptionChange = async (optionName, value) => {
     if (!selectedConfig) return
 
+    const updatedCleanupOptions = {
+      ...selectedConfig.cleanup_options,
+      [optionName]: value
+    }
+
+    // Update local state immediately for responsive UI
     setSelectedConfig({
       ...selectedConfig,
-      cleanup_options: {
-        ...selectedConfig.cleanup_options,
-        [optionName]: value
-      }
+      cleanup_options: updatedCleanupOptions
     })
+
+    // Auto-save to backend
+    try {
+      await api.patch(`/api/v1/sync_configurations/${selectedConfig.xero_tenant_id}`, {
+        sync_configuration: {
+          cleanup_options: updatedCleanupOptions
+        }
+      })
+    } catch (err) {
+      console.error('Failed to save cleanup option:', err)
+    }
   }
 
   // Handle global sync direction change (applies to ALL contacts for this tenant)
