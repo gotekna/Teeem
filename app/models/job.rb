@@ -39,7 +39,6 @@ class Job < ApplicationRecord
 
   # Validations
   validates :title, presence: true
-  validates :status, presence: true
   validates :site_supervisor_name, presence: true, unless: :imported_from_xero?
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
@@ -53,7 +52,7 @@ class Job < ApplicationRecord
   after_update :log_status_and_stage_changes
 
   # Scopes
-  scope :active, -> { where(status: 'Active') }
+  scope :active, -> { joins(:job_status).where(job_statuses: { name: 'Active Job' }) }
 
   # Methods
   def create_project!(project_manager:, name: nil)
@@ -216,13 +215,14 @@ class Job < ApplicationRecord
   end
 
   def track_status_and_stage_changes
-    @status_was = status_was if status_changed?
+    @status_was = job_status&.name if job_status_id_changed?
     @stage_was = job_stage&.name if job_stage_id_changed?
   end
 
   def log_status_and_stage_changes
-    if saved_change_to_status? && @status_was.present?
-      JobActivity.log_status_change(self, old_status: @status_was, new_status: status, user: Current.user)
+    if saved_change_to_job_status_id? && @status_was.present?
+      new_status = job_status&.name
+      JobActivity.log_status_change(self, old_status: @status_was, new_status: new_status, user: Current.user)
     end
 
     if saved_change_to_job_stage_id?
