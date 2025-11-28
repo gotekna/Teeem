@@ -654,7 +654,8 @@ namespace :corporate do
   task sync_onedrive: :environment do
     puts "=== Syncing OneDrive Corporate Documents ==="
 
-    service = CorporateOnedriveService.new(nil, folder_path: "Corporate File")
+    folder_path = ENV['CORPORATE_FOLDER'] || "Corporate"
+    service = CorporateOnedriveService.new(nil, folder_path: folder_path)
     result = service.scan_all
 
     if result[:success]
