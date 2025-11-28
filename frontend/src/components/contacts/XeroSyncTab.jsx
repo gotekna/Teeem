@@ -1385,16 +1385,15 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                         // No Xero link at all
                         actualStatus = 'not_linked'
                       } else if (field.syncStatus === 'read_only') {
-                        // Check if read_only field has data from Xero
-                        if (xeroValue === '-' && !loadingXeroContact) {
-                          actualStatus = 'empty_in_xero'
-                        } else {
-                          actualStatus = 'read_only'
-                        }
+                        // Keep read_only status - we'll show "No Data" in the value column instead
+                        actualStatus = 'read_only'
                       } else if (field.syncStatus === 'synced' && xeroValue === '-' && !loadingXeroContact) {
                         // Has Xero link but no data from Xero for this field
                         actualStatus = 'empty_in_xero'
                       }
+
+                      // For display: show "No Data" instead of "-" when Xero has no value
+                      const displayXeroValue = (xeroValue === '-' && hasXeroConnection && !loadingXeroContact) ? 'No Data' : xeroValue
 
                       return (
                         <tr key={fieldIdx} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${hasMismatch ? 'bg-yellow-50 dark:bg-yellow-900/10' : ''}`}>
@@ -1407,8 +1406,8 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                           <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                             {teeemValue}
                           </td>
-                          <td className={`px-6 py-4 text-sm bg-blue-50 dark:bg-blue-900/20 ${hasMismatch ? 'text-yellow-700 dark:text-yellow-300 font-medium' : 'text-blue-700 dark:text-blue-300'}`}>
-                            {xeroValue}
+                          <td className={`px-6 py-4 text-sm bg-blue-50 dark:bg-blue-900/20 ${hasMismatch ? 'text-yellow-700 dark:text-yellow-300 font-medium' : displayXeroValue === 'No Data' ? 'text-gray-400 dark:text-gray-500 italic' : 'text-blue-700 dark:text-blue-300'}`}>
+                            {displayXeroValue}
                             {hasMismatch && <span className="ml-2 text-yellow-500">⚠</span>}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
