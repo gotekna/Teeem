@@ -7840,14 +7840,15 @@ export default function TeeemTableView({
             className="teeem-table-scroll h-full overflow-y-scroll overflow-x-scroll border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
           >
           <table className="border-collapse" style={{
-            width: (() => {
+            width: autoFitColumns ? 'auto' : (() => {
               // Calculate total width from all visible columns
               const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
               const totalWidth = visibleCols.reduce((sum, key) => {
                 return sum + (columnWidths[key] || 200)
               }, 0)
               return `${totalWidth}px`
-            })()
+            })(),
+            minWidth: autoFitColumns ? '100%' : undefined
           }}>
             <thead className="sticky top-0 z-10 backdrop-blur-sm">
             <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800">
