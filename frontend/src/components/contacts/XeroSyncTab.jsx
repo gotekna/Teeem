@@ -73,6 +73,9 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   const [xeroContactData, setXeroContactData] = useState(null)
   const [loadingXeroContact, setLoadingXeroContact] = useState(false)
 
+  // Sync configuration from admin settings
+  const [syncConfig, setSyncConfig] = useState(null)
+
   // Collapsible sections state - track which sections are expanded
   const [expandedSections, setExpandedSections] = useState({})
 
@@ -198,33 +201,34 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   // 'none' = Display only, not synced
 
   // Define the field mappings between Xero and TEEEM
+  // syncDirection now reads from syncConfig (admin settings) via getFieldSyncDirection
   const fieldMappings = [
     {
       section: 'Basic Information',
       fields: [
-        { xeroField: 'Name', teeemField: 'full_name', value: contact?.full_name, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: contact?.first_name ? 'synced' : 'empty_in_xero', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: contact?.last_name ? 'synced' : 'empty_in_xero', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'contact_types', value: contact?.contact_types?.length > 0 ? contact.contact_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ') : '-', syncStatus: contact?.contact_types?.length > 0 ? 'synced' : 'empty_in_xero', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'Name', teeemField: 'full_name', value: contact?.full_name, syncStatus: 'synced', syncDirection: getFieldSyncDirection('full_name') },
+        { xeroField: 'FirstName', teeemField: 'first_name', value: contact?.first_name, syncStatus: contact?.first_name ? 'synced' : 'empty_in_xero', syncDirection: getFieldSyncDirection('first_name') },
+        { xeroField: 'LastName', teeemField: 'last_name', value: contact?.last_name, syncStatus: contact?.last_name ? 'synced' : 'empty_in_xero', syncDirection: getFieldSyncDirection('last_name') },
+        { xeroField: 'EmailAddress', teeemField: 'email', value: contact?.email, syncStatus: 'synced', syncDirection: getFieldSyncDirection('email') },
+        { xeroField: 'IsSupplier/IsCustomer', teeemField: 'contact_types', value: contact?.contact_types?.length > 0 ? contact.contact_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ') : '-', syncStatus: contact?.contact_types?.length > 0 ? 'synced' : 'empty_in_xero', syncDirection: getFieldSyncDirection('contact_types') },
         { xeroField: 'ContactID', teeemField: 'xero_id', value: contact?.xero_id, syncStatus: contact?.xero_id ? 'synced' : 'not_linked', syncDirection: 'xero_to_teeem' }
       ]
     },
     {
       section: 'Contact Details',
       fields: [
-        { xeroField: 'PhoneNumber (Mobile)', teeemField: 'mobile_phone', value: contact?.mobile_phone, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'PhoneNumber (Office)', teeemField: 'office_phone', value: contact?.office_phone, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'PhoneNumber (Fax)', teeemField: 'fax_phone', value: contact?.fax_phone, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
-        { xeroField: 'Website', teeemField: 'website', value: contact?.website, syncStatus: 'synced', syncDirection: 'xero_to_teeem' }
+        { xeroField: 'PhoneNumber (Mobile)', teeemField: 'mobile_phone', value: contact?.mobile_phone, syncStatus: 'synced', syncDirection: getFieldSyncDirection('mobile_phone') },
+        { xeroField: 'PhoneNumber (Office)', teeemField: 'office_phone', value: contact?.office_phone, syncStatus: 'synced', syncDirection: getFieldSyncDirection('office_phone') },
+        { xeroField: 'PhoneNumber (Fax)', teeemField: 'fax_phone', value: contact?.fax_phone, syncStatus: 'synced', syncDirection: getFieldSyncDirection('fax_phone') },
+        { xeroField: 'Website', teeemField: 'website', value: contact?.website, syncStatus: 'synced', syncDirection: getFieldSyncDirection('website') }
       ]
     },
     {
       section: 'Addresses',
       fields: [
-        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: getAddressSyncStatus('STREET'), syncDirection: 'teeem_wins' },
-        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: getAddressSyncStatus('POBOX'), syncDirection: 'teeem_wins' },
-        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: getAddressSyncStatus('DELIVERY'), syncDirection: 'teeem_wins' }
+        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: getAddressSyncStatus('STREET'), syncDirection: getFieldSyncDirection('address_street') },
+        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: getAddressSyncStatus('POBOX'), syncDirection: getFieldSyncDirection('address_pobox') },
+        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: getAddressSyncStatus('DELIVERY'), syncDirection: getFieldSyncDirection('address_delivery') }
       ]
     },
     {
@@ -232,7 +236,7 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       readOnly: true,
       readOnlyMessage: 'Synced from Xero - edit in Xero to update',
       fields: [
-        { xeroField: 'TaxNumber', teeemField: 'tax_number', value: contact?.tax_number, syncStatus: 'synced', syncDirection: 'xero_to_teeem' },
+        { xeroField: 'TaxNumber', teeemField: 'tax_number', value: contact?.tax_number, syncStatus: 'synced', syncDirection: getFieldSyncDirection('tax_number') },
         { xeroField: 'AccountNumber', teeemField: 'xero_account_number', value: contact?.xero_account_number, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
         { xeroField: 'ContactNumber', teeemField: 'xero_contact_number', value: contact?.xero_contact_number, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
         { xeroField: 'ContactStatus', teeemField: 'xero_contact_status', value: contact?.xero_contact_status, syncStatus: 'read_only', syncDirection: 'xero_to_teeem' },
@@ -349,6 +353,49 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
 
   // Get the currently selected Xero link
   const selectedLink = xeroLinks.find(l => l.id === selectedLinkId)
+
+  // Load sync configuration when selected link changes
+  useEffect(() => {
+    if (selectedLink?.xero_tenant_id) {
+      loadSyncConfig(selectedLink.xero_tenant_id)
+    }
+  }, [selectedLink?.xero_tenant_id])
+
+  // Load sync configuration for the tenant
+  const loadSyncConfig = async (tenantId) => {
+    try {
+      const response = await api.get(`/api/v1/sync_configurations/${tenantId}`)
+      if (response.success && response.sync_configuration) {
+        setSyncConfig(response.sync_configuration)
+      }
+    } catch (err) {
+      console.error('Failed to load sync config:', err)
+      setSyncConfig(null)
+    }
+  }
+
+  // Get sync direction for a field from config (or default to xero_to_teeem)
+  const getFieldSyncDirection = (fieldName) => {
+    if (!syncConfig?.field_mappings?.[fieldName]) {
+      // Default based on global direction
+      const globalDir = syncConfig?.default_sync_direction || 'import_only'
+      switch (globalDir) {
+        case 'import_only': return 'xero_to_teeem'
+        case 'export_only': return 'teeem_to_xero'
+        case 'bidirectional': return 'bidirectional'
+        case 'disabled': return 'none'
+        default: return 'xero_to_teeem'
+      }
+    }
+    const fieldDir = syncConfig.field_mappings[fieldName]?.direction
+    switch (fieldDir) {
+      case 'import': return 'xero_to_teeem'
+      case 'export': return 'teeem_to_xero'
+      case 'bidirectional': return 'bidirectional'
+      case 'none': return 'none'
+      default: return 'xero_to_teeem'
+    }
+  }
 
   // Load available Xero tenants (organizations)
   const loadAvailableTenants = async () => {
