@@ -92,6 +92,40 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   // Helper to check if a field is read-only
   const isReadOnlyField = (fieldName) => XERO_READ_ONLY_FIELDS.includes(fieldName)
 
+  // Helper to format an address object into a single string
+  const formatAddress = (addr) => {
+    if (!addr) return '-'
+    const parts = [
+      addr.line1,
+      addr.line2,
+      addr.line3,
+      addr.line4,
+      addr.city,
+      addr.region,
+      addr.postal_code,
+      addr.country
+    ].filter(Boolean)
+    return parts.length > 0 ? parts.join(', ') : '-'
+  }
+
+  // Helper to format Xero address from API response
+  const formatXeroAddress = (addresses, type) => {
+    if (!addresses || !Array.isArray(addresses)) return '-'
+    const addr = addresses.find(a => a.AddressType === type)
+    if (!addr) return '-'
+    const parts = [
+      addr.AddressLine1,
+      addr.AddressLine2,
+      addr.AddressLine3,
+      addr.AddressLine4,
+      addr.City,
+      addr.Region,
+      addr.PostalCode,
+      addr.Country
+    ].filter(Boolean)
+    return parts.length > 0 ? parts.join(', ') : '-'
+  }
+
   // Define the field mappings between Xero and TEEEM
   const fieldMappings = [
     {
@@ -112,6 +146,14 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
         { xeroField: 'PhoneNumber (Office)', teeemField: 'office_phone', value: contact?.office_phone, syncStatus: 'synced' },
         { xeroField: 'PhoneNumber (Fax)', teeemField: 'fax_phone', value: contact?.fax_phone, syncStatus: 'synced' },
         { xeroField: 'Website', teeemField: 'website', value: contact?.website, syncStatus: 'synced' }
+      ]
+    },
+    {
+      section: 'Addresses',
+      fields: [
+        { xeroField: 'Address (STREET)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'STREET') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'STREET')) : '-', syncStatus: 'synced' },
+        { xeroField: 'Address (POBOX)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'POBOX') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'POBOX')) : '-', syncStatus: 'synced' },
+        { xeroField: 'Address (DELIVERY)', teeemField: 'contact_addresses', value: contact?.contact_addresses?.find(a => a.address_type === 'DELIVERY') ? formatAddress(contact.contact_addresses.find(a => a.address_type === 'DELIVERY')) : '-', syncStatus: 'synced' }
       ]
     },
     {
@@ -355,6 +397,10 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
       'BankAccountBSB': xeroContactData.BankAccountDetails?.split(' ')[0],
       'BankAccountNumber': xeroContactData.BankAccountDetails?.split(' ').slice(1).join(' '),
       'BankAccountName': null, // Xero doesn't store this separately
+      // Address fields
+      'Address (STREET)': formatXeroAddress(xeroContactData.Addresses, 'STREET'),
+      'Address (POBOX)': formatXeroAddress(xeroContactData.Addresses, 'POBOX'),
+      'Address (DELIVERY)': formatXeroAddress(xeroContactData.Addresses, 'DELIVERY'),
     }
 
     const value = fieldMap[xeroFieldName]
