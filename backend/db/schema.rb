@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_28_035054) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_28_054947) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2700,6 +2700,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_035054) do
     t.index ["variable_name"], name: "index_unreal_variables_on_variable_name", unique: true
   end
 
+  create_table "user_groups", force: :cascade do |t|
+    t.string "name"
+    t.string "label"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_user_groups_on_name", unique: true
+  end
+
   create_table "user_permissions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "permission_id", null: false
@@ -2730,8 +2738,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_035054) do
     t.boolean "wphs_appointee", default: false, null: false
     t.boolean "preload_price_books", default: false, null: false
     t.jsonb "assigned_roles", default: []
+    t.bigint "user_group_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["role"], name: "index_users_on_role"
+    t.index ["user_group_id"], name: "index_users_on_user_group_id"
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
@@ -3344,6 +3354,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_035054) do
   add_foreign_key "task_updates", "users"
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"
+  add_foreign_key "users", "user_groups"
   add_foreign_key "whs_action_items", "project_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"

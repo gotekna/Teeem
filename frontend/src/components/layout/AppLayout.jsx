@@ -2613,10 +2613,10 @@ export default function AppLayout({ children }) {
 
         {/* Main content */}
         <main className={classNames(
-          "py-4 flex-1 overflow-auto min-h-0",
+          "py-4 flex-1 flex flex-col min-h-0",
           sidebarCollapsed ? "lg:pt-4" : ""
         )}>
-          <div className="px-4 sm:px-6 lg:px-8">
+          <div className="px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0">
             {children}
           </div>
         </main>

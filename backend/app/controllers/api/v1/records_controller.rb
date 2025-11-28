@@ -181,6 +181,96 @@ module Api
         render json: { error: 'Record not found' }, status: :not_found
       end
 
+      # POST /api/v1/foundations/:foundation_id/records/bulk_update
+      def bulk_update
+        model = @foundation.dynamic_model
+        record_ids = params[:record_ids]
+        updates = params[:updates]&.to_unsafe_h || {}
+
+        if record_ids.blank?
+          return render json: { error: 'No record IDs provided' }, status: :unprocessable_entity
+        end
+
+        if updates.blank?
+          return render json: { error: 'No updates provided' }, status: :unprocessable_entity
+        end
+
+        # Get valid column names for this foundation
+        valid_columns = if @foundation.table_type == 'system'
+          model.column_names
+        else
+          @foundation.columns.pluck(:column_name)
+        end
+
+        # Filter updates to only valid columns
+        filtered_updates = updates.select { |k, _| valid_columns.include?(k.to_s) }
+
+        if filtered_updates.blank?
+          return render json: { error: 'No valid columns to update' }, status: :unprocessable_entity
+        end
+
+        updated_count = 0
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          record_ids.each do |id|
+            record = model.find_by(id: id)
+            if record
+              if record.update(filtered_updates)
+                updated_count += 1
+              else
+                errors << { id: id, errors: record.errors.full_messages }
+              end
+            else
+              errors << { id: id, errors: ['Record not found'] }
+            end
+          end
+        end
+
+        render json: {
+          success: errors.empty?,
+          updated_count: updated_count,
+          total_requested: record_ids.size,
+          errors: errors
+        }
+      rescue => e
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/foundations/:foundation_id/records/bulk_delete
+      def bulk_delete
+        model = @foundation.dynamic_model
+        record_ids = params[:record_ids]
+
+        if record_ids.blank?
+          return render json: { error: 'No record IDs provided' }, status: :unprocessable_entity
+        end
+
+        deleted_count = 0
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          record_ids.each do |id|
+            record = model.find_by(id: id)
+            if record
+              record.destroy
+              deleted_count += 1
+            else
+              errors << { id: id, errors: ['Record not found'] }
+            end
+          end
+        end
+
+        render json: {
+          success: errors.empty?,
+          deleted_count: deleted_count,
+          total_requested: record_ids.size,
+          errors: errors
+        }
+      rescue => e
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
       private
 
       def set_foundation
