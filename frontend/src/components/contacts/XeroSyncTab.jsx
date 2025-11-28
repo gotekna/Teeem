@@ -200,6 +200,30 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
   // 'teeem_wins' = Two-way sync, but only pulls from Xero if TEEEM is empty
   // 'none' = Display only, not synced
 
+  // Get sync direction for a field from config (or default to xero_to_teeem)
+  // NOTE: This must be defined BEFORE fieldMappings which uses it
+  const getFieldSyncDirection = (fieldName) => {
+    if (!syncConfig?.field_mappings?.[fieldName]) {
+      // Default based on global direction
+      const globalDir = syncConfig?.default_sync_direction || 'import_only'
+      switch (globalDir) {
+        case 'import_only': return 'xero_to_teeem'
+        case 'export_only': return 'teeem_to_xero'
+        case 'bidirectional': return 'bidirectional'
+        case 'disabled': return 'none'
+        default: return 'xero_to_teeem'
+      }
+    }
+    const fieldDir = syncConfig.field_mappings[fieldName]?.direction
+    switch (fieldDir) {
+      case 'import': return 'xero_to_teeem'
+      case 'export': return 'teeem_to_xero'
+      case 'bidirectional': return 'bidirectional'
+      case 'none': return 'none'
+      default: return 'xero_to_teeem'
+    }
+  }
+
   // Define the field mappings between Xero and TEEEM
   // syncDirection now reads from syncConfig (admin settings) via getFieldSyncDirection
   const fieldMappings = [
@@ -371,29 +395,6 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     } catch (err) {
       console.error('Failed to load sync config:', err)
       setSyncConfig(null)
-    }
-  }
-
-  // Get sync direction for a field from config (or default to xero_to_teeem)
-  const getFieldSyncDirection = (fieldName) => {
-    if (!syncConfig?.field_mappings?.[fieldName]) {
-      // Default based on global direction
-      const globalDir = syncConfig?.default_sync_direction || 'import_only'
-      switch (globalDir) {
-        case 'import_only': return 'xero_to_teeem'
-        case 'export_only': return 'teeem_to_xero'
-        case 'bidirectional': return 'bidirectional'
-        case 'disabled': return 'none'
-        default: return 'xero_to_teeem'
-      }
-    }
-    const fieldDir = syncConfig.field_mappings[fieldName]?.direction
-    switch (fieldDir) {
-      case 'import': return 'xero_to_teeem'
-      case 'export': return 'teeem_to_xero'
-      case 'bidirectional': return 'bidirectional'
-      case 'none': return 'none'
-      default: return 'xero_to_teeem'
     }
   }
 
