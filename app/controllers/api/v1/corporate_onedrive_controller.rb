@@ -1,7 +1,9 @@
 module Api
   module V1
     class CorporateOnedriveController < ApplicationController
-      before_action :set_credential
+      skip_before_action :authorize_request, only: [:import_documents]
+      before_action :verify_import_token, only: [:import_documents]
+      before_action :set_credential, except: [:import_documents]
 
       # GET /api/v1/corporate_onedrive/status
       # Check if OneDrive is connected and corporate folder exists
@@ -146,6 +148,15 @@ module Api
 
       def set_credential
         @credential = OrganizationOneDriveCredential.active_credential
+      end
+
+      def verify_import_token
+        import_token = ENV['CORPORATE_IMPORT_TOKEN'] || 'teeem-import-2024'
+        provided_token = params[:token] || request.headers['X-Import-Token']
+
+        unless provided_token == import_token
+          render json: { success: false, error: 'Invalid import token' }, status: :unauthorized
+        end
       end
     end
   end
