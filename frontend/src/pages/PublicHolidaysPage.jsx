@@ -1,20 +1,30 @@
 import { useEffect, useState } from 'react'
 import { getTodayInCompanyTimezone } from '../utils/timezoneUtils'
 import { api } from '../api'
-import {
-  PlusIcon,
-  TrashIcon,
-  CalendarIcon
-} from '@heroicons/react/24/outline'
+import { PlusIcon } from '@heroicons/react/24/outline'
 import Toast from '../components/Toast'
-import DataTable from '../components/DataTable'
+import TeeemTableView from '../components/documentation/TeeemTableView'
+
+// Table ID for Public Holidays (from foundations table)
+const PUBLIC_HOLIDAYS_TABLE_ID = 405
+
+// Column definitions matching the public_holidays table
+const buildPublicHolidaysColumns = () => [
+  { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
+  { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
+  { key: 'name', label: 'Holiday Name', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 250, is_title: true },
+  { key: 'date', label: 'Date', column_type: 'date', resizable: true, sortable: true, filterable: true, filterType: 'date', width: 150 },
+  { key: 'region', label: 'Region', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+  { key: 'created_at', label: 'Created', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 },
+  { key: 'updated_at', label: 'Updated', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 }
+]
 
 export default function PublicHolidaysPage() {
   const [holidays, setHolidays] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [columns, setColumns] = useState(buildPublicHolidaysColumns())
   const [selectedYear, setSelectedYear] = useState(getTodayInCompanyTimezone().getFullYear())
-  const [selectedRegion, setSelectedRegion] = useState('QLD')
+  const [selectedRegion, setSelectedRegion] = useState('ALL')
   const [showAddModal, setShowAddModal] = useState(false)
   const [toast, setToast] = useState(null)
 
@@ -25,30 +35,56 @@ export default function PublicHolidaysPage() {
     region: 'QLD'
   })
 
-  const regions = ['QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT']
+  const regions = ['ALL', 'QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT']
   const years = Array.from({ length: 10 }, (_, i) => getTodayInCompanyTimezone().getFullYear() + i - 2)
 
   useEffect(() => {
     loadHolidays()
+    fetchColumnIds()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear, selectedRegion])
 
   const loadHolidays = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/api/v1/public_holidays', {
-        params: {
-          region: selectedRegion,
-          year: selectedYear
-        }
-      })
+      const params = { year: selectedYear }
+      if (selectedRegion !== 'ALL') {
+        params.region = selectedRegion
+      }
+      const response = await api.get('/api/v1/public_holidays', { params })
       setHolidays(response.holidays || [])
-      setError(null)
     } catch (err) {
       console.error('Failed to load holidays:', err)
-      setError('Failed to load public holidays')
+      setToast({ message: 'Failed to load public holidays', type: 'error' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Fetch column IDs from API and merge with static config
+  const fetchColumnIds = async () => {
+    try {
+      const response = await api.get(`/api/v1/foundations/${PUBLIC_HOLIDAYS_TABLE_ID}`)
+      const dbColumns = response?.foundation?.columns || []
+      console.log('📥 Public Holidays: Received', dbColumns.length, 'columns from API')
+
+      const updatedColumns = buildPublicHolidaysColumns().map(col => {
+        const dbCol = dbColumns.find(dc => dc.column_name === col.key)
+        if (dbCol) {
+          console.log(`🔀 Merged column ${col.key}: id=${dbCol.id}`)
+          return {
+            ...col,
+            id: dbCol.id,
+            header_align: dbCol.header_align,
+            data_align: dbCol.data_align
+          }
+        }
+        return col
+      })
+
+      setColumns(updatedColumns)
+    } catch (err) {
+      console.error('Failed to fetch column IDs:', err)
     }
   }
 
@@ -56,15 +92,12 @@ export default function PublicHolidaysPage() {
     e.preventDefault()
 
     if (!newHoliday.name || !newHoliday.date) {
-      setToast({
-        message: 'Please fill in all fields',
-        type: 'error'
-      })
+      setToast({ message: 'Please fill in all fields', type: 'error' })
       return
     }
 
     try {
-      await api.post('/api/v1/public_holidays', {
+      const response = await api.post('/api/v1/public_holidays', {
         public_holiday: {
           name: newHoliday.name,
           date: newHoliday.date,
@@ -72,14 +105,14 @@ export default function PublicHolidaysPage() {
         }
       })
 
-      setToast({
-        message: 'Public holiday added successfully',
-        type: 'success'
-      })
-
+      setToast({ message: 'Public holiday added successfully', type: 'success' })
       setShowAddModal(false)
       setNewHoliday({ name: '', date: '', region: 'QLD' })
-      loadHolidays()
+
+      // Add to list if it matches current filters
+      if (selectedRegion === 'ALL' || response.holiday?.region === selectedRegion) {
+        setHolidays([...holidays, response.holiday])
+      }
     } catch (err) {
       console.error('Failed to add holiday:', err)
       setToast({
@@ -89,90 +122,47 @@ export default function PublicHolidaysPage() {
     }
   }
 
-  const handleDeleteHoliday = async (holiday) => {
-    if (!confirm(`Delete ${holiday.name}?`)) {
-      return
+  const handleEdit = async (entry) => {
+    try {
+      const response = await api.patch(`/api/v1/public_holidays/${entry.id}`, {
+        public_holiday: {
+          name: entry.name,
+          date: entry.date,
+          region: entry.region
+        }
+      })
+      setHolidays(holidays.map(h => h.id === entry.id ? response.holiday : h))
+      setToast({ message: 'Holiday updated successfully', type: 'success' })
+    } catch (err) {
+      console.error('Failed to update holiday:', err)
+      setToast({ message: 'Failed to update holiday', type: 'error' })
     }
+  }
+
+  const handleDelete = async (entry) => {
+    if (!confirm(`Delete "${entry.name}"?`)) return
 
     try {
-      await api.delete(`/api/v1/public_holidays/${holiday.id}`)
-
-      setToast({
-        message: 'Public holiday deleted successfully',
-        type: 'success'
-      })
-
-      loadHolidays()
+      await api.delete(`/api/v1/public_holidays/${entry.id}`)
+      setHolidays(holidays.filter(h => h.id !== entry.id))
+      setToast({ message: 'Public holiday deleted successfully', type: 'success' })
     } catch (err) {
       console.error('Failed to delete holiday:', err)
-      setToast({
-        message: 'Failed to delete public holiday',
-        type: 'error'
-      })
+      setToast({ message: 'Failed to delete public holiday', type: 'error' })
     }
   }
 
-  const formatDate = (dateStr) => {
-    const date = new Date(dateStr + 'T00:00:00')
-    return date.toLocaleDateString('en-AU', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
-  }
-
-  // Define columns for DataTable
-  const columns = [
-    {
-      key: 'name',
-      label: 'Holiday Name',
-      sortable: true,
-      render: (holiday) => (
-        <span className="text-sm font-medium text-gray-900 dark:text-white">
-          {holiday.name}
-        </span>
-      )
-    },
-    {
-      key: 'date',
-      label: 'Date',
-      sortable: true,
-      getValue: (holiday) => new Date(holiday.date + 'T00:00:00'),
-      render: (holiday) => (
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {formatDate(holiday.date)}
-        </span>
-      )
-    },
-    {
-      key: 'region',
-      label: 'Region',
-      sortable: true,
-      render: (holiday) => (
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {holiday.region}
-        </span>
-      )
-    },
-    {
-      key: 'actions',
-      label: '',
-      sortable: false,
-      align: 'right',
-      render: (holiday) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            handleDeleteHoliday(holiday)
-          }}
-          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-        >
-          <TrashIcon className="h-5 w-5" />
-        </button>
-      )
+  const handleBulkDelete = async (entries) => {
+    try {
+      const ids = entries.map(e => e.id)
+      await Promise.all(ids.map(id => api.delete(`/api/v1/public_holidays/${id}`)))
+      setHolidays(holidays.filter(h => !ids.includes(h.id)))
+      setToast({ message: `Successfully deleted ${entries.length} holidays`, type: 'success' })
+    } catch (err) {
+      console.error('Failed to bulk delete holidays:', err)
+      setToast({ message: 'Failed to delete holidays', type: 'error' })
     }
-  ]
+  }
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6">
@@ -185,15 +175,6 @@ export default function PublicHolidaysPage() {
           <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
             Manage public holidays for business day calculations
           </p>
-        </div>
-        <div className="mt-4 sm:mt-0">
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <PlusIcon className="h-5 w-5 mr-2" />
-            Add Holiday
-          </button>
         </div>
       </div>
 
@@ -226,33 +207,39 @@ export default function PublicHolidaysPage() {
             className="block w-40 rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-900 dark:text-white"
           >
             {regions.map(region => (
-              <option key={region} value={region}>{region}</option>
+              <option key={region} value={region}>{region === 'ALL' ? 'All Regions' : region}</option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Error State */}
-      {error && (
-        <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-4 mb-6">
-          <p className="text-sm text-red-800 dark:text-red-200">{error}</p>
-        </div>
-      )}
-
-      {/* Holidays Table */}
-      <DataTable
-        data={holidays}
+      {/* TeeemTableView */}
+      <TeeemTableView
+        foundationId="public-holidays"
+        foundationIdNumeric={PUBLIC_HOLIDAYS_TABLE_ID}
+        tableName="Public Holidays"
+        entries={holidays}
         columns={columns}
-        loading={loading}
-        emptyStateTitle="No public holidays found"
-        emptyStateDescription={`No public holidays found for ${selectedYear} in ${selectedRegion}`}
-        emptyStateAction={{
-          label: 'Add Holiday',
-          onClick: () => setShowAddModal(true)
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        enableImport={false}
+        enableExport={true}
+        enableSchemaEditor={true}
+        hideUpdateViewButton={true}
+        onColumnUpdate={() => {
+          console.log('Public Holidays: Refreshing columns after schema update')
+          fetchColumnIds()
         }}
-        defaultSortKey="date"
-        defaultSortDirection="asc"
-        className="-mx-4 sm:-mx-6 lg:-mx-8"
+        customActions={
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Add Holiday
+          </button>
+        }
       />
 
       {/* Add Holiday Modal */}
@@ -306,7 +293,7 @@ export default function PublicHolidaysPage() {
                       className="block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-900 dark:text-white"
                       required
                     >
-                      {regions.map(region => (
+                      {regions.filter(r => r !== 'ALL').map(region => (
                         <option key={region} value={region}>{region}</option>
                       ))}
                     </select>

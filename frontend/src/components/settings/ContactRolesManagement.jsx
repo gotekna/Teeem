@@ -15,7 +15,6 @@ const buildContactRolesColumns = () => [
   { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
   { key: 'name', label: 'Role Name', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 200, is_title: true },
   { key: 'contact_types', label: 'Contact Types', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 200 },
-  { key: 'active', label: 'Status', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'boolean', width: 100 },
   { key: 'created_at', label: 'Created', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 },
   { key: 'updated_at', label: 'Updated', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 }
 ]
@@ -108,8 +107,7 @@ export default function ContactRolesManagement() {
       const response = await api.post('/api/v1/contact_roles', {
         contact_role: {
           name: newRole.trim(),
-          contact_types: newRoleTypes,
-          active: true
+          contact_types: newRoleTypes
         }
       })
 
@@ -149,8 +147,7 @@ export default function ContactRolesManagement() {
     try {
       const response = await api.patch(`/api/v1/contact_roles/${entry.id}`, {
         contact_role: {
-          name: entry.name,
-          active: entry.active
+          name: entry.name
         }
       })
 
@@ -371,7 +368,7 @@ export default function ContactRolesManagement() {
 
       <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
         <p className="text-sm text-blue-800 dark:text-blue-200">
-          <strong>Tip:</strong> Roles can be assigned to multiple contact types by editing them and checking the desired types. Roles with no types selected become universal and appear in all tabs. Inactive roles won't appear in dropdowns but existing contact persons will still display them.
+          <strong>Tip:</strong> Roles can be assigned to multiple contact types. Roles with no types selected become universal and appear in all tabs.
         </p>
       </div>
 
