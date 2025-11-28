@@ -106,6 +106,55 @@ class Company < ApplicationRecord
     CompanyLoan.where('lender_company_id = ? OR borrower_company_id = ?', id, id)
   end
 
+  # Calculate and update health score
+  def calculate_health!
+    issues = []
+    warnings = []
+
+    # Critical issues (major impact)
+    issues << 'Missing ACN' if acn.blank?
+    issues << 'Missing ABN' if abn.blank?
+    issues << 'No current directors' if company_directors.where(is_current: true).empty?
+    issues << 'Missing registered office address' if registered_office_address.blank?
+
+    # Warnings (minor impact)
+    warnings << 'Missing TFN' if tfn.blank?
+    warnings << 'No bank accounts' if bank_accounts.empty?
+    warnings << 'No shareholders recorded' if company_shareholdings.empty?
+    warnings << 'Missing incorporation date' if date_incorporated.blank?
+    warnings << 'No secretary appointed' if company_directors.where(is_current: true, position: 'secretary').empty?
+    warnings << 'No public officer' unless company_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?('public officer') }
+    warnings << 'Missing corporate key' if corporate_key.blank?
+    warnings << 'Missing ASIC credentials' if asic_username.blank?
+    warnings << 'No review date set' if review_date.blank?
+    warnings << 'Missing principal place of business' if principal_place_of_business.blank?
+    warnings << 'No compliance items tracked' if company_compliance_items.empty?
+
+    # Calculate score
+    total_checks = 15
+    passed = total_checks - issues.count - (warnings.count * 0.5)
+    score = [(passed / total_checks * 100).round, 0].max
+
+    # Determine status
+    status_value = if issues.any?
+                     'critical'
+                   elsif score >= 80
+                     'excellent'
+                   elsif score >= 60
+                     'good'
+                   else
+                     'needs_attention'
+                   end
+
+    update_columns(health_score: score, health_status: status_value)
+    { score: score, status: status_value, issues: issues, warnings: warnings }
+  end
+
+  # Class method to recalculate all health scores
+  def self.recalculate_all_health!
+    find_each(&:calculate_health!)
+  end
+
   # Total owed to this company
   def total_loans_receivable
     loans_as_lender.active.sum(:current_balance) || 0
