@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options]
+      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities]
 
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
@@ -221,6 +221,38 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/jobs/:id/activities
+      # Get activity timeline for a job
+      def activities
+        activities = @job.job_activities
+                         .includes(:user)
+                         .recent
+
+        # Filter by type if specified
+        activities = activities.by_type(params[:type]) if params[:type].present?
+
+        # Filter by date range
+        activities = activities.since(params[:since].to_date) if params[:since].present?
+
+        # Pagination
+        page = (params[:page] || 1).to_i
+        per_page = (params[:per_page] || 50).to_i.clamp(1, 100)
+        total_count = activities.count
+
+        activities = activities.offset((page - 1) * per_page).limit(per_page)
+
+        render json: {
+          success: true,
+          activities: activities.map { |a| serialize_activity(a) },
+          meta: {
+            total_count: total_count,
+            page: page,
+            per_page: per_page,
+            total_pages: (total_count.to_f / per_page).ceil
+          }
+        }
+      end
+
       private
 
       def set_job
@@ -249,6 +281,25 @@ module Api
           :job_status_id,
           :job_stage_id
         )
+      end
+
+      def serialize_activity(activity)
+        {
+          id: activity.id,
+          activity_type: activity.activity_type,
+          formatted_type: activity.formatted_activity_type,
+          description: activity.description,
+          occurred_at: activity.occurred_at.iso8601,
+          time_ago: activity.time_ago,
+          performed_by: activity.performed_by_name,
+          user_id: activity.user_id,
+          icon: activity.icon_name,
+          icon_color: activity.icon_color,
+          related_type: activity.related_type,
+          related_id: activity.related_id,
+          related_url: activity.related_url,
+          metadata: activity.metadata
+        }
       end
 
       def instantiate_schedule_template(template_id)
