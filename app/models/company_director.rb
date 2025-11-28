@@ -4,7 +4,7 @@ class CompanyDirector < ApplicationRecord
   belongs_to :contact
 
   # Validations
-  validates :position, inclusion: { in: %w[director secretary director_secretary chairman] }, allow_blank: true
+  validates :position, inclusion: { in: %w[director secretary public_officer director_secretary director_public_officer secretary_public_officer director_secretary_public_officer chairman] }, allow_blank: true
   validates :contact_id, uniqueness: { scope: :company_id, conditions: -> { where(is_current: true) },
                                        message: "is already a current director/officer of this company" }
   validate :resignation_date_after_appointment
