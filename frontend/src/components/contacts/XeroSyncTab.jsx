@@ -612,14 +612,15 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
     switch (status) {
       case 'synced': return 'Synced'
       case 'not_linked': return 'Not Linked'
-      case 'empty_in_xero': return 'Empty in Xero'
-      case 'read_only': return 'Read Only (Xero)'
-      case 'xero_only': return 'View Only (Xero)'
+      case 'empty_in_xero': return 'No Data'
+      case 'read_only': return 'Read Only'
+      case 'xero_only': return 'View Only'
       case 'enabled': return 'Enabled'
       case 'disabled': return 'Disabled'
       case 'never': return 'Never Synced'
       case 'ok': return 'OK'
       case 'error': return 'Error'
+      case 'failed': return 'Failed'
       default: return 'Unknown'
     }
   }
@@ -1384,12 +1385,12 @@ export default function XeroSyncTab({ contact, onContactUpdate }) {
                       if (!hasXeroConnection) {
                         // No Xero link at all
                         actualStatus = 'not_linked'
-                      } else if (field.syncStatus === 'read_only') {
-                        // Keep read_only status - we'll show "No Data" in the value column instead
-                        actualStatus = 'read_only'
-                      } else if (field.syncStatus === 'synced' && xeroValue === '-' && !loadingXeroContact) {
+                      } else if (xeroValue === '-' && !loadingXeroContact) {
                         // Has Xero link but no data from Xero for this field
                         actualStatus = 'empty_in_xero'
+                      } else if (hasXeroConnection && xeroValue !== '-') {
+                        // Has data from Xero - it's synced
+                        actualStatus = 'synced'
                       }
 
                       // For display: show "No Data" instead of "-" when Xero has no value
