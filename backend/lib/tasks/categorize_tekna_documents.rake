@@ -15,9 +15,9 @@ namespace :corporate do
       puts "✅ Found company: #{company.name} (ID: #{company.id})"
       puts ""
 
-      # Get all synced documents (with onedrive_file_id)
-      docs = company.company_documents.where.not(onedrive_file_id: nil)
-      puts "Found #{docs.count} SharePoint-linked documents to categorize"
+      # Get ALL documents for categorization
+      docs = company.company_documents
+      puts "Found #{docs.count} documents to categorize"
       puts ""
 
       updated = 0
@@ -107,10 +107,8 @@ namespace :corporate do
         end
 
         # Update if different
-        needs_update = (new_type != old_type) || (doc.storage_type != 'electronic')
-
-        if needs_update
-          doc.update!(document_type: new_type, storage_type: 'electronic')
+        if new_type != old_type
+          doc.update!(document_type: new_type)
           puts "  ✅ #{filename.ljust(60)} | #{old_type.ljust(20)} → #{new_type}"
           updated += 1
         else
