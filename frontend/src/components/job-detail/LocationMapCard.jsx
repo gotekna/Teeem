@@ -159,21 +159,30 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
 
     const data = await response.json()
 
-    return data.features.map(feature => ({
-      id: feature.id,
-      text: feature.text,
-      placeName: feature.place_name,
-      center: feature.center,
-      address: {
-        houseNumber: feature.address || '',
-        street: feature.text || '',
-        suburb: feature.context?.find(c => c.id.startsWith('place.'))?.text || '',
-        city: feature.context?.find(c => c.id.startsWith('place.'))?.text || '',
-        state: feature.context?.find(c => c.id.startsWith('region.'))?.text || '',
-        postcode: feature.context?.find(c => c.id.startsWith('postcode.'))?.text || '',
-      },
-      relevance: feature.relevance,
-    }))
+    return data.features.map(feature => {
+      // For Australian addresses, suburb can be in locality, neighborhood, or place
+      const locality = feature.context?.find(c => c.id.startsWith('locality.'))?.text
+      const neighborhood = feature.context?.find(c => c.id.startsWith('neighborhood.'))?.text
+      const place = feature.context?.find(c => c.id.startsWith('place.'))?.text
+      // Prefer locality/neighborhood (suburb) over place (city)
+      const suburb = locality || neighborhood || place || ''
+
+      return {
+        id: feature.id,
+        text: feature.text,
+        placeName: feature.place_name,
+        center: feature.center,
+        address: {
+          houseNumber: feature.address || '',
+          street: feature.text || '',
+          suburb: suburb,
+          city: place || '',
+          state: feature.context?.find(c => c.id.startsWith('region.'))?.text || '',
+          postcode: feature.context?.find(c => c.id.startsWith('postcode.'))?.text || '',
+        },
+        relevance: feature.relevance,
+      }
+    })
   }
 
   const geocodeAddress = async (address) => {
@@ -905,14 +914,34 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                   )}
 
                   {/* Buttons */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        // Save immediately with update title
+                        handleSaveWithTitle(
+                          pendingSaveData.location,
+                          pendingSaveData.latitude,
+                          pendingSaveData.longitude,
+                          lotNumber.trim(),
+                          streetNumber.trim(),
+                          streetAddress.trim() || pendingSaveData.street,
+                          pendingSaveData.suburb,
+                          pendingSaveData.state,
+                          true // updateTitle
+                        )
+                      }}
+                      disabled={saving || !(lotNumber.trim() || streetNumber.trim()) || (!streetAddress.trim() && !pendingSaveData?.street)}
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50"
+                    >
+                      <CheckIcon className="h-4 w-4 mr-2" />
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
                     <button
                       onClick={handleLotNumberSubmit}
                       disabled={!(lotNumber.trim() || streetNumber.trim()) || (!streetAddress.trim() && !pendingSaveData?.street)}
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                     >
-                      <CheckIcon className="h-4 w-4 mr-2" />
-                      Continue
+                      Adjust Pin First
                     </button>
                     <button
                       onClick={() => {
