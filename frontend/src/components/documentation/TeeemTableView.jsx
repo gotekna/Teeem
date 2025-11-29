@@ -8199,8 +8199,8 @@ export default function TeeemTableView({
                       <div className={`flex flex-col gap-2 ${
                         showFilters && (columnShowFilters[colKey] ?? true) && column.filterType ? 'justify-between' : 'justify-start'
                       }`}>
-                        <div className="flex items-center gap-1 min-h-[28px] pb-1">
-                          {/* Column Label Row */}
+                        {/* Column Label - Always visible above filters */}
+                        <div className="flex items-center gap-1 py-1" style={{ minHeight: '32px' }}>
                           {editIndividualMode && column.resizable && (
                             <div
                               draggable="true"
