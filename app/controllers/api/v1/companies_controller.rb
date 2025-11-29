@@ -208,8 +208,8 @@ module Api
       # GET /api/v1/companies/:id/activities
       def activities
         activities = @company.company_activities
-          .includes(:performed_by)
-          .order(occurred_at: :desc)
+          .includes(:user)
+          .order(created_at: :desc)
           .limit(params[:limit]&.to_i || 50)
 
         render json: {
