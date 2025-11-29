@@ -220,12 +220,16 @@ module Api
           }, status: :unauthorized
         end
 
-        @foundation_view = current_user.foundation_views.find(params[:id])
-      rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "View not found"
-        }, status: :not_found
+        # Try to find in user's personal views first, then in global views
+        @foundation_view = current_user.foundation_views.find_by(id: params[:id]) ||
+                          FoundationView.global_views.find_by(id: params[:id])
+
+        unless @foundation_view
+          return render json: {
+            success: false,
+            error: "View not found"
+          }, status: :not_found
+        end
       end
 
       def foundation_view_params
