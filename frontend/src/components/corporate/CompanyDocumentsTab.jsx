@@ -206,21 +206,35 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
     <div className="space-y-6">
       {/* Header with Filters */}
       <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              Documents ({filteredDocuments.length})
+            </h3>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`inline-flex items-center gap-x-2 rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-inset ${
+                showFilters || selectedTab !== 'all' || selectedAsset !== 'all'
+                  ? 'bg-indigo-600 text-white ring-indigo-600'
+                  : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+            >
+              <FunnelIcon className="h-4 w-4" />
+              Filters
+            </button>
+          </div>
+          {company.sharepoint_folder_url && (
+            <a
+              href={company.sharepoint_folder_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {decodeURIComponent(company.sharepoint_folder_url.split('/Corporate%20File/')[1] || company.sharepoint_folder_url)}
+            </a>
+          )}
+        </div>
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-            Documents ({filteredDocuments.length})
-          </h3>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`inline-flex items-center gap-x-2 rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-inset ${
-              showFilters || selectedTab !== 'all' || selectedAsset !== 'all'
-                ? 'bg-indigo-600 text-white ring-indigo-600'
-                : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-            }`}
-          >
-            <FunnelIcon className="h-4 w-4" />
-            Filters
-          </button>
           {/* SharePoint Connection Status */}
           <span className={`inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
             sharepointConnected
