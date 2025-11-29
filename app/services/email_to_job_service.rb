@@ -68,23 +68,54 @@ class EmailToJobService
     # Create or find customer contact
     customer = find_or_create_customer(job_data['customer'])
 
+    # Check if extracted "customer" is actually a sales agent
+    is_sales_agent = customer&.is_sales? || customer&.is_land_agent?
+
+    # Map AI job type to system job_type_id
+    job_type_id = map_job_type(job_data['job_type']) || user_edits['job_type_id']
+
+    # Default to "Enquiry" status for new jobs from email
+    job_status_id = user_edits['job_status_id'] || JobStatus.find_by(name: 'Enquiry')&.id
+
     # Create job
     job = Job.create!(
       title: job_data['job_title'] || "Job from #{@email.from_email}",
+      job_type_id: job_type_id,
+      job_status_id: job_status_id,
       site_supervisor_name: @user.name,
       site_supervisor_email: @user.email,
-      site_supervisor_phone: @user.phone_number,
+      site_supervisor_phone: @user.mobile_phone,
       contract_value: job_data['contract_value']&.to_f
-      # Note: job_type_id and job_status_id can be added if you have defaults
-      # or if user provides them in edits
     )
 
-    # Link customer to job as primary client
-    job.job_contacts.create!(
-      contact: customer,
-      role: 'client',
-      primary: true
-    )
+    # Link customer to job
+    # If they're a sales agent, link as external_sales instead of client
+    if customer
+      if is_sales_agent
+        # This is a sales agent sending on behalf of their client
+        job.job_contacts.create!(
+          contact: customer,
+          role: 'external_sales',
+          primary: false
+        )
+        Rails.logger.info "Linked #{customer.full_name} as external_sales (detected as sales agent)"
+      else
+        # Normal customer
+        job.job_contacts.create!(
+          contact: customer,
+          role: 'client',
+          primary: true
+        )
+      end
+    end
+
+    # Link internal sales rep (the user who dropped the email in the folder)
+    if @email.synced_by_user && @email.synced_by_user.id != @user.id
+      link_internal_sales_rep(job, @email.synced_by_user)
+    end
+
+    # Find and link external sales reps from email chain
+    link_external_sales_reps(job, @email)
 
     # Link email to job
     @email.assign_to_job!(job, by_user: @user)
@@ -93,12 +124,7 @@ class EmailToJobService
     proposal.mark_approved!(by_user: @user, job: job)
 
     # Log activity
-    JobActivity.log_job_created(job, user: @user, metadata: {
-      source: 'email_proposal',
-      proposal_id: proposal.id,
-      email_id: @email.id,
-      ai_confidence: job_data['confidence_score']
-    })
+    JobActivity.log_job_created(job, user: @user)
 
     Rails.logger.info "Job #{job.id} created from proposal #{proposal.id}"
 
@@ -265,7 +291,7 @@ class EmailToJobService
       email: email,
       full_name: customer_data['name'],
       mobile_phone: normalize_phone(customer_data['phone']),
-      company_name: customer_data['company'],
+      company_name_or_trust: customer_data['company'],
       entity_type: customer_data['entity_type'] || 'person',
       contact_types: ['customer']
     )
@@ -297,5 +323,91 @@ class EmailToJobService
     # Extract name from email address like john.smith@example.com -> John Smith
     local_part = email.split('@').first
     local_part.split(/[._]/).map(&:capitalize).join(' ')
+  end
+
+  # Map AI-extracted job type text to system JobType ID
+  def map_job_type(ai_job_type)
+    return nil if ai_job_type.blank?
+
+    # Mapping of AI job type keywords to your system's JobType names
+    type_mappings = {
+      'renovation' => 'House Renovation',
+      'extension' => 'House Renovation',
+      'new_build' => 'House',
+      'new build' => 'House',
+      'house' => 'House',
+      'duplex' => 'Duplex',
+      'townhouse' => 'Townhouse',
+      'apartment' => 'Micro Apartment',
+      'unit' => 'Townhouse',
+      'kitchen' => 'Kitchen',
+      'repair' => 'House Renovation',
+      'ndis' => 'NDIS House'
+    }
+
+    # Try exact match first
+    matched_name = type_mappings[ai_job_type.downcase]
+
+    # Find the JobType by name
+    if matched_name
+      JobType.find_by(name: matched_name)&.id
+    else
+      # Default to House Renovation for general construction work
+      JobType.find_by(name: 'House Renovation')&.id
+    end
+  end
+
+  # Link internal sales rep to job
+  def link_internal_sales_rep(job, sales_user)
+    # Check if user has an associated contact record
+    contact = Contact.find_by(email: sales_user.email)
+    return unless contact
+
+    # Link as internal sales rep (avoid duplicates)
+    unless job.job_contacts.exists?(contact: contact, role: 'internal_sales')
+      job.job_contacts.create!(
+        contact: contact,
+        role: 'internal_sales',
+        primary: false
+      )
+      Rails.logger.info "Linked internal sales rep #{sales_user.name} to job #{job.id}"
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to link internal sales rep: #{e.message}"
+  end
+
+  # Find and link external sales reps from email participants
+  def link_external_sales_reps(job, email)
+    # Get all email participants (from, to, cc)
+    all_participants = [
+      email.from_email,
+      *email.to_emails,
+      *email.cc_emails
+    ].compact.uniq
+
+    # Find contacts who are sales agents
+    all_participants.each do |participant_email|
+      contact = Contact.find_by(email: participant_email)
+      next unless contact
+
+      # Check if this contact is a sales agent
+      # (they have 'sales' or 'agent' in their contact_types or their role)
+      is_sales = contact.contact_types&.any? { |t| t.match?(/sales|agent/i) } ||
+                 contact.primary_role&.match?(/sales|agent/i)
+
+      if is_sales
+        # Link as external sales (avoid duplicates)
+        unless job.job_contacts.exists?(contact: contact, role: 'external_sales')
+          job.job_contacts.create!(
+            contact: contact,
+            role: 'external_sales',
+            primary: false
+          )
+          Rails.logger.info "Linked external sales rep #{contact.full_name} to job #{job.id}"
+        end
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to link external sales reps: #{e.message}"
   end
 end

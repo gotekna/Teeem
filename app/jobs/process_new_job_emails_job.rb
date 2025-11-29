@@ -1,20 +1,24 @@
 class ProcessNewJobEmailsJob < ApplicationJob
   queue_as :default
 
-  # Folder name to monitor for new job emails
+  # Email address to monitor for new job emails
+  NEW_JOB_EMAIL_ADDRESS = 'newjob@tekna.com.au'
+
+  # Legacy folder name (kept for backwards compatibility)
   NEW_JOB_FOLDER_NAME = 'A - New Job'
 
   def perform
-    # Find all emails in the "A - New Job" folder that don't have proposals yet
+    # Find emails sent to newjob@tekna.com.au OR in "A - New Job" folder
+    # that don't have proposals yet
     new_job_emails = EmailWarehouse
-      .where(folder_name: NEW_JOB_FOLDER_NAME)
+      .where("? = ANY(to_emails) OR folder_name = ?", NEW_JOB_EMAIL_ADDRESS, NEW_JOB_FOLDER_NAME)
       .where.not(id: EmailJobProposal.select(:email_warehouse_id))
       .where('created_at > ?', 1.hour.ago) # Only process recent emails
       .order(received_at: :desc)
 
     return if new_job_emails.empty?
 
-    Rails.logger.info "[ProcessNewJobEmails] Found #{new_job_emails.count} emails in '#{NEW_JOB_FOLDER_NAME}' folder to process"
+    Rails.logger.info "[ProcessNewJobEmails] Found #{new_job_emails.count} emails to process (sent to #{NEW_JOB_EMAIL_ADDRESS} or in '#{NEW_JOB_FOLDER_NAME}' folder)"
 
     new_job_emails.each do |email|
       process_email(email)
