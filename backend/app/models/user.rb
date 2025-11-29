@@ -8,6 +8,7 @@ class User < ApplicationRecord
   has_many :foundation_views, dependent: :destroy
   has_one :outlook_credential, class_name: 'UserOutlookCredential', dependent: :destroy
   has_one :email_sync_status, dependent: :destroy
+  has_one :microsoft_token, class_name: 'UserMicrosoftToken', dependent: :destroy
 
   # Role constants
   ROLES = %w[user admin product_owner estimator supervisor builder].freeze

@@ -382,7 +382,18 @@ Rails.application.routes.draw do
         end
       end
 
-      # Outlook integration
+      # Microsoft unified auth (Outlook + OneDrive + SharePoint)
+      resources :microsoft, only: [], controller: 'microsoft_auth' do
+        collection do
+          get :auth_url
+          get :callback
+          get :status
+          post :refresh
+          delete :disconnect
+        end
+      end
+
+      # Outlook integration (legacy - kept for backward compatibility)
       resources :outlook, only: [] do
         collection do
           get :auth_url

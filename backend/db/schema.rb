@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_001014) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_014745) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -684,6 +684,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_001014) do
     t.string "drivers_licence"
     t.text "residential_address"
     t.string "tfn"
+    t.string "passport_number"
+    t.string "photo_url"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
@@ -710,6 +712,49 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_001014) do
     t.datetime "updated_at", null: false
     t.index ["is_active"], name: "index_designs_on_is_active"
     t.index ["name"], name: "index_designs_on_name", unique: true
+  end
+
+  create_table "director_onboarding_requests", force: :cascade do |t|
+    t.bigint "contact_id"
+    t.bigint "company_id"
+    t.string "access_token", null: false
+    t.datetime "token_expires_at"
+    t.string "status", default: "pending", null: false
+    t.string "first_name"
+    t.string "last_name"
+    t.string "email"
+    t.string "mobile_phone"
+    t.date "date_of_birth"
+    t.string "place_of_birth"
+    t.string "birth_state"
+    t.string "birth_country"
+    t.string "residential_address"
+    t.string "director_id"
+    t.string "drivers_licence"
+    t.string "passport_number"
+    t.string "drivers_licence_front_url"
+    t.string "drivers_licence_back_url"
+    t.string "passport_url"
+    t.string "photo_url"
+    t.string "director_id_confirmation_url"
+    t.boolean "consent_given", default: false
+    t.datetime "consent_given_at"
+    t.string "consent_ip_address"
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.text "review_notes"
+    t.datetime "submitted_at"
+    t.datetime "invitation_sent_at"
+    t.bigint "invited_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["access_token"], name: "index_director_onboarding_requests_on_access_token", unique: true
+    t.index ["company_id"], name: "index_director_onboarding_requests_on_company_id"
+    t.index ["contact_id"], name: "index_director_onboarding_requests_on_contact_id"
+    t.index ["email"], name: "index_director_onboarding_requests_on_email"
+    t.index ["invited_by_id"], name: "index_director_onboarding_requests_on_invited_by_id"
+    t.index ["reviewed_by_id"], name: "index_director_onboarding_requests_on_reviewed_by_id"
+    t.index ["status"], name: "index_director_onboarding_requests_on_status"
   end
 
   create_table "dividend_payments", force: :cascade do |t|
@@ -3030,6 +3075,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_001014) do
     t.index ["name"], name: "index_user_groups_on_name", unique: true
   end
 
+  create_table "user_microsoft_tokens", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.text "access_token"
+    t.text "refresh_token"
+    t.datetime "token_expires_at"
+    t.text "scopes"
+    t.string "email"
+    t.string "status", default: "pending"
+    t.datetime "last_sync_at"
+    t.text "sync_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["email"], name: "index_user_microsoft_tokens_on_email"
+    t.index ["status"], name: "index_user_microsoft_tokens_on_status"
+    t.index ["user_id"], name: "index_user_microsoft_tokens_on_user_id"
+  end
+
   create_table "user_outlook_credentials", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "email"
@@ -3537,6 +3599,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_001014) do
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
   add_foreign_key "contacts", "contacts", column: "primary_company_id"
+  add_foreign_key "director_onboarding_requests", "companies"
+  add_foreign_key "director_onboarding_requests", "contacts"
+  add_foreign_key "director_onboarding_requests", "users", column: "invited_by_id"
+  add_foreign_key "director_onboarding_requests", "users", column: "reviewed_by_id"
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "companies"
@@ -3723,6 +3789,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_001014) do
   add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
   add_foreign_key "task_updates", "project_tasks"
   add_foreign_key "task_updates", "users"
+  add_foreign_key "user_microsoft_tokens", "users"
   add_foreign_key "user_outlook_credentials", "users"
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"
