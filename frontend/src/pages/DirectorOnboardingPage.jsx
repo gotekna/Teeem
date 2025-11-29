@@ -56,7 +56,6 @@ const AUSTRALIAN_CITIES = [
   { city: 'Gladstone', state: 'QLD', country: 'Australia' },
   { city: 'Ipswich', state: 'QLD', country: 'Australia' },
   { city: 'Redcliffe', state: 'QLD', country: 'Australia' },
-  { city: 'Burbank', state: 'QLD', country: 'Australia' },
   // South Australia
   { city: 'Adelaide', state: 'SA', country: 'Australia' },
   { city: 'Mount Gambier', state: 'SA', country: 'Australia' },
