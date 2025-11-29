@@ -8127,11 +8127,13 @@ export default function TeeemTableView({
 
         {/* Table Container with Border */}
         <div className="flex-1 min-h-0 p-4 flex flex-col">
-          {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
-          <div
-            ref={scrollContainerRef}
-            className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
-          >
+          {/* Table wrapper with border and rounded corners - no overflow clipping */}
+          <div className="flex-1 min-h-0 flex flex-col border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
+            <div
+              ref={scrollContainerRef}
+              className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+            >
           <table className="border-separate border-spacing-0" style={{
             width: autoFitColumns ? 'auto' : (() => {
               // Calculate total width from all visible columns
@@ -9025,8 +9027,10 @@ export default function TeeemTableView({
             </tr>
           </tfoot>
           </table>
+            </div>
+            {/* End scroll container */}
           </div>
-          {/* End scroll container */}
+          {/* End table wrapper with border */}
         </div>
         {/* End Table Container with Border */}
       </div>
