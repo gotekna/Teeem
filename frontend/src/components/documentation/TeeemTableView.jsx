@@ -2251,57 +2251,20 @@ export default function TeeemTableView({
     return filteredAndSorted.length
   }, [filteredAndSorted])
 
-  // Calculate counts for all global views (for badge display)
+  // Calculate count for active global view only (accurate calculation)
+  // Inactive view counts would require duplicating 175+ lines of complex filter logic
   const globalViewCounts = useMemo(() => {
     const counts = {}
 
     savedFilters.filter(v => v.is_global).forEach(view => {
-      // For the active view, use the already-calculated filteredAndSorted count
+      // Only calculate for active view (uses the already-calculated filteredAndSorted)
       if (view.id === activeViewId) {
         counts[view.id] = filteredAndSorted.length
-      } else {
-        // For inactive views, calculate by applying their filters
-        // This is a simplified calculation - we only apply cascade filters, not all filter types
-        let viewRecords = entries
-
-        if (view.filters && view.filters.length > 0) {
-          viewRecords = viewRecords.filter(entry => {
-            return view.filters.every(filter => {
-              const value = entry[filter.column]
-              const filterValue = filter.value
-
-              switch (filter.operator) {
-                case 'equals':
-                case 'is':
-                  return value == filterValue
-                case 'not_equals':
-                case 'is_not':
-                  return value != filterValue
-                case 'contains':
-                  return String(value || '').toLowerCase().includes(String(filterValue).toLowerCase())
-                case 'not_contains':
-                  return !String(value || '').toLowerCase().includes(String(filterValue).toLowerCase())
-                case 'greater_than':
-                  return Number(value) > Number(filterValue)
-                case 'less_than':
-                  return Number(value) < Number(filterValue)
-                case 'is_empty':
-                  return !value || value === ''
-                case 'is_not_empty':
-                  return value && value !== ''
-                default:
-                  return true
-              }
-            })
-          })
-        }
-
-        counts[view.id] = viewRecords.length
       }
     })
 
     return counts
-  }, [savedFilters, entries, filteredAndSorted, activeViewId])
+  }, [savedFilters, filteredAndSorted, activeViewId])
 
   // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
