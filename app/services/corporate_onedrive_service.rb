@@ -263,6 +263,11 @@ class CorporateOnedriveService
     folder_display = group_name ? "#{group_name}/#{folder['name']}" : folder['name']
     Rails.logger.info "Processing folder '#{folder_display}' for company '#{company.name}'"
 
+    # Store SharePoint folder URL for direct access
+    if folder['webUrl'].present? && company.sharepoint_folder_url != folder['webUrl']
+      company.update_column(:sharepoint_folder_url, folder['webUrl'])
+    end
+
     # Scan all documents in this folder (recursively)
     documents = scan_folder_for_documents(client, folder['id'], recursive: true)
     @results[:documents_found] += documents.count
