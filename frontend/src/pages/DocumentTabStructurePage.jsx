@@ -92,7 +92,7 @@ export default function DocumentTabStructurePage() {
       'ASIC Form 485 - Solvency Declaration': '{Company} Form 485 FY{Year}',
       'ASIC Form 484 - Director Changes': '{Company} Form 484 Directors {Date}',
       'ASIC Form 484 - Registered Office': '{Company} Form 484 Reg Office {Date}',
-      'Bank Statement': '{Company} Bank Statement {Month} {Year}',
+      'Bank Statement': '{Company} Bank Statement {Account} {Month} {Year}',
       'Directors\' Minutes': '{Company} Minutes {Date}',
       'Directors\' Resolution - Distribution': '{Company} Resolution {Topic} {Date}',
       'Dividend Payment Record': '{Company} Dividend {Date}',
@@ -126,6 +126,7 @@ export default function DocumentTabStructurePage() {
       .replace('{Lender}', 'ANZ')
       .replace('{Asset}', 'Vehicle')
       .replace('{Description}', 'Document')
+      .replace('{Account}', 'ANZ-12345')
   }
 
   if (loading) {
