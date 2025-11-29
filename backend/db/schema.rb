@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_194836) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_195834) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -891,10 +891,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_194836) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "tabs", default: []
+    t.string "primary_tab"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name"], name: "index_document_types_on_name", unique: true
+    t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
   end
 
   create_table "documentation_categories", force: :cascade do |t|
