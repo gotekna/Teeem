@@ -60,7 +60,7 @@ class JobActivity < ApplicationRecord
         activity_type: 'job_created',
         description: "Job '#{job.title}' was created",
         user: user,
-        metadata: { title: job.title, status: job.status }
+        metadata: { title: job.title, status: job.job_status&.name }
       )
     end
 
