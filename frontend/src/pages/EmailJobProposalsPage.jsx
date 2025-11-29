@@ -365,9 +365,6 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-4">
-          {/* Job Details - keep existing */}
-          <div>
-
           {/* Job Details */}
           <div>
             <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Job Details</h4>
