@@ -8515,8 +8515,28 @@ export default function TeeemTableView({
               }
 
               // Helper to sort group keys naturally
-              const sortGroupKeys = (keys) => {
+              // Special handling for workflow fields (job_status) - sort by display_order
+              const sortGroupKeys = (keys, colKey) => {
+                const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
+                const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+
+                // Check if this column has display_order (workflow columns like job_status)
+                const hasDisplayOrder = lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
+
                 return keys.sort((a, b) => {
+                  if (hasDisplayOrder) {
+                    // Sort by workflow order (display_order from lookup options)
+                    const optionA = lookupOptions.find(opt => opt.display === a || opt.value === a)
+                    const optionB = lookupOptions.find(opt => opt.display === b || opt.value === b)
+
+                    const orderA = optionA?.display_order ?? 9999
+                    const orderB = optionB?.display_order ?? 9999
+
+                    if (orderA !== orderB) return orderA - orderB
+                  }
+
+                  // Fall back to natural sorting (numeric or alphabetical)
                   const numA = parseInt(a.match(/\d+/)?.[0], 10)
                   const numB = parseInt(b.match(/\d+/)?.[0], 10)
                   if (!isNaN(numA) && !isNaN(numB)) return numA - numB
@@ -8679,7 +8699,9 @@ export default function TeeemTableView({
 
                 // Has groups - render group headers and nested content
                 if (node.groups) {
-                  const sortedKeys = sortGroupKeys(Object.keys(node.groups))
+                  // Get column key for this level BEFORE sorting
+                  const groupColKey = activeGroupColumns[level]
+                  const sortedKeys = sortGroupKeys(Object.keys(node.groups), groupColKey)
                   return sortedKeys.map(groupKey => {
                     const groupPath = parentPath ? `${parentPath}|${groupKey}` : groupKey
                     const isCollapsed = collapsedGroups.has(groupPath)
@@ -8694,7 +8716,6 @@ export default function TeeemTableView({
                     const rowCount = countRows(childNode)
 
                     // Get column label for this level - search by key, column_name, or fall back to raw key
-                    const groupColKey = activeGroupColumns[level]
                     const colDef = COLUMNS.find(c => c.key === groupColKey || c.column_name === groupColKey)
                     const colLabel = colDef?.label || groupColKey
 
