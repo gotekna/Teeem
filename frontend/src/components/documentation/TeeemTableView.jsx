@@ -6347,24 +6347,61 @@ export default function TeeemTableView({
                                           </select>
 
                                           {/* Value input - hidden for empty/notEmpty operators */}
-                                          {filter.operator !== 'empty' && filter.operator !== 'notEmpty' && (
-                                            <input
-                                              type="text"
-                                              value={filter.value}
-                                              onChange={(e) => {
-                                                const newValue = e.target.value
-                                                const columnLabel = COLUMNS.find(col => col.key === filter.column)?.label || filter.column
-                                                const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
-                                                setCascadeFilters(cascadeFilters.map(f =>
-                                                  f.id === filter.id
-                                                    ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
-                                                    : f
-                                                ))
-                                              }}
-                                              placeholder="Value..."
-                                              className="flex-1 min-w-[80px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400"
-                                            />
-                                          )}
+                                          {filter.operator !== 'empty' && filter.operator !== 'notEmpty' && (() => {
+                                            const filterColumnDef = COLUMNS.find(col => col.key === filter.column)
+                                            const isChoiceColumn = filterColumnDef?.column_type === 'choice' ||
+                                              filterColumnDef?.column_type === 'single_select' ||
+                                              filterColumnDef?.column_type === 'dropdown'
+                                            const isLookupColumn = filterColumnDef?.column_type === 'lookup' ||
+                                              filterColumnDef?.column_type === 'link_to_another_record' ||
+                                              filterColumnDef?.column_type === 'multiple_lookups'
+                                            const filterChoices = filterColumnDef?.id ? (columnChoices[filterColumnDef.id] || []) : []
+
+                                            // Show dropdown for choice/lookup columns with available options
+                                            if ((isChoiceColumn || isLookupColumn) && filterChoices.length > 0) {
+                                              return (
+                                                <select
+                                                  value={filter.value}
+                                                  onChange={(e) => {
+                                                    const newValue = e.target.value
+                                                    const columnLabel = filterColumnDef?.label || filter.column
+                                                    const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
+                                                    setCascadeFilters(cascadeFilters.map(f =>
+                                                      f.id === filter.id
+                                                        ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
+                                                        : f
+                                                    ))
+                                                  }}
+                                                  className="flex-1 min-w-[120px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
+                                                >
+                                                  <option value="">Select...</option>
+                                                  {filterChoices.map(choice => (
+                                                    <option key={choice} value={choice}>{choice}</option>
+                                                  ))}
+                                                </select>
+                                              )
+                                            }
+
+                                            // Default text input for other column types
+                                            return (
+                                              <input
+                                                type="text"
+                                                value={filter.value}
+                                                onChange={(e) => {
+                                                  const newValue = e.target.value
+                                                  const columnLabel = COLUMNS.find(col => col.key === filter.column)?.label || filter.column
+                                                  const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
+                                                  setCascadeFilters(cascadeFilters.map(f =>
+                                                    f.id === filter.id
+                                                      ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
+                                                      : f
+                                                  ))
+                                                }}
+                                                placeholder="Value..."
+                                                className="flex-1 min-w-[80px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400"
+                                              />
+                                            )
+                                          })()}
 
                                           {/* Delete button */}
                                           <button
