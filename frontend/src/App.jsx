@@ -90,6 +90,7 @@ const TrainingSessionPage = lazyWithRetry(() => import('./pages/TrainingSessionP
 const MeetingsPage = lazyWithRetry(() => import('./pages/MeetingsPage')) // Meeting management
 const MeetingTypesPage = lazyWithRetry(() => import('./pages/MeetingTypesPage')) // Meeting types configuration
 const SamPage = lazyWithRetry(() => import('./pages/SamPage')) // Sam page
+const EmailJobProposalsPage = lazyWithRetry(() => import('./pages/EmailJobProposalsPage')) // Email to Job AI proposals
 
 // Corporate pages
 const CorporateDashboardPage = lazyWithRetry(() => import('./pages/CorporateDashboardPage'))
@@ -182,6 +183,7 @@ function App() {
         <Route path="/chat" element={<AppLayout><ChatPage /></AppLayout>} />
         <Route path="/jobs" element={<Navigate to="/tables/204/jobs" replace />} />
         <Route path="/active-jobs" element={<Navigate to="/tables/204/jobs" replace />} />
+        <Route path="/email-proposals" element={<AppLayout><EmailJobProposalsPage /></AppLayout>} />
         <Route path="/xest" element={<AppLayout><XestPage /></AppLayout>} />
         <Route path="/documents" element={<AppLayout><DocumentsPage /></AppLayout>} />
         <Route path="/trinity" element={<AppLayout><TrinityPage /></AppLayout>} />
