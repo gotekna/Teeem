@@ -168,8 +168,16 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Check if a global view already exists for this foundation
-        existing_global = FoundationView.global_views.find_by(foundation_id: foundation_id)
+        # Always create a NEW global view (allow multiple global views per foundation)
+        # Get the highest display_order for global views to insert new view at position 0
+        max_display_order = FoundationView.global_views
+                                     .where(foundation_id: foundation_id)
+                                     .maximum(:display_order) || -1
+
+        # Shift existing global views down
+        FoundationView.global_views
+                 .where(foundation_id: foundation_id)
+                 .update_all("display_order = display_order + 1")
 
         view_params = {
           foundation_id: foundation_id,
@@ -182,39 +190,23 @@ module Api
           group_by_columns: params[:group_by_columns] || [],
           is_global: true,
           user_id: nil,  # Global views have no user
-          is_default: true,
-          display_order: 0
+          is_default: false,  # Don't auto-set as default, let position determine that
+          display_order: 0  # Insert at the top
         }
 
-        if existing_global
-          # Update existing global view
-          if existing_global.update(view_params)
-            render json: {
-              success: true,
-              view: existing_global,
-              message: "Global view updated successfully. All users will see these settings."
-            }
-          else
-            render json: {
-              success: false,
-              errors: existing_global.errors.full_messages
-            }, status: :unprocessable_entity
-          end
+        # Create new global view
+        global_view = FoundationView.new(view_params)
+        if global_view.save
+          render json: {
+            success: true,
+            view: global_view,
+            message: "Global view '#{view_name}' created successfully. All users will see this view."
+          }, status: :created
         else
-          # Create new global view
-          global_view = FoundationView.new(view_params)
-          if global_view.save
-            render json: {
-              success: true,
-              view: global_view,
-              message: "Global view created successfully. All users will see these settings."
-            }, status: :created
-          else
-            render json: {
-              success: false,
-              errors: global_view.errors.full_messages
-            }, status: :unprocessable_entity
-          end
+          render json: {
+            success: false,
+            errors: global_view.errors.full_messages
+          }, status: :unprocessable_entity
         end
       end
 
