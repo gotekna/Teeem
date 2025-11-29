@@ -3,6 +3,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   skip_before_action :authorize_request, only: [:callback, :admin_consent_callback]
 
   # All Microsoft Graph scopes needed for the app
+  # These must match what's been granted via admin consent in Azure AD
   REQUIRED_SCOPES = [
     'openid',
     'profile',
@@ -10,9 +11,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     'offline_access',
     'https://graph.microsoft.com/Mail.Read',
     'https://graph.microsoft.com/Mail.Send',
-    'https://graph.microsoft.com/MailboxSettings.Read',
-    'https://graph.microsoft.com/Files.Read.All',
-    'https://graph.microsoft.com/Sites.Read.All'
+    'https://graph.microsoft.com/Files.ReadWrite.All',
+    'https://graph.microsoft.com/Sites.ReadWrite.All',
+    'https://graph.microsoft.com/User.Read'
   ].freeze
 
   # GET /api/v1/microsoft/auth_url
