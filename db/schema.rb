@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_210527) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_215746) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -184,6 +184,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_210527) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "abbreviation"
+    t.index ["abbreviation"], name: "index_assets_on_abbreviation"
     t.index ["company_id"], name: "index_assets_on_company_id"
   end
 
@@ -309,9 +311,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_210527) do
     t.boolean "loan_documents_in_place", default: false
     t.string "onedrive_folder_id"
     t.string "onedrive_folder_path"
+    t.string "code"
     t.index ["abbreviation"], name: "index_companies_on_abbreviation"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
+    t.index ["code"], name: "index_companies_on_code", unique: true
     t.index ["company_group"], name: "index_companies_on_company_group"
     t.index ["company_group_id"], name: "index_companies_on_company_group_id"
     t.index ["name"], name: "index_companies_on_name"
@@ -401,6 +405,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_210527) do
     t.string "register_folder"
     t.string "company_code"
     t.string "source", default: "manual"
+    t.bigint "asset_id"
+    t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
     t.index ["document_date"], name: "index_company_documents_on_document_date"
@@ -3700,6 +3706,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_210527) do
   add_foreign_key "company_compliance_items", "companies"
   add_foreign_key "company_directors", "companies"
   add_foreign_key "company_directors", "contacts"
+  add_foreign_key "company_documents", "assets"
   add_foreign_key "company_documents", "companies"
   add_foreign_key "company_documents", "document_types"
   add_foreign_key "company_loans", "companies", column: "borrower_company_id"
