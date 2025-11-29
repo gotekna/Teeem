@@ -125,7 +125,10 @@ module Api
             :bill_due_day, :bill_due_type, :sales_due_day, :sales_due_type,
             :xero_contact_number, :xero_contact_status, :xero_account_number, :company_number, :default_discount,
             :accounts_receivable_outstanding, :accounts_receivable_overdue,
-            :accounts_payable_outstanding, :accounts_payable_overdue
+            :accounts_payable_outstanding, :accounts_payable_overdue,
+            # Director details fields
+            :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country,
+            :residential_address, :drivers_licence
           ],
           include: {
             contact_persons: { only: [:id, :first_name, :last_name, :email, :include_in_emails, :is_primary, :xero_contact_person_id] },
