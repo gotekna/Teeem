@@ -1007,7 +1007,7 @@ export default function TablePage({ embedded = false }) {
       )}
 
       {/* TeeemTableView - The Gold Standard */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {teeemColumns.length > 0 ? (
           <TeeemTableView
             foundationId={`table-${table.slug || id}`}
