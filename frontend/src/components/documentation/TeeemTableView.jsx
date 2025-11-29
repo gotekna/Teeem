@@ -4908,9 +4908,9 @@ export default function TeeemTableView({
           cursor: grabbing;
         }
       `}</style>
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0">
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden">
       {/* Full-width table container */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0">
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden">
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
         {editModeActive && (
@@ -5668,7 +5668,7 @@ export default function TeeemTableView({
         {/* END TOP SECTION - Search/Buttons */}
 
         {/* Main content area - filters at top for now until code can be restructured */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
 
         {/* Filters row */}
         <div className="flex items-end gap-3 flex-wrap px-2 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
@@ -8126,7 +8126,7 @@ export default function TeeemTableView({
         {/* END BOTTOM SECTION - Filters */}
 
         {/* Table Container with Border */}
-        <div className="flex-1 min-h-0 p-4">
+        <div className="flex-1 min-h-0 p-4 overflow-hidden">
           {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
           <div
             ref={scrollContainerRef}
@@ -8145,9 +8145,7 @@ export default function TeeemTableView({
           }}>
             <thead className="bg-white dark:bg-gray-900">
             <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 shadow-md">
-              {(() => {
-                const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
-                return visibleCols.map((colKey, index) => {
+              {columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).map((colKey, index, visibleCols) => {
                 const column = COLUMNS.find(c => c.key === colKey)
                 if (!column) return null
 
@@ -8511,8 +8509,7 @@ export default function TeeemTableView({
 
                   </th>
                 )
-              })
-              })()}
+              })}
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-900">
