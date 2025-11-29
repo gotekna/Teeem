@@ -89,12 +89,13 @@ export default function CompanyDetailPage() {
     setSearchParams({ tab: tabId })
   }
 
-  // Build SharePoint URL for company folder
-  const getSharePointUrl = (companyName) => {
-    // URL encode the company name for the path
-    const encodedName = encodeURIComponent(companyName)
-    // SharePoint URL structure: Accounts - Internal/Corporate File/[Group]/[Company Name]
-    // For now, link to the Corporate File folder - user can navigate to company from there
+  // Get SharePoint URL for company folder
+  const getSharePointUrl = () => {
+    // Use company's specific SharePoint folder URL if available
+    if (company.sharepoint_folder_url) {
+      return company.sharepoint_folder_url
+    }
+    // Fallback to general Corporate File folder
     return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FAccounts%20%2D%20Internal%2FCorporate%20File`
   }
 
@@ -176,7 +177,7 @@ export default function CompanyDetailPage() {
             </div>
             <div className="flex items-center gap-2">
               <a
-                href={getSharePointUrl(company.name)}
+                href={getSharePointUrl()}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center rounded-md bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 shadow-sm ring-1 ring-inset ring-blue-200 hover:bg-blue-100"

@@ -50,7 +50,7 @@ module Api
             pending_compliance_items: { only: [:id, :title, :due_date, :completed], methods: [:days_until_due] },
             company_xero_connection: { only: [:id, :connection_status, :xero_tenant_name, :last_sync_at] }
           },
-          methods: [:formatted_acn, :formatted_abn, :has_xero_connection?]
+          methods: [:formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url]
           # Note: total_asset_value removed - depends on assets table
         )
 

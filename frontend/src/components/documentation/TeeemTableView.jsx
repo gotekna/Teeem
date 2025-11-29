@@ -8176,7 +8176,7 @@ export default function TeeemTableView({
                       fontWeight: '600',
                       verticalAlign: 'top',
                     }}
-                    className={`group align-top ${colKey === 'select' ? 'px-2 py-4' : 'px-3 py-4'} text-white border-r-2 border-white/50 last:border-r-0 ${
+                    className={`group align-top ${colKey === 'select' ? 'px-2 py-5' : 'px-3 py-5'} text-white border-r-2 border-white/50 last:border-r-0 ${
                       isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : 'bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800'
                     } ${column.sortable ? 'cursor-pointer hover:bg-blue-400/20 dark:hover:bg-blue-600/20' : ''} ${
                       isFirst ? 'rounded-tl-lg' : ''
@@ -8198,9 +8198,7 @@ export default function TeeemTableView({
                         />
                       </div>
                     ) : (
-                      <div className={`flex flex-col gap-3 ${
-                        showFilters && (columnShowFilters[colKey] ?? true) && column.filterType ? 'justify-start' : 'justify-start'
-                      }`}>
+                      <div className="flex flex-col gap-4">
                         {/* Column Label - Always visible above filters */}
                         <div className="flex items-center gap-1 py-1" style={{ minHeight: '32px' }}>
                           {editIndividualMode && column.resizable && (
