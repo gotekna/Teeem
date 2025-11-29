@@ -1,7 +1,6 @@
 class EmailWarehouseSyncService
   BATCH_SIZE = 100  # Emails per API call
   DEFAULT_SYNC_YEARS = 3  # Go back 3 years
-  FOLDERS_TO_SYNC = ['inbox', 'sentitems']  # Sync both inbox and sent
 
   class SyncError < StandardError; end
 
@@ -11,7 +10,7 @@ class EmailWarehouseSyncService
     @sync_status = EmailSyncStatus.find_or_create_by(user: user)
   end
 
-  # Full initial sync - goes back 3 years
+  # Full initial sync - goes back 3 years, syncs ALL folders
   def full_sync!
     return if @sync_status.sync_in_progress?
 
@@ -19,8 +18,13 @@ class EmailWarehouseSyncService
     total_synced = 0
 
     begin
-      FOLDERS_TO_SYNC.each do |folder|
-        synced = sync_folder(folder, since: DEFAULT_SYNC_YEARS.years.ago)
+      # Fetch all mail folders dynamically
+      folders = fetch_all_mail_folders
+      Rails.logger.info "[EmailSync] Found #{folders.count} mail folders to sync"
+
+      folders.each do |folder|
+        Rails.logger.info "[EmailSync] Syncing folder: #{folder[:name]} (#{folder[:id]})"
+        synced = sync_folder_by_id(folder[:id], folder[:name], since: DEFAULT_SYNC_YEARS.years.ago)
         total_synced += synced
       end
 
@@ -51,8 +55,11 @@ class EmailWarehouseSyncService
       # Default to last 24 hours if no previous sync
       since = @sync_status.last_sync_at || 24.hours.ago
 
-      FOLDERS_TO_SYNC.each do |folder|
-        synced = sync_folder(folder, since: since)
+      # Fetch all mail folders dynamically
+      folders = fetch_all_mail_folders
+
+      folders.each do |folder|
+        synced = sync_folder_by_id(folder[:id], folder[:name], since: since)
         total_synced += synced
       end
 
@@ -78,18 +85,19 @@ class EmailWarehouseSyncService
     return 0 if search_terms.empty?
 
     total_synced = 0
+    folders = fetch_all_mail_folders
 
     search_terms.each do |term|
-      FOLDERS_TO_SYNC.each do |folder|
+      folders.each do |folder|
         emails = @outlook_service.search_emails(
           search: term,
-          folder: folder,
+          folder: folder[:id],
           top: 200
         )
 
         emails.each do |email_data|
           warehouse_email = EmailWarehouse.upsert_from_outlook(
-            email_data.merge(folder_name: folder),
+            email_data.merge(folder_name: folder[:name]),
             synced_by_user: @user
           )
 
@@ -106,7 +114,71 @@ class EmailWarehouseSyncService
 
   private
 
-  def sync_folder(folder, since:)
+  # Fetch all mail folders from Graph API (including subfolders)
+  def fetch_all_mail_folders
+    folders = []
+
+    # Get top-level folders
+    url = "#{OutlookService::GRAPH_API_BASE}/me/mailFolders?$top=100"
+    response = make_graph_request(url)
+
+    return folders unless response.is_a?(Net::HTTPSuccess)
+
+    data = JSON.parse(response.body)
+    top_folders = data['value'] || []
+
+    top_folders.each do |folder|
+      # Skip folders we don't want (Deleted Items, Junk, etc.)
+      next if folder['displayName'].in?(['Deleted Items', 'Junk Email', 'Conversation History', 'Sync Issues'])
+
+      folders << { id: folder['id'], name: folder['displayName'] }
+
+      # Get child folders (subfolders)
+      if folder['childFolderCount'].to_i > 0
+        child_folders = fetch_child_folders(folder['id'], folder['displayName'])
+        folders.concat(child_folders)
+      end
+    end
+
+    folders
+  rescue StandardError => e
+    Rails.logger.error "[EmailSync] Failed to fetch mail folders: #{e.message}"
+    # Fallback to basic folders if API fails
+    [{ id: 'inbox', name: 'Inbox' }, { id: 'sentitems', name: 'Sent Items' }]
+  end
+
+  # Recursively fetch child folders
+  def fetch_child_folders(parent_id, parent_name, depth = 0)
+    return [] if depth > 3 # Prevent infinite recursion
+
+    folders = []
+    url = "#{OutlookService::GRAPH_API_BASE}/me/mailFolders/#{parent_id}/childFolders?$top=100"
+    response = make_graph_request(url)
+
+    return folders unless response.is_a?(Net::HTTPSuccess)
+
+    data = JSON.parse(response.body)
+    child_folders = data['value'] || []
+
+    child_folders.each do |folder|
+      folder_path = "#{parent_name}/#{folder['displayName']}"
+      folders << { id: folder['id'], name: folder_path }
+
+      # Recurse into grandchildren
+      if folder['childFolderCount'].to_i > 0
+        grandchildren = fetch_child_folders(folder['id'], folder_path, depth + 1)
+        folders.concat(grandchildren)
+      end
+    end
+
+    folders
+  rescue StandardError => e
+    Rails.logger.error "[EmailSync] Failed to fetch child folders for #{parent_name}: #{e.message}"
+    []
+  end
+
+  # Sync a folder by its ID (works for any folder including subfolders)
+  def sync_folder_by_id(folder_id, folder_name, since:)
     synced_count = 0
     skip = 0
 
@@ -114,12 +186,12 @@ class EmailWarehouseSyncService
       # Build filter for emails since date
       filter = "receivedDateTime ge #{since.utc.iso8601}"
 
-      emails = fetch_emails_batch(folder, filter, skip)
+      emails = fetch_emails_batch(folder_id, filter, skip)
       break if emails.empty?
 
       emails.each do |email_data|
         EmailWarehouse.upsert_from_outlook(
-          email_data.merge(folder_name: folder),
+          email_data.merge(folder_name: folder_name),
           synced_by_user: @user
         )
         synced_count += 1
@@ -134,12 +206,13 @@ class EmailWarehouseSyncService
       break if skip >= 10_000
     end
 
+    Rails.logger.info "[EmailSync] Synced #{synced_count} emails from #{folder_name}"
     synced_count
   end
 
-  def fetch_emails_batch(folder, filter, skip)
+  def fetch_emails_batch(folder_id, filter, skip)
     # Use the Graph API directly for more control
-    endpoint = "/me/mailFolders/#{folder}/messages"
+    endpoint = "/me/mailFolders/#{folder_id}/messages"
     params = [
       "$filter=#{URI.encode_www_form_component(filter)}",
       "$top=#{BATCH_SIZE}",
@@ -149,18 +222,16 @@ class EmailWarehouseSyncService
     ]
 
     url = "#{OutlookService::GRAPH_API_BASE}#{endpoint}?#{params.join('&')}"
-    Rails.logger.info "[EmailSync] Fetching from: #{folder}, skip: #{skip}"
 
     response = make_graph_request(url)
 
     unless response.is_a?(Net::HTTPSuccess)
-      Rails.logger.error "[EmailSync] API error: #{response.code} - #{response.body}"
+      Rails.logger.error "[EmailSync] API error for folder #{folder_id}: #{response.code} - #{response.body}"
       return []
     end
 
     data = JSON.parse(response.body)
     emails = parse_outlook_emails(data['value'] || [])
-    Rails.logger.info "[EmailSync] Fetched #{emails.count} emails from #{folder}"
     emails
   rescue StandardError => e
     Rails.logger.error "[EmailSync] Failed to fetch emails: #{e.class} - #{e.message}"
