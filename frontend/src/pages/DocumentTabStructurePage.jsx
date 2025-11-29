@@ -89,11 +89,12 @@ export default function DocumentTabStructurePage() {
       'TTR': '{Company} TTR FY{Year}',
       'BAS': '{Company} BAS Q{Quarter} FY{Year}',
       'ASIC Annual Review': '{Company} ASIC Annual Review FY{Year}',
-      'ASIC Form 485': '{Company} Form 485 FY{Year}',
-      'ASIC Form 484': '{Company} Form 484 {Date}',
+      'ASIC Form 485 - Solvency Declaration': '{Company} Form 485 FY{Year}',
+      'ASIC Form 484 - Director Changes': '{Company} Form 484 Directors {Date}',
+      'ASIC Form 484 - Registered Office': '{Company} Form 484 Reg Office {Date}',
       'Bank Statement': '{Company} Bank Statement {Month} {Year}',
       'Directors\' Minutes': '{Company} Minutes {Date}',
-      'Directors\' Resolution': '{Company} Resolution {Topic} {Date}',
+      'Directors\' Resolution - Distribution': '{Company} Resolution {Topic} {Date}',
       'Dividend Payment Record': '{Company} Dividend {Date}',
       'Distribution': '{Company} Distribution {Date}',
       'Gift Deed Return': '{Company} Gift Deed Return FY{Year}',
@@ -106,7 +107,8 @@ export default function DocumentTabStructurePage() {
       'Draft Financials': '{Company} Draft Financials FY{Year}',
       'Final Financials': '{Company} Final Financials FY{Year}',
       'Constitution': '{Company} Constitution {Date}',
-      'Trust Deed': '{Company} Trust Deed {Date}'
+      'Trust Deed': '{Company} Trust Deed {Date}',
+      'ASIC Documents': '{Company} ASIC Documents {Date}'
     }
 
     // Try to match by abbreviation first, then full name
