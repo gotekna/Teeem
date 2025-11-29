@@ -4,7 +4,12 @@ import {
   TrashIcon,
   DocumentTextIcon,
   ArrowDownTrayIcon,
-  FunnelIcon
+  FunnelIcon,
+  CloudIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline'
 import api from '../../api'
 
@@ -17,6 +22,9 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
   const [assets, setAssets] = useState([])
   const [showFilters, setShowFilters] = useState(false)
   const [documentTypes, setDocumentTypes] = useState([])
+  const [sharepointConnected, setSharepointConnected] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
 
   // 10 tabs for document organization
   const tabs = [
@@ -36,6 +44,7 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
     loadDocuments()
     loadAssets()
     loadDocumentTypes()
+    checkSharePointConnection()
   }, [company.id, selectedTab, selectedAsset])
 
   const loadDocuments = async () => {
@@ -77,6 +86,58 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
       setDocumentTypes(response.data || [])
     } catch (error) {
       console.error('Failed to load document types:', error)
+    }
+  }
+
+  const checkSharePointConnection = async () => {
+    try {
+      const response = await api.get('/api/v1/organization_onedrive/status')
+      setSharepointConnected(response.connected === true)
+    } catch (error) {
+      console.error('Failed to check SharePoint connection:', error)
+      setSharepointConnected(false)
+    }
+  }
+
+  const syncFromSharePoint = async () => {
+    if (!sharepointConnected) {
+      alert('SharePoint is not connected. Please connect in Settings first.')
+      return
+    }
+
+    if (!confirm(`Sync documents from SharePoint for ${company.name}?\n\nThis will scan the SharePoint "Corporate File" folder and link any documents found to this company.`)) {
+      return
+    }
+
+    try {
+      setSyncing(true)
+      setSyncResult(null)
+
+      const response = await api.post('/api/v1/organization_onedrive/sync_corporate_documents', {
+        folder_path: 'Corporate File'
+      })
+
+      if (response.success) {
+        setSyncResult({
+          success: true,
+          message: `Synced ${response.documents_linked} documents to ${response.companies_scanned} companies`,
+          ...response
+        })
+        await loadDocuments()
+        if (onUpdate) onUpdate()
+      } else {
+        setSyncResult({ success: false, message: response.error || 'Sync failed' })
+      }
+    } catch (error) {
+      console.error('Failed to sync from SharePoint:', error)
+      setSyncResult({
+        success: false,
+        message: error.response?.data?.error || error.message || 'Failed to sync from SharePoint'
+      })
+    } finally {
+      setSyncing(false)
+      // Clear result after 10 seconds
+      setTimeout(() => setSyncResult(null), 10000)
     }
   }
 
@@ -155,17 +216,103 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
             <FunnelIcon className="h-4 w-4" />
             Filters
           </button>
+          {/* SharePoint Connection Status */}
+          <span className={`inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+            sharepointConnected
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+          }`}>
+            {sharepointConnected ? (
+              <>
+                <CheckCircleIcon className="h-3.5 w-3.5" />
+                SharePoint Connected
+              </>
+            ) : (
+              <>
+                <XCircleIcon className="h-3.5 w-3.5" />
+                SharePoint Offline
+              </>
+            )}
+          </span>
         </div>
-        {!showForm && (
-          <button
-            onClick={() => setShowForm(true)}
-            className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-          >
-            <PlusIcon className="h-4 w-4 mr-1" />
-            Upload Document
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* SharePoint Sync Button */}
+          {sharepointConnected && !showForm && (
+            <button
+              onClick={syncFromSharePoint}
+              disabled={syncing}
+              className="inline-flex items-center gap-x-1.5 rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              {syncing ? (
+                <>
+                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <CloudIcon className="h-4 w-4" />
+                  Sync from SharePoint
+                </>
+              )}
+            </button>
+          )}
+          {!showForm && (
+            <button
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+            >
+              <PlusIcon className="h-4 w-4 mr-1" />
+              Upload Document
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Sync Result Notification */}
+      {syncResult && (
+        <div className={`rounded-md p-4 ${
+          syncResult.success
+            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+        }`}>
+          <div className="flex">
+            {syncResult.success ? (
+              <CheckCircleIcon className="h-5 w-5 text-green-400" />
+            ) : (
+              <XCircleIcon className="h-5 w-5 text-red-400" />
+            )}
+            <div className="ml-3">
+              <h3 className={`text-sm font-medium ${
+                syncResult.success
+                  ? 'text-green-800 dark:text-green-200'
+                  : 'text-red-800 dark:text-red-200'
+              }`}>
+                {syncResult.success ? 'Sync Successful' : 'Sync Failed'}
+              </h3>
+              <p className={`mt-1 text-sm ${
+                syncResult.success
+                  ? 'text-green-700 dark:text-green-300'
+                  : 'text-red-700 dark:text-red-300'
+              }`}>
+                {syncResult.message}
+              </p>
+              {syncResult.errors && syncResult.errors.length > 0 && (
+                <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                  <p className="font-medium">Errors:</p>
+                  <ul className="list-disc list-inside mt-1">
+                    {syncResult.errors.slice(0, 5).map((err, idx) => (
+                      <li key={idx}>{err}</li>
+                    ))}
+                    {syncResult.errors.length > 5 && (
+                      <li>... and {syncResult.errors.length - 5} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter Panel */}
       {showFilters && (
@@ -266,6 +413,12 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
                           {doc.document_type_record.name}
                         </span>
                       )}
+                      {doc.source === 'sharepoint' && (
+                        <span className="inline-flex items-center gap-x-1 rounded-full bg-purple-100 dark:bg-purple-900/30 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:text-purple-300">
+                          <CloudIcon className="h-3 w-3" />
+                          SharePoint
+                        </span>
+                      )}
                       {doc.asset && (
                         <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
                           Asset: {doc.asset.abbreviation || doc.asset.name}
@@ -284,7 +437,18 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
                   </div>
                 </div>
                 <div className="flex items-center space-x-2 ml-4">
-                  {doc.file_url && (
+                  {doc.source === 'sharepoint' && doc.file_url ? (
+                    <a
+                      href={doc.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-x-1.5 rounded-md bg-purple-600 dark:bg-purple-700 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 dark:hover:bg-purple-600"
+                      title="Open in SharePoint"
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      SharePoint
+                    </a>
+                  ) : doc.file_url ? (
                     <a
                       href={doc.file_url}
                       target="_blank"
@@ -293,7 +457,7 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
                     >
                       <ArrowDownTrayIcon className="h-4 w-4" />
                     </a>
-                  )}
+                  ) : null}
                   <button
                     onClick={() => handleDeleteDocument(doc.id)}
                     className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-2.5 py-1.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-red-50 dark:hover:bg-red-900/20"

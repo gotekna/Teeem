@@ -340,11 +340,8 @@ class CorporateOnedriveService
   end
 
   def link_document_to_company(client, company, doc, group_name = nil)
-    # Determine document type
-    doc_type = categorize_document(doc['name'])
-
-    # Map document type to Corporate Documents template folder
-    folder_name = map_document_to_folder(doc['name'], doc_type)
+    # Find appropriate DocumentType based on filename
+    document_type = find_document_type(doc['name'], company)
 
     # Get or create a download URL
     download_url = doc['@microsoft.graph.downloadUrl']
@@ -360,20 +357,20 @@ class CorporateOnedriveService
 
     company_doc.assign_attributes(
       title: doc['name'],
-      document_type: doc_type,
-      folder: folder_name,
+      document_type_id: document_type&.id,
       file_url: doc['webUrl'],
       file_name: doc['name'],
       onedrive_download_url: download_url,
       file_size: doc.dig('size'),
       last_modified_at: doc.dig('lastModifiedDateTime')&.to_datetime,
       storage_type: 'electronic',
+      source: 'sharepoint',
       register_folder: group_name
     )
 
     if company_doc.save
       @results[:documents_linked] += 1
-      Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [#{folder_name}]"
+      Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [#{document_type&.name || 'Unknown'}]"
     else
       @results[:errors] << "Failed to save document '#{doc['name']}': #{company_doc.errors.full_messages.join(', ')}"
     end
@@ -381,120 +378,180 @@ class CorporateOnedriveService
     @results[:errors] << "Error linking document '#{doc['name']}': #{e.message}"
   end
 
-  def categorize_document(filename)
+  # Find the best matching DocumentType for a filename
+  def find_document_type(filename, company)
     filename_lower = filename.downcase
 
-    # ASIC documents
-    if filename_lower.include?('asic') || filename_lower.include?('annual') || filename_lower.include?('484')
-      return 'asic'
+    # BAS - Business Activity Statement
+    if filename_lower.include?('bas')
+      return DocumentType.find_by("name ILIKE '%BAS%'")
     end
 
-    # Constitution/Rules
+    # Form 484 - Director Changes or Registered Office
+    if filename_lower.include?('484')
+      if filename_lower.include?('director')
+        return DocumentType.find_by(name: 'ASIC Form 484 - Director Changes')
+      elsif filename_lower.include?('office') || filename_lower.include?('address')
+        return DocumentType.find_by(name: 'ASIC Form 484 - Registered Office')
+      end
+      # Default 484 to Director Changes
+      return DocumentType.find_by(name: 'ASIC Form 484 - Director Changes')
+    end
+
+    # Form 485 - Solvency Declaration
+    if filename_lower.include?('485') || filename_lower.include?('solvency')
+      return DocumentType.find_by(name: 'ASIC Form 485 - Solvency Declaration')
+    end
+
+    # ASIC Documents (generic)
+    if filename_lower.include?('asic')
+      return DocumentType.find_by(name: 'ASIC Documents')
+    end
+
+    # ASIC Annual Review
+    if filename_lower.include?('annual')
+      return DocumentType.find_by(name: 'ASIC Annual Review')
+    end
+
+    # Constitution
     if filename_lower.include?('constitution') || filename_lower.include?('rules')
-      return 'constitution'
+      return DocumentType.find_by(name: 'Constitution')
     end
 
-    # Minutes
-    if filename_lower.include?('minute') || filename_lower.include?('agm') || filename_lower.include?('resolution')
-      return 'minutes'
+    # Trust Deed
+    if filename_lower.include?('trust') && filename_lower.include?('deed')
+      return DocumentType.find_by(name: 'Trust Deed')
     end
 
-    # Share registry
-    if filename_lower.include?('share') || filename_lower.include?('register')
-      return 'share_registry'
+    # Minutes (detect draft vs signed)
+    if filename_lower.include?('minute') || filename_lower.include?('agm')
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Minutes - Draft')
+      else
+        return DocumentType.find_by(name: "Directors' Minutes")
+      end
     end
 
-    # Trust deed
-    if filename_lower.include?('deed') || filename_lower.include?('trust')
-      return 'trust_deed'
+    # Directors' Resolution - Distribution
+    if filename_lower.include?('resolution') && filename_lower.include?('distribution')
+      return DocumentType.find_by(name: "Directors' Resolution - Distribution")
     end
 
-    # Financial statements
-    if filename_lower.include?('financial') || filename_lower.include?('statement') ||
-       filename_lower.include?('balance') || filename_lower.include?('p&l') || filename_lower.include?('profit')
-      return 'financial'
+    # Share Registry/Certificate/Transfer
+    if filename_lower.include?('share')
+      if filename_lower.include?('certificate')
+        return DocumentType.find_by(name: 'Share Certificate')
+      elsif filename_lower.include?('transfer')
+        return DocumentType.find_by(name: 'Share Transfer')
+      elsif filename_lower.include?('registry') || filename_lower.include?('register')
+        return DocumentType.find_by(name: 'Share Registry')
+      end
     end
 
-    # Tax returns
-    if filename_lower.include?('tax') || filename_lower.include?('return') || filename_lower.include?('bas')
-      return 'tax'
+    # Financial Statements
+    if filename_lower.include?('financial') || filename_lower.include?('statement')
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Draft Financials')
+      else
+        return DocumentType.find_by(name: 'Final Financials')
+      end
     end
 
-    # Insurance
+    # Tax Returns - detect company vs trust
+    if filename_lower.include?('tax return') || filename_lower.match?(/\d{4}.*tax/)
+      # Check if company is a trust
+      if company.name.downcase.include?('trust') || company.name.downcase.include?('atf')
+        return DocumentType.find_by(name: 'TTR - Trust Tax Return')
+      else
+        return DocumentType.find_by(name: 'CTR - Company Tax Return')
+      end
+    end
+
+    # Bank Statement
+    if filename_lower.include?('bank') && filename_lower.include?('statement')
+      return DocumentType.find_by(name: 'Bank Statement')
+    end
+
+    # Distribution/Dividend
+    if filename_lower.include?('distribution') || filename_lower.include?('dividend')
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Distribution - Draft')
+      else
+        return DocumentType.find_by(name: 'Distribution')
+      end
+    end
+
+    # Gift Deed Return
+    if filename_lower.include?('gift') && filename_lower.include?('deed')
+      return DocumentType.find_by(name: 'Gift Deed Return')
+    end
+
+    # Loan Agreement
+    if filename_lower.include?('loan') && filename_lower.include?('agreement')
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Loan Agreement - Draft')
+      else
+        return DocumentType.find_by(name: 'Loan Agreement')
+      end
+    end
+
+    # Security Deed
+    if filename_lower.include?('security') && filename_lower.include?('deed')
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Security Deed - Draft')
+      else
+        return DocumentType.find_by(name: 'Security Deed')
+      end
+    end
+
+    # PPSR Registration
+    if filename_lower.include?('ppsr')
+      return DocumentType.find_by(name: 'PPSR Registration')
+    end
+
+    # Asset Insurance
     if filename_lower.include?('insurance') || filename_lower.include?('policy')
-      return 'insurance'
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Asset Insurance - Draft')
+      else
+        return DocumentType.find_by(name: 'Asset Insurance - Signed')
+      end
     end
 
-    # Contracts
-    if filename_lower.include?('contract') || filename_lower.include?('agreement')
-      return 'contract'
+    # Purchase Contract (for assets)
+    if filename_lower.include?('purchase') && filename_lower.include?('contract')
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Purchase Contract - Draft')
+      else
+        return DocumentType.find_by(name: 'Purchase Contract - Signed')
+      end
     end
 
-    # Certificates
-    if filename_lower.include?('certificate') || filename_lower.include?('cert')
-      return 'certificate'
+    # Service Agreement (for assets)
+    if filename_lower.include?('service') && filename_lower.include?('agreement')
+      if filename_lower.include?('draft')
+        return DocumentType.find_by(name: 'Service Agreement - Draft')
+      else
+        return DocumentType.find_by(name: 'Service Agreement - Signed')
+      end
     end
 
-    # Default
-    'other'
-  end
-
-  # Map document type to Corporate Documents template folder
-  def map_document_to_folder(filename, doc_type)
-    filename_lower = filename.downcase
-
-    # BAS folder
-    return 'BAS' if filename_lower.include?('bas')
-
-    # Constitution folder
-    return 'Constitution' if doc_type == 'constitution'
-
-    # Minutes folder
-    if doc_type == 'minutes' || filename_lower.include?('minute') || filename_lower.include?('agm')
-      return 'Minutes'
-    end
-
-    # Trust Deed folder
-    if doc_type == 'trust_deed' || filename_lower.include?('trust') || filename_lower.include?('deed')
-      return 'Trust Deed'
-    end
-
-    # Loans and Security folder
-    if filename_lower.include?('loan') || filename_lower.include?('security') ||
-       filename_lower.include?('ppsr') || filename_lower.include?('ucc')
-      return 'Loans and Security'
-    end
-
-    # Register of Members folder
+    # Register of Members
     if filename_lower.include?('register') && filename_lower.include?('member')
-      return 'Register of Members'
+      return DocumentType.find_by(name: 'Register of Members')
     end
 
-    # Company Setup folder
-    if filename_lower.include?('setup') || filename_lower.include?('registration') ||
-       filename_lower.include?('corporate key')
-      return 'Company Setup'
+    # Company Setup
+    if filename_lower.include?('setup') || filename_lower.include?('corporate key')
+      return DocumentType.find_by(name: 'Company Setup')
     end
 
-    # Assets folder
-    if filename_lower.include?('asset') || filename_lower.include?('depreciation')
-      return 'Assets'
-    end
-
-    # Structure folder
+    # Structure
     if filename_lower.include?('structure') || filename_lower.include?('org chart')
-      return 'Structure'
+      return DocumentType.find_by(name: 'Structure')
     end
 
-    # General folder (catch-all for common corporate documents)
-    if doc_type == 'asic' || doc_type == 'certificate' ||
-       filename_lower.include?('officer') || filename_lower.include?('director') ||
-       filename_lower.include?('appointment') || filename_lower.include?('resignation') ||
-       filename_lower.include?('distribution') || filename_lower.include?('dividend')
-      return 'General'
-    end
-
-    # Default to General folder
-    'General'
+    # Default to General if no specific match
+    DocumentType.find_by(name: 'General')
   end
 end

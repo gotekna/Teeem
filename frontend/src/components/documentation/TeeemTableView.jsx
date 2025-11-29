@@ -8143,7 +8143,7 @@ export default function TeeemTableView({
             })(),
             minWidth: autoFitColumns ? '100%' : undefined
           }}>
-            <thead style={{ position: 'sticky', top: 0, zIndex: 30 }} className="bg-white dark:bg-gray-900">
+            <thead className="bg-white dark:bg-gray-900">
             <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 shadow-md">
               {(() => {
                 const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
@@ -8172,7 +8172,9 @@ export default function TeeemTableView({
                       width: autoFitColumns ? 'auto' : columnWidths[colKey],
                       minWidth: columnMinWidths[colKey] ?? 75,
                       maxWidth: autoFitColumns ? 'none' : columnWidths[colKey],
-                      position: 'relative',
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 30,
                       fontSize: '16px',
                       fontWeight: '600',
                       verticalAlign: 'top',
