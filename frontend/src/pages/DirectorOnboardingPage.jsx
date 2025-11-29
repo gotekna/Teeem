@@ -415,7 +415,9 @@ export default function DirectorOnboardingPage() {
     residential_address: '',
     director_id: '',
     drivers_licence: '',
+    drivers_licence_expiry: '',
     passport_number: '',
+    passport_expiry: '',
     drivers_licence_front_url: '',
     drivers_licence_back_url: '',
     passport_url: '',
@@ -447,7 +449,9 @@ export default function DirectorOnboardingPage() {
         residential_address: data.request.residential_address || '',
         director_id: data.request.director_id || '',
         drivers_licence: data.request.drivers_licence || '',
+        drivers_licence_expiry: data.request.drivers_licence_expiry || '',
         passport_number: data.request.passport_number || '',
+        passport_expiry: data.request.passport_expiry || '',
         drivers_licence_front_url: data.request.drivers_licence_front_url || '',
         drivers_licence_back_url: data.request.drivers_licence_back_url || '',
         passport_url: data.request.passport_url || '',
@@ -785,7 +789,21 @@ export default function DirectorOnboardingPage() {
                 />
               </div>
 
-              <div className="sm:col-span-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Drivers Licence Expiry Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  name="drivers_licence_expiry"
+                  value={formData.drivers_licence_expiry}
+                  onChange={handleInputChange}
+                  required
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700">
                   Passport Number
                 </label>
@@ -794,7 +812,20 @@ export default function DirectorOnboardingPage() {
                   name="passport_number"
                   value={formData.passport_number}
                   onChange={handleInputChange}
-                  className="mt-1 block w-full sm:w-1/2 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Passport Expiry Date
+                </label>
+                <input
+                  type="date"
+                  name="passport_expiry"
+                  value={formData.passport_expiry}
+                  onChange={handleInputChange}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                 />
               </div>
             </div>
