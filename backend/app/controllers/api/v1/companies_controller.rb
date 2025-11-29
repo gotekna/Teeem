@@ -306,6 +306,43 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/asic_logins
+      # Returns all companies' ASIC login credentials for table view
+      def asic_logins
+        @companies = Company.all.order(:name)
+
+        # Filter by company group
+        if params[:company_group_id].present?
+          @companies = @companies.where(company_group_id: params[:company_group_id])
+        end
+
+        # Only include companies with ASIC credentials
+        if params[:with_credentials] == 'true'
+          @companies = @companies.where.not(asic_username: [nil, ''])
+        end
+
+        render json: {
+          success: true,
+          companies: @companies.map do |company|
+            {
+              id: company.id,
+              name: company.name,
+              acn: company.acn,
+              formatted_acn: company.formatted_acn,
+              company_group_id: company.company_group_id,
+              company_group_name: company.company_group&.name,
+              corporate_key: company.corporate_key,
+              asic_username: company.asic_username,
+              asic_password: company.encrypted_asic_password,
+              recovery_question: company.recovery_question,
+              recovery_answer: company.encrypted_recovery_answer,
+              has_credentials: company.asic_username.present?
+            }
+          end,
+          total: @companies.count
+        }
+      end
+
       private
 
       def set_company
