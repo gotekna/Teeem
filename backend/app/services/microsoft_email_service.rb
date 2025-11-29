@@ -1,6 +1,5 @@
 class MicrosoftEmailService
   GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0'
-  DEFAULT_FROM = 'admin@teknahomes.com.au'
 
   def initialize(credential = nil)
     @credential = credential || OrganizationOneDriveCredential.active_credential
@@ -8,12 +7,12 @@ class MicrosoftEmailService
   end
 
   # Send email using Microsoft Graph API
+  # Note: Email is sent from the authenticated Microsoft account (currently sam@tekna.com.au)
   # Options:
   #   to: recipient email (string or array)
   #   subject: email subject
   #   body: email body (HTML supported)
-  #   from: sender email (optional, defaults to admin@teknahomes.com.au)
-  def send_email(to:, subject:, body:, from: DEFAULT_FROM)
+  def send_email(to:, subject:, body:, from: nil)
     recipients = Array(to).map { |email| { emailAddress: { address: email } } }
 
     message = {
@@ -23,22 +22,19 @@ class MicrosoftEmailService
           contentType: 'HTML',
           content: body
         },
-        toRecipients: recipients,
-        from: {
-          emailAddress: {
-            address: from
-          }
-        }
+        toRecipients: recipients
       },
       saveToSentItems: true
     }
 
+    # Use /me/sendMail to send from the authenticated user's mailbox
     response = make_request(
-      "#{GRAPH_API_BASE}/users/#{from}/sendMail",
+      "#{GRAPH_API_BASE}/me/sendMail",
       :post,
       message
     )
 
+    # Microsoft Graph returns 202 (Accepted) for successful sendMail requests
     if response.is_a?(Net::HTTPSuccess) || response.code == '202'
       Rails.logger.info "Email sent successfully to #{to}"
       { success: true }
