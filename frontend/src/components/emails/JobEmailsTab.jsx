@@ -214,10 +214,10 @@ export default function JobEmailsTab({ constructionId }) {
         </div>
       )}
 
-      {/* Emails list */}
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* Emails list - Table format */}
+      <div className="flex-1 overflow-y-auto">
         {filteredEmails.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="flex flex-col items-center justify-center h-full text-center p-4">
             <EnvelopeIcon className="h-12 w-12 text-gray-400 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               {searchTerm ? 'No emails found' : 'No emails yet'}
@@ -229,122 +229,149 @@ export default function JobEmailsTab({ constructionId }) {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredEmails.map((email) => (
-              <div
-                key={email.id}
-                className="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden"
-              >
-                {/* Email header - always visible */}
-                <div
-                  className="p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                  onClick={() => handleEmailClick(email)}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">
-                          {email.display_from || email.from_email}
-                        </span>
-                        {email.has_attachments && (
-                          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
-                            <PaperClipIcon className="h-3 w-3 mr-1" />
-                            {email.attachment_count}
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                <tr>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-48">
+                    From
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Subject / Preview
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-48">
+                    To
+                  </th>
+                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
+                    Date
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredEmails.map((email) => (
+                  <>
+                    <tr
+                      key={email.id}
+                      className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${selectedEmail?.id === email.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
+                      onClick={() => handleEmailClick(email)}
+                    >
+                      {/* From column */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {email.display_from || email.from_email?.split('@')[0] || 'Unknown'}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {email.from_email}
+                            </div>
                           </div>
-                        )}
-                        {email.thread_count > 1 && (
-                          <div className="flex items-center text-xs text-indigo-500 dark:text-indigo-400">
-                            <ChatBubbleLeftRightIcon className="h-3 w-3 mr-1" />
-                            {email.thread_count} in thread
-                          </div>
-                        )}
-                        {email.match_type === 'auto' && (
-                          <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
-                            Auto-matched
+                        </div>
+                      </td>
+                      {/* Subject / Preview column */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2 mb-1">
+                          {email.has_attachments && (
+                            <PaperClipIcon className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          )}
+                          {email.thread_count > 1 && (
+                            <span className="inline-flex items-center text-xs text-indigo-500 dark:text-indigo-400 flex-shrink-0">
+                              <ChatBubbleLeftRightIcon className="h-3 w-3 mr-1" />
+                              {email.thread_count}
+                            </span>
+                          )}
+                          {email.match_type === 'auto' && (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded flex-shrink-0">
+                              Auto-matched
+                            </span>
+                          )}
+                          <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {email.subject || '(No Subject)'}
                           </span>
-                        )}
-                      </div>
-                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                        {email.subject || '(No Subject)'}
-                      </div>
-                      {!selectedEmail || selectedEmail.id !== email.id ? (
-                        <div className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1">
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-md">
                           {email.preview_body}
                         </div>
-                      ) : null}
-                    </div>
-                    <div className="ml-4 flex-shrink-0">
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {email.received_at ? new Date(email.received_at).toLocaleString() : ''}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Recipients preview */}
-                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
-                    <span>To:</span>
-                    <span className="truncate">
-                      {email.to_emails?.join(', ') || 'Unknown'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Email body - expandable */}
-                {selectedEmail && selectedEmail.id === email.id && (
-                  <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
-                    {/* Full email details */}
-                    <div className="space-y-3 mb-4 text-sm">
-                      <div>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">From: </span>
-                        <span className="text-gray-900 dark:text-white">{email.from_email}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">To: </span>
-                        <span className="text-gray-900 dark:text-white">{email.to_emails?.join(', ')}</span>
-                      </div>
-                      {email.cc_emails && email.cc_emails.length > 0 && (
-                        <div>
-                          <span className="font-semibold text-gray-700 dark:text-gray-300">CC: </span>
-                          <span className="text-gray-900 dark:text-white">{email.cc_emails.join(', ')}</span>
+                      </td>
+                      {/* To column */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white truncate max-w-[180px]" title={email.to_emails?.join(', ')}>
+                          {email.to_emails?.[0]?.split('@')[0] || 'Unknown'}
+                          {email.to_emails?.length > 1 && (
+                            <span className="text-gray-500 dark:text-gray-400"> +{email.to_emails.length - 1}</span>
+                          )}
                         </div>
-                      )}
-                      <div>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">Subject: </span>
-                        <span className="text-gray-900 dark:text-white">{email.subject || '(No Subject)'}</span>
-                      </div>
-                      <div>
-                        <span className="font-semibold text-gray-700 dark:text-gray-300">Date: </span>
-                        <span className="text-gray-900 dark:text-white">
-                          {new Date(email.received_at).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Email body */}
-                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                      {email.body_html ? (
-                        <div
-                          className="prose dark:prose-invert max-w-none text-sm"
-                          dangerouslySetInnerHTML={{
-                            __html: DOMPurify.sanitize(email.body_html, {
-                              ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'span', 'div'],
-                              ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style'],
-                              ALLOW_DATA_ATTR: false,
-                              FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
-                              FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
-                            })
-                          }}
-                        />
-                      ) : (
-                        <div className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
-                          {email.body_text}
+                      </td>
+                      {/* Date column */}
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {email.received_at ? new Date(email.received_at).toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
                         </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {email.received_at ? new Date(email.received_at).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </div>
+                      </td>
+                    </tr>
+                    {/* Expanded email body row */}
+                    {selectedEmail && selectedEmail.id === email.id && (
+                      <tr key={`${email.id}-expanded`}>
+                        <td colSpan={4} className="px-4 py-4 bg-gray-50 dark:bg-gray-800">
+                          {/* Full email details */}
+                          <div className="grid grid-cols-2 gap-4 mb-4 text-sm border-b border-gray-200 dark:border-gray-700 pb-4">
+                            <div>
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">From: </span>
+                              <span className="text-gray-900 dark:text-white">{email.from_email}</span>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">Date: </span>
+                              <span className="text-gray-900 dark:text-white">
+                                {new Date(email.received_at).toLocaleString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">To: </span>
+                              <span className="text-gray-900 dark:text-white">{email.to_emails?.join(', ')}</span>
+                            </div>
+                            {email.cc_emails && email.cc_emails.length > 0 && (
+                              <div>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">CC: </span>
+                                <span className="text-gray-900 dark:text-white">{email.cc_emails.join(', ')}</span>
+                              </div>
+                            )}
+                            <div className="col-span-2">
+                              <span className="font-semibold text-gray-700 dark:text-gray-300">Subject: </span>
+                              <span className="text-gray-900 dark:text-white">{email.subject || '(No Subject)'}</span>
+                            </div>
+                          </div>
+
+                          {/* Email body */}
+                          <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                            {email.body_html ? (
+                              <div
+                                className="prose dark:prose-invert max-w-none text-sm"
+                                dangerouslySetInnerHTML={{
+                                  __html: DOMPurify.sanitize(email.body_html, {
+                                    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'span', 'div'],
+                                    ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style'],
+                                    ALLOW_DATA_ATTR: false,
+                                    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
+                                    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
+                                  })
+                                }}
+                              />
+                            ) : (
+                              <div className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+                                {email.body_text}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
