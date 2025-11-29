@@ -6,6 +6,7 @@ export default function AssetForm({ asset, onSave, onCancel }) {
   const [formData, setFormData] = useState({
     company_id: asset?.company_id || '',
     description: asset?.description || '',
+    abbreviation: asset?.abbreviation || '',
     asset_type: asset?.asset_type || 'vehicle',
     make: asset?.make || '',
     model: asset?.model || '',
@@ -61,6 +62,10 @@ export default function AssetForm({ asset, onSave, onCancel }) {
 
     if (!formData.description.trim()) {
       newErrors.description = 'Description is required'
+    }
+
+    if (formData.abbreviation && !/^[A-Z0-9\-]+$/.test(formData.abbreviation)) {
+      newErrors.abbreviation = 'Must be uppercase letters, numbers, or hyphens'
     }
 
     if (formData.purchase_price && isNaN(parseFloat(formData.purchase_price))) {
@@ -143,6 +148,27 @@ export default function AssetForm({ asset, onSave, onCancel }) {
               }`}
             />
             {errors.description && <p className="mt-1 text-sm text-red-600">{errors.description}</p>}
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="abbreviation" className="block text-sm font-medium text-gray-700">
+              Abbreviation
+            </label>
+            <input
+              type="text"
+              name="abbreviation"
+              id="abbreviation"
+              value={formData.abbreviation}
+              onChange={handleChange}
+              placeholder="e.g., NEV, SHARES-TH"
+              className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
+                errors.abbreviation ? 'border-red-300' : ''
+              }`}
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Short code for document naming (uppercase letters, numbers, or hyphens)
+            </p>
+            {errors.abbreviation && <p className="mt-1 text-sm text-red-600">{errors.abbreviation}</p>}
           </div>
 
           <div>

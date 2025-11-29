@@ -353,7 +353,7 @@ module Api
 
       def company_params
         params.require(:company).permit(
-          :name, :company_group, :acn, :abn, :tfn, :date_incorporated, :purpose, :status,
+          :name, :company_group, :code, :acn, :abn, :tfn, :date_incorporated, :purpose, :status,
           :registered_office_address, :principal_place_of_business, :is_trustee, :trust_name,
           :corporate_key, :asic_username, :encrypted_asic_password, :recovery_question,
           :encrypted_recovery_answer, :review_date, :gst_registration_status, :accounting_method,

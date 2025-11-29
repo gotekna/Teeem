@@ -224,7 +224,7 @@ module Api
       def asset_params
         params.require(:asset).permit(
           :company_id, :name, :asset_type, :make, :model, :serial_number,
-          :registration_number, :description, :purchase_date, :purchase_price,
+          :registration_number, :description, :abbreviation, :purchase_date, :purchase_price,
           :location, :status, :current_book_value, metadata: {}
         )
       end

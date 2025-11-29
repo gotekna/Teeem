@@ -224,6 +224,11 @@ export default function AssetsPage() {
                           <div>
                             <p className="truncate text-sm font-medium text-indigo-600">
                               {asset.description}
+                              {asset.abbreviation && (
+                                <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
+                                  {asset.abbreviation}
+                                </span>
+                              )}
                             </p>
                             <p className="text-xs text-gray-500">
                               {formatAssetType(asset.asset_type)}

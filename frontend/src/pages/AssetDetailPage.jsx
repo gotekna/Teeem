@@ -196,6 +196,16 @@ function OverviewTab({ asset }) {
             <dd className="mt-1 text-sm text-gray-900">{asset.company.name}</dd>
           </div>
         )}
+        {asset.abbreviation && (
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Abbreviation</dt>
+            <dd className="mt-1 text-sm text-gray-900">
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                {asset.abbreviation}
+              </span>
+            </dd>
+          </div>
+        )}
         {asset.make && (
           <div>
             <dt className="text-sm font-medium text-gray-500">Make</dt>
