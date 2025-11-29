@@ -8199,7 +8199,7 @@ export default function TeeemTableView({
                       <div className={`flex flex-col gap-2 ${
                         showFilters && (columnShowFilters[colKey] ?? true) && column.filterType ? 'justify-between' : 'justify-start'
                       }`}>
-                        <div className="flex items-center gap-1 min-w-0">
+                        <div className="flex items-center gap-1 min-w-0 min-h-[24px]">
                           {/* Only show drag handle in edit mode */}
                           {editIndividualMode && column.resizable && (
                             <div
@@ -8224,7 +8224,7 @@ export default function TeeemTableView({
                               <Bars3Icon className="h-5 w-5 text-white/70 hover:text-white transition-colors" />
                             </div>
                           )}
-                          <span className="truncate" title={column.label}>{column.label}</span>
+                          <span className="truncate text-white font-semibold text-base" title={column.label}>{column.label}</span>
                           {isSystemGenerated && <span className="ml-1 text-sm">🔒</span>}
                           {column.sortable && <SortIcon column={colKey} />}
                           {/* Schema Editor Cog Icon - only show in Edit Individual mode */}
