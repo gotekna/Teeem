@@ -242,10 +242,14 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     if admin_consent == 'True'
       Rails.logger.info "Admin consent granted for tenant #{tenant}"
 
-      # Store that admin consent was granted for this tenant
+      # Store that admin consent was granted for this tenant in company settings
       # This means users in this tenant can now auth without individual consent
-      Setting.set('microsoft_admin_consent_granted', 'true')
-      Setting.set('microsoft_admin_consent_tenant', tenant)
+      company_settings = CompanySetting.instance
+      settings = company_settings.settings || {}
+      settings['microsoft_admin_consent_granted'] = true
+      settings['microsoft_admin_consent_tenant'] = tenant
+      settings['microsoft_admin_consent_at'] = Time.current.iso8601
+      company_settings.update!(settings: settings)
 
       render_admin_consent_page(success: true, tenant: tenant)
     else
