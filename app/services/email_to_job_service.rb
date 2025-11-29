@@ -117,8 +117,19 @@ class EmailToJobService
     # Find and link external sales reps from email chain
     link_external_sales_reps(job, @email)
 
-    # Link referral contact if detected
-    link_referral_contact(job, job_data)
+    # Link external sales from user manual selection
+    if user_edits['external_sales_contact_ids'].present?
+      user_edits['external_sales_contact_ids'].each do |contact_id|
+        link_external_sales_contact(job, contact_id)
+      end
+    end
+
+    # Link referral contact if detected or manually selected
+    if user_edits['referral_contact_id'].present?
+      link_referral_contact_by_id(job, user_edits['referral_contact_id'])
+    elsif job_data['referral_contact'].present?
+      link_referral_contact(job, job_data)
+    end
 
     # Link email to job
     @email.assign_to_job!(job, by_user: @user)
