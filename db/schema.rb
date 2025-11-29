@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_071114) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -122,6 +122,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
     t.index ["created_by_id"], name: "index_agent_definitions_on_created_by_id"
     t.index ["last_run_by_id"], name: "index_agent_definitions_on_last_run_by_id"
     t.index ["updated_by_id"], name: "index_agent_definitions_on_updated_by_id"
+  end
+
+  create_table "asset_insurances", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.string "policy_number"
+    t.string "insurer_name"
+    t.string "broker_name"
+    t.string "broker_contact_name"
+    t.string "broker_email"
+    t.string "broker_phone"
+    t.date "start_date"
+    t.date "renewal_date"
+    t.string "payment_frequency"
+    t.decimal "premium_amount", precision: 10, scale: 2
+    t.decimal "coverage_amount", precision: 12, scale: 2
+    t.decimal "excess_amount", precision: 10, scale: 2
+    t.string "status"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id"], name: "index_asset_insurances_on_asset_id"
+    t.index ["renewal_date"], name: "index_asset_insurances_on_renewal_date"
+    t.index ["status"], name: "index_asset_insurances_on_status"
   end
 
   create_table "assets", force: :cascade do |t|
@@ -354,6 +376,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
     t.datetime "last_modified_at"
     t.string "expected_onedrive_path"
     t.string "register_folder"
+    t.string "company_code"
+    t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
     t.index ["document_date"], name: "index_company_documents_on_document_date"
     t.index ["document_type"], name: "index_company_documents_on_document_type"
@@ -3633,6 +3657,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
   add_foreign_key "agent_definitions", "users", column: "created_by_id"
   add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
+  add_foreign_key "asset_insurances", "assets"
   add_foreign_key "assets", "companies"
   add_foreign_key "bank_accounts", "companies"
   add_foreign_key "chat_messages", "jobs"
