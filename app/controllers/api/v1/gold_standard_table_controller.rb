@@ -1,6 +1,6 @@
 class Api::V1::GoldStandardTableController < ApplicationController
   before_action :set_item, only: [:update, :destroy]
-  before_action :authenticate_user!, only: [:sync_with_columns]
+  # sync_with_columns uses the default authorize_request from ApplicationController
 
   def index
     # Pagination parameters
