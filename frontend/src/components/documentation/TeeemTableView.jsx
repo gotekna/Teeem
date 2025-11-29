@@ -676,6 +676,7 @@ export default function TeeemTableView({
   const [activeViewId, setActiveViewId] = useState(null) // Track which saved view is currently active
   const [editingViewId, setEditingViewId] = useState(null) // Track which view is being edited
   const [creatingNewView, setCreatingNewView] = useState(false) // Track if creating a new view
+  const [copyFromViewId, setCopyFromViewId] = useState(null) // Track which view to copy from when creating new view
   const [newViewName, setNewViewName] = useState('') // Name for new view being created
   const [editingFilterId, setEditingFilterId] = useState(null) // Track which filter is being edited
   const [editingFilterValue, setEditingFilterValue] = useState('') // Track the temporary value while editing
@@ -5950,7 +5951,28 @@ export default function TeeemTableView({
                           </>
                         ) : creatingNewView ? (
                           <>
-                            <span className="text-sm font-bold whitespace-nowrap">New View:</span>
+                            <span className="text-sm font-bold whitespace-nowrap">Copy from:</span>
+                            <select
+                              value={copyFromViewId || ''}
+                              onChange={(e) => {
+                                const newViewId = e.target.value ? parseInt(e.target.value) : null
+                                setCopyFromViewId(newViewId)
+                                // Load the selected view
+                                const viewToCopy = savedFilters.find(v => v.id === newViewId)
+                                if (viewToCopy) {
+                                  console.log('[Create New View] Switching template to:', viewToCopy.name)
+                                  loadViewState(viewToCopy)
+                                }
+                              }}
+                              className="flex-1 max-w-[180px] text-xs font-semibold px-2 py-1 border-0 rounded bg-white/20 text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+                            >
+                              {savedFilters.filter(v => v.name !== '__default_setup__').map(view => (
+                                <option key={view.id} value={view.id} className="bg-gray-800 text-white">
+                                  {view.is_global ? '🌐 ' : ''}{view.name}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-sm font-bold whitespace-nowrap">Name:</span>
                             <input
                               type="text"
                               autoFocus
@@ -5962,6 +5984,7 @@ export default function TeeemTableView({
                                 if (e.key === 'Escape') {
                                   setCreatingNewView(false)
                                   setNewViewName('')
+                                  setCopyFromViewId(null)
                                 } else if (e.key === 'Enter' && newViewName.trim()) {
                                   // Save the new view via API
                                   const columnsToSave = {}
@@ -6142,6 +6165,7 @@ export default function TeeemTableView({
                               onClick={() => {
                                 setCreatingNewView(false)
                                 setNewViewName('')
+                                setCopyFromViewId(null)
                               }}
                               className="text-xs px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors whitespace-nowrap"
                             >
@@ -6153,21 +6177,19 @@ export default function TeeemTableView({
 
                             <button
                               onClick={() => {
-                                // Load the Setup view as the starting point for new views
-                                // Use Setup view's column configuration as the default
-                                const setupView = savedFilters.find(v => v.name === 'Setup')
-                                console.log('[Create New View] Setup view found:', setupView ? 'YES' : 'NO', setupView)
-                                console.log('[Create New View] savedFilters:', savedFilters)
-                                if (setupView) {
-                                  // Load Setup view's configuration
-                                  console.log('[Create New View] Loading Setup view columns:', setupView.visibleColumns)
-                                  loadViewState(setupView)
-                                  // Setup view should never have grouping, ensure it's cleared
-                                  setGroupByColumn(null)
-                                  setGroupByColumns([])
+                                // Set default to copy from current view or first available view
+                                const currentView = savedFilters.find(v => v.id === activeViewId)
+                                const defaultCopyFrom = currentView?.id || savedFilters[0]?.id || null
+                                setCopyFromViewId(defaultCopyFrom)
+
+                                // Load the selected view as template
+                                const viewToCopy = savedFilters.find(v => v.id === defaultCopyFrom)
+                                if (viewToCopy) {
+                                  console.log('[Create New View] Loading template from:', viewToCopy.name)
+                                  loadViewState(viewToCopy)
                                 } else {
-                                  // Fallback if Setup view doesn't exist (shouldn't happen)
-                                  console.log('[Create New View] No Setup view found, using fallback with all columns')
+                                  // Fallback if no views exist
+                                  console.log('[Create New View] No views to copy, using default configuration')
                                   setCascadeFilters([])
                                   setFilterGroups([{ id: 'default', logic: 'AND' }])
                                   setInterGroupLogic('OR')
