@@ -242,14 +242,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     if admin_consent == 'True'
       Rails.logger.info "Admin consent granted for tenant #{tenant}"
 
-      # Store that admin consent was granted for this tenant in company settings
-      # This means users in this tenant can now auth without individual consent
-      company_settings = CompanySetting.instance
-      settings = company_settings.settings || {}
-      settings['microsoft_admin_consent_granted'] = true
-      settings['microsoft_admin_consent_tenant'] = tenant
-      settings['microsoft_admin_consent_at'] = Time.current.iso8601
-      company_settings.update!(settings: settings)
+      # Store that admin consent was granted in environment variable via Heroku config
+      # For now, we just log it - the consent is stored in Azure AD
+      # TODO: Add a settings table or column to persist this if needed
 
       render_admin_consent_page(success: true, tenant: tenant)
     else
