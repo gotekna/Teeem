@@ -13,14 +13,14 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../api'
 
-export default function CompanyDocumentsTab({ company, onUpdate }) {
+export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'all' }) {
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [selectedTab, setSelectedTab] = useState('all')
+  const [selectedTab, setSelectedTab] = useState(initialTab)
   const [selectedAsset, setSelectedAsset] = useState('all')
   const [assets, setAssets] = useState([])
-  const [showFilters, setShowFilters] = useState(false)
+  const [showFilters, setShowFilters] = useState(initialTab !== 'all')
   const [documentTypes, setDocumentTypes] = useState([])
   const [sharepointConnected, setSharepointConnected] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -46,6 +46,11 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
     loadDocumentTypes()
     checkSharePointConnection()
   }, [company.id, selectedTab, selectedAsset])
+
+  // Update selectedTab when initialTab prop changes
+  useEffect(() => {
+    setSelectedTab(initialTab)
+  }, [initialTab])
 
   const loadDocuments = async () => {
     try {

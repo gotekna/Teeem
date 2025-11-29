@@ -38,20 +38,29 @@ export default function CompanyDetailPage() {
 
   const [company, setCompany] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [overviewSubTab, setOverviewSubTab] = useState('info')
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: BuildingOfficeIcon },
-    { id: 'health', name: 'Health', icon: HeartIcon },
-    { id: 'directors', name: 'Directors', icon: UserGroupIcon },
-    { id: 'shareholdings', name: 'Shareholdings', icon: UsersIcon },
-    { id: 'financial', name: 'Financial', icon: BanknotesIcon },
-    { id: 'loans', name: 'Loans', icon: ArrowsRightLeftIcon },
-    { id: 'dividends', name: 'Dividends', icon: CurrencyDollarIcon },
-    { id: 'assets', name: 'Assets', icon: TruckIcon },
-    { id: 'compliance', name: 'Compliance', icon: ClipboardDocumentCheckIcon },
+    { id: 'asic', name: 'ASIC', icon: DocumentTextIcon, docTab: 'ASIC' },
+    { id: 'assets-docs', name: 'ASSETS', icon: TruckIcon, docTab: 'ASSETS' },
+    { id: 'ato', name: 'ATO', icon: DocumentTextIcon, docTab: 'ATO' },
+    { id: 'bank', name: 'BANK', icon: BanknotesIcon, docTab: 'BANK' },
+    { id: 'dividends-docs', name: 'DIVIDENDS', icon: CurrencyDollarIcon, docTab: 'DIVIDENDS' },
+    { id: 'financials', name: 'FINANCIALS', icon: DocumentTextIcon, docTab: 'FINANCIALS' },
+    { id: 'general', name: 'GENERAL', icon: FolderIcon, docTab: 'GENERAL' },
+    { id: 'loans-docs', name: 'LOANS', icon: ArrowsRightLeftIcon, docTab: 'LOANS' },
+    { id: 'minutes-docs', name: 'MINUTES', icon: DocumentDuplicateIcon, docTab: 'MINUTES' },
+    { id: 'registry', name: 'REGISTRY', icon: DocumentTextIcon, docTab: 'REGISTRY' },
     { id: 'documents', name: 'Documents', icon: DocumentTextIcon },
-    { id: 'minutes', name: 'Minutes', icon: DocumentDuplicateIcon },
     { id: 'activity', name: 'Activity', icon: ClockIcon }
+  ]
+
+  const overviewSubTabs = [
+    { id: 'info', name: 'Information' },
+    { id: 'health', name: 'Health' },
+    { id: 'directors', name: 'Directors' },
+    { id: 'shareholdings', name: 'Shareholdings' }
   ]
 
   const isNewCompany = !id
@@ -220,17 +229,50 @@ export default function CompanyDetailPage() {
 
       {/* Tab Content */}
       <div className="bg-white shadow rounded-lg p-6">
-        {activeTab === 'overview' && <OverviewTab company={company} />}
-        {activeTab === 'health' && <CompanyHealthTab company={company} onUpdate={loadCompany} />}
-        {activeTab === 'directors' && <CompanyDirectorsTab company={company} onUpdate={loadCompany} />}
-        {activeTab === 'shareholdings' && <CompanyShareholdingsTab company={company} onUpdate={loadCompany} />}
-        {activeTab === 'financial' && <CompanyFinancialTab company={company} onUpdate={loadCompany} />}
-        {activeTab === 'loans' && <CompanyLoansTab company={company} onUpdate={loadCompany} />}
-        {activeTab === 'dividends' && <CompanyDividendsTab company={company} onUpdate={loadCompany} />}
-        {activeTab === 'assets' && <CompanyAssetsTab company={company} />}
-        {activeTab === 'compliance' && <CompanyComplianceTab company={company} onUpdate={loadCompany} />}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Overview Sub-tabs */}
+            <div className="border-b border-gray-200">
+              <nav className="-mb-px flex space-x-8">
+                {overviewSubTabs.map((subTab) => (
+                  <button
+                    key={subTab.id}
+                    onClick={() => setOverviewSubTab(subTab.id)}
+                    className={`
+                      border-b-2 py-2 px-1 text-sm font-medium
+                      ${overviewSubTab === subTab.id
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }
+                    `}
+                  >
+                    {subTab.name}
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            {/* Overview Sub-tab Content */}
+            {overviewSubTab === 'info' && <OverviewTab company={company} />}
+            {overviewSubTab === 'health' && <CompanyHealthTab company={company} onUpdate={loadCompany} />}
+            {overviewSubTab === 'directors' && <CompanyDirectorsTab company={company} onUpdate={loadCompany} />}
+            {overviewSubTab === 'shareholdings' && <CompanyShareholdingsTab company={company} onUpdate={loadCompany} />}
+          </div>
+        )}
+
+        {/* Document Category Tabs - each shows CompanyDocumentsTab filtered to that category */}
+        {tabs.find(t => t.id === activeTab)?.docTab && (
+          <CompanyDocumentsTab
+            company={company}
+            onUpdate={loadCompany}
+            initialTab={tabs.find(t => t.id === activeTab).docTab}
+          />
+        )}
+
+        {/* All Documents Tab */}
         {activeTab === 'documents' && <CompanyDocumentsTab company={company} onUpdate={loadCompany} />}
-        {activeTab === 'minutes' && <CompanyMinutesTab company={company} onUpdate={loadCompany} />}
+
+        {/* Activity Tab */}
         {activeTab === 'activity' && <CompanyActivityTab company={company} />}
       </div>
     </div>
