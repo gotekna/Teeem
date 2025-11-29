@@ -12,18 +12,39 @@ class MicrosoftEmailService
   #   to: recipient email (string or array)
   #   subject: email subject
   #   body: email body (HTML supported)
-  def send_email(to:, subject:, body:, from: nil)
+  #   sender_name: optional display name for the sender (e.g., "Robert Harder via Tekna Homes")
+  #   reply_to: optional reply-to email address
+  def send_email(to:, subject:, body:, sender_name: nil, reply_to: nil)
     recipients = Array(to).map { |email| { emailAddress: { address: email } } }
 
-    message = {
-      message: {
-        subject: subject,
-        body: {
-          contentType: 'HTML',
-          content: body
-        },
-        toRecipients: recipients
+    message_content = {
+      subject: subject,
+      body: {
+        contentType: 'HTML',
+        content: body
       },
+      toRecipients: recipients
+    }
+
+    # Add custom sender name if provided (shows as "Name via Tekna" in email clients)
+    if sender_name.present?
+      message_content[:from] = {
+        emailAddress: {
+          name: sender_name,
+          address: authenticated_email
+        }
+      }
+    end
+
+    # Add reply-to address if provided
+    if reply_to.present?
+      message_content[:replyTo] = [
+        { emailAddress: { address: reply_to } }
+      ]
+    end
+
+    message = {
+      message: message_content,
       saveToSentItems: true
     }
 
@@ -83,5 +104,17 @@ class MicrosoftEmailService
       @credential.reload
     end
     @credential.access_token
+  end
+
+  def authenticated_email
+    # Return the email of the authenticated Microsoft account
+    # This is cached from the /me endpoint during OAuth
+    @authenticated_email ||= begin
+      client = MicrosoftGraphClient.new(@credential)
+      me = client.get('/me')
+      me['mail'] || me['userPrincipalName']
+    rescue
+      'admin@teknahomes.com.au' # Fallback
+    end
   end
 end
