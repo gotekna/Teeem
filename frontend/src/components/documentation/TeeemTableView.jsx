@@ -925,7 +925,8 @@ export default function TeeemTableView({
               groupByColumn: view.group_by_column || null,  // Legacy single
               groupByColumns: groupByColumns,  // New array
               display_order: view.display_order || 0,
-              isDefault: view.is_default || false
+              isDefault: view.is_default || false,
+              is_global: view.is_global || false  // Include global flag for badge display
             }
           })
           setSavedFilters(converted)
@@ -2552,7 +2553,9 @@ export default function TeeemTableView({
             sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
             groupByColumn: response.view.group_by_column || null,  // Legacy single
             groupByColumns: savedGroupByColumns,  // New array
-            isDefault: response.view.is_default || false
+            display_order: response.view.display_order || 0,
+            isDefault: response.view.is_default || false,
+            is_global: response.view.is_global || false  // Include global flag for badge display
           } : v
         ))
         return true
