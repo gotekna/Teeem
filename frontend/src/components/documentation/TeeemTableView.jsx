@@ -739,14 +739,17 @@ export default function TeeemTableView({
 
     // Load filters
     if (!skipFilters) {
-      setCascadeFilters(view.filters?.map(f => ({
+      console.log('[loadViewState] Loading filters from view:', view?.name, 'view.filters:', view.filters)
+      const mappedFilters = view.filters?.map(f => ({
         id: Date.now() + Math.random(),
         column: f.column,
         value: f.value,
         operator: f.operator || '=',
         label: f.label,
         groupId: f.groupId || 'default'
-      })) || [])
+      })) || []
+      console.log('[loadViewState] Mapped filters to set:', mappedFilters)
+      setCascadeFilters(mappedFilters)
       setFilterGroups(view.filterGroups || [{ id: 'default', logic: 'AND' }])
       setInterGroupLogic(view.interGroupLogic || 'OR')
     }
@@ -2073,6 +2076,7 @@ export default function TeeemTableView({
     }
 
     // Apply cascade filters with group logic
+    console.log('[filteredAndSorted] Applying cascade filters:', cascadeFilters.length, 'filters:', cascadeFilters.map(f => `${f.column} ${f.operator} ${f.value}`))
     if (cascadeFilters.length > 0) {
       result = result.filter(entry => {
         // Group filters by their groupId
