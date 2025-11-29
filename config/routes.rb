@@ -21,6 +21,8 @@ Rails.application.routes.draw do
       post 'auth/login', to: 'authentication#login'
       get 'auth/me', to: 'authentication#me'
       get 'auth/dev_login', to: 'authentication#dev_login'  # Dev mode only
+      get 'auth/users', to: 'authentication#users'  # Admin: list users for impersonation
+      post 'auth/impersonate/:user_id', to: 'authentication#impersonate'  # Admin: impersonate user
 
       # Import routes
       post 'imports/upload', to: 'imports#upload'
