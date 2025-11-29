@@ -2068,6 +2068,43 @@ export default function TeeemTableView({
         }
       }
 
+      // Handle lookup columns - need to match by display value, not ID
+      // Check if this is a lookup column by looking for _id suffix or checking COLUMNS
+      const isLookupColumn = key.endsWith('_id') ||
+        COLUMNS.find(c => c.key === key)?.column_type === 'lookup' ||
+        COLUMNS.find(c => c.key === key)?.column_type === 'link_to_another_record'
+
+      if (isLookupColumn) {
+        // For lookup columns, entryValue might be an ID (number) or object {id, display}
+        // The filter value is the display text
+        let displayValue = entryValue
+
+        // If entryValue is an object with display property, use that
+        if (typeof entryValue === 'object' && entryValue?.display) {
+          displayValue = entryValue.display
+        } else if (typeof entryValue === 'number' || (typeof entryValue === 'string' && !isNaN(parseInt(entryValue)))) {
+          // entryValue is an ID - try to find the display value from columnChoices
+          const columnDef = COLUMNS.find(c => c.key === key)
+          const choices = columnDef?.id ? columnChoices[columnDef.id] : null
+          if (choices && Array.isArray(choices)) {
+            const match = choices.find(c =>
+              (typeof c === 'object' && c.id == entryValue) || c == entryValue
+            )
+            if (match && typeof match === 'object') {
+              displayValue = match.display
+            } else if (match) {
+              displayValue = match
+            }
+          }
+        }
+
+        // Now compare display values
+        if (operator === '!=') {
+          return String(displayValue || '').toLowerCase() !== String(value).toLowerCase()
+        }
+        return String(displayValue || '').toLowerCase() === String(value).toLowerCase()
+      }
+
       // Handle string comparison (case-insensitive)
       if (operator === '!=') {
         return String(entryValue).toLowerCase() !== String(value).toLowerCase()
