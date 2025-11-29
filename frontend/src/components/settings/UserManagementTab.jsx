@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api'
-import { useAuth } from '../../contexts/AuthContext'
 import TeeemTableView from '../documentation/TeeemTableView'
 import {
   UserIcon,
@@ -51,7 +50,6 @@ export default function UserManagementTab() {
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
   const [impersonating, setImpersonating] = useState(null)
-  const { setUser } = useAuth()
 
   useEffect(() => {
     loadUsers()
@@ -130,21 +128,18 @@ export default function UserManagementTab() {
       })
 
       if (data.success && data.token) {
-        // Store the new token
+        // Store the new token - page reload will pick up the new user
         localStorage.setItem('token', data.token)
 
-        // Update auth context with new user
-        setUser(data.user)
-
         setToast({
-          message: `Now logged in as ${data.user.name}`,
+          message: `Switching to ${data.user.name}...`,
           type: 'success'
         })
 
         // Reload the page to refresh all components with new user context
         setTimeout(() => {
           window.location.reload()
-        }, 1000)
+        }, 500)
       } else {
         throw new Error(data.error || 'Impersonation failed')
       }
