@@ -67,8 +67,8 @@ const jobTabs = [
 // Main navigation items
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { name: 'Jobs', href: '/tables/204/jobs', icon: BriefcaseIcon },
   { name: 'Email Proposals', href: '/email-proposals', icon: EnvelopeIcon },
+  { name: 'Jobs', href: '/tables/204/jobs', icon: BriefcaseIcon },
   { name: 'Meetings', href: '/meetings', icon: CalendarIcon },
   { name: 'WHS', href: '/whs', icon: ShieldCheckIcon },
   { name: 'Financial', href: '/financial', icon: BanknotesIcon },
