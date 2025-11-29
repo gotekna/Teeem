@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_050424) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -122,6 +122,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_050424) do
     t.index ["created_by_id"], name: "index_agent_definitions_on_created_by_id"
     t.index ["last_run_by_id"], name: "index_agent_definitions_on_last_run_by_id"
     t.index ["updated_by_id"], name: "index_agent_definitions_on_updated_by_id"
+  end
+
+  create_table "assets", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "name"
+    t.string "asset_type"
+    t.string "status"
+    t.decimal "purchase_price"
+    t.date "purchase_date"
+    t.date "sale_date"
+    t.decimal "current_book_value"
+    t.string "make"
+    t.string "model"
+    t.text "description"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_assets_on_company_id"
   end
 
   create_table "bank_accounts", force: :cascade do |t|
@@ -244,6 +262,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_050424) do
     t.string "health_status"
     t.boolean "has_loans", default: false
     t.boolean "loan_documents_in_place", default: false
+    t.string "onedrive_folder_id"
+    t.string "onedrive_folder_path"
     t.index ["abbreviation"], name: "index_companies_on_abbreviation"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
@@ -3613,6 +3633,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_050424) do
   add_foreign_key "agent_definitions", "users", column: "created_by_id"
   add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
+  add_foreign_key "assets", "companies"
   add_foreign_key "bank_accounts", "companies"
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
