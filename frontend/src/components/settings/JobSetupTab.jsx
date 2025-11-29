@@ -228,7 +228,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
         </button>
 
         {isOpen && (
-          <div className="fixed z-50 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col" style={{ top: '120px', bottom: '40px', right: 'auto', left: 'auto', marginLeft: '-16px' }}>
+          <div className="absolute z-50 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col mt-1 left-0 max-h-[70vh]">
             {/* Search */}
             <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <input
@@ -259,8 +259,8 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
               </button>
             </div>
 
-            {/* Options - scrollable area that expands */}
-            <div className="flex-1 overflow-y-auto p-1 min-h-0">
+            {/* Options - scrollable area */}
+            <div className="overflow-y-auto p-1 max-h-[50vh]">
               {filteredParentOptions.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 italic">
                   No matches found
@@ -466,13 +466,38 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                   </span>
                 )}
                 {multiSelectParent && parentOptions.length > 0 && (
-                  <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                    {item.job_type_ids && item.job_type_ids.length > 0
-                      ? item.job_type_ids.length === parentOptions.length
-                        ? `All ${parentLabel}s`
-                        : `${item.job_type_ids.length} ${parentLabel}${item.job_type_ids.length > 1 ? 's' : ''}`
-                      : `No ${parentLabel}`}
-                  </span>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (inlineEditId === item.id) {
+                          cancelInlineEdit()
+                        } else {
+                          startInlineEdit(item)
+                          setParentDropdownOpen(`inline-${item.id}`)
+                        }
+                      }}
+                      className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 cursor-pointer"
+                    >
+                      {item.job_type_ids && item.job_type_ids.length > 0
+                        ? item.job_type_ids.length === parentOptions.length
+                          ? `All ${parentLabel}s`
+                          : `${item.job_type_ids.length} ${parentLabel}${item.job_type_ids.length > 1 ? 's' : ''}`
+                        : `No ${parentLabel}`}
+                    </button>
+                    {inlineEditId === item.id && (
+                      <MultiSelectDropdown
+                        selectedIds={inlineEditIds}
+                        onToggle={toggleInlineId}
+                        onSelectAll={selectAllInline}
+                        onClearAll={clearAllInline}
+                        isOpen={true}
+                        onToggleOpen={() => cancelInlineEdit()}
+                        dropdownId={`inline-${item.id}`}
+                        onSave={saveInlineEdit}
+                      />
+                    )}
+                  </div>
                 )}
                 {colorField && item.color && (
                   <span className={`px-2 py-1 rounded text-xs font-medium ${getColorClasses(item.color)}`}>
@@ -550,9 +575,11 @@ function CascadeSortConfig({ config, onUpdate }) {
   }
 
   const toggleEnabled = (key) => {
+    console.log('Toggling cascade item:', key)
     const newItems = items.map(item =>
       item.key === key ? { ...item, enabled: !item.enabled } : item
     )
+    console.log('New cascade config:', newItems)
     setItems(newItems)
     onUpdate(newItems)
   }
@@ -586,11 +613,12 @@ function CascadeSortConfig({ config, onUpdate }) {
               <Bars3Icon className="h-5 w-5" />
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
               <input
                 type="checkbox"
                 checked={item.enabled}
                 onChange={() => toggleEnabled(item.key)}
+                onClick={(e) => e.stopPropagation()}
                 className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-600 dark:border-gray-600 dark:bg-gray-700"
               />
               <span className={`font-medium ${
@@ -694,11 +722,13 @@ export default function JobSetupTab() {
   }
 
   const handleCascadeConfigUpdate = async (newConfig) => {
+    console.log('Saving cascade config:', newConfig)
     setCascadeConfig(newConfig)
     try {
-      await api.patch('/api/v1/company_settings', {
+      const res = await api.patch('/api/v1/company_settings', {
         company_setting: { job_cascade_sort: newConfig }
       })
+      console.log('Cascade config saved:', res)
     } catch (err) {
       console.error('Failed to save cascade config:', err)
     }
