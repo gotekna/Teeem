@@ -1,7 +1,7 @@
 module Api
   module V1
     class AuthenticationController < ApplicationController
-      skip_before_action :authorize_request, only: [ :login, :signup, :dev_login, :impersonate ]
+      skip_before_action :authorize_request, only: [ :login, :signup, :dev_login, :impersonate, :users ]
 
       # GET /api/v1/auth/dev_login
       # Dev mode only: Auto-login as default dev user
@@ -105,6 +105,71 @@ module Api
             error: "Invalid email or password"
           }, status: :unauthorized
         end
+      end
+
+      # GET /api/v1/auth/impersonate/:user_id
+      # Admin-only: Login as another user (requires admin secret)
+      def impersonate
+        # Require admin secret for security
+        admin_secret = ENV['ADMIN_IMPERSONATE_SECRET'] || 'tekna-admin-2024'
+        provided_secret = params[:secret] || request.headers['X-Admin-Secret']
+
+        unless provided_secret == admin_secret
+          render json: { success: false, error: 'Invalid admin secret' }, status: :unauthorized
+          return
+        end
+
+        # Find user by ID or email
+        user = if params[:user_id].to_s.match?(/\A\d+\z/)
+                 User.find_by(id: params[:user_id])
+               else
+                 User.find_by(email: params[:user_id])
+               end
+
+        unless user
+          render json: { success: false, error: 'User not found' }, status: :not_found
+          return
+        end
+
+        token = JsonWebToken.encode(user_id: user.id)
+        render json: {
+          success: true,
+          token: token,
+          impersonating: true,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            permissions: user.permissions
+          }
+        }
+      end
+
+      # GET /api/v1/auth/users
+      # List all users (for admin impersonation UI)
+      def users
+        # Require admin secret
+        admin_secret = ENV['ADMIN_IMPERSONATE_SECRET'] || 'tekna-admin-2024'
+        provided_secret = params[:secret] || request.headers['X-Admin-Secret']
+
+        unless provided_secret == admin_secret
+          render json: { success: false, error: 'Invalid admin secret' }, status: :unauthorized
+          return
+        end
+
+        users = User.where('email LIKE ?', '%@tekna.com.au').order(:name).map do |u|
+          {
+            id: u.id,
+            email: u.email,
+            name: u.name,
+            role: u.role,
+            has_outlook: u.outlook_credential.present?,
+            last_login_at: u.last_login_at
+          }
+        end
+
+        render json: { success: true, users: users }
       end
 
       # GET /api/v1/auth/me
