@@ -8526,14 +8526,16 @@ export default function TeeemTableView({
                 const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
 
                 // Debug logging
-                if (colKey === 'job_status') {
-                  console.log('[sortGroupKeys] job_status sorting:', {
+                if (colKey === 'job_status_id' || colKey === 'job_status' || colKey.includes('status')) {
+                  console.log('[sortGroupKeys] Sorting groups:', {
                     keys,
                     colKey,
-                    groupColumnDef,
-                    lookupOptions,
-                    hasOptions: lookupOptions.length > 0,
-                    firstOption: lookupOptions[0]
+                    columnDefFound: !!groupColumnDef,
+                    columnType: groupColumnDef?.column_type,
+                    columnId: groupColumnDef?.id,
+                    lookupOptionsCount: lookupOptions.length,
+                    firstOption: lookupOptions[0],
+                    hasDisplayOrder: lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
                   })
                 }
 
