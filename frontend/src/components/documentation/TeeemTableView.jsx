@@ -6125,7 +6125,7 @@ export default function TeeemTableView({
                         </div>
                       )}
                       {/* View Filter - Filter Builder UI - Collapsible */}
-                      <div className={`${filterSectionCollapsed ? '' : 'flex-1'} min-h-0 overflow-visible`}>
+                      <div className={`${filterSectionCollapsed ? '' : 'flex-1'} min-h-0 overflow-visible relative z-20`}>
                         <button
                           onClick={() => {
                             // Close any open dropdowns when collapsing
@@ -6471,7 +6471,7 @@ export default function TeeemTableView({
                       </div>
 
                       {/* Sort By Panel - Collapsible */}
-                      <div className="mt-4">
+                      <div className="mt-4 relative z-10">
                         <button
                           onClick={() => {
                             // Close any open dropdowns when collapsing
