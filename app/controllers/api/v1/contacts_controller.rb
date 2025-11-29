@@ -65,8 +65,11 @@ module Api
         include_companies = params[:include_companies] == 'true'
         include_jobs = params[:include_jobs] == 'true'
 
+        # Include director details if filtering for directors
+        director_fields = params[:is_director] == 'true' ? [:director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url] : []
+
         contacts_json = @contacts.as_json(
-          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status],
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status] + director_fields,
           include: {
             portal_user: { only: [:id, :email, :portal_type, :active] }
           },
