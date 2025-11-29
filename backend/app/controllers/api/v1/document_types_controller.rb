@@ -32,9 +32,18 @@ module Api
           render json: {
             success: true,
             data: @document_types.order(:folder, :name).map { |t| serialize_document_type(t) },
-            summary: document_type_summary
+            summary: document_type_summary,
+            available_tabs: all_available_tabs
           }
         end
+      end
+
+      # GET /api/v1/document_types/tabs
+      def tabs
+        render json: {
+          success: true,
+          tabs: all_available_tabs
+        }
       end
 
       # GET /api/v1/document_types/:id
@@ -104,7 +113,8 @@ module Api
           :description,
           :requires_filing,
           :retention_period,
-          :active
+          :active,
+          tabs: []
         )
       end
 
@@ -118,6 +128,7 @@ module Api
           requires_filing: document_type.requires_filing,
           retention_period: document_type.retention_period,
           active: document_type.active,
+          tabs: document_type.tabs || [],
           documents_count: document_type.company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at
@@ -131,6 +142,20 @@ module Api
           by_folder: DocumentType.group(:folder).count,
           requiring_filing: DocumentType.requiring_filing.count
         }
+      end
+
+      def all_available_tabs
+        # Get all unique tabs from all document types
+        tabs = DocumentType.where.not(tabs: []).pluck(:tabs).flatten.uniq.sort
+
+        # Return structured tab information
+        tabs.map do |tab|
+          {
+            name: tab,
+            label: tab.titleize,
+            count: CompanyDocument.by_tab(tab).count
+          }
+        end
       end
     end
   end

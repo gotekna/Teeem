@@ -1158,7 +1158,11 @@ Rails.application.routes.draw do
       end
 
       # Document Types
-      resources :document_types
+      resources :document_types do
+        collection do
+          get :tabs
+        end
+      end
 
       # Bank Accounts
       resources :bank_accounts

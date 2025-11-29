@@ -13,6 +13,12 @@ module Api
         # Filter by type
         @documents = @documents.by_type(params[:document_type]) if params[:document_type].present?
 
+        # Filter by tab
+        @documents = @documents.by_tab(params[:tab]) if params[:tab].present?
+
+        # Filter by source (manual, xero, sharepoint)
+        @documents = @documents.by_source(params[:source]) if params[:source].present?
+
         # Filter by year
         @documents = @documents.by_year(params[:year]) if params[:year].present?
 
