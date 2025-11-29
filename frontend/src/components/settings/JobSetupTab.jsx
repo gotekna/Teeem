@@ -228,7 +228,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
         </button>
 
         {isOpen && (
-          <div className="absolute z-50 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col mt-1 left-0 max-h-[70vh]">
+          <div className="absolute z-50 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col mt-1 right-0 max-h-[70vh]">
             {/* Search */}
             <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <input
