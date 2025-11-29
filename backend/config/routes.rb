@@ -1090,6 +1090,20 @@ Rails.application.routes.draw do
         end
       end
 
+      # Director Onboarding (self-service director compliance portal)
+      resources :director_onboarding_requests do
+        member do
+          post :approve
+          post :reject
+          post :resend_invitation
+        end
+        collection do
+          # Public routes (no auth required)
+          get 'public/:access_token', action: :show_public
+          post 'public/:access_token/submit', action: :submit
+        end
+      end
+
       # ASIC Lookup (ABR API for ABN/ACN lookups)
       resources :asic, only: [] do
         collection do

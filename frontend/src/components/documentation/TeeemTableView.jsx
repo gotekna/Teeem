@@ -4011,6 +4011,16 @@ export default function TeeemTableView({
         const isComputedColumn = columnDef?.isComputed
         const columnType = columnDef?.column_type
 
+        // CRITICAL: System columns (id, user_id) should NEVER be editable
+        // Display them as read-only regardless of column_type
+        if (isSystemColumn) {
+          return (
+            <div className="text-gray-600 dark:text-gray-400 font-mono text-sm">
+              {entry[columnKey] ?? '-'}
+            </div>
+          )
+        }
+
         // Handle column_type-based rendering for dynamic columns (e.g., from API)
         // This allows columns like 'contract_value' with type 'currency' to render correctly
         if (columnType === 'currency') {
@@ -7861,8 +7871,8 @@ export default function TeeemTableView({
             })(),
             minWidth: autoFitColumns ? '100%' : undefined
           }}>
-            <thead className="sticky top-0 z-10 backdrop-blur-sm">
-            <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800">
+            <thead className="sticky top-0 z-20">
+            <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 shadow-md">
               {(() => {
                 const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
                 return visibleCols.map((colKey, index) => {
@@ -7897,7 +7907,7 @@ export default function TeeemTableView({
                       overflow: 'hidden',
                     }}
                     className={`group align-top ${colKey === 'select' ? 'px-2 py-3' : 'px-2 py-3'} text-white border-r-2 border-white/50 last:border-r-0 ${
-                      isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : ''
+                      isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : 'bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800'
                     } ${column.sortable ? 'cursor-pointer hover:bg-blue-400/20 dark:hover:bg-blue-600/20' : ''} ${
                       isFirst ? 'rounded-tl-lg' : ''
                     } ${isLast ? 'rounded-tr-lg' : ''} ${
