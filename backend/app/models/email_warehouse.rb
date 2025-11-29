@@ -101,9 +101,32 @@ class EmailWarehouse < ApplicationRecord
     self.class.where(conversation_id: conversation_id).count
   end
 
+  # Job ID patterns to look for in subject line
+  # Matches: id:20, id.20, id;20, #20, job:20, job.20, job;20, [20], (20)
+  JOB_ID_PATTERN = /(?:id|job)[:.\-;]\s*(\d+)|#(\d+)|\[(\d+)\]|\(job\s*(\d+)\)/i
+
   # Check if this email matches any job based on various criteria
   def find_matching_jobs
     matches = []
+
+    # HIGHEST PRIORITY: Match by explicit job ID in subject
+    # Patterns: id:20, id.20, id;20, #20, job:20, [20], etc.
+    if subject.present?
+      subject.scan(JOB_ID_PATTERN).each do |match_groups|
+        job_id = match_groups.compact.first&.to_i
+        next unless job_id&.positive?
+
+        job = Job.find_by(id: job_id)
+        if job
+          matches << {
+            job: job,
+            match_type: 'explicit_job_id',
+            confidence: 1.0,
+            reason: "Explicit job ID #{job_id} found in subject"
+          }
+        end
+      end
+    end
 
     # Match by email addresses (contacts linked to jobs)
     all_emails = [from_email, *to_emails, *cc_emails].compact.uniq
