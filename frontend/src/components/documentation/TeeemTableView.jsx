@@ -8133,6 +8133,14 @@ export default function TeeemTableView({
             <div
               ref={scrollContainerRef}
               className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+              onScroll={(e) => {
+                console.log('[SCROLL DEBUG] Scroll container scrolled:', {
+                  scrollTop: e.target.scrollTop,
+                  scrollHeight: e.target.scrollHeight,
+                  clientHeight: e.target.clientHeight,
+                  target: e.target.className
+                })
+              }}
             >
           <table className="border-separate border-spacing-0" style={{
             width: autoFitColumns ? 'auto' : (() => {
