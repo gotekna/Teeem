@@ -364,6 +364,7 @@ class CorporateOnedriveService
   def normalize_name(name)
     name.to_s
       .downcase
+      .gsub(/\s*\([^)]*\)\s*/, '')  # Remove parenthetical notes like "(formerly...)"
       .gsub(/pty\s*ltd/i, '')
       .gsub(/\s+atf\s+.*/i, '')  # Remove trust suffix
       .gsub(/[^a-z0-9\s]/, ' ')
