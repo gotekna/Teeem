@@ -330,18 +330,22 @@ class CorporateOnedriveService
   end
 
   def find_matching_company(folder_name)
-    # Try exact match first
+    # PRIORITY 1: Check for explicit SharePoint folder name mapping (TEEEM is source of truth)
+    company = Company.find_by("LOWER(sharepoint_folder_name) = ?", folder_name.downcase)
+    return company if company
+
+    # PRIORITY 2: Try exact name match
     company = Company.find_by("LOWER(name) = ?", folder_name.downcase)
     return company if company
 
-    # Try matching by ACN if folder contains ACN
+    # PRIORITY 3: Try matching by ACN if folder contains ACN
     acn_match = folder_name.match(/(\d{9})/)
     if acn_match
       company = Company.find_by(acn: acn_match[1])
       return company if company
     end
 
-    # Try fuzzy matching on company name
+    # PRIORITY 4: Try fuzzy matching on company name (fallback only)
     normalized_folder = normalize_name(folder_name)
     Company.all.find do |c|
       normalized_name = normalize_name(c.name)
@@ -352,6 +356,12 @@ class CorporateOnedriveService
   end
 
   def folder_matches_company?(folder_name, company)
+    # PRIORITY 1: Check explicit SharePoint folder name mapping (TEEEM is source of truth)
+    if company.sharepoint_folder_name.present?
+      return folder_name.downcase == company.sharepoint_folder_name.downcase
+    end
+
+    # PRIORITY 2: Fuzzy matching (fallback)
     normalized_folder = normalize_name(folder_name)
     normalized_company = normalize_name(company.name)
 
