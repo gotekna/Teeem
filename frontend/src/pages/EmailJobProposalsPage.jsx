@@ -28,8 +28,9 @@ export default function EmailJobProposalsPage() {
   const loadProposals = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/api/v1/email_job_proposals')
-      setProposals(response.data.proposals || [])
+      // Get ALL proposals (not just pending - backend defaults to pending)
+      const response = await api.get('/api/v1/email_job_proposals?status=')
+      setProposals(response.proposals || [])
     } catch (error) {
       console.error('Failed to load proposals:', error)
     } finally {

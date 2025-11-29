@@ -364,10 +364,10 @@ export default function AppLayout({ children }) {
 
     const loadPendingProposalsCount = async () => {
       try {
-        const response = await api.get('/api/v1/email_job_proposals')
-        const proposals = response.data?.proposals || []
-        const pendingCount = proposals.filter(p => p.status === 'pending').length
-        setPendingProposalsCount(pendingCount)
+        // Get only pending proposals for the count
+        const response = await api.get('/api/v1/email_job_proposals?status=pending')
+        const proposals = response.proposals || []
+        setPendingProposalsCount(proposals.length)
       } catch (err) {
         console.debug('Email proposals count unavailable:', err?.message || 'Unknown error')
       }
