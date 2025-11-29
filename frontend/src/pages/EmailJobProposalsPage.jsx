@@ -12,6 +12,7 @@ import {
   BuildingOfficeIcon,
   UserGroupIcon,
   HandRaisedIcon,
+  PlusIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import ApprovalModal from '../components/proposals/ApprovalModal'
