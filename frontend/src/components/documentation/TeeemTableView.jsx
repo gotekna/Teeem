@@ -6408,7 +6408,7 @@ export default function TeeemTableView({
                                   </div>
 
                                   {/* Rules in this group */}
-                                  <div className="space-y-2.5 overflow-visible">
+                                  <div className="space-y-3 overflow-visible">
                                     {groupFilters.length === 0 ? (
                                       <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-3 px-3 italic leading-relaxed">
                                         No rules. Click <strong>+Rule</strong> to add one.
@@ -6417,7 +6417,7 @@ export default function TeeemTableView({
                                       groupFilters.map((filter) => (
                                         <div
                                           key={filter.id}
-                                          className="flex items-stretch gap-2.5 p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-visible"
+                                          className="relative flex items-stretch gap-2.5 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-visible"
                                         >
                                           {/* Column dropdown - Searchable with smart positioning */}
                                           <div className="relative flex-1 min-w-[140px] max-w-[200px]" data-filter-column-dropdown={filter.id}>
