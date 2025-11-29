@@ -366,7 +366,12 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
               {email.has_attachments && (
                 <div className="flex items-center text-blue-600">
                   <PaperClipIcon className="w-4 h-4 mr-1" />
-                  Has attachments
+                  {email.attachment_count || 1} attachment{email.attachment_count !== 1 ? 's' : ''}
+                </div>
+              )}
+              {data.missing_info && data.missing_info.length > 0 && (
+                <div className="text-xs text-orange-600 mt-2">
+                  ⚠️ Missing: {data.missing_info.join(', ')}
                 </div>
               )}
             </div>
@@ -460,6 +465,11 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
                 <li key={idx}>{item}</li>
               ))}
             </ul>
+            {email.has_attachments && (
+              <p className="text-xs text-yellow-600 mt-2 italic">
+                💡 Tip: Check attachments - address and other details may be in plans/documents
+              </p>
+            )}
           </div>
         )}
 

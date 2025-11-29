@@ -4,11 +4,14 @@ import { api } from '../../api'
 
 export default function ApprovalModal({ proposal, onApprove, onCancel, processing }) {
   const data = proposal.extracted_data || {}
+  const email = proposal.email || {}
   const [externalSalesContacts, setExternalSalesContacts] = useState([])
   const [referralContact, setReferralContact] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searchMode, setSearchMode] = useState(null) // 'external_sales' or 'referral'
+  const [jobTitle, setJobTitle] = useState(data.job_title || '')
+  const [notes, setNotes] = useState('')
 
   useEffect(() => {
     // Initialize with AI-detected contacts
@@ -76,6 +79,16 @@ export default function ApprovalModal({ proposal, onApprove, onCancel, processin
   const handleSubmit = () => {
     const userEdits = {}
 
+    // Add job title if changed
+    if (jobTitle && jobTitle !== data.job_title) {
+      userEdits.job_title = jobTitle
+    }
+
+    // Add notes if provided
+    if (notes) {
+      userEdits.notes = notes
+    }
+
     // Add external sales contact IDs
     if (externalSalesContacts.length > 0) {
       userEdits.external_sales_contact_ids = externalSalesContacts.map(c => c.contact_id)
@@ -102,10 +115,65 @@ export default function ApprovalModal({ proposal, onApprove, onCancel, processin
 
         {/* Content */}
         <div className="px-6 py-4 space-y-6">
-          {/* Job Title */}
+          {/* Job Title (Editable) */}
           <div>
-            <h4 className="text-sm font-medium text-gray-900">{data.job_title}</h4>
-            <p className="text-sm text-gray-500">{data.description}</p>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Job Title / Address
+            </label>
+            <input
+              type="text"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+              placeholder="Enter full address or project title"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+            {data.description && (
+              <p className="mt-1 text-sm text-gray-500">{data.description}</p>
+            )}
+            {email.has_attachments && (
+              <p className="mt-1 text-xs text-blue-600">
+                💡 Check attachments for address (may be in plans/documents)
+              </p>
+            )}
+          </div>
+
+          {/* Notes / Additional Info */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Notes (Optional)
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any notes about job type, status, or other details from attachments..."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* AI Extracted Details */}
+          <div className="border-t border-gray-200 pt-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">AI Extracted Details</h4>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-gray-500">Job Type:</span>
+                <span className="ml-2 font-medium">{data.job_type || 'Not specified'}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Urgency:</span>
+                <span className="ml-2 font-medium">{data.urgency || 'Not specified'}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Value:</span>
+                <span className="ml-2 font-medium">
+                  {data.contract_value ? `$${data.contract_value.toLocaleString()}` : 'Not specified'}
+                </span>
+              </div>
+              <div>
+                <span className="text-gray-500">Confidence:</span>
+                <span className="ml-2 font-medium">{Math.round((data.confidence_score || 0) * 100)}%</span>
+              </div>
+            </div>
           </div>
 
           {/* Customer */}
