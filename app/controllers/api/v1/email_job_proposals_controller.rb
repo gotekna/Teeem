@@ -1,7 +1,7 @@
 module Api
   module V1
     class EmailJobProposalsController < ApplicationController
-      before_action :set_proposal, only: [:show, :approve, :reject]
+      before_action :set_proposal, only: [:show, :approve, :reject, :re_extract]
 
       # GET /api/v1/email_job_proposals
       # List proposals with filtering
@@ -178,6 +178,65 @@ module Api
         render json: {
           success: false,
           error: e.message
+        }, status: :internal_server_error
+      end
+
+      # POST /api/v1/email_job_proposals/:id/re_extract
+      # Re-extract data from email and PDFs with latest extraction logic
+      def re_extract
+        unless @proposal.pending?
+          return render json: {
+            success: false,
+            error: "Can only re-extract pending proposals (current status: #{@proposal.status})"
+          }, status: :unprocessable_entity
+        end
+
+        email = @proposal.email_warehouse
+
+        # Sync PDF attachments from Outlook if not already synced
+        if email.has_attachments && !email.files.attached?
+          begin
+            outlook_service = OutlookService.new(current_user)
+            email.sync_attachments_from_outlook(outlook_service)
+            Rails.logger.info "Synced attachments for email #{email.id} during re-extraction"
+          rescue StandardError => e
+            Rails.logger.error "Failed to sync attachments during re-extraction: #{e.message}"
+            # Continue with re-extraction even if attachment sync fails
+          end
+        end
+
+        # Re-extract data using EmailToJobService
+        start_time = Time.current
+        service = EmailToJobService.new(email, user: current_user)
+        extracted_data = service.extract_job_data
+
+        processing_time = ((Time.current - start_time) * 1000).round
+
+        # Update proposal with new extracted data
+        @proposal.update!(
+          extracted_data: extracted_data,
+          processing_time_ms: processing_time
+        )
+
+        Rails.logger.info "Re-extracted proposal #{@proposal.id}: confidence=#{extracted_data['confidence_score']}"
+
+        render json: {
+          success: true,
+          proposal: serialize_proposal(@proposal.reload),
+          message: "Proposal re-extracted successfully. Confidence: #{(extracted_data['confidence_score'] * 100).round}%"
+        }
+
+      rescue EmailToJobService::RateLimitError => e
+        render json: {
+          success: false,
+          error: e.message
+        }, status: :too_many_requests
+
+      rescue StandardError => e
+        Rails.logger.error "Re-extraction error: #{e.message}"
+        render json: {
+          success: false,
+          error: "Failed to re-extract proposal: #{e.message}"
         }, status: :internal_server_error
       end
 
