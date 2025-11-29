@@ -6306,7 +6306,7 @@ export default function TeeemTableView({
                           <span className={`transform transition-transform ${filterSectionCollapsed ? '' : 'rotate-180'}`}>▼</span>
                         </button>
                         {!filterSectionCollapsed && (
-                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
+                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700/30">
                           {/* Top action bar */}
                           <div className="flex items-center gap-2 mb-3 flex-wrap">
                             <button
@@ -6345,7 +6345,7 @@ export default function TeeemTableView({
                           </div>
 
                           {/* Filter groups */}
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             {filterGroups.map((group, groupIndex) => {
                               const groupFilters = cascadeFilters.filter(f => (f.groupId || 'default') === group.id)
                               return (
@@ -6408,19 +6408,19 @@ export default function TeeemTableView({
                                   </div>
 
                                   {/* Rules in this group */}
-                                  <div className="space-y-2 overflow-visible">
+                                  <div className="space-y-2.5 overflow-visible">
                                     {groupFilters.length === 0 ? (
-                                      <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-2 italic">
-                                        No rules. Click +Rule to add one.
+                                      <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-3 px-3 italic leading-relaxed">
+                                        No rules. Click <strong>+Rule</strong> to add one.
                                       </div>
                                     ) : (
                                       groupFilters.map((filter) => (
                                         <div
                                           key={filter.id}
-                                          className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-visible"
+                                          className="flex items-stretch gap-2.5 p-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-visible"
                                         >
                                           {/* Column dropdown - Searchable with smart positioning */}
-                                          <div className="relative flex-1 min-w-[120px]" data-filter-column-dropdown={filter.id}>
+                                          <div className="relative flex-1 min-w-[140px] max-w-[200px]" data-filter-column-dropdown={filter.id}>
                                             {filterColumnDropdownOpen === filter.id ? (
                                               // Search input replaces button when open
                                               <input
@@ -6528,7 +6528,7 @@ export default function TeeemTableView({
                                                   : f
                                               ))
                                             }}
-                                            className="w-[100px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
+                                            className="w-[110px] px-2.5 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
                                           >
                                             <option value="contains">contains</option>
                                             <option value="=">=</option>
@@ -6567,7 +6567,7 @@ export default function TeeemTableView({
                                                         : f
                                                     ))
                                                   }}
-                                                  className="flex-1 min-w-[120px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
+                                                  className="flex-1 min-w-[140px] max-w-[220px] px-2.5 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
                                                 >
                                                   <option value="">Select...</option>
                                                   {filterChoices.map((choice, idx) => {
@@ -6597,7 +6597,7 @@ export default function TeeemTableView({
                                                   ))
                                                 }}
                                                 placeholder="Value..."
-                                                className="flex-1 min-w-[80px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400"
+                                                className="flex-1 min-w-[140px] max-w-[220px] px-2.5 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500"
                                               />
                                             )
                                           })()}
@@ -6605,9 +6605,10 @@ export default function TeeemTableView({
                                           {/* Delete button */}
                                           <button
                                             onClick={() => setCascadeFilters(cascadeFilters.filter(f => f.id !== filter.id))}
-                                            className="p-1 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 border border-gray-300 dark:border-gray-500 rounded hover:border-red-300 dark:hover:border-red-500 transition-colors"
+                                            className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 border border-gray-300 dark:border-gray-500 rounded-lg hover:border-red-300 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            title="Remove filter"
                                           >
-                                            <span className="text-xs font-bold">✕</span>
+                                            <span className="text-sm font-bold">✕</span>
                                           </button>
                                         </div>
                                       ))
@@ -6683,8 +6684,8 @@ export default function TeeemTableView({
 
                           {/* Sort columns list */}
                           {sortColumns.length === 0 ? (
-                            <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-3 italic">
-                              No sort columns. Click +Sort Column to add one, or Shift+Click column headers.
+                            <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-4 px-3 italic leading-relaxed">
+                              No sort columns.<br className="sm:hidden" /> Click <strong>+Sort Column</strong> to add one,<br className="sm:hidden" /> or <strong>Shift+Click</strong> column headers.
                             </div>
                           ) : (
                             <div className="space-y-2">
