@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { searchAddress, formatAddress as mapboxFormatAddress } from '../utils/mapboxGeocoding'
+// Address lookup uses Nominatim (OpenStreetMap) directly - no external utilities needed
 import {
   UserCircleIcon,
   CheckCircleIcon,
@@ -173,7 +173,7 @@ function PlaceOfBirthAutocomplete({ value, onChange, onSelectPlace }) {
   )
 }
 
-// Address autocomplete component using Mapbox
+// Address autocomplete component using Nominatim (OpenStreetMap) for better Australian address coverage
 function AddressAutocompleteField({ value, onChange }) {
   const [suggestions, setSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -191,6 +191,7 @@ function AddressAutocompleteField({ value, onChange }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Use Nominatim (OpenStreetMap) for better Australian residential address coverage
   const fetchSuggestions = async (query) => {
     if (query.length < 3) {
       setSuggestions([])
@@ -199,8 +200,16 @@ function AddressAutocompleteField({ value, onChange }) {
 
     setLoading(true)
     try {
-      const results = await searchAddress(query, { country: 'au', limit: 8 })
-      setSuggestions(results || [])
+      // Using Nominatim for geocoding - free and better residential address coverage
+      const url = `https://nominatim.openstreetmap.org/search?` +
+        `q=${encodeURIComponent(query)}, Australia&` +
+        `format=json&` +
+        `addressdetails=1&` +
+        `limit=10`
+
+      const response = await fetch(url)
+      const data = await response.json()
+      setSuggestions(data || [])
       setShowSuggestions(true)
     } catch (error) {
       console.error('Error fetching address suggestions:', error)
@@ -223,9 +232,31 @@ function AddressAutocompleteField({ value, onChange }) {
     }, 300)
   }
 
+  // Format Nominatim address nicely
+  const formatNominatimAddress = (suggestion) => {
+    const parts = []
+    const addr = suggestion.address
+
+    if (addr.house_number && addr.road) {
+      parts.push(`${addr.house_number} ${addr.road}`)
+    } else if (addr.road) {
+      parts.push(addr.road)
+    }
+
+    if (addr.suburb || addr.neighbourhood) {
+      parts.push(addr.suburb || addr.neighbourhood)
+    }
+
+    if (addr.state && addr.postcode) {
+      parts.push(`${addr.state} ${addr.postcode}`)
+    }
+
+    return parts.length > 0 ? parts.join(', ') : suggestion.display_name
+  }
+
   const handleSelect = (suggestion) => {
-    // Format address using mapbox utility
-    const formattedAddress = mapboxFormatAddress(suggestion.address)
+    // Format address using Nominatim data
+    const formattedAddress = formatNominatimAddress(suggestion)
     onChange(formattedAddress)
     setSuggestions([])
     setShowSuggestions(false)
@@ -252,7 +283,7 @@ function AddressAutocompleteField({ value, onChange }) {
         <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
           {suggestions.map((suggestion) => (
             <button
-              key={suggestion.id}
+              key={suggestion.place_id}
               type="button"
               onClick={() => handleSelect(suggestion)}
               className="w-full text-left px-4 py-2 hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-b-0"
@@ -261,10 +292,10 @@ function AddressAutocompleteField({ value, onChange }) {
                 <MapPinIcon className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
-                    {mapboxFormatAddress(suggestion.address)}
+                    {formatNominatimAddress(suggestion)}
                   </p>
                   <p className="text-xs text-gray-500 truncate">
-                    {suggestion.placeName}
+                    {suggestion.display_name}
                   </p>
                 </div>
               </div>
