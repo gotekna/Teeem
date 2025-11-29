@@ -124,14 +124,11 @@ export default function UserManagementTab() {
 
     setImpersonating(user.id)
     try {
-      const response = await fetch(`/api/v1/auth/impersonate/${user.id}`, {
-        method: 'POST',
+      const data = await api.post(`/api/v1/auth/impersonate/${user.id}`, {}, {
         headers: {
-          'Content-Type': 'application/json',
           'X-Admin-Secret': ADMIN_SECRET
         }
       })
-      const data = await response.json()
 
       if (data.success && data.token) {
         // Store the new token
