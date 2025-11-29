@@ -318,48 +318,55 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
           )}
         </div>
 
-        {/* Details Grid */}
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          {/* Customer */}
-          <div>
-            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center justify-between">
-              <span>Client</span>
-              {customer.contact_exists ? (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                  ✓ Existing
-                </span>
-              ) : customer.name ? (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                  + Create New
-                </span>
-              ) : null}
-            </h4>
-            <div className="space-y-1">
-              {customer.name && (
-                <div className="flex items-center text-sm">
-                  <UserIcon className="w-4 h-4 mr-2 text-gray-400" />
-                  {customer.name}
-                </div>
-              )}
-              {customer.email && (
-                <div className="flex items-center text-sm text-gray-600">
-                  <EnvelopeIcon className="w-4 h-4 mr-2 text-gray-400" />
-                  {customer.email}
-                </div>
-              )}
-              {customer.phone && (
-                <div className="flex items-center text-sm text-gray-600">
-                  📞 {customer.phone}
-                </div>
-              )}
-              {customer.company && (
-                <div className="flex items-center text-sm text-gray-600">
-                  <BuildingOfficeIcon className="w-4 h-4 mr-2 text-gray-400" />
-                  {customer.company}
-                </div>
-              )}
-            </div>
+        {/* Client Section */}
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <BuildingOfficeIcon className="w-4 h-4 text-gray-500" />
+            <h4 className="text-sm font-medium text-gray-900">Client</h4>
+            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+              {customer.name ? '1' : '0'}
+            </span>
           </div>
+
+          {customer.name ? (
+            <div className="pl-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm font-medium text-gray-900">{customer.name}</span>
+                    {customer.contact_exists ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Existing
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        Create New
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 space-y-1 ml-6">
+                    {customer.email && (
+                      <div className="text-sm text-gray-600">{customer.email}</div>
+                    )}
+                    {customer.phone && (
+                      <div className="text-sm text-gray-600">{customer.phone}</div>
+                    )}
+                    {customer.company && (
+                      <div className="text-sm text-gray-600">{customer.company}</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="pl-6 text-sm text-gray-500 italic">No client detected</div>
+          )}
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          {/* Job Details - keep existing */}
+          <div>
 
           {/* Job Details */}
           <div>
@@ -389,80 +396,95 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
           </div>
         </div>
 
-        {/* Sales Info */}
-        {(data.internal_sales || data.external_sales?.length > 0) && (
-          <div className="mt-4 border-t border-gray-200 pt-4">
-            <h4 className="text-xs font-medium text-gray-700 uppercase tracking-wide mb-3">Sales</h4>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Internal Sales */}
-              {data.internal_sales && (
-                <div>
-                  <h5 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
-                    <UserIcon className="w-3 h-3 mr-1" />
-                    Internal Sales
-                  </h5>
-                  <div className="text-sm">
-                    <div className="font-medium">{data.internal_sales.user_name}</div>
-                    <div className="text-gray-600 text-xs">{data.internal_sales.user_email}</div>
-                  </div>
-                </div>
-              )}
+        {/* External Sales Section */}
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <UserGroupIcon className="w-4 h-4 text-gray-500" />
+            <h4 className="text-sm font-medium text-gray-900">External Sales</h4>
+            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+              {data.external_sales?.length || 0}
+            </span>
+          </div>
 
-              {/* External Sales */}
-              {data.external_sales?.length > 0 && (
-                <div>
-                  <h5 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
-                    <UserGroupIcon className="w-3 h-3 mr-1" />
-                    External Sales
-                  </h5>
-                  <div className="space-y-2">
-                    {data.external_sales.map((sales, idx) => (
-                      <div key={idx} className="text-sm border-l-2 pl-2" style={{ borderColor: sales.contact_exists ? '#10b981' : '#f97316' }}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="font-medium">{sales.name}</div>
-                          {sales.contact_exists ? (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                              ✓ Existing
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                              + Create New
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-gray-600 text-xs">{sales.email}</div>
-                      </div>
-                    ))}
+          {data.external_sales?.length > 0 ? (
+            <div className="pl-6 space-y-3">
+              {data.external_sales.map((sales, idx) => (
+                <div key={idx}>
+                  <div className="flex items-center gap-2">
+                    <UserIcon className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm font-medium text-gray-900">{sales.name}</span>
+                    {sales.contact_exists ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                        Existing
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        Create New
+                      </span>
+                    )}
                   </div>
+                  <div className="ml-6 text-sm text-gray-600">{sales.email}</div>
                 </div>
-              )}
+              ))}
+            </div>
+          ) : (
+            <div className="pl-6 text-sm text-gray-500 italic">No external sales assigned</div>
+          )}
+        </div>
+
+        {/* Internal Sales Section */}
+        {data.internal_sales && (
+          <div className="mt-4 border-t border-gray-200 pt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <h4 className="text-sm font-medium text-gray-900">Internal Sales</h4>
+              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                1
+              </span>
+            </div>
+            <div className="pl-6">
+              <div className="flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-medium text-gray-900">{data.internal_sales.user_name}</span>
+              </div>
+              <div className="ml-6 text-sm text-gray-600">{data.internal_sales.user_email}</div>
             </div>
           </div>
         )}
 
-        {/* Referral */}
-        {data.referral_contact && (
-          <div className="mt-4 border-t border-gray-200 pt-4">
-            <h4 className="text-xs font-medium text-gray-700 uppercase tracking-wide mb-3">Referral</h4>
-            <div className="text-sm border-l-2 pl-2" style={{ borderColor: data.referral_contact.contact_exists ? '#10b981' : '#f97316' }}>
-              <div className="flex items-center justify-between mb-1">
-                <div className="font-medium">{data.referral_contact.name}</div>
+        {/* Referral Section */}
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <HandRaisedIcon className="w-4 h-4 text-gray-500" />
+            <h4 className="text-sm font-medium text-gray-900">Referral</h4>
+            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+              {data.referral_contact ? '1' : '0'}
+            </span>
+          </div>
+
+          {data.referral_contact ? (
+            <div className="pl-6">
+              <div className="flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-medium text-gray-900">{data.referral_contact.name}</span>
                 {data.referral_contact.contact_exists ? (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                    ✓ Existing
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                    Existing
                   </span>
                 ) : (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                    + Create New
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                    Create New
                   </span>
                 )}
               </div>
               {data.referral_contact.email && (
-                <div className="text-gray-600 text-xs">{data.referral_contact.email}</div>
+                <div className="ml-6 text-sm text-gray-600">{data.referral_contact.email}</div>
               )}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="pl-6 text-sm text-gray-500 italic">No referral assigned</div>
+          )}
+        </div>
 
         {/* Description */}
         {data.description && (
