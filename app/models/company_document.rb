@@ -23,6 +23,11 @@ class CompanyDocument < ApplicationRecord
   scope :by_type, ->(type) { where(document_type: type) }
   scope :by_year, ->(year) { where(year: year) }
   scope :by_folder, ->(folder) { where(folder: folder) }
+  scope :by_tab, ->(tab) {
+    joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
+      .where("document_types.tabs @> ?", [tab].to_json)
+  }
+  scope :by_source, ->(source) { where(source: source) }
   scope :electronic, -> { where(storage_type: 'electronic') }
   scope :manual, -> { where(storage_type: 'manual') }
   scope :recent, -> { order(created_at: :desc) }
