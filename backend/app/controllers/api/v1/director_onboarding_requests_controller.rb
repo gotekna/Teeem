@@ -399,7 +399,8 @@ module Api
         return { success: false, error: 'No email address' } if onboarding_request.email.blank?
 
         begin
-          email_service = DirectorOnboardingEmailService.new
+          # Pass current_user so email shows "User Name via Tekna Homes" as sender
+          email_service = DirectorOnboardingEmailService.new(sender: current_user)
           email_service.send_invitation(onboarding_request)
         rescue => e
           Rails.logger.error "Failed to send director onboarding invitation: #{e.message}"

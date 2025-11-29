@@ -1,12 +1,11 @@
 class DirectorOnboardingEmailService
-  DEFAULT_FROM = 'admin@teknahomes.com.au'
-
-  def initialize
+  def initialize(sender: nil)
     @email_service = MicrosoftEmailService.new
+    @sender = sender # User object who is sending the email
   end
 
   # Send invitation email to director
-  def send_invitation(request, from: DEFAULT_FROM)
+  def send_invitation(request)
     onboarding_url = build_onboarding_url(request.access_token)
 
     subject = "Director ID Verification Required - Tekna Homes"
@@ -16,7 +15,8 @@ class DirectorOnboardingEmailService
       to: request.email,
       subject: subject,
       body: body,
-      from: from
+      sender_name: sender_display_name,
+      reply_to: sender_reply_to
     )
 
     if result[:success]
@@ -30,7 +30,7 @@ class DirectorOnboardingEmailService
   end
 
   # Send reminder email
-  def send_reminder(request, from: DEFAULT_FROM)
+  def send_reminder(request)
     onboarding_url = build_onboarding_url(request.access_token)
 
     subject = "Reminder: Director ID Verification Required - Tekna Homes"
@@ -40,12 +40,13 @@ class DirectorOnboardingEmailService
       to: request.email,
       subject: subject,
       body: body,
-      from: from
+      sender_name: sender_display_name,
+      reply_to: sender_reply_to
     )
   end
 
   # Send confirmation email after submission
-  def send_submission_confirmation(request, from: DEFAULT_FROM)
+  def send_submission_confirmation(request)
     subject = "Director ID Verification Received - Tekna Homes"
     body = submission_confirmation_body(request)
 
@@ -53,12 +54,13 @@ class DirectorOnboardingEmailService
       to: request.email,
       subject: subject,
       body: body,
-      from: from
+      sender_name: sender_display_name,
+      reply_to: sender_reply_to
     )
   end
 
   # Send approval notification
-  def send_approval_notification(request, from: DEFAULT_FROM)
+  def send_approval_notification(request)
     subject = "Director ID Verification Approved - Tekna Homes"
     body = approval_notification_body(request)
 
@@ -66,11 +68,24 @@ class DirectorOnboardingEmailService
       to: request.email,
       subject: subject,
       body: body,
-      from: from
+      sender_name: sender_display_name,
+      reply_to: sender_reply_to
     )
   end
 
   private
+
+  # Build sender display name (e.g., "Robert Harder via Tekna Homes")
+  def sender_display_name
+    return nil unless @sender
+    "#{@sender.name} via Tekna Homes"
+  end
+
+  # Return sender's email for reply-to header
+  def sender_reply_to
+    return nil unless @sender
+    @sender.email
+  end
 
   def build_onboarding_url(access_token)
     frontend_host = Rails.env.production? ? 'https://teeem.vercel.app' : 'https://teeemrob.vercel.app'
