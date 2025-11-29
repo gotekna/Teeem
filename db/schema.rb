@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_203306) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -122,6 +122,51 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
     t.index ["created_by_id"], name: "index_agent_definitions_on_created_by_id"
     t.index ["last_run_by_id"], name: "index_agent_definitions_on_last_run_by_id"
     t.index ["updated_by_id"], name: "index_agent_definitions_on_updated_by_id"
+  end
+
+  create_table "asset_insurances", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.string "policy_number"
+    t.string "insurer_name"
+    t.string "broker_name"
+    t.string "broker_contact_name"
+    t.string "broker_email"
+    t.string "broker_phone"
+    t.date "start_date"
+    t.date "renewal_date"
+    t.string "payment_frequency"
+    t.decimal "premium_amount", precision: 10, scale: 2
+    t.decimal "coverage_amount", precision: 12, scale: 2
+    t.decimal "excess_amount", precision: 10, scale: 2
+    t.string "status"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id"], name: "index_asset_insurances_on_asset_id"
+    t.index ["renewal_date"], name: "index_asset_insurances_on_renewal_date"
+    t.index ["status"], name: "index_asset_insurances_on_status"
+  end
+
+  create_table "asset_service_histories", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.bigint "user_id"
+    t.date "service_date", null: false
+    t.string "service_type"
+    t.string "service_provider"
+    t.text "description"
+    t.decimal "cost", precision: 10, scale: 2
+    t.integer "odometer_reading"
+    t.integer "hours_reading"
+    t.integer "next_service_km"
+    t.integer "next_service_hours"
+    t.date "next_service_date"
+    t.string "invoice_url"
+    t.string "document_url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id"], name: "index_asset_service_histories_on_asset_id"
+    t.index ["service_date"], name: "index_asset_service_histories_on_service_date"
+    t.index ["service_type"], name: "index_asset_service_histories_on_service_type"
+    t.index ["user_id"], name: "index_asset_service_histories_on_user_id"
   end
 
   create_table "assets", force: :cascade do |t|
@@ -354,12 +399,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
     t.datetime "last_modified_at"
     t.string "expected_onedrive_path"
     t.string "register_folder"
+    t.string "company_code"
+    t.string "source", default: "manual"
+    t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
     t.index ["document_date"], name: "index_company_documents_on_document_date"
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
     t.index ["folder"], name: "index_company_documents_on_folder"
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
+    t.index ["source"], name: "index_company_documents_on_source"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
   end
 
@@ -841,10 +890,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "tabs", default: []
+    t.string "primary_tab"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name"], name: "index_document_types_on_name", unique: true
+    t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
   end
 
   create_table "documentation_categories", force: :cascade do |t|
@@ -3633,6 +3685,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_054101) do
   add_foreign_key "agent_definitions", "users", column: "created_by_id"
   add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
+  add_foreign_key "asset_insurances", "assets"
+  add_foreign_key "asset_service_histories", "assets"
+  add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "companies"
   add_foreign_key "bank_accounts", "companies"
   add_foreign_key "chat_messages", "jobs"
