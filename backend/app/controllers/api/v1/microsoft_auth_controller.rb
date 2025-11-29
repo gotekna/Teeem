@@ -1,6 +1,6 @@
 class Api::V1::MicrosoftAuthController < ApplicationController
   # Skip authentication for OAuth callback - Microsoft redirects here without auth token
-  skip_before_action :authorize_request, only: [:callback]
+  skip_before_action :authorize_request, only: [:callback, :admin_consent_callback]
 
   # All Microsoft Graph scopes needed for the app
   REQUIRED_SCOPES = [
@@ -195,6 +195,64 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     render json: { success: true, message: 'Microsoft account disconnected successfully' }
   end
 
+  # GET /api/v1/microsoft/admin_consent_url
+  # Get the admin consent URL - allows Azure AD admin to grant permissions for all users
+  def admin_consent_url
+    unless current_user.role == 'admin'
+      render json: { error: 'Only admins can request organization-wide consent' }, status: :forbidden
+      return
+    end
+
+    client_id = ENV['OUTLOOK_CLIENT_ID']
+    tenant = ENV['OUTLOOK_TENANT_ID']
+
+    if client_id.blank? || tenant.blank?
+      render json: { error: 'Microsoft OAuth not fully configured. OUTLOOK_TENANT_ID is required for admin consent.' }, status: :unprocessable_entity
+      return
+    end
+
+    redirect_uri = "#{request.base_url}/api/v1/microsoft/admin_consent_callback"
+
+    # Admin consent URL uses the /adminconsent endpoint
+    consent_url = "https://login.microsoftonline.com/#{tenant}/adminconsent?" + URI.encode_www_form({
+      client_id: client_id,
+      redirect_uri: redirect_uri,
+      state: Base64.urlsafe_encode64({ admin_id: current_user.id }.to_json)
+    })
+
+    render json: {
+      admin_consent_url: consent_url,
+      message: 'Click this URL to grant organization-wide consent. You must be an Azure AD admin.'
+    }
+  end
+
+  # GET /api/v1/microsoft/admin_consent_callback
+  # Callback after admin grants consent for the organization
+  def admin_consent_callback
+    error = params[:error]
+    error_description = params[:error_description]
+    admin_consent = params[:admin_consent]
+    tenant = params[:tenant]
+
+    if error.present?
+      Rails.logger.error "Admin consent error: #{error} - #{error_description}"
+      return render_admin_consent_page(success: false, error: error_description || error)
+    end
+
+    if admin_consent == 'True'
+      Rails.logger.info "Admin consent granted for tenant #{tenant}"
+
+      # Store that admin consent was granted for this tenant
+      # This means users in this tenant can now auth without individual consent
+      Setting.set('microsoft_admin_consent_granted', 'true')
+      Setting.set('microsoft_admin_consent_tenant', tenant)
+
+      render_admin_consent_page(success: true, tenant: tenant)
+    else
+      render_admin_consent_page(success: false, error: 'Admin consent was not granted')
+    end
+  end
+
   private
 
   def microsoft_redirect_uri
@@ -320,6 +378,67 @@ class Api::V1::MicrosoftAuthController < ApplicationController
         <div class="service"><span class="check">✓</span> OneDrive - File access enabled</div>
         <div class="service"><span class="check">✓</span> SharePoint - Site access enabled</div>
       </div>
+    HTML
+  end
+
+  def render_admin_consent_page(success:, tenant: nil, error: nil)
+    frontend_url = ENV['FRONTEND_URL'] || 'https://teeemrob.vercel.app'
+
+    html = <<~HTML
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>#{success ? 'Admin Consent Granted' : 'Admin Consent Failed'}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #{success ? '#f0fdf4' : '#fef2f2'};
+          }
+          .container {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 500px;
+          }
+          .icon { font-size: 48px; margin-bottom: 16px; }
+          h1 { color: #{success ? '#166534' : '#991b1b'}; margin: 0 0 8px 0; font-size: 24px; }
+          p { color: #6b7280; margin: 8px 0; }
+          .info { background: #f3f4f6; padding: 16px; border-radius: 8px; margin-top: 16px; text-align: left; }
+          .info p { margin: 4px 0; font-size: 14px; }
+          a { color: #4f46e5; text-decoration: none; }
+          a:hover { text-decoration: underline; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="icon">#{success ? '✓' : '✕'}</div>
+          <h1>#{success ? 'Organization Consent Granted!' : 'Admin Consent Failed'}</h1>
+          #{success ? admin_consent_success_html(tenant) : "<p>#{error}</p>"}
+          <p style="margin-top: 24px;"><a href="#{frontend_url}/admin/system?tab=company&subtab=Connections">Return to TEEEM Settings</a></p>
+        </div>
+      </body>
+      </html>
+    HTML
+    render html: html.html_safe
+  end
+
+  def admin_consent_success_html(tenant)
+    <<~HTML
+      <p>All users in your organization can now connect their Microsoft 365 accounts.</p>
+      <div class="info">
+        <p><strong>What this means:</strong></p>
+        <p>• Users won't need to individually grant permissions</p>
+        <p>• When they click "Connect Microsoft 365", they just need to sign in</p>
+        <p>• Their Outlook, OneDrive, and SharePoint access will be enabled automatically</p>
+      </div>
+      <p style="margin-top: 16px; font-size: 14px; color: #6b7280;">Tenant ID: #{tenant}</p>
     HTML
   end
 end

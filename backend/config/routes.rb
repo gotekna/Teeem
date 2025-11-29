@@ -390,6 +390,9 @@ Rails.application.routes.draw do
           get :status
           post :refresh
           delete :disconnect
+          # Admin consent for organization-wide permissions
+          get :admin_consent_url
+          get :admin_consent_callback
         end
       end
 
