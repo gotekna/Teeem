@@ -6406,9 +6406,13 @@ export default function TeeemTableView({
                                                   className="flex-1 min-w-[120px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
                                                 >
                                                   <option value="">Select...</option>
-                                                  {filterChoices.map(choice => (
-                                                    <option key={choice} value={choice}>{choice}</option>
-                                                  ))}
+                                                  {filterChoices.map((choice, idx) => {
+                                                    // Handle both object format {id, display} and string format
+                                                    if (choice && typeof choice === 'object') {
+                                                      return <option key={choice.id ?? idx} value={choice.display ?? choice.id}>{choice.display ?? choice.id ?? '-'}</option>
+                                                    }
+                                                    return <option key={choice ?? idx} value={choice}>{choice}</option>
+                                                  })}
                                                 </select>
                                               )
                                             }
