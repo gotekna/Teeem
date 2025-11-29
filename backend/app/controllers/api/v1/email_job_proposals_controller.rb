@@ -51,6 +51,21 @@ module Api
       def create
         email = EmailWarehouse.find(params[:email_warehouse_id])
 
+        # Check if email has already been actioned (rejected or assigned to job)
+        if email.match_type == 'rejected'
+          return render json: {
+            success: false,
+            error: 'This email was previously rejected and cannot create a new proposal'
+          }, status: :unprocessable_entity
+        end
+
+        if email.job_id.present?
+          return render json: {
+            success: false,
+            error: 'This email is already assigned to a job'
+          }, status: :unprocessable_entity
+        end
+
         # Check if proposal already exists for this email
         existing_proposal = EmailJobProposal.find_by(
           email_warehouse: email,

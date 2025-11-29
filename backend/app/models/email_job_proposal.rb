@@ -84,6 +84,12 @@ class EmailJobProposal < ApplicationRecord
       status: 'rejected',
       rejection_reason: reason
     )
+
+    # Mark email as actioned (rejected) so it won't create another proposal
+    email_warehouse.update!(
+      match_type: 'rejected',
+      matched_at: Time.current
+    )
   end
 
   def mark_error!(error_msg:)
