@@ -139,6 +139,7 @@ export default function AppLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeJobs, setActiveJobs] = useState([])
   const [totalJobsCount, setTotalJobsCount] = useState(0)
+  const [pendingProposalsCount, setPendingProposalsCount] = useState(0)
   const [jobSearchQuery, setJobSearchQuery] = useState('')
   const [activeJobsExpanded, setActiveJobsExpanded] = useState(() => {
     const saved = localStorage.getItem('activeJobsExpanded')
@@ -354,6 +355,28 @@ export default function AppLayout({ children }) {
       }
     }
     loadActiveJobs()
+  }, [user])
+
+  // Load pending email proposals count for sidebar badge
+  useEffect(() => {
+    // Only load when authenticated
+    if (!user) return
+
+    const loadPendingProposalsCount = async () => {
+      try {
+        const response = await api.get('/api/v1/email_job_proposals')
+        const proposals = response.data?.proposals || []
+        const pendingCount = proposals.filter(p => p.status === 'pending').length
+        setPendingProposalsCount(pendingCount)
+      } catch (err) {
+        console.debug('Email proposals count unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadPendingProposalsCount()
+
+    // Refresh count every 60 seconds to catch new proposals
+    const interval = setInterval(loadPendingProposalsCount, 60000)
+    return () => clearInterval(interval)
   }, [user])
 
   // Load price books for sidebar
@@ -888,6 +911,11 @@ export default function AppLayout({ children }) {
                                 )}
                               />
                               {item.name}
+                              {item.name === 'Email Proposals' && pendingProposalsCount > 0 && (
+                                <span className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-500 text-[11px] font-medium text-white">
+                                  {pendingProposalsCount}
+                                </span>
+                              )}
                             </Link>
                           </li>
                         )
@@ -2391,6 +2419,45 @@ export default function AppLayout({ children }) {
                                 })}
                             </ul>
                           )}
+                        </li>
+                      )
+                    }
+
+                    // Special handling for Email Proposals - show pending count
+                    if (item.name === 'Email Proposals') {
+                      return (
+                        <li key={item.name}>
+                          <Link
+                            to={item.href}
+                            title={sidebarCollapsed ? item.name : undefined}
+                            className={classNames(
+                              current
+                                ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                              'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
+                              sidebarCollapsed && 'justify-center'
+                            )}
+                          >
+                            <item.icon
+                              aria-hidden="true"
+                              className={classNames(
+                                current
+                                  ? 'text-indigo-600 dark:text-white'
+                                  : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                'size-6 shrink-0',
+                              )}
+                            />
+                            {!sidebarCollapsed && (
+                              <>
+                                {item.name}
+                                {pendingProposalsCount > 0 && (
+                                  <span className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-500 text-[11px] font-medium text-white">
+                                    {pendingProposalsCount}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </Link>
                         </li>
                       )
                     }
