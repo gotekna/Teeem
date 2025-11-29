@@ -32,9 +32,11 @@ import JobInvoicesTab from '../components/jobs/JobInvoicesTab'
 import JobBillsTab from '../components/jobs/JobBillsTab'
 import JobProfitTab from '../components/jobs/JobProfitTab'
 import JobActivityTab from '../components/jobs/JobActivityTab'
+import JobEstimatorTab from '../components/jobs/JobEstimatorTab'
 
 const tabs = [
   { name: 'Overview', slug: 'overview' },
+  { name: 'Estimator', slug: 'estimator' },
   { name: 'People', slug: 'people' },
   { name: 'Profit', slug: 'profit' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
@@ -688,6 +690,10 @@ export default function JobDetailPage() {
 
           {activeTab === 'people' && (
             <JobPeopleTab jobId={id} onUpdate={loadJob} />
+          )}
+
+          {activeTab === 'estimator' && (
+            <JobEstimatorTab jobId={id} />
           )}
 
           {isProfitSection && (
