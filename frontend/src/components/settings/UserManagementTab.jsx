@@ -32,10 +32,10 @@ const ASSIGNABLE_ROLES = ['admin', 'sales', 'site', 'supervisor', 'builder', 'es
 const USER_COLUMNS = [
   { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
   { key: 'section', label: 'ID', resizable: true, sortable: true, filterable: false, width: 60 },
-  { key: 'title', label: 'Name', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 200 },
-  { key: 'description', label: 'Email', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 250 },
+  { key: 'title', label: 'Name', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 200, column_type: 'single_line_text' },
+  { key: 'description', label: 'Email', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 250, column_type: 'email' },
   { key: 'entry_type', label: 'Role', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 140 },
-  { key: 'component', label: 'Mobile', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 140 },
+  { key: 'component', label: 'Mobile', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 140, column_type: 'phone' },
   { key: 'status', label: 'Status', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
   { key: 'assigned_roles', label: 'Assigned Role', resizable: true, sortable: true, filterable: true, filterType: 'multiselect', width: 180, options: ASSIGNABLE_ROLES },
   { key: 'actions', label: 'Actions', resizable: false, sortable: false, filterable: false, width: 120 }
@@ -88,6 +88,44 @@ export default function UserManagementTab() {
   const handleEdit = (entry) => {
     // TODO: Open edit modal for user
     console.log('Edit user:', entry._original)
+  }
+
+  // Handle inline row updates (called by TeeemTableView when editing cells)
+  const handleRowUpdate = async (rowId, field, value) => {
+    console.log('User row update:', { rowId, field, value })
+
+    // Map TeeemTableView field names to API field names
+    const fieldMapping = {
+      title: 'name',
+      description: 'email',
+      component: 'mobile_phone',
+      entry_type: 'role',
+      status: 'status',
+      assigned_roles: 'assigned_roles'
+    }
+
+    const apiField = fieldMapping[field] || field
+
+    try {
+      const response = await api.patch(`/api/v1/users/${rowId}`, {
+        user: { [apiField]: value }
+      })
+
+      if (response.success || response.user) {
+        setToast({
+          message: 'User updated successfully',
+          type: 'success'
+        })
+        // Reload users to get fresh data
+        loadUsers()
+      }
+    } catch (err) {
+      console.error('Failed to update user:', err)
+      setToast({
+        message: `Failed to update user: ${err.message}`,
+        type: 'error'
+      })
+    }
   }
 
   const handleDelete = async (entry) => {
@@ -214,6 +252,7 @@ export default function UserManagementTab() {
         entries={users}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        onRowUpdate={handleRowUpdate}
         category="users"
         foundationId="users-quick-view"
         columns={USER_COLUMNS}

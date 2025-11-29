@@ -2861,6 +2861,23 @@ export default function TeeemTableView({
 
       case 'title':
         if (editingRowId === entry.id) {
+          // Check if column is configured as single_line_text for inline editing
+          const titleColumn = COLUMNS.find(c => c.key === 'title')
+          if (titleColumn?.column_type === 'single_line_text') {
+            // Use inline input for single_line_text
+            return (
+              <input
+                type="text"
+                value={editingData.title || ''}
+                onChange={(e) => setEditingData({ ...editingData, title: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.target.select()}
+                className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-medium"
+                placeholder="Enter name..."
+              />
+            )
+          }
+          // Default: show button to open rich text modal
           return (
             <button
               onClick={(e) => {
