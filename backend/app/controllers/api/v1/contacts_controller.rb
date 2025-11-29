@@ -17,6 +17,12 @@ module Api
       def index
         @contacts = Contact.all
 
+        # Filter to only show actual company directors (from company_directors table)
+        if params[:is_director] == 'true'
+          director_contact_ids = CompanyDirector.where(is_current: true).pluck(:contact_id).uniq
+          @contacts = @contacts.where(id: director_contact_ids)
+        end
+
         # Search by name or email
         if params[:search].present?
           search_term = "%#{params[:search]}%"
