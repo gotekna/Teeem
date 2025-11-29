@@ -1,0 +1,301 @@
+require 'anthropic'
+
+class EmailToJobService
+  CLAUDE_MODEL = 'claude-sonnet-4-5-20250929'
+  MAX_TOKENS = 2000
+  RATE_LIMIT_PER_HOUR = 20
+
+  class RateLimitError < StandardError; end
+  class AIExtractionError < StandardError; end
+  class JobCreationError < StandardError; end
+
+  def initialize(email_warehouse, user:)
+    @email = email_warehouse
+    @user = user
+  end
+
+  # Main entry point - analyzes email and creates proposal
+  def create_job_proposal
+    # Check rate limit
+    check_rate_limit!
+
+    # Extract data using Claude AI
+    start_time = Time.current
+    extracted_data = extract_job_data_with_ai
+    processing_time = ((Time.current - start_time) * 1000).to_i
+
+    # Get AI prompt and response for logging
+    prompt = build_extraction_prompt
+    ai_response = extracted_data.delete('_raw_response') # Remove from data, store separately
+
+    # Create proposal record
+    proposal = EmailJobProposal.create!(
+      email_warehouse: @email,
+      created_by_user: @user,
+      extracted_data: extracted_data,
+      ai_prompt: prompt,
+      ai_response_raw: ai_response,
+      processing_time_ms: processing_time,
+      ai_model_used: CLAUDE_MODEL,
+      status: 'pending'
+    )
+
+    Rails.logger.info "Created job proposal #{proposal.id} from email #{@email.id} with confidence #{extracted_data['confidence_score']}"
+
+    proposal
+  rescue RateLimitError => e
+    Rails.logger.error "Rate limit hit for user #{@user.id}: #{e.message}"
+    raise
+  rescue StandardError => e
+    Rails.logger.error "Job proposal creation failed: #{e.class} - #{e.message}"
+    Rails.logger.error e.backtrace.first(5).join("\n")
+
+    # Create error proposal
+    EmailJobProposal.create!(
+      email_warehouse: @email,
+      created_by_user: @user,
+      extracted_data: { error: e.message },
+      status: 'error',
+      error_message: e.message
+    )
+  end
+
+  # Approve proposal and create actual job
+  def approve_proposal(proposal, user_edits: {})
+    # Merge user edits with AI-extracted data
+    job_data = proposal.extracted_data.deep_merge(user_edits)
+
+    # Create or find customer contact
+    customer = find_or_create_customer(job_data['customer'])
+
+    # Create job
+    job = Job.create!(
+      title: job_data['job_title'] || "Job from #{@email.from_email}",
+      site_supervisor_name: @user.name,
+      site_supervisor_email: @user.email,
+      site_supervisor_phone: @user.phone_number,
+      contract_value: job_data['contract_value']&.to_f
+      # Note: job_type_id and job_status_id can be added if you have defaults
+      # or if user provides them in edits
+    )
+
+    # Link customer to job as primary client
+    job.job_contacts.create!(
+      contact: customer,
+      role: 'client',
+      primary: true
+    )
+
+    # Link email to job
+    @email.assign_to_job!(job, by_user: @user)
+
+    # Mark proposal as approved
+    proposal.mark_approved!(by_user: @user, job: job)
+
+    # Log activity
+    JobActivity.log_job_created(job, user: @user, metadata: {
+      source: 'email_proposal',
+      proposal_id: proposal.id,
+      email_id: @email.id,
+      ai_confidence: job_data['confidence_score']
+    })
+
+    Rails.logger.info "Job #{job.id} created from proposal #{proposal.id}"
+
+    job
+  rescue StandardError => e
+    Rails.logger.error "Job creation from proposal failed: #{e.message}"
+    proposal.mark_error!(error_msg: e.message)
+    raise JobCreationError, e.message
+  end
+
+  private
+
+  def check_rate_limit!
+    recent_count = EmailJobProposal
+      .where(created_by_user: @user)
+      .where('created_at > ?', 1.hour.ago)
+      .count
+
+    if recent_count >= RATE_LIMIT_PER_HOUR
+      raise RateLimitError, "Too many proposals created recently. Limit: #{RATE_LIMIT_PER_HOUR} per hour."
+    end
+  end
+
+  def extract_job_data_with_ai
+    prompt = build_extraction_prompt
+
+    begin
+      response = call_claude_api(prompt)
+      raw_response = response # Store raw for logging
+
+      # Parse JSON response
+      extracted = parse_json_response(response)
+
+      # Add raw response for logging (will be removed before storing)
+      extracted['_raw_response'] = raw_response
+
+      extracted
+    rescue JSON::ParserError => e
+      # AI returned invalid JSON - create low confidence response
+      Rails.logger.error "Claude returned invalid JSON: #{e.message}"
+      {
+        'job_title' => @email.subject,
+        'customer' => {
+          'name' => @email.from_name || extract_name_from_email(@email.from_email),
+          'email' => @email.from_email
+        },
+        'confidence_score' => 0.1,
+        'error' => 'AI returned invalid response',
+        'missing_info' => ['all fields - AI extraction failed'],
+        '_raw_response' => response
+      }
+    end
+  end
+
+  def build_extraction_prompt
+    # Get email body (prefer text, fallback to stripped HTML)
+    email_body = @email.body_text.presence || strip_html(@email.body_html)
+
+    <<~PROMPT
+      You are analyzing an email to extract information for creating a construction job in Australia.
+
+      Email details:
+      From: #{@email.from_email}#{" (#{@email.from_name})" if @email.from_name.present?}
+      Subject: #{@email.subject}
+      Date: #{@email.received_at}
+      Has Attachments: #{@email.has_attachments ? 'Yes' : 'No'}
+
+      Email Body:
+      #{email_body}
+
+      Extract the following information and return ONLY valid JSON (no markdown, no code blocks, just raw JSON):
+
+      {
+        "job_title": "Property address if mentioned (e.g., '123 Main Street, Brisbane QLD 4000'), otherwise infer from context or use subject line",
+        "customer": {
+          "name": "Customer's full name (if not mentioned, extract from email sender name)",
+          "email": "Customer email (use sender email if customer is the sender)",
+          "phone": "Phone number if mentioned in email",
+          "company": "Company name if mentioned",
+          "entity_type": "person or company (infer from context)"
+        },
+        "description": "Brief 1-2 sentence description of what the customer wants",
+        "scope_of_work": "Detailed scope extracted from email - what needs to be built/renovated/fixed",
+        "contract_value": null or estimated value if mentioned as a number (no currency symbols),
+        "urgency": "urgent, normal, or low based on language used",
+        "job_type": "renovation, new_build, extension, repair, or other",
+        "attachments_mentioned": ["list of any files mentioned or attached"],
+        "confidence_score": 0.0 to 1.0 based on how much critical information is present,
+        "missing_info": ["list of critical missing information like 'property address', 'customer name', 'scope of work', etc."]
+      }
+
+      Confidence scoring guidelines:
+      - 0.9-1.0: Clear address, customer details, specific scope, attachments
+      - 0.7-0.89: Address and customer identified, general scope mentioned
+      - 0.5-0.69: Some info present but key details missing (e.g., no address or vague scope)
+      - 0.3-0.49: Minimal information, mostly missing critical data
+      - 0.0-0.29: Almost no usable information
+
+      Important notes for Australian context:
+      - Look for Australian address formats (Street, Suburb, State, Postcode)
+      - Common Australian phone formats: (07) 3xxx xxxx, 0412 xxx xxx, +61 7 xxxx xxxx
+      - If email mentions "quote" or "estimate", customer likely wants pricing
+      - Be conservative with confidence_score - only high if address and customer are very clear
+      - In missing_info, list ALL critical information that's not found or unclear
+      - Return ONLY the JSON object, no additional text, no markdown formatting
+    PROMPT
+  end
+
+  def call_claude_api(prompt)
+    api_key = ENV['ANTHROPIC_API_KEY']
+    raise AIExtractionError, "ANTHROPIC_API_KEY not configured" unless api_key
+
+    client = Anthropic::Client.new(
+      access_token: api_key,
+      anthropic_version: "2023-06-01"  # Required for Messages API
+    )
+
+    # Call Claude API using the Messages API (anthropic gem v0.3+)
+    response = client.messages(
+      parameters: {
+        model: "claude-3-haiku-20240307",  # Claude 3 Haiku (fast & available)
+        max_tokens: MAX_TOKENS,
+        messages: [
+          {
+            role: "user",
+            content: prompt
+          }
+        ]
+      }
+    )
+
+    # Extract text from response
+    response.dig("content", 0, "text") || response.dig(:content, 0, :text) || ""
+  rescue Anthropic::Error => e
+    Rails.logger.error "Anthropic API error: #{e.message}"
+    raise AIExtractionError, "Claude API error: #{e.message}"
+  end
+
+  def parse_json_response(response_text)
+    # Try to find JSON in response (Claude sometimes adds explanation)
+    # Look for JSON object between curly braces
+    json_match = response_text.match(/\{.*\}/m)
+
+    if json_match
+      JSON.parse(json_match[0])
+    else
+      # No JSON found
+      raise JSON::ParserError, "No JSON object found in response"
+    end
+  end
+
+  def find_or_create_customer(customer_data)
+    return nil unless customer_data.is_a?(Hash)
+
+    email = customer_data['email']
+    return nil unless email.present?
+
+    # Try to find existing contact by email
+    contact = Contact.find_by(email: email)
+    return contact if contact
+
+    # Create new contact
+    Contact.create!(
+      email: email,
+      full_name: customer_data['name'],
+      mobile_phone: normalize_phone(customer_data['phone']),
+      company_name: customer_data['company'],
+      entity_type: customer_data['entity_type'] || 'person',
+      contact_types: ['customer']
+    )
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.error "Failed to create customer: #{e.message}"
+    # Try to find by email again in case of race condition
+    Contact.find_by(email: email)
+  end
+
+  def normalize_phone(phone)
+    return nil if phone.blank?
+
+    # Remove common formatting characters
+    phone.gsub(/[\s\-\(\)]/, '')
+  end
+
+  def strip_html(html)
+    return nil if html.blank?
+
+    # Basic HTML stripping for AI prompt
+    html.gsub(/<[^>]*>/, ' ')
+        .gsub(/&nbsp;/, ' ')
+        .gsub(/&[a-z]+;/, ' ')
+        .gsub(/\s+/, ' ')
+        .strip
+  end
+
+  def extract_name_from_email(email)
+    # Extract name from email address like john.smith@example.com -> John Smith
+    local_part = email.split('@').first
+    local_part.split(/[._]/).map(&:capitalize).join(' ')
+  end
+end

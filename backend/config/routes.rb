@@ -429,6 +429,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Email Job Proposals (AI-powered job creation from emails)
+      resources :email_job_proposals, only: [:index, :show, :create] do
+        member do
+          post :approve
+          post :reject
+        end
+      end
+
       # Designs library
       resources :designs
 

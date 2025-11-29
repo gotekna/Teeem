@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_043620) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_050424) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -841,6 +841,31 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_043620) do
     t.index ["name"], name: "index_documentation_categories_on_name", unique: true
   end
 
+  create_table "email_job_proposals", force: :cascade do |t|
+    t.bigint "email_warehouse_id", null: false
+    t.bigint "created_by_user_id", null: false
+    t.bigint "job_id"
+    t.jsonb "extracted_data", default: {}, null: false
+    t.text "ai_prompt"
+    t.text "ai_response_raw"
+    t.integer "processing_time_ms"
+    t.string "ai_model_used"
+    t.string "status", default: "pending", null: false
+    t.text "rejection_reason"
+    t.text "error_message"
+    t.bigint "approved_by_user_id"
+    t.datetime "approved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_user_id"], name: "index_email_job_proposals_on_approved_by_user_id"
+    t.index ["created_at"], name: "index_email_job_proposals_on_created_at"
+    t.index ["created_by_user_id"], name: "index_email_job_proposals_on_created_by_user_id"
+    t.index ["email_warehouse_id", "status"], name: "index_email_job_proposals_on_email_warehouse_id_and_status"
+    t.index ["email_warehouse_id"], name: "index_email_job_proposals_on_email_warehouse_id"
+    t.index ["job_id"], name: "index_email_job_proposals_on_job_id"
+    t.index ["status"], name: "index_email_job_proposals_on_status"
+  end
+
   create_table "email_sync_statuses", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "status", default: "pending"
@@ -1297,6 +1322,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_043620) do
     t.text "aussie_slang"
     t.index ["display_order"], name: "index_inspiring_quotes_on_display_order"
     t.index ["is_active"], name: "index_inspiring_quotes_on_is_active"
+  end
+
+  create_table "insurance_policies", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.string "cover_type"
+    t.string "insured_party"
+    t.date "start_date"
+    t.date "renewal_date"
+    t.decimal "annual_premium"
+    t.decimal "monthly_premium"
+    t.string "broker"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_id"], name: "index_insurance_policies_on_company_id"
   end
 
   create_table "job_activities", force: :cascade do |t|
@@ -3610,6 +3650,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_043620) do
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "companies"
   add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "email_job_proposals", "email_warehouse"
+  add_foreign_key "email_job_proposals", "jobs"
+  add_foreign_key "email_job_proposals", "users", column: "approved_by_user_id"
+  add_foreign_key "email_job_proposals", "users", column: "created_by_user_id"
   add_foreign_key "email_sync_statuses", "users"
   add_foreign_key "email_warehouse", "jobs"
   add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
@@ -3628,6 +3672,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_043620) do
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
+  add_foreign_key "insurance_policies", "companies"
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
   add_foreign_key "job_claims", "contacts"

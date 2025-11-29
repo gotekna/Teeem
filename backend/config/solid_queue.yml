@@ -17,6 +17,9 @@ production:
     - key: email_warehouse_sync
       class_name: EmailWarehouseSyncAllJob
       schedule: every 10 minutes
+    - key: process_new_job_emails
+      class_name: ProcessNewJobEmailsJob
+      schedule: every 10 minutes
 
 development:
   <<: *default
@@ -26,4 +29,7 @@ development:
       schedule: every day at midnight
     - key: email_warehouse_sync
       class_name: EmailWarehouseSyncAllJob
+      schedule: every 10 minutes
+    - key: process_new_job_emails
+      class_name: ProcessNewJobEmailsJob
       schedule: every 10 minutes

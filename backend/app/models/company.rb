@@ -124,8 +124,14 @@ class Company < ApplicationRecord
     warnings << 'Missing incorporation date' if date_incorporated.blank?
     warnings << 'No secretary appointed' if company_directors.where(is_current: true, position: 'secretary').empty?
     warnings << 'No public officer' unless company_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?('public officer') }
-    warnings << 'Missing corporate key' if corporate_key.blank?
-    warnings << 'Missing ASIC credentials' if asic_username.blank?
+
+    # Only check for corporate credentials if this is an actual company (has ACN)
+    # Individuals and trusts don't need ASIC logins
+    if acn.present?
+      warnings << 'Missing corporate key' if corporate_key.blank?
+      warnings << 'Missing ASIC credentials' if asic_username.blank?
+    end
+
     warnings << 'No review date set' if review_date.blank?
     warnings << 'Missing principal place of business' if principal_place_of_business.blank?
     warnings << 'No compliance items tracked' if company_compliance_items.empty?
