@@ -161,11 +161,14 @@ class EmailToJobService
       # Add raw response for logging (will be removed before storing)
       extracted['_raw_response'] = raw_response
 
+      # Add internal and external sales person detection
+      add_sales_people_info(extracted)
+
       extracted
     rescue JSON::ParserError => e
       # AI returned invalid JSON - create low confidence response
       Rails.logger.error "Claude returned invalid JSON: #{e.message}"
-      {
+      data = {
         'job_title' => @email.subject,
         'customer' => {
           'name' => @email.from_name || extract_name_from_email(@email.from_email),
@@ -176,6 +179,8 @@ class EmailToJobService
         'missing_info' => ['all fields - AI extraction failed'],
         '_raw_response' => response
       }
+      add_sales_people_info(data)
+      data
     end
   end
 
@@ -409,5 +414,60 @@ class EmailToJobService
     end
   rescue StandardError => e
     Rails.logger.error "Failed to link external sales reps: #{e.message}"
+  end
+
+  # Add sales people detection to extracted data
+  def add_sales_people_info(extracted_data)
+    # Internal sales: The user who synced/forwarded the email (Jake, Robert, etc.)
+    internal_sales_user = @user
+    internal_sales_contact = Contact.find_by(email: internal_sales_user.email)
+
+    extracted_data['internal_sales'] = {
+      'user_name' => internal_sales_user.name,
+      'user_email' => internal_sales_user.email,
+      'contact_exists' => internal_sales_contact.present?,
+      'contact_id' => internal_sales_contact&.id,
+      'needs_contact_creation' => internal_sales_contact.nil?
+    }
+
+    # External sales: Search email participants for sales agents
+    all_participants = [
+      @email.from_email,
+      *@email.to_emails,
+      *@email.cc_emails
+    ].compact.uniq
+
+    external_sales = []
+    all_participants.each do |participant_email|
+      # Skip if this is the internal sales person
+      next if participant_email == internal_sales_user.email
+      # Skip if this is the customer
+      next if participant_email == extracted_data.dig('customer', 'email')
+
+      contact = Contact.find_by(email: participant_email)
+
+      # Check if this person might be a sales agent
+      is_sales_agent = contact && (
+        contact.contact_types&.any? { |t| t.match?(/sales|agent/i) } ||
+        contact.primary_role&.match?(/sales|agent/i)
+      )
+
+      # Also check email domain for common sales/real estate patterns
+      is_likely_sales = participant_email.match?(/@(realestate|ljhooker|century21|ray-white|bodable)/i)
+
+      if is_sales_agent || is_likely_sales
+        external_sales << {
+          'email' => participant_email,
+          'name' => contact&.full_name || extract_name_from_email(participant_email),
+          'contact_exists' => contact.present?,
+          'contact_id' => contact&.id,
+          'needs_contact_creation' => contact.nil?,
+          'detected_reason' => is_sales_agent ? 'existing_contact_marked_as_sales' : 'email_domain_pattern'
+        }
+      end
+    end
+
+    extracted_data['external_sales'] = external_sales
+    extracted_data
   end
 end
