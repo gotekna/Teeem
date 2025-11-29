@@ -24,6 +24,9 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
   const [isAdding, setIsAdding] = useState(false)
   const [parentDropdownOpen, setParentDropdownOpen] = useState(null) // Track which dropdown is open
   const [parentSearch, setParentSearch] = useState('')
+  // State for inline job type editing (when clicking badge in non-edit mode)
+  const [inlineEditId, setInlineEditId] = useState(null)
+  const [inlineEditIds, setInlineEditIds] = useState([])
 
   const colors = [
     { value: 'gray', label: 'Gray', bg: 'bg-gray-100', text: 'text-gray-800' },
@@ -92,7 +95,10 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
   }
 
   const saveEdit = async () => {
-    if (!editValue.trim()) return
+    // Allow saving if we have a name OR if we're just updating job types in multi-select mode
+    if (!editValue.trim() && !multiSelectParent) return
+    if (!editingId) return
+
     await onUpdate(editingId, {
       name: editValue,
       ...(colorField ? { color: editColor } : {}),
@@ -146,12 +152,51 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
     }
   }
 
-  const clearAllParents = (isNewItem = false) => {
+  const clearAllParents = (isNewItem = false, isInline = false) => {
     if (isNewItem) {
       setNewItemParentIds([])
+    } else if (isInline) {
+      setInlineEditIds([])
     } else {
       setEditParentIds([])
     }
+  }
+
+  // Inline job type editing (from badge click in non-edit mode)
+  const startInlineEdit = (item) => {
+    setInlineEditId(item.id)
+    setInlineEditIds(Array.isArray(item.job_type_ids) ? item.job_type_ids : [])
+    setParentSearch('')
+  }
+
+  const toggleInlineId = (id) => {
+    setInlineEditIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const selectAllInline = () => {
+    setInlineEditIds(parentOptions.map(opt => opt.id))
+  }
+
+  const clearAllInline = () => {
+    setInlineEditIds([])
+  }
+
+  const saveInlineEdit = async () => {
+    if (!inlineEditId) return
+    await onUpdate(inlineEditId, { job_type_ids: inlineEditIds })
+    setInlineEditId(null)
+    setInlineEditIds([])
+    setParentDropdownOpen(null)
+    setParentSearch('')
+  }
+
+  const cancelInlineEdit = () => {
+    setInlineEditId(null)
+    setInlineEditIds([])
+    setParentDropdownOpen(null)
+    setParentSearch('')
   }
 
   const filteredParentOptions = parentOptions.filter(opt =>

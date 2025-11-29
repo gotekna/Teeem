@@ -124,10 +124,9 @@ export default function UserManagementTab() {
 
     setImpersonating(user.id)
     try {
-      const data = await api.post(`/api/v1/auth/impersonate/${user.id}`, {}, {
-        headers: {
-          'X-Admin-Secret': ADMIN_SECRET
-        }
+      // Pass secret in body since api.post doesn't support custom headers
+      const data = await api.post(`/api/v1/auth/impersonate/${user.id}`, {
+        secret: ADMIN_SECRET
       })
 
       if (data.success && data.token) {
