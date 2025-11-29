@@ -1,12 +1,12 @@
 class CompanyShareholding < ApplicationRecord
   # Associations
   belongs_to :company
-  belongs_to :shareholder, class_name: 'Contact'
+  belongs_to :shareholder, polymorphic: true
 
   # Validations
   validates :number_of_shares, presence: true, numericality: { greater_than: 0 }
   validates :share_class, presence: true
-  validates :shareholder_id, uniqueness: { scope: [:company_id, :share_class], message: 'already holds this class of shares' }
+  validates :shareholder_id, uniqueness: { scope: [:company_id, :shareholder_type, :share_class], message: 'already holds this class of shares' }
 
   # Scopes
   scope :ordinary, -> { where(share_class: 'ordinary') }
@@ -20,6 +20,13 @@ class CompanyShareholding < ApplicationRecord
   end
 
   def shareholder_name
-    shareholder&.full_name || shareholder&.first_name
+    case shareholder
+    when Contact
+      shareholder.full_name || shareholder.first_name
+    when Company
+      shareholder.name
+    else
+      'Unknown'
+    end
   end
 end

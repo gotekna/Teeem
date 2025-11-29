@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_28_234019) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_000133) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -424,11 +424,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_234019) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "shareholder_type", default: "Contact"
     t.index ["beneficially_held"], name: "index_company_shareholdings_on_beneficially_held"
     t.index ["company_id", "shareholder_id", "share_class"], name: "idx_shareholdings_unique", unique: true
     t.index ["company_id"], name: "index_company_shareholdings_on_company_id"
     t.index ["share_class"], name: "index_company_shareholdings_on_share_class"
     t.index ["shareholder_id"], name: "index_company_shareholdings_on_shareholder_id"
+    t.index ["shareholder_type", "shareholder_id"], name: "idx_shareholdings_polymorphic"
   end
 
   create_table "company_xero_accounts", force: :cascade do |t|
@@ -3522,7 +3524,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_28_234019) do
   add_foreign_key "company_minutes", "companies"
   add_foreign_key "company_minutes", "minute_templates"
   add_foreign_key "company_shareholdings", "companies"
-  add_foreign_key "company_shareholdings", "contacts", column: "shareholder_id"
   add_foreign_key "company_xero_accounts", "company_xero_connections"
   add_foreign_key "company_xero_connections", "companies"
   add_foreign_key "contact_activities", "contacts"
