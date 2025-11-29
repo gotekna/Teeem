@@ -320,12 +320,21 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
 
         {/* Client Section */}
         <div className="mt-4 border-t border-gray-200 pt-4">
-          <div className="flex items-center gap-2 mb-3">
-            <BuildingOfficeIcon className="w-4 h-4 text-gray-500" />
-            <h4 className="text-sm font-medium text-gray-900">Client</h4>
-            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
-              {customer.name ? '1' : '0'}
-            </span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <BuildingOfficeIcon className="w-4 h-4 text-gray-500" />
+              <h4 className="text-sm font-medium text-gray-900">Client</h4>
+              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                {customer.name ? '1' : '0'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="inline-flex items-center text-blue-600 hover:text-blue-800"
+              title="Add client"
+            >
+              <PlusIcon className="w-4 h-4" />
+            </button>
           </div>
 
           {customer.name ? (
@@ -364,43 +373,93 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
           )}
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-4">
-          {/* Job Details */}
-          <div>
-            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Job Details</h4>
-            <div className="space-y-1 text-sm">
-              {data.job_type && (
-                <div><span className="font-medium">Type:</span> {data.job_type}</div>
-              )}
-              {data.urgency && (
-                <div><span className="font-medium">Urgency:</span> {data.urgency}</div>
-              )}
-              {data.contract_value && (
-                <div><span className="font-medium">Value:</span> ${data.contract_value.toLocaleString()}</div>
-              )}
-              {email.has_attachments && (
-                <div className="flex items-center text-blue-600">
-                  <PaperClipIcon className="w-4 h-4 mr-1" />
-                  {email.attachment_count || 1} attachment{email.attachment_count !== 1 ? 's' : ''}
-                </div>
-              )}
-              {data.missing_info && data.missing_info.length > 0 && (
-                <div className="text-xs text-orange-600 mt-2">
-                  ⚠️ Missing: {data.missing_info.join(', ')}
-                </div>
+        {/* Job Details Section */}
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <h4 className="text-sm font-medium text-gray-900 mb-3">Job Details</h4>
+          <div className="pl-6 space-y-1 text-sm">
+            {data.job_type && (
+              <div><span className="font-medium">Type:</span> {data.job_type}</div>
+            )}
+            {data.urgency && (
+              <div><span className="font-medium">Urgency:</span> {data.urgency}</div>
+            )}
+            {data.contract_value && (
+              <div><span className="font-medium">Value:</span> ${data.contract_value.toLocaleString()}</div>
+            )}
+            {email.has_attachments && (
+              <div className="flex items-center text-blue-600">
+                <PaperClipIcon className="w-4 h-4 mr-1" />
+                {email.attachment_count || 1} attachment{email.attachment_count !== 1 ? 's' : ''}
+              </div>
+            )}
+            {data.missing_info && data.missing_info.length > 0 && (
+              <div className="text-xs text-orange-600 mt-2">
+                ⚠️ Missing: {data.missing_info.join(', ')}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Referral Section */}
+        <div className="mt-4 border-t border-gray-200 pt-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <h4 className="text-sm font-medium text-gray-900">Referral</h4>
+              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                {data.referral_contact ? '1' : '0'}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="inline-flex items-center text-blue-600 hover:text-blue-800"
+              title="Add referral"
+            >
+              <PlusIcon className="w-4 h-4" />
+            </button>
+          </div>
+
+          {data.referral_contact ? (
+            <div className="pl-6">
+              <div className="flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-gray-400" />
+                <span className="text-sm font-medium text-gray-900">{data.referral_contact.name}</span>
+                {data.referral_contact.contact_exists ? (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                    Existing
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                    Create New
+                  </span>
+                )}
+              </div>
+              {data.referral_contact.email && (
+                <div className="ml-6 text-sm text-gray-600">{data.referral_contact.email}</div>
               )}
             </div>
-          </div>
+          ) : (
+            <div className="pl-6 text-sm text-gray-500 italic">No referral assigned</div>
+          )}
         </div>
 
         {/* External Sales Section */}
         <div className="mt-4 border-t border-gray-200 pt-4">
-          <div className="flex items-center gap-2 mb-3">
-            <UserGroupIcon className="w-4 h-4 text-gray-500" />
-            <h4 className="text-sm font-medium text-gray-900">External Sales</h4>
-            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
-              {data.external_sales?.length || 0}
-            </span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <UserGroupIcon className="w-4 h-4 text-gray-500" />
+              <h4 className="text-sm font-medium text-gray-900">External Sales</h4>
+              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                {data.external_sales?.length || 0}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="inline-flex items-center text-blue-600 hover:text-blue-800"
+              title="Add external sales"
+            >
+              <PlusIcon className="w-4 h-4" />
+            </button>
           </div>
 
           {data.external_sales?.length > 0 ? (
@@ -432,12 +491,21 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
         {/* Internal Sales Section */}
         {data.internal_sales && (
           <div className="mt-4 border-t border-gray-200 pt-4">
-            <div className="flex items-center gap-2 mb-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <h4 className="text-sm font-medium text-gray-900">Internal Sales</h4>
-              <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
-                1
-              </span>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <UserIcon className="w-4 h-4 text-gray-500" />
+                <h4 className="text-sm font-medium text-gray-900">Internal Sales</h4>
+                <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
+                  1
+                </span>
+              </div>
+              <button
+                type="button"
+                className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                title="Add internal sales"
+              >
+                <PlusIcon className="w-4 h-4" />
+              </button>
             </div>
             <div className="pl-6">
               <div className="flex items-center gap-2">
@@ -448,40 +516,6 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
             </div>
           </div>
         )}
-
-        {/* Referral Section */}
-        <div className="mt-4 border-t border-gray-200 pt-4">
-          <div className="flex items-center gap-2 mb-3">
-            <HandRaisedIcon className="w-4 h-4 text-gray-500" />
-            <h4 className="text-sm font-medium text-gray-900">Referral</h4>
-            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-medium text-gray-600 bg-gray-100 rounded-full">
-              {data.referral_contact ? '1' : '0'}
-            </span>
-          </div>
-
-          {data.referral_contact ? (
-            <div className="pl-6">
-              <div className="flex items-center gap-2">
-                <UserIcon className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-900">{data.referral_contact.name}</span>
-                {data.referral_contact.contact_exists ? (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                    Existing
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                    Create New
-                  </span>
-                )}
-              </div>
-              {data.referral_contact.email && (
-                <div className="ml-6 text-sm text-gray-600">{data.referral_contact.email}</div>
-              )}
-            </div>
-          ) : (
-            <div className="pl-6 text-sm text-gray-500 italic">No referral assigned</div>
-          )}
-        </div>
 
         {/* Description */}
         {data.description && (
