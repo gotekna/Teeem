@@ -20,6 +20,10 @@ class DirectorOnboardingRequest < ApplicationRecord
   # Validate residential address when submitting
   validate :residential_address_is_valid, if: -> { residential_address.present? }
 
+  # Validate expiry dates when submitting
+  validate :drivers_licence_expiry_is_valid, if: -> { drivers_licence_expiry.present? }
+  validate :passport_expiry_is_valid, if: -> { passport_expiry.present? }
+
   before_validation :generate_access_token, on: :create
 
   scope :pending, -> { where(status: 'pending') }
@@ -217,6 +221,32 @@ class DirectorOnboardingRequest < ApplicationRecord
 
     unless valid_postcode
       errors.add(:residential_address, "must include a valid Australian postcode")
+    end
+  end
+
+  # Validate drivers licence expiry
+  # - Must not be in the past (expired)
+  # - Must be a reasonable future date (within 15 years)
+  def drivers_licence_expiry_is_valid
+    return if drivers_licence_expiry.blank?
+
+    if drivers_licence_expiry < Date.current
+      errors.add(:drivers_licence_expiry, "cannot be in the past - your licence appears to be expired")
+    elsif drivers_licence_expiry > 15.years.from_now.to_date
+      errors.add(:drivers_licence_expiry, "is not a valid expiry date")
+    end
+  end
+
+  # Validate passport expiry
+  # - Must not be in the past (expired)
+  # - Must be a reasonable future date (within 15 years)
+  def passport_expiry_is_valid
+    return if passport_expiry.blank?
+
+    if passport_expiry < Date.current
+      errors.add(:passport_expiry, "cannot be in the past - your passport appears to be expired")
+    elsif passport_expiry > 15.years.from_now.to_date
+      errors.add(:passport_expiry, "is not a valid expiry date")
     end
   end
 end
