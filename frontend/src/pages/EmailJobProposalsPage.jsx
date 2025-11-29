@@ -263,7 +263,7 @@ export default function EmailJobProposalsPage() {
 }
 
 function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadge, getConfidenceBadge, readonly = false }) {
-  const email = proposal.email_warehouse || {}
+  const email = proposal.email || {}
   const data = proposal.extracted_data || {}
   const customer = data.customer || {}
 
