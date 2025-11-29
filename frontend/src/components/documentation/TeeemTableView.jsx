@@ -2246,47 +2246,10 @@ export default function TeeemTableView({
     return result
   }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch, columnChoices])
 
-  // Calculate visible group count when grouping is active
-  const visibleGroupCount = useMemo(() => {
-    const activeGroupColumns = groupByColumns.length > 0 ? groupByColumns : (groupByColumn ? [groupByColumn] : [])
-    if (activeGroupColumns.length === 0) return filteredAndSorted.length
-
-    const allPaths = new Set()
-    const getDisplayValue = (entry, colKey) => {
-      const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
-      const isLookupColumn = groupColumnDef?.column_type === 'lookup'
-      const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
-      const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
-      const rawValue = entry[actualKey] ?? entry[colKey]
-      if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
-        return rawValue.display || '(empty)'
-      } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
-        const matchingOption = lookupOptions.find(opt =>
-          opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
-        )
-        return matchingOption?.display || `ID: ${rawValue}`
-      }
-      return rawValue ?? '(empty)'
-    }
-
-    filteredAndSorted.forEach(entry => {
-      let path = ''
-      activeGroupColumns.forEach((colKey) => {
-        const value = getDisplayValue(entry, colKey)
-        path = path ? `${path}|${value}` : value
-        allPaths.add(path)
-      })
-    })
-
-    console.log('[visibleGroupCount] Calculation:', {
-      groupByColumns,
-      groupByColumn,
-      groupCount: allPaths.size,
-      allPaths: Array.from(allPaths),
-      totalRecords: filteredAndSorted.length
-    })
-    return allPaths.size
-  }, [filteredAndSorted, groupByColumns, groupByColumn, columnChoices, COLUMNS])
+  // Calculate visible record count (total filtered records)
+  const visibleRecordCount = useMemo(() => {
+    return filteredAndSorted.length
+  }, [filteredAndSorted])
 
   // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
@@ -5761,13 +5724,9 @@ export default function TeeemTableView({
               </svg>
               {view.name}
               {/* Show count badge only for global views */}
-              {view.is_global && (
-                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] ${
-                  activeViewId === view.id
-                    ? 'bg-blue-600 dark:bg-blue-500'
-                    : 'bg-green-600 dark:bg-green-700'
-                } text-white rounded-full text-[10px] font-bold`}>
-                  {activeViewId === view.id ? visibleGroupCount : view.filters.length}
+              {view.is_global && activeViewId === view.id && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] bg-blue-600 dark:bg-blue-500 text-white rounded-full text-[10px] font-bold">
+                  {visibleRecordCount}
                 </span>
               )}
             </button>
