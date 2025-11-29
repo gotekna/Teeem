@@ -117,6 +117,9 @@ class EmailToJobService
     # Find and link external sales reps from email chain
     link_external_sales_reps(job, @email)
 
+    # Link referral contact if detected
+    link_referral_contact(job, job_data)
+
     # Link email to job
     @email.assign_to_job!(job, by_user: @user)
 
@@ -210,6 +213,12 @@ class EmailToJobService
           "phone": "Phone number if mentioned in email",
           "company": "Company name if mentioned",
           "entity_type": "person or company (infer from context)"
+        },
+        "referral": {
+          "name": "Name of person who referred this job (look for phrases like 'referred by', 'recommended by', 'sent by', or similar)",
+          "email": "Email of referral person if mentioned",
+          "phone": "Phone of referral person if mentioned",
+          "company": "Company of referral person if mentioned"
         },
         "description": "Brief 1-2 sentence description of what the customer wants",
         "scope_of_work": "Detailed scope extracted from email - what needs to be built/renovated/fixed",
@@ -416,6 +425,27 @@ class EmailToJobService
     Rails.logger.error "Failed to link external sales reps: #{e.message}"
   end
 
+  # Link referral contact to job
+  def link_referral_contact(job, job_data)
+    referral_data = job_data['referral_contact']
+    return unless referral_data.is_a?(Hash) && referral_data['contact_id'].present?
+
+    contact = Contact.find_by(id: referral_data['contact_id'])
+    return unless contact
+
+    # Link as referral (avoid duplicates)
+    unless job.job_contacts.exists?(contact: contact, role: 'referral')
+      job.job_contacts.create!(
+        contact: contact,
+        role: 'referral',
+        primary: false
+      )
+      Rails.logger.info "Linked referral #{contact.full_name} to job #{job.id}"
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to link referral contact: #{e.message}"
+  end
+
   # Add sales people detection to extracted data
   def add_sales_people_info(extracted_data)
     # Internal sales: The user who synced/forwarded the email (Jake, Robert, etc.)
@@ -468,6 +498,36 @@ class EmailToJobService
     end
 
     extracted_data['external_sales'] = external_sales
+
+    # Referral: Check if AI extracted a referral person
+    referral_data = extracted_data['referral']
+    if referral_data.is_a?(Hash) && referral_data['name'].present?
+      referral_email = referral_data['email']
+      referral_contact = nil
+
+      # Try to find existing contact by email
+      if referral_email.present?
+        referral_contact = Contact.find_by(email: referral_email)
+      end
+
+      # If no email or no contact found, try searching by name
+      if referral_contact.nil? && referral_data['name'].present?
+        referral_contact = Contact.where("LOWER(full_name) LIKE ?", "%#{referral_data['name'].downcase}%").first
+      end
+
+      extracted_data['referral_contact'] = {
+        'name' => referral_data['name'],
+        'email' => referral_email,
+        'phone' => referral_data['phone'],
+        'company' => referral_data['company'],
+        'contact_exists' => referral_contact.present?,
+        'contact_id' => referral_contact&.id,
+        'needs_contact_creation' => referral_contact.nil?
+      }
+    else
+      extracted_data['referral_contact'] = nil
+    end
+
     extracted_data
   end
 end
