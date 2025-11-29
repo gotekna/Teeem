@@ -19,6 +19,9 @@ class EmailToJobService
     # Check rate limit
     check_rate_limit!
 
+    # Download PDF attachments if not already synced
+    sync_pdf_attachments_if_needed
+
     # Extract data using Claude AI
     start_time = Time.current
     extracted_data = extract_job_data_with_ai
@@ -596,5 +599,19 @@ class EmailToJobService
     end
 
     extracted_data
+  end
+
+  def sync_pdf_attachments_if_needed
+    # Skip if no attachments or already synced
+    return unless @email.has_attachments && !@email.files.attached?
+
+    begin
+      outlook_service = OutlookService.new(@user)
+      @email.sync_attachments_from_outlook(outlook_service)
+      Rails.logger.info "Synced #{@email.files.count} PDF attachments for email #{@email.id}"
+    rescue StandardError => e
+      Rails.logger.error "Failed to sync attachments for email #{@email.id}: #{e.message}"
+      # Don't fail the whole process if attachment sync fails
+    end
   end
 end
