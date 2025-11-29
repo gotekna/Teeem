@@ -301,7 +301,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 min-w-0">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
@@ -585,7 +585,7 @@ function CascadeSortConfig({ config, onUpdate }) {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 min-w-0">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cascade Sort Order</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -892,7 +892,7 @@ export default function JobSetupTab() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-full overflow-x-auto">
       <div>
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Job Setup</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -906,7 +906,7 @@ export default function JobSetupTab() {
         onUpdate={handleCascadeConfigUpdate}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 min-w-0">
         <SortableList
           items={jobTypes}
           onReorder={handleReorderTypes}
