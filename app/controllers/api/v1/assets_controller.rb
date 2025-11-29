@@ -11,7 +11,11 @@ module Api
           return render json: { success: true, assets: [] }
         end
 
-        @assets = Asset.includes(:company, :asset_insurance).all
+        # Build includes array based on what tables exist
+        includes_array = [:company]
+        includes_array << :asset_insurance if defined?(AssetInsurance) && AssetInsurance.table_exists?
+
+        @assets = Asset.includes(includes_array).all
 
         # Filter by company
         @assets = @assets.where(company_id: params[:company_id]) if params[:company_id].present?
@@ -31,13 +35,16 @@ module Api
           )
         end
 
+        # Build include hash based on what tables exist
+        include_hash = { company: { only: [:id, :name] } }
+        if defined?(AssetInsurance) && AssetInsurance.table_exists?
+          include_hash[:asset_insurance] = { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
+        end
+
         render json: {
           success: true,
           assets: @assets.as_json(
-            include: {
-              company: { only: [:id, :name] },
-              asset_insurance: { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
-            },
+            include: include_hash,
             methods: [:display_name, :needs_attention?, :insurance_expired?, :service_overdue?]
           )
         }
