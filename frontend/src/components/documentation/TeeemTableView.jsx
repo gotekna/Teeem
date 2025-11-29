@@ -5753,14 +5753,14 @@ export default function TeeemTableView({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
               {view.name}
-              {/* Show visible row count for active view (groups when grouped, records otherwise) */}
-              {activeViewId === view.id ? (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] bg-blue-600 dark:bg-blue-500 text-white rounded-full text-[10px] font-bold">
-                  {visibleGroupCount}
-                </span>
-              ) : view.filters.length > 0 && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] bg-green-600 dark:bg-green-700 text-white rounded-full text-[10px] font-bold">
-                  {view.filters.length}
+              {/* Show count badge only for global views */}
+              {view.is_global && (
+                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] ${
+                  activeViewId === view.id
+                    ? 'bg-blue-600 dark:bg-blue-500'
+                    : 'bg-green-600 dark:bg-green-700'
+                } text-white rounded-full text-[10px] font-bold`}>
+                  {activeViewId === view.id ? visibleGroupCount : view.filters.length}
                 </span>
               )}
             </button>
