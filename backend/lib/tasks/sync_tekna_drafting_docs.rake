@@ -94,7 +94,7 @@ namespace :corporate do
           doc = company.company_documents.create!(
             title: File.basename(filename, '.*'),
             description: "Synced from SharePoint: #{file[:folder_path]}",
-            document_type: 'Corporate',
+            document_type: 'other',
             file_name: filename,
             file_size: file['size'],
             onedrive_file_id: file['id'],
