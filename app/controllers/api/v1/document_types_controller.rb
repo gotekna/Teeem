@@ -114,6 +114,7 @@ module Api
           :requires_filing,
           :retention_period,
           :active,
+          :primary_tab,
           tabs: []
         )
       end
@@ -129,6 +130,7 @@ module Api
           retention_period: document_type.retention_period,
           active: document_type.active,
           tabs: document_type.tabs || [],
+          primary_tab: document_type.primary_tab,
           documents_count: document_type.company_documents.count,
           created_at: document_type.created_at,
           updated_at: document_type.updated_at
