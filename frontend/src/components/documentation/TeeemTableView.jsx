@@ -8126,11 +8126,11 @@ export default function TeeemTableView({
         {/* END BOTTOM SECTION - Filters */}
 
         {/* Table Container with Border */}
-        <div className="flex-1 min-h-0 p-4 overflow-hidden">
+        <div className="flex-1 min-h-0 p-4 flex flex-col">
           {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
           <div
             ref={scrollContainerRef}
-            className="teeem-table-scroll h-full overflow-y-auto overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
+            className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
           >
           <table className="border-separate border-spacing-0" style={{
             width: autoFitColumns ? 'auto' : (() => {
@@ -8143,8 +8143,8 @@ export default function TeeemTableView({
             })(),
             minWidth: autoFitColumns ? '100%' : undefined
           }}>
-            <thead className="bg-white dark:bg-gray-900">
-            <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 shadow-md">
+            <thead>
+            <tr>
               {columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).map((colKey, index, visibleCols) => {
                 const column = COLUMNS.find(c => c.key === colKey)
                 if (!column) return null
