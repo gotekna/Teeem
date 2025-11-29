@@ -201,6 +201,33 @@ class CorporateOnedriveService
 
   private
 
+  # Extract clean folder path from SharePoint document metadata
+  def extract_folder_path(doc, group_name = nil)
+    # Try to get path from parentReference
+    parent_path = doc.dig('parentReference', 'path')
+
+    if parent_path.present?
+      # Path format: "/drive/root:/Corporate File/Team Harder Group/Tekna Drafting/Minutes"
+      # Extract everything after "Corporate File/" or after "root:/"
+      clean_path = parent_path
+        .sub(%r{^/drive/root:/?}, '')  # Remove drive prefix
+        .sub(%r{^Corporate File/}, '')  # Remove Corporate File prefix
+        .sub(%r{^Accounts - Internal/Corporate File/}, '')  # Remove longer prefix variant
+
+      # If path is now empty or just "/", use group_name/company fallback
+      return group_name if clean_path.blank? || clean_path == '/'
+
+      return clean_path
+    end
+
+    # Fallback to parent folder name
+    parent_name = doc.dig('parentReference', 'name')
+    return group_name if parent_name.blank?
+
+    # Combine group and folder name if we have both
+    group_name.present? ? "#{group_name}/#{parent_name}" : parent_name
+  end
+
   def get_onedrive_client
     return nil unless @credential
     MicrosoftGraphClient.new(@credential)
@@ -354,6 +381,9 @@ class CorporateOnedriveService
       download_url = "https://graph.microsoft.com/v1.0/me/drive/items/#{doc['id']}/content"
     end
 
+    # Extract full SharePoint folder path from parentReference
+    sharepoint_folder_path = extract_folder_path(doc, group_name)
+
     # Create or update company document record
     company_doc = CompanyDocument.find_or_initialize_by(
       company: company,
@@ -370,7 +400,9 @@ class CorporateOnedriveService
       last_modified_at: doc.dig('lastModifiedDateTime')&.to_datetime,
       storage_type: 'electronic',
       source: 'sharepoint',
-      register_folder: group_name
+      register_folder: group_name,
+      folder: sharepoint_folder_path,
+      description: sharepoint_folder_path
     )
 
     if company_doc.save
