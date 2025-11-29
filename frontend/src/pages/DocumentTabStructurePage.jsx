@@ -74,9 +74,56 @@ export default function DocumentTabStructurePage() {
       'MINUTES': 'bg-yellow-100 text-yellow-700',
       'TRUST': 'bg-teal-100 text-teal-700',
       'GENERAL': 'bg-gray-100 text-gray-700',
-      'STRUCTURE': 'bg-red-100 text-red-700'
+      'STRUCTURE': 'bg-red-100 text-red-700',
+      'FINANCIALS': 'bg-emerald-100 text-emerald-700'
     }
     return colors[tab] || 'bg-gray-100 text-gray-700'
+  }
+
+  const getNamingFormat = (docTypeName) => {
+    // Extract abbreviation (e.g., "CTR" from "CTR - Company Tax Return")
+    const abbrev = docTypeName.split(' - ')[0] || docTypeName.split(' ')[0]
+
+    const formats = {
+      'CTR': '{Company} CTR FY{Year}',
+      'TTR': '{Company} TTR FY{Year}',
+      'BAS': '{Company} BAS Q{Quarter} FY{Year}',
+      'ASIC Annual Review': '{Company} ASIC Annual Review FY{Year}',
+      'ASIC Form 485': '{Company} Form 485 FY{Year}',
+      'ASIC Form 484': '{Company} Form 484 {Date}',
+      'Bank Statement': '{Company} Bank Statement {Month} {Year}',
+      'Directors\' Minutes': '{Company} Minutes {Date}',
+      'Directors\' Resolution': '{Company} Resolution {Topic} {Date}',
+      'Dividend Payment Record': '{Company} Dividend {Date}',
+      'Distribution': '{Company} Distribution {Date}',
+      'Gift Deed Return': '{Company} Gift Deed Return FY{Year}',
+      'Loan Agreement': '{Company} Loan {Lender} {Date}',
+      'Security Deed': '{Company} Security Deed {Date}',
+      'PPSR Registration': '{Company} PPSR {Asset} {Date}',
+      'Trust': '{Company} Trust {Description} {Date}',
+      'General': '{Company} General {Description} {Date}',
+      'Structure': '{Company} Structure {Description} {Date}',
+      'Draft Financials': '{Company} Draft Financials FY{Year}',
+      'Final Financials': '{Company} Final Financials FY{Year}',
+      'Constitution': '{Company} Constitution {Date}',
+      'Trust Deed': '{Company} Trust Deed {Date}'
+    }
+
+    // Try to match by abbreviation first, then full name
+    return formats[abbrev] || formats[docTypeName] || `{Company} ${abbrev} {Date}`
+  }
+
+  const getFormatExample = (format) => {
+    return format
+      .replace('{Company}', 'TEKNA')
+      .replace('{Year}', '2025')
+      .replace('{Quarter}', '1')
+      .replace('{Month}', 'Jan')
+      .replace('{Date}', '15 Jan 2025')
+      .replace('{Topic}', 'Distribution')
+      .replace('{Lender}', 'ANZ')
+      .replace('{Asset}', 'Vehicle')
+      .replace('{Description}', 'Document')
   }
 
   if (loading) {
@@ -180,6 +227,9 @@ export default function DocumentTabStructurePage() {
                     Document Name
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Naming Format
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Primary Tab
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -188,58 +238,63 @@ export default function DocumentTabStructurePage() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Folder
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Documents
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {types.map((docType) => (
-                  <tr key={docType.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <span className="text-sm font-medium text-gray-900">{docType.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {docType.primary_tab ? (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTabBadgeColor(docType.primary_tab)}`}>
-                          <StarIcon className="h-3 w-3 mr-1" />
-                          {docType.primary_tab}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400">Not set</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {docType.tabs && docType.tabs.length > 0 ? (
-                          docType.tabs.map(tab => (
-                            <span
-                              key={tab}
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTabBadgeColor(tab)} ${
-                                tab === docType.primary_tab ? 'ring-2 ring-offset-1 ring-current' : ''
-                              }`}
-                            >
-                              {tab}
-                            </span>
-                          ))
+                {types.map((docType) => {
+                  const format = getNamingFormat(docType.name)
+                  const example = getFormatExample(format)
+
+                  return (
+                    <tr key={docType.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="text-sm font-medium text-gray-900">{docType.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm">
+                          <div className="font-mono text-gray-700 mb-1">{format}</div>
+                          <div className="text-xs text-gray-500 italic">e.g., {example}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {docType.primary_tab ? (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTabBadgeColor(docType.primary_tab)}`}>
+                            <StarIcon className="h-3 w-3 mr-1" />
+                            {docType.primary_tab}
+                          </span>
                         ) : (
-                          <span className="text-xs text-gray-400">No tabs</span>
+                          <span className="text-xs text-gray-400">Not set</span>
                         )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center text-sm text-gray-500">
-                        <FolderIcon className="h-4 w-4 mr-1" />
-                        {docType.folder || 'None'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {docType.documents_count || 0}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {docType.tabs && docType.tabs.length > 0 ? (
+                            docType.tabs.map(tab => (
+                              <span
+                                key={tab}
+                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTabBadgeColor(tab)} ${
+                                  tab === docType.primary_tab ? 'ring-2 ring-offset-1 ring-current' : ''
+                                }`}
+                              >
+                                {tab}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-xs text-gray-400">No tabs</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center text-sm text-gray-500">
+                          <FolderIcon className="h-4 w-4 mr-1" />
+                          {docType.folder || 'None'}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
