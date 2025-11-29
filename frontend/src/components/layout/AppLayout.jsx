@@ -2572,7 +2572,7 @@ export default function AppLayout({ children }) {
       {/* Main content area */}
       <div
         className={classNames(
-          "h-screen flex flex-col",
+          "h-screen flex flex-col overflow-hidden",
           sidebarCollapsed ? "lg:pl-16 transition-all duration-300" : ""
         )}
         style={sidebarCollapsed ? undefined : { paddingLeft: sidebarWidth }}

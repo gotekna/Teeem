@@ -16,6 +16,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import ApprovalModal from '../components/proposals/ApprovalModal'
+import ProposalAreaMapCard from '../components/proposals/ProposalAreaMapCard'
 
 export default function EmailJobProposalsPage() {
   const navigate = useNavigate()
@@ -515,6 +516,16 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
               </div>
               <div className="ml-6 text-sm text-gray-600">{data.internal_sales.user_email}</div>
             </div>
+          </div>
+        )}
+
+        {/* Area Map */}
+        {(data.property_address || data.job_title) && (
+          <div className="mt-4">
+            <ProposalAreaMapCard
+              proposalAddress={data.property_address || data.job_title}
+              proposalId={proposal.id}
+            />
           </div>
         )}
 
