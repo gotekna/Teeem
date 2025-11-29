@@ -389,78 +389,78 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
           </div>
         </div>
 
-        {/* Sales & Referral Info */}
-        {(data.internal_sales || data.external_sales?.length > 0 || data.referral_contact) && (
-          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-gray-200 pt-4">
-            {/* Internal Sales */}
-            {data.internal_sales && (
-              <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
-                  <UserIcon className="w-3 h-3 mr-1" />
-                  Internal Sales
-                </h4>
-                <div className="text-sm">
-                  <div className="font-medium">{data.internal_sales.user_name}</div>
-                  <div className="text-gray-600 text-xs">{data.internal_sales.user_email}</div>
-                </div>
-              </div>
-            )}
-
-            {/* External Sales */}
-            {data.external_sales?.length > 0 && (
-              <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
-                  <UserGroupIcon className="w-3 h-3 mr-1" />
-                  External Sales
-                </h4>
-                <div className="space-y-2">
-                  {data.external_sales.map((sales, idx) => (
-                    <div key={idx} className="text-sm border-l-2 pl-2" style={{ borderColor: sales.contact_exists ? '#10b981' : '#f97316' }}>
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="font-medium">{sales.name}</div>
-                        {sales.contact_exists ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Existing
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                            + Create New
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-gray-600 text-xs">{sales.email}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Referral */}
-            {data.referral_contact && (
-              <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
-                  <HandRaisedIcon className="w-3 h-3 mr-1" />
-                  Referral
-                </h4>
-                <div className="text-sm border-l-2 pl-2" style={{ borderColor: data.referral_contact.contact_exists ? '#10b981' : '#f97316' }}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="font-medium">{data.referral_contact.name}</div>
-                    {data.referral_contact.contact_exists ? (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                        ✓ Existing
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
-                        + Create New
-                      </span>
-                    )}
+        {/* Sales Info */}
+        {(data.internal_sales || data.external_sales?.length > 0) && (
+          <div className="mt-4 border-t border-gray-200 pt-4">
+            <h4 className="text-xs font-medium text-gray-700 uppercase tracking-wide mb-3">Sales</h4>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Internal Sales */}
+              {data.internal_sales && (
+                <div>
+                  <h5 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
+                    <UserIcon className="w-3 h-3 mr-1" />
+                    Internal Sales
+                  </h5>
+                  <div className="text-sm">
+                    <div className="font-medium">{data.internal_sales.user_name}</div>
+                    <div className="text-gray-600 text-xs">{data.internal_sales.user_email}</div>
                   </div>
-                  {data.referral_contact.email && (
-                    <div className="text-gray-600 text-xs">{data.referral_contact.email}</div>
-                  )}
                 </div>
+              )}
+
+              {/* External Sales */}
+              {data.external_sales?.length > 0 && (
+                <div>
+                  <h5 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
+                    <UserGroupIcon className="w-3 h-3 mr-1" />
+                    External Sales
+                  </h5>
+                  <div className="space-y-2">
+                    {data.external_sales.map((sales, idx) => (
+                      <div key={idx} className="text-sm border-l-2 pl-2" style={{ borderColor: sales.contact_exists ? '#10b981' : '#f97316' }}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="font-medium">{sales.name}</div>
+                          {sales.contact_exists ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                              ✓ Existing
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                              + Create New
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-gray-600 text-xs">{sales.email}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Referral */}
+        {data.referral_contact && (
+          <div className="mt-4 border-t border-gray-200 pt-4">
+            <h4 className="text-xs font-medium text-gray-700 uppercase tracking-wide mb-3">Referral</h4>
+            <div className="text-sm border-l-2 pl-2" style={{ borderColor: data.referral_contact.contact_exists ? '#10b981' : '#f97316' }}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-medium">{data.referral_contact.name}</div>
+                {data.referral_contact.contact_exists ? (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                    ✓ Existing
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                    + Create New
+                  </span>
+                )}
               </div>
-            )}
+              {data.referral_contact.email && (
+                <div className="text-gray-600 text-xs">{data.referral_contact.email}</div>
+              )}
+            </div>
           </div>
         )}
 
