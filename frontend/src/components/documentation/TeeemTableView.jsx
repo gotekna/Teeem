@@ -8094,7 +8094,15 @@ export default function TeeemTableView({
                 </button>
                 <span className="text-xs text-gray-300 dark:text-gray-600">|</span>
                 <button
-                  onClick={() => setCollapsedGroups(new Set())}
+                  onClick={() => {
+                    console.log('[EXPAND DEBUG] Expand clicked, scrollContainerRef:', scrollContainerRef.current)
+                    setCollapsedGroups(new Set())
+                    // Scroll table container to top to ensure header is visible
+                    if (scrollContainerRef.current) {
+                      scrollContainerRef.current.scrollTop = 0
+                      console.log('[EXPAND DEBUG] Reset scroll to top')
+                    }
+                  }}
                   className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                   title="Expand All Groups"
                 >
