@@ -2,7 +2,7 @@ module Api
   module V1
     class DirectorOnboardingRequestsController < ApplicationController
       # Skip authentication for public form submission
-      skip_before_action :authenticate_user!, only: [:show_public, :submit]
+      skip_before_action :authorize_request, only: [:show_public, :submit]
 
       before_action :set_request, only: [:show, :update, :destroy, :approve, :reject]
       before_action :set_public_request, only: [:show_public, :submit]
