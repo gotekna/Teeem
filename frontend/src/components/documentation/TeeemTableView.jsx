@@ -7944,9 +7944,9 @@ export default function TeeemTableView({
           {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
           <div
             ref={scrollContainerRef}
-            className="teeem-table-scroll h-full overflow-y-scroll overflow-x-scroll border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
+            className="teeem-table-scroll h-full overflow-y-auto overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
           >
-          <table className="border-collapse" style={{
+          <table className="border-separate border-spacing-0" style={{
             width: autoFitColumns ? 'auto' : (() => {
               // Calculate total width from all visible columns
               const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
@@ -7957,7 +7957,7 @@ export default function TeeemTableView({
             })(),
             minWidth: autoFitColumns ? '100%' : undefined
           }}>
-            <thead className="sticky top-0 z-20 bg-white dark:bg-gray-900">
+            <thead className="sticky top-0 z-30 bg-white dark:bg-gray-900">
             <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 shadow-md">
               {(() => {
                 const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
