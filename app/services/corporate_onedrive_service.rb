@@ -343,6 +343,9 @@ class CorporateOnedriveService
     # Determine document type
     doc_type = categorize_document(doc['name'])
 
+    # Map document type to Corporate Documents template folder
+    folder_name = map_document_to_folder(doc['name'], doc_type)
+
     # Get or create a download URL
     download_url = doc['@microsoft.graph.downloadUrl']
     if download_url.blank?
@@ -358,6 +361,7 @@ class CorporateOnedriveService
     company_doc.assign_attributes(
       title: doc['name'],
       document_type: doc_type,
+      folder: folder_name,
       file_url: doc['webUrl'],
       file_name: doc['name'],
       onedrive_download_url: download_url,
@@ -369,7 +373,7 @@ class CorporateOnedriveService
 
     if company_doc.save
       @results[:documents_linked] += 1
-      Rails.logger.info "Linked document '#{doc['name']}' to #{company.name}"
+      Rails.logger.info "Linked document '#{doc['name']}' to #{company.name} [#{folder_name}]"
     else
       @results[:errors] << "Failed to save document '#{doc['name']}': #{company_doc.errors.full_messages.join(', ')}"
     end
@@ -433,5 +437,64 @@ class CorporateOnedriveService
 
     # Default
     'other'
+  end
+
+  # Map document type to Corporate Documents template folder
+  def map_document_to_folder(filename, doc_type)
+    filename_lower = filename.downcase
+
+    # BAS folder
+    return 'BAS' if filename_lower.include?('bas')
+
+    # Constitution folder
+    return 'Constitution' if doc_type == 'constitution'
+
+    # Minutes folder
+    if doc_type == 'minutes' || filename_lower.include?('minute') || filename_lower.include?('agm')
+      return 'Minutes'
+    end
+
+    # Trust Deed folder
+    if doc_type == 'trust_deed' || filename_lower.include?('trust') || filename_lower.include?('deed')
+      return 'Trust Deed'
+    end
+
+    # Loans and Security folder
+    if filename_lower.include?('loan') || filename_lower.include?('security') ||
+       filename_lower.include?('ppsr') || filename_lower.include?('ucc')
+      return 'Loans and Security'
+    end
+
+    # Register of Members folder
+    if filename_lower.include?('register') && filename_lower.include?('member')
+      return 'Register of Members'
+    end
+
+    # Company Setup folder
+    if filename_lower.include?('setup') || filename_lower.include?('registration') ||
+       filename_lower.include?('corporate key')
+      return 'Company Setup'
+    end
+
+    # Assets folder
+    if filename_lower.include?('asset') || filename_lower.include?('depreciation')
+      return 'Assets'
+    end
+
+    # Structure folder
+    if filename_lower.include?('structure') || filename_lower.include?('org chart')
+      return 'Structure'
+    end
+
+    # General folder (catch-all for common corporate documents)
+    if doc_type == 'asic' || doc_type == 'certificate' ||
+       filename_lower.include?('officer') || filename_lower.include?('director') ||
+       filename_lower.include?('appointment') || filename_lower.include?('resignation') ||
+       filename_lower.include?('distribution') || filename_lower.include?('dividend')
+      return 'General'
+    end
+
+    # Default to General folder
+    'General'
   end
 end
