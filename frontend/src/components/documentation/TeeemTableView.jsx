@@ -8143,8 +8143,8 @@ export default function TeeemTableView({
             })(),
             minWidth: autoFitColumns ? '100%' : undefined
           }}>
-            <thead>
-            <tr>
+            <thead className="sticky top-0 z-40">
+            <tr className="sticky top-0 z-40">
               {columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).map((colKey, index, visibleCols) => {
                 const column = COLUMNS.find(c => c.key === colKey)
                 if (!column) return null
@@ -8170,13 +8170,9 @@ export default function TeeemTableView({
                       width: autoFitColumns ? 'auto' : columnWidths[colKey],
                       minWidth: columnMinWidths[colKey] ?? 75,
                       maxWidth: autoFitColumns ? 'none' : columnWidths[colKey],
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 30,
                       fontSize: '16px',
                       fontWeight: '600',
                       verticalAlign: 'top',
-                      overflow: 'hidden',
                     }}
                     className={`group align-top ${colKey === 'select' ? 'px-2 py-3' : 'px-2 py-3'} text-white border-r-2 border-white/50 last:border-r-0 ${
                       isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : 'bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800'
@@ -8200,7 +8196,7 @@ export default function TeeemTableView({
                         />
                       </div>
                     ) : (
-                      <div className={`flex flex-col h-full gap-2 overflow-hidden ${
+                      <div className={`flex flex-col gap-2 ${
                         showFilters && (columnShowFilters[colKey] ?? true) && column.filterType ? 'justify-between' : 'justify-start'
                       }`}>
                         <div className="flex items-center gap-1 min-w-0">
