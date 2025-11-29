@@ -1725,7 +1725,7 @@ export default function ContactDetailPage() {
           </div>
 
           {/* Director Details Section - Only show if contact has director-related data */}
-          {(contact.director_id || contact.date_of_birth || contact.place_of_birth || contact.residential_address || contact.drivers_licence) && (
+          {(contact.director_id || contact.date_of_birth || contact.place_of_birth || contact.residential_address || contact.drivers_licence || contact.passport_number || contact.photo_url) && (
             <div
               ref={(el) => (sectionRefs.current['director-details'] = el)}
               id="director-details"
@@ -1734,6 +1734,20 @@ export default function ContactDetailPage() {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Director Details</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Photo */}
+                {contact.photo_url && (
+                  <div className="flex items-start gap-3 sm:col-span-2">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Photo</p>
+                      <img
+                        src={contact.photo_url}
+                        alt={`${contact.full_name} photo`}
+                        className="w-32 h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 {/* Director ID */}
                 {contact.director_id && (
                   <div className="flex items-start gap-3">
@@ -1787,8 +1801,19 @@ export default function ContactDetailPage() {
                   <div className="flex items-start gap-3">
                     <IdentificationIcon className="h-5 w-5 text-gray-400 mt-0.5" />
                     <div className="flex-1">
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Drivers Licence</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Drivers Licence Number</p>
                       <p className="text-gray-900 dark:text-white font-medium">{contact.drivers_licence}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Passport Number */}
+                {contact.passport_number && (
+                  <div className="flex items-start gap-3">
+                    <IdentificationIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Passport Number</p>
+                      <p className="text-gray-900 dark:text-white font-medium">{contact.passport_number}</p>
                     </div>
                   </div>
                 )}

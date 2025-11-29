@@ -128,7 +128,7 @@ module Api
             :accounts_payable_outstanding, :accounts_payable_overdue,
             # Director details fields
             :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country,
-            :residential_address, :drivers_licence
+            :residential_address, :drivers_licence, :passport_number, :photo_url
           ],
           include: {
             contact_persons: { only: [:id, :first_name, :last_name, :email, :include_in_emails, :is_primary, :xero_contact_person_id] },
