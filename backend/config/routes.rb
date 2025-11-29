@@ -1175,6 +1175,7 @@ Rails.application.routes.draw do
           get :insurance
           post :insurance, to: 'assets#update_insurance'
           put :insurance, to: 'assets#update_insurance'
+          get :documents
         end
       end
 

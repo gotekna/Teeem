@@ -3,6 +3,7 @@ class Asset < ApplicationRecord
   belongs_to :company
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
+  has_many :company_documents, dependent: :nullify
 
   # Active Storage for photos
   has_many_attached :photos
@@ -89,6 +90,10 @@ class Asset < ApplicationRecord
 
   def needs_attention?
     insurance_expired? || service_overdue?
+  end
+
+  def documents_count
+    company_documents.count
   end
 
   private
