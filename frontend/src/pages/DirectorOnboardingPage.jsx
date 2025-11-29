@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { searchAddress, formatAddress as mapboxFormatAddress } from '../utils/mapboxGeocoding'
 import {
   UserCircleIcon,
   CheckCircleIcon,
@@ -8,9 +9,272 @@ import {
   PhotoIcon,
   IdentificationIcon,
   ArrowUpTrayIcon,
-  XMarkIcon
+  XMarkIcon,
+  MapPinIcon
 } from '@heroicons/react/24/outline'
 import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
+
+// Australian cities with state and country info
+const AUSTRALIAN_CITIES = [
+  // New South Wales
+  { city: 'Sydney', state: 'NSW', country: 'Australia' },
+  { city: 'Newcastle', state: 'NSW', country: 'Australia' },
+  { city: 'Wollongong', state: 'NSW', country: 'Australia' },
+  { city: 'Central Coast', state: 'NSW', country: 'Australia' },
+  { city: 'Coffs Harbour', state: 'NSW', country: 'Australia' },
+  { city: 'Wagga Wagga', state: 'NSW', country: 'Australia' },
+  { city: 'Albury', state: 'NSW', country: 'Australia' },
+  { city: 'Port Macquarie', state: 'NSW', country: 'Australia' },
+  { city: 'Tamworth', state: 'NSW', country: 'Australia' },
+  { city: 'Orange', state: 'NSW', country: 'Australia' },
+  { city: 'Dubbo', state: 'NSW', country: 'Australia' },
+  { city: 'Bathurst', state: 'NSW', country: 'Australia' },
+  { city: 'Lismore', state: 'NSW', country: 'Australia' },
+  { city: 'Nowra', state: 'NSW', country: 'Australia' },
+  // Victoria
+  { city: 'Melbourne', state: 'VIC', country: 'Australia' },
+  { city: 'Geelong', state: 'VIC', country: 'Australia' },
+  { city: 'Ballarat', state: 'VIC', country: 'Australia' },
+  { city: 'Bendigo', state: 'VIC', country: 'Australia' },
+  { city: 'Shepparton', state: 'VIC', country: 'Australia' },
+  { city: 'Mildura', state: 'VIC', country: 'Australia' },
+  { city: 'Warrnambool', state: 'VIC', country: 'Australia' },
+  { city: 'Wodonga', state: 'VIC', country: 'Australia' },
+  { city: 'Traralgon', state: 'VIC', country: 'Australia' },
+  { city: 'Frankston', state: 'VIC', country: 'Australia' },
+  // Queensland
+  { city: 'Brisbane', state: 'QLD', country: 'Australia' },
+  { city: 'Gold Coast', state: 'QLD', country: 'Australia' },
+  { city: 'Sunshine Coast', state: 'QLD', country: 'Australia' },
+  { city: 'Townsville', state: 'QLD', country: 'Australia' },
+  { city: 'Cairns', state: 'QLD', country: 'Australia' },
+  { city: 'Toowoomba', state: 'QLD', country: 'Australia' },
+  { city: 'Mackay', state: 'QLD', country: 'Australia' },
+  { city: 'Rockhampton', state: 'QLD', country: 'Australia' },
+  { city: 'Bundaberg', state: 'QLD', country: 'Australia' },
+  { city: 'Hervey Bay', state: 'QLD', country: 'Australia' },
+  { city: 'Gladstone', state: 'QLD', country: 'Australia' },
+  { city: 'Ipswich', state: 'QLD', country: 'Australia' },
+  { city: 'Redcliffe', state: 'QLD', country: 'Australia' },
+  { city: 'Burbank', state: 'QLD', country: 'Australia' },
+  // South Australia
+  { city: 'Adelaide', state: 'SA', country: 'Australia' },
+  { city: 'Mount Gambier', state: 'SA', country: 'Australia' },
+  { city: 'Whyalla', state: 'SA', country: 'Australia' },
+  { city: 'Murray Bridge', state: 'SA', country: 'Australia' },
+  { city: 'Port Augusta', state: 'SA', country: 'Australia' },
+  { city: 'Port Lincoln', state: 'SA', country: 'Australia' },
+  { city: 'Victor Harbor', state: 'SA', country: 'Australia' },
+  { city: 'Glenelg', state: 'SA', country: 'Australia' },
+  // Western Australia
+  { city: 'Perth', state: 'WA', country: 'Australia' },
+  { city: 'Mandurah', state: 'WA', country: 'Australia' },
+  { city: 'Bunbury', state: 'WA', country: 'Australia' },
+  { city: 'Geraldton', state: 'WA', country: 'Australia' },
+  { city: 'Kalgoorlie', state: 'WA', country: 'Australia' },
+  { city: 'Albany', state: 'WA', country: 'Australia' },
+  { city: 'Broome', state: 'WA', country: 'Australia' },
+  { city: 'Rockingham', state: 'WA', country: 'Australia' },
+  { city: 'Fremantle', state: 'WA', country: 'Australia' },
+  // Tasmania
+  { city: 'Hobart', state: 'TAS', country: 'Australia' },
+  { city: 'Launceston', state: 'TAS', country: 'Australia' },
+  { city: 'Devonport', state: 'TAS', country: 'Australia' },
+  { city: 'Burnie', state: 'TAS', country: 'Australia' },
+  { city: 'Kingston', state: 'TAS', country: 'Australia' },
+  { city: 'Ulverstone', state: 'TAS', country: 'Australia' },
+  // Northern Territory
+  { city: 'Darwin', state: 'NT', country: 'Australia' },
+  { city: 'Alice Springs', state: 'NT', country: 'Australia' },
+  { city: 'Katherine', state: 'NT', country: 'Australia' },
+  { city: 'Palmerston', state: 'NT', country: 'Australia' },
+  // ACT
+  { city: 'Canberra', state: 'ACT', country: 'Australia' },
+  { city: 'Queanbeyan', state: 'ACT', country: 'Australia' },
+]
+
+// State name mapping
+const STATE_NAMES = {
+  'NSW': 'New South Wales',
+  'VIC': 'Victoria',
+  'QLD': 'Queensland',
+  'SA': 'South Australia',
+  'WA': 'Western Australia',
+  'TAS': 'Tasmania',
+  'NT': 'Northern Territory',
+  'ACT': 'Australian Capital Territory'
+}
+
+// Place of Birth autocomplete component
+function PlaceOfBirthAutocomplete({ value, onChange, onSelectPlace }) {
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleInputChange = (e) => {
+    const query = e.target.value
+    onChange(query)
+
+    if (query.length >= 2) {
+      const filtered = AUSTRALIAN_CITIES.filter(place =>
+        place.city.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8)
+      setSuggestions(filtered)
+      setShowSuggestions(true)
+    } else {
+      setSuggestions([])
+      setShowSuggestions(false)
+    }
+  }
+
+  const handleSelect = (place) => {
+    onChange(place.city)
+    onSelectPlace(place)
+    setSuggestions([])
+    setShowSuggestions(false)
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onFocus={() => value.length >= 2 && suggestions.length > 0 && setShowSuggestions(true)}
+        placeholder="Start typing a city name..."
+        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+      />
+      {showSuggestions && suggestions.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+          {suggestions.map((place, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => handleSelect(place)}
+              className="w-full text-left px-4 py-2 hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-b-0"
+            >
+              <div className="font-medium text-gray-900">{place.city}</div>
+              <div className="text-sm text-gray-500">{STATE_NAMES[place.state] || place.state}, {place.country}</div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Address autocomplete component using Mapbox
+function AddressAutocompleteField({ value, onChange }) {
+  const [suggestions, setSuggestions] = useState([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const debounceTimer = useRef(null)
+  const wrapperRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const fetchSuggestions = async (query) => {
+    if (query.length < 3) {
+      setSuggestions([])
+      return
+    }
+
+    setLoading(true)
+    try {
+      const results = await searchAddress(query, { country: 'au', limit: 8 })
+      setSuggestions(results || [])
+      setShowSuggestions(true)
+    } catch (error) {
+      console.error('Error fetching address suggestions:', error)
+      setSuggestions([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleInputChange = (e) => {
+    const newValue = e.target.value
+    onChange(newValue)
+
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+
+    debounceTimer.current = setTimeout(() => {
+      fetchSuggestions(newValue)
+    }, 300)
+  }
+
+  const handleSelect = (suggestion) => {
+    // Format address using mapbox utility
+    const formattedAddress = mapboxFormatAddress(suggestion.address)
+    onChange(formattedAddress)
+    setSuggestions([])
+    setShowSuggestions(false)
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          value={value}
+          onChange={handleInputChange}
+          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          placeholder="Start typing your address..."
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 pr-10"
+        />
+        {loading && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>
+          </div>
+        )}
+      </div>
+      {showSuggestions && suggestions.length > 0 && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.id}
+              type="button"
+              onClick={() => handleSelect(suggestion)}
+              className="w-full text-left px-4 py-2 hover:bg-indigo-50 transition-colors border-b border-gray-100 last:border-b-0"
+            >
+              <div className="flex items-start gap-2">
+                <MapPinIcon className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {mapboxFormatAddress(suggestion.address)}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate">
+                    {suggestion.placeName}
+                  </p>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Public API client (no auth required)
 const publicApi = {
@@ -429,13 +693,15 @@ export default function DirectorOnboardingPage() {
                 <label className="block text-sm font-medium text-gray-700">
                   Place of Birth
                 </label>
-                <input
-                  type="text"
-                  name="place_of_birth"
+                <PlaceOfBirthAutocomplete
                   value={formData.place_of_birth}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  onChange={(value) => handleChange('place_of_birth', value)}
+                  onSelectPlace={(place) => {
+                    handleChange('birth_state', STATE_NAMES[place.state] || place.state)
+                    handleChange('birth_country', place.country)
+                  }}
                 />
+                <p className="mt-1 text-xs text-gray-500">Start typing to see Australian cities</p>
               </div>
 
               <div>
@@ -447,7 +713,8 @@ export default function DirectorOnboardingPage() {
                   name="birth_state"
                   value={formData.birth_state}
                   onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  placeholder="Auto-fills from place of birth"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50"
                 />
               </div>
 
@@ -460,7 +727,8 @@ export default function DirectorOnboardingPage() {
                   name="birth_country"
                   value={formData.birth_country}
                   onChange={handleInputChange}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  placeholder="Auto-fills from place of birth"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 bg-gray-50"
                 />
               </div>
 
@@ -468,14 +736,11 @@ export default function DirectorOnboardingPage() {
                 <label className="block text-sm font-medium text-gray-700">
                   Residential Address <span className="text-red-500">*</span>
                 </label>
-                <textarea
-                  name="residential_address"
+                <AddressAutocompleteField
                   value={formData.residential_address}
-                  onChange={handleInputChange}
-                  required
-                  rows={2}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                  onChange={(value) => handleChange('residential_address', value)}
                 />
+                <p className="mt-1 text-xs text-gray-500">Start typing and select from suggestions</p>
               </div>
             </div>
           </div>
