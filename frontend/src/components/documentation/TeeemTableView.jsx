@@ -6092,7 +6092,14 @@ export default function TeeemTableView({
                       {/* View Filter - Filter Builder UI - Collapsible */}
                       <div className={`${filterSectionCollapsed ? '' : 'flex-1'} min-h-0 overflow-visible`}>
                         <button
-                          onClick={() => setFilterSectionCollapsed(!filterSectionCollapsed)}
+                          onClick={() => {
+                            // Close any open dropdowns when collapsing
+                            if (!filterSectionCollapsed) {
+                              setFilterColumnDropdownOpen(null)
+                              setFilterColumnSearchQuery('')
+                            }
+                            setFilterSectionCollapsed(!filterSectionCollapsed)
+                          }}
                           className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                         >
                           <span className="flex items-center gap-2">
@@ -6390,7 +6397,14 @@ export default function TeeemTableView({
                       {/* Sort By Panel - Collapsible */}
                       <div className="mt-4">
                         <button
-                          onClick={() => setSortSectionCollapsed(!sortSectionCollapsed)}
+                          onClick={() => {
+                            // Close any open dropdowns when collapsing
+                            if (!sortSectionCollapsed) {
+                              setSortColumnDropdownOpen(null)
+                              setSortColumnSearchQuery('')
+                            }
+                            setSortSectionCollapsed(!sortSectionCollapsed)
+                          }}
                           className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                         >
                           <span className="flex items-center gap-2">

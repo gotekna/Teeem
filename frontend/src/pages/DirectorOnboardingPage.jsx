@@ -701,8 +701,14 @@ export default function DirectorOnboardingPage() {
                   value={formData.place_of_birth}
                   onChange={(value) => handleChange('place_of_birth', value)}
                   onSelectPlace={(place) => {
-                    handleChange('birth_state', STATE_NAMES[place.state] || place.state)
-                    handleChange('birth_country', place.country)
+                    // Only auto-fill birth_state and birth_country if they are empty
+                    // This prevents overwriting manually entered values
+                    if (!formData.birth_state) {
+                      handleChange('birth_state', STATE_NAMES[place.state] || place.state)
+                    }
+                    if (!formData.birth_country) {
+                      handleChange('birth_country', place.country)
+                    }
                   }}
                 />
                 <p className="mt-1 text-xs text-gray-500">Start typing to see Australian cities</p>
