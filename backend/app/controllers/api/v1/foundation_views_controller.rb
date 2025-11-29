@@ -7,34 +7,38 @@ module Api
       # GET /api/v1/foundation_views?foundation_id=123
       # GET /api/v1/table_views?table_id=123 (backward compatible)
       def index
-        # Handle both authenticated and unauthenticated requests
-        # Unauthenticated users see public/system views (user_id IS NULL)
-        if current_user
-          views = current_user.foundation_views
-        else
-          views = FoundationView.where(user_id: nil)
-        end
-
         # Support both foundation_id and table_id (backward compatibility)
         filter_id = params[:foundation_id] || params[:table_id]
 
-        if filter_id.present?
-          views = views.where(foundation_id: filter_id)
+        # Get global views (shared by all users)
+        global_views = FoundationView.global_views
+        global_views = global_views.where(foundation_id: filter_id) if filter_id.present?
+
+        # Get user-specific views if authenticated
+        user_views = if current_user
+          views = current_user.foundation_views.personal_views
+          views = views.where(foundation_id: filter_id) if filter_id.present?
 
           # Auto-create "Setup" view if no views exist for this user/foundation combination
-          if current_user && views.empty?
+          if filter_id.present? && views.empty? && global_views.empty?
             foundation = Foundation.find_by(id: filter_id)
             if foundation
               create_default_setup_view(foundation, current_user)
               # Reload views to include the newly created Setup view
-              views = current_user.foundation_views.where(foundation_id: filter_id)
+              views = current_user.foundation_views.personal_views.where(foundation_id: filter_id)
             end
           end
+          views
+        else
+          FoundationView.none
         end
+
+        # Combine global views (first) and user views (second)
+        all_views = (global_views.to_a + user_views.to_a).uniq
 
         render json: {
           success: true,
-          views: views.order(display_order: :asc, created_at: :desc)
+          views: all_views.sort_by { |v| [v.is_global? ? 0 : 1, v.display_order || 999, v.created_at] }
         }
       end
 
@@ -140,6 +144,77 @@ module Api
             success: false,
             error: e.message
           }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/foundation_views/save_global
+      # Save current view configuration as a global view (visible to all users)
+      # Only authenticated users can save global views
+      def save_global
+        unless current_user
+          return render json: {
+            success: false,
+            error: "Authentication required to save global views"
+          }, status: :unauthorized
+        end
+
+        foundation_id = params[:foundation_id]
+        view_name = params[:name] || 'Default View'
+
+        unless foundation_id
+          return render json: {
+            success: false,
+            error: "foundation_id is required"
+          }, status: :unprocessable_entity
+        end
+
+        # Check if a global view already exists for this foundation
+        existing_global = FoundationView.global_views.find_by(foundation_id: foundation_id)
+
+        view_params = {
+          foundation_id: foundation_id,
+          name: view_name,
+          view_type: params[:view_type] || 'custom',
+          filters: params[:filters] || {},
+          columns: params[:columns] || {},
+          sort_order: params[:sort_order] || [],
+          group_by_column: params[:group_by_column],
+          group_by_columns: params[:group_by_columns] || [],
+          is_global: true,
+          user_id: nil,  # Global views have no user
+          is_default: true,
+          display_order: 0
+        }
+
+        if existing_global
+          # Update existing global view
+          if existing_global.update(view_params)
+            render json: {
+              success: true,
+              view: existing_global,
+              message: "Global view updated successfully. All users will see these settings."
+            }
+          else
+            render json: {
+              success: false,
+              errors: existing_global.errors.full_messages
+            }, status: :unprocessable_entity
+          end
+        else
+          # Create new global view
+          global_view = FoundationView.new(view_params)
+          if global_view.save
+            render json: {
+              success: true,
+              view: global_view,
+              message: "Global view created successfully. All users will see these settings."
+            }, status: :created
+          else
+            render json: {
+              success: false,
+              errors: global_view.errors.full_messages
+            }, status: :unprocessable_entity
+          end
         end
       end
 

@@ -1,9 +1,10 @@
 class FoundationView < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true  # optional for global views (is_global = true)
   belongs_to :foundation, optional: true  # optional because foundation_id might reference dynamic foundations
 
   validates :name, presence: true
-  validates :user_id, presence: true
+  # user_id is required for personal views, but not for global views
+  validates :user_id, presence: true, unless: :is_global?
 
   # Ensure only one default view per user per foundation
   validates :is_default, uniqueness: { scope: [:user_id, :foundation_id] }, if: :is_default?
@@ -23,6 +24,8 @@ class FoundationView < ApplicationRecord
   scope :for_user, ->(user_id) { where(user_id: user_id) }
   scope :for_foundation, ->(foundation_id) { where(foundation_id: foundation_id) }
   scope :defaults, -> { where(is_default: true) }
+  scope :global_views, -> { where(is_global: true, user_id: nil) }
+  scope :personal_views, -> { where(is_global: false) }
 
   # Method to get visible columns from the columns JSON
   def visible_columns

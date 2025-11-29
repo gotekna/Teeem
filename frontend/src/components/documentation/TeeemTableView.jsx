@@ -2572,6 +2572,59 @@ export default function TeeemTableView({
     }
   }
 
+  // Helper function to save current view as a global view (visible to all users)
+  const saveGlobalView = async () => {
+    try {
+      const columnsToSave = {}
+      COLUMNS.filter(col => col.key !== 'select').forEach(col => {
+        columnsToSave[col.key] = visibleColumns[col.key] !== false
+      })
+      const orderToSave = columnOrder || COLUMNS.map(c => c.key)
+      const sortColumnsToSave = Array.isArray(sortColumns) ? sortColumns : []
+      const groupByColumnsToSave = Array.isArray(groupByColumns) ? groupByColumns : []
+      const groupByColumnToSave = groupByColumnsToSave[0] || groupByColumn || null
+
+      const response = await api.post('/api/v1/foundation_views/save_global', {
+        foundation_id: foundationIdNumeric,
+        name: 'Default View', // Can customize this later
+        view_type: 'custom',
+        filters: {
+          cascadeFilters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+          filterGroups: [...filterGroups],
+          interGroupLogic
+        },
+        columns: {
+          visible: columnsToSave,
+          order: orderToSave,
+          showFilters,
+          autoFitColumns,
+          widths: { ...columnWidths }
+        },
+        sort_order: sortColumnsToSave,
+        group_by_column: groupByColumnToSave,
+        group_by_columns: groupByColumnsToSave
+      })
+
+      if (response.success) {
+        alert(response.message || 'Global view saved successfully! All users will now see these settings.')
+        // Refresh views to show the updated global view
+        fetchSavedViews()
+        return true
+      } else {
+        alert('Failed to save global view: ' + (response.error || 'Unknown error'))
+        return false
+      }
+    } catch (error) {
+      console.error('Error saving global view:', error)
+      if (error.status === 401) {
+        alert('You must be logged in to save global views.')
+      } else {
+        alert('Failed to save global view: ' + (error.message || 'Unknown error'))
+      }
+      return false
+    }
+  }
+
   // Helper function to delete a view via API
   const deleteView = async (viewId) => {
     try {
@@ -6013,6 +6066,77 @@ export default function TeeemTableView({
                               className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
                             >
                               Save & Close
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!newViewName.trim()) return
+                                // Save the new view as a global view via API
+                                const columnsToSave = {}
+                                COLUMNS.filter(col => col.key !== 'select').forEach(col => {
+                                  columnsToSave[col.key] = visibleColumns[col.key] !== false
+                                })
+                                const orderToSave = columnOrder || COLUMNS.map(c => c.key)
+
+                                try {
+                                  const sortColumnsToSave = Array.isArray(sortColumns) ? sortColumns : []
+                                  const groupByColumnsToSave = Array.isArray(groupByColumns) ? groupByColumns : []
+                                  const groupByColumnToSave = groupByColumnsToSave[0] || groupByColumn || null
+
+                                  const response = await api.post('/api/v1/foundation_views/save_global', {
+                                    foundation_id: foundationIdNumeric,
+                                    name: newViewName.trim(),
+                                    view_type: 'custom',
+                                    filters: {
+                                      cascadeFilters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                                      filterGroups: [...filterGroups],
+                                      interGroupLogic
+                                    },
+                                    columns: {
+                                      visible: columnsToSave,
+                                      order: orderToSave,
+                                      showFilters,
+                                      autoFitColumns,
+                                      widths: { ...columnWidths }
+                                    },
+                                    sort_order: sortColumnsToSave,
+                                    group_by_column: groupByColumnToSave,
+                                    group_by_columns: groupByColumnsToSave
+                                  })
+
+                                  if (response.success) {
+                                    alert(response.message || 'Global view saved successfully! All users will now see these settings.')
+                                    setCreatingNewView(false)
+                                    setNewViewName('')
+                                    // Refresh views to show the updated global view
+                                    const viewsResponse = await api.get(`/api/v1/foundation_views?foundation_id=${foundationIdNumeric}`)
+                                    if (viewsResponse.success) {
+                                      setSavedFilters(viewsResponse.views.map(v => ({
+                                        ...v,
+                                        filters: v.filters?.cascadeFilters || [],
+                                        filterGroups: v.filters?.filterGroups || [],
+                                        interGroupLogic: v.filters?.interGroupLogic || 'AND',
+                                        visibleColumns: v.columns?.visible || {},
+                                        columnOrder: v.columns?.order || [],
+                                        showFilters: v.columns?.showFilters !== false,
+                                        autoFitColumns: v.columns?.autoFitColumns === true,
+                                        columnWidths: v.columns?.widths || {},
+                                        sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
+                                        groupByColumn: v.group_by_column || null,
+                                        groupByColumns: v.group_by_columns || []
+                                      })))
+                                    }
+                                  } else {
+                                    alert('Failed to save global view: ' + (response.error || 'Unknown error'))
+                                  }
+                                } catch (error) {
+                                  console.error('Error saving global view:', error)
+                                  alert('Failed to save global view: ' + (error.message || 'Unknown error'))
+                                }
+                              }}
+                              disabled={!newViewName.trim()}
+                              className="text-xs px-3 py-1 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
+                            >
+                              Save for All Users
                             </button>
                             <button
                               onClick={() => {

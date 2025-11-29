@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_014745) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_043620) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -748,6 +748,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_014745) do
     t.bigint "invited_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.date "drivers_licence_expiry"
+    t.date "passport_expiry"
     t.index ["access_token"], name: "index_director_onboarding_requests_on_access_token", unique: true
     t.index ["company_id"], name: "index_director_onboarding_requests_on_company_id"
     t.index ["contact_id"], name: "index_director_onboarding_requests_on_contact_id"
@@ -1157,6 +1159,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_014745) do
     t.integer "display_order", default: 0
     t.string "group_by_column"
     t.json "group_by_columns"
+    t.boolean "is_global", default: false, null: false
     t.index ["foundation_id", "user_id", "display_order"], name: "index_foundation_views_on_foundation_user_order"
     t.index ["foundation_id", "user_id"], name: "index_foundation_views_on_foundation_id_and_user_id"
     t.index ["foundation_id"], name: "index_foundation_views_on_foundation_id"
