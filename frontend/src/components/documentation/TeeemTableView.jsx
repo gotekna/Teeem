@@ -8134,7 +8134,7 @@ export default function TeeemTableView({
         {/* END BOTTOM SECTION - Filters */}
 
         {/* Table Container with Border */}
-        <div className="flex-1 min-h-0 p-4 flex flex-col">
+        <div className="flex-1 min-h-[200px] p-4 flex flex-col">
           {/* Table wrapper with border and rounded corners - no overflow clipping */}
           <div className="flex-1 min-h-0 flex flex-col border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
             {/* Table with Sticky Gradient Headers (Chapter 20.2) */}

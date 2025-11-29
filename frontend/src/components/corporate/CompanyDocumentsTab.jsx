@@ -228,9 +228,9 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
               href={company.sharepoint_folder_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
             >
-              {decodeURIComponent(company.sharepoint_folder_url.split('/Corporate%20File/')[1] || company.sharepoint_folder_url)}
+              {decodeURIComponent(company.sharepoint_folder_url)}
             </a>
           )}
         </div>
