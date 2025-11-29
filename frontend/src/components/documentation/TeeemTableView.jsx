@@ -4908,9 +4908,9 @@ export default function TeeemTableView({
           cursor: grabbing;
         }
       `}</style>
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 max-h-full overflow-hidden">
       {/* Full-width table container */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 max-h-full overflow-hidden">
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
         {editModeActive && (
