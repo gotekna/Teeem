@@ -5,10 +5,17 @@ module Api
 
       # GET /api/v1/company_documents
       def index
-        @documents = CompanyDocument.includes(:company, :user).all
+        @documents = CompanyDocument.includes(:company, :user, :asset).all
 
         # Filter by company
         @documents = @documents.where(company_id: params[:company_id]) if params[:company_id].present?
+
+        # Filter by asset
+        @documents = @documents.by_asset(params[:asset_id]) if params[:asset_id].present?
+
+        # Filter by with/without asset
+        @documents = @documents.with_asset if params[:with_asset] == 'true'
+        @documents = @documents.without_asset if params[:without_asset] == 'true'
 
         # Filter by type
         @documents = @documents.by_type(params[:document_type]) if params[:document_type].present?
@@ -29,8 +36,9 @@ module Api
           success: true,
           documents: @documents.as_json(
             include: {
-              company: { only: [:id, :name] },
-              user: { only: [:id, :name, :email] }
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] },
+              asset: { only: [:id, :name, :description, :abbreviation], methods: [:display_name] }
             },
             methods: [:formatted_document_type, :file_size_mb]
           )
@@ -43,8 +51,9 @@ module Api
           success: true,
           document: @document.as_json(
             include: {
-              company: { only: [:id, :name] },
-              user: { only: [:id, :name, :email] }
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] },
+              asset: { only: [:id, :name, :description, :abbreviation], methods: [:display_name] }
             },
             methods: [:formatted_document_type, :file_size_mb]
           )
@@ -127,8 +136,9 @@ module Api
 
       def document_params
         params.require(:company_document).permit(
-          :company_id, :document_name, :document_type, :description,
-          :file_url, :year, :period
+          :company_id, :asset_id, :document_type_id, :title, :document_name,
+          :document_type, :description, :file_url, :year, :period, :folder,
+          :storage_type, :source, :file_name, :file_size, :mime_type
         )
       end
     end

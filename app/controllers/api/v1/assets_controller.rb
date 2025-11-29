@@ -2,7 +2,7 @@ module Api
   module V1
     class AssetsController < ApplicationController
       before_action :set_asset, only: [:show, :update, :destroy, :service_history,
-                                        :add_service, :insurance, :update_insurance]
+                                        :add_service, :insurance, :update_insurance, :documents]
 
       # GET /api/v1/assets
       def index
@@ -211,6 +211,23 @@ module Api
             }, status: :unprocessable_entity
           end
         end
+      end
+
+      # GET /api/v1/assets/:id/documents
+      def documents
+        documents = @asset.company_documents.includes(:company, :user, :document_type_record).order(created_at: :desc)
+
+        render json: {
+          success: true,
+          documents: documents.as_json(
+            include: {
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] },
+              document_type_record: { only: [:id, :name, :folder] }
+            },
+            methods: [:formatted_document_type, :file_size_mb]
+          )
+        }
       end
 
       private

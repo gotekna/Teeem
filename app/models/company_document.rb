@@ -2,6 +2,7 @@ class CompanyDocument < ApplicationRecord
   # Associations
   belongs_to :company
   belongs_to :user, optional: true
+  belongs_to :asset, optional: true
   belongs_to :document_type_record, class_name: 'DocumentType', foreign_key: 'document_type_id', optional: true
 
   # Active Storage for file upload
@@ -28,6 +29,9 @@ class CompanyDocument < ApplicationRecord
       .where("document_types.tabs @> ?", [tab].to_json)
   }
   scope :by_source, ->(source) { where(source: source) }
+  scope :by_asset, ->(asset_id) { where(asset_id: asset_id) }
+  scope :with_asset, -> { where.not(asset_id: nil) }
+  scope :without_asset, -> { where(asset_id: nil) }
   scope :electronic, -> { where(storage_type: 'electronic') }
   scope :manual, -> { where(storage_type: 'manual') }
   scope :recent, -> { order(created_at: :desc) }
