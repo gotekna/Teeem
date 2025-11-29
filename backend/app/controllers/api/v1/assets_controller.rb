@@ -6,6 +6,11 @@ module Api
 
       # GET /api/v1/assets
       def index
+        # Return empty result if assets table doesn't exist yet
+        unless Asset.table_exists?
+          return render json: { success: true, assets: [] }
+        end
+
         @assets = Asset.includes(:company, :asset_insurance).all
 
         # Filter by company
