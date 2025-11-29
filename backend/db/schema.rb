@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_071114) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_191923) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -144,6 +144,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_071114) do
     t.index ["asset_id"], name: "index_asset_insurances_on_asset_id"
     t.index ["renewal_date"], name: "index_asset_insurances_on_renewal_date"
     t.index ["status"], name: "index_asset_insurances_on_status"
+  end
+
+  create_table "asset_service_histories", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.bigint "user_id"
+    t.date "service_date", null: false
+    t.string "service_type"
+    t.string "service_provider"
+    t.text "description"
+    t.decimal "cost", precision: 10, scale: 2
+    t.integer "odometer_reading"
+    t.integer "hours_reading"
+    t.integer "next_service_km"
+    t.integer "next_service_hours"
+    t.date "next_service_date"
+    t.string "invoice_url"
+    t.string "document_url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id"], name: "index_asset_service_histories_on_asset_id"
+    t.index ["service_date"], name: "index_asset_service_histories_on_service_date"
+    t.index ["service_type"], name: "index_asset_service_histories_on_service_type"
+    t.index ["user_id"], name: "index_asset_service_histories_on_user_id"
   end
 
   create_table "assets", force: :cascade do |t|
@@ -3658,6 +3681,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_071114) do
   add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
   add_foreign_key "asset_insurances", "assets"
+  add_foreign_key "asset_service_histories", "assets"
+  add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "companies"
   add_foreign_key "bank_accounts", "companies"
   add_foreign_key "chat_messages", "jobs"
