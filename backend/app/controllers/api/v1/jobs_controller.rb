@@ -17,10 +17,13 @@ module Api
                        .distinct
         end
 
-        # Filter by status if provided (default to Active jobs, unless filtering by contact)
+        # Filter by job_status.name if provided (default to Active jobs, unless filtering by contact)
+        # Note: The frontend sends `status=Active` but we filter via the job_status association
         status_filter = params[:status]
         status_filter ||= "Active" unless params[:contact_id].present?
-        @jobs = @jobs.where(status: status_filter) if status_filter.present?
+        if status_filter.present?
+          @jobs = @jobs.joins(:job_status).where(job_status: { name: status_filter })
+        end
 
         # Pagination
         page = params[:page]&.to_i || 1
