@@ -159,7 +159,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
   )
 
   // Multi-select dropdown component
-  const MultiSelectDropdown = ({ selectedIds, onToggle, onSelectAll, onClearAll, isOpen, onToggleOpen, dropdownId }) => {
+  const MultiSelectDropdown = ({ selectedIds, onToggle, onSelectAll, onClearAll, isOpen, onToggleOpen, dropdownId, onSave }) => {
     const selectedCount = selectedIds.length
     const allSelected = selectedCount === parentOptions.length
 
@@ -183,9 +183,9 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
         </button>
 
         {isOpen && (
-          <div className="absolute z-50 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-72 overflow-hidden">
+          <div className="fixed z-50 w-72 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 flex flex-col" style={{ top: '120px', bottom: '40px', right: 'auto', left: 'auto', marginLeft: '-16px' }}>
             {/* Search */}
-            <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+            <div className="p-2 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
               <input
                 type="text"
                 value={parentSearch}
@@ -197,7 +197,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
             </div>
 
             {/* Select All / Clear All */}
-            <div className="flex gap-2 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+            <div className="flex gap-2 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onSelectAll(); }}
@@ -214,8 +214,8 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
               </button>
             </div>
 
-            {/* Options */}
-            <div className="max-h-48 overflow-y-auto p-1">
+            {/* Options - scrollable area that expands */}
+            <div className="flex-1 overflow-y-auto p-1 min-h-0">
               {filteredParentOptions.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 italic">
                   No matches found
@@ -237,6 +237,17 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                   </label>
                 ))
               )}
+            </div>
+
+            {/* Save button at bottom */}
+            <div className="p-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSave(); }}
+                className="w-full px-3 py-2 rounded-md bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-500 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+              >
+                Save
+              </button>
             </div>
           </div>
         )}
@@ -307,6 +318,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                 isOpen={parentDropdownOpen === 'new'}
                 onToggleOpen={setParentDropdownOpen}
                 dropdownId="new"
+                onSave={handleCreate}
               />
             )}
             <button
@@ -390,6 +402,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                     isOpen={parentDropdownOpen === `edit-${item.id}`}
                     onToggleOpen={setParentDropdownOpen}
                     dropdownId={`edit-${item.id}`}
+                    onSave={saveEdit}
                   />
                 )}
                 <button onClick={saveEdit} className="p-1.5 text-green-600 hover:text-green-700">
