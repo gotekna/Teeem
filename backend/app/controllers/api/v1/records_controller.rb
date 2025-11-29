@@ -240,9 +240,9 @@ module Api
       # POST /api/v1/foundations/:foundation_id/records/bulk_delete
       def bulk_delete
         model = @foundation.dynamic_model
-        record_ids = params[:record_ids]
+        ids = params[:ids]  # Changed from record_ids to ids for consistency with other bulk_delete endpoints
 
-        if record_ids.blank?
+        if ids.blank?
           return render json: { error: 'No record IDs provided' }, status: :unprocessable_entity
         end
 
@@ -250,7 +250,7 @@ module Api
         errors = []
 
         ActiveRecord::Base.transaction do
-          record_ids.each do |id|
+          ids.each do |id|
             record = model.find_by(id: id)
             if record
               record.destroy
@@ -264,7 +264,7 @@ module Api
         render json: {
           success: errors.empty?,
           deleted_count: deleted_count,
-          total_requested: record_ids.size,
+          total_requested: ids.size,
           errors: errors
         }
       rescue => e
