@@ -318,28 +318,53 @@ class CompanyImportService
       case label
       when 'acn:'
         updates[:acn] = clean_acn(row[1]) if row[1].present? && company.acn.blank?
+        # TFN is often in column 5 of this row
+        updates[:tfn] = row[5].to_s.gsub(/\s/, '') if row[5].present? && company.tfn.blank?
       when 'abn:'
         # ABN is in column after ACN
       when 'tfn:'
         updates[:tfn] = row[1].to_s.gsub(/\s/, '') if row[1].present? && company.tfn.blank?
       when 'date incorporated'
         updates[:date_incorporated] = parse_date(row[1]) if row[1].present? && company.date_incorporated.blank?
+        # Shares on issue is often in column 3-4 of this row
+        updates[:shares_on_issue] = row[3].to_i if row[3].present? && row[2].to_s.downcase.include?('shares')
       when 'shares on issue'
         updates[:shares_on_issue] = row[1].to_i if row[1].present?
       when 'purpose:'
         updates[:purpose] = row[1].to_s if row[1].present? && company.purpose.blank?
+        # Check if it's a trustee (column 2 often has "Is it a Trustee")
+        if row[1].to_s.downcase.include?('trustee') || row[2].to_s.downcase.include?('trustee')
+          updates[:is_trustee] = true
+        end
+      when 'trust name / trustee'
+        updates[:is_trustee] = true
+        updates[:trust_name] = row[1].to_s if row[1].present? && company.trust_name.blank?
       when 'registered office'
         updates[:registered_office_address] = row[1].to_s if row[1].present? && company.registered_office_address.blank?
+        # Principal place of business is often in column 3-4 of this row
+        if row[2].to_s.downcase.include?('principal')
+          updates[:principal_place_of_business] = row[3].to_s if row[3].present? && company.principal_place_of_business.blank?
+        end
       when 'principal place of business'
         # Principal place is in a different column
         updates[:principal_place_of_business] = row[5].to_s if row[5].present? && company.principal_place_of_business.blank?
+      when 'folder storage'
+        # Abbreviation is often in column 3-4 of this row
+        if row[2].to_s.downcase.include?('abbreviation')
+          updates[:abbreviation] = row[3].to_s if row[3].present? && company.abbreviation.blank?
+        end
       when 'current director'
         directors_data << { name: row[1].to_s, position: 'director', date: parse_date(row[2]) }
       when 'current secretary'
         directors_data << { name: row[1].to_s, position: 'secretary', date: parse_date(row[2]) }
       when 'current shareholdings'
         if row[1].present?
-          shareholdings_data << { name: row[1].to_s, shares: row[3].to_i }
+          # Row format: Current Shareholdings, Shareholder Name, [blank], Shares, Beneficially Held
+          shareholdings_data << {
+            name: row[1].to_s,
+            shares: row[2].to_i.positive? ? row[2].to_i : row[3].to_i,
+            beneficially_held: row[3].to_s.downcase == 'yes' || row[4].to_s.downcase == 'yes'
+          }
         end
       end
 
@@ -374,6 +399,28 @@ class CompanyImportService
         position: dir_data[:position],
         appointment_date: dir_data[:date] || company.date_incorporated,
         is_current: true
+      )
+    end
+
+    # Link shareholdings
+    shareholdings_data.each do |share_data|
+      next if share_data[:name].blank? || share_data[:shares].to_i.zero?
+
+      # Try to find shareholder as a company first, then as a contact
+      shareholder = Company.find_by('LOWER(name) LIKE ?', "%#{share_data[:name].downcase}%")
+      shareholder ||= Contact.find_by('LOWER(full_name) LIKE ?', "%#{share_data[:name].downcase}%")
+
+      next unless shareholder
+
+      existing = company.company_shareholdings.find_by(shareholder: shareholder)
+      next if existing
+
+      company.company_shareholdings.create!(
+        shareholder: shareholder,
+        number_of_shares: share_data[:shares],
+        share_class: 'ordinary',
+        acquired_date: company.date_incorporated,
+        beneficially_held: share_data[:beneficially_held] || false
       )
     end
 
