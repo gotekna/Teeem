@@ -9,7 +9,8 @@ import {
   ClockIcon,
   DocumentTextIcon,
   CalendarDaysIcon,
-  HeartIcon
+  HeartIcon,
+  KeyIcon
 } from '@heroicons/react/24/outline'
 import api from '../api'
 
@@ -192,6 +193,13 @@ export default function CorporateDashboardPage() {
               className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               Xero Integration
+            </button>
+            <button
+              onClick={() => navigate('/corporate/asic-logins')}
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <KeyIcon className="h-5 w-5 mr-2" />
+              ASIC Logins
             </button>
           </div>
         </div>
