@@ -40,7 +40,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       response_mode: 'query',
       scope: REQUIRED_SCOPES.join(' '),
       state: state,
-      prompt: 'consent'  # Always show consent to ensure all scopes are granted
+      prompt: 'select_account'  # Force account picker - important when impersonating
     })
 
     render json: { auth_url: auth_url }
