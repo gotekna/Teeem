@@ -2278,6 +2278,13 @@ export default function TeeemTableView({
       })
     })
 
+    console.log('[visibleGroupCount] Calculation:', {
+      groupByColumns,
+      groupByColumn,
+      groupCount: allPaths.size,
+      allPaths: Array.from(allPaths),
+      totalRecords: filteredAndSorted.length
+    })
     return allPaths.size
   }, [filteredAndSorted, groupByColumns, groupByColumn, columnChoices, COLUMNS])
 
