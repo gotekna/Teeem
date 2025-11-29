@@ -38,21 +38,11 @@ class AddFinancialsDocumentTypes < ActiveRecord::Migration[8.0]
       ON CONFLICT (name) DO NOTHING
     SQL
 
-    # Update Bank Statement to have FINANCIALS as primary tab
-    execute <<-SQL
-      UPDATE document_types
-      SET primary_tab = 'FINANCIALS'
-      WHERE name = 'Bank Statement'
-    SQL
+    # Bank Statement stays in BANK but also appears in FINANCIALS
+    # (Already added FINANCIALS to tabs in previous migration)
   end
 
   def down
     execute "DELETE FROM document_types WHERE name IN ('Draft Financials', 'Final Financials')"
-
-    execute <<-SQL
-      UPDATE document_types
-      SET primary_tab = 'BANK'
-      WHERE name = 'Bank Statement'
-    SQL
   end
 end
