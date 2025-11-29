@@ -195,22 +195,26 @@ export default function EmailJobProposalsPage() {
         </div>
       </div>
 
-      {/* Pending Proposals */}
+      {/* Pending Proposals - Show only the latest */}
       {pendingProposals.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">Pending Review</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-4">
+            Pending Review
+            {pendingProposals.length > 1 && (
+              <span className="ml-2 text-sm text-gray-500">
+                (showing latest of {pendingProposals.length})
+              </span>
+            )}
+          </h2>
           <div className="space-y-4">
-            {pendingProposals.map((proposal) => (
-              <ProposalCard
-                key={proposal.id}
-                proposal={proposal}
-                onApprove={handleApprove}
-                onReject={handleReject}
-                processing={processing}
-                getStatusBadge={getStatusBadge}
-                getConfidenceBadge={getConfidenceBadge}
-              />
-            ))}
+            <ProposalCard
+              proposal={pendingProposals[0]}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              processing={processing}
+              getStatusBadge={getStatusBadge}
+              getConfidenceBadge={getConfidenceBadge}
+            />
           </div>
         </div>
       )}
