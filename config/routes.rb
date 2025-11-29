@@ -1103,6 +1103,7 @@ Rails.application.routes.draw do
           # Public routes (no auth required)
           get 'public/:access_token', action: :show_public
           post 'public/:access_token/submit', action: :submit
+          post 'public/:access_token/upload', action: :upload_document
         end
       end
 

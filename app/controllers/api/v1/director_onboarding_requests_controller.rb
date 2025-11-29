@@ -2,10 +2,10 @@ module Api
   module V1
     class DirectorOnboardingRequestsController < ApplicationController
       # Skip authentication for public form submission
-      skip_before_action :authorize_request, only: [:show_public, :submit]
+      skip_before_action :authorize_request, only: [:show_public, :submit, :upload_document]
 
       before_action :set_request, only: [:show, :update, :destroy, :approve, :reject]
-      before_action :set_public_request, only: [:show_public, :submit]
+      before_action :set_public_request, only: [:show_public, :submit, :upload_document]
 
       # GET /api/v1/director_onboarding_requests
       # Admin view - list all requests
@@ -199,6 +199,53 @@ module Api
         }
       end
 
+      # POST /api/v1/director_onboarding_requests/public/:access_token/upload
+      # Public action - upload document directly to SharePoint/OneDrive
+      def upload_document
+        unless @request.token_valid?
+          render json: { error: 'This link has expired' }, status: :gone
+          return
+        end
+
+        unless params[:file].present?
+          render json: { error: 'No file provided' }, status: :bad_request
+          return
+        end
+
+        unless params[:document_type].present?
+          render json: { error: 'Document type is required' }, status: :bad_request
+          return
+        end
+
+        begin
+          service = DirectorDocumentUploadService.new
+          result = service.upload_document(
+            director_name: @request.full_name,
+            document_type: params[:document_type],
+            file: params[:file]
+          )
+
+          if result[:success]
+            # Update the request with the document URL
+            url_field = document_type_to_field(params[:document_type])
+            @request.update!(url_field => result[:web_url]) if url_field
+
+            render json: {
+              success: true,
+              document_type: params[:document_type],
+              url: result[:web_url],
+              file_name: result[:name],
+              file_size: result[:size]
+            }
+          else
+            render json: { error: result[:error] }, status: :unprocessable_entity
+          end
+        rescue => e
+          Rails.logger.error "Document upload failed: #{e.message}"
+          render json: { error: 'Upload failed. Please try again.' }, status: :internal_server_error
+        end
+      end
+
       private
 
       def set_request
@@ -328,6 +375,17 @@ module Api
         # Frontend URL for the public onboarding form
         frontend_host = Rails.env.production? ? 'https://teeem.vercel.app' : 'https://teeemrob.vercel.app'
         "#{frontend_host}/director-onboarding/#{token}"
+      end
+
+      def document_type_to_field(document_type)
+        mapping = {
+          'drivers_licence_front' => :drivers_licence_front_url,
+          'drivers_licence_back' => :drivers_licence_back_url,
+          'passport' => :passport_url,
+          'photo' => :photo_url,
+          'director_id_confirmation' => :director_id_confirmation_url
+        }
+        mapping[document_type]
       end
     end
   end
