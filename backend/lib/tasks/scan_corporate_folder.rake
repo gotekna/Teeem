@@ -7,9 +7,10 @@ namespace :corporate do
     begin
       client = MicrosoftGraphClient.new
 
-      # Try to get the Corporate File folder
+      # Try to get the Corporate File folder by listing root and finding it
       puts "\nLooking for 'Corporate File' folder..."
-      corporate_folder = client.get_folder_by_path('Corporate File')
+      root_items = client.get("/drives/#{client.instance_variable_get(:@credential).drive_id}/root/children")
+      corporate_folder = root_items['value'].find { |item| item['name'] == 'Corporate File' && item['folder'] }
 
       if corporate_folder
         puts "✅ Found: Corporate File"
