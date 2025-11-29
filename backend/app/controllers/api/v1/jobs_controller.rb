@@ -25,6 +25,11 @@ module Api
           @jobs = @jobs.joins(:job_status).where(job_status: { name: status_filter })
         end
 
+        # Filter by location presence if requested
+        if params[:has_location] == 'true'
+          @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
+        end
+
         # Pagination
         page = params[:page]&.to_i || 1
         per_page = params[:per_page]&.to_i || 50

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { XMarkIcon, MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
+import ProposalAreaMapCard from './ProposalAreaMapCard'
 
 export default function ApprovalModal({ proposal, onApprove, onCancel, processing }) {
   const data = proposal.extracted_data || {}
@@ -335,6 +336,14 @@ export default function ApprovalModal({ proposal, onApprove, onCancel, processin
               </p>
             )}
           </div>
+
+          {/* Area Map */}
+          {(data.property_address || jobAddress) && (
+            <ProposalAreaMapCard
+              proposalAddress={data.property_address || jobAddress}
+              proposalId={proposal.id}
+            />
+          )}
 
           {/* Job Type */}
           <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
