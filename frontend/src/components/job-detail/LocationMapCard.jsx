@@ -438,6 +438,21 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
     return parts.join(' ')
   }
 
+  // Helper function to save with title update directly from the modal
+  const handleSaveWithTitle = async (location, latitude, longitude, lot, streetNum, street, suburb, state, updateTitle) => {
+    await saveLocationWithValidation({
+      location,
+      latitude,
+      longitude,
+      lotNumber: lot,
+      streetNumber: streetNum,
+      street,
+      suburb,
+      state,
+      updateTitle
+    })
+  }
+
   // Save location with validation and title update
   const saveLocationWithValidation = async (locationData) => {
     const { location, latitude, longitude, lotNumber: lot, streetNumber: streetNum, street, suburb, state, updateTitle = true } = locationData
