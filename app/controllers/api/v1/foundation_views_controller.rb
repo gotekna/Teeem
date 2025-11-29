@@ -169,21 +169,25 @@ module Api
           :is_default,
           :display_order,
           :group_by_column,
-          filters: [
-            :interGroupLogic,
-            cascadeFilters: [],
-            filterGroups: []
-          ],
-          columns: [
-            :showFilters,
-            :autoFitColumns,
-            order: [],
-            visible: {},
-            widths: {}
-          ],
+          filters: {},  # Allow arbitrary hash structure for complex filters
+          columns: {},  # Allow arbitrary hash structure for columns config
           sort_order: [:column, :dir],
           group_by_columns: []
-        )
+        ).tap do |permitted|
+          # Manually permit complex nested structures that Rails strong params can't handle
+          if params[:foundation_view][:filters].present?
+            permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
+          end
+          if params[:foundation_view][:columns].present?
+            permitted[:columns] = params[:foundation_view][:columns].to_unsafe_h
+          end
+          if params[:foundation_view][:sort_order].present?
+            permitted[:sort_order] = params[:foundation_view][:sort_order].map(&:to_unsafe_h)
+          end
+          if params[:foundation_view][:group_by_columns].present?
+            permitted[:group_by_columns] = params[:foundation_view][:group_by_columns].to_a
+          end
+        end
       end
 
     # POST /api/v1/foundation_views/create_all_setup_views
