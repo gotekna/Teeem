@@ -79,7 +79,13 @@ class MicrosoftEmailService
   end
 
   def valid_access_token
-    @credential.ensure_fresh_token!
+    # Check if token is expired and needs refresh
+    if @credential.token_expired?
+      # Use MicrosoftGraphClient to refresh the token
+      client = MicrosoftGraphClient.new(@credential)
+      client.send(:refresh_token!)
+      @credential.reload
+    end
     @credential.access_token
   end
 end
