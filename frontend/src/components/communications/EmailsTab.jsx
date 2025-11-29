@@ -3,22 +3,18 @@ import {
   EnvelopeIcon,
   MagnifyingGlassIcon,
   PaperClipIcon,
-  CloudArrowDownIcon,
   ArrowPathIcon,
   ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline'
 import DOMPurify from 'isomorphic-dompurify'
 import { api } from '../../api'
-import OutlookImportModal from '../emails/OutlookImportModal'
 
 export default function EmailsTab({ entityType, entityId }) {
   const [emails, setEmails] = useState([])
   const [suggestedEmails, setSuggestedEmails] = useState([])
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedEmail, setSelectedEmail] = useState(null)
-  const [showOutlookModal, setShowOutlookModal] = useState(false)
   const [showAllInThread, setShowAllInThread] = useState(false)
   const [syncStatus, setSyncStatus] = useState(null)
 
@@ -65,24 +61,10 @@ export default function EmailsTab({ entityType, entityId }) {
     }
   }
 
-  const handleSync = async () => {
-    if (!isJob) return
-
-    try {
-      setSyncing(true)
-      // Sync emails for this specific job
-      await api.post('/api/v1/email_warehouse/sync_for_job', {
-        job_id: entityId
-      })
-      // Reload emails after sync
-      await loadEmails()
-      await loadSyncStatus()
-    } catch (error) {
-      console.error('Failed to sync emails:', error)
-      alert(error.response?.data?.error || 'Failed to sync emails')
-    } finally {
-      setSyncing(false)
-    }
+  // Refresh just reloads from the warehouse (instant)
+  const handleRefresh = async () => {
+    await loadEmails()
+    await loadSyncStatus()
   }
 
   const handleAssignSuggested = async (suggestion) => {
@@ -112,11 +94,6 @@ export default function EmailsTab({ entityType, entityId }) {
 
   const handleEmailClick = (email) => {
     setSelectedEmail(selectedEmail?.id === email.id ? null : email)
-  }
-
-  const handleImportComplete = () => {
-    loadEmails()
-    loadSyncStatus()
   }
 
   // For non-job entities, show a message
@@ -164,35 +141,22 @@ export default function EmailsTab({ entityType, entityId }) {
             />
           </div>
           <button
-            onClick={() => handleSync()}
-            disabled={syncing}
+            onClick={handleRefresh}
+            disabled={loading}
             className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            title="Sync emails from Outlook for this job"
+            title="Refresh emails from warehouse"
           >
-            <ArrowPathIcon className={`h-4 w-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'Syncing...' : 'Sync'}
-          </button>
-          <button
-            onClick={() => setShowOutlookModal(true)}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <CloudArrowDownIcon className="h-4 w-4 mr-2" />
-            Import from Outlook
+            <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
 
-        {/* Sync status */}
-        {syncStatus && (
+        {/* Warehouse status */}
+        {syncStatus && syncStatus.total_emails_synced > 0 && (
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {syncStatus.status === 'syncing' ? (
-              <span className="text-yellow-600 dark:text-yellow-400">Sync in progress...</span>
-            ) : syncStatus.last_sync_at ? (
-              <span>Last synced: {new Date(syncStatus.last_sync_at).toLocaleString()}</span>
-            ) : (
-              <span>No emails synced yet. Click Sync to pull emails from Outlook.</span>
-            )}
-            {syncStatus.total_emails_synced > 0 && (
-              <span className="ml-2">({syncStatus.total_emails_synced} total emails in warehouse)</span>
+            <span>{syncStatus.total_emails_synced.toLocaleString()} emails in warehouse</span>
+            {syncStatus.last_sync_at && (
+              <span className="ml-2">• Last sync: {new Date(syncStatus.last_sync_at).toLocaleString()}</span>
             )}
           </div>
         )}
@@ -260,7 +224,7 @@ export default function EmailsTab({ entityType, entityId }) {
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               {searchTerm
                 ? 'Try adjusting your search terms'
-                : 'Click "Sync" to pull emails from Outlook, or use "Import from Outlook" to search and select specific emails.'}
+                : 'No emails matched to this job yet. Emails with job contacts or "id:XX" in the subject will auto-match.'}
             </p>
           </div>
         ) : (
@@ -384,13 +348,6 @@ export default function EmailsTab({ entityType, entityId }) {
         )}
       </div>
 
-      {/* Outlook Import Modal */}
-      <OutlookImportModal
-        isOpen={showOutlookModal}
-        onClose={() => setShowOutlookModal(false)}
-        constructionId={entityId}
-        onImportComplete={handleImportComplete}
-      />
     </div>
   )
 }
