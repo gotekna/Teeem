@@ -2735,7 +2735,7 @@ export default function AppLayout({ children }) {
           "py-4 flex-1 flex flex-col min-h-0",
           sidebarCollapsed ? "lg:pt-4" : ""
         )}>
-          <div className="px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0">
+          <div className="px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0 overflow-hidden">
             {children}
           </div>
         </main>

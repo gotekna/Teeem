@@ -8094,14 +8094,50 @@ export default function TeeemTableView({
                 </button>
                 <span className="text-xs text-gray-300 dark:text-gray-600">|</span>
                 <button
-                  onClick={() => {
-                    console.log('[EXPAND DEBUG] Expand clicked, scrollContainerRef:', scrollContainerRef.current)
-                    setCollapsedGroups(new Set())
-                    // Scroll table container to top to ensure header is visible
-                    if (scrollContainerRef.current) {
-                      scrollContainerRef.current.scrollTop = 0
-                      console.log('[EXPAND DEBUG] Reset scroll to top')
+                  onClick={(e) => {
+                    e.preventDefault()
+                    // Debug: Log all scroll positions BEFORE expand
+                    console.log('[EXPAND DEBUG] ========== BEFORE EXPAND ==========')
+                    console.log('[EXPAND DEBUG] window.scrollY:', window.scrollY)
+                    console.log('[EXPAND DEBUG] document.documentElement.scrollTop:', document.documentElement.scrollTop)
+                    console.log('[EXPAND DEBUG] document.body.scrollTop:', document.body.scrollTop)
+
+                    // Find all scrollable parents
+                    let el = e.target.parentElement
+                    while (el) {
+                      if (el.scrollTop > 0 || el.scrollHeight > el.clientHeight) {
+                        console.log('[EXPAND DEBUG] Scrollable parent:', {
+                          tagName: el.tagName,
+                          className: el.className?.substring(0, 100),
+                          scrollTop: el.scrollTop,
+                          scrollHeight: el.scrollHeight,
+                          clientHeight: el.clientHeight
+                        })
+                      }
+                      el = el.parentElement
                     }
+
+                    // Save scroll positions
+                    const scrollY = window.scrollY
+                    const docScrollTop = document.documentElement.scrollTop
+
+                    setCollapsedGroups(new Set())
+
+                    // Check scroll after state update
+                    requestAnimationFrame(() => {
+                      console.log('[EXPAND DEBUG] ========== AFTER EXPAND (RAF) ==========')
+                      console.log('[EXPAND DEBUG] window.scrollY:', window.scrollY)
+                      console.log('[EXPAND DEBUG] document.documentElement.scrollTop:', document.documentElement.scrollTop)
+                      console.log('[EXPAND DEBUG] Restoring scroll to:', scrollY)
+
+                      window.scrollTo(0, scrollY)
+                      document.documentElement.scrollTop = docScrollTop
+
+                      if (scrollContainerRef.current) {
+                        console.log('[EXPAND DEBUG] Table scroll container scrollTop:', scrollContainerRef.current.scrollTop)
+                        scrollContainerRef.current.scrollTop = 0
+                      }
+                    })
                   }}
                   className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                   title="Expand All Groups"
@@ -8134,13 +8170,14 @@ export default function TeeemTableView({
         {/* END BOTTOM SECTION - Filters */}
 
         {/* Table Container with Border */}
-        <div className="flex-1 min-h-[200px] p-4 flex flex-col">
+        <div className="flex-1 min-h-0 p-4 flex flex-col" style={{ minHeight: '300px' }}>
           {/* Table wrapper with border and rounded corners - no overflow clipping */}
           <div className="flex-1 min-h-0 flex flex-col border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
             {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
             <div
               ref={scrollContainerRef}
-              className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+              className="teeem-table-scroll flex-1 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+              style={{ minHeight: '200px' }}
               onScroll={(e) => {
                 console.log('[SCROLL DEBUG] Scroll container scrolled:', {
                   scrollTop: e.target.scrollTop,
