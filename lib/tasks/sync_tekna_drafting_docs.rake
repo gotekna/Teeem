@@ -59,14 +59,14 @@ namespace :corporate do
       puts "✅ Linked company to OneDrive folder"
       puts ""
 
-      # Scan all documents in the folder
-      puts "Scanning documents..."
+      # Scan all documents recursively
+      puts "Scanning documents recursively..."
       puts "-" * 80
 
-      items = client.get("/drives/#{drive_id}/items/#{tekna_drafting_folder['id']}/children")
-      documents = items['value'].reject { |item| item['folder'] }
+      all_documents = []
+      scan_folder_recursive(client, drive_id, tekna_drafting_folder['id'], all_documents, 'Tekna Drafting')
 
-      puts "Found #{documents.count} documents"
+      puts "Found #{all_documents.count} documents across all subfolders"
       puts ""
 
       # Sync each document to database
@@ -74,7 +74,7 @@ namespace :corporate do
       skipped = 0
       errors = []
 
-      documents.each do |file|
+      all_documents.each do |file|
         begin
           # Check if already synced
           existing = company.company_documents.find_by(onedrive_file_id: file['id'])
@@ -99,7 +99,7 @@ namespace :corporate do
             onedrive_web_url: file['webUrl'],
             company_code: code,
             storage_type: 'electronic',
-            folder: 'Tekna Drafting'
+            folder: file[:folder_path] || 'Tekna Drafting'
           )
 
           puts "  ✅ Synced: #{filename}"
@@ -134,6 +134,25 @@ namespace :corporate do
       puts ""
       puts "Stack trace:"
       puts e.backtrace.first(10).map { |line| "   #{line}" }.join("\n")
+    end
+  end
+
+  # Helper method to recursively scan folders
+  def scan_folder_recursive(client, drive_id, folder_id, documents, folder_path, depth = 0)
+    return if depth > 5 # Prevent infinite recursion
+
+    items = client.get("/drives/#{drive_id}/items/#{folder_id}/children")
+
+    items['value'].each do |item|
+      if item['folder']
+        # Recurse into subfolder
+        subfolder_path = "#{folder_path}/#{item['name']}"
+        scan_folder_recursive(client, drive_id, item['id'], documents, subfolder_path, depth + 1)
+      else
+        # Add file with folder path metadata
+        item[:folder_path] = folder_path
+        documents << item
+      end
     end
   end
 end
