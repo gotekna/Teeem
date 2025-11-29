@@ -12,8 +12,10 @@ module Api
         end
 
         # Build includes array based on what tables exist
+        # Check if table exists using raw SQL to avoid loading the model
+        has_insurance_table = ActiveRecord::Base.connection.table_exists?('asset_insurances')
         includes_array = [:company]
-        includes_array << :asset_insurance if defined?(AssetInsurance) && AssetInsurance.table_exists?
+        includes_array << :asset_insurance if has_insurance_table
 
         @assets = Asset.includes(includes_array).all
 
@@ -37,7 +39,7 @@ module Api
 
         # Build include hash based on what tables exist
         include_hash = { company: { only: [:id, :name] } }
-        if defined?(AssetInsurance) && AssetInsurance.table_exists?
+        if has_insurance_table
           include_hash[:asset_insurance] = { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
         end
 
