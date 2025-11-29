@@ -3,7 +3,8 @@ import {
   PlusIcon,
   TrashIcon,
   DocumentTextIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  FunnelIcon
 } from '@heroicons/react/24/outline'
 import api from '../../api'
 
@@ -11,20 +12,71 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [selectedTab, setSelectedTab] = useState('all')
+  const [selectedAsset, setSelectedAsset] = useState('all')
+  const [assets, setAssets] = useState([])
+  const [showFilters, setShowFilters] = useState(false)
+  const [documentTypes, setDocumentTypes] = useState([])
+
+  // 10 tabs for document organization
+  const tabs = [
+    'ASIC',
+    'ASSETS',
+    'ATO',
+    'BANK',
+    'DIVIDENDS',
+    'FINANCIALS',
+    'GENERAL',
+    'LOANS',
+    'MINUTES',
+    'REGISTRY'
+  ]
 
   useEffect(() => {
     loadDocuments()
-  }, [company.id])
+    loadAssets()
+    loadDocumentTypes()
+  }, [company.id, selectedTab, selectedAsset])
 
   const loadDocuments = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v1/companies/${company.id}/documents`)
+      const params = { company_id: company.id }
+
+      if (selectedTab !== 'all') {
+        params.tab = selectedTab
+      }
+
+      if (selectedAsset !== 'all') {
+        params.asset_id = selectedAsset
+      }
+
+      const response = await api.get('/api/v1/company_documents', { params })
       setDocuments(response.documents || [])
     } catch (error) {
       console.error('Failed to load documents:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadAssets = async () => {
+    try {
+      const response = await api.get('/api/v1/assets', {
+        params: { company_id: company.id }
+      })
+      setAssets(response.assets || [])
+    } catch (error) {
+      console.error('Failed to load assets:', error)
+    }
+  }
+
+  const loadDocumentTypes = async () => {
+    try {
+      const response = await api.get('/api/v1/document_types')
+      setDocumentTypes(response.data || [])
+    } catch (error) {
+      console.error('Failed to load document types:', error)
     }
   }
 
@@ -46,14 +98,17 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
   const handleSaveDocument = async (formData) => {
     try {
       const data = new FormData()
-      data.append('company_document[document_type]', formData.document_type)
+      data.append('company_document[document_type_id]', formData.document_type_id)
       data.append('company_document[title]', formData.title)
-      data.append('company_document[description]', formData.description)
-      data.append('company_document[document_date]', formData.document_date)
+      data.append('company_document[description]', formData.description || '')
       data.append('company_document[company_id]', company.id)
 
+      if (formData.asset_id) {
+        data.append('company_document[asset_id]', formData.asset_id)
+      }
+
       if (formData.file) {
-        data.append('company_document[file]', formData.file)
+        data.append('file', formData.file)
       }
 
       await api.post('/api/v1/company_documents', data, {
@@ -75,14 +130,32 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
     return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`
   }
 
+  const filteredDocuments = documents
+
   if (loading) {
-    return <div className="text-center py-8 text-gray-500">Loading documents...</div>
+    return <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading documents...</div>
   }
 
   return (
     <div className="space-y-6">
+      {/* Header with Filters */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-gray-900">Documents</h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+            Documents ({filteredDocuments.length})
+          </h3>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`inline-flex items-center gap-x-2 rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-inset ${
+              showFilters || selectedTab !== 'all' || selectedAsset !== 'all'
+                ? 'bg-indigo-600 text-white ring-indigo-600'
+                : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+            }`}
+          >
+            <FunnelIcon className="h-4 w-4" />
+            Filters
+          </button>
+        </div>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
@@ -94,44 +167,118 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
         )}
       </div>
 
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Tab Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Document Tab
+              </label>
+              <select
+                value={selectedTab}
+                onChange={(e) => setSelectedTab(e.target.value)}
+                className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              >
+                <option value="all">All Tabs</option>
+                {tabs.map((tab) => (
+                  <option key={tab} value={tab}>
+                    {tab}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Asset Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Linked Asset
+              </label>
+              <select
+                value={selectedAsset}
+                onChange={(e) => setSelectedAsset(e.target.value)}
+                className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              >
+                <option value="all">All Documents</option>
+                <option value="none">No Asset Linked</option>
+                {assets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.abbreviation ? `${asset.abbreviation} - ` : ''}{asset.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Clear Filters */}
+          {(selectedTab !== 'all' || selectedAsset !== 'all') && (
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedTab('all')
+                  setSelectedAsset('all')
+                }}
+                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium"
+              >
+                Clear all filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {showForm ? (
         <DocumentForm
           onSave={handleSaveDocument}
           onCancel={() => setShowForm(false)}
+          assets={assets}
+          documentTypes={documentTypes}
         />
-      ) : documents.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed border-gray-300 rounded-lg">
-          <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-semibold text-gray-900">No documents</h3>
-          <p className="mt-1 text-sm text-gray-500">Get started by uploading a document.</p>
+      ) : filteredDocuments.length === 0 ? (
+        <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
+          <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
+          <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No documents</h3>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {selectedTab !== 'all' || selectedAsset !== 'all'
+              ? 'No documents match your filters.'
+              : 'Get started by uploading a document.'}
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {documents.map((doc) => (
+          {filteredDocuments.map((doc) => (
             <div
               key={doc.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors"
+              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start flex-1">
-                  <DocumentTextIcon className="h-8 w-8 text-gray-400 mr-3 flex-shrink-0" />
+                  <DocumentTextIcon className="h-8 w-8 text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900">{doc.title}</h4>
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">{doc.title}</h4>
                     {doc.description && (
-                      <p className="mt-1 text-sm text-gray-500">{doc.description}</p>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{doc.description}</p>
                     )}
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-                      <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-                        {doc.document_type?.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
-                      </span>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      {doc.document_type_record && (
+                        <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
+                          {doc.document_type_record.name}
+                        </span>
+                      )}
+                      {doc.asset && (
+                        <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
+                          Asset: {doc.asset.abbreviation || doc.asset.name}
+                        </span>
+                      )}
                       {doc.document_date && (
                         <span>Date: {new Date(doc.document_date).toLocaleDateString()}</span>
                       )}
                       {doc.file_size && (
                         <span>Size: {formatFileSize(doc.file_size)}</span>
                       )}
-                      {doc.uploaded_at && (
-                        <span>Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}</span>
+                      {doc.created_at && (
+                        <span>Uploaded: {new Date(doc.created_at).toLocaleDateString()}</span>
                       )}
                     </div>
                   </div>
@@ -142,14 +289,14 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
                       href={doc.file_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                      className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-2.5 py-1.5 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
                     >
                       <ArrowDownTrayIcon className="h-4 w-4" />
                     </a>
                   )}
                   <button
                     onClick={() => handleDeleteDocument(doc.id)}
-                    className="inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-red-50"
+                    className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-2.5 py-1.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-red-50 dark:hover:bg-red-900/20"
                   >
                     <TrashIcon className="h-4 w-4" />
                   </button>
@@ -163,28 +310,17 @@ export default function CompanyDocumentsTab({ company, onUpdate }) {
   )
 }
 
-function DocumentForm({ onSave, onCancel }) {
+function DocumentForm({ onSave, onCancel, assets, documentTypes }) {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    document_type: 'constitution',
-    document_date: '',
+    document_type_id: documentTypes[0]?.id || '',
+    asset_id: '',
     file: null
   })
 
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
-
-  const documentTypes = [
-    'constitution',
-    'agm_minutes',
-    'director_resolution',
-    'share_certificate',
-    'tax_return',
-    'financial_statements',
-    'asic_extract',
-    'other'
-  ]
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -207,6 +343,9 @@ function DocumentForm({ onSave, onCancel }) {
 
     if (!formData.title.trim()) {
       newErrors.title = 'Title is required'
+    }
+    if (!formData.document_type_id) {
+      newErrors.document_type_id = 'Document type is required'
     }
     if (!formData.file) {
       newErrors.file = 'File is required'
@@ -234,13 +373,21 @@ function DocumentForm({ onSave, onCancel }) {
     }
   }
 
+  // Group document types by folder
+  const groupedTypes = documentTypes.reduce((acc, type) => {
+    const folder = type.folder || 'GENERAL'
+    if (!acc[folder]) acc[folder] = []
+    acc[folder].push(type)
+    return acc
+  }, {})
+
   return (
-    <form onSubmit={handleSubmit} className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-      <h4 className="text-sm font-medium text-gray-900 mb-4">Upload Document</h4>
+    <form onSubmit={handleSubmit} className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
+      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-4">Upload Document</h4>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Title *
           </label>
           <input
@@ -250,48 +397,63 @@ function DocumentForm({ onSave, onCancel }) {
             required
             value={formData.title}
             onChange={handleChange}
-            className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
-              errors.title ? 'border-red-300' : ''
+            className={`mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
+              errors.title ? 'border-red-300 dark:border-red-600' : ''
             }`}
           />
-          {errors.title && <p className="mt-1 text-sm text-red-600">{errors.title}</p>}
+          {errors.title && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.title}</p>}
         </div>
 
         <div>
-          <label htmlFor="document_type" className="block text-sm font-medium text-gray-700">
-            Document Type
+          <label htmlFor="document_type_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Document Type *
           </label>
           <select
-            name="document_type"
-            id="document_type"
-            value={formData.document_type}
+            name="document_type_id"
+            id="document_type_id"
+            value={formData.document_type_id}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            required
+            className={`mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
+              errors.document_type_id ? 'border-red-300 dark:border-red-600' : ''
+            }`}
           >
-            {documentTypes.map((type) => (
-              <option key={type} value={type}>
-                {type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+            <option value="">Select type...</option>
+            {Object.keys(groupedTypes).sort().map(folder => (
+              <optgroup key={folder} label={folder}>
+                {groupedTypes[folder].map(type => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          {errors.document_type_id && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.document_type_id}</p>}
+        </div>
+
+        <div>
+          <label htmlFor="asset_id" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Link to Asset (Optional)
+          </label>
+          <select
+            name="asset_id"
+            id="asset_id"
+            value={formData.asset_id}
+            onChange={handleChange}
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="">No asset</option>
+            {assets.map((asset) => (
+              <option key={asset.id} value={asset.id}>
+                {asset.abbreviation ? `${asset.abbreviation} - ` : ''}{asset.name}
               </option>
             ))}
           </select>
         </div>
 
-        <div>
-          <label htmlFor="document_date" className="block text-sm font-medium text-gray-700">
-            Document Date
-          </label>
-          <input
-            type="date"
-            name="document_date"
-            id="document_date"
-            value={formData.document_date}
-            onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-          />
-        </div>
-
         <div className="sm:col-span-2">
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Description
           </label>
           <textarea
@@ -300,12 +462,12 @@ function DocumentForm({ onSave, onCancel }) {
             rows={2}
             value={formData.description}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label htmlFor="file" className="block text-sm font-medium text-gray-700">
+          <label htmlFor="file" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             File *
           </label>
           <input
@@ -314,13 +476,13 @@ function DocumentForm({ onSave, onCancel }) {
             id="file"
             required
             onChange={handleFileChange}
-            className={`mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-md cursor-pointer bg-gray-50 focus:outline-none ${
-              errors.file ? 'border-red-300' : ''
+            className={`mt-1 block w-full text-sm text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-md cursor-pointer bg-gray-50 dark:bg-gray-700 focus:outline-none ${
+              errors.file ? 'border-red-300 dark:border-red-600' : ''
             }`}
           />
-          {errors.file && <p className="mt-1 text-sm text-red-600">{errors.file}</p>}
+          {errors.file && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.file}</p>}
           {formData.file && (
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Selected: {formData.file.name}
             </p>
           )}
@@ -328,7 +490,7 @@ function DocumentForm({ onSave, onCancel }) {
       </div>
 
       {errors.submit && (
-        <p className="mt-4 text-sm text-red-600">{errors.submit}</p>
+        <p className="mt-4 text-sm text-red-600 dark:text-red-400">{errors.submit}</p>
       )}
 
       <div className="mt-4 flex items-center justify-end space-x-3">
@@ -336,7 +498,7 @@ function DocumentForm({ onSave, onCancel }) {
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-50"
+          className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
         >
           Cancel
         </button>
