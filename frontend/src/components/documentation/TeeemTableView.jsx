@@ -2114,6 +2114,7 @@ export default function TeeemTableView({
 
     // Apply cascade filters with group logic
     console.log('[filteredAndSorted] Applying cascade filters:', cascadeFilters.length, 'filters:', cascadeFilters.map(f => `${f.column} ${f.operator} ${f.value}`))
+    console.log('[filteredAndSorted] Filter groups:', filterGroups, 'interGroupLogic:', interGroupLogic)
     if (cascadeFilters.length > 0) {
       result = result.filter(entry => {
         // Group filters by their groupId
