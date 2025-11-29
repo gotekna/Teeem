@@ -4834,7 +4834,21 @@ export default function TeeemTableView({
                         console.log('Editing data (changes only):', editingData)
                         const updatedEntry = { ...entry, ...editingData }
                         console.log('Merged entry to save:', updatedEntry)
-                        await onEdit(updatedEntry)
+
+                        // Use onRowUpdate if available (for inline field updates)
+                        if (onRowUpdate) {
+                          // Get the changed fields and call onRowUpdate for each
+                          const changedFields = Object.keys(editingData).filter(key =>
+                            editingData[key] !== entry[key] && key !== 'id' && key !== '_original'
+                          )
+                          console.log('Changed fields:', changedFields)
+                          for (const field of changedFields) {
+                            await onRowUpdate(editingRowId, field, editingData[field])
+                          }
+                        } else if (onEdit) {
+                          // Fallback to onEdit for modal-based editing
+                          await onEdit(updatedEntry)
+                        }
                       }
                     }
                     setEditModeActive(false)
