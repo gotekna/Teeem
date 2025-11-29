@@ -10,16 +10,20 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Reusable sortable list component
-function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, description, colorField = false, parentField = null, parentOptions = [], parentLabel = "Status" }) {
+function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, description, colorField = false, parentField = null, parentOptions = [], parentLabel = "Status", multiSelectParent = false }) {
   const [draggedIndex, setDraggedIndex] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editValue, setEditValue] = useState('')
   const [editColor, setEditColor] = useState('')
   const [editParentId, setEditParentId] = useState('')
+  const [editParentIds, setEditParentIds] = useState([]) // For multi-select
   const [newItemName, setNewItemName] = useState('')
   const [newItemColor, setNewItemColor] = useState('gray')
   const [newItemParentId, setNewItemParentId] = useState('')
+  const [newItemParentIds, setNewItemParentIds] = useState([]) // For multi-select
   const [isAdding, setIsAdding] = useState(false)
+  const [parentDropdownOpen, setParentDropdownOpen] = useState(null) // Track which dropdown is open
+  const [parentSearch, setParentSearch] = useState('')
 
   const colors = [
     { value: 'gray', label: 'Gray', bg: 'bg-gray-100', text: 'text-gray-800' },
@@ -68,6 +72,13 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
     setEditValue(item.name)
     setEditColor(item.color || 'gray')
     setEditParentId(item[parentField] || '')
+    // For multi-select, parse the job_type_ids array
+    if (multiSelectParent && item.job_type_ids) {
+      setEditParentIds(Array.isArray(item.job_type_ids) ? item.job_type_ids : [])
+    } else {
+      setEditParentIds([])
+    }
+    setParentSearch('')
   }
 
   const cancelEdit = () => {
@@ -75,6 +86,9 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
     setEditValue('')
     setEditColor('')
     setEditParentId('')
+    setEditParentIds([])
+    setParentDropdownOpen(null)
+    setParentSearch('')
   }
 
   const saveEdit = async () => {
@@ -82,12 +96,16 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
     await onUpdate(editingId, {
       name: editValue,
       ...(colorField ? { color: editColor } : {}),
-      ...(parentField ? { [parentField]: editParentId || null } : {})
+      ...(parentField && !multiSelectParent ? { [parentField]: editParentId || null } : {}),
+      ...(multiSelectParent ? { job_type_ids: editParentIds } : {})
     })
     setEditingId(null)
     setEditValue('')
     setEditColor('')
     setEditParentId('')
+    setEditParentIds([])
+    setParentDropdownOpen(null)
+    setParentSearch('')
   }
 
   const handleCreate = async () => {
@@ -95,12 +113,135 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
     await onCreate({
       name: newItemName,
       ...(colorField ? { color: newItemColor } : {}),
-      ...(parentField ? { [parentField]: newItemParentId || null } : {})
+      ...(parentField && !multiSelectParent ? { [parentField]: newItemParentId || null } : {}),
+      ...(multiSelectParent ? { job_type_ids: newItemParentIds } : {})
     })
     setNewItemName('')
     setNewItemColor('gray')
     setNewItemParentId('')
+    setNewItemParentIds([])
     setIsAdding(false)
+    setParentSearch('')
+  }
+
+  // Multi-select helper functions
+  const toggleParentId = (id, isNewItem = false) => {
+    if (isNewItem) {
+      setNewItemParentIds(prev =>
+        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      )
+    } else {
+      setEditParentIds(prev =>
+        prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      )
+    }
+  }
+
+  const selectAllParents = (isNewItem = false) => {
+    const allIds = parentOptions.map(opt => opt.id)
+    if (isNewItem) {
+      setNewItemParentIds(allIds)
+    } else {
+      setEditParentIds(allIds)
+    }
+  }
+
+  const clearAllParents = (isNewItem = false) => {
+    if (isNewItem) {
+      setNewItemParentIds([])
+    } else {
+      setEditParentIds([])
+    }
+  }
+
+  const filteredParentOptions = parentOptions.filter(opt =>
+    opt.name.toLowerCase().includes(parentSearch.toLowerCase())
+  )
+
+  // Multi-select dropdown component
+  const MultiSelectDropdown = ({ selectedIds, onToggle, onSelectAll, onClearAll, isOpen, onToggleOpen, dropdownId }) => {
+    const selectedCount = selectedIds.length
+    const allSelected = selectedCount === parentOptions.length
+
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => onToggleOpen(isOpen ? null : dropdownId)}
+          className="inline-flex items-center gap-2 rounded-md border-0 px-3 py-1.5 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm dark:bg-white/5 dark:text-white dark:ring-white/10 dark:hover:bg-white/10 min-w-[140px] justify-between"
+        >
+          <span className="truncate">
+            {selectedCount === 0
+              ? `Select ${parentLabel}...`
+              : selectedCount === parentOptions.length
+                ? `All ${parentLabel}s`
+                : `${selectedCount} ${parentLabel}${selectedCount > 1 ? 's' : ''}`}
+          </span>
+          <svg className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {isOpen && (
+          <div className="absolute z-50 mt-1 w-64 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 max-h-72 overflow-hidden">
+            {/* Search */}
+            <div className="p-2 border-b border-gray-200 dark:border-gray-700">
+              <input
+                type="text"
+                value={parentSearch}
+                onChange={(e) => setParentSearch(e.target.value)}
+                placeholder={`Search ${parentLabel}s...`}
+                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-1 focus:ring-indigo-500"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* Select All / Clear All */}
+            <div className="flex gap-2 p-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSelectAll(); }}
+                className="flex-1 text-xs px-2 py-1 rounded bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-900"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onClearAll(); }}
+                className="flex-1 text-xs px-2 py-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-600 dark:text-gray-300 dark:hover:bg-gray-500"
+              >
+                Clear All
+              </button>
+            </div>
+
+            {/* Options */}
+            <div className="max-h-48 overflow-y-auto p-1">
+              {filteredParentOptions.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 italic">
+                  No matches found
+                </div>
+              ) : (
+                filteredParentOptions.map(opt => (
+                  <label
+                    key={opt.id}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(opt.id)}
+                      onChange={() => onToggle(opt.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700"
+                    />
+                    <span className="text-sm text-gray-900 dark:text-white">{opt.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -145,7 +286,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                 ))}
               </select>
             )}
-            {parentField && parentOptions.length > 0 && (
+            {parentField && parentOptions.length > 0 && !multiSelectParent && (
               <select
                 value={newItemParentId}
                 onChange={(e) => setNewItemParentId(e.target.value)}
@@ -156,6 +297,17 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                   <option key={opt.id} value={opt.id}>{opt.name}</option>
                 ))}
               </select>
+            )}
+            {multiSelectParent && parentOptions.length > 0 && (
+              <MultiSelectDropdown
+                selectedIds={newItemParentIds}
+                onToggle={(id) => toggleParentId(id, true)}
+                onSelectAll={() => selectAllParents(true)}
+                onClearAll={() => clearAllParents(true)}
+                isOpen={parentDropdownOpen === 'new'}
+                onToggleOpen={setParentDropdownOpen}
+                dropdownId="new"
+              />
             )}
             <button
               onClick={handleCreate}
@@ -217,7 +369,7 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                     ))}
                   </select>
                 )}
-                {parentField && parentOptions.length > 0 && (
+                {parentField && parentOptions.length > 0 && !multiSelectParent && (
                   <select
                     value={editParentId}
                     onChange={(e) => setEditParentId(e.target.value)}
@@ -229,6 +381,17 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
                     ))}
                   </select>
                 )}
+                {multiSelectParent && parentOptions.length > 0 && (
+                  <MultiSelectDropdown
+                    selectedIds={editParentIds}
+                    onToggle={(id) => toggleParentId(id, false)}
+                    onSelectAll={() => selectAllParents(false)}
+                    onClearAll={() => clearAllParents(false)}
+                    isOpen={parentDropdownOpen === `edit-${item.id}`}
+                    onToggleOpen={setParentDropdownOpen}
+                    dropdownId={`edit-${item.id}`}
+                  />
+                )}
                 <button onClick={saveEdit} className="p-1.5 text-green-600 hover:text-green-700">
                   <CheckIcon className="h-5 w-5" />
                 </button>
@@ -239,9 +402,18 @@ function SortableList({ items, onReorder, onUpdate, onDelete, onCreate, title, d
             ) : (
               <>
                 <span className="flex-1 text-gray-900 dark:text-white font-medium">{item.name}</span>
-                {parentField && parentOptions.length > 0 && (
+                {parentField && parentOptions.length > 0 && !multiSelectParent && (
                   <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                     {parentOptions.find(p => p.id === item[parentField])?.name || `No ${parentLabel}`}
+                  </span>
+                )}
+                {multiSelectParent && parentOptions.length > 0 && (
+                  <span className="px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    {item.job_type_ids && item.job_type_ids.length > 0
+                      ? item.job_type_ids.length === parentOptions.length
+                        ? `All ${parentLabel}s`
+                        : `${item.job_type_ids.length} ${parentLabel}${item.job_type_ids.length > 1 ? 's' : ''}`
+                      : `No ${parentLabel}`}
                   </span>
                 )}
                 {colorField && item.color && (
@@ -669,6 +841,7 @@ export default function JobSetupTab() {
           parentField="job_type_id"
           parentOptions={jobTypes}
           parentLabel="Type"
+          multiSelectParent={true}
         />
 
         <SortableList

@@ -119,6 +119,7 @@ const CompanyDetailPage = lazyWithRetry(() => import('./pages/CompanyDetailPage'
 const ComplianceCalendarPage = lazyWithRetry(() => import('./pages/ComplianceCalendarPage'))
 const MinuteTemplatesPage = lazyWithRetry(() => import('./pages/MinuteTemplatesPage'))
 const DirectorsRegistryPage = lazyWithRetry(() => import('./pages/DirectorsRegistryPage'))
+const DirectorOnboardingPage = lazyWithRetry(() => import('./pages/DirectorOnboardingPage'))
 const AssetsPage = lazyWithRetry(() => import('./pages/AssetsPage'))
 const AssetDetailPage = lazyWithRetry(() => import('./pages/AssetDetailPage'))
 const XeroDashboardPage = lazyWithRetry(() => import('./pages/XeroDashboardPage'))
@@ -278,6 +279,7 @@ function App() {
         <Route path="/corporate/compliance-calendar" element={<AppLayout><ComplianceCalendarPage /></AppLayout>} />
         <Route path="/corporate/minute-templates" element={<AppLayout><MinuteTemplatesPage /></AppLayout>} />
         <Route path="/corporate/directors" element={<AppLayout><DirectorsRegistryPage /></AppLayout>} />
+        <Route path="/director-onboarding/:accessToken" element={<DirectorOnboardingPage />} />
         <Route path="/corporate/assets" element={<AppLayout><AssetsPage /></AppLayout>} />
         <Route path="/corporate/assets/new" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/assets/:id" element={<AppLayout><AssetDetailPage /></AppLayout>} />
