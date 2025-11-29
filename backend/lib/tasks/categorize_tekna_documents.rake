@@ -102,8 +102,8 @@ namespace :corporate do
           'Trust Deed'
 
         else
-          # Keep as other if no match
-          'other'
+          # Keep existing type if no match
+          old_type
         end
 
         # Update if different

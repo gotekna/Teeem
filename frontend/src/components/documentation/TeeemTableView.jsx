@@ -2246,6 +2246,41 @@ export default function TeeemTableView({
     return result
   }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch, columnChoices])
 
+  // Calculate visible group count when grouping is active
+  const visibleGroupCount = useMemo(() => {
+    const activeGroupColumns = groupByColumns.length > 0 ? groupByColumns : (groupByColumn ? [groupByColumn] : [])
+    if (activeGroupColumns.length === 0) return filteredAndSorted.length
+
+    const allPaths = new Set()
+    const getDisplayValue = (entry, colKey) => {
+      const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
+      const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+      const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+      const actualKey = groupColumnDef?.column_name || groupColumnDef?.key || colKey
+      const rawValue = entry[actualKey] ?? entry[colKey]
+      if (rawValue && typeof rawValue === 'object' && rawValue.display !== undefined) {
+        return rawValue.display || '(empty)'
+      } else if (isLookupColumn && rawValue != null && lookupOptions.length > 0) {
+        const matchingOption = lookupOptions.find(opt =>
+          opt.id === rawValue || parseInt(opt.id) === parseInt(rawValue)
+        )
+        return matchingOption?.display || `ID: ${rawValue}`
+      }
+      return rawValue ?? '(empty)'
+    }
+
+    filteredAndSorted.forEach(entry => {
+      let path = ''
+      activeGroupColumns.forEach((colKey) => {
+        const value = getDisplayValue(entry, colKey)
+        path = path ? `${path}|${value}` : value
+        allPaths.add(path)
+      })
+    })
+
+    return allPaths.size
+  }, [filteredAndSorted, groupByColumns, groupByColumn, columnChoices, COLUMNS])
+
   // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
     const activeGroupColumns = groupByColumns.length > 0 ? groupByColumns : (groupByColumn ? [groupByColumn] : [])
@@ -5718,12 +5753,13 @@ export default function TeeemTableView({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
               {view.name}
-              {view.filters.length > 0 && (
-                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] ${
-                  activeViewId === view.id
-                    ? 'bg-blue-600 dark:bg-blue-500'
-                    : 'bg-green-600 dark:bg-green-700'
-                } text-white rounded-full text-[10px] font-bold`}>
+              {/* Show visible row count for active view (groups when grouped, records otherwise) */}
+              {activeViewId === view.id ? (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] bg-blue-600 dark:bg-blue-500 text-white rounded-full text-[10px] font-bold">
+                  {visibleGroupCount}
+                </span>
+              ) : view.filters.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] bg-green-600 dark:bg-green-700 text-white rounded-full text-[10px] font-bold">
                   {view.filters.length}
                 </span>
               )}

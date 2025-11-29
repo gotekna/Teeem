@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_191923) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_29_194836) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -400,6 +400,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_191923) do
     t.string "expected_onedrive_path"
     t.string "register_folder"
     t.string "company_code"
+    t.string "source", default: "manual"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
     t.index ["document_date"], name: "index_company_documents_on_document_date"
@@ -407,6 +408,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_191923) do
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
     t.index ["folder"], name: "index_company_documents_on_folder"
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
+    t.index ["source"], name: "index_company_documents_on_source"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
   end
 
@@ -888,6 +890,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_191923) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "tabs", default: []
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["folder"], name: "index_document_types_on_folder"
