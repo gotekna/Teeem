@@ -240,7 +240,8 @@ class EmailToJobService
       Extract the following information and return ONLY valid JSON (no markdown, no code blocks, just raw JSON):
 
       {
-        "job_title": "Property address if mentioned (e.g., '123 Main Street, Brisbane QLD 4000'), otherwise infer from context or use subject line",
+        "job_title": "Descriptive title for this job (infer from context or use subject line)",
+        "property_address": "IMPORTANT: Full property address where work will be done. Check BOTH email body AND PDF attachments for address. Look for Australian format: Street, Suburb, State, Postcode (e.g., '123 Main Street, Scarborough, WA 6019'). If found in PDF, extract the complete address. Return null if not found.",
         "customer": {
           "name": "Customer's full name (if not mentioned, extract from email sender name)",
           "email": "Customer email (use sender email if customer is the sender)",
@@ -255,7 +256,7 @@ class EmailToJobService
           "company": "Company of referral person if mentioned"
         },
         "description": "Brief 1-2 sentence description of what the customer wants",
-        "scope_of_work": "Detailed scope extracted from email - what needs to be built/renovated/fixed",
+        "scope_of_work": "Detailed scope extracted from email - what needs to be built/renovated/fixed. Include relevant details from PDF attachments.",
         "contract_value": null or estimated value if mentioned as a number (no currency symbols),
         "urgency": "urgent, normal, or low based on language used",
         "job_type": "renovation, new_build, extension, repair, or other",
