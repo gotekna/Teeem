@@ -1001,6 +1001,7 @@ Rails.application.routes.draw do
         collection do
           post :reorder
           post :create_all_setup_views
+          post :save_global
         end
       end
 
