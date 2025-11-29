@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../../api'
+import { useAuth } from '../../contexts/AuthContext'
 import TeeemTableView from '../documentation/TeeemTableView'
 import {
   UserIcon,
@@ -21,7 +22,8 @@ import {
   PhoneIcon,
   EyeIcon,
   EyeSlashIcon,
-  ArrowTopRightOnSquareIcon
+  ArrowTopRightOnSquareIcon,
+  ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline'
 
 // Available assigned roles (matches backend User::ASSIGNABLE_ROLES)
@@ -36,14 +38,20 @@ const USER_COLUMNS = [
   { key: 'entry_type', label: 'Role', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 140 },
   { key: 'component', label: 'Mobile', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 140 },
   { key: 'status', label: 'Status', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
-  { key: 'assigned_roles', label: 'Assigned Role', resizable: true, sortable: true, filterable: true, filterType: 'multiselect', width: 180, options: ASSIGNABLE_ROLES }
+  { key: 'assigned_roles', label: 'Assigned Role', resizable: true, sortable: true, filterable: true, filterType: 'multiselect', width: 180, options: ASSIGNABLE_ROLES },
+  { key: 'actions', label: 'Actions', resizable: false, sortable: false, filterable: false, width: 120 }
 ]
+
+// Admin secret for impersonation (dev/staging only)
+const ADMIN_SECRET = 'tekna-admin-2024'
 
 export default function UserManagementTab() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [toast, setToast] = useState(null)
+  const [impersonating, setImpersonating] = useState(null)
+  const { setUser } = useAuth()
 
   useEffect(() => {
     loadUsers()
@@ -108,6 +116,74 @@ export default function UserManagementTab() {
     }
   }
 
+  const handleImpersonate = async (entry) => {
+    const user = entry._original
+    if (!confirm(`Login as ${user.name} (${user.email})?\n\nYou will be logged out of your current session.`)) {
+      return
+    }
+
+    setImpersonating(user.id)
+    try {
+      const response = await fetch(`/api/v1/auth/impersonate/${user.id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Secret': ADMIN_SECRET
+        }
+      })
+      const data = await response.json()
+
+      if (data.success && data.token) {
+        // Store the new token
+        localStorage.setItem('token', data.token)
+
+        // Update auth context with new user
+        setUser(data.user)
+
+        setToast({
+          message: `Now logged in as ${data.user.name}`,
+          type: 'success'
+        })
+
+        // Reload the page to refresh all components with new user context
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
+      } else {
+        throw new Error(data.error || 'Impersonation failed')
+      }
+    } catch (err) {
+      console.error('Failed to impersonate user:', err)
+      setToast({
+        message: `Failed to impersonate: ${err.message}`,
+        type: 'error'
+      })
+    } finally {
+      setImpersonating(null)
+    }
+  }
+
+  // Custom cell renderer for actions column
+  const customCellRenderer = (entry, columnKey) => {
+    if (columnKey === 'actions') {
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            handleImpersonate(entry)
+          }}
+          disabled={impersonating === entry._original?.id}
+          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors disabled:opacity-50"
+          title={`Login as ${entry.title}`}
+        >
+          <ArrowRightOnRectangleIcon className="h-4 w-4" />
+          {impersonating === entry._original?.id ? 'Logging in...' : 'Login As'}
+        </button>
+      )
+    }
+    return null // Use default rendering for other columns
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -150,6 +226,7 @@ export default function UserManagementTab() {
         category="users"
         foundationId="users-quick-view"
         columns={USER_COLUMNS}
+        customCellRenderer={customCellRenderer}
       />
 
       {/* Toast Notification */}
