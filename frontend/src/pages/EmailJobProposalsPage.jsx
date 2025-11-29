@@ -13,6 +13,7 @@ import {
   UserGroupIcon,
   HandRaisedIcon,
   PlusIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import ApprovalModal from '../components/proposals/ApprovalModal'
@@ -92,6 +93,27 @@ export default function EmailJobProposalsPage() {
     } catch (error) {
       console.error('Failed to reject proposal:', error)
       alert('Failed to reject proposal: ' + (error.response?.data?.error || error.message))
+    } finally {
+      setProcessing(null)
+    }
+  }
+
+  const handleReExtract = async (proposalId) => {
+    if (!confirm('Re-extract data from email and PDFs with latest extraction logic?')) {
+      return
+    }
+
+    try {
+      setProcessing(proposalId)
+      const response = await api.post(`/api/v1/email_job_proposals/${proposalId}/re_extract`)
+
+      if (response.data.success) {
+        alert(response.data.message || 'Proposal re-extracted successfully')
+        loadProposals()
+      }
+    } catch (error) {
+      console.error('Failed to re-extract proposal:', error)
+      alert('Failed to re-extract proposal: ' + (error.response?.data?.error || error.message))
     } finally {
       setProcessing(null)
     }
@@ -213,6 +235,7 @@ export default function EmailJobProposalsPage() {
               proposal={pendingProposals[0]}
               onApprove={handleApprove}
               onReject={handleReject}
+              onReExtract={handleReExtract}
               processing={processing}
               getStatusBadge={getStatusBadge}
               getConfidenceBadge={getConfidenceBadge}
@@ -232,6 +255,7 @@ export default function EmailJobProposalsPage() {
                 proposal={proposal}
                 onApprove={handleApprove}
                 onReject={handleReject}
+                onReExtract={handleReExtract}
                 processing={processing}
                 getStatusBadge={getStatusBadge}
                 getConfidenceBadge={getConfidenceBadge}
@@ -268,7 +292,7 @@ export default function EmailJobProposalsPage() {
   )
 }
 
-function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadge, getConfidenceBadge, readonly = false }) {
+function ProposalCard({ proposal, onApprove, onReject, onReExtract, processing, getStatusBadge, getConfidenceBadge, readonly = false }) {
   const email = proposal.email || {}
   const data = proposal.extracted_data || {}
   const customer = data.customer || {}
@@ -300,6 +324,15 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
           {/* Actions */}
           {!readonly && proposal.status === 'pending' && (
             <div className="ml-4 flex gap-2">
+              <button
+                onClick={() => onReExtract(proposal.id)}
+                disabled={processing === proposal.id}
+                className="inline-flex items-center px-3 py-2 border border-indigo-300 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-50"
+                title="Re-extract data from email and PDFs with latest extraction logic"
+              >
+                <ArrowPathIcon className="w-4 h-4 mr-1" />
+                Re-extract
+              </button>
               <button
                 onClick={() => onApprove(proposal.id)}
                 disabled={processing === proposal.id}
