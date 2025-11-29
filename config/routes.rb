@@ -1026,6 +1026,7 @@ Rails.application.routes.draw do
           post :import
           post :reload
           get :health_report
+          get :asic_logins
         end
         member do
           get :directors
