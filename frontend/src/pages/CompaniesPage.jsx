@@ -13,6 +13,7 @@ const buildCompaniesColumns = () => [
   { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
   { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
   { key: 'name', label: 'Company Name', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 250, is_title: true },
+  { key: 'code', label: 'Code', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 80, editable: true },
   { key: 'company_group', label: 'Group', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
   { key: 'status', label: 'Status', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
   { key: 'formatted_acn', label: 'ACN', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 130 },

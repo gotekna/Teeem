@@ -8542,28 +8542,28 @@ export default function TeeemTableView({
               // Helper to sort group keys naturally
               // Special handling for workflow fields (job_status) - sort by display_order
               const sortGroupKeys = (keys, colKey) => {
+                // ALWAYS log to see if this function is being called
+                console.log('[sortGroupKeys] 🔍 CALLED with:', { keys, colKey })
+
                 const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
                 const isLookupColumn = groupColumnDef?.column_type === 'lookup'
                 const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
 
-                // Debug logging
-                if (colKey === 'job_status_id' || colKey === 'job_status' || colKey.includes('status')) {
-                  console.log('[sortGroupKeys] Sorting groups:', {
-                    keys,
-                    colKey,
-                    columnDefFound: !!groupColumnDef,
-                    columnType: groupColumnDef?.column_type,
-                    columnId: groupColumnDef?.id,
-                    lookupOptionsCount: lookupOptions.length,
-                    firstOption: lookupOptions[0],
-                    hasDisplayOrder: lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
-                  })
-                }
+                // Always log detailed info
+                console.log('[sortGroupKeys] 📊 Column info:', {
+                  colKey,
+                  columnDefFound: !!groupColumnDef,
+                  columnType: groupColumnDef?.column_type,
+                  columnId: groupColumnDef?.id,
+                  lookupOptionsCount: lookupOptions.length,
+                  lookupOptions: lookupOptions,
+                  hasDisplayOrder: lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
+                })
 
                 // Check if this column has display_order (workflow columns like job_status)
                 const hasDisplayOrder = lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
 
-                return keys.sort((a, b) => {
+                const sorted = keys.sort((a, b) => {
                   if (hasDisplayOrder) {
                     // Sort by workflow order (display_order from lookup options)
                     const optionA = lookupOptions.find(opt => opt.display === a || opt.value === a)
@@ -8571,6 +8571,14 @@ export default function TeeemTableView({
 
                     const orderA = optionA?.display_order ?? 9999
                     const orderB = optionB?.display_order ?? 9999
+
+                    console.log('[sortGroupKeys] 🔀 Comparing:', {
+                      a, b,
+                      optionA: optionA?.display,
+                      optionB: optionB?.display,
+                      orderA, orderB,
+                      result: orderA - orderB
+                    })
 
                     if (orderA !== orderB) return orderA - orderB
                   }
@@ -8581,6 +8589,9 @@ export default function TeeemTableView({
                   if (!isNaN(numA) && !isNaN(numB)) return numA - numB
                   return a.localeCompare(b)
                 })
+
+                console.log('[sortGroupKeys] ✅ Sorted result:', sorted)
+                return sorted
               }
 
               // Build nested group structure recursively

@@ -108,6 +108,40 @@ class OutlookService
     end
   end
 
+  # Get attachments for an email
+  def get_attachments(message_id)
+    url = "#{GRAPH_API_BASE}/me/messages/#{message_id}/attachments"
+
+    response = make_request(url)
+
+    if response.is_a?(Net::HTTPSuccess)
+      data = JSON.parse(response.body)
+      data['value']
+    else
+      Rails.logger.error "Failed to fetch attachments: #{response.code} - #{response.body}"
+      []
+    end
+  end
+
+  # Download a specific attachment and return as a file
+  def download_attachment(message_id, attachment_id)
+    url = "#{GRAPH_API_BASE}/me/messages/#{message_id}/attachments/#{attachment_id}"
+
+    response = make_request(url)
+
+    if response.is_a?(Net::HTTPSuccess)
+      data = JSON.parse(response.body)
+      {
+        filename: data['name'],
+        content_type: data['contentType'],
+        content: Base64.decode64(data['contentBytes'])
+      }
+    else
+      Rails.logger.error "Failed to download attachment: #{response.code} - #{response.body}"
+      nil
+    end
+  end
+
   private
 
   def fetch_valid_token

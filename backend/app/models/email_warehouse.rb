@@ -1,6 +1,9 @@
 class EmailWarehouse < ApplicationRecord
   self.table_name = 'email_warehouse'
 
+  # ActiveStorage attachments
+  has_many_attached :files
+
   # Associations
   belongs_to :job, optional: true
   belongs_to :synced_by_user, class_name: 'User', optional: true
@@ -221,6 +224,64 @@ class EmailWarehouse < ApplicationRecord
 
   def display_from
     from_name.presence || from_email
+  end
+
+  # Extract text from all attached PDF files
+  def extract_pdf_text
+    return nil unless files.attached?
+
+    pdf_texts = []
+
+    files.each do |file|
+      next unless file.content_type == 'application/pdf'
+
+      begin
+        file.open do |temp_file|
+          reader = PDF::Reader.new(temp_file.path)
+          text = reader.pages.map(&:text).join("\n")
+          pdf_texts << {
+            filename: file.filename.to_s,
+            text: text,
+            pages: reader.page_count
+          }
+        end
+      rescue StandardError => e
+        Rails.logger.error "Failed to extract PDF text from #{file.filename}: #{e.message}"
+      end
+    end
+
+    pdf_texts.presence
+  end
+
+  # Sync PDF attachments from Outlook
+  def sync_attachments_from_outlook(outlook_service)
+    return unless outlook_id.present? && has_attachments
+
+    # Skip if attachments already synced
+    return if files.attached?
+
+    begin
+      attachments = outlook_service.get_attachments(outlook_id)
+
+      attachments.each do |attachment|
+        # Only download PDF files
+        next unless attachment['contentType'] == 'application/pdf'
+
+        file_data = outlook_service.download_attachment(outlook_id, attachment['id'])
+        next unless file_data
+
+        # Attach to EmailWarehouse using ActiveStorage
+        files.attach(
+          io: StringIO.new(file_data[:content]),
+          filename: file_data[:filename],
+          content_type: file_data[:content_type]
+        )
+
+        Rails.logger.info "Attached PDF #{file_data[:filename]} to email #{id}"
+      end
+    rescue StandardError => e
+      Rails.logger.error "Failed to sync attachments for email #{id}: #{e.message}"
+    end
   end
 
   private

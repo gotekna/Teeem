@@ -80,6 +80,17 @@ module Api
           }, status: :unprocessable_entity
         end
 
+        # Sync PDF attachments from Outlook if not already synced
+        if email.has_attachments && !email.files.attached?
+          begin
+            outlook_service = OutlookService.new(current_user)
+            email.sync_attachments_from_outlook(outlook_service)
+          rescue StandardError => e
+            Rails.logger.error "Failed to sync attachments: #{e.message}"
+            # Continue with proposal creation even if attachment sync fails
+          end
+        end
+
         # Create proposal using service
         service = EmailToJobService.new(email, user: current_user)
         proposal = service.create_job_proposal

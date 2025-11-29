@@ -209,6 +209,17 @@ class EmailToJobService
     # Get email body (prefer text, fallback to stripped HTML)
     email_body = @email.body_text.presence || strip_html(@email.body_html)
 
+    # Extract text from PDF attachments if present
+    pdf_content = nil
+    if @email.files.attached?
+      pdf_texts = @email.extract_pdf_text
+      if pdf_texts.present?
+        pdf_content = pdf_texts.map do |pdf|
+          "--- PDF Attachment: #{pdf[:filename]} (#{pdf[:pages]} pages) ---\n#{pdf[:text]}"
+        end.join("\n\n")
+      end
+    end
+
     <<~PROMPT
       You are analyzing an email to extract information for creating a construction job in Australia.
 
@@ -220,6 +231,8 @@ class EmailToJobService
 
       Email Body:
       #{email_body}
+
+      #{pdf_content.present? ? "\nPDF Attachments Content:\n#{pdf_content}" : ""}
 
       Extract the following information and return ONLY valid JSON (no markdown, no code blocks, just raw JSON):
 
