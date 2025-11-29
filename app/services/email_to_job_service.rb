@@ -65,8 +65,15 @@ class EmailToJobService
     # Merge user edits with AI-extracted data
     job_data = proposal.extracted_data.deep_merge(user_edits)
 
-    # Create or find customer contact
-    customer = find_or_create_customer(job_data['customer'])
+    # Determine customer contact
+    # Priority: user-selected client > AI-detected customer
+    customer = nil
+    if user_edits['client_contact_id'].present?
+      customer = Contact.find_by(id: user_edits['client_contact_id'])
+    else
+      # Fallback to AI-detected customer
+      customer = find_or_create_customer(job_data['customer'])
+    end
 
     # Check if extracted "customer" is actually a sales agent
     is_sales_agent = customer&.is_sales? || customer&.is_land_agent?
@@ -79,13 +86,13 @@ class EmailToJobService
 
     # Create job
     job = Job.create!(
-      title: job_data['job_title'] || "Job from #{@email.from_email}",
+      title: user_edits['job_title'] || job_data['job_title'] || "Job from #{@email.from_email}",
       job_type_id: job_type_id,
       job_status_id: job_status_id,
       site_supervisor_name: @user.name,
       site_supervisor_email: @user.email,
       site_supervisor_phone: @user.mobile_phone,
-      contract_value: job_data['contract_value']&.to_f
+      contract_value: user_edits['contract_value'] || job_data['contract_value']&.to_f
     )
 
     # Link customer to job
@@ -100,7 +107,7 @@ class EmailToJobService
         )
         Rails.logger.info "Linked #{customer.full_name} as external_sales (detected as sales agent)"
       else
-        # Normal customer
+        # Normal customer - link as client
         job.job_contacts.create!(
           contact: customer,
           role: 'client',
