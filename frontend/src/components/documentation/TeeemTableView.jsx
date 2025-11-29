@@ -2246,10 +2246,62 @@ export default function TeeemTableView({
     return result
   }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch, columnChoices])
 
-  // Calculate visible record count (total filtered records)
+  // Calculate visible record count (total filtered records for active view)
   const visibleRecordCount = useMemo(() => {
     return filteredAndSorted.length
   }, [filteredAndSorted])
+
+  // Calculate counts for all global views (for badge display)
+  const globalViewCounts = useMemo(() => {
+    const counts = {}
+
+    savedFilters.filter(v => v.is_global).forEach(view => {
+      // For the active view, use the already-calculated filteredAndSorted count
+      if (view.id === activeViewId) {
+        counts[view.id] = filteredAndSorted.length
+      } else {
+        // For inactive views, calculate by applying their filters
+        // This is a simplified calculation - we only apply cascade filters, not all filter types
+        let viewRecords = entries
+
+        if (view.filters && view.filters.length > 0) {
+          viewRecords = viewRecords.filter(entry => {
+            return view.filters.every(filter => {
+              const value = entry[filter.column]
+              const filterValue = filter.value
+
+              switch (filter.operator) {
+                case 'equals':
+                case 'is':
+                  return value == filterValue
+                case 'not_equals':
+                case 'is_not':
+                  return value != filterValue
+                case 'contains':
+                  return String(value || '').toLowerCase().includes(String(filterValue).toLowerCase())
+                case 'not_contains':
+                  return !String(value || '').toLowerCase().includes(String(filterValue).toLowerCase())
+                case 'greater_than':
+                  return Number(value) > Number(filterValue)
+                case 'less_than':
+                  return Number(value) < Number(filterValue)
+                case 'is_empty':
+                  return !value || value === ''
+                case 'is_not_empty':
+                  return value && value !== ''
+                default:
+                  return true
+              }
+            })
+          })
+        }
+
+        counts[view.id] = viewRecords.length
+      }
+    })
+
+    return counts
+  }, [savedFilters, entries, filteredAndSorted, activeViewId])
 
   // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
@@ -5723,10 +5775,14 @@ export default function TeeemTableView({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
               {view.name}
-              {/* Show count badge only for global views */}
-              {view.is_global && activeViewId === view.id && (
-                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] bg-blue-600 dark:bg-blue-500 text-white rounded-full text-[10px] font-bold">
-                  {visibleRecordCount}
+              {/* Show count badge for all global views */}
+              {view.is_global && globalViewCounts[view.id] !== undefined && (
+                <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] ${
+                  activeViewId === view.id
+                    ? 'bg-blue-600 dark:bg-blue-500'
+                    : 'bg-green-600 dark:bg-green-700'
+                } text-white rounded-full text-[10px] font-bold`}>
+                  {globalViewCounts[view.id]}
                 </span>
               )}
             </button>

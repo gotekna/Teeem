@@ -10,15 +10,18 @@ import {
   PaperClipIcon,
   UserIcon,
   BuildingOfficeIcon,
+  UserGroupIcon,
+  HandRaisedIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
+import ApprovalModal from '../components/proposals/ApprovalModal'
 
 export default function EmailJobProposalsPage() {
   const navigate = useNavigate()
   const [proposals, setProposals] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedProposal, setSelectedProposal] = useState(null)
-  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showApprovalModal, setShowApprovalModal] = useState(false)
   const [processing, setProcessing] = useState(null)
 
   useEffect(() => {
@@ -38,15 +41,23 @@ export default function EmailJobProposalsPage() {
     }
   }
 
-  const handleApprove = async (proposalId) => {
-    if (!confirm('Approve this proposal and create a job?')) return
+  const handleApprove = (proposalId) => {
+    const proposal = proposals.find(p => p.id === proposalId)
+    setSelectedProposal(proposal)
+    setShowApprovalModal(true)
+  }
 
+  const handleApproveWithEdits = async (proposalId, userEdits) => {
     try {
       setProcessing(proposalId)
-      const response = await api.post(`/api/v1/email_job_proposals/${proposalId}/approve`)
+      const response = await api.post(`/api/v1/email_job_proposals/${proposalId}/approve`, {
+        user_edits: userEdits
+      })
 
       if (response.data.success) {
         alert(`Job #${response.data.job.id} created successfully!`)
+        setShowApprovalModal(false)
+        setSelectedProposal(null)
         loadProposals()
 
         // Navigate to the new job
@@ -234,6 +245,19 @@ export default function EmailJobProposalsPage() {
           </p>
         </div>
       )}
+
+      {/* Approval Modal */}
+      {showApprovalModal && selectedProposal && (
+        <ApprovalModal
+          proposal={selectedProposal}
+          onApprove={handleApproveWithEdits}
+          onCancel={() => {
+            setShowApprovalModal(false)
+            setSelectedProposal(null)
+          }}
+          processing={processing === selectedProposal.id}
+        />
+      )}
     </div>
   )
 }
@@ -344,6 +368,68 @@ function ProposalCard({ proposal, onApprove, onReject, processing, getStatusBadg
             </div>
           </div>
         </div>
+
+        {/* Sales & Referral Info */}
+        {(data.internal_sales || data.external_sales?.length > 0 || data.referral_contact) && (
+          <div className="mt-4 grid grid-cols-3 gap-4 border-t border-gray-200 pt-4">
+            {/* Internal Sales */}
+            {data.internal_sales && (
+              <div>
+                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
+                  <UserIcon className="w-3 h-3 mr-1" />
+                  Internal Sales
+                </h4>
+                <div className="text-sm">
+                  <div className="font-medium">{data.internal_sales.user_name}</div>
+                  <div className="text-gray-600 text-xs">{data.internal_sales.user_email}</div>
+                  {!data.internal_sales.contact_exists && (
+                    <div className="text-orange-600 text-xs mt-1">⚠️ Contact needs creation</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* External Sales */}
+            {data.external_sales?.length > 0 && (
+              <div>
+                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
+                  <UserGroupIcon className="w-3 h-3 mr-1" />
+                  External Sales
+                </h4>
+                <div className="space-y-2">
+                  {data.external_sales.map((sales, idx) => (
+                    <div key={idx} className="text-sm">
+                      <div className="font-medium">{sales.name}</div>
+                      <div className="text-gray-600 text-xs">{sales.email}</div>
+                      {!sales.contact_exists && (
+                        <div className="text-orange-600 text-xs">⚠️ Contact needs creation</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Referral */}
+            {data.referral_contact && (
+              <div>
+                <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 flex items-center">
+                  <HandRaisedIcon className="w-3 h-3 mr-1" />
+                  Referral
+                </h4>
+                <div className="text-sm">
+                  <div className="font-medium">{data.referral_contact.name}</div>
+                  {data.referral_contact.email && (
+                    <div className="text-gray-600 text-xs">{data.referral_contact.email}</div>
+                  )}
+                  {!data.referral_contact.contact_exists && (
+                    <div className="text-orange-600 text-xs mt-1">⚠️ Contact needs creation</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Description */}
         {data.description && (

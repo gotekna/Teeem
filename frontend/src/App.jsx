@@ -96,6 +96,7 @@ const EmailJobProposalsPage = lazyWithRetry(() => import('./pages/EmailJobPropos
 const CorporateDashboardPage = lazyWithRetry(() => import('./pages/CorporateDashboardPage'))
 const CorporateHealthPage = lazyWithRetry(() => import('./pages/CorporateHealthPage'))
 const AsicLoginsPage = lazyWithRetry(() => import('./pages/AsicLoginsPage'))
+const DocumentTabStructurePage = lazyWithRetry(() => import('./pages/DocumentTabStructurePage'))
 
 // Portal pages (subcontractor portal)
 const PortalLayout = lazyWithRetry(() => import('./pages/portal/PortalLayout'))
@@ -289,6 +290,7 @@ function App() {
         <Route path="/corporate/assets/:id/edit" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/xero" element={<AppLayout><XeroDashboardPage /></AppLayout>} />
         <Route path="/corporate/asic-logins" element={<AppLayout><AsicLoginsPage /></AppLayout>} />
+        <Route path="/corporate/tab-structure" element={<AppLayout><DocumentTabStructurePage /></AppLayout>} />
 
         {/* Portal routes (subcontractor portal) */}
         <Route path="/portal/login" element={<PortalLogin />} />

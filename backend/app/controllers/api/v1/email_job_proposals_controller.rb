@@ -100,7 +100,7 @@ module Api
         end
 
         # Get user edits from params (optional)
-        user_edits = params[:edits] || {}
+        user_edits = params[:user_edits] || params[:edits] || {}
 
         # Create job using service
         service = EmailToJobService.new(@proposal.email_warehouse, user: current_user)
