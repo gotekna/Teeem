@@ -112,7 +112,7 @@ module Api
           :folder,
           :description,
           :requires_filing,
-          :retention_period,
+          :retention_years,
           :active,
           :primary_tab,
           tabs: []
@@ -127,7 +127,7 @@ module Api
           folder: document_type.folder,
           description: document_type.description,
           requires_filing: document_type.requires_filing,
-          retention_period: document_type.retention_period,
+          retention_years: document_type.retention_years,
           active: document_type.active,
           tabs: document_type.tabs || [],
           primary_tab: document_type.primary_tab,
