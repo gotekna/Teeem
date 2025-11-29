@@ -5,9 +5,44 @@ import {
   MagnifyingGlassIcon,
   EnvelopeIcon,
   PhoneIcon,
-  BuildingOfficeIcon
+  BuildingOfficeIcon,
+  CheckCircleIcon,
+  ExclamationCircleIcon
 } from '@heroicons/react/24/outline'
+import { CheckCircleIcon as CheckCircleSolid } from '@heroicons/react/24/solid'
 import api from '../api'
+
+// Calculate director compliance score
+const calculateDirectorCompliance = (director) => {
+  const requiredFields = [
+    { field: 'director_id', label: 'Director ID' },
+    { field: 'date_of_birth', label: 'Date of Birth' },
+    { field: 'residential_address', label: 'Residential Address' },
+    { field: 'drivers_licence', label: 'Drivers Licence' },
+  ]
+
+  const optionalFields = [
+    { field: 'passport_number', label: 'Passport' },
+    { field: 'photo_url', label: 'Photo' },
+    { field: 'place_of_birth', label: 'Place of Birth' },
+  ]
+
+  const filledRequired = requiredFields.filter(f => director[f.field]).length
+  const filledOptional = optionalFields.filter(f => director[f.field]).length
+
+  const requiredScore = (filledRequired / requiredFields.length) * 100
+  const totalFilled = filledRequired + filledOptional
+  const totalFields = requiredFields.length + optionalFields.length
+
+  return {
+    requiredScore,
+    totalScore: Math.round((totalFilled / totalFields) * 100),
+    filledRequired,
+    totalRequired: requiredFields.length,
+    missingRequired: requiredFields.filter(f => !director[f.field]).map(f => f.label),
+    isFullyCompliant: filledRequired === requiredFields.length
+  }
+}
 
 export default function DirectorsRegistryPage() {
   const navigate = useNavigate()
@@ -95,6 +130,7 @@ export default function DirectorsRegistryPage() {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filteredDirectors.map((director) => {
             const companies = getDirectorCompanies(director)
+            const compliance = calculateDirectorCompliance(director)
             return (
               <div
                 key={director.id}
@@ -103,9 +139,25 @@ export default function DirectorsRegistryPage() {
               >
                 <div className="px-4 py-5 sm:p-6">
                   <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <UserGroupIcon className="h-6 w-6 text-indigo-600" />
+                    <div className="flex-shrink-0 relative">
+                      {director.photo_url ? (
+                        <img
+                          src={director.photo_url}
+                          alt={director.full_name}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-full bg-indigo-100 flex items-center justify-center">
+                          <UserGroupIcon className="h-6 w-6 text-indigo-600" />
+                        </div>
+                      )}
+                      {/* Compliance indicator badge */}
+                      <div className={`absolute -bottom-1 -right-1 rounded-full p-0.5 ${compliance.isFullyCompliant ? 'bg-green-100' : 'bg-amber-100'}`}>
+                        {compliance.isFullyCompliant ? (
+                          <CheckCircleSolid className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <ExclamationCircleIcon className="h-4 w-4 text-amber-600" />
+                        )}
                       </div>
                     </div>
                     <div className="ml-4 flex-1">
@@ -118,6 +170,27 @@ export default function DirectorsRegistryPage() {
                     </div>
                   </div>
 
+                  {/* Compliance Status Bar */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className={`font-medium ${compliance.isFullyCompliant ? 'text-green-600' : 'text-amber-600'}`}>
+                        {compliance.isFullyCompliant ? 'Fully Compliant' : `${compliance.filledRequired}/${compliance.totalRequired} Required`}
+                      </span>
+                      <span className="text-gray-500">{compliance.totalScore}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full ${compliance.isFullyCompliant ? 'bg-green-500' : compliance.requiredScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                        style={{ width: `${compliance.totalScore}%` }}
+                      />
+                    </div>
+                    {!compliance.isFullyCompliant && compliance.missingRequired.length > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        Missing: {compliance.missingRequired.slice(0, 2).join(', ')}{compliance.missingRequired.length > 2 && ` +${compliance.missingRequired.length - 2}`}
+                      </p>
+                    )}
+                  </div>
+
                   <div className="mt-4 space-y-2">
                     {director.email && (
                       <div className="flex items-center text-sm text-gray-500">
@@ -125,16 +198,10 @@ export default function DirectorsRegistryPage() {
                         {director.email}
                       </div>
                     )}
-                    {director.phone && (
+                    {director.mobile_phone && (
                       <div className="flex items-center text-sm text-gray-500">
                         <PhoneIcon className="h-4 w-4 mr-2 text-gray-400" />
-                        {director.phone}
-                      </div>
-                    )}
-                    {director.director_tfn && (
-                      <div className="flex items-center text-sm text-gray-500">
-                        <span className="font-medium mr-1">TFN:</span>
-                        {director.director_tfn}
+                        {director.mobile_phone}
                       </div>
                     )}
                   </div>
