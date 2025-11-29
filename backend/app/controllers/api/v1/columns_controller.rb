@@ -169,8 +169,15 @@ module Api
             display: record.send(column.lookup_display_column).to_s
           }
           # Include display_order if the lookup table has that column (for workflow sorting)
+          # Check for common ordering column names: display_order, position, sort_order, order
           if record.respond_to?(:display_order)
             option[:display_order] = record.display_order
+          elsif record.respond_to?(:position)
+            option[:display_order] = record.position
+          elsif record.respond_to?(:sort_order)
+            option[:display_order] = record.sort_order
+          elsif record.respond_to?(:order)
+            option[:display_order] = record.order
           end
           option
         rescue => e
