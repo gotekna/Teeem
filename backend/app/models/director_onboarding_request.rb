@@ -7,9 +7,18 @@ class DirectorOnboardingRequest < ApplicationRecord
   # Status constants
   STATUSES = %w[pending submitted approved rejected expired].freeze
 
+  # Australian states/territories
+  AUSTRALIAN_STATES = %w[NSW VIC QLD SA WA TAS NT ACT].freeze
+
   validates :access_token, presence: true, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
   validates :email, format: { with: URI::MailTo::EMAIL_REGEXP }, allow_blank: true
+
+  # Validate date of birth when submitting
+  validate :date_of_birth_is_valid, if: -> { date_of_birth.present? }
+
+  # Validate residential address when submitting
+  validate :residential_address_is_valid, if: -> { residential_address.present? }
 
   before_validation :generate_access_token, on: :create
 
@@ -152,5 +161,62 @@ class DirectorOnboardingRequest < ApplicationRecord
       passport_number: passport_number,
       photo_url: photo_url
     }.compact
+  end
+
+  # Validate date of birth
+  # - Must not be in the future
+  # - Must be at least 18 years old (directors must be adults)
+  # - Must be reasonable (not more than 120 years old)
+  def date_of_birth_is_valid
+    return if date_of_birth.blank?
+
+    if date_of_birth > Date.current
+      errors.add(:date_of_birth, "cannot be in the future")
+    elsif date_of_birth > 18.years.ago.to_date
+      errors.add(:date_of_birth, "you must be at least 18 years old to be a director")
+    elsif date_of_birth < 120.years.ago.to_date
+      errors.add(:date_of_birth, "is not a valid date")
+    end
+  end
+
+  # Validate residential address
+  # - Must include an Australian state/territory
+  # - Must include a valid Australian postcode (4 digits)
+  # - Must have minimum reasonable length (street + suburb + state + postcode)
+  def residential_address_is_valid
+    return if residential_address.blank?
+
+    address = residential_address.to_s.strip
+
+    # Check minimum length (at least street number + name + suburb + state + postcode)
+    if address.length < 15
+      errors.add(:residential_address, "is too short - please include full street address, suburb, state and postcode")
+      return
+    end
+
+    # Check for Australian state/territory
+    state_pattern = /\b(#{AUSTRALIAN_STATES.join('|')})\b/i
+    unless address.match?(state_pattern)
+      errors.add(:residential_address, "must include an Australian state (NSW, VIC, QLD, SA, WA, TAS, NT, or ACT)")
+      return
+    end
+
+    # Check for 4-digit Australian postcode
+    postcode_pattern = /\b\d{4}\b/
+    unless address.match?(postcode_pattern)
+      errors.add(:residential_address, "must include a 4-digit postcode")
+      return
+    end
+
+    # Extract and validate postcode range (Australian postcodes are 0200-9999)
+    postcodes = address.scan(/\b(\d{4})\b/).flatten
+    valid_postcode = postcodes.any? do |pc|
+      pc_int = pc.to_i
+      pc_int >= 200 && pc_int <= 9999
+    end
+
+    unless valid_postcode
+      errors.add(:residential_address, "must include a valid Australian postcode")
+    end
   end
 end
