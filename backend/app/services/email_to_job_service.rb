@@ -436,7 +436,25 @@ class EmailToJobService
     Rails.logger.error "Failed to link external sales reps: #{e.message}"
   end
 
-  # Link referral contact to job
+  # Link external sales contact by ID (from user manual selection)
+  def link_external_sales_contact(job, contact_id)
+    contact = Contact.find_by(id: contact_id)
+    return unless contact
+
+    # Link as external sales (avoid duplicates)
+    unless job.job_contacts.exists?(contact: contact, role: 'external_sales')
+      job.job_contacts.create!(
+        contact: contact,
+        role: 'external_sales',
+        primary: false
+      )
+      Rails.logger.info "Linked external sales #{contact.full_name} to job #{job.id} (user selected)"
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to link external sales contact: #{e.message}"
+  end
+
+  # Link referral contact to job (from AI detection)
   def link_referral_contact(job, job_data)
     referral_data = job_data['referral_contact']
     return unless referral_data.is_a?(Hash) && referral_data['contact_id'].present?
@@ -452,6 +470,24 @@ class EmailToJobService
         primary: false
       )
       Rails.logger.info "Linked referral #{contact.full_name} to job #{job.id}"
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to link referral contact: #{e.message}"
+  end
+
+  # Link referral contact by ID (from user manual selection)
+  def link_referral_contact_by_id(job, contact_id)
+    contact = Contact.find_by(id: contact_id)
+    return unless contact
+
+    # Link as referral (avoid duplicates)
+    unless job.job_contacts.exists?(contact: contact, role: 'referral')
+      job.job_contacts.create!(
+        contact: contact,
+        role: 'referral',
+        primary: false
+      )
+      Rails.logger.info "Linked referral #{contact.full_name} to job #{job.id} (user selected)"
     end
   rescue StandardError => e
     Rails.logger.error "Failed to link referral contact: #{e.message}"
