@@ -85,10 +85,14 @@ module Api
         @request.invited_by = current_user
 
         if @request.save
-          # TODO: Send email invitation with the access token link
+          # Send email invitation
+          email_result = send_invitation_email(@request)
+
           render json: {
             request: serialize_request(@request),
-            access_url: onboarding_url(@request.access_token)
+            access_url: onboarding_url(@request.access_token),
+            email_sent: email_result[:success],
+            email_error: email_result[:error]
           }, status: :created
         else
           render json: { errors: @request.errors.full_messages }, status: :unprocessable_entity
@@ -191,11 +195,14 @@ module Api
         # Extend token expiry
         @request.update!(token_expires_at: 30.days.from_now)
 
-        # TODO: Send email invitation
+        # Send email invitation
+        email_result = send_invitation_email(@request)
 
         render json: {
           message: 'Invitation resent',
-          access_url: onboarding_url(@request.access_token)
+          access_url: onboarding_url(@request.access_token),
+          email_sent: email_result[:success],
+          email_error: email_result[:error]
         }
       end
 
@@ -386,6 +393,18 @@ module Api
           'director_id_confirmation' => :director_id_confirmation_url
         }
         mapping[document_type]
+      end
+
+      def send_invitation_email(onboarding_request)
+        return { success: false, error: 'No email address' } if onboarding_request.email.blank?
+
+        begin
+          email_service = DirectorOnboardingEmailService.new
+          email_service.send_invitation(onboarding_request)
+        rescue => e
+          Rails.logger.error "Failed to send director onboarding invitation: #{e.message}"
+          { success: false, error: e.message }
+        end
       end
     end
   end
