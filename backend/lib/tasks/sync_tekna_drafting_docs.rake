@@ -92,11 +92,13 @@ namespace :corporate do
 
           # Create document record
           doc = company.company_documents.create!(
-            document_name: File.basename(filename, '.*'),
+            title: File.basename(filename, '.*'),
+            description: "Synced from SharePoint: #{file[:folder_path]}",
+            document_type: 'Corporate',
             file_name: filename,
             file_size: file['size'],
             onedrive_file_id: file['id'],
-            onedrive_web_url: file['webUrl'],
+            onedrive_download_url: file['webUrl'],
             company_code: code,
             storage_type: 'electronic',
             folder: file[:folder_path] || 'Tekna Drafting'
