@@ -5980,40 +5980,13 @@ export default function TeeemTableView({
                               onChange={(e) => setNewViewName(e.target.value.slice(0, 20))}
                               placeholder="Enter view name..."
                               className="flex-1 max-w-[200px] text-sm font-semibold px-2 py-1 border-0 rounded bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-                              onKeyDown={async (e) => {
+                              onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
                                   setCreatingNewView(false)
                                   setNewViewName('')
                                   setCopyFromViewId(null)
-                                } else if (e.key === 'Enter' && newViewName.trim()) {
-                                  // Save the new view via API
-                                  const columnsToSave = {}
-                                  COLUMNS.filter(col => col.key !== 'select').forEach(col => {
-                                    columnsToSave[col.key] = visibleColumns[col.key] !== false
-                                  })
-                                  const orderToSave = columnOrder || COLUMNS.map(c => c.key)
-
-                                  const newView = await saveNewView({
-                                    name: newViewName.trim(),
-                                    filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                    filterGroups: [...filterGroups],
-                                    interGroupLogic,
-                                    visibleColumns: columnsToSave,
-                                    columnOrder: orderToSave,
-                                    showFilters,
-                                    autoFitColumns,
-                                    columnWidths: { ...columnWidths },
-                                    sortColumns: [...sortColumns],
-                                    groupByColumn,
-                                    isDefault: savedFilters.length === 0
-                                  })
-
-                                  if (newView) {
-                                    setActiveViewId(newView.id)
-                                    setCreatingNewView(false)
-                                    setNewViewName('')
-                                  }
                                 }
+                                // Don't auto-save on Enter - user should click Save/Save & Close/Save for All Users
                               }}
                             />
                             <span className="text-[10px] opacity-60">{newViewName.length}/20</span>
