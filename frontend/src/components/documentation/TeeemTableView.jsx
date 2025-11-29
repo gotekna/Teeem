@@ -8525,6 +8525,18 @@ export default function TeeemTableView({
                 const isLookupColumn = groupColumnDef?.column_type === 'lookup'
                 const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
 
+                // Debug logging
+                if (colKey === 'job_status') {
+                  console.log('[sortGroupKeys] job_status sorting:', {
+                    keys,
+                    colKey,
+                    groupColumnDef,
+                    lookupOptions,
+                    hasOptions: lookupOptions.length > 0,
+                    firstOption: lookupOptions[0]
+                  })
+                }
+
                 // Check if this column has display_order (workflow columns like job_status)
                 const hasDisplayOrder = lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
 
