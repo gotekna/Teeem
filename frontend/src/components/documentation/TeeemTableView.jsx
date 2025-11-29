@@ -2241,7 +2241,7 @@ export default function TeeemTableView({
     }
 
     return result
-  }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch])
+  }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch, columnChoices])
 
   // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
