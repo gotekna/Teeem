@@ -34,6 +34,12 @@ export default function MicrosoftConnectPrompt() {
     setConnecting(false)
   }
 
+  // Don't show the automatic popup - users can connect from Settings instead
+  // This avoids interrupting users during impersonation or normal use
+  // The prompt was causing confusion when impersonating other users
+  return null
+
+  // Original logic (disabled):
   // Don't show if:
   // - Still checking Microsoft status
   // - User dismissed the prompt
