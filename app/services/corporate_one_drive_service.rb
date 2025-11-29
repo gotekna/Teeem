@@ -221,7 +221,8 @@ class CorporateOneDriveService
       folder: file.dig('parentReference', 'path')&.split('/').last,
       storage_type: 'electronic',
       onedrive_file_id: file_id,
-      onedrive_web_url: file['webUrl']
+      onedrive_web_url: file['webUrl'],
+      company_code: extract_company_code(file['name'], company)
     )
 
     company_document.save!
@@ -233,6 +234,28 @@ class CorporateOneDriveService
   def company_folder_name(company)
     abbreviation = company.abbreviation.presence || company.name.split.map(&:first).join.upcase
     "#{abbreviation} - #{company.name}"
+  end
+
+  # Extract company code from filename (e.g., "ATO Tax Return FY19 TD.pdf" -> "TD")
+  def extract_company_code(filename, company)
+    # Try to extract code from filename pattern: "filename CODE.extension"
+    name_without_ext = File.basename(filename, '.*')
+    parts = name_without_ext.split(' ')
+
+    # Check if last part matches company abbreviation
+    if parts.last && company.abbreviation.present? && parts.last.upcase == company.abbreviation.upcase
+      return parts.last.upcase
+    end
+
+    # Try to find any known company abbreviation in the filename
+    Company.where.not(abbreviation: [nil, '']).find_each do |c|
+      if name_without_ext.match?(/\b#{Regexp.escape(c.abbreviation)}\b/i)
+        return c.abbreviation.upcase
+      end
+    end
+
+    # Fallback to company's abbreviation
+    company.abbreviation.presence&.upcase
   end
 
   def create_or_find_folder(name, parent_id: nil)
