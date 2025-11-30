@@ -204,8 +204,16 @@ export default function CompaniesPage() {
   }
 
   const handleEdit = async (entry) => {
-    // Navigate to edit page
-    navigate(`/corporate/companies/${entry.id}`)
+    try {
+      const response = await api.patch(`/api/v1/companies/${entry.id}`, { company: entry })
+
+      // Update local state with saved data
+      setCompanies(companies.map(c => c.id === entry.id ? response.company : c))
+      setToast({ message: 'Company updated successfully', type: 'success' })
+    } catch (err) {
+      console.error('Failed to update company:', err)
+      setToast({ message: 'Failed to update company', type: 'error' })
+    }
   }
 
   const handleDelete = async (entry) => {
