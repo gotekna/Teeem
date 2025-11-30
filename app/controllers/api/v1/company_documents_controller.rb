@@ -32,6 +32,9 @@ module Api
         # Filter by year
         @documents = @documents.by_year(params[:year]) if params[:year].present?
 
+        # Filter by financial year (supports documents spanning multiple years)
+        @documents = @documents.by_financial_year(params[:financial_year]) if params[:financial_year].present?
+
         # Sort
         @documents = @documents.order(created_at: :desc)
 
@@ -141,7 +144,8 @@ module Api
         params.require(:company_document).permit(
           :company_id, :contact_id, :asset_id, :document_type_id, :title, :document_name,
           :document_type, :description, :file_url, :year, :period, :folder,
-          :storage_type, :source, :file_name, :file_size, :mime_type
+          :storage_type, :source, :file_name, :file_size, :mime_type,
+          financial_years: []
         )
       end
     end
