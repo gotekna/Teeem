@@ -20,6 +20,7 @@ import {
   IdentificationIcon,
   CalendarDaysIcon,
   HomeIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { ShieldCheckIcon } from '@heroicons/react/24/solid'
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react'
@@ -37,6 +38,7 @@ import PortalUserSection from '../components/contacts/PortalUserSection'
 import XeroSyncTab from '../components/contacts/XeroSyncTab'
 import XeroActivityTab from '../components/contacts/XeroActivityTab'
 import XeroConnectionsSection from '../components/contacts/XeroConnectionsSection'
+import ContactDocumentsTab from '../components/contacts/ContactDocumentsTab'
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn) => {
@@ -987,6 +989,18 @@ export default function ContactDetailPage() {
             >
               XERO Activity
             </button>
+            {contact.is_family_member && (
+              <button
+                onClick={() => setSearchParams({ tab: 'documents' })}
+                className={`${
+                  activeTab === 'documents'
+                    ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                } whitespace-nowrap py-1 px-1 border-b-2 font-medium text-xs transition-colors`}
+              >
+                Documents
+              </button>
+            )}
           </nav>
         </div>
         </div>
@@ -3065,6 +3079,15 @@ export default function ContactDetailPage() {
               setContact(updatedContact)
               loadContact()
             }}
+          />
+        </div>
+      )}
+
+      {activeTab === 'documents' && contact.is_family_member && (
+        <div className="mt-6">
+          <ContactDocumentsTab
+            contact={contact}
+            onUpdate={loadContact}
           />
         </div>
       )}
