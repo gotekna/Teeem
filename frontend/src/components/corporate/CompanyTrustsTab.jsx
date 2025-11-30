@@ -176,7 +176,7 @@ export default function CompanyTrustsTab({ company, onUpdate }) {
             disabled={savingGroup}
             className="block w-full max-w-md rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-white focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm disabled:opacity-50"
           >
-            <option value="">No Group</option>
+            <option value="">Select a group...</option>
             {companyGroups.map((group) => (
               <option key={group.id} value={group.id}>
                 {group.name}
