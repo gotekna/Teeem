@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, ExclamationTriangleIcon, CheckCircleIcon, PencilIcon } from '@heroicons/react/24/outline'
+import { ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, ExclamationTriangleIcon, CheckCircleIcon, PencilIcon, UsersIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
 /**
  * PricebookHealthWidget - Interactive component showing pricebook data quality stats
  * Click on any issue to see the affected items and fix them
+ *
+ * Props:
+ * - compact: boolean - Start collapsed
+ * - foundationId: number - Current table ID (shows extra checks for specific tables)
  */
-export default function PricebookHealthWidget({ compact = false }) {
+export default function PricebookHealthWidget({ compact = false, foundationId }) {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [healthData, setHealthData] = useState({
@@ -22,24 +26,41 @@ export default function PricebookHealthWidget({ compact = false }) {
     issues_found: 0,
     issues: []
   })
+  const [duplicateContacts, setDuplicateContacts] = useState(null)
   const [expanded, setExpanded] = useState(!compact)
-  const [expandedCheck, setExpandedCheck] = useState(null) // Which check is showing items
+  const [expandedCheck, setExpandedCheck] = useState(null)
+
+  // Check if we're on the Contacts table (214)
+  const isContactsTable = foundationId === 214
 
   useEffect(() => {
     loadHealthData()
-  }, [])
+  }, [foundationId])
 
   const loadHealthData = async () => {
     try {
       setLoading(true)
-      const [pricebookRes, priceCheckRes] = await Promise.all([
+
+      // Always load pricebook health
+      const promises = [
         api.get('/api/v1/health/pricebook'),
         api.get('/api/v1/pricebook/price_health_check')
-      ])
-      setHealthData(pricebookRes)
-      setPriceHealthCheck(priceCheckRes)
+      ]
+
+      // Load duplicate contacts if on Contacts table
+      if (isContactsTable) {
+        promises.push(api.get('/api/v1/contacts/possible_duplicates'))
+      }
+
+      const results = await Promise.all(promises)
+      setHealthData(results[0])
+      setPriceHealthCheck(results[1])
+
+      if (isContactsTable && results[2]) {
+        setDuplicateContacts(results[2])
+      }
     } catch (error) {
-      console.error('Failed to load pricebook health data:', error)
+      console.error('Failed to load health data:', error)
     } finally {
       setLoading(false)
     }
@@ -61,6 +82,7 @@ export default function PricebookHealthWidget({ compact = false }) {
 
   const totalItems = healthData.totalPricebookItems || 0
 
+  // Base pricebook checks
   const checks = [
     {
       key: 'itemsWithoutDefaultSupplier',
@@ -122,6 +144,32 @@ export default function PricebookHealthWidget({ compact = false }) {
     }
   ]
 
+  // Add duplicate contacts check if on Contacts table
+  if (isContactsTable && duplicateContacts) {
+    const duplicateGroups = duplicateContacts.duplicates || []
+    const totalContactsInvolved = duplicateContacts.total_contacts_involved || 0
+
+    // Flatten duplicate groups into items for display
+    const duplicateItems = duplicateGroups.slice(0, 20).map((group, idx) => ({
+      id: group.contacts?.[0]?.id || idx,
+      item_code: `Group ${idx + 1}`,
+      item_name: group.contacts?.map(c => c.name).join(' / ') || 'Unknown',
+      category: group.match_type || 'Similar names',
+      contacts: group.contacts || []
+    }))
+
+    checks.push({
+      key: 'duplicateContacts',
+      label: 'Possible Duplicate Contacts',
+      count: duplicateContacts.total_duplicate_groups || 0,
+      percentage: duplicateContacts.total_duplicate_groups > 0 ? 75 : 100, // Yellow if any duplicates
+      items: duplicateItems,
+      actionLabel: 'Review',
+      getItemLink: (item) => `/contacts/${item.contacts?.[0]?.id || item.id}`,
+      customRender: true // Flag for special rendering
+    })
+  }
+
   const overallPercentage = Math.round(
     checks.reduce((sum, check) => sum + check.percentage, 0) / checks.length
   )
@@ -165,7 +213,7 @@ export default function PricebookHealthWidget({ compact = false }) {
           </div>
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-              Pricebook Health
+              {isContactsTable ? 'Data Health' : 'Pricebook Health'}
             </h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {totalItems.toLocaleString()} items tracked • Click issues to fix
@@ -240,7 +288,7 @@ export default function PricebookHealthWidget({ compact = false }) {
                         color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
                         'text-red-600 dark:text-red-400'
                       }`}>
-                        {check.count} issues
+                        {check.count} {check.key === 'duplicateContacts' ? 'groups' : 'issues'}
                       </span>
                     ) : (
                       <span className="text-sm text-green-600 dark:text-green-400 font-medium">
@@ -261,44 +309,78 @@ export default function PricebookHealthWidget({ compact = false }) {
                 {isExpanded && check.items.length > 0 && (
                   <div className="bg-gray-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700">
                     <div className="max-h-64 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Code</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Details</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                          {check.items.slice(0, 10).map((item, idx) => (
-                            <tr key={item.id || idx} className="hover:bg-gray-100 dark:hover:bg-gray-800">
-                              <td className="px-4 py-2 text-gray-900 dark:text-white font-medium">
-                                {item.item_code}
-                              </td>
-                              <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
-                                {item.item_name}
-                              </td>
-                              <td className="px-4 py-2 text-gray-500 dark:text-gray-500">
-                                {item.category || '-'}
-                              </td>
-                              <td className="px-4 py-2 text-right">
-                                <Link
-                                  to={check.getItemLink(item)}
-                                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <PencilIcon className="h-3 w-3" />
-                                  {check.actionLabel}
-                                </Link>
-                              </td>
-                            </tr>
+                      {check.key === 'duplicateContacts' ? (
+                        // Special rendering for duplicate contacts
+                        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                          {check.items.map((item, idx) => (
+                            <div key={idx} className="px-4 py-3 hover:bg-gray-100 dark:hover:bg-gray-800">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <UsersIcon className="h-4 w-4 text-yellow-500" />
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {item.item_name}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {item.category}
+                                  </span>
+                                  {item.contacts?.map((contact, cIdx) => (
+                                    <Link
+                                      key={cIdx}
+                                      to={`/contacts/${contact.id}`}
+                                      className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      View
+                                    </Link>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
+                        </div>
+                      ) : (
+                        // Standard table rendering
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Code</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Details</th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Category</th>
+                              <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                            {check.items.slice(0, 10).map((item, idx) => (
+                              <tr key={item.id || idx} className="hover:bg-gray-100 dark:hover:bg-gray-800">
+                                <td className="px-4 py-2 text-gray-900 dark:text-white font-medium">
+                                  {item.item_code}
+                                </td>
+                                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
+                                  {item.item_name}
+                                </td>
+                                <td className="px-4 py-2 text-gray-500 dark:text-gray-500">
+                                  {item.category || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-right">
+                                  <Link
+                                    to={check.getItemLink(item)}
+                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <PencilIcon className="h-3 w-3" />
+                                    {check.actionLabel}
+                                  </Link>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                       {check.items.length > 10 && (
                         <div className="px-4 py-2 text-center text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800">
-                          Showing 10 of {check.count} items •{' '}
+                          Showing 10 of {check.count} {check.key === 'duplicateContacts' ? 'groups' : 'items'} •{' '}
                           <Link
                             to="/system-health"
                             className="text-indigo-600 dark:text-indigo-400 hover:underline"

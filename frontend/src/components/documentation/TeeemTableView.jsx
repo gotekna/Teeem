@@ -5041,7 +5041,7 @@ export default function TeeemTableView({
         {/* Pricebook Health Widget - Shows on related tables */}
         {PRICEBOOK_HEALTH_TABLE_IDS.includes(foundationIdNumeric) && (
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-            <PricebookHealthWidget compact={true} />
+            <PricebookHealthWidget compact={true} foundationId={foundationIdNumeric} />
           </div>
         )}
 
