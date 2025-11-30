@@ -12,7 +12,7 @@ module Api
 
         render json: {
           success: true,
-          data: @shareholdings.map { |s| serialize_shareholding(s) },
+          shareholdings: @shareholdings.map { |s| serialize_shareholding(s) },
           summary: shareholding_summary
         }
       end
@@ -149,12 +149,12 @@ module Api
 
       def serialize_shareholding(shareholding, include_details: false)
         shareholder = shareholding.shareholder
-        shareholder_name = if shareholder.respond_to?(:display_name)
+        shareholder_name = if shareholder.respond_to?(:full_name) && shareholder.full_name.present?
+                             shareholder.full_name
+                           elsif shareholder.respond_to?(:display_name)
                              shareholder&.display_name
                            elsif shareholder.respond_to?(:name)
                              shareholder&.name
-                           elsif shareholder.respond_to?(:full_name)
-                             shareholder&.full_name
                            else
                              "Unknown"
                            end
@@ -174,15 +174,17 @@ module Api
           acquired_date: shareholding.acquired_date,
           notes: shareholding.notes,
           created_at: shareholding.created_at,
-          updated_at: shareholding.updated_at
+          updated_at: shareholding.updated_at,
+          # Include shareholder object for frontend compatibility
+          shareholder: shareholder ? {
+            id: shareholder.id,
+            full_name: shareholder.respond_to?(:full_name) ? shareholder.full_name : nil,
+            name: shareholder.respond_to?(:name) ? shareholder.name : nil,
+            entity_type: shareholder.respond_to?(:entity_type) ? shareholder.entity_type : nil
+          } : nil
         }
 
         if include_details && shareholder
-          data[:shareholder] = {
-            id: shareholder.id,
-            name: shareholder_name,
-            entity_type: shareholder.entity_type
-          }
           data[:shareholder][:email] = shareholder.email if shareholder.respond_to?(:email)
         end
 
