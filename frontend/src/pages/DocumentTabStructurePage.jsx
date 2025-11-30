@@ -5,7 +5,9 @@ import {
   TagIcon,
   StarIcon,
   ChevronLeftIcon,
-  PencilIcon
+  PencilIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from '@heroicons/react/24/outline'
 import api from '../api'
 
@@ -15,6 +17,7 @@ export default function DocumentTabStructurePage() {
   const [documentTypes, setDocumentTypes] = useState([])
   const [groupBy, setGroupBy] = useState('primary_tab') // 'primary_tab', 'folder', 'name'
   const [availableTabs, setAvailableTabs] = useState([])
+  const [expandedSections, setExpandedSections] = useState({})
 
   useEffect(() => {
     loadData()
@@ -38,6 +41,18 @@ export default function DocumentTabStructurePage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }))
+  }
+
+  const isSectionExpanded = (sectionName) => {
+    // Default to expanded if not set
+    return expandedSections[sectionName] !== false
   }
 
   // Group document types by selected criteria
@@ -177,7 +192,7 @@ export default function DocumentTabStructurePage() {
       'ATO Documents': '{CompanyCode} ATO {Description} {Date}',
 
       // Advice
-      'Accountant Advice': '{CompanyCode} Accountant {Description} {Date}',
+      'AA - Accountant Advice': '{CompanyCode} AA {Description} {Date}',
       'Legal Advice': '{CompanyCode} Lawyer {Description} {Date}',
       'Client Advice': '{CompanyCode} Advice {Description} {Date}',
 
@@ -349,10 +364,21 @@ export default function DocumentTabStructurePage() {
       {/* Document Types Grouped */}
       {groupedData().map(([groupName, types]) => (
         <div key={groupName} className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">{groupName}</h3>
-            <p className="mt-1 text-sm text-gray-500">{types.length} document type(s)</p>
-          </div>
+          <button
+            onClick={() => toggleSection(groupName)}
+            className="w-full px-4 py-5 sm:px-6 border-b border-gray-200 flex items-center justify-between hover:bg-gray-50 transition-colors"
+          >
+            <div className="text-left">
+              <h3 className="text-lg font-medium text-gray-900">{groupName}</h3>
+              <p className="mt-1 text-sm text-gray-500">{types.length} document type(s)</p>
+            </div>
+            {isSectionExpanded(groupName) ? (
+              <ChevronUpIcon className="h-5 w-5 text-gray-400" />
+            ) : (
+              <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+            )}
+          </button>
+          {isSectionExpanded(groupName) && (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -446,6 +472,7 @@ export default function DocumentTabStructurePage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       ))}
 
