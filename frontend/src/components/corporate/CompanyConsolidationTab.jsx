@@ -45,10 +45,8 @@ export default function CompanyConsolidationTab({ company, onUpdate }) {
 
   const loadAvailableCompanies = async () => {
     try {
-      // Get all companies in the same group that aren't already consolidated
-      const response = await api.get('/api/v1/companies', {
-        params: { company_group_id: company.company_group_id }
-      })
+      // Get ALL companies - adding to consolidation will also add them to this group
+      const response = await api.get('/api/v1/companies')
       // Filter out the current company and companies already in consolidation
       const available = (response.companies || []).filter(c =>
         c.id !== company.id &&
@@ -100,9 +98,11 @@ export default function CompanyConsolidationTab({ company, onUpdate }) {
     try {
       setSaving(true)
       // Update the selected company to have this company as its consolidation parent
+      // Also set the company_group_id to match this company's group
       await api.put(`/api/v1/companies/${selectedCompanyId}`, {
         company: {
-          consolidation_parent_id: company.id
+          consolidation_parent_id: company.id,
+          company_group_id: company.company_group_id
         }
       })
 
