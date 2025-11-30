@@ -357,7 +357,7 @@ module Api
           :registered_office_address, :principal_place_of_business, :is_trustee, :trust_name,
           :corporate_key, :asic_username, :encrypted_asic_password, :recovery_question,
           :encrypted_recovery_answer, :review_date, :gst_registration_status, :accounting_method,
-          :shares_on_issue, :carry_forward_losses, :franking_balance, :amount_owing,
+          :shares_on_issue, :carry_forward_losses, :franking_balance, :amount_owing, :entity_type,
           metadata: {}
         )
       end
