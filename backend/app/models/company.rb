@@ -58,6 +58,7 @@ class Company < ApplicationRecord
 
   # Callbacks
   before_validation :normalize_acn_abn
+  before_validation :normalize_status
   after_create :create_initial_activity
   after_update :create_update_activity
 
@@ -201,6 +202,11 @@ class Company < ApplicationRecord
   def normalize_acn_abn
     self.acn = acn.gsub(/[^0-9]/, '') if acn.present?
     self.abn = abn.gsub(/[^0-9]/, '') if abn.present?
+  end
+
+  # Normalize status to lowercase
+  def normalize_status
+    self.status = status.downcase if status.present?
   end
 
   def create_initial_activity
