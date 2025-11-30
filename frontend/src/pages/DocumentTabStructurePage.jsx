@@ -88,7 +88,7 @@ export default function DocumentTabStructurePage() {
       'CTR - Company Tax Return': '{CompanyCode} CTR FY{YY}',
       'TTR - Trust Tax Return': '{CompanyCode} TTR FY{YY}',
       'ITR - Individual Tax Return': '{CompanyCode} ITR FY{YY}',
-      'BAS - Business Activity Statement': '{CompanyCode} BAS {Month} {Year}',
+      'BAS - Business Activity Statement': '{CompanyCode} BAS {Period} {Year}',
       'ASIC Annual Review': '{CompanyCode} ASIC Annual Review FY{YY}',
       'ASIC Form 485 - Solvency Declaration': '{CompanyCode} Form 485 FY{YY}',
       'ASIC Form 484 - Director Changes': '{CompanyCode} Form 484 Directors {Date}',
@@ -129,6 +129,7 @@ export default function DocumentTabStructurePage() {
       .replace(/{Company}/g, 'Tekna')
       .replace(/{Year}/g, '2025')
       .replace(/{YY}/g, '25')
+      .replace(/{Period}/g, 'Jul-Sep')
       .replace(/{Quarter}/g, 'Q1')
       .replace(/{Month}/g, 'Jun')
       .replace(/{Date}/g, '30 Jun 2025')
