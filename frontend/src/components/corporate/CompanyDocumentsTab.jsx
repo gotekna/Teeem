@@ -114,7 +114,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
       return
     }
 
-    if (!confirm(`Sync documents from SharePoint for ${company.name}?\n\nThis will scan the SharePoint "Corporate File" folder and link any documents found to this company.`)) {
+    if (!confirm(`Sync documents from SharePoint for ${company.name}?\n\nThis will scan the SharePoint "00 TEEEM PRIVATE" folder and link any documents found to this company.`)) {
       return
     }
 
@@ -123,7 +123,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
       setSyncResult(null)
 
       const response = await api.post('/api/v1/organization_onedrive/sync_corporate_documents', {
-        folder_path: 'Corporate File'
+        folder_path: '00 TEEEM PRIVATE'
       })
 
       if (response.success) {
