@@ -49,6 +49,7 @@ import {
   CalendarDaysIcon,
   FolderOpenIcon,
   MagnifyingGlassIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
 
@@ -74,6 +75,7 @@ const navigation = [
   { name: 'Financial', href: '/financial', icon: BanknotesIcon },
   { name: 'Xest', href: '/xest', icon: BeakerIcon },
   { name: 'Price Books', href: '/tables/205/pricebook', icon: BookOpenIcon },
+  { name: 'Price Histories', href: '/tables/221/price-histories', icon: ClockIcon },
   { name: 'All Contacts', href: '/tables/214/contacts', icon: UsersIcon },
   //{ name: 'Suppliers', href: '/tables/215', icon: UserGroupIcon },
   { name: 'Purchase Orders', href: '/tables/217/purchase-orders', icon: DocumentTextIcon },
