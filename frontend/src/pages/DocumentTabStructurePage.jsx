@@ -130,9 +130,9 @@ export default function DocumentTabStructurePage() {
       'Directors\' Resolution - Distribution': '{CompanyCode} Distribution Resolution FY{YY}',
 
       // Dividends & Distributions
-      'Distribution Declaration': '{CompanyCode} Distribution Declaration FY{YY}',
-      'Dividend Declaration': '{CompanyCode} Dividend Declaration FY{YY}',
-      'Dividend Payment Record': '{CompanyCode} Dividend Payment Record FY{YY}',
+      'Distribution Declaration': '{CompanyCode} Distribution Declaration {Beneficiary} FY{YY}',
+      'Dividend Declaration': '{CompanyCode} Dividend Declaration {Beneficiary} FY{YY}',
+      'Dividend Payment Record': '{CompanyCode} Dividend Payment Record {Beneficiary} FY{YY}',
       'Gift Deed': '{CompanyCode} Gift Deed {Beneficiary} {Date}',
       'Gift Deed - Signed': '{CompanyCode} Gift Deed - Signed {Beneficiary} {Date}',
       'Gift Deed Return': '{CompanyCode} Gift Deed Return {Beneficiary} {Date}',
