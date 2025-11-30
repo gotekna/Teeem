@@ -2576,7 +2576,6 @@ export default function AppLayout({ children }) {
           sidebarCollapsed ? "lg:pl-16 transition-all duration-300" : ""
         )}
         style={{
-          overflow: 'clip',
           ...(sidebarCollapsed ? {} : { paddingLeft: sidebarWidth })
         }}
       >
