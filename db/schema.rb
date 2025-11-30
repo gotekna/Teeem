@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_081907) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_085016) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -396,7 +396,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_081907) do
   end
 
   create_table "company_documents", force: :cascade do |t|
-    t.bigint "company_id", null: false
+    t.bigint "company_id"
     t.string "title", null: false
     t.text "description"
     t.string "document_type", null: false
@@ -420,9 +420,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_081907) do
     t.string "source", default: "manual"
     t.bigint "asset_id"
     t.bigint "loan_id"
+    t.bigint "contact_id"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
+    t.index ["contact_id"], name: "index_company_documents_on_contact_id"
     t.index ["document_date"], name: "index_company_documents_on_document_date"
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
@@ -3666,6 +3668,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_081907) do
   add_foreign_key "company_documents", "assets"
   add_foreign_key "company_documents", "companies"
   add_foreign_key "company_documents", "company_loans", column: "loan_id"
+  add_foreign_key "company_documents", "contacts"
   add_foreign_key "company_documents", "document_types"
   add_foreign_key "company_loans", "companies", column: "borrower_company_id"
   add_foreign_key "company_loans", "companies", column: "lender_company_id"

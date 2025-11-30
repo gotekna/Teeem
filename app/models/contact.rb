@@ -62,6 +62,9 @@ class Contact < ApplicationRecord
   has_many :shareholding_companies, through: :company_shareholdings, source: :company
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
+  # Personal documents (for family members, directors, etc.)
+  has_many :company_documents, dependent: :destroy
+
   # Encrypted TFN for directors
   encrypts :tfn, deterministic: true
 

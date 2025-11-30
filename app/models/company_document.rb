@@ -1,6 +1,7 @@
 class CompanyDocument < ApplicationRecord
   # Associations
-  belongs_to :company
+  belongs_to :company, optional: true
+  belongs_to :contact, optional: true  # For documents linked to people (family members, directors)
   belongs_to :user, optional: true
   belongs_to :asset, optional: true
   belongs_to :loan, class_name: 'CompanyLoan', optional: true
@@ -21,7 +22,12 @@ class CompanyDocument < ApplicationRecord
   }, allow_blank: true
   validates :storage_type, inclusion: { in: STORAGE_TYPES }, allow_blank: true
 
+  # Validations for ownership
+  validate :must_have_owner
+
   # Scopes
+  scope :for_company, ->(company_id) { where(company_id: company_id) }
+  scope :for_contact, ->(contact_id) { where(contact_id: contact_id) }
   scope :by_type, ->(type) { where(document_type: type) }
   scope :by_year, ->(year) { where(year: year) }
   scope :by_folder, ->(folder) { where(folder: folder) }
@@ -57,6 +63,9 @@ class CompanyDocument < ApplicationRecord
   private
 
   def create_activity
+    # Only create activity if there's a company (contacts don't have company_activities)
+    return unless company.present?
+
     performer = user || (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
     company.company_activities.create!(
       activity_type: 'document_uploaded',
@@ -68,5 +77,11 @@ class CompanyDocument < ApplicationRecord
       },
       user: performer
     )
+  end
+
+  def must_have_owner
+    if company_id.blank? && contact_id.blank?
+      errors.add(:base, "Document must belong to a company or contact")
+    end
   end
 end
