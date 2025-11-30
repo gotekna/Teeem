@@ -455,9 +455,13 @@ class CorporateOnedriveService
       onedrive_file_id: doc['id']
     )
 
+    # Map folder name to valid document_type enum value
+    # The document_type field validates against a specific list of lowercase values
+    document_type_enum = map_folder_to_document_type_enum(document_type_string)
+
     company_doc.assign_attributes(
       title: doc['name'],
-      document_type: document_type_string,
+      document_type: document_type_enum,
       document_type_id: document_type&.id,
       file_url: doc['webUrl'],
       file_name: doc['name'],
@@ -479,6 +483,47 @@ class CorporateOnedriveService
     end
   rescue => e
     @results[:errors] << "Error linking document '#{doc['name']}': #{e.message}"
+  end
+
+  # Map SharePoint folder names to valid document_type enum values
+  # Allowed values: constitution minutes loan_agreement security_deed setup share_certificate
+  #                 tax_return financial_statement insurance_policy asic share_registry trust_deed
+  #                 financial tax insurance contract certificate other
+  def map_folder_to_document_type_enum(folder_name)
+    return 'other' if folder_name.blank?
+
+    case folder_name.upcase
+    when 'ASIC'
+      'asic'
+    when 'ATO'
+      'tax'
+    when 'BANK'
+      'financial'
+    when 'COMPANY'
+      'certificate'
+    when 'DIVIDENDS'
+      'financial'
+    when 'FINANCIALS'
+      'financial_statement'
+    when 'INSURANCE'
+      'insurance'
+    when 'LOANS'
+      'loan_agreement'
+    when 'MINUTES'
+      'minutes'
+    when 'REGISTRY'
+      'share_registry'
+    when 'TRUST'
+      'trust_deed'
+    when 'ADVICE'
+      'other'
+    when 'ASSETS'
+      'contract'
+    when 'GENERAL'
+      'other'
+    else
+      'other'
+    end
   end
 
   # Find the best matching DocumentType for a filename
