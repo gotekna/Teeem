@@ -15,7 +15,8 @@ module Api
 
       # GET /api/v1/contacts
       def index
-        @contacts = Contact.all
+        # Exclude soft-deleted contacts by default
+        @contacts = Contact.where(deleted: [false, nil])
 
         # Filter to only show actual company directors (from company_directors table)
         if params[:is_director] == 'true'
