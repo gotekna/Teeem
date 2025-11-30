@@ -206,7 +206,7 @@ export default function CompanyDetailPage() {
 
           {/* Tabs */}
           <div className="border-b border-gray-200 -mb-px mt-4">
-            <nav className="flex space-x-8" aria-label="Tabs">
+            <nav className="flex flex-wrap gap-x-6 gap-y-2" aria-label="Tabs">
               {tabs.map((tab) => {
                 const Icon = tab.icon
                 const isActive = activeTab === tab.id
