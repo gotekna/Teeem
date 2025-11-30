@@ -645,13 +645,8 @@ export default function SmSetupPage() {
                 </Tab>
               ))}
             </Tab.List>
-        </div>
-      </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none">
-        <div className="max-w-5xl mx-auto px-4 py-6">
-            <Tab.Panels>
+            <Tab.Panels className="mt-4">
               <Tab.Panel><HoldReasonsTab /></Tab.Panel>
               <Tab.Panel><TemplatesTab /></Tab.Panel>
               <Tab.Panel><RolloverSettingsTab /></Tab.Panel>
