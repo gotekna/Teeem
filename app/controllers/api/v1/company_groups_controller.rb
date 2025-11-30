@@ -95,10 +95,10 @@ module Api
         all_top_level = @company_group.companies.where(parent_company_id: nil).order(:name)
 
         # Find trusts that have a trustee company in this group
+        # Match by Trust's name (not trust_name field) since trustee's trust_name = Trust's name
         trusts_with_trustees = @company_group.companies
           .where(entity_type: 'Trust')
-          .where.not(trust_name: [nil, ''])
-          .select { |trust| @company_group.companies.exists?(is_trustee: true, trust_name: trust.trust_name) }
+          .select { |trust| @company_group.companies.exists?(is_trustee: true, trust_name: trust.name) }
           .map(&:id)
 
         # Exclude those trusts from top level (they'll appear under their trustee)
@@ -206,12 +206,16 @@ module Api
           }
         end
 
-        # Build children list
-        children = company.subsidiaries.order(:name).map { |s| build_hierarchy_tree(s, company_group) }
+        # Build children list - only include subsidiaries from the same company group
+        children = company.subsidiaries
+          .where(company_group_id: company_group&.id)
+          .order(:name)
+          .map { |s| build_hierarchy_tree(s, company_group) }
 
         # If this company is a trustee, add the Trust entity as a child
+        # Match by Trust's name (the trustee's trust_name = Trust entity's name)
         if company.is_trustee && company.trust_name.present? && company_group
-          trust_entity = company_group.companies.find_by(entity_type: 'Trust', trust_name: company.trust_name)
+          trust_entity = company_group.companies.find_by(entity_type: 'Trust', name: company.trust_name)
           if trust_entity
             # Add the trust at the beginning of children
             trust_node = {
