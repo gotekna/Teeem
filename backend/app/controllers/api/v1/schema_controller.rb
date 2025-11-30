@@ -583,8 +583,7 @@ module Api
           'SmResource' => 'sm_resources',
           'SmTimeEntry' => 'sm_time_entries',
           'PriceHistory' => 'price_histories',
-          'Job' => 'jobs',
-          'Supplier' => 'suppliers'
+          'Job' => 'jobs'
         }
 
         table_mapping[model_class] || model_class.underscore.pluralize

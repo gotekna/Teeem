@@ -1,6 +1,6 @@
 class ScheduleTemplateRow < ApplicationRecord
   belongs_to :schedule_template
-  belongs_to :supplier, optional: true  # Supplier is only required if po_required is true
+  belongs_to :supplier, class_name: 'Contact', foreign_key: 'supplier_id', optional: true  # Supplier contact, only required if po_required is true
   belongs_to :linked_template, class_name: 'ScheduleTemplate', optional: true
   has_many :audits, class_name: 'ScheduleTemplateRowAudit', dependent: :destroy
 

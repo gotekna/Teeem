@@ -56,9 +56,6 @@ const SystemAdminPage = lazyWithRetry(() => import('./pages/SystemAdminPage'))
 const HealthPage = lazyWithRetry(() => import('./pages/HealthPage'))
 const PurchaseOrderDetailPage = lazyWithRetry(() => import('./pages/PurchaseOrderDetailPage'))
 const PurchaseOrderEditPage = lazyWithRetry(() => import('./pages/PurchaseOrderEditPage'))
-const SupplierDetailPage = lazyWithRetry(() => import('./pages/SupplierDetailPage'))
-const SupplierEditPage = lazyWithRetry(() => import('./pages/SupplierEditPage'))
-const SupplierNewPage = lazyWithRetry(() => import('./pages/SupplierNewPage'))
 const ImportPage = lazyWithRetry(() => import('./pages/ImportPage'))
 const TablePage = lazyWithRetry(() => import('./pages/TablePage'))
 const SchemaPage = lazyWithRetry(() => import('./pages/SchemaPage'))
@@ -231,9 +228,7 @@ function App() {
         <Route path="/permissions" element={<Navigate to="/admin/system?tab=permissions" replace />} />
         <Route path="/system/performance" element={<Navigate to="/admin/system?tab=performance" replace />} />
         <Route path="/suppliers" element={<Navigate to="/contacts" replace />} />
-        <Route path="/suppliers/new" element={<AppLayout><SupplierNewPage /></AppLayout>} />
-        <Route path="/suppliers/:id/edit" element={<AppLayout><SupplierEditPage /></AppLayout>} />
-        <Route path="/suppliers/:id" element={<AppLayout><SupplierDetailPage /></AppLayout>} />
+        <Route path="/suppliers/*" element={<Navigate to="/contacts" replace />} />
         <Route path="/purchase-orders" element={<Navigate to="/tables/217/purchase-orders" replace />} />
         <Route path="/purchase-orders/:id/edit" element={<AppLayout><PurchaseOrderEditPage /></AppLayout>} />
         <Route path="/purchase-orders/:id" element={<AppLayout><PurchaseOrderDetailPage /></AppLayout>} />

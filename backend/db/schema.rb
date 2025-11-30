@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_29_233757) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_010034) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2986,73 +2986,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_233757) do
     t.index ["sequence_order"], name: "index_supervisor_checklist_templates_on_sequence_order"
   end
 
-  create_table "supplier_contacts", force: :cascade do |t|
-    t.bigint "supplier_id", null: false
-    t.bigint "contact_id", null: false
-    t.boolean "is_primary", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["contact_id"], name: "index_supplier_contacts_on_contact_id"
-    t.index ["supplier_id", "contact_id"], name: "index_supplier_contacts_on_supplier_id_and_contact_id", unique: true
-    t.index ["supplier_id"], name: "index_supplier_contacts_on_supplier_id"
-  end
-
-  create_table "supplier_ratings", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.bigint "rated_by_user_id", null: false
-    t.bigint "job_id"
-    t.bigint "purchase_order_id"
-    t.integer "quality_rating"
-    t.integer "timeliness_rating"
-    t.integer "communication_rating"
-    t.integer "professionalism_rating"
-    t.integer "value_rating"
-    t.decimal "overall_rating", precision: 3, scale: 2
-    t.text "positive_feedback"
-    t.text "areas_for_improvement"
-    t.text "internal_notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["contact_id", "created_at"], name: "index_supplier_ratings_on_contact_id_and_created_at"
-    t.index ["contact_id"], name: "index_supplier_ratings_on_contact_id"
-    t.index ["job_id"], name: "index_supplier_ratings_on_job_id"
-    t.index ["purchase_order_id"], name: "index_supplier_ratings_on_purchase_order_id"
-    t.index ["rated_by_user_id"], name: "index_supplier_ratings_on_rated_by_user_id"
-  end
-
-  create_table "suppliers", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "contact_person"
-    t.string "email"
-    t.string "phone"
-    t.text "address"
-    t.integer "rating", default: 0
-    t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
-    t.integer "avg_response_time"
-    t.text "notes"
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.integer "contact_id"
-    t.decimal "confidence_score", precision: 5, scale: 4
-    t.string "match_type"
-    t.boolean "is_verified", default: false
-    t.string "original_name"
-    t.string "contact_name"
-    t.string "contact_number"
-    t.string "supplier_code"
-    t.text "trade_categories"
-    t.text "is_default_for_trades"
-    t.decimal "markup_percentage", precision: 5, scale: 2, default: "0.0"
-    t.integer "purchase_orders_count", default: 0, null: false
-    t.index ["contact_id"], name: "index_suppliers_on_contact_id"
-    t.index ["is_active"], name: "index_suppliers_on_is_active"
-    t.index ["is_verified"], name: "index_suppliers_on_is_verified"
-    t.index ["match_type"], name: "index_suppliers_on_match_type"
-    t.index ["name"], name: "index_suppliers_on_name", unique: true
-    t.index ["supplier_code"], name: "index_suppliers_on_supplier_code", unique: true
-  end
-
   create_table "sync_configurations", force: :cascade do |t|
     t.string "xero_tenant_id", null: false
     t.string "xero_tenant_name"
@@ -3846,8 +3779,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_233757) do
   add_foreign_key "schedule_tasks", "purchase_orders"
   add_foreign_key "schedule_template_row_audits", "schedule_template_rows"
   add_foreign_key "schedule_template_row_audits", "users"
+  add_foreign_key "schedule_template_rows", "contacts", column: "supplier_id"
   add_foreign_key "schedule_template_rows", "schedule_templates"
-  add_foreign_key "schedule_template_rows", "suppliers"
   add_foreign_key "schedule_template_rows", "users", column: "assigned_user_id"
   add_foreign_key "schedule_templates", "users", column: "created_by_id"
   add_foreign_key "share_transfers", "companies"
@@ -3912,12 +3845,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_29_233757) do
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
-  add_foreign_key "supplier_contacts", "contacts"
-  add_foreign_key "supplier_contacts", "suppliers"
-  add_foreign_key "supplier_ratings", "contacts"
-  add_foreign_key "supplier_ratings", "jobs"
-  add_foreign_key "supplier_ratings", "purchase_orders"
-  add_foreign_key "supplier_ratings", "users", column: "rated_by_user_id"
   add_foreign_key "task_dependencies", "project_tasks", column: "predecessor_task_id"
   add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
   add_foreign_key "task_updates", "project_tasks"
