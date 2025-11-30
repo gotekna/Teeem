@@ -96,7 +96,7 @@ export default function DocumentTabStructurePage() {
       'ASIC Form 484 - Secretary Changes': '{CompanyCode} Form 484 Secretary {Date}',
       'ASIC Documents': '{CompanyCode} ASIC {Description} {Date}',
       'Asset': '{CompanyCode} {AssetCode} {Description} {Date}',
-      'Bank Statement': '{Bank} {Account} {Month} {Year}',
+      'Bank Statement': '{CompanyCode} {Bank} {Account} {Month} {Year}',
       'Directors\' Minutes': '{CompanyCode} Minutes {Date}',
       'Directors\' Resolution - Distribution': '{CompanyCode} Distribution Resolution FY{YY}',
       'Distribution': '{CompanyCode} Distribution {Date}',
