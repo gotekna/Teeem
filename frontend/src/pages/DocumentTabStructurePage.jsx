@@ -152,10 +152,10 @@ export default function DocumentTabStructurePage() {
       'Loan Agreement': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} {Date}',
       'Loan Agreement - Draft': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} DRAFT {Date}',
       'Loan Agreement - Signed': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} SIGNED {Date}',
-      'Security Deed': '{CompanyCode} Security Deed {AssetCode} {Date}',
-      'Security Deed - Draft': '{CompanyCode} Security Deed {AssetCode} DRAFT {Date}',
-      'Security Deed - Signed': '{CompanyCode} Security Deed {AssetCode} SIGNED {Date}',
-      'PPSR Registration': '{CompanyCode} PPSR {AssetCode} {Date}',
+      'Security Deed': '{CompanyCode} {LoanID} Security Deed {AssetCode} {Date}',
+      'Security Deed - Draft': '{CompanyCode} {LoanID} Security Deed {AssetCode} DRAFT {Date}',
+      'Security Deed - Signed': '{CompanyCode} {LoanID} Security Deed {AssetCode} SIGNED {Date}',
+      'PPSR Registration': '{CompanyCode} {LoanID} PPSR {AssetCode} {Date}',
 
       // Minutes & Resolutions
       'Directors\' Minutes': '{CompanyCode} Minutes {Date}',
