@@ -229,12 +229,16 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
           </div>
           {company.sharepoint_folder_url && (
             <a
-              href={company.sharepoint_folder_url}
+              href={selectedTab && selectedTab !== 'all'
+                ? `${company.sharepoint_folder_url}/${encodeURIComponent(selectedTab)}`
+                : company.sharepoint_folder_url}
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
             >
-              {decodeURIComponent(company.sharepoint_folder_url)}
+              {selectedTab && selectedTab !== 'all'
+                ? `${decodeURIComponent(company.sharepoint_folder_url)}/${selectedTab}`
+                : decodeURIComponent(company.sharepoint_folder_url)}
             </a>
           )}
         </div>
