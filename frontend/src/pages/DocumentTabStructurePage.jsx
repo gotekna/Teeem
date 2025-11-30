@@ -7,8 +7,8 @@ import {
 import api from '../api'
 import TeeemTableView from '../components/documentation/TeeemTableView'
 
-// Table ID for Document Types
-const DOCUMENT_TYPES_TABLE_ID = 500
+// No foundation ID - this is a standalone table not backed by the foundations system
+const DOCUMENT_TYPES_TABLE_ID = null
 
 // Available folders/tabs
 const FOLDER_OPTIONS = [
