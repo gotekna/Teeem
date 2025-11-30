@@ -206,6 +206,16 @@ export default function DocumentTabStructurePage() {
       .replace(/{Person}/g, 'Rachel Harder')
   }
 
+  const getCodeTypes = (format) => {
+    const codes = []
+    if (format.includes('{CompanyCode}')) codes.push('Company')
+    if (format.includes('{LenderCode}')) codes.push('Lender')
+    if (format.includes('{BorrowerCode}')) codes.push('Borrower')
+    if (format.includes('{ShareholderCode}')) codes.push('Shareholder')
+    if (format.includes('{AssetCode}')) codes.push('Asset')
+    return codes.length > 0 ? codes.join(', ') : 'None'
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -312,6 +322,9 @@ export default function DocumentTabStructurePage() {
                     Naming Format
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Code Types
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Primary Tab
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -326,6 +339,7 @@ export default function DocumentTabStructurePage() {
                 {types.map((docType) => {
                   const format = getNamingFormat(docType.name)
                   const example = getFormatExample(format)
+                  const codeTypes = getCodeTypes(format)
 
                   return (
                     <tr key={docType.id} className="hover:bg-gray-50">
@@ -339,6 +353,9 @@ export default function DocumentTabStructurePage() {
                           <div className="font-mono text-gray-700 mb-1">{format}</div>
                           <div className="text-xs text-gray-500 italic">e.g., {example}</div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{codeTypes}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {docType.primary_tab ? (
