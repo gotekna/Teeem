@@ -692,6 +692,60 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/search
+      # Search for files across the entire SharePoint/OneDrive drive
+      def search
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        query = params[:q] || params[:query]
+
+        unless query.present?
+          return render json: { error: 'Search query is required (use ?q=searchterm)' }, status: :bad_request
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Search across the entire drive (not limited to root folder)
+          results = client.search(query)
+
+          # Format results
+          items = (results['value'] || []).map do |item|
+            {
+              id: item['id'],
+              name: item['name'],
+              path: item.dig('parentReference', 'path')&.gsub('/drive/root:', '') || '/',
+              full_path: "#{item.dig('parentReference', 'path')&.gsub('/drive/root:', '') || ''}/#{item['name']}",
+              web_url: item['webUrl'],
+              is_folder: item['folder'].present?,
+              size: item['size'],
+              created_at: item['createdDateTime'],
+              modified_at: item['lastModifiedDateTime'],
+              mime_type: item.dig('file', 'mimeType')
+            }
+          end
+
+          render json: {
+            success: true,
+            query: query,
+            count: items.length,
+            items: items
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to search: #{e.message}"
+          render json: { error: "Failed to search: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/download
       # Download file from OneDrive
       def download

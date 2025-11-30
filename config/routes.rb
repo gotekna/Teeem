@@ -940,6 +940,7 @@ Rails.application.routes.draw do
       get 'organization_onedrive/sharepoint_sites', to: 'organization_onedrive#sharepoint_sites'
       post 'organization_onedrive/use_sharepoint_site', to: 'organization_onedrive#use_sharepoint_site'
       post 'organization_onedrive/sync_corporate_documents', to: 'organization_onedrive#sync_corporate_documents'
+      get 'organization_onedrive/search', to: 'organization_onedrive#search'
 
       # Schema information
       get 'schema', to: 'schema#index'
