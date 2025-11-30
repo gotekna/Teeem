@@ -36,10 +36,11 @@ import CompanyTrustsTab from '../components/corporate/CompanyTrustsTab'
 import CompanyConsolidationTab from '../components/corporate/CompanyConsolidationTab'
 
 export default function CompanyDetailPage() {
-  const { id } = useParams()
+  const { id, tab: urlTab } = useParams()
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get('tab') || 'overview'
+  const [searchParams] = useSearchParams()
+  // Support both URL path (/companies/123/asic) and query params (?tab=asic) for backwards compatibility
+  const activeTab = urlTab || searchParams.get('tab') || 'overview'
 
   const [company, setCompany] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -85,6 +86,13 @@ export default function CompanyDetailPage() {
     }
   }, [id])
 
+  // Redirect to default tab if no tab is specified in URL
+  useEffect(() => {
+    if (id && !urlTab && !searchParams.get('tab')) {
+      navigate(`/corporate/companies/${id}/overview`, { replace: true })
+    }
+  }, [id, urlTab, searchParams, navigate])
+
   const loadCompany = async () => {
     try {
       setLoading(true)
@@ -101,11 +109,12 @@ export default function CompanyDetailPage() {
     // Find the tab to check if it's a document tab
     const tab = tabs.find(t => t.id === tabId)
 
-    // If it's a document tab (has docTab property) or the main documents tab, include table_id
+    // Use URL path for tab navigation (standard pattern like /jobs/59/purchase-orders)
+    // If it's a document tab, include table_id as query param
     if (tab?.docTab || tabId === 'documents') {
-      setSearchParams({ tab: tabId, table_id: COMPANY_DOCUMENTS_TABLE_ID })
+      navigate(`/corporate/companies/${id}/${tabId}?table_id=${COMPANY_DOCUMENTS_TABLE_ID}`)
     } else {
-      setSearchParams({ tab: tabId })
+      navigate(`/corporate/companies/${id}/${tabId}`)
     }
   }
 

@@ -272,6 +272,7 @@ function App() {
         <Route path="/corporate/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
         <Route path="/corporate/companies" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
         <Route path="/corporate/companies/new" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
+        <Route path="/corporate/companies/:id/:tab" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id/edit" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/compliance-calendar" element={<AppLayout><ComplianceCalendarPage /></AppLayout>} />
