@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_015644) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_050919) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -409,6 +409,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_015644) do
     t.string "company_code"
     t.string "source", default: "manual"
     t.bigint "asset_id"
+    t.bigint "loan_id"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
@@ -416,6 +417,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_015644) do
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
     t.index ["folder"], name: "index_company_documents_on_folder"
+    t.index ["loan_id"], name: "index_company_documents_on_loan_id"
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["source"], name: "index_company_documents_on_source"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
@@ -3644,6 +3646,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_015644) do
   add_foreign_key "company_directors", "contacts"
   add_foreign_key "company_documents", "assets"
   add_foreign_key "company_documents", "companies"
+  add_foreign_key "company_documents", "company_loans", column: "loan_id"
   add_foreign_key "company_documents", "document_types"
   add_foreign_key "company_loans", "companies", column: "borrower_company_id"
   add_foreign_key "company_loans", "companies", column: "lender_company_id"
