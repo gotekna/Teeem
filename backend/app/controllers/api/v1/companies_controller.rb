@@ -3,7 +3,8 @@ module Api
     class CompaniesController < ApplicationController
       before_action :set_company, only: [:show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
-                                         :activities, :documents, :assets]
+                                         :activities, :documents, :assets, :hierarchy, :shareholders,
+                                         :investments]
 
       # GET /api/v1/companies
       def index
@@ -252,6 +253,85 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/:id/hierarchy
+      # Returns this company's position in the ownership hierarchy
+      def hierarchy
+        render json: {
+          success: true,
+          data: {
+            company: {
+              id: @company.id,
+              name: @company.name,
+              code: @company.code,
+              is_trustee: @company.is_trustee,
+              trust_name: @company.trust_name
+            },
+            parent: @company.parent_company ? serialize_company_brief(@company.parent_company) : nil,
+            ancestors: @company.ancestors.map { |c| serialize_company_brief(c) },
+            subsidiaries: @company.subsidiaries.order(:name).map { |c| serialize_company_brief(c) },
+            descendants_count: @company.descendants.count,
+            hierarchy_level: @company.hierarchy_level,
+            is_root: @company.parent_company_id.nil?,
+            root_company: @company.root_company != @company ? serialize_company_brief(@company.root_company) : nil
+          }
+        }
+      end
+
+      # GET /api/v1/companies/:id/shareholders
+      # Returns all shareholders of this company
+      def shareholders
+        shareholdings = @company.company_shareholdings.includes(:shareholder)
+
+        render json: {
+          success: true,
+          data: {
+            total_shares: @company.shares_on_issue,
+            shareholdings: shareholdings.map do |sh|
+              {
+                id: sh.id,
+                shareholder_type: sh.shareholder_type,
+                shareholder_id: sh.shareholder_id,
+                shareholder_name: sh.shareholder&.name,
+                number_of_shares: sh.number_of_shares,
+                percentage: sh.percentage_of_total,
+                share_class: sh.share_class,
+                beneficially_held: sh.beneficially_held,
+                beneficial_owner: sh.beneficial_owner,
+                acquisition_date: sh.acquisition_date,
+                certificate_number: sh.certificate_number,
+                consideration_paid: sh.consideration_paid
+              }
+            end
+          }
+        }
+      end
+
+      # GET /api/v1/companies/:id/investments
+      # Returns companies that this company owns shares in
+      def investments
+        investments = @company.investments.includes(:company)
+
+        render json: {
+          success: true,
+          data: {
+            investments: investments.map do |inv|
+              {
+                id: inv.id,
+                company_id: inv.company_id,
+                company_name: inv.company&.name,
+                company_acn: inv.company&.acn,
+                number_of_shares: inv.number_of_shares,
+                percentage: inv.percentage_of_total,
+                share_class: inv.share_class,
+                acquisition_date: inv.acquisition_date,
+                consideration_paid: inv.consideration_paid
+              }
+            end,
+            total_investments: investments.count
+          }
+        }
+      end
+
       # POST /api/v1/companies/import
       def import
         # Handle Excel import (to be implemented with CompanyImportService)
@@ -364,6 +444,18 @@ module Api
 
       def director_params
         params.permit(:position, :appointment_date, :resignation_date, :notes)
+      end
+
+      def serialize_company_brief(company)
+        {
+          id: company.id,
+          name: company.name,
+          code: company.code,
+          acn: company.acn,
+          abbreviation: company.abbreviation,
+          is_trustee: company.is_trustee,
+          trust_name: company.trust_name
+        }
       end
     end
   end
