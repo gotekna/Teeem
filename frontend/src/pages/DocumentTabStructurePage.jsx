@@ -59,10 +59,26 @@ export default function DocumentTabStructurePage() {
   const groupedData = () => {
     if (groupBy === 'primary_tab') {
       const grouped = {}
+      // Show documents in ALL tabs they belong to (not just primary)
       documentTypes.forEach(dt => {
-        const tab = dt.primary_tab || 'Uncategorized'
-        if (!grouped[tab]) grouped[tab] = []
-        grouped[tab].push(dt)
+        // Get all tabs this document appears in
+        const tabs = dt.tabs || []
+        if (tabs.length === 0 && dt.primary_tab) {
+          // Fallback to primary_tab if tabs array is empty
+          tabs.push(dt.primary_tab)
+        }
+
+        // Add document to each tab group it belongs to
+        tabs.forEach(tab => {
+          if (!grouped[tab]) grouped[tab] = []
+          grouped[tab].push(dt)
+        })
+
+        // Also handle uncategorized
+        if (tabs.length === 0) {
+          if (!grouped['Uncategorized']) grouped['Uncategorized'] = []
+          grouped['Uncategorized'].push(dt)
+        }
       })
       return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b))
     } else if (groupBy === 'folder') {
