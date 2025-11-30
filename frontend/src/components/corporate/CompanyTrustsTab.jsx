@@ -29,17 +29,19 @@ export default function CompanyTrustsTab({ company, onUpdate }) {
   const loadTrusts = async () => {
     try {
       setLoading(true)
-      // If this company is a trustee, find the trust it manages
+      // If this company is a trustee, find the trust/superfund it manages
       if (company.is_trustee && company.trust_name) {
-        // Find the trust entity by name
+        // Find the trust/superfund entity by name
         const response = await api.get('/api/v1/companies', {
           params: {
-            entity_type: 'Trust',
             search: company.trust_name,
             company_group_id: company.company_group_id
           }
         })
-        const matchingTrust = (response.companies || []).find(t => t.name === company.trust_name)
+        // Find matching Trust or Superfund entity
+        const matchingTrust = (response.companies || []).find(t =>
+          t.name === company.trust_name && ['Trust', 'Superfund'].includes(t.entity_type)
+        )
         setTrusts(matchingTrust ? [matchingTrust] : [])
       } else {
         setTrusts([])
@@ -53,14 +55,17 @@ export default function CompanyTrustsTab({ company, onUpdate }) {
 
   const loadAvailableTrusts = async () => {
     try {
-      // Get all Trust entities in the same company group that don't have a trustee yet
+      // Get all Trust and Superfund entities in the same company group
       const response = await api.get('/api/v1/companies', {
         params: {
-          entity_type: 'Trust',
           company_group_id: company.company_group_id
         }
       })
-      setAvailableTrusts(response.companies || [])
+      // Filter to only Trust and Superfund entity types
+      const trustsAndSuperfunds = (response.companies || []).filter(c =>
+        ['Trust', 'Superfund'].includes(c.entity_type)
+      )
+      setAvailableTrusts(trustsAndSuperfunds)
     } catch (error) {
       console.error('Failed to load available trusts:', error)
     }
