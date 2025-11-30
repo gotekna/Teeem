@@ -4957,7 +4957,9 @@ export default function TeeemTableView({
                         console.log('Merged entry to save:', updatedEntry)
 
                         // Use onRowUpdate if available (for inline field updates)
+                        console.log('🔥 Checking callbacks - onRowUpdate:', !!onRowUpdate, 'onEdit:', !!onEdit)
                         if (onRowUpdate) {
+                          console.log('🔥 Using onRowUpdate path')
                           // Get the changed fields and call onRowUpdate for each
                           const changedFields = Object.keys(editingData).filter(key =>
                             editingData[key] !== entry[key] && key !== 'id' && key !== '_original'
@@ -4967,8 +4969,11 @@ export default function TeeemTableView({
                             await onRowUpdate(editingRowId, field, editingData[field])
                           }
                         } else if (onEdit) {
+                          console.log('🔥 Using onEdit path')
                           // Fallback to onEdit for modal-based editing
                           await onEdit(updatedEntry)
+                        } else {
+                          console.log('🔥 ERROR: Neither onRowUpdate nor onEdit is defined!')
                         }
                       }
                     }
