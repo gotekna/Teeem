@@ -54,6 +54,7 @@ const AccountsPage = lazyWithRetry(() => import('./pages/AccountsPage'))
 const UsersPage = lazyWithRetry(() => import('./pages/UsersPage'))
 const SystemAdminPage = lazyWithRetry(() => import('./pages/SystemAdminPage'))
 const HealthPage = lazyWithRetry(() => import('./pages/HealthPage'))
+const SystemHealthPage = lazyWithRetry(() => import('./pages/SystemHealthPage'))
 const PurchaseOrderDetailPage = lazyWithRetry(() => import('./pages/PurchaseOrderDetailPage'))
 const PurchaseOrderEditPage = lazyWithRetry(() => import('./pages/PurchaseOrderEditPage'))
 const ImportPage = lazyWithRetry(() => import('./pages/ImportPage'))
@@ -225,7 +226,8 @@ function App() {
         <Route path="/accounts" element={<AppLayout><AccountsPage /></AppLayout>} />
         <Route path="/users" element={<Navigate to="/tables/212/user-management" replace />} />
         <Route path="/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
-        <Route path="/system-health" element={<AppLayout><HealthPage /></AppLayout>} />
+        <Route path="/system-health" element={<AppLayout><SystemHealthPage /></AppLayout>} />
+        <Route path="/pricebook-health" element={<AppLayout><HealthPage /></AppLayout>} />
         <Route path="/permissions" element={<Navigate to="/admin/system?tab=permissions" replace />} />
         <Route path="/system/performance" element={<Navigate to="/admin/system?tab=performance" replace />} />
         <Route path="/suppliers" element={<Navigate to="/contacts" replace />} />

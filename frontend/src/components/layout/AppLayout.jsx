@@ -86,7 +86,7 @@ const navigation = [
   { name: 'Outlook', href: 'https://outlook.office365.com/mail/', icon: EnvelopeIcon, external: true, popup: true },
   { name: 'SharePoint', href: 'https://teklogscomau.sharepoint.com/', icon: FolderOpenIcon, external: true, popup: true },
   { name: 'OneDrive', href: '/onedrive', icon: CloudIcon },
-  { name: 'Health', href: '/system-health', icon: PlusIcon },
+  { name: 'Data Health', href: '/system-health', icon: ShieldCheckIcon },
   { name: 'System Admin', href: '/admin/system', icon: BeakerIcon },
   { name: 'Trinity', href: '/trinity', icon: BookOpenIcon },
   { name: 'DHTMLX Gantt', href: '/admin/system?tab=schedule-master&openGantt=dhtmlx', icon: ChartBarIcon },
