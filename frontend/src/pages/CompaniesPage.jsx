@@ -229,6 +229,30 @@ export default function CompaniesPage() {
     }
   }
 
+  const handleBulkUpdate = async (entries) => {
+    try {
+      // Update all companies in parallel
+      const responses = await Promise.all(
+        entries.map(entry => api.patch(`/api/v1/companies/${entry.id}`, { company: entry }))
+      )
+
+      // Update local state with saved data
+      const updatedIds = new Set(entries.map(e => e.id))
+      setCompanies(companies.map(c => {
+        if (updatedIds.has(c.id)) {
+          const response = responses.find(r => r.company.id === c.id)
+          return response?.company || c
+        }
+        return c
+      }))
+
+      setToast({ message: `Successfully updated ${entries.length} companies`, type: 'success' })
+    } catch (err) {
+      console.error('Failed to bulk update companies:', err)
+      setToast({ message: 'Failed to update companies', type: 'error' })
+    }
+  }
+
   const handleBulkDelete = async (entries) => {
     try {
       const ids = entries.map(e => e.id)
@@ -300,6 +324,7 @@ export default function CompaniesPage() {
         entries={companies}
         columns={columns}
         onEdit={handleEdit}
+        onBulkUpdate={handleBulkUpdate}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         onRowDoubleClick={handleRowClick}
