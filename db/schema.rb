@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_010034) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_015644) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -314,6 +314,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_010034) do
     t.string "code"
     t.string "sharepoint_folder_url"
     t.string "sharepoint_folder_name"
+    t.string "entity_type", default: "company"
     t.index ["abbreviation"], name: "index_companies_on_abbreviation"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
