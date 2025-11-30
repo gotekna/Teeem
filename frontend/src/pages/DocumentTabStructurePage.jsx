@@ -149,9 +149,9 @@ export default function DocumentTabStructurePage() {
       'Bank Statement': '{CompanyCode} {Bank} {Account} {Month} {Year}',
 
       // Loans
-      'Loan Agreement': '{BorrowerCode} Loan from {LenderCode} {AssetCode} {Date}',
-      'Loan Agreement - Draft': '{BorrowerCode} Loan from {LenderCode} {AssetCode} DRAFT {Date}',
-      'Loan Agreement - Signed': '{BorrowerCode} Loan from {LenderCode} {AssetCode} SIGNED {Date}',
+      'Loan Agreement': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} {Date}',
+      'Loan Agreement - Draft': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} DRAFT {Date}',
+      'Loan Agreement - Signed': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} SIGNED {Date}',
       'Security Deed': '{CompanyCode} Security Deed {AssetCode} {Date}',
       'Security Deed - Draft': '{CompanyCode} Security Deed {AssetCode} DRAFT {Date}',
       'Security Deed - Signed': '{CompanyCode} Security Deed {AssetCode} SIGNED {Date}',
@@ -222,6 +222,7 @@ export default function DocumentTabStructurePage() {
   const getFormatExample = (format) => {
     return format
       .replace(/{CompanyCode}/g, 'T')
+      .replace(/{LoanID}/g, 'L001')
       .replace(/{LenderCode}/g, 'T')
       .replace(/{BorrowerCode}/g, 'GEN')
       .replace(/{ShareholderCode}/g, 'PROV')
@@ -251,6 +252,7 @@ export default function DocumentTabStructurePage() {
   const getCodeTypes = (format) => {
     const codes = []
     if (format.includes('{CompanyCode}')) codes.push('Company')
+    if (format.includes('{LoanID}')) codes.push('Loan')
     if (format.includes('{LenderCode}')) codes.push('Lender')
     if (format.includes('{BorrowerCode}')) codes.push('Borrower')
     if (format.includes('{ShareholderCode}')) codes.push('Shareholder')
