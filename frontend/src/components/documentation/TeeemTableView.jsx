@@ -1717,6 +1717,77 @@ export default function TeeemTableView({
     }
   }
 
+  // Get visible (non-collapsed) rows when grouped
+  const getVisibleRows = () => {
+    if (activeGroupColumns.length === 0) {
+      // No grouping - all rows are visible
+      return filteredAndSorted
+    }
+
+    // Build nested groups and collect only rows from non-collapsed groups
+    const visibleRows = []
+
+    const collectVisibleRows = (node, parentPath = '', level = 0) => {
+      // If node has rows directly, add them
+      if (node.rows) {
+        visibleRows.push(...node.rows)
+        return
+      }
+
+      // If node has groups, check if each is collapsed
+      if (node.groups) {
+        Object.keys(node.groups).forEach(groupKey => {
+          const groupPath = parentPath ? `${parentPath}|${groupKey}` : groupKey
+          const isCollapsed = collapsedGroups.has(groupPath)
+
+          if (!isCollapsed) {
+            // Group is expanded - recursively collect its rows
+            collectVisibleRows(node.groups[groupKey], groupPath, level + 1)
+          }
+        })
+      }
+    }
+
+    // Build the nested groups structure
+    const buildGroups = (data) => {
+      const result = { groups: {} }
+
+      data.forEach(row => {
+        let current = result
+        activeGroupColumns.forEach((colKey, idx) => {
+          const value = row[colKey] ?? '(empty)'
+          const key = String(value)
+
+          if (idx === activeGroupColumns.length - 1) {
+            // Last level - store rows
+            if (!current.groups[key]) {
+              current.groups[key] = { rows: [] }
+            }
+            current.groups[key].rows.push(row)
+          } else {
+            // Intermediate level - create nested group
+            if (!current.groups[key]) {
+              current.groups[key] = { groups: {} }
+            }
+            current = current.groups[key]
+          }
+        })
+      })
+
+      return result
+    }
+
+    const nestedGroups = buildGroups(filteredAndSorted)
+    collectVisibleRows(nestedGroups)
+    return visibleRows
+  }
+
+  // Select only visible (expanded) rows
+  const handleSelectVisible = () => {
+    const visibleRows = getVisibleRows()
+    setSelectedRows(new Set(visibleRows.map(e => e.id)))
+  }
+
   const handleSelectRow = (id) => {
     const newSelected = new Set(selectedRows)
     if (newSelected.has(id)) {
@@ -8232,9 +8303,9 @@ export default function TeeemTableView({
                       column.header_align === 'center' ? 'text-center' : column.header_align === 'right' ? 'text-right' : 'text-left'
                     }`}
                   >
-                    {/* Select All Checkbox (Chapter 20.1) */}
+                    {/* Select All Checkbox with Dropdown (Chapter 20.1) */}
                     {colKey === 'select' ? (
-                      <div className="flex items-center justify-center h-full">
+                      <div className="flex flex-col items-center justify-center h-full gap-1">
                         <input
                           type="checkbox"
                           checked={selectedRows.size === filteredAndSorted.length && filteredAndSorted.length > 0}
@@ -8242,8 +8313,22 @@ export default function TeeemTableView({
                             e.stopPropagation()
                             handleSelectAll()
                           }}
+                          title="Select All"
                           className="h-4 w-4 rounded border-white/50 text-white bg-transparent focus:ring-white"
                         />
+                        {/* Show "Select Visible" option when groups are active and some are collapsed */}
+                        {activeGroupColumns.length > 0 && collapsedGroups.size > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSelectVisible()
+                            }}
+                            className="text-[9px] text-white/80 hover:text-white hover:underline whitespace-nowrap"
+                            title={`Select only visible rows (${getVisibleRows().length})`}
+                          >
+                            Visible ({getVisibleRows().length})
+                          </button>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col gap-4">
