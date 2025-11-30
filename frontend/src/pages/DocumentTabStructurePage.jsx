@@ -111,6 +111,7 @@ export default function DocumentTabStructurePage() {
       'Share Certificate': '{CompanyCode} Share Certificate {ShareholderCode} {Date}',
       'Share Transfer': '{CompanyCode} Share Transfer {Date}',
       'Register of Members': '{CompanyCode} Register of Members {Date}',
+      'Tax Consolidation Schedule': '{CompanyCode} Tax Consolidation Schedule FY{YY}',
       'Company Setup': '{CompanyCode} Setup {Document} {Date}',
       'General': '{CompanyCode} {Description} {Date}'
     }
