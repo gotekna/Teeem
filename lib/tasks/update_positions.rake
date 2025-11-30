@@ -100,4 +100,48 @@ namespace :corporate do
 
     puts "Done!"
   end
+
+  desc "Update director appointment dates from companies_data.json"
+  task update_appointment_dates: :environment do
+    puts "Updating director appointment dates..."
+
+    # Load the JSON data
+    json_path = Rails.root.join("db", "companies_data.json")
+    companies_data = JSON.parse(File.read(json_path))
+
+    companies_data.each do |data|
+      next if data["directors"].blank?
+
+      company = Company.where("LOWER(name) = ?", data["name"].downcase).first
+      unless company
+        puts "Company not found: #{data["name"]}"
+        next
+      end
+
+      data["directors"].each do |director_data|
+        next if director_data["appointed"].blank?
+
+        # Find contact by name
+        contact = Contact.where("LOWER(full_name) LIKE ?", "%#{director_data["name"].downcase}%").first
+        unless contact
+          puts "  Contact not found: #{director_data["name"]}"
+          next
+        end
+
+        # Find company_director record
+        cd = company.company_directors.find_by(contact: contact)
+        unless cd
+          puts "  Director record not found for #{director_data["name"]} at #{company.name}"
+          next
+        end
+
+        if cd.appointment_date.blank?
+          cd.update!(appointment_date: Date.parse(director_data["appointed"]))
+          puts "  #{company.name}: Updated #{contact.full_name} appointment date to #{director_data["appointed"]}"
+        end
+      end
+    end
+
+    puts "Done!"
+  end
 end
