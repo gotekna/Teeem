@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ArrowPathIcon, ChevronDownIcon, ChevronRightIcon, ExclamationTriangleIcon, CheckCircleIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
 import { api } from '../../api'
+import MergeContactsModal from '../contacts/MergeContactsModal'
 
 /**
  * TableHealthWidget - Universal health check component for any table
@@ -13,14 +14,19 @@ import { api } from '../../api'
  * - foundationId: number - The foundation/table ID to load health checks for
  * - compact: boolean - Start collapsed (default: false)
  * - onIssueClick: function - Optional callback when clicking an issue item
+ * - onDataChanged: function - Optional callback when data is modified (e.g., after merge)
  */
-export default function TableHealthWidget({ foundationId, compact = false, onIssueClick }) {
+export default function TableHealthWidget({ foundationId, compact = false, onIssueClick, onDataChanged }) {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [healthData, setHealthData] = useState(null)
   const [expanded, setExpanded] = useState(!compact)
   const [expandedCheck, setExpandedCheck] = useState(null)
+
+  // Merge modal state
+  const [showMergeModal, setShowMergeModal] = useState(false)
+  const [selectedDuplicates, setSelectedDuplicates] = useState([])
 
   useEffect(() => {
     if (foundationId) {
@@ -68,10 +74,36 @@ export default function TableHealthWidget({ foundationId, compact = false, onIss
       return
     }
 
+    // Handle duplicate contacts specially - open merge modal
+    if (check.check_type === 'duplicates' && item.contacts) {
+      setSelectedDuplicates(item.contacts)
+      setShowMergeModal(true)
+      return
+    }
+
     // Default navigation based on action_path
     if (check.action_path) {
       const path = check.action_path.replace(':id', item.id)
       navigate(path)
+    }
+  }
+
+  // Handle merge contacts
+  const handleMergeContacts = async (targetId, sourceIds) => {
+    try {
+      await api.post('/api/v1/contacts/merge', {
+        target_id: targetId,
+        source_ids: sourceIds
+      })
+      // Refresh health data after merge
+      await loadHealthData()
+      // Notify parent if callback provided
+      if (onDataChanged) {
+        onDataChanged()
+      }
+    } catch (err) {
+      console.error('Failed to merge contacts:', err)
+      throw err
     }
   }
 
@@ -272,6 +304,17 @@ export default function TableHealthWidget({ foundationId, compact = false, onIss
           </div>
         </div>
       )}
+
+      {/* Merge Contacts Modal */}
+      <MergeContactsModal
+        isOpen={showMergeModal}
+        onClose={() => {
+          setShowMergeModal(false)
+          setSelectedDuplicates([])
+        }}
+        selectedContacts={selectedDuplicates}
+        onMerge={handleMergeContacts}
+      />
     </div>
   )
 }
