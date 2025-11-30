@@ -70,7 +70,22 @@ formats = {
   "Disposal" => { abbrev: "DISP", format: "{CompanyCode} Disposal {AssetCode} {Date}" },
   "Expenses" => { abbrev: "EXP", format: "{CompanyCode} Expenses {Description} {Date}" },
   "Purchases" => { abbrev: "PURCH", format: "{CompanyCode} Purchases {Description} {Date}" },
-  "Valuation" => { abbrev: "VAL", format: "{CompanyCode} Valuation {AssetCode} {Date}" }
+  "Valuation" => { abbrev: "VAL", format: "{CompanyCode} Valuation {AssetCode} {Date}" },
+
+  # ADVICE
+  "CA - Client Advice" => { abbrev: "CA", format: "{CompanyCode} CA {Description} {Date}" },
+  "AA - Accountant Advice" => { abbrev: "AA", format: "{CompanyCode} AA {Description} {Date}" },
+  "LA - Legal Advice" => { abbrev: "LA", format: "{CompanyCode} LA {Description} {Date}" },
+
+  # ASIC
+  "ASIC Form 484 - Director Changes" => { abbrev: "F484", format: "{CompanyCode} ASIC Form 484 Director {Date}" },
+  "ASIC Form 484 - Registered Office" => { abbrev: "F484R", format: "{CompanyCode} ASIC Form 484 Reg Office {Date}" },
+  "ASIC Annual Review" => { abbrev: "ASICR", format: "{CompanyCode} ASIC Annual Review FY{YY}" },
+  "ASIC Documents" => { abbrev: "ASIC", format: "{CompanyCode} ASIC {Description} {Date}" },
+
+  # COMPANY
+  "Company Setup" => { abbrev: "SETUP", format: "{CompanyCode} Company Setup {Date}" },
+  "Corporate Key" => { abbrev: "KEY", format: "{CompanyCode} Corporate Key" }
 }
 
 updated = 0
