@@ -232,8 +232,8 @@ class CorporateOneDriveService
   private
 
   def company_folder_name(company)
-    abbreviation = company.abbreviation.presence || company.name.split.map(&:first).join.upcase
-    "#{abbreviation} - #{company.name}"
+    code = company.code.presence || company.name.split.map(&:first).join.upcase
+    "#{code} - #{company.name}"
   end
 
   # Extract company code from filename (e.g., "ATO Tax Return FY19 TD.pdf" -> "TD")
@@ -242,20 +242,20 @@ class CorporateOneDriveService
     name_without_ext = File.basename(filename, '.*')
     parts = name_without_ext.split(' ')
 
-    # Check if last part matches company abbreviation
-    if parts.last && company.abbreviation.present? && parts.last.upcase == company.abbreviation.upcase
+    # Check if last part matches company code
+    if parts.last && company.code.present? && parts.last.upcase == company.code.upcase
       return parts.last.upcase
     end
 
-    # Try to find any known company abbreviation in the filename
-    Company.where.not(abbreviation: [nil, '']).find_each do |c|
-      if name_without_ext.match?(/\b#{Regexp.escape(c.abbreviation)}\b/i)
-        return c.abbreviation.upcase
+    # Try to find any known company code in the filename
+    Company.where.not(code: [nil, '']).find_each do |c|
+      if name_without_ext.match?(/\b#{Regexp.escape(c.code)}\b/i)
+        return c.code.upcase
       end
     end
 
-    # Fallback to company's abbreviation
-    company.abbreviation.presence&.upcase
+    # Fallback to company's code
+    company.code.presence&.upcase
   end
 
   def create_or_find_folder(name, parent_id: nil)
@@ -369,7 +369,7 @@ class CorporateOneDriveService
     date_str = date.strftime('%Y-%m-%d')
     # Standard format: {Company Code} - {YYYY-MM-DD} - {Document Type} - {Description}.{ext}
     if company
-      company_identifier = company.company_code.presence || company.abbreviation.presence || company.name.split.map(&:first).join.upcase
+      company_identifier = company.code.presence || company.name.split.map(&:first).join.upcase
       "#{company_identifier} - #{date_str} - #{type} - #{description}#{extension}"
     else
       "#{date_str} - #{type} - #{description}#{extension}"

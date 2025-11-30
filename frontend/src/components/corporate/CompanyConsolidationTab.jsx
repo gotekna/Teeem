@@ -202,7 +202,7 @@ export default function CompanyConsolidationTab({ company, onUpdate }) {
               <option value="">Select a company...</option>
               {availableCompanies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name} {c.abbreviation ? `(${c.abbreviation})` : ''}
+                  {c.name} {c.code ? `(${c.code})` : ''}
                 </option>
               ))}
             </select>
@@ -277,9 +277,9 @@ export default function CompanyConsolidationTab({ company, onUpdate }) {
                     >
                       {c.name}
                     </Link>
-                    {c.abbreviation && (
+                    {c.code && (
                       <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                        ({c.abbreviation})
+                        ({c.code})
                       </span>
                     )}
                   </td>

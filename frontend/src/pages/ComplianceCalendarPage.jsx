@@ -281,7 +281,7 @@ export default function ComplianceCalendarPage() {
                           }`}
                           title={`${item.company_name}: ${item.title}`}
                         >
-                          {item.company_abbreviation || item.company_code || item.company_name?.slice(0, 10)}
+                          {item.company_code || item.company_name?.slice(0, 10)}
                         </div>
                       ))}
                       {day.items.length > 3 && (

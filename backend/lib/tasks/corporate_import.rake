@@ -206,7 +206,7 @@ namespace :corporate do
       trust_name: data[:trust_name],
       registered_office_address: data[:registered_office],
       principal_place_of_business: data[:principal_place],
-      abbreviation: data[:abbreviation]
+      code: data[:code]
     )
 
     # Import shareholdings
@@ -305,7 +305,7 @@ namespace :corporate do
         when /principal place/i
           data[:principal_place] = next_cell if next_cell.present?
         when /abbreviation/i
-          data[:abbreviation] = next_cell if next_cell.present?
+          data[:code] = next_cell if next_cell.present?
         when /current director/i
           if next_cell.present? && !next_cell.match?(/^current/i)
             from_date = row_data[idx + 2]
@@ -507,7 +507,7 @@ namespace :corporate do
       # Find the Company Register section
       register_row = nil
       folder_storage = nil
-      abbreviation = nil
+      company_code = nil
 
       (1..50).each do |row|
         row_data = (1..10).map { |col| sheet.cell(row, col).to_s.strip }
@@ -516,8 +516,8 @@ namespace :corporate do
         # Find folder storage
         if row_text.include?('Folder Storage')
           folder_storage = row_data[2].presence || row_data[3].presence
-          abbreviation = row_data[4].presence || row_data[5].presence
-          puts "  Folder: #{folder_storage}, Abbreviation: #{abbreviation}"
+          company_code = row_data[4].presence || row_data[5].presence
+          puts "  Folder: #{folder_storage}, Code: #{company_code}"
         end
 
         # Find Company Register header

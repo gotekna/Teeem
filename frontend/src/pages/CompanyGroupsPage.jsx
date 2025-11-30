@@ -119,9 +119,9 @@ function CompanyTreeNode({ company, level = 0, expandedNodes, toggleNode, naviga
             <span className={`truncate ${level === 0 ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
               {company.name}
             </span>
-            {company.abbreviation && (
+            {company.code && (
               <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
-                {company.abbreviation}
+                {company.code}
               </span>
             )}
             {company.is_trustee && (
@@ -287,7 +287,7 @@ export default function CompanyGroupsPage() {
     return companies.map(company => {
       const matches =
         company.name?.toLowerCase().includes(query.toLowerCase()) ||
-        company.abbreviation?.toLowerCase().includes(query.toLowerCase()) ||
+        company.code?.toLowerCase().includes(query.toLowerCase()) ||
         company.acn?.includes(query)
 
       const filteredChildren = company.children ? filterCompanies(company.children, query) : []
