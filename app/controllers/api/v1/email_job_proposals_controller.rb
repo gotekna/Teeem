@@ -197,6 +197,10 @@ module Api
         if email.has_attachments && !email.files.attached?
           begin
             outlook_service = OutlookService.new(current_user)
+            # Get fresh attachment count from Outlook
+            outlook_email = outlook_service.get_email(email.outlook_id)
+            email.update(attachment_count: outlook_email[:attachment_count]) if outlook_email[:attachment_count]
+
             email.sync_attachments_from_outlook(outlook_service)
             Rails.logger.info "Synced attachments for email #{email.id} during re-extraction"
           rescue StandardError => e
@@ -270,7 +274,8 @@ module Api
             from_name: proposal.email_warehouse.from_name,
             received_at: proposal.email_warehouse.received_at,
             has_attachments: proposal.email_warehouse.has_attachments,
-            attachment_count: proposal.email_warehouse.attachment_count
+            attachment_count: proposal.email_warehouse.attachment_count,
+            pdf_count: proposal.email_warehouse.files.count
           },
 
           # User info
