@@ -305,7 +305,7 @@ function OverviewTab({ company }) {
         {company.date_incorporated && (
           <div>
             <dt className="text-sm font-medium text-gray-500">Date Incorporated</dt>
-            <dd className="mt-1 text-sm text-gray-900">{new Date(company.date_incorporated).toLocaleDateString()}</dd>
+            <dd className="mt-1 text-sm text-gray-900">{new Date(company.date_incorporated).toLocaleDateString('en-AU')}</dd>
           </div>
         )}
         {company.registered_office_address && (

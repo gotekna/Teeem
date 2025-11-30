@@ -70,7 +70,12 @@
         "appointed": "2020-10-23"
       }
     ],
-    "secretaries": []
+    "secretaries": [
+      {
+        "name": "Rachel Anne Harder",
+        "appointed": "2020-10-23"
+      }
+    ]
   },
   {
     "sheet_name": "Team Harder Super Fund",
