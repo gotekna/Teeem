@@ -827,9 +827,9 @@ export default function ContactDetailPage() {
   }
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Sticky Header & Tabs */}
-      <div className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+      <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto pt-1 pb-1">
         {/* Header */}
         <div>
@@ -993,8 +993,9 @@ export default function ContactDetailPage() {
       </div>
       </div>
 
-      {/* Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Overview Tab */}
       {activeTab === 'overview' && (
       <div className="flex gap-6 py-8">
@@ -3067,6 +3068,7 @@ export default function ContactDetailPage() {
           />
         </div>
       )}
+        </div>
       </div>
 
       {/* Edit Contact Modal */}

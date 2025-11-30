@@ -310,9 +310,9 @@ export default function SupplierDetailPage() {
   }
 
   return (
-    <div className="min-h-full bg-gray-50 dark:bg-gray-900">
-      {/* Page Header with Gradient Background */}
-      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50 dark:bg-gray-900">
+      {/* Fixed Header with Tabs */}
+      <div className="flex-shrink-0 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Back Button */}
           <button
@@ -448,8 +448,9 @@ export default function SupplierDetailPage() {
         </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {currentTab === 'overview' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column */}
@@ -914,6 +915,7 @@ export default function SupplierDetailPage() {
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Import Modal */}

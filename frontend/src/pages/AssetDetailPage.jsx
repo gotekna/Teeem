@@ -71,20 +71,21 @@ export default function AssetDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Back Button */}
-      <button
-        onClick={() => navigate('/corporate/assets')}
-        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
-      >
-        <ArrowLeftIcon className="h-4 w-4 mr-1" />
-        Back to Assets
-      </button>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Fixed Header with Tabs */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200">
+        <div className="px-6 py-4">
+          {/* Back Button */}
+          <button
+            onClick={() => navigate('/corporate/assets')}
+            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
+          >
+            <ArrowLeftIcon className="h-4 w-4 mr-1" />
+            Back to Assets
+          </button>
 
-      {/* Header */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:px-6">
-          <div className="flex items-center justify-between">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center">
               {asset.photo_url ? (
                 <img
@@ -130,46 +131,49 @@ export default function AssetDetailPage() {
               Edit
             </button>
           </div>
+
+          {/* Tabs */}
+          <div className="border-b border-gray-200 -mb-px">
+            <nav className="flex space-x-8" aria-label="Tabs">
+              {tabs.map((tab) => {
+                const Icon = tab.icon
+                const isActive = activeTab === tab.id
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`
+                      group inline-flex items-center border-b-2 py-4 px-1 text-sm font-medium
+                      ${isActive
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                      }
+                    `}
+                  >
+                    <Icon
+                      className={`
+                        -ml-0.5 mr-2 h-5 w-5
+                        ${isActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'}
+                      `}
+                    />
+                    {tab.name}
+                  </button>
+                )
+              })}
+            </nav>
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-          {tabs.map((tab) => {
-            const Icon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                className={`
-                  group inline-flex items-center border-b-2 py-4 px-1 text-sm font-medium
-                  ${isActive
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
-                  }
-                `}
-              >
-                <Icon
-                  className={`
-                    -ml-0.5 mr-2 h-5 w-5
-                    ${isActive ? 'text-indigo-500' : 'text-gray-400 group-hover:text-gray-500'}
-                  `}
-                />
-                {tab.name}
-              </button>
-            )
-          })}
-        </nav>
-      </div>
-
-      {/* Tab Content */}
-      <div className="bg-white shadow rounded-lg p-6">
-        {activeTab === 'overview' && <OverviewTab asset={asset} />}
-        {activeTab === 'insurance' && <AssetInsuranceTab asset={asset} onUpdate={loadAsset} />}
-        {activeTab === 'service' && <AssetServiceHistoryTab asset={asset} onUpdate={loadAsset} />}
-        {activeTab === 'activity' && <ActivityTab asset={asset} />}
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-6">
+        {/* Tab Content */}
+        <div className="bg-white shadow rounded-lg p-6">
+          {activeTab === 'overview' && <OverviewTab asset={asset} />}
+          {activeTab === 'insurance' && <AssetInsuranceTab asset={asset} onUpdate={loadAsset} />}
+          {activeTab === 'service' && <AssetServiceHistoryTab asset={asset} onUpdate={loadAsset} />}
+          {activeTab === 'activity' && <ActivityTab asset={asset} />}
+        </div>
       </div>
     </div>
   )

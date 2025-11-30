@@ -85,58 +85,63 @@ export default function DocumentTabStructurePage() {
     const abbrev = docTypeName.split(' - ')[0] || docTypeName.split(' ')[0]
 
     const formats = {
-      'CTR - Company Tax Return': '{Company} CTR FY{YY}',
-      'TTR - Trust Tax Return': '{Company} TTR FY{YY}',
-      'ITR - Individual Tax Return': '{Company} ITR FY{YY}',
-      'BAS - Business Activity Statement': '{Company} BAS {Month} {Year}',
-      'ASIC Annual Review': '{Company} ASIC Annual Review FY{YY}',
-      'ASIC Form 485 - Solvency Declaration': '{Company} Form 485 FY{YY}',
-      'ASIC Form 484 - Director Changes': '{Company} Form 484 Directors {Date}',
-      'ASIC Form 484 - Registered Office': '{Company} Form 484 Reg Office {Date}',
-      'ASIC Form 484 - Secretary Changes': '{Company} Form 484 Secretary {Date}',
-      'ASIC Documents': '{Company} ASIC {Description} {Date}',
+      'CTR - Company Tax Return': '{CompanyCode} CTR FY{YY}',
+      'TTR - Trust Tax Return': '{CompanyCode} TTR FY{YY}',
+      'ITR - Individual Tax Return': '{CompanyCode} ITR FY{YY}',
+      'BAS - Business Activity Statement': '{CompanyCode} BAS {Month} {Year}',
+      'ASIC Annual Review': '{CompanyCode} ASIC Annual Review FY{YY}',
+      'ASIC Form 485 - Solvency Declaration': '{CompanyCode} Form 485 FY{YY}',
+      'ASIC Form 484 - Director Changes': '{CompanyCode} Form 484 Directors {Date}',
+      'ASIC Form 484 - Registered Office': '{CompanyCode} Form 484 Reg Office {Date}',
+      'ASIC Form 484 - Secretary Changes': '{CompanyCode} Form 484 Secretary {Date}',
+      'ASIC Documents': '{CompanyCode} ASIC {Description} {Date}',
       'Bank Statement': '{Bank} {Account} {Month} {Year}',
-      'Directors\' Minutes': '{Company} Minutes {Date}',
-      'Directors\' Resolution - Distribution': '{Company} Distribution Resolution FY{YY}',
-      'Dividend Payment Record': '{Company} Dividend {Date}',
-      'Gift Deed Return': '{Company} Gift Deed {Beneficiary} {Date}',
-      'Loan Agreement': '{Lender} to {Borrower} Loan {Date}',
-      'Security Deed': '{Company} Security Deed {Date}',
-      'PPSR Registration': '{Company} PPSR {Collateral} {Date}',
-      'Trust Deed': '{Company} Trust Deed {Date}',
-      'Draft Financials': '{Company} Draft Financials FY{YY}',
-      'Final Financials': '{Company} Final Financials FY{YY}',
-      'Constitution': '{Company} Constitution {Date}',
-      'Share Certificate': '{Company} Share Certificate {Shareholder} {Date}',
-      'Share Transfer': '{Company} Share Transfer {Date}',
-      'Register of Members': '{Company} Register of Members {Date}',
-      'Company Setup': '{Company} Setup {Document} {Date}',
-      'General': '{Company} {Description} {Date}'
+      'Directors\' Minutes': '{CompanyCode} Minutes {Date}',
+      'Directors\' Resolution - Distribution': '{CompanyCode} Distribution Resolution FY{YY}',
+      'Dividend Payment Record': '{CompanyCode} Dividend {Date}',
+      'Gift Deed Return': '{CompanyCode} Gift Deed {Beneficiary} {Date}',
+      'Loan Agreement': '{LenderCode} to {BorrowerCode} Loan {Date}',
+      'Security Deed': '{CompanyCode} Security Deed {Date}',
+      'PPSR Registration': '{CompanyCode} PPSR {AssetCode} {Date}',
+      'Trust Deed': '{CompanyCode} Trust Deed {Date}',
+      'Draft Financials': '{CompanyCode} Draft Financials FY{YY}',
+      'Final Financials': '{CompanyCode} Final Financials FY{YY}',
+      'Constitution': '{CompanyCode} Constitution {Date}',
+      'Share Certificate': '{CompanyCode} Share Certificate {ShareholderCode} {Date}',
+      'Share Transfer': '{CompanyCode} Share Transfer {Date}',
+      'Register of Members': '{CompanyCode} Register of Members {Date}',
+      'Company Setup': '{CompanyCode} Setup {Document} {Date}',
+      'General': '{CompanyCode} {Description} {Date}'
     }
 
     // Try to match by full name first, then abbreviation
-    return formats[docTypeName] || formats[abbrev] || `{Company} {Description} {Date}`
+    return formats[docTypeName] || formats[abbrev] || `{CompanyCode} {Description} {Date}`
   }
 
   const getFormatExample = (format) => {
     return format
-      .replace('{Company}', 'TEKNA')
-      .replace('{Year}', '2025')
-      .replace('{YY}', '25')
-      .replace('{Quarter}', 'Q1')
-      .replace('{Month}', 'Jun')
-      .replace('{Date}', '30 Jun 2025')
-      .replace('{Topic}', 'Distribution')
-      .replace('{Lender}', 'Tekna')
-      .replace('{Borrower}', 'Gen2612')
-      .replace('{Bank}', 'WBC')
-      .replace('{Asset}', 'Vehicle')
-      .replace('{Collateral}', 'Equipment')
-      .replace('{Beneficiary}', 'Rachel Harder')
-      .replace('{Shareholder}', 'Prov1322 Global')
-      .replace('{Document}', 'Certificate')
-      .replace('{Description}', 'Document')
-      .replace('{Account}', '123456')
+      .replace(/{CompanyCode}/g, 'T')
+      .replace(/{LenderCode}/g, 'T')
+      .replace(/{BorrowerCode}/g, 'GEN')
+      .replace(/{ShareholderCode}/g, 'PROV')
+      .replace(/{AssetCode}/g, 'NEV')
+      .replace(/{Company}/g, 'Tekna')
+      .replace(/{Year}/g, '2025')
+      .replace(/{YY}/g, '25')
+      .replace(/{Quarter}/g, 'Q1')
+      .replace(/{Month}/g, 'Jun')
+      .replace(/{Date}/g, '30 Jun 2025')
+      .replace(/{Topic}/g, 'Distribution')
+      .replace(/{Lender}/g, 'Tekna')
+      .replace(/{Borrower}/g, 'Gen2612')
+      .replace(/{Bank}/g, 'WBC')
+      .replace(/{Asset}/g, 'Vehicle')
+      .replace(/{Collateral}/g, 'Equipment')
+      .replace(/{Beneficiary}/g, 'Rachel Harder')
+      .replace(/{Shareholder}/g, 'Prov1322 Global')
+      .replace(/{Document}/g, 'Certificate')
+      .replace(/{Description}/g, 'Document')
+      .replace(/{Account}/g, '123456')
   }
 
   if (loading) {

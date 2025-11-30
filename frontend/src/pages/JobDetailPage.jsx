@@ -292,9 +292,9 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
-        {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50 dark:bg-gray-900">
+        {/* Header - sticky tabs */}
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="px-6 py-3">
             {/* Back to Jobs Button */}
             <button
@@ -351,8 +351,8 @@ export default function JobDetailPage() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
+        {/* Content - scrollable area */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-4">
           {/* No Contacts Warning */}
           {(!job.contacts || job.contacts.length === 0) && (
             <div className="mb-6 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-4 border-l-4 border-yellow-400 dark:border-yellow-600">
