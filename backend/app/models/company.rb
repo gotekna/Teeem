@@ -59,6 +59,7 @@ class Company < ApplicationRecord
   # Callbacks
   before_validation :normalize_acn_abn
   before_validation :normalize_status
+  before_validation :normalize_code
   after_create :create_initial_activity
   after_update :create_update_activity
 
@@ -207,6 +208,11 @@ class Company < ApplicationRecord
   # Normalize status to lowercase
   def normalize_status
     self.status = status.downcase if status.present?
+  end
+
+  # Normalize code to uppercase and remove invalid characters
+  def normalize_code
+    self.code = code.upcase.gsub(/[^A-Z0-9\-]/, '') if code.present?
   end
 
   def create_initial_activity
