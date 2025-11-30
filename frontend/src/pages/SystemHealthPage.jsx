@@ -142,6 +142,17 @@ export default function SystemHealthPage() {
     }
   }
 
+  const handleDeleteContact = async (contactId) => {
+    try {
+      await api.delete(`/api/v1/contacts/${contactId}`)
+      // Refresh health data after delete
+      await loadAllHealthData()
+    } catch (err) {
+      console.error('Failed to delete contact:', err)
+      throw err
+    }
+  }
+
   // Calculate overall stats
   const totalIssues = Object.values(healthData).reduce((sum, h) => sum + (h?.total_issues || 0), 0)
   const tablesWithIssues = Object.keys(healthData).length
@@ -463,6 +474,7 @@ export default function SystemHealthPage() {
         }}
         selectedContacts={selectedDuplicates}
         onMerge={handleMergeContacts}
+        onDelete={handleDeleteContact}
       />
     </div>
   )

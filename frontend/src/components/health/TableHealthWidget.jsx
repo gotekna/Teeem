@@ -107,6 +107,22 @@ export default function TableHealthWidget({ foundationId, compact = false, onIss
     }
   }
 
+  // Handle delete contact
+  const handleDeleteContact = async (contactId) => {
+    try {
+      await api.delete(`/api/v1/contacts/${contactId}`)
+      // Refresh health data after delete
+      await loadHealthData()
+      // Notify parent if callback provided
+      if (onDataChanged) {
+        onDataChanged()
+      }
+    } catch (err) {
+      console.error('Failed to delete contact:', err)
+      throw err
+    }
+  }
+
   // Don't render anything if no health checks exist for this table
   if (!loading && (!healthData || healthData.checks?.length === 0)) {
     return null
@@ -314,6 +330,7 @@ export default function TableHealthWidget({ foundationId, compact = false, onIss
         }}
         selectedContacts={selectedDuplicates}
         onMerge={handleMergeContacts}
+        onDelete={handleDeleteContact}
       />
     </div>
   )

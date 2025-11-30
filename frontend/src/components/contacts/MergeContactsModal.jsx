@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, RadioGroup } from '@headlessui/react'
-import { XMarkIcon, UserIcon, CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, UserIcon, CheckCircleIcon, ExclamationTriangleIcon, TrashIcon } from '@heroicons/react/24/outline'
 
-export default function MergeContactsModal({ isOpen, onClose, selectedContacts, onMerge }) {
+export default function MergeContactsModal({ isOpen, onClose, selectedContacts, onMerge, onDelete }) {
   const [targetContact, setTargetContact] = useState(null)
   const [merging, setMerging] = useState(false)
+  const [deleting, setDeleting] = useState(null) // Track which contact is being deleted
   const [error, setError] = useState(null)
 
   const handleMerge = async () => {
@@ -31,9 +32,28 @@ export default function MergeContactsModal({ isOpen, onClose, selectedContacts, 
     }
   }
 
+  const handleDelete = async (contact) => {
+    if (!onDelete) return
+
+    try {
+      setDeleting(contact.id)
+      setError(null)
+      await onDelete(contact.id)
+      // If only one contact left after delete, close the modal
+      if (selectedContacts.length <= 2) {
+        onClose()
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to delete contact')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
   const handleClose = () => {
     setTargetContact(null)
     setError(null)
+    setDeleting(null)
     onClose()
   }
 
@@ -98,53 +118,73 @@ export default function MergeContactsModal({ isOpen, onClose, selectedContacts, 
                 <RadioGroup.Label className="sr-only">Select target contact</RadioGroup.Label>
                 <div className="space-y-3">
                   {selectedContacts.map((contact) => (
-                    <RadioGroup.Option
-                      key={contact.id}
-                      value={contact}
-                      className={({ checked }) =>
-                        `relative flex cursor-pointer rounded-lg border ${
-                          checked
-                            ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
-                            : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
-                        } px-5 py-4 shadow-sm focus:outline-none`
-                      }
-                    >
-                      {({ checked }) => (
-                        <>
-                          <div className="flex flex-1 items-center">
-                            <div className="flex items-center gap-4 flex-1">
-                              <div className="flex-shrink-0">
-                                <UserIcon className={`h-10 w-10 ${checked ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400'}`} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <RadioGroup.Label
-                                  as="p"
-                                  className={`font-medium ${
-                                    checked ? 'text-indigo-900 dark:text-indigo-200' : 'text-gray-900 dark:text-white'
-                                  }`}
-                                >
-                                  {contact.full_name}
-                                </RadioGroup.Label>
-                                <RadioGroup.Description
-                                  as="div"
-                                  className={`text-sm ${
-                                    checked ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'
-                                  }`}
-                                >
-                                  <div>{contact.email || 'No email'}</div>
-                                  <div>{contact.mobile_phone || contact.office_phone || 'No phone'}</div>
-                                </RadioGroup.Description>
-                              </div>
-                              {checked && (
+                    <div key={contact.id} className="relative">
+                      <RadioGroup.Option
+                        value={contact}
+                        className={({ checked }) =>
+                          `relative flex cursor-pointer rounded-lg border ${
+                            checked
+                              ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20'
+                              : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
+                          } px-5 py-4 shadow-sm focus:outline-none`
+                        }
+                      >
+                        {({ checked }) => (
+                          <>
+                            <div className="flex flex-1 items-center">
+                              <div className="flex items-center gap-4 flex-1">
                                 <div className="flex-shrink-0">
-                                  <CheckCircleIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                                  <UserIcon className={`h-10 w-10 ${checked ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-400'}`} />
                                 </div>
-                              )}
+                                <div className="flex-1 min-w-0">
+                                  <RadioGroup.Label
+                                    as="p"
+                                    className={`font-medium ${
+                                      checked ? 'text-indigo-900 dark:text-indigo-200' : 'text-gray-900 dark:text-white'
+                                    }`}
+                                  >
+                                    {contact.full_name}
+                                  </RadioGroup.Label>
+                                  <RadioGroup.Description
+                                    as="div"
+                                    className={`text-sm ${
+                                      checked ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'
+                                    }`}
+                                  >
+                                    <div>{contact.email || 'No email'}</div>
+                                    <div>{contact.mobile_phone || contact.office_phone || 'No phone'}</div>
+                                  </RadioGroup.Description>
+                                </div>
+                                {checked && (
+                                  <div className="flex-shrink-0 mr-2">
+                                    <CheckCircleIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </>
+                          </>
+                        )}
+                      </RadioGroup.Option>
+                      {/* Delete button - positioned on the right */}
+                      {onDelete && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDelete(contact)
+                          }}
+                          disabled={deleting === contact.id || merging}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition disabled:opacity-50"
+                          title="Delete this contact"
+                        >
+                          {deleting === contact.id ? (
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
+                          ) : (
+                            <TrashIcon className="h-5 w-5" />
+                          )}
+                        </button>
                       )}
-                    </RadioGroup.Option>
+                    </div>
                   ))}
                 </div>
               </RadioGroup>
