@@ -154,7 +154,11 @@ class EmailToJobService
       end
     end
 
-    # Link internal sales rep (the user who dropped the email in the folder)
+    # Link internal sales rep
+    # Always link the user who approved the proposal
+    link_internal_sales_rep(job, @user)
+
+    # Also link the user who synced the email if different
     if @email.synced_by_user && @email.synced_by_user.id != @user.id
       link_internal_sales_rep(job, @email.synced_by_user)
     end
