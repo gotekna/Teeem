@@ -63,65 +63,70 @@ export default function SmAnalyticsPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Analytics & Insights</h1>
-        <p className="text-gray-500">{construction?.name}</p>
-      </div>
-
-      {/* Summary Cards */}
-      {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">Project Duration</div>
-            <div className="text-2xl font-bold text-gray-900">
-              {summary.critical_path?.duration_days || 0} days
-            </div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">Schedule Performance</div>
-            <div className={`text-2xl font-bold ${summary.evm?.spi >= 1 ? 'text-green-600' : 'text-red-600'}`}>
-              {summary.evm?.spi?.toFixed(2) || '-'} SPI
-            </div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">Cost Performance</div>
-            <div className={`text-2xl font-bold ${summary.evm?.cpi >= 1 ? 'text-green-600' : 'text-red-600'}`}>
-              {summary.evm?.cpi?.toFixed(2) || '-'} CPI
-            </div>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="text-sm text-gray-500">Completion</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {summary.evm?.percent_complete?.toFixed(0) || 0}%
-            </div>
-          </div>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Fixed Header with Tabs */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
+        {/* Header */}
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-gray-900">Analytics & Insights</h1>
+          <p className="text-gray-500">{construction?.name}</p>
         </div>
-      )}
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="flex gap-4">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+        {/* Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">Project Duration</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {summary.critical_path?.duration_days || 0} days
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">Schedule Performance</div>
+              <div className={`text-2xl font-bold ${summary.evm?.spi >= 1 ? 'text-green-600' : 'text-red-600'}`}>
+                {summary.evm?.spi?.toFixed(2) || '-'} SPI
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">Cost Performance</div>
+              <div className={`text-2xl font-bold ${summary.evm?.cpi >= 1 ? 'text-green-600' : 'text-red-600'}`}>
+                {summary.evm?.cpi?.toFixed(2) || '-'} CPI
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+              <div className="text-sm text-gray-500">Completion</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {summary.evm?.percent_complete?.toFixed(0) || 0}%
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="border-b border-gray-200 -mb-px">
+          <nav className="flex gap-4">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
 
-      {/* Tab Content */}
-      <div className="space-y-6">
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-6">
+        {/* Tab Content */}
+        <div className="space-y-6">
         {activeTab === 'overview' && (
           <>
             <div className="grid md:grid-cols-2 gap-6">
@@ -220,6 +225,7 @@ export default function SmAnalyticsPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </div>
   )

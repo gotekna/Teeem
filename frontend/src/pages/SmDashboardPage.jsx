@@ -192,9 +192,9 @@ export default function SmDashboardPage() {
   const tradeBreakdown = dashboardData?.trade_breakdown || []
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50">
+      {/* Fixed Header with Tabs */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <ChartBarIcon className="w-8 h-8 text-gray-400" />
@@ -280,8 +280,8 @@ export default function SmDashboardPage() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-6">
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-6">
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             {error}

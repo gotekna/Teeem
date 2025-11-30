@@ -153,9 +153,9 @@ export default function DocumentTabStructurePage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="border-b border-gray-200 pb-5">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      {/* Fixed Header */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
@@ -174,7 +174,9 @@ export default function DocumentTabStructurePage() {
         </div>
       </div>
 
-      {/* Group By Controls */}
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-6 space-y-6">
+        {/* Group By Controls */}
       <div className="bg-white shadow rounded-lg p-4">
         <label className="block text-sm font-medium text-gray-700 mb-2">Group By:</label>
         <div className="flex gap-2">
@@ -336,6 +338,7 @@ export default function DocumentTabStructurePage() {
             <strong>Folder:</strong>&nbsp;File organization location
           </li>
         </ul>
+      </div>
       </div>
     </div>
   )
