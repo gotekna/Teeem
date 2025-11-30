@@ -332,6 +332,12 @@ function OverviewTab({ company }) {
             <dd className="mt-1 text-sm text-gray-900">{company.gst_registration_status}</dd>
           </div>
         )}
+        {company.purpose && (
+          <div className="sm:col-span-2">
+            <dt className="text-sm font-medium text-gray-500">Purpose</dt>
+            <dd className="mt-1 text-sm text-gray-900">{company.purpose}</dd>
+          </div>
+        )}
       </dl>
 
       {company.current_directors && company.current_directors.length > 0 && (
