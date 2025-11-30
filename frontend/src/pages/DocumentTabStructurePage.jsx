@@ -109,10 +109,13 @@ export default function DocumentTabStructurePage() {
       'Draft Financials': '{CompanyCode} Draft Financials FY{YY}',
       'Final Financials': '{CompanyCode} Final Financials FY{YY}',
       'Constitution': '{CompanyCode} Constitution {Date}',
+      'Corporate Key': '{CompanyCode} Corporate Key {Date}',
       'Share Certificate': '{CompanyCode} Share Certificate {ShareholderCode} {Date}',
       'Share Transfer': '{CompanyCode} Share Transfer {Date}',
       'Register of Members': '{CompanyCode} Register of Members {Date}',
+      'Structure': '{CompanyCode} Structure {Description} {Date}',
       'Tax Consolidation Schedule': '{CompanyCode} Tax Consolidation Schedule FY{YY}',
+      'Trust': '{CompanyCode} Trust {Description} {Date}',
       'Company Setup': '{CompanyCode} Setup {Document} {Date}',
       'General': '{CompanyCode} {Description} {Date}'
     }
