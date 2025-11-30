@@ -287,7 +287,7 @@ function App() {
         <Route path="/corporate/assets/:id/edit" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/xero" element={<AppLayout><XeroDashboardPage /></AppLayout>} />
         <Route path="/corporate/asic-logins" element={<AppLayout><AsicLoginsPage /></AppLayout>} />
-        <Route path="/corporate/tab-structure" element={<AppLayout><DocumentTabStructurePage /></AppLayout>} />
+        <Route path="/corporate/document-types" element={<AppLayout><DocumentTabStructurePage /></AppLayout>} />
         <Route path="/corporate/groups" element={<AppLayout><CompanyGroupsPage /></AppLayout>} />
 
         {/* Portal routes (subcontractor portal) */}
