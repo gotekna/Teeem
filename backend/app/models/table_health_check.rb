@@ -116,6 +116,21 @@ class TableHealthCheck < ApplicationRecord
       fetch_items_missing_photos
     when %r{/api/v1/pricebook/price_health_check}
       fetch_price_mismatches
+    # Jobs health checks
+    when %r{/api/v1/jobs/without_start_date}
+      fetch_jobs_without_start_date
+    when %r{/api/v1/jobs/without_contract_value}
+      fetch_jobs_without_contract_value
+    # Companies health checks
+    when %r{/api/v1/companies/without_abn}
+      fetch_companies_without_abn
+    when %r{/api/v1/companies/without_review_date}
+      fetch_companies_without_review_date
+    # Company Documents health checks
+    when %r{/api/v1/company_documents/needs_ai_verification}
+      fetch_documents_needs_ai_verification
+    when %r{/api/v1/company_documents/needs_user_validation}
+      fetch_documents_needs_user_validation
     else
       # For unknown endpoints, return empty result
       Rails.logger.warn "[TableHealthCheck] Unknown endpoint: #{api_endpoint}"
@@ -240,6 +255,77 @@ class TableHealthCheck < ApplicationRecord
     {
       count: mismatches.size,  # Note: This is just a sample, not full count
       items: mismatches
+    }
+  end
+
+  # Jobs health check methods
+  def fetch_jobs_without_start_date
+    jobs = Job.where(start_date: nil)
+    {
+      count: jobs.count,
+      items: jobs.select(:id, :title, :ted_number).limit(10).map { |j|
+        { id: j.id, display: "#{j.ted_number || 'No TED'} - #{j.title}" }
+      }
+    }
+  end
+
+  def fetch_jobs_without_contract_value
+    jobs = Job.where(contract_value: [nil, 0])
+    {
+      count: jobs.count,
+      items: jobs.select(:id, :title, :ted_number).limit(10).map { |j|
+        { id: j.id, display: "#{j.ted_number || 'No TED'} - #{j.title}" }
+      }
+    }
+  end
+
+  # Companies health check methods
+  def fetch_companies_without_abn
+    companies = Company.where(abn: [nil, ''])
+    {
+      count: companies.count,
+      items: companies.select(:id, :name, :code).limit(10).map { |c|
+        { id: c.id, display: "#{c.code || c.id} - #{c.name}" }
+      }
+    }
+  end
+
+  def fetch_companies_without_review_date
+    companies = Company.where(review_date: nil)
+    {
+      count: companies.count,
+      items: companies.select(:id, :name, :code).limit(10).map { |c|
+        { id: c.id, display: "#{c.code || c.id} - #{c.name}" }
+      }
+    }
+  end
+
+  # Company Documents health check methods
+  def fetch_documents_needs_ai_verification
+    docs = CompanyDocument.where(ai_verification_status: [nil, 'pending'])
+    {
+      count: docs.count,
+      items: docs.includes(:company).limit(10).map { |d|
+        {
+          id: d.id,
+          display: "#{d.company&.name || 'Unknown'} - #{d.file_name || d.title || 'Unnamed'}",
+          company_id: d.company_id
+        }
+      }
+    }
+  end
+
+  def fetch_documents_needs_user_validation
+    docs = CompanyDocument.where(validation_required: true, user_validated_at: nil)
+    {
+      count: docs.count,
+      items: docs.includes(:company).limit(10).map { |d|
+        {
+          id: d.id,
+          display: "#{d.company&.name || 'Unknown'} - #{d.file_name || d.title || 'Unnamed'}",
+          company_id: d.company_id
+        }
+      }
     }
   end
 end

@@ -56,6 +56,87 @@ TableHealthCheck.find_or_create_by!(
   check.display_order = 2
 end
 
+# Jobs health checks (foundation ID 204)
+TableHealthCheck.find_or_create_by!(
+  foundation_id: 204,
+  check_type: 'missing_start_date'
+) do |check|
+  check.name = 'Jobs Without Start Date'
+  check.description = 'Jobs that do not have a start date set. Start dates are needed for scheduling and project planning.'
+  check.api_endpoint = '/api/v1/jobs/without_start_date'
+  check.severity = 'warning'
+  check.icon = 'calendar'
+  check.action_path = '/jobs/:id'
+  check.display_order = 0
+end
+
+TableHealthCheck.find_or_create_by!(
+  foundation_id: 204,
+  check_type: 'missing_contract_value'
+) do |check|
+  check.name = 'Jobs Without Contract Value'
+  check.description = 'Jobs that do not have a contract value set. Contract values are needed for financial tracking and reporting.'
+  check.api_endpoint = '/api/v1/jobs/without_contract_value'
+  check.severity = 'info'
+  check.icon = 'currency-dollar'
+  check.action_path = '/jobs/:id'
+  check.display_order = 1
+end
+
+# Companies health checks (foundation ID 353)
+TableHealthCheck.find_or_create_by!(
+  foundation_id: 353,
+  check_type: 'missing_abn'
+) do |check|
+  check.name = 'Companies Without ABN'
+  check.description = 'Companies that do not have an ABN recorded. ABN is required for tax compliance and invoicing.'
+  check.api_endpoint = '/api/v1/companies/without_abn'
+  check.severity = 'warning'
+  check.icon = 'identification'
+  check.action_path = '/companies/:id'
+  check.display_order = 0
+end
+
+TableHealthCheck.find_or_create_by!(
+  foundation_id: 353,
+  check_type: 'missing_review_date'
+) do |check|
+  check.name = 'Companies Without Review Date'
+  check.description = 'Companies that do not have a review date set. Review dates help ensure compliance documents are kept up to date.'
+  check.api_endpoint = '/api/v1/companies/without_review_date'
+  check.severity = 'info'
+  check.icon = 'calendar'
+  check.action_path = '/companies/:id'
+  check.display_order = 1
+end
+
+# Company Documents health checks (foundation ID 357)
+TableHealthCheck.find_or_create_by!(
+  foundation_id: 357,
+  check_type: 'needs_ai_verification'
+) do |check|
+  check.name = 'Documents Awaiting AI Verification'
+  check.description = 'Documents that have not been analyzed by AI yet. AI verification helps ensure documents are correctly named and categorized.'
+  check.api_endpoint = '/api/v1/company_documents/needs_ai_verification'
+  check.severity = 'info'
+  check.icon = 'sparkles'
+  check.action_path = '/companies/:company_id/documents/:id'
+  check.display_order = 0
+end
+
+TableHealthCheck.find_or_create_by!(
+  foundation_id: 357,
+  check_type: 'needs_user_validation'
+) do |check|
+  check.name = 'Documents Needing User Validation'
+  check.description = 'Documents where AI has flagged potential issues that require human review and confirmation.'
+  check.api_endpoint = '/api/v1/company_documents/needs_user_validation'
+  check.severity = 'warning'
+  check.icon = 'exclamation-circle'
+  check.action_path = '/companies/:company_id/documents/:id'
+  check.display_order = 1
+end
+
 puts "Created #{TableHealthCheck.count} health checks:"
 TableHealthCheck.all.each do |check|
   identifier = check.table_name || "foundation:#{check.foundation_id}"
