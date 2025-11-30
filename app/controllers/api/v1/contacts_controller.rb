@@ -374,68 +374,13 @@ module Api
       end
 
       # POST /api/v1/contacts/match_supplier
+      # DEPRECATED: This endpoint was for migrating suppliers table to contacts.
+      # The suppliers table has been removed - all suppliers are now contacts with type='supplier'.
       def match_supplier
-        contact_id = params[:contact_id]
-        supplier_name = params[:supplier_name]
-
-        if contact_id.blank? || supplier_name.blank?
-          return render json: {
-            success: false,
-            error: "contact_id and supplier_name are required"
-          }, status: :bad_request
-        end
-
-        contact = Contact.find(contact_id)
-
-        # Find supplier by name (case-insensitive)
-        supplier = Supplier.where("LOWER(name) = ?", supplier_name.downcase).first
-
-        unless supplier
-          return render json: {
-            success: false,
-            error: "No supplier found with name '#{supplier_name}'"
-          }, status: :not_found
-        end
-
-        # Import supplier history into contact
-        contact.update(
-          contact_types: (contact.contact_types + ['supplier']).uniq,
-          rating: supplier.rating || contact.rating,
-          response_rate: supplier.response_rate || contact.response_rate,
-          avg_response_time: supplier.avg_response_time || contact.avg_response_time,
-          is_active: supplier.is_active.nil? ? contact.is_active : supplier.is_active,
-          supplier_code: supplier.supplier_code || contact.supplier_code,
-          address: supplier.address || contact.address,
-          notes: [contact.notes, supplier.notes].compact.join("\n\n")
-        )
-
-        # Link the supplier to this contact
-        supplier.update(contact_id: contact.id)
-
-        render json: {
-          success: true,
-          message: "Successfully matched contact with supplier '#{supplier.name}'",
-          contact: contact.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :contact_types, :rating, :notes]
-          ),
-          imported_fields: {
-            rating: supplier.rating,
-            response_rate: supplier.response_rate,
-            avg_response_time: supplier.avg_response_time,
-            supplier_code: supplier.supplier_code,
-            notes: supplier.notes.present?
-          }
-        }
-      rescue ActiveRecord::RecordNotFound => e
         render json: {
           success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to match supplier: #{e.message}"
-        }, status: :internal_server_error
+          error: "This endpoint is deprecated. Suppliers are now managed directly as contacts with type='supplier'."
+        }, status: :gone
       end
 
       # GET /api/v1/contacts/:id/categories

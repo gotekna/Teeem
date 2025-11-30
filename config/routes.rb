@@ -263,23 +263,6 @@ Rails.application.routes.draw do
       # Gold Table Sync Check - Compare column types across all sources
       get 'gold_table_sync', to: 'gold_table_sync#index'
 
-      # Suppliers management
-      resources :suppliers do
-        collection do
-          get :unmatched
-          get :needs_review
-          post :auto_match
-        end
-        member do
-          post :link_contact
-          post :unlink_contact
-          post :verify_match
-          get 'pricebook/export', to: 'suppliers#export_pricebook'
-          post 'pricebook/import', to: 'suppliers#import_pricebook'
-          patch 'pricebook/:item_id', to: 'suppliers#update_pricebook_item'
-        end
-      end
-
       # Contact roles management
       resources :contact_roles, only: [ :index, :create, :update, :destroy ]
 

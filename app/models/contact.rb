@@ -1,8 +1,5 @@
 class Contact < ApplicationRecord
   # Associations
-  has_many :suppliers, dependent: :nullify  # Legacy association - will be deprecated
-  has_many :supplier_contacts, dependent: :destroy
-  has_many :linked_suppliers, through: :supplier_contacts, source: :supplier
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy
 
@@ -43,7 +40,6 @@ class Contact < ApplicationRecord
 
   # Portal-related associations
   has_one :portal_user, dependent: :destroy
-  has_many :supplier_ratings, dependent: :destroy
   has_many :maintenance_requests, foreign_key: :supplier_contact_id, dependent: :destroy
 
   # Subcontractor-related associations
@@ -268,8 +264,7 @@ class Contact < ApplicationRecord
   def rating_summary
     {
       average: teeem_rating&.round(2),
-      total_ratings: total_ratings_count,
-      recent_ratings: supplier_ratings.recent.limit(5)
+      total_ratings: total_ratings_count
     }
   end
 
