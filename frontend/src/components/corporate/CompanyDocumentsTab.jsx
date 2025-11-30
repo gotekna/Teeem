@@ -240,23 +240,23 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
         </div>
         <div className="flex items-center gap-3">
           {/* SharePoint Connection Status */}
-          <span className={`inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
-            sharepointConnected
-              ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-          }`}>
-            {sharepointConnected ? (
-              <>
-                <CheckCircleIcon className="h-3.5 w-3.5" />
-                SharePoint Connected
-              </>
-            ) : (
-              <>
-                <XCircleIcon className="h-3.5 w-3.5" />
-                SharePoint Offline
-              </>
-            )}
-          </span>
+          {sharepointConnected && company.sharepoint_folder_url ? (
+            <a
+              href={company.sharepoint_folder_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
+            >
+              <CheckCircleIcon className="h-3.5 w-3.5" />
+              SharePoint Connected
+              <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+            </a>
+          ) : (
+            <span className="inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+              <XCircleIcon className="h-3.5 w-3.5" />
+              SharePoint Offline
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {/* SharePoint Sync Button */}
