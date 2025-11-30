@@ -371,7 +371,7 @@ export default function DocumentTabStructurePage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {types.map((docType) => {
-                  const format = getNamingFormat(docType.name)
+                  const format = docType.description || getNamingFormat(docType.name)
                   const example = getFormatExample(format)
                   const codeTypes = getCodeTypes(format)
                   const entityTypes = getEntityTypes(docType.name)
