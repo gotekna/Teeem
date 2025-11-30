@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_205946) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_210434) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -422,6 +422,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_205946) do
     t.bigint "loan_id"
     t.bigint "contact_id"
     t.integer "financial_years", default: [], array: true
+    t.datetime "ai_verified_at"
+    t.string "ai_verification_status"
+    t.string "ai_suggested_name"
+    t.string "ai_suggested_folder"
+    t.string "ai_suggested_type"
+    t.integer "ai_suggested_fy", default: [], array: true
+    t.decimal "ai_confidence_score"
+    t.text "ai_analysis_notes"
+    t.datetime "user_validated_at"
+    t.bigint "user_validated_by_id"
+    t.boolean "validation_required", default: false
+    t.string "display_title"
+    t.index ["ai_verification_status"], name: "index_company_documents_on_ai_verification_status"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
@@ -435,6 +448,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_205946) do
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["source"], name: "index_company_documents_on_source"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
+    t.index ["validation_required"], name: "index_company_documents_on_validation_required"
   end
 
   create_table "company_groups", force: :cascade do |t|
@@ -3694,6 +3708,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_205946) do
   add_foreign_key "company_documents", "company_loans", column: "loan_id"
   add_foreign_key "company_documents", "contacts"
   add_foreign_key "company_documents", "document_types"
+  add_foreign_key "company_documents", "users", column: "user_validated_by_id"
   add_foreign_key "company_loans", "companies", column: "borrower_company_id"
   add_foreign_key "company_loans", "companies", column: "lender_company_id"
   add_foreign_key "company_minutes", "companies"

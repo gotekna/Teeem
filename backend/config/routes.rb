@@ -1179,6 +1179,7 @@ Rails.application.routes.draw do
       resources :company_documents do
         member do
           get :download
+          post :validate
         end
       end
 
