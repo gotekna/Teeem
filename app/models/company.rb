@@ -2,6 +2,13 @@ class Company < ApplicationRecord
   # Associations
   belongs_to :company_group, optional: true
 
+  # Hierarchy - parent/subsidiary relationships
+  belongs_to :parent_company, class_name: 'Company', optional: true
+  has_many :subsidiaries, class_name: 'Company', foreign_key: 'parent_company_id', dependent: :nullify
+
+  # Investments - what this company owns (as shareholder)
+  has_many :investments, class_name: 'CompanyShareholding', as: :shareholder, dependent: :destroy
+
   has_many :company_directors, dependent: :destroy
   has_many :directors, through: :company_directors, source: :contact
   has_many :current_directors, -> { where(company_directors: { is_current: true }) },
@@ -49,6 +56,10 @@ class Company < ApplicationRecord
   scope :active, -> { where(status: 'active') }
   scope :by_group, ->(group) { where(company_group: group) }
   scope :with_xero, -> { joins(:company_xero_connection).where(company_xero_connections: { connection_status: 'connected' }) }
+  scope :top_level, -> { where(parent_company_id: nil) }
+  scope :with_parent, -> { where.not(parent_company_id: nil) }
+  scope :trustees, -> { where(is_trustee: true) }
+  scope :trusts, -> { where.not(trust_name: [nil, '']) }
   scope :compliance_due_soon, -> {
     joins(:company_compliance_items)
       .where('company_compliance_items.due_date BETWEEN ? AND ?', Date.today, 90.days.from_now)
@@ -185,19 +196,86 @@ class Company < ApplicationRecord
     read_attribute(:company_group)
   end
 
-  # Build SharePoint folder URL
-  def sharepoint_folder_url
-    return nil unless sharepoint_folder_name.present?
+  # Hierarchy methods
 
-    base_url = "https://gotekna.sharepoint.com/sites/TEEEM/Shared Documents/Corporate File"
+  # Get all ancestor companies (parent, grandparent, etc.)
+  def ancestors
+    result = []
+    current = parent_company
+    while current
+      result << current
+      current = current.parent_company
+    end
+    result
+  end
 
-    # URL encode the folder path
-    folder_path = ERB::Util.url_encode(sharepoint_folder_name)
+  # Get all descendant companies (children, grandchildren, etc.)
+  def descendants
+    subsidiaries.flat_map { |s| [s] + s.descendants }
+  end
 
-    "#{base_url}/#{folder_path}"
+  # Get the top-level parent (root of hierarchy)
+  def root_company
+    ancestors.last || self
+  end
+
+  # Check if this company is a subsidiary
+  def subsidiary?
+    parent_company_id.present?
+  end
+
+  # Check if this company has subsidiaries
+  def has_subsidiaries?
+    subsidiaries.exists?
+  end
+
+  # Build full hierarchy tree for this company
+  def hierarchy_tree
+    {
+      id: id,
+      name: name,
+      code: code,
+      entity_type: entity_type,
+      is_trustee: is_trustee,
+      trust_name: trust_name,
+      ownership_percentage: ownership_percentage_from_parent,
+      children: subsidiaries.includes(:subsidiaries).map(&:hierarchy_tree)
+    }
+  end
+
+  # Calculate ownership percentage from parent (if 100% owned)
+  def ownership_percentage_from_parent
+    return nil unless parent_company_id.present?
+
+    shareholding = company_shareholdings.find_by(
+      shareholder_type: 'Company',
+      shareholder_id: parent_company_id
+    )
+    shareholding&.percentage_of_total
+  end
+
+  # Set parent company based on majority shareholding
+  def set_parent_from_shareholdings!
+    # Find if there's a single company shareholder with 100% ownership
+    total_shares = shares_on_issue.to_i
+    return if total_shares.zero?
+
+    company_shareholdings.where(shareholder_type: 'Company').each do |sh|
+      percentage = (sh.number_of_shares.to_f / total_shares * 100).round(2)
+      if percentage >= 100
+        update!(parent_company_id: sh.shareholder_id, hierarchy_level: calculate_hierarchy_level(sh.shareholder_id))
+        return
+      end
+    end
   end
 
   private
+
+  def calculate_hierarchy_level(parent_id)
+    parent = Company.find_by(id: parent_id)
+    return 0 unless parent
+    parent.hierarchy_level + 1
+  end
 
   # Normalize ACN and ABN by removing all non-numeric characters
   def normalize_acn_abn

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_054647) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_060518) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -315,13 +315,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_054647) do
     t.string "sharepoint_folder_url"
     t.string "sharepoint_folder_name"
     t.string "entity_type", default: "company"
+    t.bigint "parent_company_id"
+    t.integer "hierarchy_level", default: 0
     t.index ["abbreviation"], name: "index_companies_on_abbreviation"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
     t.index ["code"], name: "index_companies_on_code", unique: true
     t.index ["company_group"], name: "index_companies_on_company_group"
+    t.index ["company_group_id", "parent_company_id"], name: "index_companies_on_group_and_parent"
     t.index ["company_group_id"], name: "index_companies_on_company_group_id"
     t.index ["name"], name: "index_companies_on_name"
+    t.index ["parent_company_id"], name: "index_companies_on_parent_company_id"
     t.index ["review_date"], name: "index_companies_on_review_date"
     t.index ["status"], name: "index_companies_on_status"
   end
@@ -507,6 +511,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_054647) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "shareholder_type", default: "Contact"
+    t.date "acquisition_date"
+    t.date "disposal_date"
+    t.string "certificate_number"
+    t.decimal "consideration_paid", precision: 15, scale: 2
     t.index ["beneficially_held"], name: "index_company_shareholdings_on_beneficially_held"
     t.index ["company_id", "shareholder_id", "share_class"], name: "idx_shareholdings_unique", unique: true
     t.index ["company_id"], name: "index_company_shareholdings_on_company_id"
@@ -3638,6 +3646,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_054647) do
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "columns", "foundations"
+  add_foreign_key "companies", "companies", column: "parent_company_id"
   add_foreign_key "companies", "company_groups"
   add_foreign_key "company_activities", "companies"
   add_foreign_key "company_activities", "users"
