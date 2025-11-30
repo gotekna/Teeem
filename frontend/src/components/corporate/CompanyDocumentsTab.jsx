@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   PlusIcon,
-  TrashIcon,
   DocumentTextIcon,
-  ArrowDownTrayIcon,
   FunnelIcon,
   CloudIcon,
   CheckCircleIcon,
@@ -12,6 +10,20 @@ import {
   ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline'
 import api from '../../api'
+import TeeemTableView from '../documentation/TeeemTableView'
+
+// Build column definitions for documents table
+const buildDocumentColumns = () => [
+  { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
+  { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
+  { key: 'title', label: 'Title', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 300, is_title: true },
+  { key: 'folder', label: 'Folder', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+  { key: 'document_type', label: 'Type', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
+  { key: 'source', label: 'Source', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
+  { key: 'file_size', label: 'Size', column_type: 'whole_number', resizable: true, sortable: true, filterable: false, width: 100 },
+  { key: 'document_date', label: 'Doc Date', column_type: 'date', resizable: true, sortable: true, filterable: true, filterType: 'date', width: 120 },
+  { key: 'created_at', label: 'Uploaded', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 }
+]
 
 export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'all' }) {
   const [documents, setDocuments] = useState([])
@@ -25,6 +37,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   const [sharepointConnected, setSharepointConnected] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
+  const [columns] = useState(buildDocumentColumns())
 
   // Document organization tabs
   const tabs = [
@@ -70,7 +83,15 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
       }
 
       const response = await api.get('/api/v1/company_documents', { params })
-      setDocuments(response.documents || [])
+      // Transform documents for table display
+      const transformedDocs = (response.documents || []).map(doc => ({
+        ...doc,
+        // Format file size for display
+        file_size_display: formatFileSize(doc.file_size),
+        // Add source badge info
+        source_display: doc.source === 'sharepoint' ? 'SharePoint' : 'Upload'
+      }))
+      setDocuments(transformedDocs)
     } catch (error) {
       console.error('Failed to load documents:', error)
     } finally {
@@ -150,18 +171,30 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
     }
   }
 
-  const handleDeleteDocument = async (documentId) => {
+  const handleDeleteDocument = async (doc) => {
     if (!confirm('Are you sure you want to delete this document?')) {
       return
     }
 
     try {
-      await api.delete(`/api/v1/company_documents/${documentId}`)
+      await api.delete(`/api/v1/company_documents/${doc.id}`)
       await loadDocuments()
       if (onUpdate) onUpdate()
     } catch (error) {
       console.error('Failed to delete document:', error)
       alert('Failed to delete document')
+    }
+  }
+
+  const handleBulkDelete = async (entries) => {
+    try {
+      const ids = entries.map(e => e.id)
+      await Promise.all(ids.map(id => api.delete(`/api/v1/company_documents/${id}`)))
+      await loadDocuments()
+      if (onUpdate) onUpdate()
+    } catch (err) {
+      console.error('Failed to bulk delete documents:', err)
+      alert('Failed to delete documents')
     }
   }
 
@@ -200,103 +233,133 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
     return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`
   }
 
-  const filteredDocuments = documents
+  // Custom row click to open document
+  const handleRowClick = (doc) => {
+    if (doc.file_url) {
+      window.open(doc.file_url, '_blank')
+    }
+  }
 
-  if (loading) {
+  // Custom cell renderer for certain columns
+  const customCellRenderer = (doc, column) => {
+    switch (column.key) {
+      case 'title':
+        return (
+          <div className="flex items-center gap-2">
+            <DocumentTextIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+            <span className="font-medium text-gray-900 dark:text-white">{doc.title}</span>
+          </div>
+        )
+      case 'source':
+        if (doc.source === 'sharepoint') {
+          return (
+            <span className="inline-flex items-center gap-x-1 rounded-full bg-purple-100 dark:bg-purple-900/30 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:text-purple-300">
+              <CloudIcon className="h-3 w-3" />
+              SharePoint
+            </span>
+          )
+        }
+        return (
+          <span className="inline-flex items-center rounded-full bg-gray-100 dark:bg-gray-800 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">
+            Upload
+          </span>
+        )
+      case 'file_size':
+        return <span className="text-gray-500 dark:text-gray-400">{formatFileSize(doc.file_size)}</span>
+      case 'folder':
+        return doc.folder ? (
+          <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
+            {doc.folder}
+          </span>
+        ) : null
+      case 'document_type':
+        return doc.document_type ? (
+          <span className="text-gray-600 dark:text-gray-400 capitalize">
+            {doc.document_type.replace(/_/g, ' ')}
+          </span>
+        ) : null
+      default:
+        return null
+    }
+  }
+
+  // Custom actions for the table header
+  const customActions = (
+    <div className="flex items-center gap-2">
+      {/* Filter Toggle */}
+      <button
+        onClick={() => setShowFilters(!showFilters)}
+        className={`inline-flex items-center gap-x-2 rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-inset h-[42px] ${
+          showFilters || selectedTab !== 'all' || selectedAsset !== 'all'
+            ? 'bg-indigo-600 text-white ring-indigo-600'
+            : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
+        }`}
+      >
+        <FunnelIcon className="h-4 w-4" />
+        Filters
+      </button>
+
+      {/* SharePoint Connection Status */}
+      {sharepointConnected && company.sharepoint_folder_url ? (
+        <a
+          href={selectedTab && selectedTab !== 'all'
+            ? `${company.sharepoint_folder_url}/${encodeURIComponent(selectedTab)}`
+            : company.sharepoint_folder_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer h-[42px]"
+        >
+          <CheckCircleIcon className="h-3.5 w-3.5" />
+          SharePoint
+          <ArrowTopRightOnSquareIcon className="h-3 w-3" />
+        </a>
+      ) : (
+        <span className="inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 h-[42px]">
+          <XCircleIcon className="h-3.5 w-3.5" />
+          SharePoint Offline
+        </span>
+      )}
+
+      {/* SharePoint Sync Button */}
+      {sharepointConnected && !showForm && (
+        <button
+          onClick={syncFromSharePoint}
+          disabled={syncing}
+          className="inline-flex items-center gap-x-1.5 rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 h-[42px]"
+        >
+          {syncing ? (
+            <>
+              <ArrowPathIcon className="h-4 w-4 animate-spin" />
+              Syncing...
+            </>
+          ) : (
+            <>
+              <CloudIcon className="h-4 w-4" />
+              Sync
+            </>
+          )}
+        </button>
+      )}
+
+      {/* Upload Button */}
+      {!showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+        >
+          <PlusIcon className="h-5 w-5" />
+          Upload
+        </button>
+      )}
+    </div>
+  )
+
+  if (loading && documents.length === 0) {
     return <div className="text-center py-8 text-gray-500 dark:text-gray-400">Loading documents...</div>
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header with Filters */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
-              Documents ({filteredDocuments.length})
-            </h3>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`inline-flex items-center gap-x-2 rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-inset ${
-                showFilters || selectedTab !== 'all' || selectedAsset !== 'all'
-                  ? 'bg-indigo-600 text-white ring-indigo-600'
-                  : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-              }`}
-            >
-              <FunnelIcon className="h-4 w-4" />
-              Filters
-            </button>
-          </div>
-          {company.sharepoint_folder_url && (
-            <a
-              href={selectedTab && selectedTab !== 'all'
-                ? `${company.sharepoint_folder_url}/${encodeURIComponent(selectedTab)}`
-                : company.sharepoint_folder_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline break-all"
-            >
-              {selectedTab && selectedTab !== 'all'
-                ? `${decodeURIComponent(company.sharepoint_folder_url)}/${selectedTab}`
-                : decodeURIComponent(company.sharepoint_folder_url)}
-            </a>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          {/* SharePoint Connection Status */}
-          {sharepointConnected && company.sharepoint_folder_url ? (
-            <a
-              href={selectedTab && selectedTab !== 'all'
-                ? `${company.sharepoint_folder_url}/${encodeURIComponent(selectedTab)}`
-                : company.sharepoint_folder_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer"
-            >
-              <CheckCircleIcon className="h-3.5 w-3.5" />
-              SharePoint Connected
-              <ArrowTopRightOnSquareIcon className="h-3 w-3" />
-            </a>
-          ) : (
-            <span className="inline-flex items-center gap-x-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
-              <XCircleIcon className="h-3.5 w-3.5" />
-              SharePoint Offline
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {/* SharePoint Sync Button */}
-          {sharepointConnected && !showForm && (
-            <button
-              onClick={syncFromSharePoint}
-              disabled={syncing}
-              className="inline-flex items-center gap-x-1.5 rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
-            >
-              {syncing ? (
-                <>
-                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                <>
-                  <CloudIcon className="h-4 w-4" />
-                  Sync from SharePoint
-                </>
-              )}
-            </button>
-          )}
-          {!showForm && (
-            <button
-              onClick={() => setShowForm(true)}
-              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
-            >
-              <PlusIcon className="h-4 w-4 mr-1" />
-              Upload Document
-            </button>
-          )}
-        </div>
-      </div>
-
+    <div className="space-y-4">
       {/* Sync Result Notification */}
       {syncResult && (
         <div className={`rounded-md p-4 ${
@@ -411,93 +474,26 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
           assets={assets}
           documentTypes={documentTypes}
         />
-      ) : filteredDocuments.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
-          <DocumentTextIcon className="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500" />
-          <h3 className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">No documents</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {selectedTab !== 'all' || selectedAsset !== 'all'
-              ? 'No documents match your filters.'
-              : 'Get started by uploading a document.'}
-          </p>
-        </div>
       ) : (
-        <div className="space-y-4">
-          {filteredDocuments.map((doc) => (
-            <div
-              key={doc.id}
-              className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start flex-1">
-                  <DocumentTextIcon className="h-8 w-8 text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">{doc.title}</h4>
-                    {doc.description && (
-                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{doc.description}</p>
-                    )}
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                      {doc.document_type_record && (
-                        <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:text-blue-300">
-                          {doc.document_type_record.name}
-                        </span>
-                      )}
-                      {doc.source === 'sharepoint' && (
-                        <span className="inline-flex items-center gap-x-1 rounded-full bg-purple-100 dark:bg-purple-900/30 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:text-purple-300">
-                          <CloudIcon className="h-3 w-3" />
-                          SharePoint
-                        </span>
-                      )}
-                      {doc.asset && (
-                        <span className="inline-flex items-center rounded-full bg-green-100 dark:bg-green-900/30 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:text-green-300">
-                          Asset: {doc.asset.abbreviation || doc.asset.name}
-                        </span>
-                      )}
-                      {doc.document_date && (
-                        <span>Date: {new Date(doc.document_date).toLocaleDateString()}</span>
-                      )}
-                      {doc.file_size && (
-                        <span>Size: {formatFileSize(doc.file_size)}</span>
-                      )}
-                      {doc.created_at && (
-                        <span>Uploaded: {new Date(doc.created_at).toLocaleDateString()}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2 ml-4">
-                  {doc.source === 'sharepoint' && doc.file_url ? (
-                    <a
-                      href={doc.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-x-1.5 rounded-md bg-purple-600 dark:bg-purple-700 px-2.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 dark:hover:bg-purple-600"
-                      title="Open in SharePoint"
-                    >
-                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                      SharePoint
-                    </a>
-                  ) : doc.file_url ? (
-                    <a
-                      href={doc.file_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-2.5 py-1.5 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4" />
-                    </a>
-                  ) : null}
-                  <button
-                    onClick={() => handleDeleteDocument(doc.id)}
-                    className="inline-flex items-center rounded-md bg-white dark:bg-gray-700 px-2.5 py-1.5 text-sm font-semibold text-red-600 dark:text-red-400 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-red-50 dark:hover:bg-red-900/20"
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        <TeeemTableView
+          foundationId="company-documents"
+          tableName={`Documents (${documents.length})`}
+          entries={documents}
+          columns={columns}
+          onDelete={handleDeleteDocument}
+          onBulkDelete={handleBulkDelete}
+          onRowClick={handleRowClick}
+          enableImport={false}
+          enableExport={true}
+          enableSchemaEditor={false}
+          hideUpdateViewButton={true}
+          customActions={customActions}
+          customCellRenderer={customCellRenderer}
+          emptyStateTitle="No documents"
+          emptyStateDescription={selectedTab !== 'all' || selectedAsset !== 'all'
+            ? 'No documents match your filters.'
+            : 'Get started by uploading a document or syncing from SharePoint.'}
+        />
       )}
     </div>
   )
