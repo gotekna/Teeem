@@ -85,39 +85,82 @@ export default function DocumentTabStructurePage() {
     const abbrev = docTypeName.split(' - ')[0] || docTypeName.split(' ')[0]
 
     const formats = {
+      // Tax Returns
       'CTR - Company Tax Return': '{CompanyCode} CTR FY{YY}',
       'TTR - Trust Tax Return': '{CompanyCode} TTR FY{YY}',
       'ITR - Individual Tax Return': '{CompanyCode} ITR FY{YY}',
       'BAS - Business Activity Statement': '{CompanyCode} BAS {Period} {Year}',
+      'Tax Consolidation Schedule': '{CompanyCode} Tax Consolidation Schedule FY{YY}',
+
+      // ASIC Documents
       'ASIC Annual Review': '{CompanyCode} ASIC Annual Review FY{YY}',
+      'ASIC Company Key': '{CompanyCode} ASIC Company Key {Date}',
       'ASIC Form 485 - Solvency Declaration': '{CompanyCode} Form 485 FY{YY}',
       'ASIC Form 484 - Director Changes': '{CompanyCode} Form 484 Directors {Date}',
       'ASIC Form 484 - Registered Office': '{CompanyCode} Form 484 Reg Office {Date}',
       'ASIC Form 484 - Secretary Changes': '{CompanyCode} Form 484 Secretary {Date}',
       'ASIC Documents': '{CompanyCode} ASIC {Description} {Date}',
+
+      // Assets
       'Asset': '{CompanyCode} {AssetCode} {Description} {Date}',
+      'Asset Insurance - Draft': '{CompanyCode} {AssetCode} Insurance DRAFT {Date}',
+      'Asset Insurance - Signed': '{CompanyCode} {AssetCode} Insurance SIGNED {Date}',
+      'Purchase Contract - Draft': '{CompanyCode} {AssetCode} Purchase Contract DRAFT {Date}',
+      'Purchase Contract - Signed': '{CompanyCode} {AssetCode} Purchase Contract SIGNED {Date}',
+      'Service Agreement - Draft': '{CompanyCode} {AssetCode} Service Agreement DRAFT {Date}',
+      'Service Agreement - Signed': '{CompanyCode} {AssetCode} Service Agreement SIGNED {Date}',
+
+      // Bank
       'Bank Statement': '{CompanyCode} {Bank} {Account} {Month} {Year}',
+
+      // Loans
+      'Loan Agreement': '{LenderCode} to {BorrowerCode} Loan {Date}',
+      'Loan Agreement - Draft': '{LenderCode} to {BorrowerCode} Loan DRAFT {Date}',
+      'Loan Agreement - Signed': '{LenderCode} to {BorrowerCode} Loan SIGNED {Date}',
+      'Security Deed': '{CompanyCode} Security Deed {Date}',
+      'Security Deed - Draft': '{CompanyCode} Security Deed DRAFT {Date}',
+      'Security Deed - Signed': '{CompanyCode} Security Deed SIGNED {Date}',
+      'PPSR Registration': '{CompanyCode} PPSR {AssetCode} {Date}',
+
+      // Minutes & Resolutions
       'Directors\' Minutes': '{CompanyCode} Minutes {Date}',
+      'Minutes - Draft': '{CompanyCode} Minutes DRAFT {Date}',
+      'Minutes - Signed': '{CompanyCode} Minutes SIGNED {Date}',
       'Directors\' Resolution - Distribution': '{CompanyCode} Distribution Resolution FY{YY}',
+
+      // Dividends & Distributions
       'Distribution': '{CompanyCode} Distribution {Date}',
+      'Distribution - Draft': '{CompanyCode} Distribution DRAFT {Date}',
+      'Distribution - Signed': '{CompanyCode} Distribution SIGNED {Date}',
       'Dividend Payment Record': '{CompanyCode} Dividend {Date}',
       'Gift Deed Return': '{CompanyCode} Gift Deed {Beneficiary} {Date}',
-      'Loan Agreement': '{LenderCode} to {BorrowerCode} Loan {Date}',
-      'Security Deed': '{CompanyCode} Security Deed {Date}',
-      'PPSR Registration': '{CompanyCode} PPSR {AssetCode} {Date}',
-      'Trust Deed': '{CompanyCode} Trust Deed {Date}',
+
+      // Financials
       'Draft Financials': '{CompanyCode} Draft Financials FY{YY}',
       'Final Financials': '{CompanyCode} Final Financials FY{YY}',
-      'Constitution': '{CompanyCode} Constitution {Date}',
-      'Corporate Key': '{CompanyCode} Corporate Key {Date}',
+
+      // Registry
       'Share Certificate': '{CompanyCode} Share Certificate {ShareholderCode} {Date}',
       'Share Transfer': '{CompanyCode} Share Transfer {Date}',
+      'Share Registry': '{CompanyCode} Share Registry {Date}',
       'Register of Members': '{CompanyCode} Register of Members {Date}',
       'Register of Directors': '{CompanyCode} Register of Directors {Date}',
       'Register of Charges': '{CompanyCode} Register of Charges {Date}',
       'Register of Debentures': '{CompanyCode} Register of Debentures {Date}',
       'Allotment Journal': '{CompanyCode} Allotment Journal {Date}',
       'Common Seal Register': '{CompanyCode} Common Seal Register {Date}',
+
+      // Company Setup & Structure
+      'Constitution': '{CompanyCode} Constitution {Date}',
+      'Corporate Key': '{CompanyCode} Corporate Key {Date}',
+      'Trust Deed': '{CompanyCode} Trust Deed {Date}',
+      'Structure': '{CompanyCode} Structure {Description} {Date}',
+      'Trust': '{CompanyCode} Trust {Description} {Date}',
+      'Company Setup': '{CompanyCode} Setup {Document} {Date}',
+      'Formation Documents': '{CompanyCode} Formation Documents {Date}',
+      'Certificate of Registration': '{CompanyCode} Certificate of Registration {Date}',
+
+      // Other Documents
       'Occupier Consent': '{CompanyCode} Occupier Consent {Date}',
       'Consent to Act': '{CompanyCode} Consent to Act {Role} {Person} {Date}',
       'Notice of Appointment': '{CompanyCode} Notice {Role} {Person} {Date}',
@@ -125,12 +168,7 @@ export default function DocumentTabStructurePage() {
       'Deed of Novation': '{CompanyCode} Deed of Novation {Date}',
       'Deed of Variation': '{CompanyCode} Deed of Variation {Date}',
       'Engagement Letter': '{CompanyCode} Engagement Letter {Date}',
-      'Formation Documents': '{CompanyCode} Formation Documents {Date}',
-      'Certificate of Registration': '{CompanyCode} Certificate of Registration {Date}',
-      'Structure': '{CompanyCode} Structure {Description} {Date}',
-      'Tax Consolidation Schedule': '{CompanyCode} Tax Consolidation Schedule FY{YY}',
-      'Trust': '{CompanyCode} Trust {Description} {Date}',
-      'Company Setup': '{CompanyCode} Setup {Document} {Date}',
+      'ATO Documents': '{CompanyCode} ATO {Description} {Date}',
       'General': '{CompanyCode} {Description} {Date}'
     }
 
