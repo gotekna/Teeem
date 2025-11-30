@@ -942,6 +942,8 @@ Rails.application.routes.draw do
       post 'organization_onedrive/use_personal_drive', to: 'organization_onedrive#use_personal_drive'
       post 'organization_onedrive/sync_corporate_documents', to: 'organization_onedrive#sync_corporate_documents'
       get 'organization_onedrive/search', to: 'organization_onedrive#search'
+      get 'organization_onedrive/preview_private_folders', to: 'organization_onedrive#preview_private_folders'
+      post 'organization_onedrive/create_private_folders', to: 'organization_onedrive#create_private_folders'
 
       # Schema information
       get 'schema', to: 'schema#index'

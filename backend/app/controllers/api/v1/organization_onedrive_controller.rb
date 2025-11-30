@@ -1025,6 +1025,54 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/preview_private_folders
+      # Preview the folder structure that would be created in 00 - Private
+      def preview_private_folders
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          service = CorporateOneDriveService.new
+          structure = service.preview_private_folder_structure
+
+          render json: {
+            success: true,
+            structure: structure
+          }
+        rescue StandardError => e
+          Rails.logger.error "Failed to preview private folders: #{e.message}"
+          render json: { error: "Failed to preview: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/create_private_folders
+      # Create the folder structure in 00 - Private for all company groups
+      def create_private_folders
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          service = CorporateOneDriveService.new
+          result = service.create_private_folder_structure!
+
+          render json: {
+            success: true,
+            message: "Created #{result[:stats][:folders_created]} folders, skipped #{result[:stats][:folders_skipped]} existing",
+            result: result
+          }
+        rescue StandardError => e
+          Rails.logger.error "Failed to create private folders: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to create folders: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/organization_onedrive/sync_corporate_documents
       # Sync corporate documents from OneDrive to company records
       def sync_corporate_documents

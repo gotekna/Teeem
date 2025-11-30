@@ -99,6 +99,37 @@ class Company < ApplicationRecord
     company_xero_connection.present? && company_xero_connection.connection_status == 'connected'
   end
 
+  # SharePoint folder URL for this company's root folder in 00 - Private
+  # Structure: 00 - Private / [Group Name] / [Company Name]
+  def sharepoint_folder_url
+    return nil unless company_group.present?
+
+    credential = OrganizationOneDriveCredential.active_credential
+    return nil unless credential&.metadata&.dig('site_web_url')
+
+    base_url = credential.metadata['site_web_url']
+    group_name = company_group.name
+    company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
+
+    # URL encode the path components
+    encoded_path = [
+      '00 - Private',
+      group_name,
+      company_folder_name
+    ].map { |p| ERB::Util.url_encode(p) }.join('/')
+
+    "#{base_url}/Shared%20Documents/#{encoded_path}"
+  end
+
+  # SharePoint folder URL for a specific document type/tab folder
+  # Structure: 00 - Private / [Group Name] / [Company Name] / [Folder Name]
+  def sharepoint_folder_url_for_tab(folder_name)
+    base_url = sharepoint_folder_url
+    return nil unless base_url
+
+    "#{base_url}/#{ERB::Util.url_encode(folder_name)}"
+  end
+
   def overdue_compliance_items
     company_compliance_items.where('due_date < ? AND completed = ?', Date.today, false)
   end

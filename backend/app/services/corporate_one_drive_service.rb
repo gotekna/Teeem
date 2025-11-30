@@ -88,6 +88,135 @@ class CorporateOneDriveService
     results
   end
 
+  # Document type folders that should be created for each company
+  DOCUMENT_TYPE_FOLDERS = %w[
+    ADVICE
+    ASIC
+    ASSETS
+    ATO
+    BANK
+    DIVIDENDS
+    FINANCIALS
+    GENERAL
+    LOANS
+    MINUTES
+    REGISTRY
+  ].freeze
+
+  # Preview the folder structure that would be created in 00 - Private
+  # Returns a hash describing the structure without creating anything
+  def preview_private_folder_structure(dry_run: true)
+    structure = {
+      root: '00 - Private',
+      groups: []
+    }
+
+    CompanyGroup.includes(:companies).order(:name).each do |group|
+      group_info = {
+        name: group.name,
+        folder_path: "00 - Private/#{group.name}",
+        entities: []
+      }
+
+      group.companies.order(:name).each do |company|
+        company_folder_name = "#{company.code.presence || company.name[0..2].upcase} - #{company.name}"
+        entity_info = {
+          id: company.id,
+          name: company.name,
+          code: company.code,
+          entity_type: company.entity_type,
+          folder_name: company_folder_name,
+          folder_path: "00 - Private/#{group.name}/#{company_folder_name}",
+          subfolders: DOCUMENT_TYPE_FOLDERS.map do |folder|
+            {
+              name: folder,
+              path: "00 - Private/#{group.name}/#{company_folder_name}/#{folder}"
+            }
+          end
+        }
+        group_info[:entities] << entity_info
+      end
+
+      structure[:groups] << group_info if group_info[:entities].any?
+    end
+
+    structure[:summary] = {
+      total_groups: structure[:groups].count,
+      total_entities: structure[:groups].sum { |g| g[:entities].count },
+      total_folders: structure[:groups].sum { |g| g[:entities].count * (DOCUMENT_TYPE_FOLDERS.count + 1) } + structure[:groups].count + 1
+    }
+
+    structure
+  end
+
+  # Create the entire folder structure in 00 - Private
+  # Structure: 00 - Private / [Group Name] / [Company Name] / [Document Type Folders]
+  def create_private_folder_structure!
+    Rails.logger.info "Creating private folder structure..."
+
+    # Get or create 00 - Private folder
+    private_folder = create_or_find_folder('00 - Private')
+    private_folder_id = private_folder['id']
+
+    results = {
+      private_folder_id: private_folder_id,
+      groups: [],
+      stats: @stats
+    }
+
+    CompanyGroup.includes(:companies).order(:name).each do |group|
+      Rails.logger.info "Creating folder for group: #{group.name}"
+
+      # Create group folder
+      group_folder = create_or_find_folder(group.name, parent_id: private_folder_id)
+      group_folder_id = group_folder['id']
+
+      group_result = {
+        name: group.name,
+        folder_id: group_folder_id,
+        entities: []
+      }
+
+      group.companies.order(:name).each do |company|
+        company_folder_name = "#{company.code.presence || company.name[0..2].upcase} - #{company.name}"
+        Rails.logger.info "  Creating folder for company: #{company_folder_name}"
+
+        # Create company folder
+        company_folder = create_or_find_folder(company_folder_name, parent_id: group_folder_id)
+        company_folder_id = company_folder['id']
+
+        # Create document type subfolders
+        subfolders_created = []
+        DOCUMENT_TYPE_FOLDERS.each do |folder_name|
+          subfolder = create_or_find_folder(folder_name, parent_id: company_folder_id)
+          subfolders_created << { name: folder_name, id: subfolder['id'] }
+        end
+
+        # Update company with OneDrive folder info
+        company.update_columns(
+          onedrive_folder_id: company_folder_id,
+          onedrive_folder_path: "00 - Private/#{group.name}/#{company_folder_name}"
+        )
+
+        group_result[:entities] << {
+          id: company.id,
+          name: company.name,
+          folder_id: company_folder_id,
+          folder_name: company_folder_name,
+          subfolders: subfolders_created
+        }
+      end
+
+      results[:groups] << group_result
+    end
+
+    results[:stats] = @stats
+    results
+  rescue MicrosoftGraphClient::APIError => e
+    @stats[:errors] << "Failed to create private folder structure: #{e.message}"
+    { success: false, error: e.message, stats: @stats }
+  end
+
   # Scan company folder and categorise documents
   def scan_company_documents(company)
     return { success: false, error: 'Company has no OneDrive folder' } unless company.onedrive_folder_id.present?
