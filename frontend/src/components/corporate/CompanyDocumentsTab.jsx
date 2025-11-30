@@ -253,8 +253,9 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   }
 
   // Custom cell renderer for certain columns
-  const customCellRenderer = (doc, column) => {
-    switch (column.key) {
+  // Note: TeeemTableView calls this as (entry, columnKey, options) where columnKey is a string
+  const customCellRenderer = (doc, columnKey) => {
+    switch (columnKey) {
       case 'preview':
         return (
           <button
