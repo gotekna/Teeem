@@ -4912,7 +4912,6 @@ export default function TeeemTableView({
       <div
         className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0"
         style={{ overflow: 'clip' }}
-        onScroll={(e) => console.log('[DEBUG] TeeemTableView outer scrolled:', e.target.scrollTop)}
       >
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
@@ -5674,7 +5673,6 @@ export default function TeeemTableView({
         <div
           className="flex-1 flex flex-col min-h-0"
           style={{ overflow: 'clip' }}
-          onScroll={(e) => console.log('[DEBUG] TeeemTableView main content scrolled:', e.target.scrollTop)}
         >
 
         {/* Filters row */}

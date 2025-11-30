@@ -213,7 +213,7 @@ export default function CorporateDashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex-1 overflow-y-auto overscroll-none p-6 space-y-6">
       {/* Header */}
       <div className="border-b border-gray-200 pb-5">
         <h1 className="text-3xl font-bold text-gray-900">Corporate Dashboard</h1>

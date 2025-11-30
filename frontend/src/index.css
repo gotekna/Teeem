@@ -11,23 +11,24 @@
 
 @tailwind utilities;
 
-/* Prevent Mac rubber-band scroll effect */
-html, body {
-  overflow: clip;
+/* Prevent Mac rubber-band scroll effect at document level */
+html {
+  overflow: hidden;
   overscroll-behavior: none;
   height: 100%;
-  position: fixed;
-  width: 100%;
 }
 
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
+  height: 100%;
 }
 
 #root {
   height: 100%;
-  overflow: clip;
+  overflow: hidden;
   overscroll-behavior: none;
 }
 

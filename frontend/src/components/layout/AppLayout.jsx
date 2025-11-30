@@ -780,34 +780,6 @@ export default function AppLayout({ children }) {
     setSidebarCollapsed(newPreference)
   }, [location.pathname])
 
-  // Debug: Find scrollable elements on mount
-  useEffect(() => {
-    const findScrollableElements = () => {
-      const all = document.querySelectorAll('*')
-      const scrollable = []
-      all.forEach(el => {
-        if (el.scrollHeight > el.clientHeight + 5) {
-          const style = window.getComputedStyle(el)
-          const overflow = style.overflow + ' ' + style.overflowY
-          scrollable.push({
-            tag: el.tagName,
-            class: el.className?.toString().substring(0, 80),
-            id: el.id,
-            scrollHeight: el.scrollHeight,
-            clientHeight: el.clientHeight,
-            overflow: overflow,
-            diff: el.scrollHeight - el.clientHeight
-          })
-        }
-      })
-      console.log('[SCROLL DEBUG] Scrollable elements found:', scrollable.length)
-      scrollable.forEach((s, i) => console.log(`[SCROLL DEBUG] ${i}:`, s))
-    }
-
-    // Run after render
-    setTimeout(findScrollableElements, 2000)
-  }, [])
-
   // Save sidebar preference to localStorage when toggled (per-route)
   const handleSidebarToggle = () => {
     const newValue = !sidebarCollapsed
@@ -849,10 +821,7 @@ export default function AppLayout({ children }) {
   }
 
   return (
-    <div
-      style={{ overflow: 'clip', height: '100vh' }}
-      onScroll={(e) => console.log('[DEBUG] ROOT div scrolled:', e.target.scrollTop)}
-    >
+    <div style={{ overflow: 'clip', height: '100vh' }}>
       {/* Mobile sidebar */}
       <Dialog open={sidebarOpen} onClose={setSidebarOpen} className="relative z-50 lg:hidden">
         <DialogBackdrop
@@ -2610,7 +2579,6 @@ export default function AppLayout({ children }) {
           overflow: 'clip',
           ...(sidebarCollapsed ? {} : { paddingLeft: sidebarWidth })
         }}
-        onScroll={(e) => console.log('[DEBUG] Main content area scrolled:', e.target.scrollTop)}
       >
         {/* Top bar - always visible with help button */}
         <div className="z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
@@ -2766,16 +2734,8 @@ export default function AppLayout({ children }) {
         </div>
 
         {/* Main content */}
-        <main
-          className="flex-1 flex flex-col min-h-0"
-          style={{ overflow: 'clip' }}
-          onScroll={(e) => console.log('[DEBUG] MAIN element scrolled:', e.target.scrollTop)}
-        >
-          <div
-            className="flex-1 flex flex-col min-h-0"
-            style={{ overflow: 'clip' }}
-            onScroll={(e) => console.log('[DEBUG] MAIN inner div scrolled:', e.target.scrollTop)}
-          >
+        <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {children}
           </div>
         </main>

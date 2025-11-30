@@ -956,7 +956,6 @@ export default function TablePage({ embedded = false }) {
       className={`${embedded ? '' : 'px-4 sm:px-6 lg:px-8 py-2'} flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-900`}
       ref={tableContainerRef}
       style={{ overflow: 'clip' }}
-      onScroll={(e) => console.log('[DEBUG] TablePage container scrolled:', e.target.scrollTop)}
     >
 
       {/* Progressive Loading Notification Banner (Table 205) */}
