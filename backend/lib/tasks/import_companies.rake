@@ -107,9 +107,9 @@ namespace :corporate do
         cd = CompanyDirector.find_or_initialize_by(
           company: company,
           contact: contact,
-          role: 'director'
+          position: 'director'
         )
-        cd.appointed_date ||= appointed_date
+        cd.appointment_date ||= appointed_date
         cd.is_current = true
         if cd.new_record? || cd.changed?
           cd.save!
@@ -137,9 +137,9 @@ namespace :corporate do
         cd = CompanyDirector.find_or_initialize_by(
           company: company,
           contact: contact,
-          role: 'secretary'
+          position: 'secretary'
         )
-        cd.appointed_date ||= appointed_date
+        cd.appointment_date ||= appointed_date
         cd.is_current = true
         if cd.new_record? || cd.changed?
           cd.save!
