@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy, :download, :validate, :ai_verify, :apply_ai_suggestion]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :validate, :ai_verify, :apply_ai_suggestion, :relocate]
 
       # GET /api/v1/company_documents
       def index
@@ -209,6 +209,47 @@ module Api
             methods: [:formatted_document_type, :file_size_mb]
           )
         }
+      end
+
+      # POST /api/v1/company_documents/:id/relocate
+      # Moves/renames document in OneDrive and updates metadata
+      def relocate
+        relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, financial_years: [])
+
+        service = DocumentRelocateService.new(@document)
+        result = service.relocate!(
+          new_company_id: relocate_params[:company_id],
+          new_folder: relocate_params[:folder],
+          new_title: relocate_params[:title]
+        )
+
+        if result[:success]
+          # Update financial years if provided (not handled by relocate service)
+          if relocate_params[:financial_years].present?
+            @document.update!(financial_years: relocate_params[:financial_years])
+          end
+
+          @document.reload
+
+          render json: {
+            success: true,
+            message: result[:message] || 'Document relocated successfully',
+            skipped: result[:skipped],
+            actions: result[:actions],
+            document: @document.as_json(
+              include: {
+                company: { only: [:id, :name, :code] },
+                user: { only: [:id, :name, :email] }
+              },
+              methods: [:formatted_document_type, :file_size_mb]
+            )
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
       end
 
       private
