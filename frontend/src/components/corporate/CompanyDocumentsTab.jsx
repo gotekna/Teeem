@@ -23,6 +23,7 @@ const buildDocumentColumns = () => [
   { key: 'preview', label: '', resizable: false, sortable: false, filterable: false, width: 40 },
   { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
   { key: 'display_title', label: 'Document', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 350, is_title: true },
+  { key: 'validated', label: 'Validated', column_type: 'checkbox', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
   { key: 'financial_years', label: 'FY', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
   { key: 'folder', label: 'Folder', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
   { key: 'document_type', label: 'Type', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
@@ -101,7 +102,11 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
         // Add source badge info
         source_display: doc.source === 'sharepoint' ? 'SharePoint' : 'Upload',
         // Format financial years as comma-separated string (e.g., "2021" or "2021, 2022")
-        financial_years: doc.financial_years?.length > 0 ? doc.financial_years.join(', ') : ''
+        financial_years: doc.financial_years?.length > 0 ? doc.financial_years.join(', ') : '',
+        // Compute validated status: user validated or AI verified
+        validated: doc.user_validated_at || doc.ai_verification_status === 'verified',
+        // Store validation source for tooltip
+        validation_source: doc.user_validated_at ? 'user' : (doc.ai_verification_status === 'verified' ? 'ai' : null)
       }))
       setDocuments(transformedDocs)
     } catch (error) {
@@ -274,6 +279,19 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
             <span className="font-medium text-gray-900 dark:text-white">{doc.display_title || doc.title}</span>
+          </div>
+        )
+      case 'validated':
+        if (doc.validated) {
+          return (
+            <div className="flex justify-center" title={doc.validation_source === 'user' ? 'Validated by user' : 'Validated by AI'}>
+              <CheckCircleIcon className={`h-5 w-5 ${doc.validation_source === 'ai' ? 'text-blue-500' : 'text-green-500'}`} />
+            </div>
+          )
+        }
+        return (
+          <div className="flex justify-center" title="Not validated">
+            <span className="h-5 w-5 rounded-full border-2 border-gray-300 dark:border-gray-600" />
           </div>
         )
       case 'source':
