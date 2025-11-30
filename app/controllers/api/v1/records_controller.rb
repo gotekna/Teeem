@@ -27,6 +27,12 @@ module Api
         model = @foundation.dynamic_model
         query = model.all
 
+        # Apply duplicates_only filter for Contacts
+        if params[:duplicates_only] == 'true' && model.table_name == 'contacts'
+          duplicate_ids = find_duplicate_contact_ids
+          query = query.where(id: duplicate_ids)
+        end
+
         # Apply search filter
         if search.present?
           searchable_columns = if @foundation.table_type == 'system'
@@ -451,6 +457,26 @@ module Api
         end
 
         lookup_cache
+      end
+
+      # Find all contact IDs that are possible duplicates (share normalized name with another contact)
+      def find_duplicate_contact_ids
+        contacts_by_name = Contact.where(deleted: [false, nil])
+          .select(:id, :full_name)
+          .group_by { |c| normalize_contact_name(c.full_name) }
+
+        duplicate_ids = []
+        contacts_by_name.each do |normalized_name, contacts|
+          next if normalized_name.blank?
+          next if contacts.size < 2
+          duplicate_ids.concat(contacts.map(&:id))
+        end
+        duplicate_ids
+      end
+
+      def normalize_contact_name(name)
+        return nil if name.blank?
+        name.to_s.downcase.gsub(/\s+/, ' ').strip
       end
     end
   end
