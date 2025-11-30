@@ -4,7 +4,7 @@ class DocumentType < ApplicationRecord
 
   # Validations
   validates :name, presence: true, uniqueness: true
-  validates :category, inclusion: { in: %w[corporate tax compliance general], allow_blank: true }
+  validates :category, inclusion: { in: %w[corporate tax compliance general financial], allow_blank: true }
 
   # Scopes
   scope :active, -> { where(active: true) }
