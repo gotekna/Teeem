@@ -3,6 +3,7 @@ class CompanyDocument < ApplicationRecord
   belongs_to :company
   belongs_to :user, optional: true
   belongs_to :asset, optional: true
+  belongs_to :loan, class_name: 'CompanyLoan', optional: true
   belongs_to :document_type_record, class_name: 'DocumentType', foreign_key: 'document_type_id', optional: true
 
   # Active Storage for file upload
