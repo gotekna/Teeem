@@ -104,17 +104,23 @@ namespace :corporate do
           nil
         end
 
-        cd = CompanyDirector.find_or_initialize_by(
-          company: company,
-          contact: contact,
-          position: 'director'
-        )
-        cd.appointment_date ||= appointed_date
-        cd.is_current = true
-        if cd.new_record? || cd.changed?
-          cd.save!
-          directors_count += 1
-          puts "  Director: #{contact.full_name} (appointed: #{appointed_date})"
+        # Check if already exists (any position)
+        existing = CompanyDirector.find_by(company: company, contact: contact, is_current: true)
+        if existing
+          puts "  Director already exists: #{contact.full_name}"
+        else
+          cd = CompanyDirector.find_or_initialize_by(
+            company: company,
+            contact: contact,
+            position: 'director'
+          )
+          cd.appointment_date ||= appointed_date
+          cd.is_current = true
+          if cd.new_record? || cd.changed?
+            cd.save!
+            directors_count += 1
+            puts "  Director: #{contact.full_name} (appointed: #{appointed_date})"
+          end
         end
       end
 
@@ -134,17 +140,23 @@ namespace :corporate do
           nil
         end
 
-        cd = CompanyDirector.find_or_initialize_by(
-          company: company,
-          contact: contact,
-          position: 'secretary'
-        )
-        cd.appointment_date ||= appointed_date
-        cd.is_current = true
-        if cd.new_record? || cd.changed?
-          cd.save!
-          directors_count += 1
-          puts "  Secretary: #{contact.full_name} (appointed: #{appointed_date})"
+        # Check if already exists (any position)
+        existing = CompanyDirector.find_by(company: company, contact: contact, is_current: true)
+        if existing
+          puts "  Secretary already exists: #{contact.full_name}"
+        else
+          cd = CompanyDirector.find_or_initialize_by(
+            company: company,
+            contact: contact,
+            position: 'secretary'
+          )
+          cd.appointment_date ||= appointed_date
+          cd.is_current = true
+          if cd.new_record? || cd.changed?
+            cd.save!
+            directors_count += 1
+            puts "  Secretary: #{contact.full_name} (appointed: #{appointed_date})"
+          end
         end
       end
     end
