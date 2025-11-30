@@ -32,6 +32,11 @@ export default function OneDriveConnection() {
   const [previewMatches, setPreviewMatches] = useState([])
   const [loadingPreview, setLoadingPreview] = useState(false)
 
+  // Corporate Document Sync state
+  const [corporateFolderPath, setCorporateFolderPath] = useState('Corporate File')
+  const [syncingCorporate, setSyncingCorporate] = useState(false)
+  const [corporateSyncResult, setCorporateSyncResult] = useState(null)
+
   // Fetch connection status on mount and handle OAuth callback
   useEffect(() => {
     let isMounted = true
@@ -304,6 +309,47 @@ export default function OneDriveConnection() {
     }
   }
 
+  // Build SharePoint URL for corporate folder
+  const getCorporateSharePointUrl = () => {
+    // This points to the Corporate File folder in the connected SharePoint site
+    if (status.metadata?.web_url) {
+      // Use the connected SharePoint site URL
+      const baseUrl = status.metadata.web_url.replace(/\/[^/]*$/, '')
+      return `${baseUrl}/Corporate%20File`
+    }
+    // Fallback to Robert's personal SharePoint
+    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FAccounts%20%2D%20Internal%2FCorporate%20File`
+  }
+
+  const handleSyncCorporateDocuments = async () => {
+    try {
+      setSyncingCorporate(true)
+      setCorporateSyncResult(null)
+      setMessage(null)
+
+      const response = await api.post('/api/v1/organization_onedrive/sync_corporate_documents', {
+        folder_path: corporateFolderPath
+      })
+
+      setCorporateSyncResult(response)
+      setMessage({
+        type: 'success',
+        text: `Synced ${response.documents_linked || 0} documents to ${response.companies_scanned || 0} companies!`,
+      })
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text: err.message || 'Failed to sync corporate documents',
+      })
+      setCorporateSyncResult({
+        success: false,
+        errors: [err.message || 'Unknown error occurred']
+      })
+    } finally {
+      setSyncingCorporate(false)
+    }
+  }
+
   const handleChangeRootFolder = async () => {
     if (!newRootFolderName || newRootFolderName.trim() === '') {
       setMessage({
@@ -362,6 +408,14 @@ export default function OneDriveConnection() {
       const folderPath = folder.path || folder.name
       setNewRootFolderName(folderPath)
       setEditingRootFolder(true)
+    } else if (folderPickerMode === 'corporate') {
+      // Update corporate sync folder path
+      const folderPath = folder.path || folder.name
+      setCorporateFolderPath(folderPath)
+      setMessage({
+        type: 'success',
+        text: `Selected folder: ${folderPath}`,
+      })
     }
 
     setShowFolderPicker(false)
@@ -665,6 +719,108 @@ export default function OneDriveConnection() {
                       </div>
                     </div>
 
+                    {/* Corporate Document Sync Section */}
+                    <div className="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Corporate Document Sync</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        Sync corporate documents (constitutions, minutes, ASIC documents) from OneDrive to company records. Documents are matched by company folder name.
+                      </p>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label htmlFor="corporate-folder-path" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            OneDrive Folder Path
+                          </label>
+                          <div className="mt-1 flex items-center gap-x-2">
+                            <input
+                              type="text"
+                              id="corporate-folder-path"
+                              value={corporateFolderPath}
+                              onChange={(e) => setCorporateFolderPath(e.target.value)}
+                              placeholder="Corporate File"
+                              className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleOpenFolderPicker('corporate')}
+                              className="inline-flex items-center rounded-md bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                            >
+                              Browse
+                            </button>
+                          </div>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Folder containing company subfolders with corporate documents
+                          </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                          <button
+                            type="button"
+                            onClick={handleSyncCorporateDocuments}
+                            disabled={syncingCorporate}
+                            className="flex-1 rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+                          >
+                            {syncingCorporate ? (
+                              <span className="flex items-center justify-center gap-x-2">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                                Syncing...
+                              </span>
+                            ) : (
+                              'Sync Documents'
+                            )}
+                          </button>
+                          <a
+                            href={getCorporateSharePointUrl()}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center rounded-md bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-100 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/30 dark:hover:bg-blue-400/20"
+                          >
+                            View in OneDrive
+                          </a>
+                        </div>
+
+                        {corporateSyncResult && (
+                          <div className="mt-3 rounded-md bg-white p-3 shadow-sm dark:bg-gray-900">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                              Sync Results:
+                            </p>
+                            <ul className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                              {corporateSyncResult.success !== false ? (
+                                <>
+                                  <li>✓ {corporateSyncResult.companies_scanned || 0} companies scanned</li>
+                                  <li>✓ {corporateSyncResult.documents_found || 0} documents found</li>
+                                  <li>✓ {corporateSyncResult.documents_linked || 0} documents linked</li>
+                                </>
+                              ) : (
+                                <li className="text-red-600 dark:text-red-400">
+                                  ✗ Sync failed
+                                </li>
+                              )}
+                              {corporateSyncResult.errors && corporateSyncResult.errors.length > 0 && (
+                                <li className="text-amber-600 dark:text-amber-400">
+                                  ⚠ {corporateSyncResult.errors.length} errors/warnings
+                                </li>
+                              )}
+                            </ul>
+
+                            {/* Show errors details */}
+                            {corporateSyncResult.errors && corporateSyncResult.errors.length > 0 && (
+                              <details className="mt-3">
+                                <summary className="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300">
+                                  View errors/warnings ({corporateSyncResult.errors.length})
+                                </summary>
+                                <ul className="mt-2 ml-4 space-y-1 text-xs text-gray-600 dark:text-gray-400 max-h-40 overflow-y-auto">
+                                  {corporateSyncResult.errors.map((error, idx) => (
+                                    <li key={idx}>• {error}</li>
+                                  ))}
+                                </ul>
+                              </details>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => setShowDisconnectDialog(true)}
@@ -735,7 +891,7 @@ export default function OneDriveConnection() {
           setFolderPickerMode(null)
         }}
         onSelect={handleFolderSelected}
-        title={folderPickerMode === 'sync' ? 'Select Pricebook Images Folder' : 'Select Root Folder'}
+        title={folderPickerMode === 'sync' ? 'Select Pricebook Images Folder' : folderPickerMode === 'corporate' ? 'Select Corporate Documents Folder' : 'Select Root Folder'}
       />
 
       {/* Match Preview Dialog */}

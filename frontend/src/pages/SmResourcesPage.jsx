@@ -426,9 +426,9 @@ export default function SmResourcesPage() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50">
+      {/* Fixed Header with Tabs */}
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <UserGroupIcon className="w-8 h-8 text-gray-400" />
@@ -507,15 +507,17 @@ export default function SmResourcesPage() {
         </div>
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
-        </div>
-      )}
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {/* Error message */}
+        {error && (
+          <div className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
 
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden p-6 gap-6">
+        {/* Main content */}
+        <div className="flex-1 flex h-full overflow-hidden p-6 gap-6">
         {/* Resource list sidebar */}
         <div className="w-72 flex-shrink-0 bg-white border border-gray-200 rounded-lg overflow-hidden flex flex-col">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
@@ -572,6 +574,7 @@ export default function SmResourcesPage() {
               className="h-full"
             />
           )}
+        </div>
         </div>
       </div>
 

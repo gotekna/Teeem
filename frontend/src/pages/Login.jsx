@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import axios from 'axios'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -16,6 +17,39 @@ export default function Login() {
     setFormData({ ...formData, [e.target.name]: e.target.value })
   }
 
+  // Auto-connect Microsoft after login if not already connected
+  const autoConnectMicrosoft = async (token) => {
+    try {
+      // Check Microsoft status
+      const statusResponse = await axios.get('/api/v1/microsoft/status', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      // If not connected, redirect to Microsoft OAuth
+      if (!statusResponse.data.connected) {
+        const authUrlResponse = await axios.get('/api/v1/microsoft/auth_url', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+
+        // Open OAuth in popup (same as manual connect)
+        const authUrl = authUrlResponse.data.auth_url
+        const width = 600
+        const height = 700
+        const left = window.screenX + (window.outerWidth - width) / 2
+        const top = window.screenY + (window.outerHeight - height) / 2
+
+        window.open(
+          authUrl,
+          'microsoft-oauth',
+          `width=${width},height=${height},left=${left},top=${top}`
+        )
+      }
+    } catch (err) {
+      // Silently fail - user can connect later from settings
+      console.log('Auto Microsoft connect skipped:', err.message)
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -24,6 +58,12 @@ export default function Login() {
     const result = await login(formData.email, formData.password)
 
     if (result.success) {
+      // Get the token from localStorage (set by login)
+      const token = localStorage.getItem('token')
+
+      // Auto-connect Microsoft in background (non-blocking)
+      autoConnectMicrosoft(token)
+
       navigate('/dashboard')
     } else {
       setError(result.error || 'Login failed. Please try again.')

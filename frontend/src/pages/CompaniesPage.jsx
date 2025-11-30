@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { PlusIcon } from '@heroicons/react/24/outline'
+import { PlusIcon, FolderIcon } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import TeeemTableView from '../components/documentation/TeeemTableView'
 import Toast from '../components/Toast'
@@ -8,27 +8,107 @@ import Toast from '../components/Toast'
 // Table ID for Companies (from foundations table)
 const COMPANIES_TABLE_ID = 353
 
-// Column definitions matching the companies table
-const buildCompaniesColumns = () => [
-  { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
-  { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
-  { key: 'name', label: 'Company Name', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 250, is_title: true },
-  { key: 'company_group', label: 'Group', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
-  { key: 'status', label: 'Status', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
-  { key: 'formatted_acn', label: 'ACN', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 130 },
-  { key: 'formatted_abn', label: 'ABN', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 150 },
-  { key: 'date_incorporated', label: 'Incorporated', column_type: 'date', resizable: true, sortable: true, filterable: false, width: 120 },
-  { key: 'has_xero_connection', label: 'Xero', column_type: 'boolean', resizable: true, sortable: true, filterable: true, filterType: 'boolean', width: 80 },
-  { key: 'created_at', label: 'Created', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 },
-  { key: 'updated_at', label: 'Updated', column_type: 'date_and_time', resizable: true, sortable: true, filterable: false, width: 150 }
-]
+// Default width mappings for column types (Gold Standard Pattern)
+const COLUMN_TYPE_DEFAULTS = {
+  'single_line_text': { width: 150, filterable: true, filterType: 'text' },
+  'email': { width: 200, filterable: true, filterType: 'text' },
+  'phone': { width: 150, filterable: true, filterType: 'text' },
+  'mobile': { width: 150, filterable: true, filterType: 'text' },
+  'url': { width: 180, sortable: false, filterable: false },
+  'date': { width: 140, filterable: true, filterType: 'text' },
+  'date_and_time': { width: 180, filterable: true, filterType: 'text' },
+  'gps_coordinates': { width: 280, sortable: false, filterable: false },
+  'color_picker': { width: 320, sortable: false, filterable: false },
+  'file_upload': { width: 300, sortable: false, filterable: false },
+  'action_buttons': { width: 180, sortable: false, filterable: false },
+  'lookup': { width: 150, filterable: true, filterType: 'dropdown' },
+  'boolean': { width: 100, filterable: true, filterType: 'boolean' },
+  'percentage': { width: 120, filterable: true, filterType: 'text' },
+  'choice': { width: 140, filterable: true, filterType: 'dropdown' },
+  'currency': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'currency' },
+  'number': { width: 100, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'whole_number': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'multiple_lines_text': { width: 300, sortable: false, filterable: true, filterType: 'text' },
+  'multiple_lookups': { width: 200, sortable: false, filterable: false },
+  'user': { width: 120, filterable: true, filterType: 'dropdown' },
+  'computed': { width: 140, filterable: false, showSum: true, sumType: 'number' },
+}
+
+// Check if a column is a system column that's typically hidden
+function isSystemOrHiddenColumn(columnName) {
+  const systemColumns = [
+    'sys_type_id', 'deleted', 'drive_id', 'folder_id',
+    'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
+    'tedmodel$type', 'pricebook$type'
+  ]
+
+  if (systemColumns.includes(columnName)) return true
+  if (columnName.endsWith('$type')) return true
+  if (columnName.endsWith('_id') && !['product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id'].includes(columnName)) return true
+
+  return false
+}
+
+// Convert API column format to TeeemTableView column format (Gold Standard Pattern)
+function convertColumnsToTEEEMFormat(apiColumns, foundationId) {
+  // Start with select column for bulk actions
+  const columns = [
+    { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
+  ]
+
+  // Convert each API column
+  apiColumns.forEach(col => {
+    // Skip system/hidden columns
+    if (isSystemOrHiddenColumn(col.column_name)) return
+
+    const defaults = COLUMN_TYPE_DEFAULTS[col.column_type] || { width: 150 }
+
+    // Custom width overrides for specific columns
+    let width = defaults.width
+    if (col.column_name === 'id') width = 60
+    if (col.column_name === 'name') width = 250
+    if (col.column_name === 'code') width = 80
+    if (col.column_name === 'company_group') width = 120
+    if (col.column_name === 'status') width = 120
+    if (col.column_name === 'formatted_acn') width = 130
+    if (col.column_name === 'formatted_abn') width = 150
+
+    columns.push({
+      id: col.id, // Database column ID for schema editor
+      foundation_id: col.foundation_id || foundationId,
+      key: col.column_name,
+      label: col.name,
+      column_type: col.column_type,
+      resizable: true,
+      sortable: defaults.sortable !== false,
+      filterable: defaults.filterable || false,
+      filterType: defaults.filterType,
+      width: width,
+      showSum: defaults.showSum,
+      sumType: defaults.sumType,
+      tooltip: col.description || `${col.column_type} column`,
+      is_title: col.column_name === 'name', // Mark name as title column
+      editable: ['code', 'entity_type', 'status', 'acn', 'abn'].includes(col.column_name), // Make key fields editable
+      // Pass choice options for dropdown columns
+      available_choices: col.available_choices,
+      // Pass lookup info if available
+      lookup_foundation_id: col.lookup_foundation_id,
+      lookup_display_column: col.lookup_display_column,
+      // Pass alignment from database
+      header_align: col.header_align,
+      data_align: col.data_align,
+    })
+  })
+
+  return columns
+}
 
 export default function CompaniesPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const [companies, setCompanies] = useState([])
   const [loading, setLoading] = useState(true)
-  const [columns, setColumns] = useState(buildCompaniesColumns())
+  const [columns, setColumns] = useState([])
   const [selectedGroup, setSelectedGroup] = useState(searchParams.get('group') || 'all')
   const [selectedStatus, setSelectedStatus] = useState(searchParams.get('status') || 'all')
   const [toast, setToast] = useState(null)
@@ -36,9 +116,17 @@ export default function CompaniesPage() {
   const groups = ['all', 'tekna', 'team_harder', 'promise', 'charity', 'other']
   const statuses = ['all', 'active', 'struck_off', 'in_liquidation', 'dormant']
 
+  // Ensure table_id is in URL for Gold Standard tables
+  useEffect(() => {
+    if (!searchParams.get('table_id')) {
+      searchParams.set('table_id', COMPANIES_TABLE_ID)
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [])
+
   useEffect(() => {
     loadCompanies()
-    fetchColumnIds()
+    fetchColumns()
   }, [selectedGroup, selectedStatus])
 
   const loadCompanies = async () => {
@@ -59,30 +147,21 @@ export default function CompaniesPage() {
     }
   }
 
-  // Fetch column IDs from API and merge with static config
-  const fetchColumnIds = async () => {
+  // Fetch columns from API and convert to TEEEM format (Gold Standard Pattern)
+  const fetchColumns = async () => {
     try {
       const response = await api.get(`/api/v1/foundations/${COMPANIES_TABLE_ID}`)
       const dbColumns = response?.foundation?.columns || []
       console.log('📥 Companies: Received', dbColumns.length, 'columns from API')
 
-      const updatedColumns = buildCompaniesColumns().map(col => {
-        const dbCol = dbColumns.find(dc => dc.column_name === col.key)
-        if (dbCol) {
-          console.log(`🔀 Merged column ${col.key}: id=${dbCol.id}`)
-          return {
-            ...col,
-            id: dbCol.id,
-            header_align: dbCol.header_align,
-            data_align: dbCol.data_align
-          }
-        }
-        return col
-      })
+      // Convert API columns to TEEEM format
+      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, COMPANIES_TABLE_ID)
+      console.log('✅ Companies: Converted to', teeemColumns.length, 'TEEEM columns')
 
-      setColumns(updatedColumns)
+      setColumns(teeemColumns)
     } catch (err) {
-      console.error('Failed to fetch column IDs:', err)
+      console.error('❌ Companies: Failed to fetch columns:', err)
+      setToast({ message: 'Failed to load table schema', type: 'error' })
     }
   }
 
@@ -93,6 +172,8 @@ export default function CompaniesPage() {
     } else {
       searchParams.set('group', group)
     }
+    // Ensure table_id persists
+    searchParams.set('table_id', COMPANIES_TABLE_ID)
     setSearchParams(searchParams)
   }
 
@@ -103,6 +184,8 @@ export default function CompaniesPage() {
     } else {
       searchParams.set('status', status)
     }
+    // Ensure table_id persists
+    searchParams.set('table_id', COMPANIES_TABLE_ID)
     setSearchParams(searchParams)
   }
 
@@ -115,9 +198,25 @@ export default function CompaniesPage() {
     navigate(`/corporate/companies/${entry.id}`)
   }
 
+  // Build SharePoint URL for corporate folder
+  const getSharePointUrl = () => {
+    return `https://gotekna-my.sharepoint.com/personal/robert_tekna_com_au/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Frobert%5Ftekna%5Fcom%5Fau%2FDocuments%2FAccounts%20%2D%20Internal%2FCorporate%20File`
+  }
+
   const handleEdit = async (entry) => {
-    // Navigate to edit page
-    navigate(`/corporate/companies/${entry.id}`)
+    console.log('🔥 handleEdit CALLED with entry:', entry.id, entry.entity_type)
+    try {
+      console.log('🔥 Making PATCH request to /api/v1/companies/' + entry.id)
+      const response = await api.patch(`/api/v1/companies/${entry.id}`, { company: entry })
+      console.log('🔥 PATCH response:', response)
+
+      // Update local state with saved data
+      setCompanies(companies.map(c => c.id === entry.id ? response.company : c))
+      setToast({ message: 'Company updated successfully', type: 'success' })
+    } catch (err) {
+      console.error('🔥 Failed to update company:', err)
+      setToast({ message: 'Failed to update company', type: 'error' })
+    }
   }
 
   const handleDelete = async (entry) => {
@@ -130,6 +229,30 @@ export default function CompaniesPage() {
     } catch (err) {
       console.error('Failed to delete company:', err)
       setToast({ message: 'Failed to delete company', type: 'error' })
+    }
+  }
+
+  const handleBulkUpdate = async (entries) => {
+    try {
+      // Update all companies in parallel
+      const responses = await Promise.all(
+        entries.map(entry => api.patch(`/api/v1/companies/${entry.id}`, { company: entry }))
+      )
+
+      // Update local state with saved data
+      const updatedIds = new Set(entries.map(e => e.id))
+      setCompanies(companies.map(c => {
+        if (updatedIds.has(c.id)) {
+          const response = responses.find(r => r.company.id === c.id)
+          return response?.company || c
+        }
+        return c
+      }))
+
+      setToast({ message: `Successfully updated ${entries.length} companies`, type: 'success' })
+    } catch (err) {
+      console.error('Failed to bulk update companies:', err)
+      setToast({ message: 'Failed to update companies', type: 'error' })
     }
   }
 
@@ -204,25 +327,37 @@ export default function CompaniesPage() {
         entries={companies}
         columns={columns}
         onEdit={handleEdit}
+        onBulkUpdate={handleBulkUpdate}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
-        onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowClick}
         enableImport={false}
         enableExport={true}
         enableSchemaEditor={true}
         hideUpdateViewButton={true}
         onColumnUpdate={() => {
           console.log('Companies: Refreshing columns after schema update')
-          fetchColumnIds()
+          fetchColumns()
         }}
         customActions={
-          <button
-            onClick={() => navigate('/corporate/companies/new')}
-            className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
-          >
-            <PlusIcon className="h-5 w-5" />
-            Add Company
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href={getSharePointUrl()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium rounded-lg transition-colors h-[42px] ring-1 ring-inset ring-blue-200"
+            >
+              <FolderIcon className="h-5 w-5" />
+              SharePoint
+            </a>
+            <button
+              onClick={() => navigate('/corporate/companies/new')}
+              className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+            >
+              <PlusIcon className="h-5 w-5" />
+              Add Company
+            </button>
+          </div>
         }
       />
 

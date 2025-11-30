@@ -3,6 +3,7 @@ class Asset < ApplicationRecord
   belongs_to :company
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
+  has_many :company_documents, dependent: :nullify
 
   # Active Storage for photos
   has_many_attached :photos
@@ -13,6 +14,7 @@ class Asset < ApplicationRecord
   validates :status, inclusion: { in: %w[active disposed under_repair] }
   validates :purchase_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :current_book_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
 
   # Scopes
   scope :active, -> { where(status: 'active') }
@@ -90,37 +92,50 @@ class Asset < ApplicationRecord
     insurance_expired? || service_overdue?
   end
 
+  def documents_count
+    company_documents.count
+  end
+
   private
 
   def create_activity
+    # Skip activity creation for bulk imports
+    return if Rails.env.development? && caller.any? { |line| line.include?('import') }
+
+    user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
     company.company_activities.create!(
       activity_type: 'asset_added',
       description: "Asset added: #{display_name}",
-      metadata: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
-      performed_by: Current.user || User.first,
-      occurred_at: Time.current
+      change_details: { asset_id: id, asset_type: asset_type, purchase_price: purchase_price },
+      user: user
     )
+  rescue => e
+    Rails.logger.error "Failed to create asset activity: #{e.message}"
   end
 
   def create_update_activity
     return unless saved_changes.any?
+    # Skip activity creation for bulk imports
+    return if Rails.env.development? && caller.any? { |line| line.include?('import') }
+
+    user = (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
 
     if saved_change_to_status? && status == 'disposed'
       company.company_activities.create!(
         activity_type: 'asset_disposed',
         description: "Asset disposed: #{display_name}",
-        metadata: { asset_id: id },
-        performed_by: Current.user || User.first,
-        occurred_at: Time.current
+        change_details: { asset_id: id },
+        user: user
       )
     else
       company.company_activities.create!(
         activity_type: 'asset_updated',
         description: "Asset updated: #{display_name}",
-        metadata: { asset_id: id, changes: saved_changes.except('updated_at') },
-        performed_by: Current.user || User.first,
-        occurred_at: Time.current
+        change_details: { asset_id: id, changes: saved_changes.except('updated_at') },
+        user: user
       )
     end
+  rescue => e
+    Rails.logger.error "Failed to create asset update activity: #{e.message}"
   end
 end

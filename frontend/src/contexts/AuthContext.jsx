@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 
 const AuthContext = createContext(null)
@@ -18,6 +18,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [token, setToken] = useState(localStorage.getItem('token'))
   const [skipNextAuthCheck, setSkipNextAuthCheck] = useState(false)
+  const [microsoftStatus, setMicrosoftStatus] = useState(null)
+  const [checkingMicrosoft, setCheckingMicrosoft] = useState(false)
 
   // Configure axios defaults
   // Trim the API URL to remove any whitespace/newlines from environment variables
@@ -157,8 +159,93 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token')
     setToken(null)
     setUser(null)
+    setMicrosoftStatus(null)
     delete axios.defaults.headers.common['Authorization']
   }
+
+  // Check Microsoft connection status
+  const checkMicrosoftStatus = useCallback(async () => {
+    if (!token) return null
+
+    setCheckingMicrosoft(true)
+    try {
+      const response = await axios.get('/api/v1/microsoft/status')
+      setMicrosoftStatus(response.data)
+      return response.data
+    } catch (error) {
+      console.error('Failed to check Microsoft status:', error)
+      setMicrosoftStatus({ connected: false })
+      return { connected: false }
+    } finally {
+      setCheckingMicrosoft(false)
+    }
+  }, [token])
+
+  // Connect to Microsoft (opens OAuth popup)
+  const connectMicrosoft = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/v1/microsoft/auth_url')
+      const authUrl = response.data.auth_url
+
+      // Open OAuth in popup window
+      const width = 600
+      const height = 700
+      const left = window.screenX + (window.outerWidth - width) / 2
+      const top = window.screenY + (window.outerHeight - height) / 2
+
+      const popup = window.open(
+        authUrl,
+        'microsoft-oauth',
+        `width=${width},height=${height},left=${left},top=${top}`
+      )
+
+      // Listen for OAuth callback message
+      const handleMessage = (event) => {
+        if (event.data?.type === 'microsoft-oauth-callback') {
+          window.removeEventListener('message', handleMessage)
+          if (event.data.success) {
+            // Refresh Microsoft status
+            checkMicrosoftStatus()
+          }
+        }
+      }
+      window.addEventListener('message', handleMessage)
+
+      // Poll to check if popup was closed without completing OAuth
+      const checkClosed = setInterval(() => {
+        if (popup?.closed) {
+          clearInterval(checkClosed)
+          window.removeEventListener('message', handleMessage)
+          // Refresh status in case OAuth completed
+          checkMicrosoftStatus()
+        }
+      }, 500)
+
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to get Microsoft auth URL:', error)
+      return { success: false, error: error.message }
+    }
+  }, [checkMicrosoftStatus])
+
+  // Disconnect Microsoft
+  const disconnectMicrosoft = useCallback(async () => {
+    try {
+      await axios.delete('/api/v1/microsoft/disconnect')
+      setMicrosoftStatus({ connected: false })
+      return { success: true }
+    } catch (error) {
+      console.error('Failed to disconnect Microsoft:', error)
+      return { success: false, error: error.message }
+    }
+  }, [])
+
+  // Check Microsoft status after user logs in
+  useEffect(() => {
+    if (user && token && !microsoftStatus && !checkingMicrosoft) {
+      checkMicrosoftStatus()
+    }
+  }, [user, token, microsoftStatus, checkingMicrosoft, checkMicrosoftStatus])
 
   const value = {
     user,
@@ -166,7 +253,13 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     loading,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    // Microsoft integration
+    microsoftStatus,
+    checkingMicrosoft,
+    checkMicrosoftStatus,
+    connectMicrosoft,
+    disconnectMicrosoft
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

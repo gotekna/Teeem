@@ -1,63 +1,72 @@
 class CheckYesterdayRainJob < ApplicationJob
   queue_as :default
 
-  # Check yesterday's weather for all active constructions
+  # Check yesterday's weather for all active jobs
   # Auto-creates rain log entries if rainfall detected
-  def perform
-    yesterday = Date.yesterday
+  def perform(job_id: nil, date: nil)
+    target_date = date || Date.yesterday
+
+    # If specific job_id provided, only check that job
+    if job_id
+      job = Job.find(job_id)
+      return check_rain_for_job(job, target_date)
+    end
+
+    # Otherwise check all active jobs
     weather_client = WeatherApiClient.new
 
-    Rails.logger.info("Checking yesterday's rain for all active jobs (#{yesterday})")
+    Rails.logger.info("Checking rain for all active jobs (#{target_date})")
 
     active_jobs_checked = 0
     rain_logs_created = 0
     errors = []
 
-    Construction.active.find_each do |construction|
+    Job.where(status: 'Active').find_each do |job|
       active_jobs_checked += 1
 
       # Get location from job
-      location = extract_location(construction)
+      location = extract_location(job)
 
       unless location
-        Rails.logger.warn("No location found for construction #{construction.id} - #{construction.title}")
-        errors << { construction_id: construction.id, error: 'No location' }
+        Rails.logger.warn("No location found for job #{job.id} - #{job.title}")
+        errors << { job_id: job.id, error: 'No location' }
         next
       end
 
       begin
         # Fetch weather data
-        weather_data = weather_client.fetch_historical(location, yesterday)
+        weather_data = weather_client.fetch_historical(location, target_date)
 
         # Skip if no rainfall
         rainfall_mm = weather_data[:rainfall_mm]
         next if rainfall_mm.nil? || rainfall_mm.zero?
 
         # Check if log already exists for this date
-        existing_log = construction.rain_logs.find_by(date: yesterday)
+        existing_log = job.rain_logs.find_by(date: target_date)
         if existing_log
-          Rails.logger.info("Rain log already exists for #{construction.title} on #{yesterday}")
+          Rails.logger.info("Rain log already exists for #{job.title} on #{target_date}")
           next
         end
 
         # Create rain log entry
-        rain_log = construction.rain_logs.create!(
-          date: yesterday,
+        rain_log = job.rain_logs.create!(
+          date: target_date,
           rainfall_mm: rainfall_mm,
           severity: RainLog.calculate_severity(rainfall_mm),
           source: 'automatic',
-          weather_api_response: weather_data[:raw_response]
+          weather_api_response: weather_data[:raw_response],
+          notes: "Auto-detected: #{weather_data[:condition]} at #{weather_data[:location]}"
         )
 
         rain_logs_created += 1
-        Rails.logger.info("Created rain log for #{construction.title}: #{rainfall_mm}mm on #{yesterday}")
+        Rails.logger.info("Created rain log for #{job.title}: #{rainfall_mm}mm on #{target_date}")
 
       rescue WeatherApiClient::Error => e
-        Rails.logger.error("Weather API error for #{construction.title}: #{e.message}")
-        errors << { construction_id: construction.id, error: e.message }
+        Rails.logger.error("Weather API error for #{job.title}: #{e.message}")
+        errors << { job_id: job.id, error: e.message }
       rescue StandardError => e
-        Rails.logger.error("Failed to create rain log for #{construction.title}: #{e.message}")
-        errors << { construction_id: construction.id, error: e.message }
+        Rails.logger.error("Failed to create rain log for #{job.title}: #{e.message}")
+        errors << { job_id: job.id, error: e.message }
       end
     end
 
@@ -69,34 +78,49 @@ class CheckYesterdayRainJob < ApplicationJob
 
     # Return summary
     {
-      date: yesterday,
+      date: target_date,
       active_jobs_checked: active_jobs_checked,
       rain_logs_created: rain_logs_created,
       errors: errors
     }
   end
 
+  # Check rain for a single job - can be called from API
+  def check_rain_for_job(job, target_date = Date.yesterday)
+    weather_client = WeatherApiClient.new
+    location = extract_location(job)
+
+    raise ArgumentError, "No location found for job #{job.id}" unless location
+
+    weather_data = weather_client.fetch_historical(location, target_date)
+
+    {
+      job_id: job.id,
+      date: target_date,
+      location: location,
+      weather_data: weather_data,
+      rainfall_mm: weather_data[:rainfall_mm],
+      condition: weather_data[:condition]
+    }
+  end
+
   private
 
-  # Extract location from construction record
-  # Priority: location field, then parse from project site_address
-  def extract_location(construction)
-    # First check if construction has a location field
-    return construction.location if construction.respond_to?(:location) && construction.location.present?
+  # Extract location from job record
+  # Priority: location field, lat/lng coordinates, then parse from title
+  def extract_location(job)
+    # First check if job has a location field
+    return job.location if job.location.present?
 
-    # Try to get from project's site_address
-    if construction.project&.site_address.present?
-      # Extract suburb/city from address (basic parsing)
-      address = construction.project.site_address
-      # Try to extract the suburb (usually after first comma or last line)
-      parts = address.split(',').map(&:strip)
-      return parts[-2] if parts.length > 1  # Usually suburb is second-to-last
+    # Try lat/lng coordinates
+    if job.latitude.present? && job.longitude.present?
+      return "#{job.latitude},#{job.longitude}"
     end
 
-    # Fallback: try to extract from construction title
-    # (e.g., "House Build - Bondi" => "Bondi")
-    if construction.title.include?('-')
-      potential_location = construction.title.split('-').last.strip
+    # Fallback: try to extract from job title
+    # (e.g., "XC KIT 06/25 72 - 32 Mcilwraith" => try address part)
+    if job.title.include?('-')
+      potential_location = job.title.split('-').last.strip
       return potential_location if potential_location.present?
     end
 

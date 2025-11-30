@@ -1,51 +1,26 @@
 # Pull Heroku Database to Local
 
-Pull the Heroku PostgreSQL database to your local development environment.
+Pull the Heroku PostgreSQL database to your local development environment from **staging (teeem-rob-dev)**.
 
-## Available Environments
+## Auto-Execute
 
-- **Production:** `teeem-backend` (Live branch)
-- **Staging/Dev:** `teeem-rob-dev` (Rob branch)
+Run these commands immediately:
 
-## Instructions
+1. Kill any existing database connections
+2. Capture a fresh backup from staging
+3. Restore to local database
+4. Run pending migrations
 
-Run the following commands to pull the Heroku database to local:
-
-1. First, stop any running Rails server to free database connections
-2. Drop and recreate the local database, then pull from Heroku:
-
-**For Production (teeem-backend):**
 ```bash
-cd backend && bin/rails db:drop db:create
-heroku pg:pull DATABASE_URL teeem_development --app teeem-backend
+# Kill existing connections, backup, restore from staging
+psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'teeem_development' AND pid <> pg_backend_pid();" 2>/dev/null || true
+cd /Users/robertharder/GitHub/teeem/backend && heroku pg:backups:capture --app teeem-rob-dev && heroku pg:backups:download --app teeem-rob-dev -o latest.dump && pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20; rm -f latest.dump && bin/rails db:migrate
 ```
 
-**For Staging/Dev (teeem-rob-dev):**
+## Manual Options
+
+**For Production (teeem-backend) - USE WITH CAUTION:**
 ```bash
-cd backend && bin/rails db:drop db:create
-heroku pg:pull DATABASE_URL teeem_development --app teeem-rob-dev
-```
-
-If `pg:pull` fails due to connection issues, use the backup method:
-
-**For Production:**
-```bash
-heroku pg:backups:capture --app teeem-backend
-heroku pg:backups:download --app teeem-backend
-pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump
-rm latest.dump
-```
-
-**For Staging/Dev:**
-```bash
-heroku pg:backups:capture --app teeem-rob-dev
-heroku pg:backups:download --app teeem-rob-dev
-pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump
-rm latest.dump
-```
-
-After pulling, run any pending migrations:
-
-```bash
-cd backend && bin/rails db:migrate
+psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'teeem_development' AND pid <> pg_backend_pid();" 2>/dev/null || true
+cd /Users/robertharder/GitHub/teeem/backend && heroku pg:backups:capture --app teeem-backend && heroku pg:backups:download --app teeem-backend -o latest.dump && pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20; rm -f latest.dump && bin/rails db:migrate
 ```

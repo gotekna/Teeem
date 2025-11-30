@@ -47,7 +47,7 @@ export default function ContactsPage() {
 
   const [activeTab, setActiveTab] = useState(getInitialTabIndex())
   const [selectedCategories, setSelectedCategories] = useState([])
-  const [filter, setFilter] = useState('all') // 'all', 'customers', 'suppliers', 'both'
+  const [filter, setFilter] = useState('all') // 'all', 'customers', 'suppliers', 'both', 'family'
   const [xeroSyncFilter, setXeroSyncFilter] = useState('all') // 'all', 'synced', 'not_synced'
 
   // Bulk selection state
@@ -224,7 +224,9 @@ export default function ContactsPage() {
     try {
       setLoading(true)
       const params = new URLSearchParams()
-      if (filter !== 'all') {
+      if (filter === 'family') {
+        params.append('is_family_member', 'true')
+      } else if (filter !== 'all') {
         params.append('type', filter)
       }
       if (xeroSyncFilter !== 'all') {
@@ -1086,6 +1088,16 @@ export default function ContactsPage() {
                 >
                   Land Agents
                 </button>
+                <button
+                  onClick={() => setFilter('family')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    filter === 'family'
+                      ? 'bg-pink-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  Family
+                </button>
 
                 <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
 
@@ -1125,7 +1137,7 @@ export default function ContactsPage() {
 
                 <div className="ml-auto">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {contacts.length} {filter === 'all' ? 'total' : filter} contacts
+                    {contacts.length} {filter === 'all' ? 'total' : filter === 'family' ? 'family' : filter} contacts
                   </p>
                 </div>
               </div>

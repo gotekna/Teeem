@@ -99,6 +99,7 @@ import LocationMapCard from '../job-detail/LocationMapCard'
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, COLUMN_TYPES } from '../../constants/columnTypes'
 import { api } from '../../api'
 import { useAuth } from '../../contexts/AuthContext'
+import TableHealthWidget from '../health/TableHealthWidget'
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -237,7 +238,12 @@ export default function TeeemTableView({
   hideUpdateViewButton = false,  // NEW: Hide the "Update [ViewName]" button (useful for reference tables)
   initialGroupByColumn = null,  // NEW: Initial column to group by (for tables that default to grouped view)
   onServerSearch = null,  // NEW: Callback for server-side search (called with debounced search term)
-  serverSearchLoading = false  // NEW: Shows loading indicator during server-side search
+  serverSearchLoading = false,  // NEW: Shows loading indicator during server-side search
+  onViewApiParamsChange = null,  // NEW: Callback when view with apiParams is selected (for server-side filtering)
+  customCellRenderer = null,  // NEW: Custom cell renderer function(entry, columnKey) => React element or null (null = use default)
+  onRowUpdate = null,  // NEW: Callback for row updates (rowId, field, value) => void - enables inline editing
+  extraRowProps = null,  // NEW: Extra props to pass to row rendering (e.g., suppliers list, allRows, etc.)
+  onRefresh = null  // NEW: Callback to refresh data (used after bulk update)
 }) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -546,6 +552,8 @@ export default function TeeemTableView({
   const [bulkUpdateColumn, setBulkUpdateColumn] = useState('')
   const [bulkUpdateValue, setBulkUpdateValue] = useState('')
   const [bulkUpdateSaving, setBulkUpdateSaving] = useState(false)
+  const [bulkUpdateColumnSearch, setBulkUpdateColumnSearch] = useState('')
+  const [bulkUpdateValueSearch, setBulkUpdateValueSearch] = useState('')
 
   // Edit mode state - when true, all cells are unlocked for editing
   const [editModeActive, setEditModeActive] = useState(false)
@@ -670,6 +678,7 @@ export default function TeeemTableView({
   const [activeViewId, setActiveViewId] = useState(null) // Track which saved view is currently active
   const [editingViewId, setEditingViewId] = useState(null) // Track which view is being edited
   const [creatingNewView, setCreatingNewView] = useState(false) // Track if creating a new view
+  const [copyFromViewId, setCopyFromViewId] = useState(null) // Track which view to copy from when creating new view
   const [newViewName, setNewViewName] = useState('') // Name for new view being created
   const [editingFilterId, setEditingFilterId] = useState(null) // Track which filter is being edited
   const [editingFilterValue, setEditingFilterValue] = useState('') // Track the temporary value while editing
@@ -733,23 +742,42 @@ export default function TeeemTableView({
 
     // Load filters
     if (!skipFilters) {
-      setCascadeFilters(view.filters?.map(f => ({
+      console.log('[loadViewState] Loading filters from view:', view?.name, 'view.filters:', view.filters)
+      const mappedFilters = view.filters?.map(f => ({
         id: Date.now() + Math.random(),
         column: f.column,
         value: f.value,
         operator: f.operator || '=',
         label: f.label,
         groupId: f.groupId || 'default'
-      })) || [])
+      })) || []
+      console.log('[loadViewState] Mapped filters to set:', mappedFilters)
+      setCascadeFilters(mappedFilters)
       setFilterGroups(view.filterGroups || [{ id: 'default', logic: 'AND' }])
       setInterGroupLogic(view.interGroupLogic || 'OR')
     }
 
     // Load columns
     if (!skipColumns && view.visibleColumns) {
-      setVisibleColumns(view.visibleColumns)
-    }
-    if (!skipColumns && view.columnOrder) {
+      // FIX: Ensure columns marked as visible are actually in columnOrder
+      // If a column is visible but not in order, add it to the order
+      // This prevents checkbox/display mismatch when new columns are added after view was saved
+      let orderToUse = view.columnOrder ? [...new Set(view.columnOrder)] : []
+      const visibleToUse = { ...view.visibleColumns }
+
+      // Find columns marked visible but not in order - add them to order
+      Object.keys(visibleToUse).forEach(colKey => {
+        if (visibleToUse[colKey] && !orderToUse.includes(colKey)) {
+          // Add visible column to order (at the end)
+          orderToUse.push(colKey)
+          console.log('[loadViewState] Added missing visible column to order:', colKey)
+        }
+      })
+
+      setVisibleColumns(visibleToUse)
+      setVisibilityColumnOrder(orderToUse)
+      setColumnOrder(orderToUse)
+    } else if (!skipColumns && view.columnOrder) {
       const dedupedColumnOrder = [...new Set(view.columnOrder)]
       setVisibilityColumnOrder(dedupedColumnOrder)
       setColumnOrder(dedupedColumnOrder)
@@ -789,6 +817,16 @@ export default function TeeemTableView({
     // Set as active view
     if (setActive && view.id) {
       setActiveViewId(view.id)
+    }
+
+    // Handle apiParams for server-side filtering (e.g., duplicates_only for Contacts)
+    if (view.filters?.apiParams && onViewApiParamsChange) {
+      console.log('[loadViewState] Calling onViewApiParamsChange with:', view.filters.apiParams)
+      onViewApiParamsChange(view.filters.apiParams)
+    } else if (onViewApiParamsChange) {
+      // Clear apiParams when switching to a view without them
+      console.log('[loadViewState] Clearing apiParams (view has none)')
+      onViewApiParamsChange(null)
     }
   }
 
@@ -915,7 +953,8 @@ export default function TeeemTableView({
               groupByColumn: view.group_by_column || null,  // Legacy single
               groupByColumns: groupByColumns,  // New array
               display_order: view.display_order || 0,
-              isDefault: view.is_default || false
+              isDefault: view.is_default || false,
+              is_global: view.is_global || false  // Include global flag for badge display
             }
           })
           setSavedFilters(converted)
@@ -1678,6 +1717,80 @@ export default function TeeemTableView({
     }
   }
 
+  // Get visible (non-collapsed) rows when grouped
+  const getVisibleRows = () => {
+    // Calculate active group columns locally
+    const activeGrpCols = groupByColumns.length > 0 ? groupByColumns : (groupByColumn ? [groupByColumn] : [])
+
+    if (activeGrpCols.length === 0) {
+      // No grouping - all rows are visible
+      return filteredAndSorted
+    }
+
+    // Build nested groups and collect only rows from non-collapsed groups
+    const visibleRows = []
+
+    const collectVisibleRows = (node, parentPath = '', level = 0) => {
+      // If node has rows directly, add them
+      if (node.rows) {
+        visibleRows.push(...node.rows)
+        return
+      }
+
+      // If node has groups, check if each is collapsed
+      if (node.groups) {
+        Object.keys(node.groups).forEach(groupKey => {
+          const groupPath = parentPath ? `${parentPath}|${groupKey}` : groupKey
+          const isCollapsed = collapsedGroups.has(groupPath)
+
+          if (!isCollapsed) {
+            // Group is expanded - recursively collect its rows
+            collectVisibleRows(node.groups[groupKey], groupPath, level + 1)
+          }
+        })
+      }
+    }
+
+    // Build the nested groups structure
+    const buildGroups = (data) => {
+      const result = { groups: {} }
+
+      data.forEach(row => {
+        let current = result
+        activeGrpCols.forEach((colKey, idx) => {
+          const value = row[colKey] ?? '(empty)'
+          const key = String(value)
+
+          if (idx === activeGrpCols.length - 1) {
+            // Last level - store rows
+            if (!current.groups[key]) {
+              current.groups[key] = { rows: [] }
+            }
+            current.groups[key].rows.push(row)
+          } else {
+            // Intermediate level - create nested group
+            if (!current.groups[key]) {
+              current.groups[key] = { groups: {} }
+            }
+            current = current.groups[key]
+          }
+        })
+      })
+
+      return result
+    }
+
+    const nestedGroups = buildGroups(filteredAndSorted)
+    collectVisibleRows(nestedGroups)
+    return visibleRows
+  }
+
+  // Select only visible (expanded) rows
+  const handleSelectVisible = () => {
+    const visibleRows = getVisibleRows()
+    setSelectedRows(new Set(visibleRows.map(e => e.id)))
+  }
+
   const handleSelectRow = (id) => {
     const newSelected = new Set(selectedRows)
     if (newSelected.has(id)) {
@@ -1897,10 +2010,18 @@ export default function TeeemTableView({
                                      column?.column_type === 'dropdown'
               const isLookupColumn = column?.column_type === 'lookup'
 
-              // Handle lookup columns - value is stored as {id, display} object
-              if (isLookupColumn && typeof entryValue === 'object' && entryValue.id !== undefined) {
-                // Filter value is the ID, compare as strings
-                return String(entryValue.id) === String(value)
+              // Handle lookup columns - value can be:
+              // 1. Object format {id, display} (user foundations)
+              // 2. Raw ID (number/string) for system foundations
+              if (isLookupColumn) {
+                if (typeof entryValue === 'object' && entryValue?.id !== undefined) {
+                  // Object format - compare the ID
+                  return String(entryValue.id) === String(value)
+                } else if (entryValue !== null && entryValue !== undefined) {
+                  // Raw ID format (system foundations) - compare directly
+                  return String(entryValue) === String(value)
+                }
+                return false
               }
 
               if (typeof entryValue === 'string') {
@@ -2051,6 +2172,43 @@ export default function TeeemTableView({
         }
       }
 
+      // Handle lookup columns - need to match by display value, not ID
+      // Check if this is a lookup column by looking for _id suffix or checking COLUMNS
+      const isLookupColumn = key.endsWith('_id') ||
+        COLUMNS.find(c => c.key === key)?.column_type === 'lookup' ||
+        COLUMNS.find(c => c.key === key)?.column_type === 'link_to_another_record'
+
+      if (isLookupColumn) {
+        // For lookup columns, entryValue might be an ID (number) or object {id, display}
+        // The filter value is the display text
+        let displayValue = entryValue
+
+        // If entryValue is an object with display property, use that
+        if (typeof entryValue === 'object' && entryValue?.display) {
+          displayValue = entryValue.display
+        } else if (typeof entryValue === 'number' || (typeof entryValue === 'string' && !isNaN(parseInt(entryValue)))) {
+          // entryValue is an ID - try to find the display value from columnChoices
+          const columnDef = COLUMNS.find(c => c.key === key)
+          const choices = columnDef?.id ? columnChoices[columnDef.id] : null
+          if (choices && Array.isArray(choices)) {
+            const match = choices.find(c =>
+              (typeof c === 'object' && c.id == entryValue) || c == entryValue
+            )
+            if (match && typeof match === 'object') {
+              displayValue = match.display
+            } else if (match) {
+              displayValue = match
+            }
+          }
+        }
+
+        // Now compare display values
+        if (operator === '!=') {
+          return String(displayValue || '').toLowerCase() !== String(value).toLowerCase()
+        }
+        return String(displayValue || '').toLowerCase() === String(value).toLowerCase()
+      }
+
       // Handle string comparison (case-insensitive)
       if (operator === '!=') {
         return String(entryValue).toLowerCase() !== String(value).toLowerCase()
@@ -2059,6 +2217,8 @@ export default function TeeemTableView({
     }
 
     // Apply cascade filters with group logic
+    console.log('[filteredAndSorted] Applying cascade filters:', cascadeFilters.length, 'filters:', cascadeFilters.map(f => `${f.column} ${f.operator} ${f.value}`))
+    console.log('[filteredAndSorted] Filter groups:', filterGroups, 'interGroupLogic:', interGroupLogic)
     if (cascadeFilters.length > 0) {
       result = result.filter(entry => {
         // Group filters by their groupId
@@ -2186,7 +2346,27 @@ export default function TeeemTableView({
     }
 
     return result
-  }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch])
+  }, [entries, search, filters, sortColumns, columnFilters, category, cascadeFilters, filterGroups, interGroupLogic, selectedComponents, onServerSearch, columnChoices])
+
+  // Calculate visible record count (total filtered records for active view)
+  const visibleRecordCount = useMemo(() => {
+    return filteredAndSorted.length
+  }, [filteredAndSorted])
+
+  // Calculate count for active global view only (accurate calculation)
+  // Inactive view counts would require duplicating 175+ lines of complex filter logic
+  const globalViewCounts = useMemo(() => {
+    const counts = {}
+
+    savedFilters.filter(v => v.is_global).forEach(view => {
+      // Only calculate for active view (uses the already-calculated filteredAndSorted)
+      if (view.id === activeViewId) {
+        counts[view.id] = filteredAndSorted.length
+      }
+    })
+
+    return counts
+  }, [savedFilters, filteredAndSorted, activeViewId])
 
   // Collapse all top-level groups by default when groupByColumns changes
   useEffect(() => {
@@ -2495,7 +2675,9 @@ export default function TeeemTableView({
             sortColumns: Array.isArray(response.view.sort_order) ? response.view.sort_order : [],
             groupByColumn: response.view.group_by_column || null,  // Legacy single
             groupByColumns: savedGroupByColumns,  // New array
-            isDefault: response.view.is_default || false
+            display_order: response.view.display_order || 0,
+            isDefault: response.view.is_default || false,
+            is_global: response.view.is_global || false  // Include global flag for badge display
           } : v
         ))
         return true
@@ -2511,6 +2693,59 @@ export default function TeeemTableView({
         console.log('[Update View] Authentication required - user not logged in')
       } else {
         alert('Failed to update view: ' + (error.response?.data?.error || error.message))
+      }
+      return false
+    }
+  }
+
+  // Helper function to save current view as a global view (visible to all users)
+  const saveGlobalView = async () => {
+    try {
+      const columnsToSave = {}
+      COLUMNS.filter(col => col.key !== 'select').forEach(col => {
+        columnsToSave[col.key] = visibleColumns[col.key] !== false
+      })
+      const orderToSave = columnOrder || COLUMNS.map(c => c.key)
+      const sortColumnsToSave = Array.isArray(sortColumns) ? sortColumns : []
+      const groupByColumnsToSave = Array.isArray(groupByColumns) ? groupByColumns : []
+      const groupByColumnToSave = groupByColumnsToSave[0] || groupByColumn || null
+
+      const response = await api.post('/api/v1/foundation_views/save_global', {
+        foundation_id: foundationIdNumeric,
+        name: 'Default View', // Can customize this later
+        view_type: 'custom',
+        filters: {
+          cascadeFilters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+          filterGroups: [...filterGroups],
+          interGroupLogic
+        },
+        columns: {
+          visible: columnsToSave,
+          order: orderToSave,
+          showFilters,
+          autoFitColumns,
+          widths: { ...columnWidths }
+        },
+        sort_order: sortColumnsToSave,
+        group_by_column: groupByColumnToSave,
+        group_by_columns: groupByColumnsToSave
+      })
+
+      if (response.success) {
+        alert(response.message || 'Global view saved successfully! All users will now see these settings.')
+        // Refresh views to show the updated global view
+        fetchSavedViews()
+        return true
+      } else {
+        alert('Failed to save global view: ' + (response.error || 'Unknown error'))
+        return false
+      }
+    } catch (error) {
+      console.error('Error saving global view:', error)
+      if (error.status === 401) {
+        alert('You must be logged in to save global views.')
+      } else {
+        alert('Failed to save global view: ' + (error.message || 'Unknown error'))
       }
       return false
     }
@@ -2670,6 +2905,29 @@ export default function TeeemTableView({
   }
 
   const renderCellContent = (entry, columnKey) => {
+    // Check for custom cell renderer first
+    if (customCellRenderer) {
+      const customContent = customCellRenderer(entry, columnKey, {
+        extraRowProps,
+        onRowUpdate: onRowUpdate ? (field, value) => onRowUpdate(entry.id, field, value) : null,
+        selectedRows,
+        onSelectRow: (id) => {
+          setSelectedRows(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+              next.delete(id)
+            } else {
+              next.add(id)
+            }
+            return next
+          })
+        }
+      })
+      if (customContent !== null && customContent !== undefined) {
+        return customContent
+      }
+    }
+
     switch (columnKey) {
       case 'select':
         return (
@@ -2824,6 +3082,23 @@ export default function TeeemTableView({
 
       case 'title':
         if (editingRowId === entry.id) {
+          // Check if column is configured as single_line_text for inline editing
+          const titleColumn = COLUMNS.find(c => c.key === 'title')
+          if (titleColumn?.column_type === 'single_line_text') {
+            // Use inline input for single_line_text
+            return (
+              <input
+                type="text"
+                value={editingData.title || ''}
+                onChange={(e) => setEditingData({ ...editingData, title: e.target.value })}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.target.select()}
+                className="w-full px-2 py-1 text-sm border border-blue-500 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 font-medium"
+                placeholder="Enter name..."
+              />
+            )
+          }
+          // Default: show button to open rich text modal
           return (
             <button
               onClick={(e) => {
@@ -3974,6 +4249,16 @@ export default function TeeemTableView({
         const isComputedColumn = columnDef?.isComputed
         const columnType = columnDef?.column_type
 
+        // CRITICAL: System columns (id, user_id) should NEVER be editable
+        // Display them as read-only regardless of column_type
+        if (isSystemColumn) {
+          return (
+            <div className="text-gray-600 dark:text-gray-400 font-mono text-sm">
+              {entry[columnKey] ?? '-'}
+            </div>
+          )
+        }
+
         // Handle column_type-based rendering for dynamic columns (e.g., from API)
         // This allows columns like 'contract_value' with type 'currency' to render correctly
         if (columnType === 'currency') {
@@ -4725,9 +5010,11 @@ export default function TeeemTableView({
           cursor: grabbing;
         }
       `}</style>
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0">
       {/* Full-width table container */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0">
+      <div
+        className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0"
+        style={{ overflow: 'clip' }}
+      >
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
         {editModeActive && (
@@ -4770,7 +5057,26 @@ export default function TeeemTableView({
                         console.log('Editing data (changes only):', editingData)
                         const updatedEntry = { ...entry, ...editingData }
                         console.log('Merged entry to save:', updatedEntry)
-                        await onEdit(updatedEntry)
+
+                        // Use onRowUpdate if available (for inline field updates)
+                        console.log('🔥 Checking callbacks - onRowUpdate:', !!onRowUpdate, 'onEdit:', !!onEdit)
+                        if (onRowUpdate) {
+                          console.log('🔥 Using onRowUpdate path')
+                          // Get the changed fields and call onRowUpdate for each
+                          const changedFields = Object.keys(editingData).filter(key =>
+                            editingData[key] !== entry[key] && key !== 'id' && key !== '_original'
+                          )
+                          console.log('Changed fields:', changedFields)
+                          for (const field of changedFields) {
+                            await onRowUpdate(editingRowId, field, editingData[field])
+                          }
+                        } else if (onEdit) {
+                          console.log('🔥 Using onEdit path')
+                          // Fallback to onEdit for modal-based editing
+                          await onEdit(updatedEntry)
+                        } else {
+                          console.log('🔥 ERROR: Neither onRowUpdate nor onEdit is defined!')
+                        }
                       }
                     }
                     setEditModeActive(false)
@@ -4827,6 +5133,13 @@ export default function TeeemTableView({
                 <p className="text-sm text-red-100">{validationError}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Universal Health Widget - Shows on any table with registered health checks */}
+        {foundationIdNumeric && (
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <TableHealthWidget foundationId={foundationIdNumeric} compact={true} />
           </div>
         )}
 
@@ -5471,7 +5784,10 @@ export default function TeeemTableView({
         {/* END TOP SECTION - Search/Buttons */}
 
         {/* Main content area - filters at top for now until code can be restructured */}
-        <div className="flex-1 flex flex-col min-h-0">
+        <div
+          className="flex-1 flex flex-col min-h-0"
+          style={{ overflow: 'clip' }}
+        >
 
         {/* Filters row */}
         <div className="flex items-end gap-3 flex-wrap px-2 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
@@ -5541,13 +5857,14 @@ export default function TeeemTableView({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
               </svg>
               {view.name}
-              {view.filters.length > 0 && (
+              {/* Show count badge for all global views */}
+              {view.is_global && globalViewCounts[view.id] !== undefined && (
                 <span className={`inline-flex items-center justify-center min-w-[18px] h-[18px] ${
                   activeViewId === view.id
                     ? 'bg-blue-600 dark:bg-blue-500'
                     : 'bg-green-600 dark:bg-green-700'
                 } text-white rounded-full text-[10px] font-bold`}>
-                  {view.filters.length}
+                  {globalViewCounts[view.id]}
                 </span>
               )}
             </button>
@@ -5777,7 +6094,28 @@ export default function TeeemTableView({
                           </>
                         ) : creatingNewView ? (
                           <>
-                            <span className="text-sm font-bold whitespace-nowrap">New View:</span>
+                            <span className="text-sm font-bold whitespace-nowrap">Copy from:</span>
+                            <select
+                              value={copyFromViewId || ''}
+                              onChange={(e) => {
+                                const newViewId = e.target.value ? parseInt(e.target.value) : null
+                                setCopyFromViewId(newViewId)
+                                // Load the selected view
+                                const viewToCopy = savedFilters.find(v => v.id === newViewId)
+                                if (viewToCopy) {
+                                  console.log('[Create New View] Switching template to:', viewToCopy.name)
+                                  loadViewState(viewToCopy)
+                                }
+                              }}
+                              className="flex-1 max-w-[180px] text-xs font-semibold px-2 py-1 border-0 rounded bg-white/20 text-white focus:outline-none focus:ring-2 focus:ring-white/50"
+                            >
+                              {savedFilters.filter(v => v.name !== '__default_setup__').map(view => (
+                                <option key={view.id} value={view.id} className="bg-gray-800 text-white">
+                                  {view.is_global ? '🌐 ' : ''}{view.name}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-sm font-bold whitespace-nowrap">Name:</span>
                             <input
                               type="text"
                               autoFocus
@@ -5785,39 +6123,13 @@ export default function TeeemTableView({
                               onChange={(e) => setNewViewName(e.target.value.slice(0, 20))}
                               placeholder="Enter view name..."
                               className="flex-1 max-w-[200px] text-sm font-semibold px-2 py-1 border-0 rounded bg-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/50"
-                              onKeyDown={async (e) => {
+                              onKeyDown={(e) => {
                                 if (e.key === 'Escape') {
                                   setCreatingNewView(false)
                                   setNewViewName('')
-                                } else if (e.key === 'Enter' && newViewName.trim()) {
-                                  // Save the new view via API
-                                  const columnsToSave = {}
-                                  COLUMNS.filter(col => col.key !== 'select').forEach(col => {
-                                    columnsToSave[col.key] = visibleColumns[col.key] !== false
-                                  })
-                                  const orderToSave = columnOrder || COLUMNS.map(c => c.key)
-
-                                  const newView = await saveNewView({
-                                    name: newViewName.trim(),
-                                    filters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
-                                    filterGroups: [...filterGroups],
-                                    interGroupLogic,
-                                    visibleColumns: columnsToSave,
-                                    columnOrder: orderToSave,
-                                    showFilters,
-                                    autoFitColumns,
-                                    columnWidths: { ...columnWidths },
-                                    sortColumns: [...sortColumns],
-                                    groupByColumn,
-                                    isDefault: savedFilters.length === 0
-                                  })
-
-                                  if (newView) {
-                                    setActiveViewId(newView.id)
-                                    setCreatingNewView(false)
-                                    setNewViewName('')
-                                  }
+                                  setCopyFromViewId(null)
                                 }
+                                // Don't auto-save on Enter - user should click Save/Save & Close/Save for All Users
                               }}
                             />
                             <span className="text-[10px] opacity-60">{newViewName.length}/20</span>
@@ -5895,9 +6207,81 @@ export default function TeeemTableView({
                               Save & Close
                             </button>
                             <button
+                              onClick={async () => {
+                                if (!newViewName.trim()) return
+                                // Save the new view as a global view via API
+                                const columnsToSave = {}
+                                COLUMNS.filter(col => col.key !== 'select').forEach(col => {
+                                  columnsToSave[col.key] = visibleColumns[col.key] !== false
+                                })
+                                const orderToSave = columnOrder || COLUMNS.map(c => c.key)
+
+                                try {
+                                  const sortColumnsToSave = Array.isArray(sortColumns) ? sortColumns : []
+                                  const groupByColumnsToSave = Array.isArray(groupByColumns) ? groupByColumns : []
+                                  const groupByColumnToSave = groupByColumnsToSave[0] || groupByColumn || null
+
+                                  const response = await api.post('/api/v1/foundation_views/save_global', {
+                                    foundation_id: foundationIdNumeric,
+                                    name: newViewName.trim(),
+                                    view_type: 'custom',
+                                    filters: {
+                                      cascadeFilters: cascadeFilters.map(f => ({ column: f.column, value: f.value, operator: f.operator, label: f.label, groupId: f.groupId })),
+                                      filterGroups: [...filterGroups],
+                                      interGroupLogic
+                                    },
+                                    columns: {
+                                      visible: columnsToSave,
+                                      order: orderToSave,
+                                      showFilters,
+                                      autoFitColumns,
+                                      widths: { ...columnWidths }
+                                    },
+                                    sort_order: sortColumnsToSave,
+                                    group_by_column: groupByColumnToSave,
+                                    group_by_columns: groupByColumnsToSave
+                                  })
+
+                                  if (response.success) {
+                                    alert(response.message || 'Global view saved successfully! All users will now see these settings.')
+                                    setCreatingNewView(false)
+                                    setNewViewName('')
+                                    // Refresh views to show the updated global view
+                                    const viewsResponse = await api.get(`/api/v1/foundation_views?foundation_id=${foundationIdNumeric}`)
+                                    if (viewsResponse.success) {
+                                      setSavedFilters(viewsResponse.views.map(v => ({
+                                        ...v,
+                                        filters: v.filters?.cascadeFilters || [],
+                                        filterGroups: v.filters?.filterGroups || [],
+                                        interGroupLogic: v.filters?.interGroupLogic || 'AND',
+                                        visibleColumns: v.columns?.visible || {},
+                                        columnOrder: v.columns?.order || [],
+                                        showFilters: v.columns?.showFilters !== false,
+                                        autoFitColumns: v.columns?.autoFitColumns === true,
+                                        columnWidths: v.columns?.widths || {},
+                                        sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
+                                        groupByColumn: v.group_by_column || null,
+                                        groupByColumns: v.group_by_columns || []
+                                      })))
+                                    }
+                                  } else {
+                                    alert('Failed to save global view: ' + (response.error || 'Unknown error'))
+                                  }
+                                } catch (error) {
+                                  console.error('Error saving global view:', error)
+                                  alert('Failed to save global view: ' + (error.message || 'Unknown error'))
+                                }
+                              }}
+                              disabled={!newViewName.trim()}
+                              className="text-xs px-3 py-1 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
+                            >
+                              Save for All Users
+                            </button>
+                            <button
                               onClick={() => {
                                 setCreatingNewView(false)
                                 setNewViewName('')
+                                setCopyFromViewId(null)
                               }}
                               className="text-xs px-2 py-1 bg-white/20 hover:bg-white/30 rounded transition-colors whitespace-nowrap"
                             >
@@ -5909,21 +6293,19 @@ export default function TeeemTableView({
 
                             <button
                               onClick={() => {
-                                // Load the Setup view as the starting point for new views
-                                // Use Setup view's column configuration as the default
-                                const setupView = savedFilters.find(v => v.name === 'Setup')
-                                console.log('[Create New View] Setup view found:', setupView ? 'YES' : 'NO', setupView)
-                                console.log('[Create New View] savedFilters:', savedFilters)
-                                if (setupView) {
-                                  // Load Setup view's configuration
-                                  console.log('[Create New View] Loading Setup view columns:', setupView.visibleColumns)
-                                  loadViewState(setupView)
-                                  // Setup view should never have grouping, ensure it's cleared
-                                  setGroupByColumn(null)
-                                  setGroupByColumns([])
+                                // Set default to copy from current view or first available view
+                                const currentView = savedFilters.find(v => v.id === activeViewId)
+                                const defaultCopyFrom = currentView?.id || savedFilters[0]?.id || null
+                                setCopyFromViewId(defaultCopyFrom)
+
+                                // Load the selected view as template
+                                const viewToCopy = savedFilters.find(v => v.id === defaultCopyFrom)
+                                if (viewToCopy) {
+                                  console.log('[Create New View] Loading template from:', viewToCopy.name)
+                                  loadViewState(viewToCopy)
                                 } else {
-                                  // Fallback if Setup view doesn't exist (shouldn't happen)
-                                  console.log('[Create New View] No Setup view found, using fallback with all columns')
+                                  // Fallback if no views exist
+                                  console.log('[Create New View] No views to copy, using default configuration')
                                   setCascadeFilters([])
                                   setFilterGroups([{ id: 'default', logic: 'AND' }])
                                   setInterGroupLogic('OR')
@@ -6043,9 +6425,16 @@ export default function TeeemTableView({
                         </div>
                       )}
                       {/* View Filter - Filter Builder UI - Collapsible */}
-                      <div className={`${filterSectionCollapsed ? '' : 'flex-1'} min-h-0 overflow-visible`}>
+                      <div className={`${filterSectionCollapsed ? '' : 'flex-1'} min-h-0 overflow-visible relative z-20`}>
                         <button
-                          onClick={() => setFilterSectionCollapsed(!filterSectionCollapsed)}
+                          onClick={() => {
+                            // Close any open dropdowns when collapsing
+                            if (!filterSectionCollapsed) {
+                              setFilterColumnDropdownOpen(null)
+                              setFilterColumnSearchQuery('')
+                            }
+                            setFilterSectionCollapsed(!filterSectionCollapsed)
+                          }}
                           className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                         >
                           <span className="flex items-center gap-2">
@@ -6057,7 +6446,7 @@ export default function TeeemTableView({
                           <span className={`transform transition-transform ${filterSectionCollapsed ? '' : 'rotate-180'}`}>▼</span>
                         </button>
                         {!filterSectionCollapsed && (
-                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-3 bg-gray-50 dark:bg-gray-700/30">
+                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-gray-50 dark:bg-gray-700/30">
                           {/* Top action bar */}
                           <div className="flex items-center gap-2 mb-3 flex-wrap">
                             <button
@@ -6096,7 +6485,7 @@ export default function TeeemTableView({
                           </div>
 
                           {/* Filter groups */}
-                          <div className="space-y-3">
+                          <div className="space-y-4">
                             {filterGroups.map((group, groupIndex) => {
                               const groupFilters = cascadeFilters.filter(f => (f.groupId || 'default') === group.id)
                               return (
@@ -6159,19 +6548,19 @@ export default function TeeemTableView({
                                   </div>
 
                                   {/* Rules in this group */}
-                                  <div className="space-y-2 overflow-visible">
+                                  <div className="space-y-3 overflow-visible">
                                     {groupFilters.length === 0 ? (
-                                      <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-2 italic">
-                                        No rules. Click +Rule to add one.
+                                      <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-3 px-3 italic leading-relaxed">
+                                        No rules. Click <strong>+Rule</strong> to add one.
                                       </div>
                                     ) : (
                                       groupFilters.map((filter) => (
                                         <div
                                           key={filter.id}
-                                          className="flex items-center gap-2 p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-visible"
+                                          className="relative flex items-stretch gap-2.5 p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg overflow-visible"
                                         >
                                           {/* Column dropdown - Searchable with smart positioning */}
-                                          <div className="relative flex-1 min-w-[120px]" data-filter-column-dropdown={filter.id}>
+                                          <div className="relative flex-1 min-w-[140px] max-w-[200px]" data-filter-column-dropdown={filter.id}>
                                             {filterColumnDropdownOpen === filter.id ? (
                                               // Search input replaces button when open
                                               <input
@@ -6279,7 +6668,7 @@ export default function TeeemTableView({
                                                   : f
                                               ))
                                             }}
-                                            className="w-[100px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300"
+                                            className="w-[110px] px-2.5 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
                                           >
                                             <option value="contains">contains</option>
                                             <option value="=">=</option>
@@ -6293,31 +6682,73 @@ export default function TeeemTableView({
                                           </select>
 
                                           {/* Value input - hidden for empty/notEmpty operators */}
-                                          {filter.operator !== 'empty' && filter.operator !== 'notEmpty' && (
-                                            <input
-                                              type="text"
-                                              value={filter.value}
-                                              onChange={(e) => {
-                                                const newValue = e.target.value
-                                                const columnLabel = COLUMNS.find(col => col.key === filter.column)?.label || filter.column
-                                                const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
-                                                setCascadeFilters(cascadeFilters.map(f =>
-                                                  f.id === filter.id
-                                                    ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
-                                                    : f
-                                                ))
-                                              }}
-                                              placeholder="Value..."
-                                              className="flex-1 min-w-[80px] px-2 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400"
-                                            />
-                                          )}
+                                          {filter.operator !== 'empty' && filter.operator !== 'notEmpty' && (() => {
+                                            const filterColumnDef = COLUMNS.find(col => col.key === filter.column)
+                                            const isChoiceColumn = filterColumnDef?.column_type === 'choice' ||
+                                              filterColumnDef?.column_type === 'single_select' ||
+                                              filterColumnDef?.column_type === 'dropdown'
+                                            const isLookupColumn = filterColumnDef?.column_type === 'lookup' ||
+                                              filterColumnDef?.column_type === 'link_to_another_record' ||
+                                              filterColumnDef?.column_type === 'multiple_lookups'
+                                            const filterChoices = filterColumnDef?.id ? (columnChoices[filterColumnDef.id] || []) : []
+
+                                            // Show dropdown for choice/lookup columns with available options
+                                            if ((isChoiceColumn || isLookupColumn) && filterChoices.length > 0) {
+                                              return (
+                                                <select
+                                                  value={filter.value}
+                                                  onChange={(e) => {
+                                                    const newValue = e.target.value
+                                                    const columnLabel = filterColumnDef?.label || filter.column
+                                                    const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
+                                                    setCascadeFilters(cascadeFilters.map(f =>
+                                                      f.id === filter.id
+                                                        ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
+                                                        : f
+                                                    ))
+                                                  }}
+                                                  className="flex-1 min-w-[140px] max-w-[220px] px-2.5 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 cursor-pointer"
+                                                >
+                                                  <option value="">Select...</option>
+                                                  {filterChoices.map((choice, idx) => {
+                                                    // Handle both object format {id, display} and string format
+                                                    if (choice && typeof choice === 'object') {
+                                                      return <option key={choice.id ?? idx} value={choice.display ?? choice.id}>{choice.display ?? choice.id ?? '-'}</option>
+                                                    }
+                                                    return <option key={choice ?? idx} value={choice}>{choice}</option>
+                                                  })}
+                                                </select>
+                                              )
+                                            }
+
+                                            // Default text input for other column types
+                                            return (
+                                              <input
+                                                type="text"
+                                                value={filter.value}
+                                                onChange={(e) => {
+                                                  const newValue = e.target.value
+                                                  const columnLabel = COLUMNS.find(col => col.key === filter.column)?.label || filter.column
+                                                  const opLabels = { 'contains': 'contains', '=': '=', '!=': '≠', '>': '>', '<': '<', '>=': '≥', '<=': '≤', 'empty': 'is empty', 'notEmpty': 'is not empty' }
+                                                  setCascadeFilters(cascadeFilters.map(f =>
+                                                    f.id === filter.id
+                                                      ? { ...f, value: newValue, label: `${columnLabel} ${opLabels[f.operator || 'contains']} ${newValue}` }
+                                                      : f
+                                                  ))
+                                                }}
+                                                placeholder="Value..."
+                                                className="flex-1 min-w-[140px] max-w-[220px] px-2.5 py-1.5 border border-gray-300 dark:border-gray-500 rounded-lg bg-white dark:bg-gray-700 text-sm text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500"
+                                              />
+                                            )
+                                          })()}
 
                                           {/* Delete button */}
                                           <button
                                             onClick={() => setCascadeFilters(cascadeFilters.filter(f => f.id !== filter.id))}
-                                            className="p-1 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 border border-gray-300 dark:border-gray-500 rounded hover:border-red-300 dark:hover:border-red-500 transition-colors"
+                                            className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 border border-gray-300 dark:border-gray-500 rounded-lg hover:border-red-300 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                            title="Remove filter"
                                           >
-                                            <span className="text-xs font-bold">✕</span>
+                                            <span className="text-sm font-bold">✕</span>
                                           </button>
                                         </div>
                                       ))
@@ -6341,9 +6772,16 @@ export default function TeeemTableView({
                       </div>
 
                       {/* Sort By Panel - Collapsible */}
-                      <div className="mt-4">
+                      <div className="mt-4 relative z-10">
                         <button
-                          onClick={() => setSortSectionCollapsed(!sortSectionCollapsed)}
+                          onClick={() => {
+                            // Close any open dropdowns when collapsing
+                            if (!sortSectionCollapsed) {
+                              setSortColumnDropdownOpen(null)
+                              setSortColumnSearchQuery('')
+                            }
+                            setSortSectionCollapsed(!sortSectionCollapsed)
+                          }}
                           className="w-full flex items-center justify-between text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
                         >
                           <span className="flex items-center gap-2">
@@ -6386,8 +6824,8 @@ export default function TeeemTableView({
 
                           {/* Sort columns list */}
                           {sortColumns.length === 0 ? (
-                            <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-3 italic">
-                              No sort columns. Click +Sort Column to add one, or Shift+Click column headers.
+                            <div className="text-xs text-gray-400 dark:text-gray-500 text-center py-4 px-3 italic leading-relaxed">
+                              No sort columns.<br className="sm:hidden" /> Click <strong>+Sort Column</strong> to add one,<br className="sm:hidden" /> or <strong>Shift+Click</strong> column headers.
                             </div>
                           ) : (
                             <div className="space-y-2">
@@ -7734,7 +8172,7 @@ export default function TeeemTableView({
           </div>
 
           {/* Collapse/Expand buttons (left) and Record count (right) */}
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-shrink-0 py-1">
             {/* Collapse/Expand All - shown when grouping is active */}
             {groupByColumns.length > 0 && filteredAndSorted.length > 0 ? (
               <div className="flex items-center gap-1">
@@ -7807,27 +8245,28 @@ export default function TeeemTableView({
         {/* END BOTTOM SECTION - Filters */}
 
         {/* Table Container with Border */}
-        <div className="flex-1 min-h-0 p-4">
-          {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
-          <div
-            ref={scrollContainerRef}
-            className="teeem-table-scroll h-full overflow-y-scroll overflow-x-scroll border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900"
-          >
-          <table className="border-collapse" style={{
-            width: (() => {
+        <div className="flex-1 min-h-0 p-4 flex flex-col">
+          {/* Table wrapper with border and rounded corners - no overflow clipping */}
+          <div className="flex-1 min-h-0 flex flex-col border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+            {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
+            <div
+              ref={scrollContainerRef}
+              className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+            >
+          <table className="border-separate border-spacing-0" style={{
+            width: autoFitColumns ? 'auto' : (() => {
               // Calculate total width from all visible columns
               const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
               const totalWidth = visibleCols.reduce((sum, key) => {
                 return sum + (columnWidths[key] || 200)
               }, 0)
               return `${totalWidth}px`
-            })()
+            })(),
+            minWidth: autoFitColumns ? '100%' : undefined
           }}>
-            <thead className="sticky top-0 z-10 backdrop-blur-sm">
-            <tr className="bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800">
-              {(() => {
-                const visibleCols = columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key])
-                return visibleCols.map((colKey, index) => {
+            <thead className="sticky top-0 z-40">
+            <tr className="sticky top-0 z-40">
+              {columnOrder.filter(key => key === 'select' || key === 'actions' || visibleColumns[key]).map((colKey, index, visibleCols) => {
                 const column = COLUMNS.find(c => c.key === colKey)
                 if (!column) return null
 
@@ -7852,23 +8291,24 @@ export default function TeeemTableView({
                       width: autoFitColumns ? 'auto' : columnWidths[colKey],
                       minWidth: columnMinWidths[colKey] ?? 75,
                       maxWidth: autoFitColumns ? 'none' : columnWidths[colKey],
-                      position: 'relative',
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 40,
                       fontSize: '16px',
                       fontWeight: '600',
                       verticalAlign: 'top',
-                      overflow: 'hidden',
                     }}
-                    className={`group align-top ${colKey === 'select' ? 'px-2 py-3' : 'px-2 py-3'} text-white border-r-2 border-white/50 last:border-r-0 ${
-                      isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : ''
+                    className={`group align-top ${colKey === 'select' ? 'px-2 py-5' : 'px-3 py-5'} text-white border-r-2 border-white/50 last:border-r-0 ${
+                      isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : 'bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800'
                     } ${column.sortable ? 'cursor-pointer hover:bg-blue-400/20 dark:hover:bg-blue-600/20' : ''} ${
                       isFirst ? 'rounded-tl-lg' : ''
                     } ${isLast ? 'rounded-tr-lg' : ''} ${
                       column.header_align === 'center' ? 'text-center' : column.header_align === 'right' ? 'text-right' : 'text-left'
                     }`}
                   >
-                    {/* Select All Checkbox (Chapter 20.1) */}
+                    {/* Select All Checkbox with Dropdown (Chapter 20.1) */}
                     {colKey === 'select' ? (
-                      <div className="flex items-center justify-center h-full">
+                      <div className="flex flex-col items-center justify-center h-full gap-1">
                         <input
                           type="checkbox"
                           checked={selectedRows.size === filteredAndSorted.length && filteredAndSorted.length > 0}
@@ -7876,15 +8316,27 @@ export default function TeeemTableView({
                             e.stopPropagation()
                             handleSelectAll()
                           }}
+                          title="Select All"
                           className="h-4 w-4 rounded border-white/50 text-white bg-transparent focus:ring-white"
                         />
+                        {/* Show "Select Visible" option when groups are active and some are collapsed */}
+                        {(groupByColumns.length > 0 || groupByColumn) && collapsedGroups.size > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSelectVisible()
+                            }}
+                            className="text-[9px] text-white/80 hover:text-white hover:underline whitespace-nowrap"
+                            title={`Select only visible rows (${getVisibleRows().length})`}
+                          >
+                            Visible ({getVisibleRows().length})
+                          </button>
+                        )}
                       </div>
                     ) : (
-                      <div className={`flex flex-col h-full gap-2 overflow-hidden ${
-                        showFilters && (columnShowFilters[colKey] ?? true) && column.filterType ? 'justify-between' : 'justify-start'
-                      }`}>
-                        <div className="flex items-center gap-1 min-w-0">
-                          {/* Only show drag handle in edit mode */}
+                      <div className="flex flex-col gap-4">
+                        {/* Column Label - Always visible above filters */}
+                        <div className="flex items-center gap-1 py-1" style={{ minHeight: '32px' }}>
                           {editIndividualMode && column.resizable && (
                             <div
                               draggable="true"
@@ -7908,7 +8360,7 @@ export default function TeeemTableView({
                               <Bars3Icon className="h-5 w-5 text-white/70 hover:text-white transition-colors" />
                             </div>
                           )}
-                          <span className="truncate" title={column.label}>{column.label}</span>
+                          <span className="whitespace-nowrap text-white font-semibold text-base" title={column.label}>{column.label}</span>
                           {isSystemGenerated && <span className="ml-1 text-sm">🔒</span>}
                           {column.sortable && <SortIcon column={colKey} />}
                           {/* Schema Editor Cog Icon - only show in Edit Individual mode */}
@@ -8010,7 +8462,7 @@ export default function TeeemTableView({
                           </select>
                         )}
 
-                        {showFilters && (columnShowFilters[colKey] ?? true) && column.filterType === 'dropdown' && colKey !== 'component' && (
+                        {showFilters && (columnShowFilters[colKey] ?? true) && (column.filterType === 'dropdown' || column.column_type === 'lookup') && colKey !== 'component' && (
                           <select
                             value={columnFilterInputs[colKey] || ''}
                             onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
@@ -8165,9 +8617,10 @@ export default function TeeemTableView({
                         )}
 
                         {/* Default text filter for columns without specific filterType - Show only if showFilters is true */}
-                        {/* Exclude: select, actions, component - everything else gets a filter if columnShowFilters allows */}
+                        {/* Exclude: select, actions, component, lookup columns - everything else gets a filter if columnShowFilters allows */}
                         {/* Also show for columns with filterType that doesn't have a specific handler (like currency, number, etc) */}
                         {showFilters && (columnShowFilters[colKey] ?? true) && colKey !== 'component' && colKey !== 'select' && colKey !== 'actions' &&
+                         column.column_type !== 'lookup' &&
                          (!column.filterType || !['text', 'boolean', 'dropdown'].includes(column.filterType)) && (
                           <input
                             type="text"
@@ -8188,8 +8641,7 @@ export default function TeeemTableView({
 
                   </th>
                 )
-              })
-              })()}
+              })}
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-900">
@@ -8219,13 +8671,58 @@ export default function TeeemTableView({
               }
 
               // Helper to sort group keys naturally
-              const sortGroupKeys = (keys) => {
-                return keys.sort((a, b) => {
+              // Special handling for workflow fields (job_status) - sort by display_order
+              const sortGroupKeys = (keys, colKey) => {
+                // ALWAYS log to see if this function is being called
+                console.log('[sortGroupKeys] 🔍 CALLED with:', { keys, colKey })
+
+                const groupColumnDef = COLUMNS.find(c => c.key === colKey || c.column_name === colKey)
+                const isLookupColumn = groupColumnDef?.column_type === 'lookup'
+                const lookupOptions = isLookupColumn && groupColumnDef?.id ? (columnChoices[groupColumnDef.id] || []) : []
+
+                // Always log detailed info
+                console.log('[sortGroupKeys] 📊 Column info:', {
+                  colKey,
+                  columnDefFound: !!groupColumnDef,
+                  columnType: groupColumnDef?.column_type,
+                  columnId: groupColumnDef?.id,
+                  lookupOptionsCount: lookupOptions.length,
+                  lookupOptions: lookupOptions,
+                  hasDisplayOrder: lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
+                })
+
+                // Check if this column has display_order (workflow columns like job_status)
+                const hasDisplayOrder = lookupOptions.length > 0 && lookupOptions.some(opt => opt.display_order !== undefined)
+
+                const sorted = keys.sort((a, b) => {
+                  if (hasDisplayOrder) {
+                    // Sort by workflow order (display_order from lookup options)
+                    const optionA = lookupOptions.find(opt => opt.display === a || opt.value === a)
+                    const optionB = lookupOptions.find(opt => opt.display === b || opt.value === b)
+
+                    const orderA = optionA?.display_order ?? 9999
+                    const orderB = optionB?.display_order ?? 9999
+
+                    console.log('[sortGroupKeys] 🔀 Comparing:', {
+                      a, b,
+                      optionA: optionA?.display,
+                      optionB: optionB?.display,
+                      orderA, orderB,
+                      result: orderA - orderB
+                    })
+
+                    if (orderA !== orderB) return orderA - orderB
+                  }
+
+                  // Fall back to natural sorting (numeric or alphabetical)
                   const numA = parseInt(a.match(/\d+/)?.[0], 10)
                   const numB = parseInt(b.match(/\d+/)?.[0], 10)
                   if (!isNaN(numA) && !isNaN(numB)) return numA - numB
                   return a.localeCompare(b)
                 })
+
+                console.log('[sortGroupKeys] ✅ Sorted result:', sorted)
+                return sorted
               }
 
               // Build nested group structure recursively
@@ -8370,7 +8867,7 @@ export default function TeeemTableView({
                                     ['title', 'content'].includes(colKey) && !editModeActive ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : ''
                                   } ${
                                     editModeActive && colKey !== 'select' && colKey !== 'id' && colKey !== 'user_id' && !column.isComputed ? 'cursor-pointer' : ''
-                                  } ${autoFitColumns ? '' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
+                                  } ${autoFitColumns ? 'whitespace-nowrap' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
                                 >
                                   {renderCellContent(entry, colKey)}
                                 </td>
@@ -8383,7 +8880,9 @@ export default function TeeemTableView({
 
                 // Has groups - render group headers and nested content
                 if (node.groups) {
-                  const sortedKeys = sortGroupKeys(Object.keys(node.groups))
+                  // Get column key for this level BEFORE sorting
+                  const groupColKey = activeGroupColumns[level]
+                  const sortedKeys = sortGroupKeys(Object.keys(node.groups), groupColKey)
                   return sortedKeys.map(groupKey => {
                     const groupPath = parentPath ? `${parentPath}|${groupKey}` : groupKey
                     const isCollapsed = collapsedGroups.has(groupPath)
@@ -8398,7 +8897,6 @@ export default function TeeemTableView({
                     const rowCount = countRows(childNode)
 
                     // Get column label for this level - search by key, column_name, or fall back to raw key
-                    const groupColKey = activeGroupColumns[level]
                     const colDef = COLUMNS.find(c => c.key === groupColKey || c.column_name === groupColKey)
                     const colLabel = colDef?.label || groupColKey
 
@@ -8573,7 +9071,7 @@ export default function TeeemTableView({
                       } ${
                         // Edit mode: make all cells clickable except select, id, user_id, and computed
                         editModeActive && colKey !== 'select' && colKey !== 'id' && colKey !== 'user_id' && !column.isComputed ? 'cursor-pointer' : ''
-                      } ${autoFitColumns ? '' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
+                      } ${autoFitColumns ? 'whitespace-nowrap' : 'whitespace-nowrap overflow-hidden text-ellipsis max-w-0'}`}
                     >
                       {renderCellContent(entry, colKey)}
                     </td>
@@ -8663,13 +9161,14 @@ export default function TeeemTableView({
             </tr>
           </tfoot>
           </table>
+            </div>
+            {/* End scroll container */}
           </div>
-          {/* End scroll container */}
+          {/* End table wrapper with border */}
         </div>
         {/* End Table Container with Border */}
       </div>
       {/* End Full-width table container */}
-      </div>
 
       {/* Full Entry Details Modal */}
       {selectedEntry && (
@@ -9897,182 +10396,349 @@ export default function TeeemTableView({
 
       {/* Bulk Update Modal */}
       {showBulkUpdateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowBulkUpdateModal(false)}>
-          <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}>
+          <div className="flex min-h-screen items-start justify-center p-4 pt-12">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
 
-            {/* Modal */}
+            {/* Modal - wider for side-by-side layout */}
             <div
-              className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6"
+              className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full p-6"
               onClick={(e) => e.stopPropagation()}
             >
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Bulk Update {selectedRows.size} {selectedRows.size === 1 ? 'Record' : 'Records'}
               </h3>
 
-              {/* Column Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Select Column to Update
-                </label>
-                <select
-                  value={bulkUpdateColumn}
-                  onChange={(e) => {
-                    setBulkUpdateColumn(e.target.value)
-                    setBulkUpdateValue('')
-                  }}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="">-- Select a column --</option>
-                  {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id').map(col => (
-                    <option key={col.key} value={col.column_key || col.key}>
-                      {col.display_name || col.label || col.key}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Value Input - depends on column type */}
-              {bulkUpdateColumn && (() => {
-                const selectedCol = COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)
-                const colType = selectedCol?.column_type
-
-                // Get choices/options from columnChoices state (fetched from API)
-                const availableChoices = selectedCol?.id ? (columnChoices[selectedCol.id] || []) : []
-
-                // For lookup columns, show dropdown with lookup options
-                if (colType === 'lookup' || colType === 'single_lookup') {
-                  const isObjectFormat = availableChoices.length > 0 && typeof availableChoices[0] === 'object'
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <select
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
-                        <option value="">-- Select a value --</option>
-                        {availableChoices.map((option, idx) => {
-                          if (isObjectFormat) {
-                            return (
-                              <option key={option.id || idx} value={option.id}>
-                                {option.display || option.name || `ID: ${option.id}`}
-                              </option>
-                            )
-                          }
-                          return (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          )
-                        })}
-                      </select>
-                    </div>
-                  )
-                }
-
-                // For choice/select columns, show dropdown
-                if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <select
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
-                        <option value="">-- Select a value --</option>
-                        {availableChoices.map(choice => (
-                          <option key={choice.value || choice} value={choice.value || choice}>
-                            {choice.label || choice.value || choice}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )
-                }
-
-                // For boolean columns
-                if (colType === 'boolean' || colType === 'checkbox') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <select
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      >
-                        <option value="">-- Select a value --</option>
-                        <option value="true">Yes / True</option>
-                        <option value="false">No / False</option>
-                      </select>
-                    </div>
-                  )
-                }
-
-                // For number columns
-                if (colType === 'number' || colType === 'integer' || colType === 'decimal' || colType === 'currency') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <input
-                        type="number"
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        placeholder="Enter number..."
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                  )
-                }
-
-                // For date columns
-                if (colType === 'date' || colType === 'datetime') {
-                  return (
-                    <div className="mb-4">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        New Value
-                      </label>
-                      <input
-                        type={colType === 'datetime' ? 'datetime-local' : 'date'}
-                        value={bulkUpdateValue}
-                        onChange={(e) => setBulkUpdateValue(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                  )
-                }
-
-                // Default: text input
-                return (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      New Value
-                    </label>
+              {/* Side-by-side layout for Column and Value selection */}
+              <div className="grid grid-cols-2 gap-6">
+                {/* Column Selection with Search */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select Column to Update
+                  </label>
+                  {/* Search input with selected column display */}
+                  <div className="relative mb-2">
                     <input
                       type="text"
-                      value={bulkUpdateValue}
-                      onChange={(e) => setBulkUpdateValue(e.target.value)}
-                      placeholder="Enter new value..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      value={bulkUpdateColumnSearch}
+                      onChange={(e) => setBulkUpdateColumnSearch(e.target.value)}
+                      placeholder={bulkUpdateColumn
+                        ? COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)?.display_name ||
+                          COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)?.label ||
+                          bulkUpdateColumn
+                        : "Search columns..."}
+                      className={`w-full px-3 py-2 pl-9 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                        bulkUpdateColumn && !bulkUpdateColumnSearch
+                          ? 'border-indigo-500 dark:border-indigo-400'
+                          : 'border-gray-300 dark:border-gray-600'
+                      }`}
                     />
+                    <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    {(bulkUpdateColumnSearch || bulkUpdateColumn) && (
+                      <button
+                        onClick={() => { setBulkUpdateColumnSearch(''); if (!bulkUpdateColumnSearch) { setBulkUpdateColumn(''); setBulkUpdateValue('') } }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
-                )
-              })()}
+                  {/* Column list */}
+                  <div className="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                    {COLUMNS
+                      .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                      .filter(col => {
+                        if (!bulkUpdateColumnSearch) return true
+                        const label = (col.display_name || col.label || col.key).toLowerCase()
+                        return label.includes(bulkUpdateColumnSearch.toLowerCase())
+                      })
+                      .map(col => {
+                        const colKey = col.column_key || col.key
+                        const isSelected = bulkUpdateColumn === colKey
+                        return (
+                          <button
+                            key={col.key}
+                            onClick={() => {
+                              setBulkUpdateColumn(colKey)
+                              setBulkUpdateValue('')
+                              setBulkUpdateColumnSearch('')
+                              setBulkUpdateValueSearch('')
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                              isSelected
+                                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                : 'text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            {col.display_name || col.label || col.key}
+                            {isSelected && (
+                              <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        )
+                      })}
+                    {COLUMNS
+                      .filter(col => col.key !== 'select' && col.key !== 'actions' && col.key !== 'id')
+                      .filter(col => {
+                        if (!bulkUpdateColumnSearch) return true
+                        const label = (col.display_name || col.label || col.key).toLowerCase()
+                        return label.includes(bulkUpdateColumnSearch.toLowerCase())
+                      }).length === 0 && (
+                      <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                        No columns match "{bulkUpdateColumnSearch}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Value Selection - always visible */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    New Value
+                  </label>
+                  {!bulkUpdateColumn ? (
+                    <div className="h-[calc(100%-2rem)] border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+                      <p className="text-sm text-gray-400 dark:text-gray-500">Select a column first</p>
+                    </div>
+                  ) : (() => {
+                    const selectedCol = COLUMNS.find(c => (c.column_key || c.key) === bulkUpdateColumn)
+                    const colType = selectedCol?.column_type
+                    const availableChoices = selectedCol?.id ? (columnChoices[selectedCol.id] || []) : []
+
+                    // For lookup columns with searchable list
+                    if (colType === 'lookup' || colType === 'single_lookup') {
+                      const isObjectFormat = availableChoices.length > 0 && typeof availableChoices[0] === 'object'
+                      const filteredChoices = availableChoices.filter(option => {
+                        if (!bulkUpdateValueSearch) return true
+                        const label = isObjectFormat
+                          ? (option.display || option.name || '').toLowerCase()
+                          : String(option).toLowerCase()
+                        return label.includes(bulkUpdateValueSearch.toLowerCase())
+                      })
+                      const selectedOption = isObjectFormat
+                        ? availableChoices.find(o => String(o.id) === String(bulkUpdateValue))
+                        : bulkUpdateValue
+
+                      return (
+                        <>
+                          <div className="relative mb-2">
+                            <input
+                              type="text"
+                              value={bulkUpdateValueSearch}
+                              onChange={(e) => setBulkUpdateValueSearch(e.target.value)}
+                              placeholder={selectedOption
+                                ? (isObjectFormat ? (selectedOption.display || selectedOption.name) : selectedOption)
+                                : "Search values..."}
+                              className={`w-full px-3 py-2 pl-9 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                                bulkUpdateValue && !bulkUpdateValueSearch
+                                  ? 'border-indigo-500 dark:border-indigo-400'
+                                  : 'border-gray-300 dark:border-gray-600'
+                              }`}
+                            />
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {(bulkUpdateValueSearch || bulkUpdateValue) && (
+                              <button
+                                onClick={() => { setBulkUpdateValueSearch(''); if (!bulkUpdateValueSearch) setBulkUpdateValue('') }}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          <div className="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                            {filteredChoices.map((option, idx) => {
+                              const optionId = isObjectFormat ? option.id : option
+                              const optionLabel = isObjectFormat ? (option.display || option.name || `ID: ${option.id}`) : option
+                              const isSelected = String(bulkUpdateValue) === String(optionId)
+                              return (
+                                <button
+                                  key={optionId || idx}
+                                  onClick={() => { setBulkUpdateValue(String(optionId)); setBulkUpdateValueSearch('') }}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                                    isSelected
+                                      ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                      : 'text-gray-900 dark:text-white'
+                                  }`}
+                                >
+                                  {optionLabel}
+                                  {isSelected && (
+                                    <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )
+                            })}
+                            {filteredChoices.length === 0 && (
+                              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                {bulkUpdateValueSearch ? `No values match "${bulkUpdateValueSearch}"` : 'No options available'}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )
+                    }
+
+                    // For choice/select columns with searchable list
+                    if (colType === 'choice' || colType === 'status' || colType === 'single_select') {
+                      const filteredChoices = availableChoices.filter(choice => {
+                        if (!bulkUpdateValueSearch) return true
+                        const label = (choice.label || choice.value || choice || '').toLowerCase()
+                        return label.includes(bulkUpdateValueSearch.toLowerCase())
+                      })
+                      const selectedChoice = availableChoices.find(c => (c.value || c) === bulkUpdateValue)
+
+                      return (
+                        <>
+                          <div className="relative mb-2">
+                            <input
+                              type="text"
+                              value={bulkUpdateValueSearch}
+                              onChange={(e) => setBulkUpdateValueSearch(e.target.value)}
+                              placeholder={selectedChoice
+                                ? (selectedChoice.label || selectedChoice.value || selectedChoice)
+                                : "Search values..."}
+                              className={`w-full px-3 py-2 pl-9 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                                bulkUpdateValue && !bulkUpdateValueSearch
+                                  ? 'border-indigo-500 dark:border-indigo-400'
+                                  : 'border-gray-300 dark:border-gray-600'
+                              }`}
+                            />
+                            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {(bulkUpdateValueSearch || bulkUpdateValue) && (
+                              <button
+                                onClick={() => { setBulkUpdateValueSearch(''); if (!bulkUpdateValueSearch) setBulkUpdateValue('') }}
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                          <div className="max-h-80 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                            {filteredChoices.map((choice, idx) => {
+                              const choiceValue = choice.value || choice
+                              const choiceLabel = choice.label || choice.value || choice
+                              const isSelected = bulkUpdateValue === choiceValue
+                              return (
+                                <button
+                                  key={choiceValue || idx}
+                                  onClick={() => { setBulkUpdateValue(choiceValue); setBulkUpdateValueSearch('') }}
+                                  className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                                    isSelected
+                                      ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                      : 'text-gray-900 dark:text-white'
+                                  }`}
+                                >
+                                  {choiceLabel}
+                                  {isSelected && (
+                                    <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )
+                            })}
+                            {filteredChoices.length === 0 && (
+                              <div className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400 text-center">
+                                {bulkUpdateValueSearch ? `No values match "${bulkUpdateValueSearch}"` : 'No options available'}
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )
+                    }
+
+                    // For boolean columns - simple list
+                    if (colType === 'boolean' || colType === 'checkbox') {
+                      const boolOptions = [
+                        { value: 'true', label: 'Yes / True' },
+                        { value: 'false', label: 'No / False' }
+                      ]
+                      return (
+                        <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700">
+                          {boolOptions.map(opt => {
+                            const isSelected = bulkUpdateValue === opt.value
+                            return (
+                              <button
+                                key={opt.value}
+                                onClick={() => setBulkUpdateValue(opt.value)}
+                                className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors ${
+                                  isSelected
+                                    ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-medium'
+                                    : 'text-gray-900 dark:text-white'
+                                }`}
+                              >
+                                {opt.label}
+                                {isSelected && (
+                                  <svg className="inline-block ml-2 h-4 w-4 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )
+                    }
+
+                    // For number columns
+                    if (colType === 'number' || colType === 'integer' || colType === 'decimal' || colType === 'currency') {
+                      return (
+                        <input
+                          type="number"
+                          value={bulkUpdateValue}
+                          onChange={(e) => setBulkUpdateValue(e.target.value)}
+                          placeholder="Enter number..."
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      )
+                    }
+
+                    // For date columns
+                    if (colType === 'date' || colType === 'datetime') {
+                      return (
+                        <input
+                          type={colType === 'datetime' ? 'datetime-local' : 'date'}
+                          value={bulkUpdateValue}
+                          onChange={(e) => setBulkUpdateValue(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                      )
+                    }
+
+                    // Default: text input
+                    return (
+                      <input
+                        type="text"
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder="Enter new value..."
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                    )
+                  })()}
+                </div>
+              </div>
 
               {/* Action Buttons */}
               <div className="flex justify-end gap-3 mt-6">
                 <button
-                  onClick={() => setShowBulkUpdateModal(false)}
+                  onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors"
                 >
                   Cancel
@@ -10092,17 +10758,22 @@ export default function TeeemTableView({
                       // Call bulk update API
                       if (foundationIdNumeric) {
                         await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, {
-                          ids: selectedIds,
-                          column_key: bulkUpdateColumn,
-                          value: bulkUpdateValue
+                          record_ids: selectedIds,
+                          updates: { [bulkUpdateColumn]: bulkUpdateValue }
                         })
-                        // Refresh the data
-                        if (onColumnUpdate) onColumnUpdate()
+                        // Refresh the data - prefer onRefresh (just reloads records) over onColumnUpdate (reloads everything)
+                        if (onRefresh) {
+                          await onRefresh()
+                        } else if (onColumnUpdate) {
+                          onColumnUpdate()
+                        }
                       } else {
                         throw new Error('No foundation ID available for bulk update')
                       }
 
                       setShowBulkUpdateModal(false)
+                      setBulkUpdateColumnSearch('')
+                      setBulkUpdateValueSearch('')
                       setSelectedRows(new Set())
                       setShowDeleteButton(false)
                       console.log('✅ Bulk update completed')

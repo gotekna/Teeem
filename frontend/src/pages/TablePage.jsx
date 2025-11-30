@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, startTransition } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import TeeemTableView from '../components/documentation/TeeemTableView'
 import { PlusIcon } from '@heroicons/react/24/outline'
@@ -92,6 +92,8 @@ function isSystemOrHiddenColumn(columnName) {
 
 export default function TablePage({ embedded = false }) {
   const { id, slug } = useParams() // Get both ID and slug from URL
+  const [searchParams] = useSearchParams()
+  const duplicatesOnly = searchParams.get('duplicates_only') === 'true'
   const navigate = useNavigate()
   const [table, setTable] = useState(null)
   const [records, setRecords] = useState([])
@@ -127,6 +129,7 @@ export default function TablePage({ embedded = false }) {
   const [viewsLoading, setViewsLoading] = useState(false) // Track if views are currently loading
   const [serverSearchLoading, setServerSearchLoading] = useState(false) // Track server-side search loading state
   const [currentSearchTerm, setCurrentSearchTerm] = useState('') // Track current search term for server-side search
+  const [viewApiParams, setViewApiParams] = useState(null) // Track API params from current view (for server-side filtering)
 
   // Reset progressive loading state when table changes
   useEffect(() => {
@@ -247,6 +250,24 @@ export default function TablePage({ embedded = false }) {
       loadRecords()
     }
   }, [viewsLoaded, table]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step 3: Reload records when view apiParams change (e.g., "Possible Duplicates" view selected)
+  const previousApiParamsRef = useRef(null)
+  useEffect(() => {
+    // Skip initial render and only reload when apiParams actually change
+    const prevParams = previousApiParamsRef.current
+    const currentParams = viewApiParams
+
+    // Compare params (both null, or same object structure)
+    const paramsChanged = JSON.stringify(prevParams) !== JSON.stringify(currentParams)
+
+    if (paramsChanged && viewsLoaded && table) {
+      progressiveLoadLog('🔄 View apiParams changed, reloading records:', { from: prevParams, to: currentParams })
+      previousApiParamsRef.current = currentParams
+      // Pass the new apiParams directly to avoid closure issues
+      loadRecords(1, false, currentParams)
+    }
+  }, [viewApiParams, viewsLoaded, table]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track when loading state changes
   useEffect(() => {
@@ -382,7 +403,7 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
-  const loadRecords = async (page = 1, append = false) => {
+  const loadRecords = async (page = 1, append = false, overrideApiParams = undefined) => {
     // Prevent duplicate loads (React Strict Mode protection)
     const now = Date.now()
     const timeSinceLastLoad = now - lastLoadStartTimeRef.current
@@ -456,6 +477,21 @@ export default function TablePage({ embedded = false }) {
       const defaultView = preloadedViews?.find(v => v.display_order === 0)
       const viewParam = useMinimalFields && defaultView ? `&view_id=${defaultView.id}` : ''
 
+      // Pass special filters from URL or view apiParams
+      // overrideApiParams > viewApiParams > URL param (in priority order)
+      const effectiveApiParams = overrideApiParams !== undefined ? overrideApiParams : viewApiParams
+      let apiFilterParams = ''
+      if (effectiveApiParams) {
+        // Build query string from view's apiParams
+        Object.entries(effectiveApiParams).forEach(([key, value]) => {
+          apiFilterParams += `&${key}=${encodeURIComponent(value)}`
+        })
+        progressiveLoadLog('Using view apiParams:', effectiveApiParams)
+      } else if (duplicatesOnly) {
+        // Fallback to URL param
+        apiFilterParams = '&duplicates_only=true'
+      }
+
       progressiveLoadLog('loadRecords called:', {
         id,
         viewMode,
@@ -473,7 +509,7 @@ export default function TablePage({ embedded = false }) {
 
       // Views are already loaded by loadViewsFirst() - no need to load them here
 
-      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}`, {
+      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}${apiFilterParams}`, {
         onDownloadProgress: (progressEvent) => {
           // Just update progress if we have real data
           if (progressEvent.total) {
@@ -952,7 +988,11 @@ export default function TablePage({ embedded = false }) {
   }
 
   return (
-    <div className={`${embedded ? '' : '-mx-4 sm:-mx-6 lg:-mx-8 -my-4'} flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-900`} ref={tableContainerRef}>
+    <div
+      className={`${embedded ? '' : 'px-4 sm:px-6 lg:px-8 py-2'} flex-1 flex flex-col min-h-0 bg-white dark:bg-gray-900`}
+      ref={tableContainerRef}
+      style={{ overflow: 'clip' }}
+    >
 
       {/* Progressive Loading Notification Banner (Table 205) */}
       {showNotification && fullDataLoaded && (
@@ -1007,7 +1047,7 @@ export default function TablePage({ embedded = false }) {
       )}
 
       {/* TeeemTableView - The Gold Standard */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="flex-1 min-h-0 overflow-hidden">
         {teeemColumns.length > 0 ? (
           <TeeemTableView
             foundationId={`table-${table.slug || id}`}
@@ -1018,6 +1058,10 @@ export default function TablePage({ embedded = false }) {
             preloadedViews={preloadedViews}
             onServerSearch={handleServerSearch}
             serverSearchLoading={serverSearchLoading}
+            onViewApiParamsChange={(apiParams) => {
+              console.log('[TablePage] View apiParams changed:', apiParams)
+              setViewApiParams(apiParams)
+            }}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
@@ -1062,6 +1106,10 @@ export default function TablePage({ embedded = false }) {
             onColumnUpdate={() => {
               // Reload table data when column schema is updated
               loadTable()
+            }}
+            onRefresh={async () => {
+              // Reload just the records (faster than loadTable which reloads everything)
+              await loadRecords()
             }}
             viewOnly={
               table.slug === 'pricebook' ||

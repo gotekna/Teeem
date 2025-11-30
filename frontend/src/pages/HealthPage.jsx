@@ -32,6 +32,7 @@ export default function HealthPage() {
     issues: []
   })
   const [xeroSyncHealth, setXeroSyncHealth] = useState(null)
+  const [xeroInvoiceSyncHealth, setXeroInvoiceSyncHealth] = useState(null)
   const [duplicateContacts, setDuplicateContacts] = useState(null)
   const [loadingDuplicates, setLoadingDuplicates] = useState(false)
   const [expandedSupplierCategory, setExpandedSupplierCategory] = useState(null)
@@ -44,6 +45,7 @@ export default function HealthPage() {
     itemsRequiringPhotoWithoutImage: false,
     priceMismatches: false,
     xeroSync: true,
+    xeroInvoiceSync: true,
     duplicateContacts: true
   })
   const [searchQueries, setSearchQueries] = useState({
@@ -203,6 +205,7 @@ export default function HealthPage() {
     loadHealthData()
     loadPriceHealthCheck()
     loadXeroSyncHealth()
+    loadXeroInvoiceSyncHealth()
     loadDuplicateContacts()
   }, [])
 
@@ -287,6 +290,27 @@ export default function HealthPage() {
       setXeroSyncHealth(response.health)
     } catch (error) {
       console.error('Failed to load Xero sync health:', error)
+    }
+  }
+
+  const loadXeroInvoiceSyncHealth = async () => {
+    try {
+      const response = await api.get('/api/v1/external_invoices/sync_status')
+      if (response.success) {
+        setXeroInvoiceSyncHealth(response.data)
+      }
+    } catch (error) {
+      console.error('Failed to load Xero invoice sync health:', error)
+    }
+  }
+
+  const triggerInvoiceSync = async (incremental = true) => {
+    try {
+      await api.post('/api/v1/external_invoices/trigger_sync', { incremental: incremental ? 'true' : 'false' })
+      // Reload the health status after triggering sync
+      await loadXeroInvoiceSyncHealth()
+    } catch (error) {
+      console.error('Failed to trigger invoice sync:', error)
     }
   }
 
@@ -1848,6 +1872,136 @@ export default function HealthPage() {
                       <Cog6ToothIcon className="h-4 w-4 mr-1" />
                       Configure Sync Settings
                     </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Xero Invoice Sync Health Section */}
+          {xeroInvoiceSyncHealth && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => toggleSection('xeroInvoiceSync')}
+                className="w-full px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50"
+              >
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    Xero Invoice Data Warehouse
+                  </h2>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    xeroInvoiceSyncHealth.with_errors_count > 0 ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                  }`}>
+                    {xeroInvoiceSyncHealth.with_errors_count > 0 ? 'Errors' : 'Healthy'}
+                  </span>
+                </div>
+                {expandedSections.xeroInvoiceSync ? (
+                  <ChevronDownIcon className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                )}
+              </button>
+
+              {expandedSections.xeroInvoiceSync && (
+                <div className="p-6">
+                  {/* Overview Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Total Cached</span>
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {xeroInvoiceSyncHealth.total_invoices || 0}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Linked to Jobs</span>
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {xeroInvoiceSyncHealth.linked_to_jobs || 0}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">Linked to Contacts</span>
+                      </div>
+                      <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {xeroInvoiceSyncHealth.linked_to_contacts || 0}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ExclamationCircleIcon className="h-4 w-4 text-red-500" />
+                        <span className="text-sm text-gray-500 dark:text-gray-400">With Errors</span>
+                      </div>
+                      <div className={`text-2xl font-semibold ${xeroInvoiceSyncHealth.with_errors_count > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white'}`}>
+                        {xeroInvoiceSyncHealth.with_errors_count || 0}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* By Type */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">By Type</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      {xeroInvoiceSyncHealth.by_type && Object.entries(xeroInvoiceSyncHealth.by_type).map(([type, count]) => (
+                        <div key={type} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg">
+                          <span className="text-sm text-gray-600 dark:text-gray-400 capitalize">
+                            {type === 'sales_invoice' ? 'Sales Invoices' : type === 'bill' ? 'Bills' : type}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* By Status */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">By Status</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      {xeroInvoiceSyncHealth.by_status && Object.entries(xeroInvoiceSyncHealth.by_status).map(([status, count]) => (
+                        <div key={status} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/30 rounded-lg">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                            status === 'paid' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
+                            status === 'approved' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300' :
+                            status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
+                            status === 'voided' || status === 'deleted' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300' :
+                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'
+                          }`}>
+                            {status}
+                          </span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Last Sync Info */}
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {xeroInvoiceSyncHealth.last_synced_at ? (
+                        <>Last synced: {new Date(xeroInvoiceSyncHealth.last_synced_at).toLocaleString()}</>
+                      ) : (
+                        <>Never synced</>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => triggerInvoiceSync(true)}
+                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-500 border border-indigo-300 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                      >
+                        <ArrowPathIcon className="h-4 w-4 mr-1" />
+                        Incremental Sync
+                      </button>
+                      <button
+                        onClick={() => triggerInvoiceSync(false)}
+                        className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-500 border border-gray-300 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                      >
+                        Full Sync
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

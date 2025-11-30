@@ -179,6 +179,9 @@ module Api
           # Add pagination
           query_params[:page] = params[:page] || 1
 
+          # Include line items for description display (summaryOnly=false is default, but explicit)
+          query_params[:unitdp] = 4
+
           result = client.get('Invoices', query_params)
 
           if result[:success]
@@ -219,14 +222,15 @@ module Api
       end
 
       # GET /api/v1/xero/invoices/:id
-      # Fetches a single invoice with full details including line items
+      # Fetches a single invoice with full details including line items and tracking
       def invoice_detail
         begin
           client = XeroApiClient.new
           invoice_id = params[:id]
 
-          # Fetch single invoice with full details (including line items)
-          result = client.get("Invoices/#{invoice_id}")
+          # Fetch single invoice with full details (including line items and tracking)
+          # unitdp=4 gives full decimal precision, and Xero returns Tracking on LineItems by default
+          result = client.get("Invoices/#{invoice_id}", { unitdp: 4 })
 
           if result[:success]
             invoice = result[:data]['Invoices']&.first
@@ -337,8 +341,10 @@ module Api
           query_params = {}
           where_clauses = []
 
+          # Quotes API requires different GUID syntax than Invoices
+          # See: https://developer.xero.com/documentation/api/accounting/quotes
           if params[:contact_id].present?
-            where_clauses << "Contact.ContactID == Guid(\"#{params[:contact_id]}\")"
+            where_clauses << "Contact.ContactID.ToString().Equals(\"#{params[:contact_id]}\")"
           end
 
           if where_clauses.any?
@@ -436,6 +442,93 @@ module Api
           render json: {
             success: false,
             error: "Failed to match invoice: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/xero/invoices_by_tracking
+      # Fetches all invoices (bills and sales invoices) that have a specific tracking category
+      # This is used for the Job Xero Activity tab to show all invoices/bills for a job
+      def invoices_by_tracking
+        tracking_option_name = params[:tracking_option_name]
+
+        unless tracking_option_name.present?
+          return render json: {
+            success: false,
+            error: 'tracking_option_name is required'
+          }, status: :bad_request
+        end
+
+        begin
+          client = XeroApiClient.new
+
+          # Xero API only returns line item details (including tracking) when using pagination
+          # Without pagination, it returns summary data only (no line items)
+          # We need to paginate through all invoices to get line item tracking info
+          all_invoices = []
+          page = 1
+          max_pages = 50  # Safety limit (100 invoices per page = 5000 invoices max)
+
+          loop do
+            Rails.logger.info("Fetching Xero invoices page #{page}")
+            result = client.get('Invoices', {
+              page: page,
+              unitdp: 4
+            })
+
+            unless result[:success]
+              return render json: {
+                success: false,
+                error: 'Failed to fetch invoices from Xero'
+              }, status: :unprocessable_entity
+            end
+
+            invoices_page = result[:data]['Invoices'] || []
+            break if invoices_page.empty?
+
+            all_invoices.concat(invoices_page)
+            page += 1
+            break if page > max_pages
+          end
+
+          Rails.logger.info("Fetched #{all_invoices.length} total invoices from Xero")
+
+          # Filter invoices that have line items with matching tracking category
+          matching_invoices = all_invoices.select do |invoice|
+            line_items = invoice['LineItems'] || []
+            line_items.any? do |line_item|
+              tracking = line_item['Tracking'] || []
+              tracking.any? { |t| t['Option'] == tracking_option_name }
+            end
+          end
+
+          Rails.logger.info("Found #{matching_invoices.length} invoices matching tracking '#{tracking_option_name}'")
+
+          # Separate into invoices (ACCREC = sales) and bills (ACCPAY = purchases)
+          invoices = matching_invoices.select { |inv| inv['Type'] == 'ACCREC' }
+          bills = matching_invoices.select { |inv| inv['Type'] == 'ACCPAY' }
+
+          render json: {
+            success: true,
+            data: {
+              invoices: invoices,
+              bills: bills,
+              total_invoices: invoices.length,
+              total_bills: bills.length,
+              tracking_option_name: tracking_option_name
+            }
+          }
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero invoices_by_tracking auth error: #{e.message}")
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero'
+          }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error("Xero invoices_by_tracking error: #{e.message}")
+          render json: {
+            success: false,
+            error: "Failed to fetch invoices: #{e.message}"
           }, status: :internal_server_error
         end
       end

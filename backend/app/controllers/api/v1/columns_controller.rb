@@ -164,10 +164,22 @@ module Api
         records = target_foundation.dynamic_model.limit(1000).order(:id)
 
         options = records.map do |record|
-          {
+          option = {
             id: record.id,
             display: record.send(column.lookup_display_column).to_s
           }
+          # Include display_order if the lookup table has that column (for workflow sorting)
+          # Check for common ordering column names: display_order, position, sort_order, order
+          if record.respond_to?(:display_order)
+            option[:display_order] = record.display_order
+          elsif record.respond_to?(:position)
+            option[:display_order] = record.position
+          elsif record.respond_to?(:sort_order)
+            option[:display_order] = record.sort_order
+          elsif record.respond_to?(:order)
+            option[:display_order] = record.order
+          end
+          option
         rescue => e
           Rails.logger.error "Error reading lookup value: #{e.message}"
           { id: record.id, display: "[Error]" }

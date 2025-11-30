@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { XMarkIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import api from '../../api'
 
 export default function CompanyForm({ company, onSave, onCancel }) {
   const [formData, setFormData] = useState({
@@ -26,6 +27,8 @@ export default function CompanyForm({ company, onSave, onCancel }) {
 
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupResult, setLookupResult] = useState(null)
 
   const groups = ['tekna', 'team_harder', 'promise', 'charity', 'other']
   const statuses = ['active', 'struck_off', 'in_liquidation', 'dormant']
@@ -40,6 +43,53 @@ export default function CompanyForm({ company, onSave, onCancel }) {
     // Clear error for this field
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }))
+    }
+  }
+
+  // Look up company details from ABR (Australian Business Register)
+  const handleLookup = async () => {
+    const abn = formData.abn?.replace(/\s/g, '')
+    const acn = formData.acn?.replace(/\s/g, '')
+
+    if (!abn && !acn) {
+      setErrors(prev => ({ ...prev, lookup: 'Enter an ABN or ACN to lookup' }))
+      return
+    }
+
+    setLookupLoading(true)
+    setLookupResult(null)
+    setErrors(prev => ({ ...prev, lookup: null }))
+
+    try {
+      const response = await api.post('/api/v1/asic/auto_populate', { abn, acn })
+
+      if (response.data.success && response.data.form_data) {
+        const data = response.data.form_data
+
+        // Auto-populate form fields with lookup data
+        setFormData(prev => ({
+          ...prev,
+          name: data.name || prev.name,
+          abn: data.abn || prev.abn,
+          acn: data.acn || prev.acn,
+          gst_registration_status: data.gst_registration_status || prev.gst_registration_status,
+          registered_office_address: data.registered_address || prev.registered_office_address,
+          status: data.status || prev.status
+        }))
+
+        setLookupResult({
+          success: true,
+          message: `Found: ${data.name}`,
+          trading_names: data.trading_names,
+          raw_data: data.raw_data
+        })
+      }
+    } catch (error) {
+      console.error('Lookup error:', error)
+      const errorMsg = error.response?.data?.error || 'Lookup failed. Please check the ABN/ACN and try again.'
+      setErrors(prev => ({ ...prev, lookup: errorMsg }))
+    } finally {
+      setLookupLoading(false)
     }
   }
 
@@ -177,19 +227,59 @@ export default function CompanyForm({ company, onSave, onCancel }) {
             <label htmlFor="abn" className="block text-sm font-medium text-gray-700">
               ABN
             </label>
-            <input
-              type="text"
-              name="abn"
-              id="abn"
-              placeholder="12 345 678 901"
-              value={formData.abn}
-              onChange={handleChange}
-              className={`mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
-                errors.abn ? 'border-red-300' : ''
-              }`}
-            />
+            <div className="mt-1 flex rounded-md shadow-sm">
+              <input
+                type="text"
+                name="abn"
+                id="abn"
+                placeholder="12 345 678 901"
+                value={formData.abn}
+                onChange={handleChange}
+                className={`block w-full rounded-l-md border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
+                  errors.abn ? 'border-red-300' : ''
+                }`}
+              />
+              <button
+                type="button"
+                onClick={handleLookup}
+                disabled={lookupLoading}
+                className="inline-flex items-center rounded-r-md border border-l-0 border-gray-300 bg-gray-50 px-3 text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                title="Lookup company details from ABR"
+              >
+                {lookupLoading ? (
+                  <svg className="animate-spin h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <MagnifyingGlassIcon className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             {errors.abn && <p className="mt-1 text-sm text-red-600">{errors.abn}</p>}
+            {errors.lookup && <p className="mt-1 text-sm text-red-600">{errors.lookup}</p>}
           </div>
+
+          {/* Lookup Result */}
+          {lookupResult && (
+            <div className="sm:col-span-2">
+              <div className={`rounded-md p-3 ${lookupResult.success ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                <p className={`text-sm font-medium ${lookupResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                  {lookupResult.message}
+                </p>
+                {lookupResult.trading_names && (
+                  <p className="mt-1 text-sm text-green-700">
+                    Trading names: {lookupResult.trading_names}
+                  </p>
+                )}
+                {lookupResult.raw_data?.entity_type && (
+                  <p className="mt-1 text-sm text-green-700">
+                    Entity type: {lookupResult.raw_data.entity_type}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           <div>
             <label htmlFor="tfn" className="block text-sm font-medium text-gray-700">

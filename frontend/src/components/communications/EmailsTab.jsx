@@ -1,272 +1,353 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import {
   EnvelopeIcon,
-  PaperAirplaneIcon,
   MagnifyingGlassIcon,
   PaperClipIcon,
-  UserCircleIcon
+  ArrowPathIcon,
+  ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline'
+import DOMPurify from 'isomorphic-dompurify'
 import { api } from '../../api'
 
 export default function EmailsTab({ entityType, entityId }) {
   const [emails, setEmails] = useState([])
+  const [suggestedEmails, setSuggestedEmails] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [newEmail, setNewEmail] = useState({
-    to: '',
-    subject: '',
-    body: ''
-  })
-  const [sending, setSending] = useState(false)
-  const [showComposer, setShowComposer] = useState(false)
-  const messagesEndRef = useRef(null)
+  const [selectedEmail, setSelectedEmail] = useState(null)
+  const [showAllInThread, setShowAllInThread] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
+
+  // Only support jobs for now - email warehouse is job-centric
+  const isJob = entityType === 'job'
 
   useEffect(() => {
-    loadEmails()
-    // Poll for new emails every 30 seconds
-    const interval = setInterval(loadEmails, 30000)
-    return () => clearInterval(interval)
+    if (isJob) {
+      loadEmails()
+      loadSyncStatus()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityType, entityId])
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [emails])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
   const loadEmails = async () => {
+    if (!isJob) return
+
     try {
       setLoading(true)
-      // Adjust API endpoint based on entity type
-      const endpoint = entityType === 'job'
-        ? `/api/v1/jobs/${entityId}/emails`
-        : `/api/v1/contacts/${entityId}/emails`
-
-      const response = await api.get(endpoint)
-      setEmails(Array.isArray(response.emails) ? response.emails : [])
+      // Load from email warehouse
+      const response = await api.get(`/api/v1/email_warehouse/for_job/${entityId}`, {
+        params: {
+          include_suggestions: true,
+          show_all_in_thread: showAllInThread
+        }
+      })
+      setEmails(response.emails || [])
+      setSuggestedEmails(response.suggested || [])
     } catch (error) {
       console.error('Failed to load emails:', error)
       setEmails([])
+      setSuggestedEmails([])
     } finally {
       setLoading(false)
     }
   }
 
-  const handleSendEmail = async (e) => {
-    e.preventDefault()
-    if (!newEmail.to || !newEmail.subject || !newEmail.body || sending) return
-
+  const loadSyncStatus = async () => {
     try {
-      setSending(true)
-      const endpoint = entityType === 'job'
-        ? `/api/v1/jobs/${entityId}/emails`
-        : `/api/v1/contacts/${entityId}/emails`
-
-      await api.post(endpoint, {
-        email: newEmail
-      })
-
-      setNewEmail({ to: '', subject: '', body: '' })
-      setShowComposer(false)
-      loadEmails()
+      const response = await api.get('/api/v1/email_warehouse/sync_status')
+      setSyncStatus(response)
     } catch (error) {
-      console.error('Failed to send email:', error)
-      alert('Failed to send email. Please try again.')
-    } finally {
-      setSending(false)
+      console.error('Failed to load sync status:', error)
     }
   }
 
-  const filteredEmails = emails.filter(email =>
-    email.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    email.body?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    email.from_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    email.to_email?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Refresh just reloads from the warehouse (instant)
+  const handleRefresh = async () => {
+    await loadEmails()
+    await loadSyncStatus()
+  }
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInHours = (now - date) / (1000 * 60 * 60)
-
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    } else if (diffInHours < 168) {
-      return date.toLocaleDateString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit' })
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const handleAssignSuggested = async (suggestion) => {
+    try {
+      await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/assign_to_job`, {
+        job_id: entityId,
+        assign_thread: true
+      })
+      // Reload emails
+      await loadEmails()
+    } catch (error) {
+      console.error('Failed to assign email:', error)
+      alert('Failed to assign email to this job')
     }
+  }
+
+  const filteredEmails = emails.filter(email => {
+    if (!searchTerm) return true
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      email.subject?.toLowerCase().includes(searchLower) ||
+      email.from_email?.toLowerCase().includes(searchLower) ||
+      email.preview_body?.toLowerCase().includes(searchLower) ||
+      email.to_emails?.some(to => to.toLowerCase().includes(searchLower))
+    )
+  })
+
+  const handleEmailClick = (email) => {
+    setSelectedEmail(selectedEmail?.id === email.id ? null : email)
+  }
+
+  // For non-job entities, show a message
+  if (!isJob) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="flex flex-col items-center justify-center h-64 text-center">
+          <EnvelopeIcon className="h-12 w-12 text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+            Email sync available for jobs only
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            View a job to see associated emails from the email warehouse.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500 dark:text-gray-400">Loading emails...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <EnvelopeIcon className="h-5 w-5 text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Emails
-            </h3>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              ({filteredEmails.length})
-            </span>
+    <div className="flex flex-col h-[calc(100vh-16rem)] bg-white dark:bg-gray-900 rounded-lg shadow border border-gray-200 dark:border-gray-700">
+      {/* Search bar with sync/import buttons */}
+      <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search emails..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full pl-9 pr-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+            />
           </div>
           <button
-            onClick={() => setShowComposer(!showComposer)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            title="Refresh emails from warehouse"
           >
-            <EnvelopeIcon className="h-4 w-4" />
-            Compose
+            <ArrowPathIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
           </button>
         </div>
 
-        {/* Search */}
-        <div className="mt-4 relative">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search emails..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
+        {/* Warehouse status */}
+        {syncStatus && syncStatus.total_emails_synced > 0 && (
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>{syncStatus.total_emails_synced.toLocaleString()} emails in warehouse</span>
+            {syncStatus.last_sync_at && (
+              <span className="ml-2">• Last sync: {new Date(syncStatus.last_sync_at).toLocaleString()}</span>
+            )}
+          </div>
+        )}
+
+        {/* Thread toggle */}
+        <div className="mt-2 flex items-center">
+          <label className="flex items-center text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showAllInThread}
+              onChange={(e) => {
+                setShowAllInThread(e.target.checked)
+                loadEmails()
+              }}
+              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 mr-2"
+            />
+            Show all emails in conversations (instead of latest only)
+          </label>
         </div>
       </div>
 
-      {/* Composer */}
-      {showComposer && (
-        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-          <form onSubmit={handleSendEmail} className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                To
-              </label>
-              <input
-                type="email"
-                value={newEmail.to}
-                onChange={(e) => setNewEmail({ ...newEmail, to: e.target.value })}
-                placeholder="recipient@example.com"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Subject
-              </label>
-              <input
-                type="text"
-                value={newEmail.subject}
-                onChange={(e) => setNewEmail({ ...newEmail, subject: e.target.value })}
-                placeholder="Email subject"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Message
-              </label>
-              <textarea
-                value={newEmail.body}
-                onChange={(e) => setNewEmail({ ...newEmail, body: e.target.value })}
-                placeholder="Type your message here..."
-                rows="6"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                required
-              />
-            </div>
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowComposer(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+      {/* Suggested emails section */}
+      {suggestedEmails.length > 0 && (
+        <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 p-4 bg-yellow-50 dark:bg-yellow-900/20">
+          <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+            Suggested Emails ({suggestedEmails.length})
+          </h4>
+          <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
+            These emails might belong to this job based on contact matches or address mentions.
+          </p>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {suggestedEmails.slice(0, 5).map((suggestion) => (
+              <div
+                key={suggestion.email.id}
+                className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-yellow-200 dark:border-yellow-800"
               >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={sending}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 text-sm font-medium disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
-              >
-                <PaperAirplaneIcon className="h-4 w-4" />
-                {sending ? 'Sending...' : 'Send'}
-              </button>
-            </div>
-          </form>
+                <div className="flex-1 min-w-0 mr-3">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                    {suggestion.email.subject || '(No Subject)'}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    From: {suggestion.email.from_email} • {suggestion.reason}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleAssignSuggested(suggestion)}
+                  className="flex-shrink-0 px-2 py-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 rounded"
+                >
+                  Add to Job
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Messages List */}
-      <div className="p-6">
-        {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-          </div>
-        ) : filteredEmails.length === 0 ? (
-          <div className="text-center py-12">
-            <EnvelopeIcon className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No emails</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {searchTerm ? 'No emails match your search.' : 'Start by composing a new email.'}
+      {/* Emails list */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {filteredEmails.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <EnvelopeIcon className="h-12 w-12 text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {searchTerm ? 'No emails found' : 'No emails yet'}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {searchTerm
+                ? 'Try adjusting your search terms'
+                : 'No emails matched to this job yet. Emails with job contacts or "id:XX" in the subject will auto-match.'}
             </p>
           </div>
         ) : (
-          <div className="space-y-4 max-h-[600px] overflow-y-auto">
+          <div className="space-y-3">
             {filteredEmails.map((email) => (
               <div
                 key={email.id}
-                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                className="bg-gray-50 dark:bg-gray-800 rounded-lg overflow-hidden"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="flex-shrink-0">
-                      <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                        <UserCircleIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                      </div>
-                    </div>
+                {/* Email header - always visible */}
+                <div
+                  className="p-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  onClick={() => handleEmailClick(email)}
+                >
+                  <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {email.from_name || email.from_email}
-                        </p>
-                        {email.direction === 'outbound' && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                            Sent
+                      <div className="flex items-center space-x-2 mb-1">
+                        <span className="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                          {email.display_from || email.from_email}
+                        </span>
+                        {email.has_attachments && (
+                          <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                            <PaperClipIcon className="h-3 w-3 mr-1" />
+                            {email.attachment_count}
+                          </div>
+                        )}
+                        {email.thread_count > 1 && (
+                          <div className="flex items-center text-xs text-indigo-500 dark:text-indigo-400">
+                            <ChatBubbleLeftRightIcon className="h-3 w-3 mr-1" />
+                            {email.thread_count} in thread
+                          </div>
+                        )}
+                        {email.match_type === 'auto' && (
+                          <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded">
+                            Auto-matched
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        To: {email.to_email}
-                      </p>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white mt-2">
-                        {email.subject}
-                      </p>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
-                        {email.body}
-                      </p>
-                      {email.has_attachments && (
-                        <div className="flex items-center gap-1 mt-2 text-xs text-gray-500 dark:text-gray-400">
-                          <PaperClipIcon className="h-4 w-4" />
-                          Attachments
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        {email.subject || '(No Subject)'}
+                      </div>
+                      {!selectedEmail || selectedEmail.id !== email.id ? (
+                        <div className="text-xs text-gray-600 dark:text-gray-400 truncate mt-1">
+                          {email.preview_body}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="ml-4 flex-shrink-0">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {email.received_at ? new Date(email.received_at).toLocaleString() : ''}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Recipients preview */}
+                  <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                    <span>To:</span>
+                    <span className="truncate">
+                      {email.to_emails?.join(', ') || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Email body - expandable */}
+                {selectedEmail && selectedEmail.id === email.id && (
+                  <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+                    {/* Full email details */}
+                    <div className="space-y-3 mb-4 text-sm">
+                      <div>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">From: </span>
+                        <span className="text-gray-900 dark:text-white">{email.from_email}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">To: </span>
+                        <span className="text-gray-900 dark:text-white">{email.to_emails?.join(', ')}</span>
+                      </div>
+                      {email.cc_emails && email.cc_emails.length > 0 && (
+                        <div>
+                          <span className="font-semibold text-gray-700 dark:text-gray-300">CC: </span>
+                          <span className="text-gray-900 dark:text-white">{email.cc_emails.join(', ')}</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">Subject: </span>
+                        <span className="text-gray-900 dark:text-white">{email.subject || '(No Subject)'}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">Date: </span>
+                        <span className="text-gray-900 dark:text-white">
+                          {new Date(email.received_at).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Email body */}
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                      {email.body_html ? (
+                        <div
+                          className="prose dark:prose-invert max-w-none text-sm"
+                          dangerouslySetInnerHTML={{
+                            __html: DOMPurify.sanitize(email.body_html, {
+                              ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'code', 'span', 'div'],
+                              ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'style'],
+                              ALLOW_DATA_ATTR: false,
+                              FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
+                              FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover']
+                            })
+                          }}
+                        />
+                      ) : (
+                        <div className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+                          {email.body_text}
                         </div>
                       )}
                     </div>
                   </div>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                    {formatDate(email.created_at)}
-                  </span>
-                </div>
+                )}
               </div>
             ))}
-            <div ref={messagesEndRef} />
           </div>
         )}
       </div>
+
     </div>
   )
 }

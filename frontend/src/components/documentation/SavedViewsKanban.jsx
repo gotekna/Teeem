@@ -347,6 +347,11 @@ export default function SavedViewsKanban({
                 {/* Row 2: Badges + Action buttons */}
                 <div className="flex items-center gap-1 pl-4">
                   {/* Metadata badges */}
+                  {view.is_global && (
+                    <span className="text-[10px] px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded font-medium">
+                      Shared
+                    </span>
+                  )}
                   <span className="text-[10px] px-1 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded font-medium">
                     {view.filters?.length || 0}f
                   </span>

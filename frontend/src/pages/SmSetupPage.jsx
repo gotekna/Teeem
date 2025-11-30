@@ -609,11 +609,12 @@ export default function SmSetupPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50 dark:bg-gray-900">
+      {/* Fixed Header with Tabs */}
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-5xl mx-auto px-4 py-6">
+          {/* Header */}
+          <div className="flex items-center gap-3 mb-6">
             <Cog6ToothIcon className="h-8 w-8 text-indigo-600" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -624,35 +625,35 @@ export default function SmSetupPage() {
               </p>
             </div>
           </div>
+
+          {/* Tabs */}
+          <Tab.Group>
+            <Tab.List className="flex space-x-1 rounded-lg bg-gray-200 dark:bg-gray-800 p-1">
+              {tabs.map((tab) => (
+                <Tab
+                  key={tab.name}
+                  className={({ selected }) =>
+                    `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-colors flex items-center justify-center gap-2
+                    ${selected
+                      ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'
+                    }`
+                  }
+                >
+                  <tab.icon className="h-4 w-4" />
+                  {tab.name}
+                </Tab>
+              ))}
+            </Tab.List>
+
+            <Tab.Panels className="mt-4">
+              <Tab.Panel><HoldReasonsTab /></Tab.Panel>
+              <Tab.Panel><TemplatesTab /></Tab.Panel>
+              <Tab.Panel><RolloverSettingsTab /></Tab.Panel>
+              <Tab.Panel><WorkingDaysTab /></Tab.Panel>
+            </Tab.Panels>
+          </Tab.Group>
         </div>
-
-        {/* Tabs */}
-        <Tab.Group>
-          <Tab.List className="flex space-x-1 rounded-lg bg-gray-200 dark:bg-gray-800 p-1 mb-6">
-            {tabs.map((tab) => (
-              <Tab
-                key={tab.name}
-                className={({ selected }) =>
-                  `w-full rounded-lg py-2.5 text-sm font-medium leading-5 transition-colors flex items-center justify-center gap-2
-                  ${selected
-                    ? 'bg-white dark:bg-gray-700 text-indigo-700 dark:text-indigo-400 shadow'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50'
-                  }`
-                }
-              >
-                <tab.icon className="h-4 w-4" />
-                {tab.name}
-              </Tab>
-            ))}
-          </Tab.List>
-
-          <Tab.Panels>
-            <Tab.Panel><HoldReasonsTab /></Tab.Panel>
-            <Tab.Panel><TemplatesTab /></Tab.Panel>
-            <Tab.Panel><RolloverSettingsTab /></Tab.Panel>
-            <Tab.Panel><WorkingDaysTab /></Tab.Panel>
-          </Tab.Panels>
-        </Tab.Group>
       </div>
     </div>
   )

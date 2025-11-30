@@ -54,11 +54,9 @@ const AccountsPage = lazyWithRetry(() => import('./pages/AccountsPage'))
 const UsersPage = lazyWithRetry(() => import('./pages/UsersPage'))
 const SystemAdminPage = lazyWithRetry(() => import('./pages/SystemAdminPage'))
 const HealthPage = lazyWithRetry(() => import('./pages/HealthPage'))
+const SystemHealthPage = lazyWithRetry(() => import('./pages/SystemHealthPage'))
 const PurchaseOrderDetailPage = lazyWithRetry(() => import('./pages/PurchaseOrderDetailPage'))
 const PurchaseOrderEditPage = lazyWithRetry(() => import('./pages/PurchaseOrderEditPage'))
-const SupplierDetailPage = lazyWithRetry(() => import('./pages/SupplierDetailPage'))
-const SupplierEditPage = lazyWithRetry(() => import('./pages/SupplierEditPage'))
-const SupplierNewPage = lazyWithRetry(() => import('./pages/SupplierNewPage'))
 const ImportPage = lazyWithRetry(() => import('./pages/ImportPage'))
 const TablePage = lazyWithRetry(() => import('./pages/TablePage'))
 const SchemaPage = lazyWithRetry(() => import('./pages/SchemaPage'))
@@ -90,9 +88,14 @@ const TrainingSessionPage = lazyWithRetry(() => import('./pages/TrainingSessionP
 const MeetingsPage = lazyWithRetry(() => import('./pages/MeetingsPage')) // Meeting management
 const MeetingTypesPage = lazyWithRetry(() => import('./pages/MeetingTypesPage')) // Meeting types configuration
 const SamPage = lazyWithRetry(() => import('./pages/SamPage')) // Sam page
+const EmailJobProposalsPage = lazyWithRetry(() => import('./pages/EmailJobProposalsPage')) // Email to Job AI proposals
 
 // Corporate pages
 const CorporateDashboardPage = lazyWithRetry(() => import('./pages/CorporateDashboardPage'))
+const CorporateHealthPage = lazyWithRetry(() => import('./pages/CorporateHealthPage'))
+const AsicLoginsPage = lazyWithRetry(() => import('./pages/AsicLoginsPage'))
+const DocumentTabStructurePage = lazyWithRetry(() => import('./pages/DocumentTabStructurePage'))
+const CompanyGroupsPage = lazyWithRetry(() => import('./pages/CompanyGroupsPage'))
 
 // Portal pages (subcontractor portal)
 const PortalLayout = lazyWithRetry(() => import('./pages/portal/PortalLayout'))
@@ -113,9 +116,11 @@ const WhsInspectionsPage = lazyWithRetry(() => import('./pages/WhsInspectionsPag
 const WhsIncidentsPage = lazyWithRetry(() => import('./pages/WhsIncidentsPage'))
 const WhsInductionsPage = lazyWithRetry(() => import('./pages/WhsInductionsPage'))
 const WhsActionItemsPage = lazyWithRetry(() => import('./pages/WhsActionItemsPage'))
-const CompaniesPage = lazyWithRetry(() => import('./pages/CompaniesPage'))
 const CompanyDetailPage = lazyWithRetry(() => import('./pages/CompanyDetailPage'))
+const ComplianceCalendarPage = lazyWithRetry(() => import('./pages/ComplianceCalendarPage'))
+const MinuteTemplatesPage = lazyWithRetry(() => import('./pages/MinuteTemplatesPage'))
 const DirectorsRegistryPage = lazyWithRetry(() => import('./pages/DirectorsRegistryPage'))
+const DirectorOnboardingPage = lazyWithRetry(() => import('./pages/DirectorOnboardingPage'))
 const AssetsPage = lazyWithRetry(() => import('./pages/AssetsPage'))
 const AssetDetailPage = lazyWithRetry(() => import('./pages/AssetDetailPage'))
 const XeroDashboardPage = lazyWithRetry(() => import('./pages/XeroDashboardPage'))
@@ -177,6 +182,7 @@ function App() {
         <Route path="/chat" element={<AppLayout><ChatPage /></AppLayout>} />
         <Route path="/jobs" element={<Navigate to="/tables/204/jobs" replace />} />
         <Route path="/active-jobs" element={<Navigate to="/tables/204/jobs" replace />} />
+        <Route path="/email-proposals" element={<AppLayout><EmailJobProposalsPage /></AppLayout>} />
         <Route path="/xest" element={<AppLayout><XestPage /></AppLayout>} />
         <Route path="/documents" element={<AppLayout><DocumentsPage /></AppLayout>} />
         <Route path="/trinity" element={<AppLayout><TrinityPage /></AppLayout>} />
@@ -192,6 +198,7 @@ function App() {
         <Route path="/jobs/:id/sm-dashboard" element={<AppLayout><SmDashboardPage /></AppLayout>} />
         <Route path="/jobs/:id/sm-analytics" element={<AppLayout><SmAnalyticsPage /></AppLayout>} />
         <Route path="/jobs/:constructionId/field" element={<SmFieldPage />} />
+        <Route path="/jobs/:id/:tab/:subtab" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/jobs/:id/:tab" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/jobs/:id" element={<AppLayout><JobDetailPage /></AppLayout>} />
         <Route path="/meetings" element={<AppLayout><MeetingsPage /></AppLayout>} />
@@ -218,13 +225,13 @@ function App() {
         <Route path="/contacts/:id" element={<AppLayout><ContactDetailPage /></AppLayout>} />
         <Route path="/accounts" element={<AppLayout><AccountsPage /></AppLayout>} />
         <Route path="/users" element={<Navigate to="/tables/212/user-management" replace />} />
-        <Route path="/health" element={<AppLayout><HealthPage /></AppLayout>} />
+        <Route path="/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
+        <Route path="/system-health" element={<AppLayout><SystemHealthPage /></AppLayout>} />
+        <Route path="/pricebook-health" element={<AppLayout><HealthPage /></AppLayout>} />
         <Route path="/permissions" element={<Navigate to="/admin/system?tab=permissions" replace />} />
         <Route path="/system/performance" element={<Navigate to="/admin/system?tab=performance" replace />} />
         <Route path="/suppliers" element={<Navigate to="/contacts" replace />} />
-        <Route path="/suppliers/new" element={<AppLayout><SupplierNewPage /></AppLayout>} />
-        <Route path="/suppliers/:id/edit" element={<AppLayout><SupplierEditPage /></AppLayout>} />
-        <Route path="/suppliers/:id" element={<AppLayout><SupplierDetailPage /></AppLayout>} />
+        <Route path="/suppliers/*" element={<Navigate to="/contacts" replace />} />
         <Route path="/purchase-orders" element={<Navigate to="/tables/217/purchase-orders" replace />} />
         <Route path="/purchase-orders/:id/edit" element={<AppLayout><PurchaseOrderEditPage /></AppLayout>} />
         <Route path="/purchase-orders/:id" element={<AppLayout><PurchaseOrderDetailPage /></AppLayout>} />
@@ -264,16 +271,24 @@ function App() {
         {/* Corporate routes */}
         <Route path="/corporate" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
         <Route path="/corporate/dashboard" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
-        <Route path="/corporate/companies" element={<AppLayout><CompaniesPage /></AppLayout>} />
+        <Route path="/corporate/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
+        <Route path="/corporate/companies" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
         <Route path="/corporate/companies/new" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
+        <Route path="/corporate/companies/:id/:tab" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id/edit" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
+        <Route path="/corporate/compliance-calendar" element={<AppLayout><ComplianceCalendarPage /></AppLayout>} />
+        <Route path="/corporate/minute-templates" element={<AppLayout><MinuteTemplatesPage /></AppLayout>} />
         <Route path="/corporate/directors" element={<AppLayout><DirectorsRegistryPage /></AppLayout>} />
+        <Route path="/director-onboarding/:accessToken" element={<DirectorOnboardingPage />} />
         <Route path="/corporate/assets" element={<AppLayout><AssetsPage /></AppLayout>} />
         <Route path="/corporate/assets/new" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/assets/:id" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/assets/:id/edit" element={<AppLayout><AssetDetailPage /></AppLayout>} />
         <Route path="/corporate/xero" element={<AppLayout><XeroDashboardPage /></AppLayout>} />
+        <Route path="/corporate/asic-logins" element={<AppLayout><AsicLoginsPage /></AppLayout>} />
+        <Route path="/corporate/document-types" element={<AppLayout><DocumentTabStructurePage /></AppLayout>} />
+        <Route path="/corporate/groups" element={<AppLayout><CompanyGroupsPage /></AppLayout>} />
 
         {/* Portal routes (subcontractor portal) */}
         <Route path="/portal/login" element={<PortalLogin />} />

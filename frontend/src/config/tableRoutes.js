@@ -42,14 +42,6 @@ export const TABLE_ROUTES = [
     description: 'Business contacts and relationships'
   },
   {
-    foundationId: 215,
-    slug: 'suppliers',
-    name: 'Suppliers',
-    legacyRoute: '/suppliers',
-    redirectTo: '/contacts', // Suppliers redirect to contacts (filtered view)
-    hasCustomDetailPage: true // /suppliers/:id uses SupplierDetailPage
-  },
-  {
     foundationId: 205,
     slug: 'pricebook',
     name: 'Pricebook',

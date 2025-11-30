@@ -22,6 +22,7 @@ import DHtmlxGanttView from './DHtmlxGanttView'
 import GanttRulesModal from './GanttRulesModal'
 import GanttBugHunterModal from './GanttBugHunterModal'
 import { bugHunter } from '../../utils/ganttDebugger'
+import ScheduleTemplateTable from './ScheduleTemplateTable'
 
 /**
  * Schedule Template Editor - Full 14-column grid interface for creating/editing schedule templates
@@ -132,6 +133,7 @@ export default function ScheduleTemplateEditor() {
   const [showRulesModal, setShowRulesModal] = useState(false)
   const [showBugHunterModal, setShowBugHunterModal] = useState(false)
   const [showCopyDropdown, setShowCopyDropdown] = useState(false)
+  const [useGoldStandardTable, setUseGoldStandardTable] = useState(true) // Use new TEEEMTableView-based table
   const hasCollapsedOnLoad = useRef(false)
 
   // Cascade update batching (prevents multiple reloads from backend cascade updates)
@@ -816,44 +818,86 @@ export default function ScheduleTemplateEditor() {
         const data = new Uint8Array(e.target.result)
         const workbook = XLSX.read(data, { type: 'array' })
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet)
 
-        if (jsonData.length === 0) {
+        // Try to detect if file has headers or not
+        // Read as array of arrays first to check
+        const rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 })
+
+        if (rawData.length === 0) {
           showToast('No data found in Excel file', 'error')
           return
         }
 
-        // Helper function to parse predecessors from format "2FS+3, 5SS-1"
-        // Note: Excel row numbers include the header, so row 2 = task 1, row 3 = task 2, etc.
-        // We need to subtract 1 to convert from Excel row number to task sequence number
+        // Check if first row looks like headers (contains "Task" or similar)
+        const firstRow = rawData[0]
+        const hasHeaders = firstRow && typeof firstRow[0] === 'string' &&
+          (firstRow[0].toLowerCase().includes('task') ||
+           firstRow[0].toLowerCase() === 'name' ||
+           firstRow[0].toLowerCase().includes('header'))
+
+        // Parse data based on whether we have headers
+        let jsonData
+        if (hasHeaders) {
+          jsonData = XLSX.utils.sheet_to_json(firstSheet)
+        } else {
+          // No headers - treat columns as: A=Task Name, B=Predecessors, C=Duration
+          jsonData = rawData.map(row => ({
+            'Task Name': row[0],
+            'Predecessors': row[1],
+            'Duration': row[2]
+          }))
+        }
+
+        // Helper function to parse predecessors
+        // Supports both formats:
+        // - Simple: "1", "3, 4", "4, 6" (just row numbers, defaults to FS)
+        // - Full: "2FS+3", "5SS-1" (with relationship type and lag)
         const parsePredecessors = (predecessorStr, currentRowIndex) => {
-          if (!predecessorStr || predecessorStr === 'None' || predecessorStr.trim() === '') {
+          if (!predecessorStr || predecessorStr === 'None' || String(predecessorStr).trim() === '') {
             return []
           }
 
           const predecessors = []
-          const parts = predecessorStr.split(',').map(p => p.trim())
+          const parts = String(predecessorStr).split(',').map(p => p.trim())
 
           for (const part of parts) {
-            // Parse format like "2FS+3" (where 2 is the Excel row number including header)
-            const match = part.match(/^(\d+)([A-Z]{2})([+-]?\d+)?$/)
-            if (match) {
-              const excelRowNumber = parseInt(match[1])
-              // Convert Excel row number to task sequence (Excel row 2 = task 1, so subtract 1)
-              const taskSequence = excelRowNumber - 1
+            if (!part) continue
 
-              // Only add valid predecessors (must reference earlier tasks)
+            // Try full format first: "2FS+3"
+            const fullMatch = part.match(/^(\d+)([A-Z]{2})([+-]?\d+)?$/)
+            if (fullMatch) {
+              const taskSequence = parseInt(fullMatch[1])
               if (taskSequence > 0 && taskSequence <= currentRowIndex + 1) {
                 predecessors.push({
                   id: taskSequence,
-                  type: match[2],
-                  lag: match[3] ? parseInt(match[3]) : 0
+                  type: fullMatch[2],
+                  lag: fullMatch[3] ? parseInt(fullMatch[3]) : 0
                 })
+              }
+            } else {
+              // Simple format: just a number like "1" or "3"
+              const simpleMatch = part.match(/^(\d+)$/)
+              if (simpleMatch) {
+                const taskSequence = parseInt(simpleMatch[1])
+                if (taskSequence > 0 && taskSequence <= currentRowIndex + 1) {
+                  predecessors.push({
+                    id: taskSequence,
+                    type: 'FS', // Default to Finish-to-Start
+                    lag: 0
+                  })
+                }
               }
             }
           }
 
           return predecessors
+        }
+
+        // Helper function to parse duration (handles "1d", "21d", or just numbers)
+        const parseDuration = (durationStr) => {
+          if (!durationStr) return 0
+          const str = String(durationStr).toLowerCase().replace('d', '').trim()
+          return parseInt(str) || 0
         }
 
         // Helper function to parse individual documentation category columns
@@ -875,7 +919,7 @@ export default function ScheduleTemplateEditor() {
           name: row['Task Name'] || `Task ${index + 1}`,
           supplier_id: null, // Will need to be mapped manually
           predecessor_ids: parsePredecessors(row['Predecessors'], index),
-          duration: parseInt(row['Duration']) || 0,
+          duration: parseDuration(row['Duration']),
           start_date: parseInt(row['Start Date']) || 0,
           documentation_category_ids: parseDocumentationCategoryIds(row),
           po_required: row['PO Required'] === 'Yes',
@@ -2011,13 +2055,28 @@ export default function ScheduleTemplateEditor() {
               )}
             </div>
 
-            {/* Column Settings Button */}
+            {/* Column Settings Button - Only show for legacy table */}
+            {!useGoldStandardTable && (
+              <button
+                onClick={() => setShowColumnSettings(!showColumnSettings)}
+                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Cog6ToothIcon className="h-4 w-4 mr-2" />
+                Columns
+              </button>
+            )}
+
+            {/* Gold Standard Table Toggle */}
             <button
-              onClick={() => setShowColumnSettings(!showColumnSettings)}
-              className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              onClick={() => setUseGoldStandardTable(!useGoldStandardTable)}
+              className={`inline-flex items-center px-3 py-1.5 border rounded-lg text-sm font-medium transition-colors ${
+                useGoldStandardTable
+                  ? 'border-green-500 text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
+                  : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+              title={useGoldStandardTable ? 'Using Gold Standard Table (TEEEMTableView)' : 'Using Legacy Table'}
             >
-              <Cog6ToothIcon className="h-4 w-4 mr-2" />
-              Columns
+              {useGoldStandardTable ? '✓ Gold Std' : 'Legacy'}
             </button>
 
             {/* Quick Toggle Doc Tabs Button */}
@@ -2291,8 +2350,41 @@ export default function ScheduleTemplateEditor() {
         </div>
       )}
 
-      {/* Dynamic Column Table */}
-      {selectedTemplate && (
+      {/* Gold Standard Table (TEEEMTableView) */}
+      {selectedTemplate && useGoldStandardTable && (
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700">
+          <ScheduleTemplateTable
+            rows={filteredAndSortedRows}
+            suppliers={suppliers}
+            selectedTemplate={selectedTemplate}
+            onUpdateRow={handleUpdateRow}
+            onDeleteRow={handleDeleteRow}
+            onMoveRow={(rowId, direction) => {
+              const rowIndex = rows.findIndex(r => r.id === rowId)
+              if (rowIndex !== -1) {
+                handleMoveRow(rowIndex, direction)
+              }
+            }}
+            selectedRows={selectedRows}
+            onSelectRow={handleSelectRow}
+            onSelectAll={handleSelectAll}
+            documentationCategories={documentationCategories}
+          />
+          {/* Add Row Button */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={handleAddRow}
+              className="inline-flex items-center px-3 py-2 text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700"
+            >
+              <PlusIcon className="h-4 w-4 mr-1" />
+              Add Row
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Legacy Dynamic Column Table */}
+      {selectedTemplate && !useGoldStandardTable && (
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 overflow-x-auto max-h-[calc(100vh-300px)] overflow-y-auto">
           <table className="border-collapse" style={{ minWidth: '100%', width: 'max-content' }}>
             <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">

@@ -2,11 +2,22 @@ module Api
   module V1
     class AssetsController < ApplicationController
       before_action :set_asset, only: [:show, :update, :destroy, :service_history,
-                                        :add_service, :insurance, :update_insurance]
+                                        :add_service, :insurance, :update_insurance, :documents]
 
       # GET /api/v1/assets
       def index
-        @assets = Asset.includes(:company, :asset_insurance).all
+        # Return empty result if assets table doesn't exist yet
+        unless Asset.table_exists?
+          return render json: { success: true, assets: [] }
+        end
+
+        # Build includes array based on what tables exist
+        # Check if table exists using raw SQL to avoid loading the model
+        has_insurance_table = ActiveRecord::Base.connection.table_exists?('asset_insurances')
+        includes_array = [:company]
+        includes_array << :asset_insurance if has_insurance_table
+
+        @assets = Asset.includes(includes_array).all
 
         # Filter by company
         @assets = @assets.where(company_id: params[:company_id]) if params[:company_id].present?
@@ -26,13 +37,16 @@ module Api
           )
         end
 
+        # Build include hash based on what tables exist
+        include_hash = { company: { only: [:id, :name] } }
+        if has_insurance_table
+          include_hash[:asset_insurance] = { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
+        end
+
         render json: {
           success: true,
           assets: @assets.as_json(
-            include: {
-              company: { only: [:id, :name] },
-              asset_insurance: { only: [:id, :renewal_date, :status], methods: [:days_until_renewal] }
-            },
+            include: include_hash,
             methods: [:display_name, :needs_attention?, :insurance_expired?, :service_overdue?]
           )
         }
@@ -199,6 +213,23 @@ module Api
         end
       end
 
+      # GET /api/v1/assets/:id/documents
+      def documents
+        documents = @asset.company_documents.includes(:company, :user, :document_type_record).order(created_at: :desc)
+
+        render json: {
+          success: true,
+          documents: documents.as_json(
+            include: {
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] },
+              document_type_record: { only: [:id, :name, :folder] }
+            },
+            methods: [:formatted_document_type, :file_size_mb]
+          )
+        }
+      end
+
       private
 
       def set_asset
@@ -210,7 +241,7 @@ module Api
       def asset_params
         params.require(:asset).permit(
           :company_id, :name, :asset_type, :make, :model, :serial_number,
-          :registration_number, :description, :purchase_date, :purchase_price,
+          :registration_number, :description, :abbreviation, :purchase_date, :purchase_price,
           :location, :status, :current_book_value, metadata: {}
         )
       end

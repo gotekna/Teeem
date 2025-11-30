@@ -20,9 +20,7 @@ import { api } from '../api'
 import { formatCurrency, formatPercentage } from '../utils/formatters'
 import { POSummaryCards, POTable, PurchaseOrderModal } from '../components/purchase-orders'
 import JobDocumentsTab from '../components/documents/JobDocumentsTab'
-import EstimatesTab from '../components/estimates/EstimatesTab'
 import ScheduleMasterTab from '../components/schedule-master/ScheduleMasterTab'
-import DocumentationTab from '../components/documentation/DocumentationTab'
 import SetupGuideModal from '../components/documentation/SetupGuideModal'
 import CommunicationsTab from '../components/communications/CommunicationsTab'
 import LocationMapCard from '../components/job-detail/LocationMapCard'
@@ -30,22 +28,31 @@ import AddressAutocomplete from '../components/common/AddressAutocomplete'
 import JobContactsSection from '../components/job-detail/JobContactsSection'
 import RainLogTab from '../components/rain-log/RainLogTab'
 import JobPeopleTab from '../components/job-detail/JobPeopleTab'
-import JobXeroTab from '../components/job-detail/JobXeroTab'
+import JobInvoicesTab from '../components/jobs/JobInvoicesTab'
+import JobBillsTab from '../components/jobs/JobBillsTab'
+import JobProfitTab from '../components/jobs/JobProfitTab'
+import JobActivityTab from '../components/jobs/JobActivityTab'
+import JobEstimatorTab from '../components/jobs/JobEstimatorTab'
 
 const tabs = [
   { name: 'Overview', slug: 'overview' },
+  { name: 'Estimator', slug: 'estimator' },
   { name: 'People', slug: 'people' },
-  { name: 'Xero', slug: 'xero' },
+  { name: 'Profit', slug: 'profit' },
   { name: 'Purchase Orders', slug: 'purchase-orders' },
-  { name: 'Estimates', slug: 'estimates' },
   { name: 'Activity', slug: 'activity' },
   { name: 'Budget', slug: 'budget' },
   { name: 'Schedule Master', slug: 'schedule-master' },
   { name: 'Rain Log', slug: 'rain-log' },
   { name: 'Documents', slug: 'documents' },
   { name: 'Coms', slug: 'coms' },
-  { name: 'Settings', slug: 'settings' },
-  { name: 'Documentation', slug: 'documentation' },
+]
+
+// Sub-tabs for Profit section
+const profitSubTabs = [
+  { name: 'Summary', slug: 'profit' },
+  { name: 'Invoices', slug: 'profit/invoices' },
+  { name: 'Costs', slug: 'profit/costs' },
 ]
 
 function classNames(...classes) {
@@ -53,7 +60,7 @@ function classNames(...classes) {
 }
 
 export default function JobDetailPage() {
-  const { id, tab } = useParams()
+  const { id, tab, subtab } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [job, setJob] = useState(null)
@@ -63,7 +70,10 @@ export default function JobDetailPage() {
   const [editedJob, setEditedJob] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  const activeTab = tab || 'overview'
+  // Handle both main tab and subtab (e.g., profit/invoices)
+  const activeTab = subtab ? `${tab}/${subtab}` : (tab || 'overview')
+  const mainTab = tab || 'overview'
+  const isProfitSection = mainTab === 'profit'
   const returnTo = searchParams.get('returnTo') || sessionStorage.getItem('jobsTableView') || '/tables/204/jobs'
 
   // Purchase Orders state
@@ -282,9 +292,9 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900">
-        {/* Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-gray-50 dark:bg-gray-900">
+        {/* Header - sticky tabs */}
+        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="px-6 py-3">
             {/* Back to Jobs Button */}
             <button
@@ -327,7 +337,7 @@ export default function JobDetailPage() {
                     key={tabItem.name}
                     onClick={() => navigate(`/jobs/${id}/${tabItem.slug}`)}
                     className={classNames(
-                      activeTab === tabItem.slug
+                      mainTab === tabItem.slug
                         ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
                         : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300',
                       'whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium'
@@ -341,8 +351,8 @@ export default function JobDetailPage() {
           </div>
         </div>
 
-        {/* Content */}
-        <div className="p-4">
+        {/* Content - scrollable area */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-4">
           {/* No Contacts Warning */}
           {(!job.contacts || job.contacts.length === 0) && (
             <div className="mb-6 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-4 border-l-4 border-yellow-400 dark:border-yellow-600">
@@ -645,21 +655,8 @@ export default function JobDetailPage() {
             </div>
           )}
 
-          {activeTab === 'estimates' && (
-            <EstimatesTab jobId={id} />
-          )}
-
           {activeTab === 'activity' && (
-            <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
-                  Recent Activity
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Activity tracking coming soon...
-                </p>
-              </div>
-            </div>
+            <JobActivityTab jobId={id} />
           )}
 
           {activeTab === 'budget' && (
@@ -695,25 +692,35 @@ export default function JobDetailPage() {
             <JobPeopleTab jobId={id} onUpdate={loadJob} />
           )}
 
-          {activeTab === 'xero' && (
-            <JobXeroTab jobId={id} job={job} onUpdate={loadJob} />
+          {activeTab === 'estimator' && (
+            <JobEstimatorTab jobId={id} job={job} />
           )}
 
-          {activeTab === 'settings' && (
-            <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
-                  Job Settings
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Settings management coming soon...
-                </p>
+          {isProfitSection && (
+            <div className="space-y-4">
+              {/* Profit Sub-tabs */}
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-1 inline-flex">
+                {profitSubTabs.map((subTab) => (
+                  <button
+                    key={subTab.slug}
+                    onClick={() => navigate(`/jobs/${id}/${subTab.slug}`)}
+                    className={classNames(
+                      activeTab === subTab.slug
+                        ? 'bg-indigo-600 text-white'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700',
+                      'px-4 py-2 text-sm font-medium rounded-md transition-colors'
+                    )}
+                  >
+                    {subTab.name}
+                  </button>
+                ))}
               </div>
-            </div>
-          )}
 
-          {activeTab === 'documentation' && (
-            <DocumentationTab />
+              {/* Profit Sub-tab Content */}
+              {activeTab === 'profit' && <JobProfitTab job={job} />}
+              {activeTab === 'profit/invoices' && <JobInvoicesTab job={job} />}
+              {activeTab === 'profit/costs' && <JobBillsTab job={job} />}
+            </div>
           )}
         </div>
 

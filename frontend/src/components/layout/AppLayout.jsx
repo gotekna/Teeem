@@ -49,6 +49,7 @@ import {
   CalendarDaysIcon,
   FolderOpenIcon,
   MagnifyingGlassIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline'
 import { ChevronDownIcon } from '@heroicons/react/20/solid'
 
@@ -67,12 +68,14 @@ const jobTabs = [
 // Main navigation items
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+  { name: 'Email Proposals', href: '/email-proposals', icon: EnvelopeIcon },
   { name: 'Jobs', href: '/tables/204/jobs', icon: BriefcaseIcon },
   { name: 'Meetings', href: '/meetings', icon: CalendarIcon },
   { name: 'WHS', href: '/whs', icon: ShieldCheckIcon },
   { name: 'Financial', href: '/financial', icon: BanknotesIcon },
   { name: 'Xest', href: '/xest', icon: BeakerIcon },
   { name: 'Price Books', href: '/tables/205/pricebook', icon: BookOpenIcon },
+  { name: 'Price Histories', href: '/tables/221/price-histories', icon: ClockIcon },
   { name: 'All Contacts', href: '/tables/214/contacts', icon: UsersIcon },
   //{ name: 'Suppliers', href: '/tables/215', icon: UserGroupIcon },
   { name: 'Purchase Orders', href: '/tables/217/purchase-orders', icon: DocumentTextIcon },
@@ -80,9 +83,10 @@ const navigation = [
   { name: 'Corporate', href: '/corporate/companies', icon: BuildingOfficeIcon },
   { name: 'Documents', href: '/documents', icon: DocumentTextIcon },
   { name: 'Training', href: '/training', icon: AcademicCapIcon },
-  { name: 'Outlook', href: '/outlook', icon: EnvelopeIcon },
+  { name: 'Outlook', href: 'https://outlook.office365.com/mail/', icon: EnvelopeIcon, external: true, popup: true },
+  { name: 'SharePoint', href: 'https://teklogscomau.sharepoint.com/', icon: FolderOpenIcon, external: true, popup: true },
   { name: 'OneDrive', href: '/onedrive', icon: CloudIcon },
-  { name: 'Health', href: '/health', icon: PlusIcon },
+  { name: 'Data Health', href: '/system-health', icon: ShieldCheckIcon },
   { name: 'System Admin', href: '/admin/system', icon: BeakerIcon },
   { name: 'Trinity', href: '/trinity', icon: BookOpenIcon },
   { name: 'DHTMLX Gantt', href: '/admin/system?tab=schedule-master&openGantt=dhtmlx', icon: ChartBarIcon },
@@ -137,6 +141,7 @@ export default function AppLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeJobs, setActiveJobs] = useState([])
   const [totalJobsCount, setTotalJobsCount] = useState(0)
+  const [pendingProposalsCount, setPendingProposalsCount] = useState(0)
   const [jobSearchQuery, setJobSearchQuery] = useState('')
   const [activeJobsExpanded, setActiveJobsExpanded] = useState(() => {
     const saved = localStorage.getItem('activeJobsExpanded')
@@ -352,6 +357,28 @@ export default function AppLayout({ children }) {
       }
     }
     loadActiveJobs()
+  }, [user])
+
+  // Load pending email proposals count for sidebar badge
+  useEffect(() => {
+    // Only load when authenticated
+    if (!user) return
+
+    const loadPendingProposalsCount = async () => {
+      try {
+        // Get only pending proposals for the count
+        const response = await api.get('/api/v1/email_job_proposals?status=pending')
+        const proposals = response.proposals || []
+        setPendingProposalsCount(proposals.length)
+      } catch (err) {
+        console.debug('Email proposals count unavailable:', err?.message || 'Unknown error')
+      }
+    }
+    loadPendingProposalsCount()
+
+    // Refresh count every 60 seconds to catch new proposals
+    const interval = setInterval(loadPendingProposalsCount, 60000)
+    return () => clearInterval(interval)
   }, [user])
 
   // Load price books for sidebar
@@ -796,7 +823,7 @@ export default function AppLayout({ children }) {
   }
 
   return (
-    <div>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Mobile sidebar */}
       <Dialog open={sidebarOpen} onClose={setSidebarOpen} className="relative z-50 lg:hidden">
         <DialogBackdrop
@@ -839,6 +866,31 @@ export default function AppLayout({ children }) {
                     <ul role="list" className="-mx-2 space-y-1">
                       {navigation.map((item) => {
                         const current = isCurrentPath(item.href)
+
+                        // Handle external popup links (like Outlook)
+                        if (item.external && item.popup) {
+                          return (
+                            <li key={item.name}>
+                              <button
+                                onClick={() => {
+                                  setSidebarOpen(false)
+                                  window.open(item.href, item.name, 'width=1200,height=800,left=100,top=100')
+                                }}
+                                className={classNames(
+                                  'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                                  'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold w-full text-left',
+                                )}
+                              >
+                                <item.icon
+                                  aria-hidden="true"
+                                  className="text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white size-6 shrink-0"
+                                />
+                                {item.name}
+                              </button>
+                            </li>
+                          )
+                        }
+
                         return (
                           <li key={item.name}>
                             <Link
@@ -861,6 +913,11 @@ export default function AppLayout({ children }) {
                                 )}
                               />
                               {item.name}
+                              {item.name === 'Email Proposals' && pendingProposalsCount > 0 && (
+                                <span className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-500 text-[11px] font-medium text-white">
+                                  {pendingProposalsCount}
+                                </span>
+                              )}
                             </Link>
                           </li>
                         )
@@ -2368,6 +2425,70 @@ export default function AppLayout({ children }) {
                       )
                     }
 
+                    // Special handling for Email Proposals - show pending count
+                    if (item.name === 'Email Proposals') {
+                      return (
+                        <li key={item.name}>
+                          <Link
+                            to={item.href}
+                            title={sidebarCollapsed ? item.name : undefined}
+                            className={classNames(
+                              current
+                                ? 'bg-gray-50 text-indigo-600 dark:bg-white/5 dark:text-white'
+                                : 'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                              'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold',
+                              sidebarCollapsed && 'justify-center'
+                            )}
+                          >
+                            <item.icon
+                              aria-hidden="true"
+                              className={classNames(
+                                current
+                                  ? 'text-indigo-600 dark:text-white'
+                                  : 'text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white',
+                                'size-6 shrink-0',
+                              )}
+                            />
+                            {!sidebarCollapsed && (
+                              <>
+                                {item.name}
+                                {pendingProposalsCount > 0 && (
+                                  <span className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-yellow-500 text-[11px] font-medium text-white">
+                                    {pendingProposalsCount}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </Link>
+                        </li>
+                      )
+                    }
+
+                    // Handle external popup links (like Outlook)
+                    if (item.external && item.popup) {
+                      return (
+                        <li key={item.name}>
+                          <button
+                            onClick={() => {
+                              window.open(item.href, item.name, 'width=1200,height=800,left=100,top=100')
+                            }}
+                            title={sidebarCollapsed ? item.name : undefined}
+                            className={classNames(
+                              'text-gray-700 hover:bg-gray-50 hover:text-indigo-600 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white',
+                              'group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold w-full text-left',
+                              sidebarCollapsed && 'justify-center'
+                            )}
+                          >
+                            <item.icon
+                              aria-hidden="true"
+                              className="text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-white size-6 shrink-0"
+                            />
+                            {!sidebarCollapsed && item.name}
+                          </button>
+                        </li>
+                      )
+                    }
+
                     // Regular navigation item
                     return (
                       <li key={item.name}>
@@ -2456,7 +2577,9 @@ export default function AppLayout({ children }) {
           "h-screen flex flex-col",
           sidebarCollapsed ? "lg:pl-16 transition-all duration-300" : ""
         )}
-        style={sidebarCollapsed ? undefined : { paddingLeft: sidebarWidth }}
+        style={{
+          ...(sidebarCollapsed ? {} : { paddingLeft: sidebarWidth })
+        }}
       >
         {/* Top bar - always visible with help button */}
         <div className="z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
@@ -2612,11 +2735,8 @@ export default function AppLayout({ children }) {
         </div>
 
         {/* Main content */}
-        <main className={classNames(
-          "py-4 flex-1 flex flex-col min-h-0",
-          sidebarCollapsed ? "lg:pt-4" : ""
-        )}>
-          <div className="px-4 sm:px-6 lg:px-8 flex-1 flex flex-col min-h-0">
+        <main className="flex-1 flex flex-col min-h-0 overflow-auto">
+          <div className="flex-1 flex flex-col min-h-0">
             {children}
           </div>
         </main>

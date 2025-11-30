@@ -1,7 +1,9 @@
 class Api::V1::OutlookController < ApplicationController
+  # Skip authentication for OAuth callback - Microsoft redirects here without auth token
+  skip_before_action :authorize_request, only: [:callback]
 
   # GET /api/v1/outlook/auth_url
-  # Get the OAuth authorization URL for connecting Outlook
+  # Get the OAuth authorization URL for connecting the current user's Outlook
   def auth_url
     client_id = ENV['OUTLOOK_CLIENT_ID']
     redirect_uri = "#{request.base_url}/api/v1/outlook/callback"
@@ -12,12 +14,17 @@ class Api::V1::OutlookController < ApplicationController
       return
     end
 
-    # Scopes needed for reading mail
+    # Scopes needed for reading and sending mail
     scopes = [
       'https://graph.microsoft.com/Mail.Read',
+      'https://graph.microsoft.com/Mail.Send',
       'https://graph.microsoft.com/MailboxSettings.Read',
       'offline_access'
     ].join(' ')
+
+    # Encode user_id in state parameter so we know who to associate on callback
+    state_data = { user_id: current_user.id, nonce: SecureRandom.hex(8) }
+    state = Base64.urlsafe_encode64(state_data.to_json)
 
     auth_url = "https://login.microsoftonline.com/#{tenant}/oauth2/v2.0/authorize?" + URI.encode_www_form({
       client_id: client_id,
@@ -25,7 +32,7 @@ class Api::V1::OutlookController < ApplicationController
       redirect_uri: redirect_uri,
       response_mode: 'query',
       scope: scopes,
-      state: SecureRandom.hex(16)
+      state: state
     })
 
     render json: { auth_url: auth_url }
@@ -35,18 +42,37 @@ class Api::V1::OutlookController < ApplicationController
   # OAuth callback endpoint
   def callback
     code = params[:code]
+    state = params[:state]
     error = params[:error]
     error_description = params[:error_description]
 
     if error.present?
       Rails.logger.error "Outlook OAuth error: #{error} - #{error_description}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_description || error)}"
-      return
+      return render_popup_close_page(success: false, error: error_description || error)
     end
 
     if code.blank?
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=No authorization code received"
-      return
+      return render_popup_close_page(success: false, error: 'No authorization code received')
+    end
+
+    # Decode state to get user_id
+    user_id = nil
+    if state.present?
+      begin
+        state_data = JSON.parse(Base64.urlsafe_decode64(state))
+        user_id = state_data['user_id']
+      rescue => e
+        Rails.logger.error "Failed to decode OAuth state: #{e.message}"
+      end
+    end
+
+    unless user_id
+      return render_popup_close_page(success: false, error: 'Invalid OAuth state - please try again')
+    end
+
+    user = User.find_by(id: user_id)
+    unless user
+      return render_popup_close_page(success: false, error: 'User not found - please try again')
     end
 
     # Exchange code for tokens
@@ -62,7 +88,7 @@ class Api::V1::OutlookController < ApplicationController
         code: code,
         redirect_uri: redirect_uri,
         grant_type: 'authorization_code',
-        scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/MailboxSettings.Read offline_access'
+        scope: 'https://graph.microsoft.com/Mail.Read https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.Read offline_access'
       }
     )
 
@@ -71,47 +97,47 @@ class Api::V1::OutlookController < ApplicationController
 
       # Get user info to store email
       user_response = HTTP.auth("Bearer #{data['access_token']}").get('https://graph.microsoft.com/v1.0/me')
-      user_email = user_response.parse['mail'] || user_response.parse['userPrincipalName']
+      outlook_email = user_response.parse['mail'] || user_response.parse['userPrincipalName']
 
-      # Create or update the organization credential
-      credential = OrganizationOutlookCredential.first_or_initialize
+      # Create or update the user's credential
+      credential = user.outlook_credential || user.build_outlook_credential
       credential.update!(
         access_token: data['access_token'],
         refresh_token: data['refresh_token'],
         expires_at: Time.current + data['expires_in'].to_i.seconds,
-        email: user_email,
+        email: outlook_email,
         tenant_id: tenant
       )
 
-      Rails.logger.info "Outlook connected successfully for #{user_email}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_success=true"
+      Rails.logger.info "Outlook connected successfully for user #{user.id} (#{outlook_email})"
+      render_popup_close_page(success: true, email: outlook_email)
     else
       error_message = response.parse['error_description'] || response.parse['error'] || 'Failed to exchange code for token'
       Rails.logger.error "Failed to get Outlook token: #{response.status} - #{error_message}"
-      redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(error_message)}"
+      render_popup_close_page(success: false, error: error_message)
     end
   rescue => e
     Rails.logger.error "Error in Outlook callback: #{e.message}"
-    redirect_to "#{ENV['FRONTEND_URL']}/settings?outlook_error=#{ERB::Util.url_encode(e.message)}"
+    render_popup_close_page(success: false, error: e.message)
   end
 
   # GET /api/v1/outlook/status
-  # Check if Outlook is configured
+  # Check if current user's Outlook is configured
   def status
-    credential = OrganizationOutlookCredential.current
+    credential = current_user.outlook_credential
     render json: {
       configured: credential.present?,
       email: credential&.email,
       expires_at: credential&.expires_at,
       expired: credential&.expired?,
-      message: credential.present? ? 'Outlook is configured' : 'Outlook not connected'
+      message: credential.present? ? 'Outlook is connected' : 'Outlook not connected'
     }
   end
 
   # DELETE /api/v1/outlook/disconnect
-  # Disconnect Outlook
+  # Disconnect current user's Outlook
   def disconnect
-    credential = OrganizationOutlookCredential.current
+    credential = current_user.outlook_credential
     if credential
       credential.destroy
       render json: { success: true, message: 'Outlook disconnected successfully' }
@@ -121,21 +147,23 @@ class Api::V1::OutlookController < ApplicationController
   end
 
   # GET /api/v1/outlook/folders
-  # List available mail folders
+  # List available mail folders for current user
   def folders
-    outlook = OutlookService.new
+    outlook = OutlookService.new(current_user)
     folders = outlook.list_folders
 
     render json: { folders: folders }
+  rescue OutlookService::NotConnectedError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   rescue => e
     Rails.logger.error "Failed to list Outlook folders: #{e.message}"
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # POST /api/v1/outlook/search
-  # Search Outlook emails without importing
+  # Search current user's Outlook emails without importing
   def search
-    outlook = OutlookService.new
+    outlook = OutlookService.new(current_user)
 
     options = {
       search: params[:search],
@@ -150,15 +178,17 @@ class Api::V1::OutlookController < ApplicationController
       emails: emails,
       count: emails.length
     }
+  rescue OutlookService::NotConnectedError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   rescue => e
     Rails.logger.error "Failed to search Outlook: #{e.message}"
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
   # POST /api/v1/outlook/import
-  # Import emails from Outlook into the system
+  # Import emails from current user's Outlook into the system
   def import
-    outlook = OutlookService.new
+    outlook = OutlookService.new(current_user)
 
     options = {
       search: params[:search],
@@ -174,35 +204,137 @@ class Api::V1::OutlookController < ApplicationController
       imported_count: imported_count,
       message: "Successfully imported #{imported_count} emails"
     }
+  rescue OutlookService::NotConnectedError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   rescue => e
     Rails.logger.error "Failed to import from Outlook: #{e.message}"
     render json: { error: e.message }, status: :unprocessable_entity
   end
 
-  # POST /api/v1/outlook/import_for_job
-  # Import emails for a specific construction job
-  def import_for_job
-    construction = Job.find(params[:job_id])
-    outlook = OutlookService.new
+  # GET /api/v1/outlook/job_search_suggestions/:job_id
+  # Get search suggestions based on job data (title, location, client emails)
+  def job_search_suggestions
+    job = Job.find(params[:job_id])
 
-    # Build search query based on job details
-    search_terms = []
-    search_terms << construction.title if construction.title.present?
-    search_terms << construction.id.to_s
+    suggestions = []
+
+    # Add job title (usually address)
+    if job.title.present?
+      suggestions << { type: 'address', value: job.title, label: "Address: #{job.title}" }
+
+      # Extract street name from title (e.g., "32 Mcilwraith Street" -> "Mcilwraith")
+      street_match = job.title.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Boulevard|Blvd)/i)
+      if street_match
+        street_name = street_match[1]
+        suggestions << { type: 'street', value: street_name, label: "Street: #{street_name}" }
+      end
+    end
+
+    # Add location
+    if job.location.present? && job.location != job.title
+      suggestions << { type: 'location', value: job.location, label: "Location: #{job.location}" }
+    end
+
+    # Add client/contact emails
+    job.contacts.each do |contact|
+      if contact.email.present?
+        suggestions << { type: 'email', value: contact.email, label: "Contact: #{contact.full_name || contact.email}" }
+      end
+    end
+
+    # Add site supervisor email
+    if job.site_supervisor_email.present?
+      suggestions << { type: 'email', value: job.site_supervisor_email, label: "Site Supervisor: #{job.site_supervisor_name}" }
+    end
+
+    render json: {
+      job_id: job.id,
+      job_title: job.title,
+      suggestions: suggestions.uniq { |s| s[:value] }
+    }
+  rescue => e
+    Rails.logger.error "Failed to get job search suggestions: #{e.message}"
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/outlook/search_for_job
+  # Search Outlook emails for a job with preview (without importing)
+  def search_for_job
+    job = Job.find(params[:job_id])
+    outlook = OutlookService.new(current_user)
+
+    # Use provided search or build from job details
+    search_query = params[:search].presence
 
     options = {
-      search: search_terms.join(' OR '),
+      search: search_query,
       top: params[:top] || 50,
       folder: params[:folder] || 'inbox'
     }
 
-    # Import and try to match to this specific job
+    emails_data = outlook.search_emails(options)
+
+    # Mark which emails are already imported
+    existing_message_ids = Email.where(message_id: emails_data.map { |e| e[:message_id] }).pluck(:message_id)
+
+    emails_with_status = emails_data.map do |email|
+      email.merge(
+        already_imported: existing_message_ids.include?(email[:message_id]),
+        preview_body: email[:body_text]&.truncate(200)
+      )
+    end
+
+    render json: {
+      job_id: job.id,
+      emails: emails_with_status,
+      count: emails_with_status.length,
+      new_count: emails_with_status.count { |e| !e[:already_imported] }
+    }
+  rescue OutlookService::NotConnectedError => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  rescue => e
+    Rails.logger.error "Failed to search Outlook for job: #{e.message}"
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/outlook/import_for_job
+  # Import emails for a specific job from current user's Outlook
+  def import_for_job
+    job = Job.find(params[:job_id])
+    outlook = OutlookService.new(current_user)
+
+    # Use provided search or build default from job details
+    search_query = params[:search].presence
+    if search_query.blank?
+      search_terms = []
+      search_terms << job.title if job.title.present?
+      search_query = search_terms.first # Use just the title/address
+    end
+
+    options = {
+      search: search_query,
+      top: params[:top] || 50,
+      folder: params[:folder] || 'inbox'
+    }
+
+    # If specific message IDs provided, only import those
+    message_ids_to_import = params[:message_ids]
+
     emails_data = outlook.search_emails(options)
     imported_count = 0
+    skipped_count = 0
 
     emails_data.each do |email_data|
+      # If specific IDs requested, skip emails not in the list
+      if message_ids_to_import.present?
+        next unless message_ids_to_import.include?(email_data[:message_id])
+      end
+
       # Check if email already exists
-      next if Email.exists?(message_id: email_data[:message_id])
+      if Email.exists?(message_id: email_data[:message_id])
+        skipped_count += 1
+        next
+      end
 
       # Parse and create email
       parser = EmailParserService.new(email_data)
@@ -211,12 +343,12 @@ class Api::V1::OutlookController < ApplicationController
       email = Email.new(parsed_data)
       email.user = current_user
 
-      # Force assignment to this construction
-      email.construction = construction
+      # Force assignment to this job
+      email.job = job
 
       if email.save
         imported_count += 1
-        Rails.logger.info "Imported email for job #{construction.id}: #{email.subject}"
+        Rails.logger.info "Imported email for job #{job.id}: #{email.subject}"
       else
         Rails.logger.error "Failed to import email: #{email.errors.full_messages.join(', ')}"
       end
@@ -225,9 +357,12 @@ class Api::V1::OutlookController < ApplicationController
     render json: {
       success: true,
       imported_count: imported_count,
-      construction_id: construction.id,
-      message: "Successfully imported #{imported_count} emails for #{construction.title}"
+      skipped_count: skipped_count,
+      job_id: job.id,
+      message: "Successfully imported #{imported_count} emails for #{job.title}"
     }
+  rescue OutlookService::NotConnectedError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   rescue => e
     Rails.logger.error "Failed to import emails for job: #{e.message}"
     render json: { error: e.message }, status: :unprocessable_entity
@@ -235,4 +370,47 @@ class Api::V1::OutlookController < ApplicationController
 
   private
 
+  def render_popup_close_page(success:, email: nil, error: nil)
+    html = <<~HTML
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>#{success ? 'Connected' : 'Error'}</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #{success ? '#f0fdf4' : '#fef2f2'};
+          }
+          .container {
+            text-align: center;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          }
+          .icon { font-size: 48px; margin-bottom: 16px; }
+          h1 { color: #{success ? '#166534' : '#991b1b'}; margin: 0 0 8px 0; }
+          p { color: #6b7280; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="icon">#{success ? '✓' : '✕'}</div>
+          <h1>#{success ? 'Connected!' : 'Connection Failed'}</h1>
+          <p>#{success ? "Connected as #{email}" : error}</p>
+          <p style="margin-top: 16px; font-size: 14px;">This window will close automatically...</p>
+        </div>
+        <script>
+          setTimeout(function() { window.close(); }, 2000);
+        </script>
+      </body>
+      </html>
+    HTML
+    render html: html.html_safe
+  end
 end

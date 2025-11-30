@@ -42,6 +42,14 @@ const ROLE_GROUPS = [
     ]
   },
   {
+    key: 'referral',
+    label: 'Referral',
+    icon: UserIcon,
+    roles: [
+      { key: 'referral', label: 'Referral', icon: UserIcon, color: 'green' },
+    ]
+  },
+  {
     key: 'external',
     label: 'External Team',
     icon: UserGroupIcon,
@@ -1081,10 +1089,11 @@ export default function JobPeopleTab({ jobId, onUpdate }) {
       {/* People by Individual Role - each role gets its own section with header */}
       {ROLE_GROUPS.map((group) => {
         const isClientGroup = group.key === 'client'
+        const isReferralGroup = group.key === 'referral'
         const isExternalGroup = group.key === 'external'
 
-        // For client and external groups, show each role separately with its own header
-        if (isClientGroup || isExternalGroup) {
+        // For client, referral, and external groups, show each role separately with its own header
+        if (isClientGroup || isReferralGroup || isExternalGroup) {
           return group.roles.map(role => {
             const roleContacts = (contactsByRole[role.key] || []).map(c => ({ ...c, roleConfig: role }))
 

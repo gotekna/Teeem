@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
@@ -58,6 +59,20 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
   const [pendingSaveData, setPendingSaveData] = useState(null)
   const [extractedNumber, setExtractedNumber] = useState('')
   const [numberType, setNumberType] = useState('lot') // 'lot' or 'street'
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const addressInputRef = useRef(null)
+
+  // Update dropdown position when showing suggestions
+  useEffect(() => {
+    if (showAddressSuggestions && addressInputRef.current) {
+      const rect = addressInputRef.current.getBoundingClientRect()
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      })
+    }
+  }, [showAddressSuggestions, addressSuggestions])
 
   useEffect(() => {
     // If we have saved coordinates, use them
@@ -115,11 +130,13 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
 
   // Mapbox geocoding helper
   const searchAddressMapbox = async (query, options = {}) => {
-    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
+    // Hardcoded token as fallback since env vars aren't loading
+    const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN || 'pk.eyJ1IjoidGVrbmFob21lcyIsImEiOiJjbWh3eXV3anMwNHgzMmpxNnduZDYxZ2MwIn0.ehmEM_PfzuhJW8_VUPBUtQ'
+    console.log('🗺️ Mapbox token:', MAPBOX_TOKEN ? `${MAPBOX_TOKEN.substring(0, 10)}...` : 'NOT SET')
 
     if (!MAPBOX_TOKEN || MAPBOX_TOKEN === 'your_mapbox_access_token_here') {
-      // Silently skip - will fallback to Nominatim
-      return null
+      // Throw error to trigger fallback to Nominatim
+      throw new Error('Mapbox access token not configured')
     }
 
     const { country = 'au', limit = 10, types = 'address,place' } = options
@@ -142,21 +159,30 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
 
     const data = await response.json()
 
-    return data.features.map(feature => ({
-      id: feature.id,
-      text: feature.text,
-      placeName: feature.place_name,
-      center: feature.center,
-      address: {
-        houseNumber: feature.address || '',
-        street: feature.text || '',
-        suburb: feature.context?.find(c => c.id.startsWith('place.'))?.text || '',
-        city: feature.context?.find(c => c.id.startsWith('place.'))?.text || '',
-        state: feature.context?.find(c => c.id.startsWith('region.'))?.text || '',
-        postcode: feature.context?.find(c => c.id.startsWith('postcode.'))?.text || '',
-      },
-      relevance: feature.relevance,
-    }))
+    return data.features.map(feature => {
+      // For Australian addresses, suburb can be in locality, neighborhood, or place
+      const locality = feature.context?.find(c => c.id.startsWith('locality.'))?.text
+      const neighborhood = feature.context?.find(c => c.id.startsWith('neighborhood.'))?.text
+      const place = feature.context?.find(c => c.id.startsWith('place.'))?.text
+      // Prefer locality/neighborhood (suburb) over place (city)
+      const suburb = locality || neighborhood || place || ''
+
+      return {
+        id: feature.id,
+        text: feature.text,
+        placeName: feature.place_name,
+        center: feature.center,
+        address: {
+          houseNumber: feature.address || '',
+          street: feature.text || '',
+          suburb: suburb,
+          city: place || '',
+          state: feature.context?.find(c => c.id.startsWith('region.'))?.text || '',
+          postcode: feature.context?.find(c => c.id.startsWith('postcode.'))?.text || '',
+        },
+        relevance: feature.relevance,
+      }
+    })
   }
 
   const geocodeAddress = async (address) => {
@@ -241,9 +267,19 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
 
       // Fallback to Nominatim (old method)
       try {
+        // Add Queensland/Brisbane bias and "street" hint for better matching
+        let searchQuery = query
+        if (!query.toLowerCase().includes('qld') && !query.toLowerCase().includes('queensland')) {
+          searchQuery = `${query}, Queensland`
+        }
+        // Add "street" if query looks like a street number + partial name
+        if (/^\d+\s+\w+$/i.test(query.trim()) && !query.toLowerCase().includes('street')) {
+          searchQuery = `${query} street, Queensland`
+        }
+
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?` +
-          `q=${encodeURIComponent(query)}&` +
+          `q=${encodeURIComponent(searchQuery)}&` +
           `format=json&` +
           `addressdetails=1&` +
           `countrycodes=au&` +
@@ -402,6 +438,21 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
     return parts.join(' ')
   }
 
+  // Helper function to save with title update directly from the modal
+  const handleSaveWithTitle = async (location, latitude, longitude, lot, streetNum, street, suburb, state, updateTitle) => {
+    await saveLocationWithValidation({
+      location,
+      latitude,
+      longitude,
+      lotNumber: lot,
+      streetNumber: streetNum,
+      street,
+      suburb,
+      state,
+      updateTitle
+    })
+  }
+
   // Save location with validation and title update
   const saveLocationWithValidation = async (locationData) => {
     const { location, latitude, longitude, lotNumber: lot, streetNumber: streetNum, street, suburb, state, updateTitle = true } = locationData
@@ -424,7 +475,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
       }
 
       const response = await api.patch(`/api/v1/jobs/${jobId}`, {
-        construction: updateData
+        job: updateData
       })
       console.log('Save successful, response:', response)
 
@@ -657,7 +708,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
       setSaving(true)
       try {
         await api.patch(`/api/v1/jobs/${jobId}`, {
-          construction: {
+          job: {
             latitude: tempPosition[0],
             longitude: tempPosition[1]
           }
@@ -878,14 +929,34 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                   )}
 
                   {/* Buttons */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <button
+                      onClick={() => {
+                        // Save immediately with update title
+                        handleSaveWithTitle(
+                          pendingSaveData.location,
+                          pendingSaveData.latitude,
+                          pendingSaveData.longitude,
+                          lotNumber.trim(),
+                          streetNumber.trim(),
+                          streetAddress.trim() || pendingSaveData.street,
+                          pendingSaveData.suburb,
+                          pendingSaveData.state,
+                          true // updateTitle
+                        )
+                      }}
+                      disabled={saving || !(lotNumber.trim() || streetNumber.trim()) || (!streetAddress.trim() && !pendingSaveData?.street)}
+                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition-colors disabled:opacity-50"
+                    >
+                      <CheckIcon className="h-4 w-4 mr-2" />
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
                     <button
                       onClick={handleLotNumberSubmit}
                       disabled={!(lotNumber.trim() || streetNumber.trim()) || (!streetAddress.trim() && !pendingSaveData?.street)}
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                     >
-                      <CheckIcon className="h-4 w-4 mr-2" />
-                      Continue
+                      Adjust Pin First
                     </button>
                     <button
                       onClick={() => {
@@ -908,13 +979,14 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
             )}
 
             {/* Search fields */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 overflow-visible">
               {/* Address Search */}
-              <div className="relative">
+              <div className="relative overflow-visible">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Search Address
                 </label>
                 <input
+                  ref={addressInputRef}
                   type="text"
                   value={searchAddress}
                   onChange={(e) => setSearchAddress(e.target.value)}
@@ -926,15 +998,19 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-indigo-600 border-t-transparent"></div>
                   </div>
                 )}
-                {showAddressSuggestions && (
+                {/* Portal dropdown to body to avoid any clipping issues */}
+                {showAddressSuggestions && createPortal(
                   <div
-                    className="absolute z-[9999] w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                    style={{
+                      position: 'fixed',
+                      top: dropdownPosition.top,
+                      left: dropdownPosition.left,
+                      width: dropdownPosition.width,
+                      zIndex: 99999
+                    }}
+                    className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto"
                     onMouseDown={(e) => e.preventDefault()}
                   >
-                    {(() => {
-                      console.log('Rendering dropdown - showAddressSuggestions:', showAddressSuggestions, 'suggestions count:', addressSuggestions.length)
-                      return null
-                    })()}
                     {addressSuggestions.length > 0 ? (
                       addressSuggestions.map((suggestion, index) => (
                         <button
@@ -951,12 +1027,13 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                         No addresses found. Try a different search.
                       </div>
                     )}
-                  </div>
+                  </div>,
+                  document.body
                 )}
               </div>
 
               {/* Suburb Search */}
-              <div className="relative">
+              <div className="relative overflow-visible">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Search Suburb
                 </label>
@@ -973,7 +1050,7 @@ export default function LocationMapCard({ jobId, location, latitude, longitude, 
                   </div>
                 )}
                 {showSuburbSuggestions && suburbSuggestions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                  <div className="absolute z-[9999] w-full top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                     {suburbSuggestions.map((suggestion, index) => (
                       <button
                         key={suggestion.id || index}

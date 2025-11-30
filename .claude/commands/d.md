@@ -57,10 +57,12 @@ git push origin rob
 
 ### Step 5 - Deploy Backend Directly to Heroku
 
+**IMPORTANT: All git subtree commands MUST run from repo root `/Users/robertharder/GitHub/teeem`**
+
 **Use git subtree to deploy backend folder directly to Heroku:**
 ```bash
-# Create temp branch with just backend contents
-git subtree split --prefix backend -b temp-backend-deploy
+# MUST run from repo root - subtree requires toplevel working tree
+cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend -b temp-backend-deploy
 
 # Force push to Heroku (heroku-rob-dev remote)
 git push heroku-rob-dev temp-backend-deploy:main --force

@@ -17,6 +17,10 @@ import {
   ArrowUpTrayIcon,
   CheckCircleIcon,
   XCircleIcon,
+  IdentificationIcon,
+  CalendarDaysIcon,
+  HomeIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { ShieldCheckIcon } from '@heroicons/react/24/solid'
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle } from '@headlessui/react'
@@ -34,6 +38,7 @@ import PortalUserSection from '../components/contacts/PortalUserSection'
 import XeroSyncTab from '../components/contacts/XeroSyncTab'
 import XeroActivityTab from '../components/contacts/XeroActivityTab'
 import XeroConnectionsSection from '../components/contacts/XeroConnectionsSection'
+import ContactDocumentsTab from '../components/contacts/ContactDocumentsTab'
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn) => {
@@ -193,6 +198,7 @@ export default function ContactDetailPage() {
     { id: 'contact-information', label: 'Contact Information' },
     { id: 'contact-persons', label: 'Contact Persons' },
     { id: 'business-details', label: 'Business Details' },
+    { id: 'director-details', label: 'Director Details' },
     { id: 'contact-groups', label: 'Contact Groups' },
     { id: 'accounting-connections', label: 'Accounting' },
     { id: 'system-info', label: 'System Info' },
@@ -823,9 +829,9 @@ export default function ContactDetailPage() {
   }
 
   return (
-    <div>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Sticky Header & Tabs */}
-      <div className="sticky top-0 lg:top-16 z-20 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+      <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto pt-1 pb-1">
         {/* Header */}
         <div>
@@ -983,14 +989,27 @@ export default function ContactDetailPage() {
             >
               XERO Activity
             </button>
+            {contact.is_family_member && (
+              <button
+                onClick={() => setSearchParams({ tab: 'documents' })}
+                className={`${
+                  activeTab === 'documents'
+                    ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+                } whitespace-nowrap py-1 px-1 border-b-2 font-medium text-xs transition-colors`}
+              >
+                Documents
+              </button>
+            )}
           </nav>
         </div>
         </div>
       </div>
       </div>
 
-      {/* Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Overview Tab */}
       {activeTab === 'overview' && (
       <div className="flex gap-6 py-8">
@@ -1719,6 +1738,103 @@ export default function ContactDetailPage() {
               <p className="text-gray-500 dark:text-gray-400 text-sm mt-4">No additional business details available</p>
             )}
           </div>
+
+          {/* Director Details Section - Only show if contact has director-related data */}
+          {(contact.director_id || contact.date_of_birth || contact.place_of_birth || contact.residential_address || contact.drivers_licence || contact.passport_number || contact.photo_url) && (
+            <div
+              ref={(el) => (sectionRefs.current['director-details'] = el)}
+              id="director-details"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6"
+            >
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Director Details</h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Photo */}
+                {contact.photo_url && (
+                  <div className="flex items-start gap-3 sm:col-span-2">
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Photo</p>
+                      <img
+                        src={contact.photo_url}
+                        alt={`${contact.full_name} photo`}
+                        className="w-32 h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Director ID */}
+                {contact.director_id && (
+                  <div className="flex items-start gap-3">
+                    <IdentificationIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Director ID</p>
+                      <p className="text-gray-900 dark:text-white font-medium">{contact.director_id}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Date of Birth */}
+                {contact.date_of_birth && (
+                  <div className="flex items-start gap-3">
+                    <CalendarDaysIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Date of Birth</p>
+                      <p className="text-gray-900 dark:text-white font-medium">
+                        {new Date(contact.date_of_birth).toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Place of Birth */}
+                {(contact.place_of_birth || contact.birth_state || contact.birth_country) && (
+                  <div className="flex items-start gap-3">
+                    <MapPinIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Place of Birth</p>
+                      <p className="text-gray-900 dark:text-white font-medium">
+                        {[contact.place_of_birth, contact.birth_state, contact.birth_country].filter(Boolean).join(', ')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Residential Address */}
+                {contact.residential_address && (
+                  <div className="flex items-start gap-3 sm:col-span-2">
+                    <HomeIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Residential Address</p>
+                      <p className="text-gray-900 dark:text-white font-medium">{contact.residential_address}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Drivers Licence */}
+                {contact.drivers_licence && (
+                  <div className="flex items-start gap-3">
+                    <IdentificationIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Drivers Licence Number</p>
+                      <p className="text-gray-900 dark:text-white font-medium">{contact.drivers_licence}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Passport Number */}
+                {contact.passport_number && (
+                  <div className="flex items-start gap-3">
+                    <IdentificationIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Passport Number</p>
+                      <p className="text-gray-900 dark:text-white font-medium">{contact.passport_number}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Contact Groups Section */}
           <div
@@ -2966,6 +3082,16 @@ export default function ContactDetailPage() {
           />
         </div>
       )}
+
+      {activeTab === 'documents' && contact.is_family_member && (
+        <div className="mt-6">
+          <ContactDocumentsTab
+            contact={contact}
+            onUpdate={loadContact}
+          />
+        </div>
+      )}
+        </div>
       </div>
 
       {/* Edit Contact Modal */}
