@@ -2,21 +2,32 @@ class CorporateOnedriveService
   attr_reader :credential, :results, :folder_path
 
   # Try multiple possible paths for corporate documents
+  # New structure uses "00 TEEEM PRIVATE" with organized subfolders
   DEFAULT_FOLDER_PATHS = [
-    "Accounts - Internal/Corporate File",  # Robert's SharePoint structure
-    "Corporate File",                       # Direct Corporate File folder
-    "Corporate"                             # Simple Corporate folder
+    "00 TEEEM PRIVATE",                     # New organized structure (preferred)
+    "Accounts - Internal/Corporate File",   # Robert's legacy SharePoint structure
+    "Corporate File",                       # Legacy direct Corporate File folder
+    "Corporate"                             # Legacy simple Corporate folder
   ].freeze
 
-  DEFAULT_FOLDER_PATH = "Corporate File"
+  DEFAULT_FOLDER_PATH = "00 TEEEM PRIVATE"
 
   # Known group folders that contain company subfolders
+  # These match the groups defined in the Company model
   GROUP_FOLDERS = [
+    "No Group",
+    "Shareholder Only",
+    "Team Harder Family Trust Group",
+    "Team Harder Super Fund Group",
+    "Team Harder Super Investments Group",
     "Tekna Group",
-    "Team Harder Group",
-    "Team Harder Super Investment Group",
-    "The Promise Group",
-    "Co Invest Group"
+    "The Promise Group"
+  ].freeze
+
+  # Tab folders within each company folder (matching UI tabs)
+  TAB_FOLDERS = %w[
+    ADVICE ASIC ASSETS ATO BANK COMPANY DIVIDENDS
+    FINANCIALS GENERAL INSURANCE LOANS MINUTES REGISTRY TRUST
   ].freeze
 
   def initialize(credential = nil, folder_path: nil)
@@ -207,12 +218,14 @@ class CorporateOnedriveService
     parent_path = doc.dig('parentReference', 'path')
 
     if parent_path.present?
-      # Path format: "/drive/root:/Corporate File/Team Harder Group/Tekna Drafting/Minutes"
-      # Extract everything after "Corporate File/" or after "root:/"
+      # Path formats:
+      # New: "/drive/root:/00 TEEEM PRIVATE/Tekna Group/TEK - Tekna Pty Ltd/ASIC"
+      # Legacy: "/drive/root:/Corporate File/Team Harder Group/Tekna Drafting/Minutes"
       clean_path = parent_path
         .sub(%r{^/drive/root:/?}, '')  # Remove drive prefix
-        .sub(%r{^Corporate File/}, '')  # Remove Corporate File prefix
-        .sub(%r{^Accounts - Internal/Corporate File/}, '')  # Remove longer prefix variant
+        .sub(%r{^00 TEEEM PRIVATE/}, '')  # Remove new structure prefix
+        .sub(%r{^Corporate File/}, '')  # Remove legacy Corporate File prefix
+        .sub(%r{^Accounts - Internal/Corporate File/}, '')  # Remove longer legacy prefix
 
       # If path is now empty or just "/", use group_name/company fallback
       return group_name if clean_path.blank? || clean_path == '/'
@@ -330,22 +343,30 @@ class CorporateOnedriveService
   end
 
   def find_matching_company(folder_name)
-    # PRIORITY 1: Check for explicit SharePoint folder name mapping (TEEEM is source of truth)
+    # PRIORITY 1: New format "CODE - Company Name" (e.g., "TEK - Tekna Pty Ltd")
+    # Extract company code from folder name
+    if folder_name.match?(/^[A-Z]{2,10}\s*-\s*/)
+      code = folder_name.split(/\s*-\s*/).first.strip.upcase
+      company = Company.find_by("UPPER(code) = ?", code)
+      return company if company
+    end
+
+    # PRIORITY 2: Check for explicit SharePoint folder name mapping (TEEEM is source of truth)
     company = Company.find_by("LOWER(sharepoint_folder_name) = ?", folder_name.downcase)
     return company if company
 
-    # PRIORITY 2: Try exact name match
+    # PRIORITY 3: Try exact name match
     company = Company.find_by("LOWER(name) = ?", folder_name.downcase)
     return company if company
 
-    # PRIORITY 3: Try matching by ACN if folder contains ACN
+    # PRIORITY 4: Try matching by ACN if folder contains ACN
     acn_match = folder_name.match(/(\d{9})/)
     if acn_match
       company = Company.find_by(acn: acn_match[1])
       return company if company
     end
 
-    # PRIORITY 4: Try fuzzy matching on company name (fallback only)
+    # PRIORITY 5: Try fuzzy matching on company name (fallback only)
     normalized_folder = normalize_name(folder_name)
     Company.all.find do |c|
       normalized_name = normalize_name(c.name)
@@ -356,12 +377,18 @@ class CorporateOnedriveService
   end
 
   def folder_matches_company?(folder_name, company)
-    # PRIORITY 1: Check explicit SharePoint folder name mapping (TEEEM is source of truth)
+    # PRIORITY 1: New format "CODE - Company Name" (e.g., "TEK - Tekna Pty Ltd")
+    if folder_name.match?(/^[A-Z]{2,10}\s*-\s*/) && company.code.present?
+      code = folder_name.split(/\s*-\s*/).first.strip.upcase
+      return true if code == company.code.upcase
+    end
+
+    # PRIORITY 2: Check explicit SharePoint folder name mapping (TEEEM is source of truth)
     if company.sharepoint_folder_name.present?
       return folder_name.downcase == company.sharepoint_folder_name.downcase
     end
 
-    # PRIORITY 2: Fuzzy matching (fallback)
+    # PRIORITY 3: Fuzzy matching (fallback)
     normalized_folder = normalize_name(folder_name)
     normalized_company = normalize_name(company.name)
 
