@@ -107,13 +107,13 @@ export default function EmailJobProposalsPage() {
       setProcessing(proposalId)
       const response = await api.post(`/api/v1/email_job_proposals/${proposalId}/re_extract`)
 
-      if (response.data.success) {
-        alert(response.data.message || 'Proposal re-extracted successfully')
+      if (response.success) {
+        alert(response.message || 'Proposal re-extracted successfully')
         loadProposals()
       }
     } catch (error) {
       console.error('Failed to re-extract proposal:', error)
-      alert('Failed to re-extract proposal: ' + (error.response?.data?.error || error.message))
+      alert('Failed to re-extract proposal: ' + error.message)
     } finally {
       setProcessing(null)
     }
