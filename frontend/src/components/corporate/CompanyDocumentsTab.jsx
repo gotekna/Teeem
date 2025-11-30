@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   PlusIcon,
   DocumentTextIcon,
@@ -11,6 +12,9 @@ import {
 } from '@heroicons/react/24/outline'
 import api from '../../api'
 import TeeemTableView from '../documentation/TeeemTableView'
+
+// Table ID for Company Documents (from foundations table)
+const COMPANY_DOCUMENTS_TABLE_ID = 412
 
 // Build column definitions for documents table
 const buildDocumentColumns = () => [
@@ -26,6 +30,7 @@ const buildDocumentColumns = () => [
 ]
 
 export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'all' }) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -38,6 +43,14 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const [columns] = useState(buildDocumentColumns())
+
+  // Ensure table_id is in URL for Gold Standard tables
+  useEffect(() => {
+    if (!searchParams.get('table_id')) {
+      searchParams.set('table_id', COMPANY_DOCUMENTS_TABLE_ID)
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [])
 
   // Document organization tabs
   const tabs = [
@@ -477,6 +490,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
       ) : (
         <TeeemTableView
           foundationId="company-documents"
+          foundationIdNumeric={COMPANY_DOCUMENTS_TABLE_ID}
           tableName={`Documents (${documents.length})`}
           entries={documents}
           columns={columns}
