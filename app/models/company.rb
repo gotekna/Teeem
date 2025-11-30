@@ -57,6 +57,7 @@ class Company < ApplicationRecord
   }
 
   # Callbacks
+  before_validation :normalize_acn_abn
   after_create :create_initial_activity
   after_update :create_update_activity
 
@@ -195,6 +196,12 @@ class Company < ApplicationRecord
   end
 
   private
+
+  # Normalize ACN and ABN by removing all non-numeric characters
+  def normalize_acn_abn
+    self.acn = acn.gsub(/[^0-9]/, '') if acn.present?
+    self.abn = abn.gsub(/[^0-9]/, '') if abn.present?
+  end
 
   def create_initial_activity
     user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
