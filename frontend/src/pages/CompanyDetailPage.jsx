@@ -62,6 +62,7 @@ export default function CompanyDetailPage() {
 
   const overviewSubTabs = [
     { id: 'info', name: 'Information' },
+    { id: 'corporate', name: 'Corporate' },
     { id: 'health', name: 'Health' },
     { id: 'directors', name: 'Directors' },
     { id: 'shareholdings', name: 'Shareholdings' }
@@ -266,6 +267,7 @@ export default function CompanyDetailPage() {
 
             {/* Overview Sub-tab Content */}
             {overviewSubTab === 'info' && <OverviewTab company={company} />}
+            {overviewSubTab === 'corporate' && <CorporateTab company={company} onUpdate={loadCompany} />}
             {overviewSubTab === 'health' && <CompanyHealthTab company={company} onUpdate={loadCompany} />}
             {overviewSubTab === 'directors' && <CompanyDirectorsTab company={company} onUpdate={loadCompany} />}
             {overviewSubTab === 'shareholdings' && <CompanyShareholdingsTab company={company} onUpdate={loadCompany} />}
@@ -352,6 +354,154 @@ function OverviewTab({ company }) {
           </ul>
         </div>
       )}
+    </div>
+  )
+}
+
+// Corporate tab - sensitive information that can be locked down
+function CorporateTab({ company, onUpdate }) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [formData, setFormData] = useState({
+    tfn: company.tfn || '',
+    registered_office_address: company.registered_office_address || '',
+    corporate_key: company.corporate_key || '',
+    asic_username: company.asic_username || '',
+    recovery_question: company.recovery_question || ''
+  })
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await api.put(`/api/v1/companies/${company.id}`, { company: formData })
+      setIsEditing(false)
+      if (onUpdate) onUpdate()
+    } catch (error) {
+      console.error('Failed to save:', error)
+      alert('Failed to save corporate details')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const formatTFN = (tfn) => {
+    if (!tfn) return '-'
+    const digits = tfn.replace(/\D/g, '')
+    if (digits.length === 9) {
+      return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`
+    }
+    return tfn
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Corporate Details</h3>
+        {!isEditing ? (
+          <button
+            onClick={() => setIsEditing(true)}
+            className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+          >
+            <PencilIcon className="h-4 w-4 mr-2" />
+            Edit
+          </button>
+        ) : (
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setIsEditing(false)}
+              className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p className="text-sm text-yellow-800">
+          This section contains sensitive corporate information. Keep this data secure and limit access.
+        </p>
+      </div>
+
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
+        <div>
+          <dt className="text-sm font-medium text-gray-500">TFN</dt>
+          {isEditing ? (
+            <input
+              type="text"
+              value={formData.tfn}
+              onChange={(e) => setFormData({ ...formData, tfn: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              placeholder="000 000 000"
+            />
+          ) : (
+            <dd className="mt-1 text-sm text-gray-900 font-mono">{formatTFN(company.tfn)}</dd>
+          )}
+        </div>
+
+        <div>
+          <dt className="text-sm font-medium text-gray-500">Corporate Key</dt>
+          {isEditing ? (
+            <input
+              type="text"
+              value={formData.corporate_key}
+              onChange={(e) => setFormData({ ...formData, corporate_key: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          ) : (
+            <dd className="mt-1 text-sm text-gray-900 font-mono">{company.corporate_key || '-'}</dd>
+          )}
+        </div>
+
+        <div className="sm:col-span-2">
+          <dt className="text-sm font-medium text-gray-500">Registered Office</dt>
+          {isEditing ? (
+            <textarea
+              value={formData.registered_office_address}
+              onChange={(e) => setFormData({ ...formData, registered_office_address: e.target.value })}
+              rows={2}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          ) : (
+            <dd className="mt-1 text-sm text-gray-900">{company.registered_office_address || '-'}</dd>
+          )}
+        </div>
+
+        <div>
+          <dt className="text-sm font-medium text-gray-500">ASIC Username</dt>
+          {isEditing ? (
+            <input
+              type="text"
+              value={formData.asic_username}
+              onChange={(e) => setFormData({ ...formData, asic_username: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          ) : (
+            <dd className="mt-1 text-sm text-gray-900">{company.asic_username || '-'}</dd>
+          )}
+        </div>
+
+        <div>
+          <dt className="text-sm font-medium text-gray-500">Recovery Question</dt>
+          {isEditing ? (
+            <input
+              type="text"
+              value={formData.recovery_question}
+              onChange={(e) => setFormData({ ...formData, recovery_question: e.target.value })}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          ) : (
+            <dd className="mt-1 text-sm text-gray-900">{company.recovery_question || '-'}</dd>
+          )}
+        </div>
+      </dl>
     </div>
   )
 }
