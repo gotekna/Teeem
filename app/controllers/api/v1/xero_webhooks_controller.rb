@@ -3,7 +3,7 @@ module Api
     class XeroWebhooksController < ApplicationController
       # Skip CSRF and authentication for webhooks
       skip_before_action :verify_authenticity_token, raise: false
-      skip_before_action :authenticate_user!, raise: false
+      skip_before_action :authorize_request, raise: false
 
       # Xero webhook signature header
       XERO_SIGNATURE_HEADER = 'x-xero-signature'.freeze

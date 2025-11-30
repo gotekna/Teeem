@@ -4,7 +4,7 @@ class CompanyDirector < ApplicationRecord
   belongs_to :contact
 
   # Validations
-  validates :position, inclusion: { in: %w[director secretary director_secretary chairman] }, allow_blank: true
+  validates :position, inclusion: { in: %w[director secretary public_officer director_secretary director_public_officer secretary_public_officer director_secretary_public_officer chairman] }, allow_blank: true
   validates :contact_id, uniqueness: { scope: :company_id, conditions: -> { where(is_current: true) },
                                        message: "is already a current director/officer of this company" }
   validate :resignation_date_after_appointment
@@ -47,22 +47,22 @@ class CompanyDirector < ApplicationRecord
   end
 
   def create_appointment_activity
+    user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
+    user ||= User.first
     company.company_activities.create!(
       activity_type: 'director_appointed',
       description: "#{contact.display_name} was appointed as #{formatted_position}",
-      metadata: { contact_id: contact.id, position: position, appointment_date: appointment_date },
-      performed_by: Current.user || User.first,
-      occurred_at: Time.current
+      user: user
     )
   end
 
   def create_resignation_activity
+    user = defined?(Current) && Current.respond_to?(:user) ? Current.user : nil
+    user ||= User.first
     company.company_activities.create!(
       activity_type: 'director_resigned',
       description: "#{contact.display_name} resigned as #{formatted_position}",
-      metadata: { contact_id: contact.id, position: position, resignation_date: resignation_date },
-      performed_by: Current.user || User.first,
-      occurred_at: Time.current
+      user: user
     )
   end
 end

@@ -27,6 +27,17 @@ module Api
         model = @foundation.dynamic_model
         query = model.all
 
+        # Exclude soft-deleted records if the table has a 'deleted' column
+        if model.column_names.include?('deleted')
+          query = query.where(deleted: [false, nil])
+        end
+
+        # Apply duplicates_only filter for Contacts
+        if params[:duplicates_only] == 'true' && model.table_name == 'contacts'
+          duplicate_ids = find_duplicate_contact_ids
+          query = query.where(id: duplicate_ids)
+        end
+
         # Apply search filter
         if search.present?
           searchable_columns = if @foundation.table_type == 'system'
@@ -179,6 +190,96 @@ module Api
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
         render json: { error: 'Record not found' }, status: :not_found
+      end
+
+      # POST /api/v1/foundations/:foundation_id/records/bulk_update
+      def bulk_update
+        model = @foundation.dynamic_model
+        record_ids = params[:record_ids]
+        updates = params[:updates]&.to_unsafe_h || {}
+
+        if record_ids.blank?
+          return render json: { error: 'No record IDs provided' }, status: :unprocessable_entity
+        end
+
+        if updates.blank?
+          return render json: { error: 'No updates provided' }, status: :unprocessable_entity
+        end
+
+        # Get valid column names for this foundation
+        valid_columns = if @foundation.table_type == 'system'
+          model.column_names
+        else
+          @foundation.columns.pluck(:column_name)
+        end
+
+        # Filter updates to only valid columns
+        filtered_updates = updates.select { |k, _| valid_columns.include?(k.to_s) }
+
+        if filtered_updates.blank?
+          return render json: { error: 'No valid columns to update' }, status: :unprocessable_entity
+        end
+
+        updated_count = 0
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          record_ids.each do |id|
+            record = model.find_by(id: id)
+            if record
+              if record.update(filtered_updates)
+                updated_count += 1
+              else
+                errors << { id: id, errors: record.errors.full_messages }
+              end
+            else
+              errors << { id: id, errors: ['Record not found'] }
+            end
+          end
+        end
+
+        render json: {
+          success: errors.empty?,
+          updated_count: updated_count,
+          total_requested: record_ids.size,
+          errors: errors
+        }
+      rescue => e
+        render json: { error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/foundations/:foundation_id/records/bulk_delete
+      def bulk_delete
+        model = @foundation.dynamic_model
+        ids = params[:ids]  # Changed from record_ids to ids for consistency with other bulk_delete endpoints
+
+        if ids.blank?
+          return render json: { error: 'No record IDs provided' }, status: :unprocessable_entity
+        end
+
+        deleted_count = 0
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          ids.each do |id|
+            record = model.find_by(id: id)
+            if record
+              record.destroy
+              deleted_count += 1
+            else
+              errors << { id: id, errors: ['Record not found'] }
+            end
+          end
+        end
+
+        render json: {
+          success: errors.empty?,
+          deleted_count: deleted_count,
+          total_requested: ids.size,
+          errors: errors
+        }
+      rescue => e
+        render json: { error: e.message }, status: :internal_server_error
       end
 
       private
@@ -361,6 +462,26 @@ module Api
         end
 
         lookup_cache
+      end
+
+      # Find all contact IDs that are possible duplicates (share normalized name with another contact)
+      def find_duplicate_contact_ids
+        contacts_by_name = Contact.where(deleted: [false, nil])
+          .select(:id, :full_name)
+          .group_by { |c| normalize_contact_name(c.full_name) }
+
+        duplicate_ids = []
+        contacts_by_name.each do |normalized_name, contacts|
+          next if normalized_name.blank?
+          next if contacts.size < 2
+          duplicate_ids.concat(contacts.map(&:id))
+        end
+        duplicate_ids
+      end
+
+      def normalize_contact_name(name)
+        return nil if name.blank?
+        name.to_s.downcase.gsub(/\s+/, ' ').strip
       end
     end
   end

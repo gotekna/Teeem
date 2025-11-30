@@ -392,17 +392,10 @@ module Api
       # POST /api/v1/pricebook/fetch_all_images
       def fetch_all_images
         limit = params[:limit]&.to_i || 100
-        supplier_id = params[:supplier_id]
 
-        if supplier_id.present?
-          # Fetch images for specific supplier
-          FetchSupplierImagesJob.perform_later(supplier_id, limit)
-          message = "Image fetch queued for supplier items (limit: #{limit})"
-        else
-          # Fetch images for all items
-          FetchAllImagesJob.perform_later(limit)
-          message = "Image fetch queued for all items (limit: #{limit})"
-        end
+        # Fetch images for all items
+        FetchAllImagesJob.perform_later(limit)
+        message = "Image fetch queued for all items (limit: #{limit})"
 
         render json: {
           success: true,

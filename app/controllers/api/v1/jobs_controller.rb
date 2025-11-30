@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options]
+      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities]
 
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
@@ -17,10 +17,18 @@ module Api
                        .distinct
         end
 
-        # Filter by status if provided (default to Active jobs, unless filtering by contact)
+        # Filter by job_status.name if provided (default to Active jobs, unless filtering by contact)
+        # Note: The frontend sends `status=Active` but we filter via the job_status association
         status_filter = params[:status]
         status_filter ||= "Active" unless params[:contact_id].present?
-        @jobs = @jobs.where(status: status_filter) if status_filter.present?
+        if status_filter.present?
+          @jobs = @jobs.joins(:job_status).where(job_status: { name: status_filter })
+        end
+
+        # Filter by location presence if requested
+        if params[:has_location] == 'true'
+          @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
+        end
 
         # Pagination
         page = params[:page]&.to_i || 1
@@ -75,6 +83,22 @@ module Api
             relationships_count: cc.contact.outgoing_relationships.count
           }
         end.compact
+
+        # Include estimator analysis from proposal if available
+        if @job.email_job_proposal&.extracted_data.present?
+          extracted = @job.email_job_proposal.extracted_data
+          # Only include if the estimator fields are present
+          if extracted['job_summary'].present? || extracted['key_points'].present?
+            job_json[:estimator_analysis] = {
+              job_summary: extracted['job_summary'],
+              key_points: extracted['key_points'],
+              estimated_scope: extracted['estimated_scope'],
+              recommendations: extracted['recommendations'],
+              source: 'pdf_extraction',
+              extracted_at: @job.email_job_proposal.created_at
+            }
+          end
+        end
 
         render json: job_json
       end
@@ -146,7 +170,33 @@ module Api
                               .includes(:user)
                               .order(received_at: :desc)
 
-        render json: @emails
+        render json: { emails: @emails }
+      end
+
+      # GET /api/v1/jobs/:id/sms_messages
+      # Returns SMS messages for all contacts associated with this job
+      def sms_messages
+        contact_ids = @job.job_contacts.pluck(:contact_id)
+
+        if contact_ids.empty?
+          render json: { sms_messages: [] }
+          return
+        end
+
+        messages = SmsMessage
+          .where(contact_id: contact_ids)
+          .includes(:contact, :user)
+          .order(created_at: :desc)
+          .limit(100)
+
+        render json: {
+          sms_messages: messages.as_json(
+            include: {
+              contact: { only: [:id, :full_name, :mobile_phone] },
+              user: { only: [:id, :name, :email] }
+            }
+          )
+        }
       end
 
       # GET /api/v1/jobs/:id/documentation_tabs
@@ -221,6 +271,38 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/jobs/:id/activities
+      # Get activity timeline for a job
+      def activities
+        activities = @job.job_activities
+                         .includes(:user)
+                         .recent
+
+        # Filter by type if specified
+        activities = activities.by_type(params[:type]) if params[:type].present?
+
+        # Filter by date range
+        activities = activities.since(params[:since].to_date) if params[:since].present?
+
+        # Pagination
+        page = (params[:page] || 1).to_i
+        per_page = (params[:per_page] || 50).to_i.clamp(1, 100)
+        total_count = activities.count
+
+        activities = activities.offset((page - 1) * per_page).limit(per_page)
+
+        render json: {
+          success: true,
+          activities: activities.map { |a| serialize_activity(a) },
+          meta: {
+            total_count: total_count,
+            page: page,
+            per_page: per_page,
+            total_pages: (total_count.to_f / per_page).ceil
+          }
+        }
+      end
+
       private
 
       def set_job
@@ -249,6 +331,25 @@ module Api
           :job_status_id,
           :job_stage_id
         )
+      end
+
+      def serialize_activity(activity)
+        {
+          id: activity.id,
+          activity_type: activity.activity_type,
+          formatted_type: activity.formatted_activity_type,
+          description: activity.description,
+          occurred_at: activity.occurred_at.iso8601,
+          time_ago: activity.time_ago,
+          performed_by: activity.performed_by_name,
+          user_id: activity.user_id,
+          icon: activity.icon_name,
+          icon_color: activity.icon_color,
+          related_type: activity.related_type,
+          related_id: activity.related_id,
+          related_url: activity.related_url,
+          metadata: activity.metadata
+        }
       end
 
       def instantiate_schedule_template(template_id)

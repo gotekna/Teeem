@@ -1,48 +1,40 @@
 class Api::V1::UserGroupsController < ApplicationController
   # GET /api/v1/user_groups
   def index
-    groups = User::ASSIGNABLE_ROLES.map do |group|
-      {
-        value: group,
-        label: group.titleize
-      }
-    end
-    render json: { groups: groups }
+    render json: { groups: UserGroup.as_dropdown_options }
   end
 
   # POST /api/v1/user_groups
   def create
-    group_name = params[:name]&.downcase&.strip
+    @user_group = UserGroup.new(user_group_params)
 
-    if group_name.blank?
-      render json: { error: 'Group name is required' }, status: :unprocessable_entity
-      return
+    if @user_group.save
+      render json: { success: true, group: { value: @user_group.name, label: @user_group.label } }, status: :created
+    else
+      render json: { success: false, error: @user_group.errors.full_messages.join(', ') }, status: :unprocessable_entity
     end
-
-    if User::ASSIGNABLE_ROLES.include?(group_name)
-      render json: { error: 'Group already exists' }, status: :unprocessable_entity
-      return
-    end
-
-    # Add group to the ASSIGNABLE_ROLES constant (this requires modifying the User model file)
-    # For now, we'll store it in a database table
-    # TODO: Implement dynamic group storage
-
-    render json: { error: 'Dynamic group creation not yet implemented. Please add groups directly to the User model.' }, status: :not_implemented
   end
 
   # DELETE /api/v1/user_groups/:id
+  # Accepts either ID or name
   def destroy
-    group_name = params[:id]
+    @user_group = UserGroup.find_by(name: params[:id]) || UserGroup.find_by(id: params[:id])
 
-    # Prevent deletion of core groups
-    core_groups = %w[admin]
-    if core_groups.include?(group_name)
-      render json: { error: 'Cannot delete core system groups' }, status: :forbidden
+    if @user_group.nil?
+      render json: { error: 'Group not found' }, status: :not_found
       return
     end
 
-    # TODO: Implement dynamic group deletion
-    render json: { error: 'Dynamic group deletion not yet implemented. Please remove groups directly from the User model.' }, status: :not_implemented
+    if @user_group.destroy
+      render json: { success: true, message: 'Group deleted successfully' }
+    else
+      render json: { success: false, error: 'Failed to delete group' }, status: :unprocessable_entity
+    end
+  end
+
+  private
+
+  def user_group_params
+    params.permit(:name, :label)
   end
 end

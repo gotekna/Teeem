@@ -1,8 +1,8 @@
 class PurchaseOrder < ApplicationRecord
   # Associations
   belongs_to :job, counter_cache: true
-  belongs_to :supplier, optional: true, counter_cache: true
-  belongs_to :contact, foreign_key: :supplier_id, optional: true
+  belongs_to :supplier, class_name: 'Contact', optional: true, counter_cache: true
+  belongs_to :contact, class_name: 'Contact', foreign_key: :supplier_id, optional: true
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
   has_many :line_items, class_name: 'PurchaseOrderLineItem', dependent: :destroy
@@ -53,6 +53,7 @@ class PurchaseOrder < ApplicationRecord
   before_validation :generate_po_number, if: :new_record?
   before_save :calculate_totals
   before_save :calculate_variances
+  after_create :log_po_created
   after_save :update_job_profit
   after_destroy :update_job_profit
 
@@ -100,19 +101,25 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def approve!(user_id = nil)
-    update(
+    result = update(
       status: 'approved',
       approved_by_id: user_id,
       approved_at: Time.current
     )
+    log_activity(:approved) if result
+    result
   end
 
-  def send_to_supplier!
-    update(status: 'sent', ordered_date: CompanySetting.today)
+  def send_to_supplier!(document_url: nil)
+    result = update(status: 'sent', ordered_date: CompanySetting.today)
+    log_activity(:sent, document_url: document_url) if result
+    result
   end
 
   def mark_received!
-    update(status: 'received', received_date: CompanySetting.today)
+    result = update(status: 'received', received_date: CompanySetting.today)
+    log_activity(:received) if result
+    result
   end
 
   def can_edit?
@@ -317,5 +324,30 @@ class PurchaseOrder < ApplicationRecord
   # Update the job's live profit when this PO changes
   def update_job_profit
     job&.calculate_and_update_profit!
+  end
+
+  # Activity logging
+  def log_po_created
+    return unless job
+    JobActivity.log_po_created(job, purchase_order: self, user: Current.user)
+  rescue StandardError => e
+    Rails.logger.error "Failed to log PO creation activity: #{e.message}"
+  end
+
+  def log_activity(action, document_url: nil)
+    return unless job
+
+    case action
+    when :approved
+      JobActivity.log_po_approved(job, purchase_order: self, user: Current.user)
+    when :sent
+      JobActivity.log_po_sent(job, purchase_order: self, document_url: document_url, user: Current.user)
+    when :received
+      JobActivity.log_po_received(job, purchase_order: self, user: Current.user)
+    when :cancelled
+      JobActivity.log_po_cancelled(job, purchase_order: self, user: Current.user)
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to log PO activity (#{action}): #{e.message}"
   end
 end

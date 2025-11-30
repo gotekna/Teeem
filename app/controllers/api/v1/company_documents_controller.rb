@@ -1,20 +1,39 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy, :download]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :validate, :ai_verify, :apply_ai_suggestion, :relocate]
 
       # GET /api/v1/company_documents
       def index
-        @documents = CompanyDocument.includes(:company, :user).all
+        @documents = CompanyDocument.includes(:company, :user, :asset).all
 
         # Filter by company
         @documents = @documents.where(company_id: params[:company_id]) if params[:company_id].present?
 
+        # Filter by contact (for family member documents)
+        @documents = @documents.where(contact_id: params[:contact_id]) if params[:contact_id].present?
+
+        # Filter by asset
+        @documents = @documents.by_asset(params[:asset_id]) if params[:asset_id].present?
+
+        # Filter by with/without asset
+        @documents = @documents.with_asset if params[:with_asset] == 'true'
+        @documents = @documents.without_asset if params[:without_asset] == 'true'
+
         # Filter by type
         @documents = @documents.by_type(params[:document_type]) if params[:document_type].present?
 
+        # Filter by tab
+        @documents = @documents.by_tab(params[:tab]) if params[:tab].present?
+
+        # Filter by source (manual, xero, sharepoint)
+        @documents = @documents.by_source(params[:source]) if params[:source].present?
+
         # Filter by year
         @documents = @documents.by_year(params[:year]) if params[:year].present?
+
+        # Filter by financial year (supports documents spanning multiple years)
+        @documents = @documents.by_financial_year(params[:financial_year]) if params[:financial_year].present?
 
         # Sort
         @documents = @documents.order(created_at: :desc)
@@ -23,8 +42,9 @@ module Api
           success: true,
           documents: @documents.as_json(
             include: {
-              company: { only: [:id, :name] },
-              user: { only: [:id, :name, :email] }
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] },
+              asset: { only: [:id, :name, :description, :abbreviation], methods: [:display_name] }
             },
             methods: [:formatted_document_type, :file_size_mb]
           )
@@ -37,8 +57,9 @@ module Api
           success: true,
           document: @document.as_json(
             include: {
-              company: { only: [:id, :name] },
-              user: { only: [:id, :name, :email] }
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] },
+              asset: { only: [:id, :name, :description, :abbreviation], methods: [:display_name] }
             },
             methods: [:formatted_document_type, :file_size_mb]
           )
@@ -111,6 +132,126 @@ module Api
         end
       end
 
+      # POST /api/v1/company_documents/:id/validate
+      # User validates that the document naming is correct
+      def validate
+        @document.update!(
+          user_validated_at: Time.current,
+          user_validated_by: current_user,
+          validation_required: false,
+          ai_verification_status: 'verified'
+        )
+
+        render json: {
+          success: true,
+          message: 'Document validated successfully',
+          document: @document.as_json(
+            include: {
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] }
+            },
+            methods: [:formatted_document_type, :file_size_mb]
+          )
+        }
+      end
+
+      # POST /api/v1/company_documents/:id/ai_verify
+      # Triggers AI analysis of document naming
+      def ai_verify
+        # Check if OneDrive file exists
+        unless @document.onedrive_file_id.present?
+          return render json: {
+            success: false,
+            error: 'No OneDrive file available for this document'
+          }, status: :unprocessable_entity
+        end
+
+        # Mark as processing immediately for UI feedback
+        @document.update!(ai_verification_status: 'processing')
+
+        # Queue background job
+        DocumentVerificationJob.perform_later(@document.id)
+
+        render json: {
+          success: true,
+          message: 'AI verification started',
+          document_id: @document.id,
+          status: 'processing'
+        }
+      end
+
+      # POST /api/v1/company_documents/:id/apply_ai_suggestion
+      # Renames document to the AI-suggested name
+      def apply_ai_suggestion
+        unless @document.ai_suggested_name.present?
+          return render json: {
+            success: false,
+            error: 'No AI suggestion available'
+          }, status: :unprocessable_entity
+        end
+
+        old_title = @document.title
+        @document.update!(
+          title: @document.ai_suggested_name,
+          ai_verification_status: 'verified',
+          user_validated_at: Time.current,
+          user_validated_by: current_user
+        )
+
+        render json: {
+          success: true,
+          message: "Document renamed from '#{old_title}' to '#{@document.title}'",
+          document: @document.as_json(
+            include: {
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] }
+            },
+            methods: [:formatted_document_type, :file_size_mb]
+          )
+        }
+      end
+
+      # POST /api/v1/company_documents/:id/relocate
+      # Moves/renames document in OneDrive and updates metadata
+      def relocate
+        relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, financial_years: [])
+
+        service = DocumentRelocateService.new(@document)
+        result = service.relocate!(
+          new_company_id: relocate_params[:company_id],
+          new_folder: relocate_params[:folder],
+          new_title: relocate_params[:title]
+        )
+
+        if result[:success]
+          # Update financial years if provided (not handled by relocate service)
+          if relocate_params[:financial_years].present?
+            @document.update!(financial_years: relocate_params[:financial_years])
+          end
+
+          @document.reload
+
+          render json: {
+            success: true,
+            message: result[:message] || 'Document relocated successfully',
+            skipped: result[:skipped],
+            actions: result[:actions],
+            document: @document.as_json(
+              include: {
+                company: { only: [:id, :name, :code] },
+                user: { only: [:id, :name, :email] }
+              },
+              methods: [:formatted_document_type, :file_size_mb]
+            )
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def set_document
@@ -121,8 +262,10 @@ module Api
 
       def document_params
         params.require(:company_document).permit(
-          :company_id, :document_name, :document_type, :description,
-          :file_url, :year, :period
+          :company_id, :contact_id, :asset_id, :document_type_id, :title, :document_name,
+          :document_type, :description, :file_url, :year, :period, :folder,
+          :storage_type, :source, :file_name, :file_size, :mime_type,
+          financial_years: []
         )
       end
     end

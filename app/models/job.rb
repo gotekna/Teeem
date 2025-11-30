@@ -19,10 +19,17 @@ class Job < ApplicationRecord
   has_many :job_contacts, dependent: :destroy
   has_many :contacts, through: :job_contacts
   has_many :rain_logs, dependent: :destroy
+  has_many :external_invoices, dependent: :nullify
 
   # SM Gantt associations (Schedule Master v2)
   has_many :sm_tasks, dependent: :destroy
   has_many :sm_rollover_logs, dependent: :destroy
+
+  # Activity tracking
+  has_many :job_activities, dependent: :destroy
+
+  # Email proposals
+  has_one :email_job_proposal, dependent: :nullify
 
   # Enums
   enum :onedrive_folder_creation_status, {
@@ -35,7 +42,6 @@ class Job < ApplicationRecord
 
   # Validations
   validates :title, presence: true
-  validates :status, presence: true
   validates :site_supervisor_name, presence: true, unless: :imported_from_xero?
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
@@ -44,9 +50,12 @@ class Job < ApplicationRecord
   # Callbacks
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
+  after_create :log_job_created
+  before_update :track_status_and_stage_changes
+  after_update :log_status_and_stage_changes
 
   # Scopes
-  scope :active, -> { where(status: 'Active') }
+  scope :active, -> { joins(:job_status).where(job_statuses: { name: 'Active Job' }) }
 
   # Methods
   def create_project!(project_manager:, name: nil)
@@ -121,6 +130,16 @@ class Job < ApplicationRecord
     job_contacts.primary.first&.contact
   end
 
+  # Get client contact (from invoices)
+  def client
+    job_contacts.find_by(role: 'client')&.contact
+  end
+
+  # Link client from invoice contacts
+  def link_client_from_invoices!
+    JobClientLinkerService.new.link_client_to_job(self)
+  end
+
   # Get all contacts with their relationship info
   def contacts_with_details
     job_contacts.includes(contact: :outgoing_relationships).map do |cc|
@@ -189,5 +208,31 @@ class Job < ApplicationRecord
     update_column(:onedrive_folder_creation_status, 'pending')
   rescue StandardError => e
     Rails.logger.error "Failed to queue OneDrive folder creation for job #{id}: #{e.message}"
+  end
+
+  # Activity logging callbacks
+  def log_job_created
+    JobActivity.log_job_created(self, user: Current.user)
+  rescue StandardError => e
+    Rails.logger.error "Failed to log job creation activity: #{e.message}"
+  end
+
+  def track_status_and_stage_changes
+    @status_was = job_status&.name if job_status_id_changed?
+    @stage_was = job_stage&.name if job_stage_id_changed?
+  end
+
+  def log_status_and_stage_changes
+    if saved_change_to_job_status_id? && @status_was.present?
+      new_status = job_status&.name
+      JobActivity.log_status_change(self, old_status: @status_was, new_status: new_status, user: Current.user)
+    end
+
+    if saved_change_to_job_stage_id?
+      new_stage = job_stage&.name
+      JobActivity.log_stage_change(self, old_stage: @stage_was, new_stage: new_stage, user: Current.user)
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to log status/stage change activity: #{e.message}"
   end
 end

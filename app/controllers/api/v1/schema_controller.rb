@@ -458,7 +458,16 @@ module Api
       end
 
       def get_system_table_record_count(table_name)
-        ActiveRecord::Base.connection.select_value("SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(table_name)}")
+        quoted_table = ActiveRecord::Base.connection.quote_table_name(table_name)
+
+        # For tables with soft delete (deleted column), exclude deleted records
+        if ActiveRecord::Base.connection.column_exists?(table_name, :deleted)
+          ActiveRecord::Base.connection.select_value(
+            "SELECT COUNT(*) FROM #{quoted_table} WHERE deleted IS NULL OR deleted = false"
+          )
+        else
+          ActiveRecord::Base.connection.select_value("SELECT COUNT(*) FROM #{quoted_table}")
+        end
       rescue
         0
       end
@@ -583,8 +592,7 @@ module Api
           'SmResource' => 'sm_resources',
           'SmTimeEntry' => 'sm_time_entries',
           'PriceHistory' => 'price_histories',
-          'Job' => 'jobs',
-          'Supplier' => 'suppliers'
+          'Job' => 'jobs'
         }
 
         table_mapping[model_class] || model_class.underscore.pluralize
@@ -650,10 +658,17 @@ module Api
           # Query directly to bypass all caching layers
           registered_columns_count = Column.where(foundation_id: foundation.id).count
 
-          # Get record count
-          record_count = ActiveRecord::Base.connection.select_value(
-            "SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(actual_table_name)}"
-          ).to_i
+          # Get record count (exclude soft-deleted records if applicable)
+          quoted_table = ActiveRecord::Base.connection.quote_table_name(actual_table_name)
+          if ActiveRecord::Base.connection.column_exists?(actual_table_name, :deleted)
+            record_count = ActiveRecord::Base.connection.select_value(
+              "SELECT COUNT(*) FROM #{quoted_table} WHERE deleted IS NULL OR deleted = false"
+            ).to_i
+          else
+            record_count = ActiveRecord::Base.connection.select_value(
+              "SELECT COUNT(*) FROM #{quoted_table}"
+            ).to_i
+          end
 
           # Check 3: Column count match (warning if different)
           if registered_columns_count > 0 && registered_columns_count != db_columns_count

@@ -7,34 +7,38 @@ module Api
       # GET /api/v1/foundation_views?foundation_id=123
       # GET /api/v1/table_views?table_id=123 (backward compatible)
       def index
-        # Handle both authenticated and unauthenticated requests
-        # Unauthenticated users see public/system views (user_id IS NULL)
-        if current_user
-          views = current_user.foundation_views
-        else
-          views = FoundationView.where(user_id: nil)
-        end
-
         # Support both foundation_id and table_id (backward compatibility)
         filter_id = params[:foundation_id] || params[:table_id]
 
-        if filter_id.present?
-          views = views.where(foundation_id: filter_id)
+        # Get global views (shared by all users)
+        global_views = FoundationView.global_views
+        global_views = global_views.where(foundation_id: filter_id) if filter_id.present?
+
+        # Get user-specific views if authenticated
+        user_views = if current_user
+          views = current_user.foundation_views.personal_views
+          views = views.where(foundation_id: filter_id) if filter_id.present?
 
           # Auto-create "Setup" view if no views exist for this user/foundation combination
-          if current_user && views.empty?
+          if filter_id.present? && views.empty? && global_views.empty?
             foundation = Foundation.find_by(id: filter_id)
             if foundation
               create_default_setup_view(foundation, current_user)
               # Reload views to include the newly created Setup view
-              views = current_user.foundation_views.where(foundation_id: filter_id)
+              views = current_user.foundation_views.personal_views.where(foundation_id: filter_id)
             end
           end
+          views
+        else
+          FoundationView.none
         end
+
+        # Combine global views (first) and user views (second)
+        all_views = (global_views.to_a + user_views.to_a).uniq
 
         render json: {
           success: true,
-          views: views.order(display_order: :asc, created_at: :desc)
+          views: all_views.sort_by { |v| [v.is_global? ? 0 : 1, v.display_order || 999, v.created_at] }
         }
       end
 
@@ -113,7 +117,12 @@ module Api
         begin
           ActiveRecord::Base.transaction do
             orders.each do |item|
-              view = current_user.foundation_views.find(item[:id])
+              # Try to find the view - check user's views first, then global views
+              view = current_user.foundation_views.find_by(id: item[:id])
+              view ||= FoundationView.global_views.find_by(id: item[:id])
+
+              raise ActiveRecord::RecordNotFound, "View #{item[:id]} not found" unless view
+
               Rails.logger.info "[Reorder] Updating view #{view.id} (#{view.name}) from display_order #{view.display_order} to #{item[:display_order]}"
               view.update!(display_order: item[:display_order])
               Rails.logger.info "[Reorder] Successfully updated view #{view.id}"
@@ -143,6 +152,69 @@ module Api
         end
       end
 
+      # POST /api/v1/foundation_views/save_global
+      # Save current view configuration as a global view (visible to all users)
+      # Only authenticated users can save global views
+      def save_global
+        unless current_user
+          return render json: {
+            success: false,
+            error: "Authentication required to save global views"
+          }, status: :unauthorized
+        end
+
+        foundation_id = params[:foundation_id]
+        view_name = params[:name] || 'Default View'
+
+        unless foundation_id
+          return render json: {
+            success: false,
+            error: "foundation_id is required"
+          }, status: :unprocessable_entity
+        end
+
+        # Always create a NEW global view (allow multiple global views per foundation)
+        # Get the highest display_order for global views to insert new view at position 0
+        max_display_order = FoundationView.global_views
+                                     .where(foundation_id: foundation_id)
+                                     .maximum(:display_order) || -1
+
+        # Shift existing global views down
+        FoundationView.global_views
+                 .where(foundation_id: foundation_id)
+                 .update_all("display_order = display_order + 1")
+
+        view_params = {
+          foundation_id: foundation_id,
+          name: view_name,
+          view_type: params[:view_type] || 'custom',
+          filters: params[:filters] || {},
+          columns: params[:columns] || {},
+          sort_order: params[:sort_order] || [],
+          group_by_column: params[:group_by_column],
+          group_by_columns: params[:group_by_columns] || [],
+          is_global: true,
+          user_id: nil,  # Global views have no user
+          is_default: false,  # Don't auto-set as default, let position determine that
+          display_order: 0  # Insert at the top
+        }
+
+        # Create new global view
+        global_view = FoundationView.new(view_params)
+        if global_view.save
+          render json: {
+            success: true,
+            view: global_view,
+            message: "Global view '#{view_name}' created successfully. All users will see this view."
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: global_view.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def set_foundation_view
@@ -153,12 +225,16 @@ module Api
           }, status: :unauthorized
         end
 
-        @foundation_view = current_user.foundation_views.find(params[:id])
-      rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "View not found"
-        }, status: :not_found
+        # Try to find in user's personal views first, then in global views
+        @foundation_view = current_user.foundation_views.find_by(id: params[:id]) ||
+                          FoundationView.global_views.find_by(id: params[:id])
+
+        unless @foundation_view
+          return render json: {
+            success: false,
+            error: "View not found"
+          }, status: :not_found
+        end
       end
 
       def foundation_view_params
@@ -169,19 +245,25 @@ module Api
           :is_default,
           :display_order,
           :group_by_column,
-          filters: [
-            :interGroupLogic,
-            cascadeFilters: [],
-            filterGroups: []
-          ],
-          columns: [
-            :showFilters,
-            order: [],
-            visible: {}
-          ],
+          filters: {},  # Allow arbitrary hash structure for complex filters
+          columns: {},  # Allow arbitrary hash structure for columns config
           sort_order: [:column, :dir],
           group_by_columns: []
-        )
+        ).tap do |permitted|
+          # Manually permit complex nested structures that Rails strong params can't handle
+          if params[:foundation_view][:filters].present?
+            permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
+          end
+          if params[:foundation_view][:columns].present?
+            permitted[:columns] = params[:foundation_view][:columns].to_unsafe_h
+          end
+          if params[:foundation_view][:sort_order].present?
+            permitted[:sort_order] = params[:foundation_view][:sort_order].map(&:to_unsafe_h)
+          end
+          if params[:foundation_view][:group_by_columns].present?
+            permitted[:group_by_columns] = params[:foundation_view][:group_by_columns].to_a
+          end
+        end
       end
 
     # POST /api/v1/foundation_views/create_all_setup_views

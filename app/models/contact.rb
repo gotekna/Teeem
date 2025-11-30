@@ -1,17 +1,19 @@
 class Contact < ApplicationRecord
   # Associations
-  has_many :suppliers, dependent: :nullify  # Legacy association - will be deprecated
-  has_many :supplier_contacts, dependent: :destroy
-  has_many :linked_suppliers, through: :supplier_contacts, source: :supplier
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy
+
+  # Company group for document filing (family members)
+  belongs_to :company_group, optional: true
 
   # Xero-related associations
   has_many :contact_persons, dependent: :destroy
   has_many :contact_addresses, dependent: :destroy
   has_many :contact_group_memberships, dependent: :destroy
   has_many :contact_groups, through: :contact_group_memberships
-  has_many :xero_links, class_name: 'ContactXeroLink', dependent: :destroy
+  has_many :external_links, class_name: 'ContactExternalLink', dependent: :destroy
+  has_many :xero_links, -> { where(source: 'xero') }, class_name: 'ContactExternalLink', dependent: :destroy
+  has_many :external_invoices, dependent: :nullify
 
   # Enable nested attributes for Xero associations
   accepts_nested_attributes_for :contact_persons, allow_destroy: true
@@ -41,7 +43,6 @@ class Contact < ApplicationRecord
 
   # Portal-related associations
   has_one :portal_user, dependent: :destroy
-  has_many :supplier_ratings, dependent: :destroy
   has_many :maintenance_requests, foreign_key: :supplier_contact_id, dependent: :destroy
 
   # Subcontractor-related associations
@@ -52,6 +53,20 @@ class Contact < ApplicationRecord
   has_one :accounting_integration, dependent: :destroy
   has_many :subcontractor_invoices, dependent: :destroy
   has_many :pay_now_requests, dependent: :destroy
+
+  # Corporate director/shareholder associations
+  has_many :company_directorships, class_name: 'CompanyDirector', dependent: :destroy
+  has_many :directed_companies, through: :company_directorships, source: :company
+  has_many :current_directorships, -> { where(is_current: true) }, class_name: 'CompanyDirector'
+  has_many :company_shareholdings, foreign_key: :shareholder_id, dependent: :destroy
+  has_many :shareholding_companies, through: :company_shareholdings, source: :company
+  has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
+
+  # Personal documents (for family members, directors, etc.)
+  has_many :company_documents, dependent: :destroy
+
+  # Encrypted TFN for directors
+  encrypts :tfn, deterministic: true
 
   # Constants
   CONTACT_TYPES = %w[customer supplier sales land_agent].freeze
@@ -143,6 +158,15 @@ class Contact < ApplicationRecord
 
   def is_trust?
     entity_type == 'trust' || contact_types&.include?('trust')
+  end
+
+  # Family/Director helpers
+  def is_director?
+    current_directorships.any?
+  end
+
+  def director_companies
+    current_directorships.includes(:company).map(&:company)
   end
 
   # Company/Employment relationship helpers
@@ -255,8 +279,7 @@ class Contact < ApplicationRecord
   def rating_summary
     {
       average: teeem_rating&.round(2),
-      total_ratings: total_ratings_count,
-      recent_ratings: supplier_ratings.recent.limit(5)
+      total_ratings: total_ratings_count
     }
   end
 
@@ -305,11 +328,11 @@ class Contact < ApplicationRecord
   end
 
   def xero_tenants
-    xero_links.enabled.pluck(:xero_tenant_id)
+    xero_links.enabled.pluck(:tenant_id)
   end
 
   def xero_link_for_tenant(tenant_id)
-    xero_links.find_by(xero_tenant_id: tenant_id)
+    xero_links.find_by(tenant_id: tenant_id)
   end
 
   def has_xero_conflicts?

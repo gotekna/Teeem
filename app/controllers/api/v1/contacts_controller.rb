@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -15,7 +15,24 @@ module Api
 
       # GET /api/v1/contacts
       def index
-        @contacts = Contact.all
+        # Exclude soft-deleted contacts by default
+        @contacts = Contact.where(deleted: [false, nil])
+
+        # Filter to only show actual company directors (from company_directors table)
+        if params[:is_director] == 'true'
+          director_contact_ids = CompanyDirector.where(is_current: true).pluck(:contact_id).uniq
+          @contacts = @contacts.where(id: director_contact_ids)
+        end
+
+        # Filter to only show family members
+        if params[:is_family_member] == 'true'
+          @contacts = @contacts.where(is_family_member: true)
+        end
+
+        # Filter to only show potential directors
+        if params[:is_potential_director] == 'true'
+          @contacts = @contacts.where(is_potential_director: true)
+        end
 
         # Search by name or email
         if params[:search].present?
@@ -49,6 +66,13 @@ module Api
           end
         end
 
+        # Filter to only show possible duplicate contacts
+        if params[:duplicates_only] == 'true'
+          # Find contacts that share a normalized full_name with at least one other contact
+          duplicate_ids = find_duplicate_contact_ids
+          @contacts = @contacts.where(id: duplicate_ids)
+        end
+
         # Filter by having contact info
         @contacts = @contacts.with_email if params[:with_email] == "true"
         @contacts = @contacts.with_phone if params[:with_phone] == "true"
@@ -59,12 +83,16 @@ module Api
         include_companies = params[:include_companies] == 'true'
         include_jobs = params[:include_jobs] == 'true'
 
+        # Include director details if filtering for directors
+        director_fields = params[:is_director] == 'true' ? [:director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url] : []
+
         contacts_json = @contacts.as_json(
-          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status],
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id] + director_fields,
           include: {
-            portal_user: { only: [:id, :email, :portal_type, :active] }
+            portal_user: { only: [:id, :email, :portal_type, :active] },
+            company_group: { only: [:id, :name] }
           },
-          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name]
+          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?]
         )
 
         # Add company and job counts for all contacts
@@ -113,21 +141,27 @@ module Api
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
             :entity_type, :primary_role, :employment_status,
+            # Family/Director flags
+            :is_family_member, :is_potential_director, :company_group_id,
             # Xero fields
             :bank_bsb, :bank_account_number, :bank_account_name,
             :default_purchase_account, :default_sales_account,
             :bill_due_day, :bill_due_type, :sales_due_day, :sales_due_type,
             :xero_contact_number, :xero_contact_status, :xero_account_number, :company_number, :default_discount,
             :accounts_receivable_outstanding, :accounts_receivable_overdue,
-            :accounts_payable_outstanding, :accounts_payable_overdue
+            :accounts_payable_outstanding, :accounts_payable_overdue,
+            # Director details fields
+            :director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country,
+            :residential_address, :drivers_licence, :passport_number, :photo_url
           ],
           include: {
             contact_persons: { only: [:id, :first_name, :last_name, :email, :include_in_emails, :is_primary, :xero_contact_person_id] },
             contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary] },
             contact_groups: { only: [:id, :name, :status, :xero_contact_group_id] },
-            portal_user: { only: [:id, :email, :portal_type, :active, :last_login_at, :created_at] }
+            portal_user: { only: [:id, :email, :portal_type, :active, :last_login_at, :created_at] },
+            company_group: { only: [:id, :name] }
           },
-          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?]
+          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies]
         )
 
         # If contact is a supplier, add pricebook items and purchase orders
@@ -362,68 +396,13 @@ module Api
       end
 
       # POST /api/v1/contacts/match_supplier
+      # DEPRECATED: This endpoint was for migrating suppliers table to contacts.
+      # The suppliers table has been removed - all suppliers are now contacts with type='supplier'.
       def match_supplier
-        contact_id = params[:contact_id]
-        supplier_name = params[:supplier_name]
-
-        if contact_id.blank? || supplier_name.blank?
-          return render json: {
-            success: false,
-            error: "contact_id and supplier_name are required"
-          }, status: :bad_request
-        end
-
-        contact = Contact.find(contact_id)
-
-        # Find supplier by name (case-insensitive)
-        supplier = Supplier.where("LOWER(name) = ?", supplier_name.downcase).first
-
-        unless supplier
-          return render json: {
-            success: false,
-            error: "No supplier found with name '#{supplier_name}'"
-          }, status: :not_found
-        end
-
-        # Import supplier history into contact
-        contact.update(
-          contact_types: (contact.contact_types + ['supplier']).uniq,
-          rating: supplier.rating || contact.rating,
-          response_rate: supplier.response_rate || contact.response_rate,
-          avg_response_time: supplier.avg_response_time || contact.avg_response_time,
-          is_active: supplier.is_active.nil? ? contact.is_active : supplier.is_active,
-          supplier_code: supplier.supplier_code || contact.supplier_code,
-          address: supplier.address || contact.address,
-          notes: [contact.notes, supplier.notes].compact.join("\n\n")
-        )
-
-        # Link the supplier to this contact
-        supplier.update(contact_id: contact.id)
-
-        render json: {
-          success: true,
-          message: "Successfully matched contact with supplier '#{supplier.name}'",
-          contact: contact.as_json(
-            only: [:id, :full_name, :first_name, :last_name, :email, :contact_types, :rating, :notes]
-          ),
-          imported_fields: {
-            rating: supplier.rating,
-            response_rate: supplier.response_rate,
-            avg_response_time: supplier.avg_response_time,
-            supplier_code: supplier.supplier_code,
-            notes: supplier.notes.present?
-          }
-        }
-      rescue ActiveRecord::RecordNotFound => e
         render json: {
           success: false,
-          error: "Contact not found: #{e.message}"
-        }, status: :not_found
-      rescue => e
-        render json: {
-          success: false,
-          error: "Failed to match supplier: #{e.message}"
-        }, status: :internal_server_error
+          error: "This endpoint is deprecated. Suppliers are now managed directly as contacts with type='supplier'."
+        }, status: :gone
       end
 
       # GET /api/v1/contacts/:id/categories
@@ -1069,7 +1048,7 @@ module Api
 
         # Find the xero link to sync from
         link = if tenant_id.present?
-          @contact.xero_links.find_by(xero_tenant_id: tenant_id)
+          @contact.xero_links.find_by(tenant_id: tenant_id)
         else
           @contact.xero_links.first
         end
@@ -1088,7 +1067,7 @@ module Api
         end
 
         begin
-          sync_service = XeroContactSyncService.new(tenant_id: link.xero_tenant_id)
+          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
           result = sync_service.sync_from_xero(link)
 
           if result[:success]
@@ -1188,6 +1167,59 @@ module Api
           success: false,
           error: "Sync failed: #{e.message}"
         }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/sync_to_xero
+      # Push contact changes from TEEEM to Xero
+      def sync_to_xero
+        tenant_id = params[:tenant_id]
+
+        # Find the xero link to sync to
+        link = if tenant_id.present?
+          @contact.xero_links.find_by(tenant_id: tenant_id)
+        else
+          @contact.xero_links.first
+        end
+
+        unless link&.external_contact_id.present?
+          return render json: {
+            success: false,
+            error: 'Contact is not linked to any Xero organization'
+          }, status: :unprocessable_entity
+        end
+
+        begin
+          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
+          result = sync_service.sync_to_xero(@contact, link)
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: 'Contact pushed to Xero successfully',
+              contact: @contact.reload.as_json(
+                only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
+                       :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
+                       :tax_number, :bank_bsb, :bank_account_number, :bank_account_name]
+              )
+            }
+          else
+            render json: {
+              success: false,
+              error: result[:error] || 'Failed to push contact to Xero'
+            }, status: :unprocessable_entity
+          end
+        rescue XeroApiClient::AuthenticationError => e
+          render json: {
+            success: false,
+            error: 'Not authenticated with Xero. Please reconnect.'
+          }, status: :unauthorized
+        rescue => e
+          Rails.logger.error("Sync to Xero error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+          render json: {
+            success: false,
+            error: "Sync failed: #{e.message}"
+          }, status: :internal_server_error
+        end
       end
 
       # POST /api/v1/contacts/:id/portal_user
@@ -1388,6 +1420,21 @@ module Api
         name.to_s.downcase.gsub(/\s+/, ' ').strip
       end
 
+      # Find all contact IDs that are possible duplicates (share normalized name with another contact)
+      def find_duplicate_contact_ids
+        contacts_by_name = Contact.where(deleted: [false, nil])
+          .select(:id, :full_name)
+          .group_by { |c| normalize_name(c.full_name) }
+
+        duplicate_ids = []
+        contacts_by_name.each do |normalized_name, contacts|
+          next if normalized_name.blank?
+          next if contacts.size < 2
+          duplicate_ids.concat(contacts.map(&:id))
+        end
+        duplicate_ids
+      end
+
       def contact_duplicate_json(contact)
         {
           id: contact.id,
@@ -1516,6 +1563,10 @@ module Api
           :address,
           :notes,
           :entity_type,
+          # Family/Director fields
+          :is_family_member,
+          :is_potential_director,
+          :company_group_id,
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
           # See Contact::XERO_READ_ONLY_FIELDS for the full list

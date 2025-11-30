@@ -5,7 +5,7 @@ module Api
       skip_before_action :authorize_request, only: [:callback]
 
       # Require admin for sensitive operations
-      before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images]
+      before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images, :sync_corporate_documents]
 
       # GET /api/v1/organization_onedrive/status
       # Check if organization has OneDrive connected
@@ -87,30 +87,54 @@ module Api
           # Initialize client and set up drive
           client = MicrosoftGraphClient.new(credential)
 
-          # ALWAYS use the TEEEM SharePoint site instead of personal OneDrive
-          Rails.logger.info "Switching to TEEEM SharePoint site..."
-          begin
-            result = client.use_sharepoint_site("TEEEM")
-            Rails.logger.info "Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
-          rescue StandardError => e
-            Rails.logger.warn "Could not find TEEEM SharePoint site, trying search..."
-            # Try to find it by searching available sites
-            sites = client.list_sharepoint_sites
-            teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
-            if teeem_site
-              result = client.use_sharepoint_site(teeem_site[:id])
-              Rails.logger.info "Connected to SharePoint site via search: #{teeem_site[:name]}"
-            else
-              Rails.logger.warn "TEEEM SharePoint site not found, falling back to default drive"
+          # Check if we should use personal OneDrive or SharePoint
+          # Default to personal OneDrive now (user can switch to SharePoint later)
+          use_personal = params[:use_personal] != 'false'
+
+          if use_personal
+            # Use personal OneDrive - just get the default drive info
+            Rails.logger.info "Using personal OneDrive..."
+            begin
+              drive_info = client.get('/me/drive')
+              credential.update!(
+                drive_id: drive_info['id'],
+                drive_name: drive_info['name'] || 'My OneDrive',
+                metadata: {
+                  drive_type: 'personal',
+                  owner_name: drive_info.dig('owner', 'user', 'displayName'),
+                  quota_total: drive_info.dig('quota', 'total'),
+                  quota_used: drive_info.dig('quota', 'used')
+                }
+              )
+              Rails.logger.info "Connected to personal OneDrive: #{drive_info['name']}"
+            rescue StandardError => e
+              Rails.logger.error "Failed to get personal OneDrive info: #{e.message}"
             end
+          else
+            # Use TEEEM SharePoint site
+            Rails.logger.info "Switching to TEEEM SharePoint site..."
+            begin
+              result = client.use_sharepoint_site("TEEEM")
+              Rails.logger.info "Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
+            rescue StandardError => e
+              Rails.logger.warn "Could not find TEEEM SharePoint site, trying search..."
+              sites = client.list_sharepoint_sites
+              teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
+              if teeem_site
+                result = client.use_sharepoint_site(teeem_site[:id])
+                Rails.logger.info "Connected to SharePoint site via search: #{teeem_site[:name]}"
+              else
+                Rails.logger.warn "TEEEM SharePoint site not found, falling back to default drive"
+              end
+            end
+
+            # Create root folder for all jobs in the SharePoint site
+            Rails.logger.info "Creating root folder 'TEEEM Jobs'..."
+            root_folder = client.create_jobs_root_folder("TEEEM Jobs")
+            Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
           end
 
-          # Create root folder for all jobs in the SharePoint site
-          Rails.logger.info "Creating root folder 'TEEEM Jobs'..."
-          root_folder = client.create_jobs_root_folder("TEEEM Jobs")
-          Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
-
-          Rails.logger.info "=== SharePoint Connection Completed Successfully ==="
+          Rails.logger.info "=== OneDrive Connection Completed Successfully ==="
 
           # Dynamically determine frontend URL based on request origin
           frontend_url = get_frontend_url_from_request
@@ -273,6 +297,53 @@ module Api
         rescue StandardError => e
           Rails.logger.error "Failed to list SharePoint sites: #{e.message}"
           render json: { error: "Failed to list sites: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/use_personal_drive
+      # Switch to using personal OneDrive instead of SharePoint
+      def use_personal_drive
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Get personal OneDrive info
+          drive_info = client.get('/me/drive')
+
+          # Update credential to use personal drive
+          credential.update!(
+            drive_id: drive_info['id'],
+            drive_name: drive_info['name'] || 'My OneDrive',
+            root_folder_id: nil,
+            root_folder_path: nil,
+            metadata: credential.metadata.merge({
+              drive_type: 'personal',
+              owner_name: drive_info.dig('owner', 'user', 'displayName'),
+              quota_total: drive_info.dig('quota', 'total'),
+              quota_used: drive_info.dig('quota', 'used'),
+              switched_at: Time.current
+            })
+          )
+
+          render json: {
+            message: 'Switched to personal OneDrive',
+            drive: {
+              id: drive_info['id'],
+              name: drive_info['name'],
+              type: 'personal'
+            }
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error "Failed to switch to personal drive: #{e.message}"
+          render json: { error: "Failed to switch: #{e.message}" }, status: :internal_server_error
         end
       end
 
@@ -692,6 +763,60 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/search
+      # Search for files across the entire SharePoint/OneDrive drive
+      def search
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        query = params[:q] || params[:query]
+
+        unless query.present?
+          return render json: { error: 'Search query is required (use ?q=searchterm)' }, status: :bad_request
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Search across the entire drive (not limited to root folder)
+          results = client.search(query)
+
+          # Format results
+          items = (results['value'] || []).map do |item|
+            {
+              id: item['id'],
+              name: item['name'],
+              path: item.dig('parentReference', 'path')&.gsub('/drive/root:', '') || '/',
+              full_path: "#{item.dig('parentReference', 'path')&.gsub('/drive/root:', '') || ''}/#{item['name']}",
+              web_url: item['webUrl'],
+              is_folder: item['folder'].present?,
+              size: item['size'],
+              created_at: item['createdDateTime'],
+              modified_at: item['lastModifiedDateTime'],
+              mime_type: item.dig('file', 'mimeType')
+            }
+          end
+
+          render json: {
+            success: true,
+            query: query,
+            count: items.length,
+            items: items
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to search: #{e.message}"
+          render json: { error: "Failed to search: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/organization_onedrive/download
       # Download file from OneDrive
       def download
@@ -897,6 +1022,105 @@ module Api
           Rails.logger.error "[OneDrive Sync] Exception occurred: #{e.message}"
           Rails.logger.error "[OneDrive Sync] Backtrace:\n#{e.backtrace.join("\n")}"
           render json: { error: "Failed to sync images: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # GET /api/v1/organization_onedrive/preview_private_folders
+      # Preview the folder structure that would be created in 00 TEEEM PRIVATE
+      def preview_private_folders
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          service = CorporateOneDriveService.new
+          structure = service.preview_private_folder_structure
+
+          render json: {
+            success: true,
+            structure: structure
+          }
+        rescue StandardError => e
+          Rails.logger.error "Failed to preview private folders: #{e.message}"
+          render json: { error: "Failed to preview: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/create_private_folders
+      # Create the folder structure in 00 TEEEM PRIVATE for all company groups
+      def create_private_folders
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          service = CorporateOneDriveService.new
+          result = service.create_private_folder_structure!
+
+          render json: {
+            success: true,
+            message: "Created #{result[:stats][:folders_created]} folders, skipped #{result[:stats][:folders_skipped]} existing",
+            result: result
+          }
+        rescue StandardError => e
+          Rails.logger.error "Failed to create private folders: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to create folders: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/sync_corporate_documents
+      # Sync corporate documents from OneDrive to company records
+      def sync_corporate_documents
+        credential = OrganizationOneDriveCredential.active_credential
+
+        Rails.logger.info "[OneDrive Corporate Sync] Starting corporate document sync"
+
+        unless credential&.valid_credential?
+          Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
+          return render json: { error: 'OneDrive not connected. Please connect in Settings first.' }, status: :unauthorized
+        end
+
+        folder_path = params[:folder_path] || "Corporate File"
+        Rails.logger.info "[OneDrive Corporate Sync] Folder path: #{folder_path}"
+
+        begin
+          # Use the CorporateOnedriveService
+          service = CorporateOnedriveService.new(credential, folder_path: folder_path)
+          result = service.scan_all
+
+          Rails.logger.info "[OneDrive Corporate Sync] Sync completed"
+          Rails.logger.info "[OneDrive Corporate Sync] Success: #{result[:success]}"
+          Rails.logger.info "[OneDrive Corporate Sync] Companies scanned: #{result[:companies_scanned]}"
+          Rails.logger.info "[OneDrive Corporate Sync] Documents found: #{result[:documents_found]}"
+          Rails.logger.info "[OneDrive Corporate Sync] Documents linked: #{result[:documents_linked]}"
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: "Synced #{result[:documents_linked]} documents to #{result[:companies_scanned]} companies",
+              folder_path: result[:folder_path],
+              companies_scanned: result[:companies_scanned],
+              documents_found: result[:documents_found],
+              documents_linked: result[:documents_linked],
+              errors: result[:errors]
+            }
+          else
+            Rails.logger.error "[OneDrive Corporate Sync] Sync failed: #{result[:error]}"
+            render json: {
+              success: false,
+              error: result[:error]
+            }, status: :unprocessable_entity
+          end
+
+        rescue StandardError => e
+          Rails.logger.error "[OneDrive Corporate Sync] Exception occurred: #{e.message}"
+          Rails.logger.error "[OneDrive Corporate Sync] Backtrace:\n#{e.backtrace.join("\n")}"
+          render json: { error: "Failed to sync corporate documents: #{e.message}" }, status: :internal_server_error
         end
       end
 

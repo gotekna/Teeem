@@ -21,6 +21,8 @@ Rails.application.routes.draw do
       post 'auth/login', to: 'authentication#login'
       get 'auth/me', to: 'authentication#me'
       get 'auth/dev_login', to: 'authentication#dev_login'  # Dev mode only
+      get 'auth/users', to: 'authentication#users'  # Admin: list users for impersonation
+      post 'auth/impersonate/:user_id', to: 'authentication#impersonate'  # Admin: impersonate user
 
       # Import routes
       post 'imports/upload', to: 'imports#upload'
@@ -92,11 +94,15 @@ Rails.application.routes.draw do
         member do
           get :saved_messages
           get :emails
+          get :sms_messages
           get :documentation_tabs
+          get :activities
           # Xero bill import
           post :import_xero_bills
           post :link_xero_tracking
           get :xero_tracking_options
+          # AI job analysis
+          post :analyze, to: 'job_estimator#analyze'
         end
 
         # Job contacts (nested under jobs)
@@ -120,7 +126,13 @@ Rails.application.routes.draw do
         end
 
         # Rain logs (nested under jobs)
-        resources :rain_logs, only: [:index, :show, :create, :update, :destroy]
+        resources :rain_logs, only: [:index, :show, :create, :update, :destroy] do
+          collection do
+            get :weather_status
+            post :fetch_weather
+            post :auto_log
+          end
+        end
 
         # Meetings (nested under jobs)
         resources :meetings, only: [:index, :create]
@@ -251,23 +263,6 @@ Rails.application.routes.draw do
       # Gold Table Sync Check - Compare column types across all sources
       get 'gold_table_sync', to: 'gold_table_sync#index'
 
-      # Suppliers management
-      resources :suppliers do
-        collection do
-          get :unmatched
-          get :needs_review
-          post :auto_match
-        end
-        member do
-          post :link_contact
-          post :unlink_contact
-          post :verify_match
-          get 'pricebook/export', to: 'suppliers#export_pricebook'
-          post 'pricebook/import', to: 'suppliers#import_pricebook'
-          patch 'pricebook/:item_id', to: 'suppliers#update_pricebook_item'
-        end
-      end
-
       # Contact roles management
       resources :contact_roles, only: [ :index, :create, :update, :destroy ]
 
@@ -292,6 +287,7 @@ Rails.application.routes.draw do
           get :activities
           post :link_xero_contact
           post :sync_from_xero
+          post :sync_to_xero
           post :portal_user, to: 'contacts#create_portal_user'
           patch :portal_user, to: 'contacts#update_portal_user'
           delete :portal_user, to: 'contacts#delete_portal_user'
@@ -348,6 +344,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # User groups management
+      resources :user_groups, only: [:index, :create, :destroy]
+
       # Workflow management
       resources :workflow_definitions
       resources :workflow_steps, only: [:index, :show] do
@@ -368,7 +367,21 @@ Rails.application.routes.draw do
         end
       end
 
-      # Outlook integration
+      # Microsoft unified auth (Outlook + OneDrive + SharePoint)
+      resources :microsoft, only: [], controller: 'microsoft_auth' do
+        collection do
+          get :auth_url
+          get :callback
+          get :status
+          post :refresh
+          delete :disconnect
+          # Admin consent for organization-wide permissions
+          get :admin_consent_url
+          get :admin_consent_callback
+        end
+      end
+
+      # Outlook integration (legacy - kept for backward compatibility)
       resources :outlook, only: [] do
         collection do
           get :auth_url
@@ -379,6 +392,34 @@ Rails.application.routes.draw do
           post :search
           post :import
           post :import_for_job
+          post :search_for_job
+          get 'job_search_suggestions/:job_id', action: :job_search_suggestions
+        end
+      end
+
+      # Email Warehouse
+      resources :email_warehouse, only: [:index, :show] do
+        collection do
+          get :unassigned
+          get :search
+          get :stats
+          get :sync_status
+          post :sync
+          post :sync_for_job
+          get 'for_job/:job_id', action: :for_job
+        end
+        member do
+          post :assign_to_job
+          post :unassign
+        end
+      end
+
+      # Email Job Proposals (AI-powered job creation from emails)
+      resources :email_job_proposals, only: [:index, :show, :create] do
+        member do
+          post :approve
+          post :reject
+          post :re_extract
         end
       end
 
@@ -816,6 +857,7 @@ Rails.application.routes.draw do
           delete :disconnect
           get :invoices
           get 'invoices/:id', action: :invoice_detail, as: :invoice_detail
+          get :invoices_by_tracking
           get :payments
           get :credit_notes
           get :quotes
@@ -857,6 +899,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # External Invoices (cached invoice data from Xero/MYOB/QuickBooks)
+      resources :external_invoices, only: [:index, :show, :create, :update] do
+        collection do
+          get :sync_status
+          get :by_tracking
+          post :trigger_sync
+          post :push_pending
+        end
+      end
+      get 'external_invoices/by_job/:job_id', to: 'external_invoices#by_job', as: :external_invoices_by_job
+      get 'external_invoices/by_contact/:contact_id', to: 'external_invoices#by_contact', as: :external_invoices_by_contact
+
       # OneDrive integration (per-job - legacy)
       get 'onedrive/authorize', to: 'one_drive#authorize'
       get 'onedrive/callback', to: 'one_drive#callback'
@@ -885,6 +939,11 @@ Rails.application.routes.draw do
       post 'organization_onedrive/sync_pricebook_images', to: 'organization_onedrive#sync_pricebook_images'
       get 'organization_onedrive/sharepoint_sites', to: 'organization_onedrive#sharepoint_sites'
       post 'organization_onedrive/use_sharepoint_site', to: 'organization_onedrive#use_sharepoint_site'
+      post 'organization_onedrive/use_personal_drive', to: 'organization_onedrive#use_personal_drive'
+      post 'organization_onedrive/sync_corporate_documents', to: 'organization_onedrive#sync_corporate_documents'
+      get 'organization_onedrive/search', to: 'organization_onedrive#search'
+      get 'organization_onedrive/preview_private_folders', to: 'organization_onedrive#preview_private_folders'
+      post 'organization_onedrive/create_private_folders', to: 'organization_onedrive#create_private_folders'
 
       # Schema information
       get 'schema', to: 'schema#index'
@@ -900,6 +959,10 @@ Rails.application.routes.draw do
       resources :tables, controller: 'foundations', only: [:index, :show, :create, :update, :destroy]
 
       resources :foundations do
+        member do
+          get :health  # GET /api/v1/foundations/:id/health - Health checks for this table
+        end
+
         # Column management
         resources :columns, only: [:create, :update, :destroy] do
           collection do
@@ -940,6 +1003,7 @@ Rails.application.routes.draw do
         collection do
           post :reorder
           post :create_all_setup_views
+          post :save_global
         end
       end
 
@@ -963,15 +1027,136 @@ Rails.application.routes.draw do
       resources :companies do
         collection do
           post :import
+          post :reload
+          get :health_report
+          get :asic_logins
         end
         member do
           get :directors
           post :add_director
+          put 'directors/:director_id', to: 'companies#update_director'
           delete 'directors/:director_id', to: 'companies#remove_director'
           get :compliance_items
           get :activities
           get :documents
           get :assets
+          get :hierarchy
+          get :shareholders
+          get :investments
+        end
+
+        # Bank Accounts (nested under companies)
+        resources :bank_accounts, only: [:index]
+
+        # Shareholdings (nested under companies)
+        resources :shareholdings, controller: 'company_shareholdings', only: [:index, :show, :create, :update, :destroy] do
+          collection do
+            post :transfer
+          end
+        end
+
+        # Share Transfers (nested under companies)
+        resources :share_transfers, only: [:index, :show, :create, :update, :destroy]
+
+        # Loans (nested under companies)
+        resources :loans, controller: 'company_loans', only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :payment
+          end
+        end
+
+        # Dividends (nested under companies)
+        resources :dividends, only: [:index, :show, :create, :update, :destroy] do
+          member do
+            get :payments
+            post :calculate_payments
+            post :create_payments
+            post :mark_paid
+          end
+        end
+
+        # Minutes (nested under companies)
+        resources :minutes, controller: 'company_minutes', only: [:index, :show, :create, :update, :destroy] do
+          member do
+            post :sign
+            post :generate_from_template
+          end
+          collection do
+            post :create_from_template
+          end
+        end
+      end
+
+      # Company Groups
+      resources :company_groups do
+        member do
+          get :companies
+          get :structure
+        end
+      end
+
+      # Company Loans (global view)
+      get 'company_loans', to: 'company_loans#all'
+
+      # Minute Templates
+      resources :minute_templates do
+        member do
+          post :preview
+        end
+      end
+
+      # Xero Chart of Accounts (Standard COA per group)
+      resources :xero_chart_of_accounts do
+        collection do
+          get 'for_company/:company_id', action: :for_company
+          post :sync_from_xero
+          post :copy_to_group
+        end
+      end
+
+      # Director Onboarding (self-service director compliance portal)
+      resources :director_onboarding_requests do
+        member do
+          post :approve
+          post :reject
+          post :resend_invitation
+        end
+        collection do
+          # Public routes (no auth required)
+          get 'public/:access_token', action: :show_public
+          post 'public/:access_token/submit', action: :submit
+          post 'public/:access_token/upload', action: :upload_document
+        end
+      end
+
+      # ASIC Lookup (ABR API for ABN/ACN lookups)
+      resources :asic, only: [] do
+        collection do
+          get :lookup_abn
+          get :lookup_acn
+          get :search
+          get :validate_abn
+          get :validate_acn
+          post :auto_populate
+        end
+      end
+
+      # Corporate OneDrive (document scanning for corporate entities)
+      resources :corporate_onedrive, only: [] do
+        collection do
+          get :status
+          get :preview
+          get :browse
+          post :scan
+          post :scan_company
+          post :import_documents
+        end
+      end
+
+      # Document Types
+      resources :document_types do
+        collection do
+          get :tabs
         end
       end
 
@@ -986,6 +1171,7 @@ Rails.application.routes.draw do
           get :insurance
           post :insurance, to: 'assets#update_insurance'
           put :insurance, to: 'assets#update_insurance'
+          get :documents
         end
       end
 
@@ -993,6 +1179,10 @@ Rails.application.routes.draw do
       resources :company_documents do
         member do
           get :download
+          post :validate
+          post :ai_verify
+          post :apply_ai_suggestion
+          post :relocate
         end
       end
 
@@ -1013,6 +1203,18 @@ Rails.application.routes.draw do
       resources :company_compliance_items, only: [:index, :show, :create, :update, :destroy] do
         member do
           post :mark_completed
+        end
+      end
+
+      # Compliance Calendar (dashboard view)
+      resources :compliance_calendar, only: [:index] do
+        collection do
+          get :summary
+          get :overdue
+          get :upcoming
+          get :by_company
+          post :generate
+          post :send_reminders
         end
       end
 
