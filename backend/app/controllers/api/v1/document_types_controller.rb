@@ -147,15 +147,15 @@ module Api
       end
 
       def all_available_tabs
-        # Get all unique tabs from all document types
-        tabs = DocumentType.where.not(tabs: []).pluck(:tabs).flatten.uniq.sort
+        # Get all unique primary_tab values from document types
+        tabs = DocumentType.where.not(primary_tab: nil).distinct.pluck(:primary_tab).compact.sort
 
         # Return structured tab information
         tabs.map do |tab|
           {
             name: tab,
             label: tab.titleize,
-            count: CompanyDocument.by_tab(tab).count
+            count: DocumentType.where(primary_tab: tab).count
           }
         end
       end
