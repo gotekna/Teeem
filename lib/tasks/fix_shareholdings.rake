@@ -9,8 +9,7 @@ namespace :shareholdings do
       Contact.create!(
         full_name: name,
         first_name: parts[0],
-        last_name: parts[1..-1].join(" "),
-        contact_type: "Individual"
+        last_name: parts[1..-1].join(" ")
       )
     end
 
