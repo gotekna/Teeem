@@ -247,7 +247,7 @@ class EmailToJobService
 
       {
         "job_title": "Descriptive title for this job (infer from context or use subject line)",
-        "property_address": "CRITICAL: Find the PROPERTY/SITE address where construction work will be done, NOT the business/office address. Look for labels like 'Property Address', 'Site Address', 'Work Location', 'Project Address', 'Job Site', or addresses in QLD/NSW/VIC. AVOID addresses labeled 'Business Address', 'Office Address', 'Company Address', 'Head Office', or PO Box addresses. If multiple addresses exist, choose the one most likely to be the construction site. Return full Australian format: Street, Suburb, State, Postcode (e.g., '123 Main Street, Brisbane, QLD 4000'). Return null if not found.",
+        "property_address": "CRITICAL: Find the COMPLETE PROPERTY/SITE address where construction work will be done, NOT the business/office address. MUST include: street number + street name + suburb + state + postcode. Look for labels like 'Property Address', 'Site Address', 'Work Location', 'Project Address', 'Job Site', or addresses in QLD/NSW/VIC. AVOID addresses labeled 'Business Address', 'Office Address', 'Company Address', 'Head Office', or PO Box addresses. DO NOT return partial addresses (suburb only is not enough). Must extract the full street address. Format: '123 Main Street, Suburb, State Postcode' (e.g., '15 Beach Road, Scarborough, QLD 4020'). Return null if complete address not found.",
         "customer": {
           "name": "Customer's full name (if not mentioned, extract from email sender name)",
           "email": "Customer email (use sender email if customer is the sender)",
