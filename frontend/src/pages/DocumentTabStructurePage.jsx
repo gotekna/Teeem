@@ -75,6 +75,7 @@ export default function DocumentTabStructurePage() {
       'TRUST': 'bg-teal-100 text-teal-700',
       'COMPANY': 'bg-slate-100 text-slate-700',
       'ADVICE': 'bg-amber-100 text-amber-700',
+      'INSURANCE': 'bg-sky-100 text-sky-700',
       'GENERAL': 'bg-gray-100 text-gray-700',
       'STRUCTURE': 'bg-red-100 text-red-700',
       'FINANCIALS': 'bg-emerald-100 text-emerald-700',
