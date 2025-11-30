@@ -266,30 +266,108 @@ puts ''
 # Step 2: Create company mapping from folder structure
 puts '=== Step 2: Mapping files to companies ==='
 
-# Build company code lookup
-company_codes = Company.pluck(:id, :code, :name).to_h { |id, code, name| [code&.downcase, { id: id, code: code, name: name }] }
-company_names = Company.pluck(:id, :code, :name).to_h { |id, code, name| [name&.downcase, { id: id, code: code, name: name }] }
+# Build company lookups
+all_companies = Company.pluck(:id, :code, :name)
+company_codes = all_companies.to_h { |id, code, name| [code&.downcase, { id: id, code: code, name: name }] }
+company_names = all_companies.to_h { |id, code, name| [name&.downcase, { id: id, code: code, name: name }] }
+
+# Build folder name to company mapping
+# The actual structure is: Corporate File / [Group] / [Company] / [DocType] / files
+# So company folder is at Level 2 (path_parts[2])
+# Company folders use plain names like "Tekna", "Gen2612" not "CODE - Name" format
+
+# Name variations mapping for known discrepancies
+NAME_VARIATIONS = {
+  'tekna' => 'Tekna Pty Ltd',
+  'tekna admin' => 'Tekna Admin Pty Ltd',
+  'tekna drafting' => 'Tekna Drafting Pty Ltd',
+  'tekna homes' => 'Tekna Homes Pty Ltd',
+  'tekna northshore' => 'Tekna Northshore Pty Ltd',
+  'tekna ryde' => 'Tekna Ryde Pty Ltd',
+  'tekna trust' => 'Tekna Investments Trust',
+  'team harder super' => 'Team Harder Super Fund',
+  'team harder family trust' => 'Team Harder Family Trust',
+  'prov1322 global' => 'Prov1322 Global Pty Ltd',
+  'prov1322 invest' => 'Prov1322 Invest Pty Ltd',
+  'gen2612' => 'Gen2612 Pty Ltd',
+  'gen2612 holdings' => 'Gen2612 Holdings Pty Ltd',
+  'gen2612 invest' => 'Gen2612 Invest Pty Ltd',
+  'gen2612 trust' => 'Gen2612 Trust',
+  'thsf' => 'Team Harder Super Fund',
+  'thft' => 'Team Harder Family Trust',
+  'thag' => 'Team Harder Accounting Group Pty Ltd'
+}.freeze
+
+# Build a normalized name lookup (lowercase, simplified)
+def normalize_name(name)
+  return nil unless name
+  # Remove common suffixes and normalize
+  name.downcase
+      .gsub(/\s+(pty|ltd|trust|fund|holdings|invest|investments)\s*$/i, '')
+      .gsub(/\s+(pty|ltd)\s*/i, ' ')
+      .gsub(/\s+/, ' ')
+      .strip
+end
+
+normalized_company_lookup = {}
+all_companies.each do |id, code, name|
+  normalized = normalize_name(name)
+  normalized_company_lookup[normalized] = { id: id, code: code, name: name } if normalized
+  # Also add without "pty ltd" variations
+  simple_name = name&.downcase&.gsub(/\s+(pty|ltd|holdings|invest|investments|trust|fund)\s*/i, '')&.strip
+  normalized_company_lookup[simple_name] = { id: id, code: code, name: name } if simple_name
+end
 
 # Map files to companies based on folder path
 files_by_company = Hash.new { |h, k| h[k] = [] }
 
 all_files.each do |file|
-  # Extract company code from path (e.g., "Corporate File/T - Tekna/..." -> "T")
+  # Path structure: Corporate File / [Group] / [Company] / [DocType] / files
+  # Examples:
+  #   Corporate File/Tekna Group/Tekna/ASIC Forms/document.pdf
+  #   Corporate File/Team Harder Group/Gen2612/Tax Returns/file.pdf
   path_parts = file[:path].split('/')
-  company_folder = path_parts[1] if path_parts.length > 1
+
+  # Company folder is at Level 2 (index 2)
+  company_folder = path_parts[2] if path_parts.length > 2
 
   company = nil
   if company_folder
-    # Try to extract code from folder name (e.g., "T - Tekna" -> "T")
-    code_match = company_folder.match(/^([A-Z0-9]+)\s*-/)
-    if code_match
-      code = code_match[1].downcase
-      company = company_codes[code]
+    folder_lower = company_folder.downcase.strip
+
+    # 1. Try exact name match first
+    company = company_names[folder_lower]
+
+    # 2. Try name variations mapping
+    unless company
+      if NAME_VARIATIONS[folder_lower]
+        company = company_names[NAME_VARIATIONS[folder_lower].downcase]
+      end
     end
 
-    # Try name match if code didn't work
+    # 3. Try normalized name match
     unless company
-      company = company_names[company_folder.downcase]
+      normalized = normalize_name(company_folder)
+      company = normalized_company_lookup[normalized] if normalized
+    end
+
+    # 4. Try code match (if folder name looks like a code)
+    unless company
+      if folder_lower.match?(/^[a-z]{2,6}\d*$/i) # Short alphanumeric like "thsf", "gen2612"
+        company = company_codes[folder_lower]
+      end
+    end
+
+    # 5. Try partial name match (folder name contained in company name or vice versa)
+    unless company
+      all_companies.each do |id, code, name|
+        next unless name
+        name_lower = name.downcase
+        if name_lower.include?(folder_lower) || folder_lower.include?(name_lower.split(' ').first)
+          company = { id: id, code: code, name: name }
+          break
+        end
+      end
     end
   end
 
