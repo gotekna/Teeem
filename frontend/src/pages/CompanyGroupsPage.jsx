@@ -116,27 +116,34 @@ function CompanyTreeNode({ company, level = 0, expandedNodes, toggleNode, naviga
           onClick={() => navigate(`/corporate/companies/${company.id}`)}
         >
           <div className="flex items-center gap-2">
-            <span className={`truncate ${level === 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+            <span className={`truncate ${level === 0 ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
               {company.name}
             </span>
             {company.abbreviation && (
-              <span className="text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">
+              <span className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
                 {company.abbreviation}
               </span>
             )}
             {company.is_trustee && (
-              <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded">
+              <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">
                 Trustee
               </span>
             )}
-            {company.trust_name && (
-              <span className="text-xs text-purple-600 italic">
-                of {company.trust_name}
+            {/* Show ATF (As Trustee For) when trustee and collapsed or always */}
+            {company.is_trustee && company.trust_name && (
+              <span className="text-xs text-purple-600 dark:text-purple-400 italic">
+                ATF {company.trust_name}
+              </span>
+            )}
+            {/* Show "of Trust" for trust entities that are children of trustees */}
+            {company.is_trust_of_trustee && (
+              <span className="text-xs text-rose-500 dark:text-rose-400 italic">
+                (Trust)
               </span>
             )}
           </div>
           {company.acn && (
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-gray-500 dark:text-gray-400">
               ACN: {company.acn}
             </div>
           )}
