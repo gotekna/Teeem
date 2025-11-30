@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, startTransition } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api'
 import TeeemTableView from '../components/documentation/TeeemTableView'
 import { PlusIcon } from '@heroicons/react/24/outline'
@@ -92,6 +92,8 @@ function isSystemOrHiddenColumn(columnName) {
 
 export default function TablePage({ embedded = false }) {
   const { id, slug } = useParams() // Get both ID and slug from URL
+  const [searchParams] = useSearchParams()
+  const duplicatesOnly = searchParams.get('duplicates_only') === 'true'
   const navigate = useNavigate()
   const [table, setTable] = useState(null)
   const [records, setRecords] = useState([])
@@ -456,6 +458,9 @@ export default function TablePage({ embedded = false }) {
       const defaultView = preloadedViews?.find(v => v.display_order === 0)
       const viewParam = useMinimalFields && defaultView ? `&view_id=${defaultView.id}` : ''
 
+      // Pass special filters from URL
+      const duplicatesParam = duplicatesOnly ? '&duplicates_only=true' : ''
+
       progressiveLoadLog('loadRecords called:', {
         id,
         viewMode,
@@ -473,7 +478,7 @@ export default function TablePage({ embedded = false }) {
 
       // Views are already loaded by loadViewsFirst() - no need to load them here
 
-      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}`, {
+      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}${duplicatesParam}`, {
         onDownloadProgress: (progressEvent) => {
           // Just update progress if we have real data
           if (progressEvent.total) {
