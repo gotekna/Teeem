@@ -193,8 +193,8 @@ export default function DocumentTabStructurePage() {
 
       // Advice
       'AA - Accountant Advice': '{CompanyCode} AA {Description} {Date}',
-      'Legal Advice': '{CompanyCode} Lawyer {Description} {Date}',
-      'Client Advice': '{CompanyCode} Advice {Description} {Date}',
+      'LA - Legal Advice': '{CompanyCode} LA {Description} {Date}',
+      'CA - Client Advice': '{CompanyCode} CA {Description} {Date}',
 
       'General': '{CompanyCode} {Description} {Date}'
     }
