@@ -63,6 +63,12 @@ class EmailToJobService
     )
   end
 
+  # Public method for re-extracting data (used by re_extract endpoint)
+  def extract_job_data
+    sync_pdf_attachments_if_needed
+    extract_job_data_with_ai
+  end
+
   # Approve proposal and create actual job
   def approve_proposal(proposal, user_edits: {})
     # Merge user edits with AI-extracted data
@@ -261,6 +267,16 @@ class EmailToJobService
         "urgency": "urgent, normal, or low based on language used",
         "job_type": "renovation, new_build, extension, repair, or other",
         "attachments_mentioned": ["list of any files mentioned or attached"],
+        "job_summary": "A concise 2-3 sentence summary of the job from an estimator's perspective - highlighting key construction challenges, scope, and what needs pricing attention. Extract from PDF attachments and email.",
+        "key_points": ["Array of exactly 10 specific, actionable points that an estimator should focus on when pricing this job. Include: materials needed, specific trades required, site challenges, access issues, timeline constraints, regulatory requirements, client specifications, potential risks, scope clarifications needed, and cost drivers. Be concrete and specific based on the email/PDF content."],
+        "estimated_scope": {
+          "complexity": "low, medium, or high - based on technical requirements, number of trades, site conditions",
+          "duration_estimate": "Estimated project duration (e.g., '4-6 weeks', '2-3 months'). Extract from documents or estimate based on scope.",
+          "key_trades": ["Array of specific trades needed: e.g., 'Electrician', 'Plumber', 'Carpenter', 'Tiler', 'Painter', 'Concreter', etc."],
+          "major_materials": ["Array of major materials mentioned or inferred: e.g., 'Timber framing', 'Roofing tiles', 'Electrical fixtures', 'Plumbing fixtures', 'Bricks', 'Concrete', etc."],
+          "potential_challenges": ["Array of specific site or project challenges: e.g., 'Restricted site access', 'Heritage constraints', 'Working around existing structures', 'Tight timeline', 'Complex approvals required', etc."]
+        },
+        "recommendations": ["Array of 3-5 recommendations for the estimator: e.g., 'Site visit required to assess access', 'Confirm material specifications with client', 'Check council approval requirements', 'Get quotes from 3 electrical contractors', etc."],
         "confidence_score": 0.0 to 1.0 based on how much critical information is present,
         "missing_info": ["list of critical missing information like 'property address', 'customer name', 'scope of work', etc."]
       }

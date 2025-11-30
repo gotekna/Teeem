@@ -28,6 +28,9 @@ class Job < ApplicationRecord
   # Activity tracking
   has_many :job_activities, dependent: :destroy
 
+  # Email proposals
+  has_one :email_job_proposal, dependent: :nullify
+
   # Enums
   enum :onedrive_folder_creation_status, {
     not_requested: 'not_requested',

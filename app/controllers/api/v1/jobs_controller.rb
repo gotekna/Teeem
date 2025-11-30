@@ -84,6 +84,22 @@ module Api
           }
         end.compact
 
+        # Include estimator analysis from proposal if available
+        if @job.email_job_proposal&.extracted_data.present?
+          extracted = @job.email_job_proposal.extracted_data
+          # Only include if the estimator fields are present
+          if extracted['job_summary'].present? || extracted['key_points'].present?
+            job_json[:estimator_analysis] = {
+              job_summary: extracted['job_summary'],
+              key_points: extracted['key_points'],
+              estimated_scope: extracted['estimated_scope'],
+              recommendations: extracted['recommendations'],
+              source: 'pdf_extraction',
+              extracted_at: @job.email_job_proposal.created_at
+            }
+          end
+        end
+
         render json: job_json
       end
 
