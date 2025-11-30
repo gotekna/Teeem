@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_073559) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_081907) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -780,7 +780,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_073559) do
     t.string "tfn"
     t.string "passport_number"
     t.string "photo_url"
+    t.boolean "is_family_member", default: false
+    t.boolean "is_potential_director", default: false
+    t.bigint "company_group_id"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
+    t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
@@ -3678,6 +3682,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_073559) do
   add_foreign_key "contact_persons", "contacts"
   add_foreign_key "contact_relationships", "contacts", column: "related_contact_id"
   add_foreign_key "contact_relationships", "contacts", column: "source_contact_id"
+  add_foreign_key "contacts", "company_groups"
   add_foreign_key "contacts", "contacts", column: "primary_company_id"
   add_foreign_key "director_onboarding_requests", "companies"
   add_foreign_key "director_onboarding_requests", "contacts"
