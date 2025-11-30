@@ -115,6 +115,8 @@ module Api
           :retention_years,
           :active,
           :primary_tab,
+          :naming_format,
+          :abbreviation,
           tabs: []
         )
       end
@@ -123,6 +125,8 @@ module Api
         {
           id: document_type.id,
           name: document_type.name,
+          abbreviation: document_type.abbreviation,
+          naming_format: document_type.naming_format,
           category: document_type.category,
           folder: document_type.folder,
           description: document_type.description,

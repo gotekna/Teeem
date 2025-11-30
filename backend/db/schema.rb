@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_210434) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_220849) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -940,6 +940,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_210434) do
     t.jsonb "tabs", default: []
     t.string "primary_tab"
     t.string "name_format"
+    t.string "naming_format"
+    t.string "abbreviation"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["folder"], name: "index_document_types_on_folder"

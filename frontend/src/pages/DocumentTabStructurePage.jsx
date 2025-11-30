@@ -1,23 +1,49 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FolderIcon,
-  TagIcon,
-  StarIcon,
   ChevronLeftIcon,
-  PencilIcon,
-  ChevronDownIcon,
-  ChevronUpIcon
+  PlusIcon
 } from '@heroicons/react/24/outline'
 import api from '../api'
+import TeeemTableView from '../components/documentation/TeeemTableView'
+
+// Table ID for Document Types
+const DOCUMENT_TYPES_TABLE_ID = 500
+
+// Available folders/tabs
+const FOLDER_OPTIONS = [
+  'ADVICE', 'ASIC', 'ASSETS', 'ATO', 'BANK', 'COMPANY',
+  'DIVIDENDS', 'FINANCIALS', 'GENERAL', 'INSURANCE',
+  'LOANS', 'MINUTES', 'REGISTRY', 'TRUST'
+]
+
+// Build column definitions for document types table
+const buildDocumentTypeColumns = () => [
+  { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, width: 60 },
+  { key: 'abbreviation', label: 'Code', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, width: 80, editable: true },
+  { key: 'name', label: 'Document Type', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, width: 280, is_title: true, editable: true },
+  { key: 'naming_format', label: 'Naming Format', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, width: 300, editable: true },
+  { key: 'primary_tab', label: 'Primary Tab', column_type: 'dropdown', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120, editable: true, options: FOLDER_OPTIONS },
+  { key: 'folder', label: 'Folder', column_type: 'dropdown', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120, editable: true, options: FOLDER_OPTIONS },
+  { key: 'tabs_display', label: 'All Tabs', column_type: 'single_line_text', resizable: true, sortable: false, filterable: false, width: 200 },
+  { key: 'active', label: 'Active', column_type: 'checkbox', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 70, editable: true },
+  { key: 'documents_count', label: 'Docs', column_type: 'whole_number', resizable: true, sortable: true, filterable: false, width: 60 }
+]
 
 export default function DocumentTabStructurePage() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [documentTypes, setDocumentTypes] = useState([])
-  const [groupBy, setGroupBy] = useState('primary_tab') // 'primary_tab', 'folder', 'name'
-  const [availableTabs, setAvailableTabs] = useState([])
-  const [expandedSections, setExpandedSections] = useState({})
+  const [columns] = useState(buildDocumentTypeColumns())
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [newDocType, setNewDocType] = useState({
+    name: '',
+    abbreviation: '',
+    naming_format: '{CompanyCode} {Description} {Date}',
+    folder: 'GENERAL',
+    primary_tab: 'GENERAL',
+    active: true
+  })
 
   useEffect(() => {
     loadData()
@@ -26,16 +52,16 @@ export default function DocumentTabStructurePage() {
   const loadData = async () => {
     try {
       setLoading(true)
-
-      // Load document types
-      const response = await api.get('/api/v1/document_types')
+      const response = await api.get('/api/v1/document_types', {
+        params: { include_inactive: 'true' }
+      })
       const types = response.data || []
-      setDocumentTypes(types.filter(dt => dt.active))
-
-      // Get unique tabs from available_tabs
-      if (response.available_tabs) {
-        setAvailableTabs(response.available_tabs)
-      }
+      // Transform for table display
+      const transformed = types.map(dt => ({
+        ...dt,
+        tabs_display: dt.tabs?.join(', ') || ''
+      }))
+      setDocumentTypes(transformed)
     } catch (error) {
       console.error('Failed to load document types:', error)
     } finally {
@@ -43,259 +69,130 @@ export default function DocumentTabStructurePage() {
     }
   }
 
-  const toggleSection = (sectionName) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [sectionName]: !prev[sectionName]
-    }))
+  const handleCellEdit = async (entry, columnKey, newValue) => {
+    try {
+      const updateData = { [columnKey]: newValue }
+      await api.patch(`/api/v1/document_types/${entry.id}`, {
+        document_type: updateData
+      })
+      await loadData()
+    } catch (error) {
+      console.error('Failed to update document type:', error)
+      alert('Failed to update: ' + (error.response?.errors?.join(', ') || error.message))
+    }
   }
 
-  const isSectionExpanded = (sectionName) => {
-    // Default to expanded if not set
-    return expandedSections[sectionName] !== false
+  const handleDelete = async (entry) => {
+    if (!confirm(`Delete document type "${entry.name}"? This cannot be undone.`)) {
+      return
+    }
+    try {
+      await api.delete(`/api/v1/document_types/${entry.id}`)
+      await loadData()
+    } catch (error) {
+      console.error('Failed to delete document type:', error)
+      alert('Failed to delete: ' + (error.response?.errors?.join(', ') || error.message))
+    }
   }
 
-  // Group document types by selected criteria
-  const groupedData = () => {
-    if (groupBy === 'primary_tab') {
-      const grouped = {}
-      // Show documents in ALL tabs they belong to (not just primary)
-      documentTypes.forEach(dt => {
-        // Get all tabs this document appears in
-        const tabs = dt.tabs || []
-        if (tabs.length === 0 && dt.primary_tab) {
-          // Fallback to primary_tab if tabs array is empty
-          tabs.push(dt.primary_tab)
-        }
+  const handleBulkDelete = async (entries) => {
+    if (!confirm(`Delete ${entries.length} document types? This cannot be undone.`)) {
+      return
+    }
+    try {
+      await Promise.all(entries.map(e => api.delete(`/api/v1/document_types/${e.id}`)))
+      await loadData()
+    } catch (error) {
+      console.error('Failed to bulk delete document types:', error)
+      alert('Failed to delete some types')
+    }
+  }
 
-        // Add document to each tab group it belongs to
-        tabs.forEach(tab => {
-          if (!grouped[tab]) grouped[tab] = []
-          grouped[tab].push(dt)
-        })
-
-        // Also handle uncategorized
-        if (tabs.length === 0) {
-          if (!grouped['Uncategorized']) grouped['Uncategorized'] = []
-          grouped['Uncategorized'].push(dt)
+  const handleAddDocType = async (e) => {
+    e.preventDefault()
+    try {
+      await api.post('/api/v1/document_types', {
+        document_type: {
+          ...newDocType,
+          tabs: [newDocType.primary_tab]
         }
       })
-      return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b))
-    } else if (groupBy === 'folder') {
-      const grouped = {}
-      documentTypes.forEach(dt => {
-        const folder = dt.folder || 'Uncategorized'
-        if (!grouped[folder]) grouped[folder] = []
-        grouped[folder].push(dt)
+      setShowAddForm(false)
+      setNewDocType({
+        name: '',
+        abbreviation: '',
+        naming_format: '{CompanyCode} {Description} {Date}',
+        folder: 'GENERAL',
+        primary_tab: 'GENERAL',
+        active: true
       })
-      return Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b))
-    } else {
-      return [['All Documents', documentTypes.sort((a, b) => a.name.localeCompare(b.name))]]
+      await loadData()
+    } catch (error) {
+      console.error('Failed to create document type:', error)
+      alert('Failed to create: ' + (error.response?.errors?.join(', ') || error.message))
     }
   }
 
-  const getTabBadgeColor = (tab) => {
-    const colors = {
-      'ATO': 'bg-blue-100 text-blue-700',
-      'BANK': 'bg-green-100 text-green-700',
-      'LOANS': 'bg-purple-100 text-purple-700',
-      'ASSETS': 'bg-orange-100 text-orange-700',
-      'DIVIDENDS': 'bg-pink-100 text-pink-700',
-      'ASIC': 'bg-indigo-100 text-indigo-700',
-      'MINUTES': 'bg-yellow-100 text-yellow-700',
-      'TRUST': 'bg-teal-100 text-teal-700',
-      'COMPANY': 'bg-slate-100 text-slate-700',
-      'ADVICE': 'bg-amber-100 text-amber-700',
-      'INSURANCE': 'bg-sky-100 text-sky-700',
-      'GENERAL': 'bg-gray-100 text-gray-700',
-      'STRUCTURE': 'bg-red-100 text-red-700',
-      'FINANCIALS': 'bg-emerald-100 text-emerald-700',
-      'REGISTRY': 'bg-cyan-100 text-cyan-700'
+  // Custom cell renderer for tabs display
+  const customCellRenderer = (entry, columnKey) => {
+    if (columnKey === 'tabs_display') {
+      const tabs = entry.tabs || []
+      if (tabs.length === 0) return <span className="text-gray-400">-</span>
+      return (
+        <div className="flex flex-wrap gap-1">
+          {tabs.map(tab => (
+            <span
+              key={tab}
+              className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                tab === entry.primary_tab
+                  ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 ring-1 ring-indigo-400'
+                  : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+              }`}
+            >
+              {tab}
+            </span>
+          ))}
+        </div>
+      )
     }
-    return colors[tab] || 'bg-gray-100 text-gray-700'
+    if (columnKey === 'primary_tab' || columnKey === 'folder') {
+      const value = entry[columnKey]
+      if (!value) return <span className="text-gray-400">-</span>
+      return (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+          {value}
+        </span>
+      )
+    }
+    if (columnKey === 'abbreviation') {
+      const value = entry[columnKey]
+      if (!value) return <span className="text-gray-400">-</span>
+      return (
+        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{value}</span>
+      )
+    }
+    if (columnKey === 'naming_format') {
+      const value = entry[columnKey]
+      if (!value) return <span className="text-gray-400 italic">Not set</span>
+      return (
+        <span className="font-mono text-xs text-gray-700 dark:text-gray-300">{value}</span>
+      )
+    }
+    return null
   }
 
-  const getNamingFormat = (docTypeName) => {
-    // Extract abbreviation (e.g., "CTR" from "CTR - Company Tax Return")
-    const abbrev = docTypeName.split(' - ')[0] || docTypeName.split(' ')[0]
+  // Custom actions for the table header
+  const customActions = (
+    <button
+      onClick={() => setShowAddForm(true)}
+      className="inline-flex items-center gap-2 px-4 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+    >
+      <PlusIcon className="h-5 w-5" />
+      Add Document Type
+    </button>
+  )
 
-    const formats = {
-      // Tax Returns
-      'CTR - Company Tax Return': '{CompanyCode} CTR FY{YY}',
-      'TTR - Trust Tax Return': '{CompanyCode} TTR FY{YY}',
-      'ITR - Individual Tax Return': '{CompanyCode} ITR FY{YY}',
-      'BAS - Business Activity Statement': '{CompanyCode} BAS {Period} {Year}',
-      'Tax Consolidation Schedule': '{CompanyCode} Tax Consolidation Schedule FY{YY}',
-
-      // ASIC Documents
-      'ASIC Annual Review': '{CompanyCode} ASIC Annual Review FY{YY}',
-      'ASIC Company Key': '{CompanyCode} ASIC Company Key {Date}',
-      'ASIC Form 485 - Solvency Declaration': '{CompanyCode} Form 485 FY{YY}',
-      'ASIC Form 484 - Director Changes': '{CompanyCode} Form 484 Directors {Date}',
-      'ASIC Form 484 - Registered Office': '{CompanyCode} Form 484 Reg Office {Date}',
-      'ASIC Form 484 - Secretary Changes': '{CompanyCode} Form 484 Secretary {Date}',
-      'ASIC Documents': '{CompanyCode} ASIC {Description} {Date}',
-
-      // Assets
-      'Asset': '{CompanyCode} {AssetCode} {Description} {Date}',
-      'Asset Insurance - Draft': '{CompanyCode} {AssetCode} Insurance DRAFT {Date}',
-      'Asset Insurance - Signed': '{CompanyCode} {AssetCode} Insurance SIGNED {Date}',
-      'Purchase Contract - Draft': '{CompanyCode} {AssetCode} Purchase Contract DRAFT {Date}',
-      'Purchase Contract - Signed': '{CompanyCode} {AssetCode} Purchase Contract SIGNED {Date}',
-      'Service Agreement - Draft': '{CompanyCode} {AssetCode} Service Agreement DRAFT {Date}',
-      'Service Agreement - Signed': '{CompanyCode} {AssetCode} Service Agreement SIGNED {Date}',
-
-      // Bank
-      'Bank Statement': '{CompanyCode} {Bank} {Account} {Month} {Year}',
-
-      // Loans - Borrower perspective (we borrowed from someone)
-      'Loan Agreement': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} {Date}',
-      'Loan Agreement - Draft': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} DRAFT {Date}',
-      'Loan Agreement - Signed': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} SIGNED {Date}',
-      // Loans - Lender perspective (we lent to someone)
-      'Loan Agreement - Lender Copy': '{CompanyCode} {LoanID} Loan to {BorrowerCode} {AssetCode} {Date}',
-      'Loan Agreement - Lender Copy Draft': '{CompanyCode} {LoanID} Loan to {BorrowerCode} {AssetCode} DRAFT {Date}',
-      'Loan Agreement - Lender Copy Signed': '{CompanyCode} {LoanID} Loan to {BorrowerCode} {AssetCode} SIGNED {Date}',
-      'Security Deed': '{CompanyCode} {LoanID} Security Deed {AssetCode} {Date}',
-      'Security Deed - Draft': '{CompanyCode} {LoanID} Security Deed {AssetCode} DRAFT {Date}',
-      'Security Deed - Signed': '{CompanyCode} {LoanID} Security Deed {AssetCode} SIGNED {Date}',
-      'PPSR Registration': '{CompanyCode} {LoanID} PPSR {AssetCode} {Date}',
-
-      // Minutes & Resolutions
-      'Directors\' Minutes': '{CompanyCode} Minutes {Date}',
-      'Minutes - Draft': '{CompanyCode} Minutes DRAFT {Date}',
-      'Minutes - Signed': '{CompanyCode} Minutes SIGNED {Date}',
-      'Directors\' Resolution - Distribution': '{CompanyCode} Distribution Resolution FY{YY}',
-
-      // Dividends & Distributions
-      'Distribution Declaration': '{CompanyCode} Distribution Declaration {Beneficiary} FY{YY}',
-      'Dividend Declaration': '{CompanyCode} Dividend Declaration {Beneficiary} FY{YY}',
-      'Dividend Payment Record': '{CompanyCode} Dividend Payment Record {Beneficiary} FY{YY}',
-      'Gift Deed': '{CompanyCode} Gift Deed {Beneficiary} {Date}',
-      'Gift Deed - Signed': '{CompanyCode} Gift Deed - Signed {Beneficiary} {Date}',
-      'Gift Deed Return': '{CompanyCode} Gift Deed Return {Beneficiary} {Date}',
-
-      // Financials
-      'Draft Financials': '{CompanyCode} Draft Financials FY{YY}',
-      'Final Financials': '{CompanyCode} Final Financials FY{YY}',
-      'Final Financials - Signed': '{CompanyCode} Final Financials - Signed FY{YY}',
-
-      // Registry
-      'Share Certificate': '{CompanyCode} Share Certificate {ShareholderCode} {Date}',
-      'Share Transfer': '{CompanyCode} Share Transfer {Date}',
-      'Share Registry': '{CompanyCode} Share Registry {Date}',
-      'Register of Members': '{CompanyCode} Register of Members {Date}',
-      'Register of Directors': '{CompanyCode} Register of Directors {Date}',
-      'Register of Charges': '{CompanyCode} Register of Charges {Date}',
-      'Register of Debentures': '{CompanyCode} Register of Debentures {Date}',
-      'Allotment Journal': '{CompanyCode} Allotment Journal {Date}',
-      'Common Seal Register': '{CompanyCode} Common Seal Register {Date}',
-
-      // Company Setup & Structure
-      'Constitution': '{CompanyCode} Constitution {Date}',
-      'Corporate Key': '{CompanyCode} Corporate Key {Date}',
-      'Trust Deed': '{CompanyCode} Trust Deed {Date}',
-      'Structure': '{CompanyCode} Structure {Description} {Date}',
-      'Trust': '{CompanyCode} Trust {Description} {Date}',
-      'Company Setup': '{CompanyCode} Setup {Document} {Date}',
-      'Formation Documents': '{CompanyCode} Formation Documents {Date}',
-      'Certificate of Registration': '{CompanyCode} Certificate of Registration {Date}',
-
-      // Other Documents
-      'Occupier Consent': '{CompanyCode} Occupier Consent {Date}',
-      'Consent to Act': '{CompanyCode} Consent to Act {Role} {Person} {Date}',
-      'Notice of Appointment': '{CompanyCode} Notice {Role} {Person} {Date}',
-      'Application for Shares': '{CompanyCode} Share Application {ShareholderCode} {Date}',
-      'Deed of Novation': '{CompanyCode} Deed of Novation {Date}',
-      'Deed of Variation': '{CompanyCode} Deed of Variation {Date}',
-      'Engagement Letter': '{CompanyCode} Engagement Letter {Date}',
-      'ATO Documents': '{CompanyCode} ATO {Description} {Date}',
-
-      // Advice
-      'AA - Accountant Advice': '{CompanyCode} AA {Description} {Date}',
-      'LA - Legal Advice': '{CompanyCode} LA {Description} {Date}',
-      'CA - Client Advice': '{CompanyCode} CA {Description} {Date}',
-
-      'General': '{CompanyCode} {Description} {Date}'
-    }
-
-    // Try to match by full name first, then abbreviation
-    return formats[docTypeName] || formats[abbrev] || `{CompanyCode} {Description} {Date}`
-  }
-
-  const getFormatExample = (format) => {
-    return format
-      .replace(/{CompanyCode}/g, 'T')
-      .replace(/{LoanID}/g, 'L001')
-      .replace(/{LenderCode}/g, 'T')
-      .replace(/{BorrowerCode}/g, 'GEN')
-      .replace(/{ShareholderCode}/g, 'PROV')
-      .replace(/{AssetCode}/g, 'NEV')
-      .replace(/{Company}/g, 'Tekna')
-      .replace(/{Year}/g, '2025')
-      .replace(/{YY}/g, '25')
-      .replace(/{Period}/g, 'Jul-Sep')
-      .replace(/{Quarter}/g, 'Q1')
-      .replace(/{Month}/g, 'Jun')
-      .replace(/{Date}/g, '30 Jun 2025')
-      .replace(/{Topic}/g, 'Distribution')
-      .replace(/{Lender}/g, 'Tekna')
-      .replace(/{Borrower}/g, 'Gen2612')
-      .replace(/{Bank}/g, 'WBC')
-      .replace(/{Asset}/g, 'Vehicle')
-      .replace(/{Collateral}/g, 'Equipment')
-      .replace(/{Beneficiary}/g, 'Rachel Harder')
-      .replace(/{Shareholder}/g, 'Prov1322 Global')
-      .replace(/{Document}/g, 'Certificate')
-      .replace(/{Description}/g, 'Document')
-      .replace(/{Account}/g, '123456')
-      .replace(/{Role}/g, 'Director')
-      .replace(/{Person}/g, 'Rachel Harder')
-  }
-
-  const getCodeTypes = (format) => {
-    const codes = []
-    if (format.includes('{CompanyCode}')) codes.push('Company')
-    if (format.includes('{LoanID}')) codes.push('Loan')
-    if (format.includes('{LenderCode}')) codes.push('Lender')
-    if (format.includes('{BorrowerCode}')) codes.push('Borrower')
-    if (format.includes('{ShareholderCode}')) codes.push('Shareholder')
-    if (format.includes('{AssetCode}')) codes.push('Asset')
-    return codes.length > 0 ? codes.join(', ') : 'None'
-  }
-
-  const getEntityTypes = (docTypeName) => {
-    const entities = []
-
-    // Check for Trust documents
-    if (docTypeName.includes('Trust') || docTypeName.includes('TTR') ||
-        docTypeName.includes('Trustee') || docTypeName.includes('Beneficiary')) {
-      entities.push('Trust')
-    }
-
-    // Check for Individual/Person documents
-    if (docTypeName.includes('Individual') || docTypeName.includes('ITR') ||
-        docTypeName.includes('Personal') || docTypeName.includes('Director') ||
-        docTypeName.includes('Shareholder')) {
-      entities.push('Person')
-    }
-
-    // Check for Company documents
-    if (docTypeName.includes('Company') || docTypeName.includes('CTR') ||
-        docTypeName.includes('ASIC') || docTypeName.includes('Dividend') ||
-        docTypeName.includes('Share Registry') || docTypeName.includes('Minutes')) {
-      entities.push('Company')
-    }
-
-    // If no specific entity detected, assume all types apply
-    if (entities.length === 0) {
-      return 'All'
-    }
-
-    return entities.join(', ')
-  }
-
-  if (loading) {
+  if (loading && documentTypes.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-gray-500">Loading...</div>
@@ -306,216 +203,126 @@ export default function DocumentTabStructurePage() {
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Fixed Header */}
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-5">
+      <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => navigate('/corporate/dashboard')}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
               <ChevronLeftIcon className="h-6 w-6" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Document Tab Structure</h1>
-              <p className="mt-2 text-sm text-gray-700">
-                Standard naming conventions and tab assignments for all document types
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Document Types & Naming Conventions</h1>
+              <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                Manage document types, naming formats, and tab assignments. Click any cell to edit.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-6 space-y-6">
-        {/* Group By Controls */}
-      <div className="bg-white shadow rounded-lg p-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Group By:</label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setGroupBy('primary_tab')}
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              groupBy === 'primary_tab'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <TagIcon className="h-4 w-4 inline mr-1" />
-            Primary Tab
-          </button>
-          <button
-            onClick={() => setGroupBy('folder')}
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              groupBy === 'folder'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <FolderIcon className="h-4 w-4 inline mr-1" />
-            Folder
-          </button>
-          <button
-            onClick={() => setGroupBy('name')}
-            className={`px-4 py-2 rounded-md text-sm font-medium ${
-              groupBy === 'name'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            All (A-Z)
-          </button>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      {availableTabs.length > 0 && (
-        <div className="bg-white shadow rounded-lg p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Tab Summary</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {availableTabs.map(tab => (
-              <div key={tab.name} className="text-center">
-                <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${getTabBadgeColor(tab.name)}`}>
-                  <span className="text-2xl font-bold">{tab.count}</span>
-                </div>
-                <p className="mt-2 text-sm font-medium text-gray-900">{tab.label}</p>
-              </div>
-            ))}
-          </div>
+      {/* Add Form */}
+      {showAddForm && (
+        <div className="flex-shrink-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+          <form onSubmit={handleAddDocType} className="flex items-end gap-4 flex-wrap">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Code</label>
+              <input
+                type="text"
+                value={newDocType.abbreviation}
+                onChange={(e) => setNewDocType({ ...newDocType, abbreviation: e.target.value.toUpperCase() })}
+                placeholder="CTR"
+                className="w-20 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Document Type Name *</label>
+              <input
+                type="text"
+                value={newDocType.name}
+                onChange={(e) => setNewDocType({ ...newDocType, name: e.target.value })}
+                placeholder="CTR - Company Tax Return"
+                required
+                className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            </div>
+            <div className="flex-1 min-w-[200px]">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Naming Format</label>
+              <input
+                type="text"
+                value={newDocType.naming_format}
+                onChange={(e) => setNewDocType({ ...newDocType, naming_format: e.target.value })}
+                placeholder="{CompanyCode} CTR FY{YY}"
+                className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Folder</label>
+              <select
+                value={newDocType.folder}
+                onChange={(e) => setNewDocType({ ...newDocType, folder: e.target.value, primary_tab: e.target.value })}
+                className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              >
+                {FOLDER_OPTIONS.map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-md hover:bg-indigo-700"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* Document Types Grouped */}
-      {groupedData().map(([groupName, types]) => (
-        <div key={groupName} className="bg-white shadow rounded-lg">
-          <button
-            onClick={() => toggleSection(groupName)}
-            className="w-full px-4 py-5 sm:px-6 border-b border-gray-200 flex items-center justify-between hover:bg-gray-50 transition-colors"
-          >
-            <div className="text-left">
-              <h3 className="text-lg font-medium text-gray-900">{groupName}</h3>
-              <p className="mt-1 text-sm text-gray-500">{types.length} document type(s)</p>
-            </div>
-            {isSectionExpanded(groupName) ? (
-              <ChevronUpIcon className="h-5 w-5 text-gray-400" />
-            ) : (
-              <ChevronDownIcon className="h-5 w-5 text-gray-400" />
-            )}
-          </button>
-          {isSectionExpanded(groupName) && (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Document Name
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Naming Format
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Code Types
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Entity Types
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Primary Tab
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    All Tabs
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Folder
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {types.map((docType) => {
-                  const format = getNamingFormat(docType.name)
-                  const example = getFormatExample(format)
-                  const codeTypes = getCodeTypes(format)
-                  const entityTypes = getEntityTypes(docType.name)
+      {/* Scrollable Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-none p-6">
+        <TeeemTableView
+          foundationId="document-types"
+          foundationIdNumeric={DOCUMENT_TYPES_TABLE_ID}
+          tableName={`Document Types (${documentTypes.length})`}
+          entries={documentTypes}
+          columns={columns}
+          onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
+          onCellEdit={handleCellEdit}
+          enableImport={false}
+          enableExport={true}
+          enableSchemaEditor={false}
+          hideUpdateViewButton={true}
+          customActions={customActions}
+          customCellRenderer={customCellRenderer}
+          emptyStateTitle="No document types"
+          emptyStateDescription="Add document types to define naming conventions and folder assignments."
+        />
 
-                  return (
-                    <tr key={docType.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <span className="text-sm font-medium text-gray-900">{docType.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm">
-                          <div className="font-mono text-gray-700 mb-1">{format}</div>
-                          <div className="text-xs text-gray-500 italic">e.g., {example}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{codeTypes}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{entityTypes}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {docType.primary_tab ? (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getTabBadgeColor(docType.primary_tab)}`}>
-                            <StarIcon className="h-3 w-3 mr-1" />
-                            {docType.primary_tab}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">Not set</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex flex-wrap gap-1">
-                          {docType.tabs && docType.tabs.length > 0 ? (
-                            docType.tabs.map(tab => (
-                              <span
-                                key={tab}
-                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${getTabBadgeColor(tab)} ${
-                                  tab === docType.primary_tab ? 'ring-2 ring-offset-1 ring-current' : ''
-                                }`}
-                              >
-                                {tab}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-gray-400">No tabs</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm text-gray-500">
-                          <FolderIcon className="h-4 w-4 mr-1" />
-                          {docType.folder || 'None'}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+        {/* Legend */}
+        <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">Naming Format Variables</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-blue-700 dark:text-blue-300">
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{CompanyCode}'}</code> Company abbreviation</div>
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{LoanID}'}</code> Loan identifier</div>
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{AssetCode}'}</code> Asset abbreviation</div>
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{FY}'}</code> or <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{YY}'}</code> Financial year</div>
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{Date}'}</code> Document date</div>
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{Period}'}</code> BAS period</div>
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{Description}'}</code> Custom text</div>
+            <div><code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{'{LenderCode}'}</code> Lender company</div>
           </div>
-          )}
         </div>
-      ))}
-
-      {/* Legend */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="text-sm font-medium text-blue-900 mb-2">Legend</h4>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li className="flex items-center">
-            <StarIcon className="h-4 w-4 mr-2" />
-            <strong>Primary Tab:</strong>&nbsp;Main category for this document type
-          </li>
-          <li className="flex items-center">
-            <TagIcon className="h-4 w-4 mr-2" />
-            <strong>All Tabs:</strong>&nbsp;This document appears in all listed tabs (ring indicates primary)
-          </li>
-          <li className="flex items-center">
-            <FolderIcon className="h-4 w-4 mr-2" />
-            <strong>Folder:</strong>&nbsp;File organization location
-          </li>
-        </ul>
-      </div>
       </div>
     </div>
   )

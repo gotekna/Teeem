@@ -159,6 +159,9 @@ class DocumentVerificationService
       "\n## Note: Could not extract text from this document. Please analyze based on the filename only."
     end
 
+    # Build document types section from database
+    document_types_section = build_document_types_section
+
     <<~PROMPT
       Analyze this document and suggest the best filename following TEEEM naming conventions.
 
@@ -168,22 +171,11 @@ class DocumentVerificationService
       ## TEEEM Naming Convention:
       - Format: {CompanyCode} {DocType} {FY/Period} {Details}.pdf
       - Company codes: 2-4 letter abbreviation (e.g., TD, THFT, NEV, MAL)
-      - Document types:
-        - CTR = Company Tax Return
-        - TTR = Trust Tax Return
-        - BAS = Business Activity Statement
-        - PPSR = PPSR Registration
-        - SD = Security Deed
-        - LA = Loan Agreement
-        - FS = Financial Statements
-        - AR = Annual Report
-        - MIN = Minutes
-        - RES = Resolution
-        - CON = Constitution
-        - AA = Accountant Advice
-        - CA = Client Advice
       - Financial year: FY21, FY22, FY23, FY24 etc.
       - Folders: ADVICE, ASIC, ASSETS, ATO, BANK, COMPANY, DIVIDENDS, FINANCIALS, GENERAL, INSURANCE, LOANS, MINUTES, REGISTRY, TRUST
+
+      ## Document Types and Naming Formats:
+      #{document_types_section}
       #{text_section}
 
       ## Respond ONLY with valid JSON in this exact format:
@@ -198,13 +190,53 @@ class DocumentVerificationService
       }
 
       Notes:
-      - suggested_name should follow the TEEEM convention strictly
+      - suggested_name should follow the TEEEM convention strictly using the naming format for the document type
       - suggested_folder should be one of the valid folders listed above
       - suggested_fy should be an array of financial years (e.g., [2024] or [2023, 2024] for multi-year docs)
       - confidence should be 0-100 based on how certain you are
       - current_name_valid should be true if the current filename already follows TEEEM conventions well
       - If the current name is already good, set current_name_valid to true and suggested_name can match the current
     PROMPT
+  end
+
+  def build_document_types_section
+    # Get document types from database
+    doc_types = DocumentType.active.order(:folder, :name)
+
+    if doc_types.any?
+      # Group by folder for better organization
+      grouped = doc_types.group_by(&:folder)
+      lines = []
+
+      grouped.each do |folder, types|
+        lines << "### #{folder || 'GENERAL'}"
+        types.each do |dt|
+          abbrev = dt.abbreviation.present? ? " (#{dt.abbreviation})" : ""
+          format = dt.naming_format.present? ? " - Format: #{dt.naming_format}" : ""
+          lines << "- #{dt.name}#{abbrev}#{format}"
+        end
+        lines << ""
+      end
+
+      lines.join("\n")
+    else
+      # Fallback to hardcoded values if no document types in database
+      <<~TYPES
+        - CTR = Company Tax Return - Format: {CompanyCode} CTR FY{YY}
+        - TTR = Trust Tax Return - Format: {CompanyCode} TTR FY{YY}
+        - BAS = Business Activity Statement - Format: {CompanyCode} BAS {Period} {Year}
+        - PPSR = PPSR Registration - Format: {CompanyCode} {LoanID} PPSR {AssetCode} {Date}
+        - SD = Security Deed - Format: {CompanyCode} {LoanID} Security Deed {AssetCode} {Date}
+        - LA = Loan Agreement - Format: {CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} {Date}
+        - FS = Financial Statements - Format: {CompanyCode} Final Financials FY{YY}
+        - AR = Annual Report - Format: {CompanyCode} Annual Report FY{YY}
+        - MIN = Minutes - Format: {CompanyCode} Minutes {Date}
+        - RES = Resolution - Format: {CompanyCode} Resolution {Date}
+        - CON = Constitution - Format: {CompanyCode} Constitution {Date}
+        - AA = Accountant Advice - Format: {CompanyCode} AA {Description} {Date}
+        - CA = Client Advice - Format: {CompanyCode} CA {Description} {Date}
+      TYPES
+    end
   end
 
   def parse_response(response)
