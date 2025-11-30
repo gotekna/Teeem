@@ -1180,6 +1180,8 @@ Rails.application.routes.draw do
         member do
           get :download
           post :validate
+          post :ai_verify
+          post :apply_ai_suggestion
         end
       end
 
