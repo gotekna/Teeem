@@ -88,7 +88,7 @@ function convertColumnsToTEEEMFormat(apiColumns, foundationId) {
       sumType: defaults.sumType,
       tooltip: col.description || `${col.column_type} column`,
       is_title: col.column_name === 'name', // Mark name as title column
-      editable: col.column_name === 'code' || col.column_name === 'entity_type' || col.column_name === 'status', // Make code, entity_type, and status editable
+      editable: ['code', 'entity_type', 'status', 'acn', 'abn'].includes(col.column_name), // Make key fields editable
       // Pass lookup info if available
       lookup_foundation_id: col.lookup_foundation_id,
       lookup_display_column: col.lookup_display_column,
