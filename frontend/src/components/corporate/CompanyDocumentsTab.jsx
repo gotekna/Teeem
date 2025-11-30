@@ -7,8 +7,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ArrowPathIcon,
-  ArrowTopRightOnSquareIcon
+  ArrowTopRightOnSquareIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline'
+import DocumentPreviewModal from './DocumentPreviewModal'
 import api from '../../api'
 import TeeemTableView from '../documentation/TeeemTableView'
 
@@ -18,8 +20,9 @@ const COMPANY_DOCUMENTS_TABLE_ID = 412
 // Build column definitions for documents table
 const buildDocumentColumns = () => [
   { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
+  { key: 'preview', label: '', resizable: false, sortable: false, filterable: false, width: 40 },
   { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
-  { key: 'title', label: 'Title', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 300, is_title: true },
+  { key: 'display_title', label: 'Document', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 350, is_title: true },
   { key: 'financial_years', label: 'FY', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
   { key: 'folder', label: 'Folder', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
   { key: 'document_type', label: 'Type', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
@@ -42,6 +45,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const [columns] = useState(buildDocumentColumns())
+  const [previewDocument, setPreviewDocument] = useState(null)
 
   // Document organization tabs
   const tabs = [
@@ -90,6 +94,8 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
       // Transform documents for table display
       const transformedDocs = (response.documents || []).map(doc => ({
         ...doc,
+        // Use display_title if available, fallback to title
+        display_title: doc.display_title || doc.title,
         // Format file size for display
         file_size_display: formatFileSize(doc.file_size),
         // Add source badge info
@@ -249,11 +255,31 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   // Custom cell renderer for certain columns
   const customCellRenderer = (doc, column) => {
     switch (column.key) {
-      case 'title':
+      case 'preview':
+        return (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              setPreviewDocument(doc)
+            }}
+            className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+            title="Preview document"
+          >
+            <EyeIcon className="h-4 w-4 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400" />
+          </button>
+        )
+      case 'display_title':
         return (
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-            <span className="font-medium text-gray-900 dark:text-white">{doc.title}</span>
+            <div className="flex flex-col">
+              <span className="font-medium text-gray-900 dark:text-white">{doc.display_title}</span>
+              {doc.display_title !== doc.title && (
+                <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[300px]" title={doc.title}>
+                  {doc.title}
+                </span>
+              )}
+            </div>
           </div>
         )
       case 'source':
@@ -500,6 +526,15 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
           emptyStateDescription={selectedTab !== 'all' || selectedAsset !== 'all'
             ? 'No documents match your filters.'
             : 'Get started by uploading a document or syncing from SharePoint.'}
+        />
+      )}
+
+      {/* Document Preview Modal */}
+      {previewDocument && (
+        <DocumentPreviewModal
+          document={previewDocument}
+          onClose={() => setPreviewDocument(null)}
+          onDocumentUpdate={loadDocuments}
         />
       )}
     </div>
