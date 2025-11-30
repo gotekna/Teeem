@@ -78,6 +78,32 @@
       "shareholder_type": "Company",
       "number_of_shares": 100,
       "share_class": "ordinary",
+      "beneficially_held": true,
+      "beneficial_owner": "Team Harder Family Trust"
+    },
+    {
+      "company_name": "Gen2612 Pty Ltd",
+      "shareholder_name": "Prov1322 Global Pty Ltd",
+      "shareholder_type": "Company",
+      "number_of_shares": 100,
+      "share_class": "ordinary",
+      "beneficially_held": false,
+      "beneficial_owner": "Team Harder Family Trust"
+    },
+    {
+      "company_name": "Team Harder Pty Ltd",
+      "shareholder_name": "Rachel Harder",
+      "shareholder_type": "Contact",
+      "number_of_shares": 100,
+      "share_class": "ordinary",
+      "beneficially_held": true
+    },
+    {
+      "company_name": "Prov1322 Global Pty Ltd",
+      "shareholder_name": "Rachel Harder",
+      "shareholder_type": "Contact",
+      "number_of_shares": 100,
+      "share_class": "ordinary",
       "beneficially_held": true
     }
   ],
@@ -114,6 +140,11 @@
     },
     {
       "child_name": "Team Harder Super Investments Pty Ltd",
+      "parent_name": "Prov1322 Global Pty Ltd",
+      "hierarchy_level": 1
+    },
+    {
+      "child_name": "Gen2612 Pty Ltd",
       "parent_name": "Prov1322 Global Pty Ltd",
       "hierarchy_level": 1
     }
