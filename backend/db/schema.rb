@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_060518) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_073559) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -317,6 +317,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_060518) do
     t.string "entity_type", default: "company"
     t.bigint "parent_company_id"
     t.integer "hierarchy_level", default: 0
+    t.string "bank_name"
+    t.string "bank_bsb"
+    t.string "bank_account_number"
+    t.string "bank_account_name"
+    t.date "bank_start_date"
+    t.date "bank_end_date"
     t.index ["abbreviation"], name: "index_companies_on_abbreviation"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"

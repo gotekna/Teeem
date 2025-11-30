@@ -366,14 +366,27 @@ function CorporateTab({ company, onUpdate }) {
     registered_office_address: company.registered_office_address || '',
     corporate_key: company.corporate_key || '',
     asic_username: company.asic_username || '',
-    recovery_question: company.recovery_question || ''
+    asic_password: '',
+    recovery_question: company.recovery_question || '',
+    recovery_answer: company.recovery_answer || '',
+    bank_name: company.bank_name || '',
+    bank_bsb: company.bank_bsb || '',
+    bank_account_number: company.bank_account_number || '',
+    bank_account_name: company.bank_account_name || '',
+    bank_start_date: company.bank_start_date || '',
+    bank_end_date: company.bank_end_date || ''
   })
   const [saving, setSaving] = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await api.put(`/api/v1/companies/${company.id}`, { company: formData })
+      // Only send password if it was changed
+      const dataToSend = { ...formData }
+      if (!dataToSend.asic_password) {
+        delete dataToSend.asic_password
+      }
+      await api.put(`/api/v1/companies/${company.id}`, { company: dataToSend })
       setIsEditing(false)
       if (onUpdate) onUpdate()
     } catch (error) {
@@ -430,78 +443,213 @@ function CorporateTab({ company, onUpdate }) {
         </p>
       </div>
 
-      <dl className="grid grid-cols-1 gap-x-4 gap-y-6 sm:grid-cols-2">
-        <div>
-          <dt className="text-sm font-medium text-gray-500">TFN</dt>
-          {isEditing ? (
-            <input
-              type="text"
-              value={formData.tfn}
-              onChange={(e) => setFormData({ ...formData, tfn: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              placeholder="000 000 000"
-            />
-          ) : (
-            <dd className="mt-1 text-sm text-gray-900 font-mono">{formatTFN(company.tfn)}</dd>
-          )}
-        </div>
+      {/* Tax & Registration */}
+      <div>
+        <h4 className="text-sm font-semibold text-gray-700 mb-4">Tax & Registration</h4>
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+          <div>
+            <dt className="text-sm font-medium text-gray-500">TFN</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.tfn}
+                onChange={(e) => setFormData({ ...formData, tfn: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                placeholder="000 000 000"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900 font-mono">{formatTFN(company.tfn)}</dd>
+            )}
+          </div>
 
-        <div>
-          <dt className="text-sm font-medium text-gray-500">Corporate Key</dt>
-          {isEditing ? (
-            <input
-              type="text"
-              value={formData.corporate_key}
-              onChange={(e) => setFormData({ ...formData, corporate_key: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-          ) : (
-            <dd className="mt-1 text-sm text-gray-900 font-mono">{company.corporate_key || '-'}</dd>
-          )}
-        </div>
+          <div className="sm:col-span-2">
+            <dt className="text-sm font-medium text-gray-500">Registered Office</dt>
+            {isEditing ? (
+              <textarea
+                value={formData.registered_office_address}
+                onChange={(e) => setFormData({ ...formData, registered_office_address: e.target.value })}
+                rows={2}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">{company.registered_office_address || '-'}</dd>
+            )}
+          </div>
+        </dl>
+      </div>
 
-        <div className="sm:col-span-2">
-          <dt className="text-sm font-medium text-gray-500">Registered Office</dt>
-          {isEditing ? (
-            <textarea
-              value={formData.registered_office_address}
-              onChange={(e) => setFormData({ ...formData, registered_office_address: e.target.value })}
-              rows={2}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-          ) : (
-            <dd className="mt-1 text-sm text-gray-900">{company.registered_office_address || '-'}</dd>
-          )}
-        </div>
+      {/* ASIC Portal Access */}
+      <div className="border-t pt-6">
+        <h4 className="text-sm font-semibold text-gray-700 mb-4">ASIC Portal Access</h4>
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Corporate Key</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.corporate_key}
+                onChange={(e) => setFormData({ ...formData, corporate_key: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900 font-mono">{company.corporate_key || '-'}</dd>
+            )}
+          </div>
 
-        <div>
-          <dt className="text-sm font-medium text-gray-500">ASIC Username</dt>
-          {isEditing ? (
-            <input
-              type="text"
-              value={formData.asic_username}
-              onChange={(e) => setFormData({ ...formData, asic_username: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-          ) : (
-            <dd className="mt-1 text-sm text-gray-900">{company.asic_username || '-'}</dd>
-          )}
-        </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500">User Name</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.asic_username}
+                onChange={(e) => setFormData({ ...formData, asic_username: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">{company.asic_username || '-'}</dd>
+            )}
+          </div>
 
-        <div>
-          <dt className="text-sm font-medium text-gray-500">Recovery Question</dt>
-          {isEditing ? (
-            <input
-              type="text"
-              value={formData.recovery_question}
-              onChange={(e) => setFormData({ ...formData, recovery_question: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-            />
-          ) : (
-            <dd className="mt-1 text-sm text-gray-900">{company.recovery_question || '-'}</dd>
-          )}
-        </div>
-      </dl>
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Password</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.asic_password}
+                onChange={(e) => setFormData({ ...formData, asic_password: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                placeholder="Enter to change"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">{company.has_asic_password ? '••••••••' : '-'}</dd>
+            )}
+          </div>
+
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Recovery Question</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.recovery_question}
+                onChange={(e) => setFormData({ ...formData, recovery_question: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">{company.recovery_question || '-'}</dd>
+            )}
+          </div>
+
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Answer</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.recovery_answer}
+                onChange={(e) => setFormData({ ...formData, recovery_answer: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">{company.recovery_answer || '-'}</dd>
+            )}
+          </div>
+        </dl>
+      </div>
+
+      {/* Bank Account */}
+      <div className="border-t pt-6">
+        <h4 className="text-sm font-semibold text-gray-700 mb-4">Bank Account</h4>
+        <dl className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Bank Name</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.bank_name}
+                onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                placeholder="e.g. Commonwealth Bank"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">{company.bank_name || '-'}</dd>
+            )}
+          </div>
+
+          <div>
+            <dt className="text-sm font-medium text-gray-500">BSB</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.bank_bsb}
+                onChange={(e) => setFormData({ ...formData, bank_bsb: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                placeholder="000-000"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900 font-mono">{company.bank_bsb || '-'}</dd>
+            )}
+          </div>
+
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Account Number</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.bank_account_number}
+                onChange={(e) => setFormData({ ...formData, bank_account_number: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900 font-mono">{company.bank_account_number || '-'}</dd>
+            )}
+          </div>
+
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Account Name</dt>
+            {isEditing ? (
+              <input
+                type="text"
+                value={formData.bank_account_name}
+                onChange={(e) => setFormData({ ...formData, bank_account_name: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">{company.bank_account_name || '-'}</dd>
+            )}
+          </div>
+
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Start Date</dt>
+            {isEditing ? (
+              <input
+                type="date"
+                value={formData.bank_start_date}
+                onChange={(e) => setFormData({ ...formData, bank_start_date: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">
+                {company.bank_start_date ? new Date(company.bank_start_date).toLocaleDateString('en-AU') : '-'}
+              </dd>
+            )}
+          </div>
+
+          <div>
+            <dt className="text-sm font-medium text-gray-500">End Date</dt>
+            {isEditing ? (
+              <input
+                type="date"
+                value={formData.bank_end_date}
+                onChange={(e) => setFormData({ ...formData, bank_end_date: e.target.value })}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              />
+            ) : (
+              <dd className="mt-1 text-sm text-gray-900">
+                {company.bank_end_date ? new Date(company.bank_end_date).toLocaleDateString('en-AU') : '-'}
+              </dd>
+            )}
+          </div>
+        </dl>
+      </div>
     </div>
   )
 }
