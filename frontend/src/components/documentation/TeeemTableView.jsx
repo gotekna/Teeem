@@ -1719,7 +1719,10 @@ export default function TeeemTableView({
 
   // Get visible (non-collapsed) rows when grouped
   const getVisibleRows = () => {
-    if (activeGroupColumns.length === 0) {
+    // Calculate active group columns locally
+    const activeGrpCols = groupByColumns.length > 0 ? groupByColumns : (groupByColumn ? [groupByColumn] : [])
+
+    if (activeGrpCols.length === 0) {
       // No grouping - all rows are visible
       return filteredAndSorted
     }
@@ -1754,11 +1757,11 @@ export default function TeeemTableView({
 
       data.forEach(row => {
         let current = result
-        activeGroupColumns.forEach((colKey, idx) => {
+        activeGrpCols.forEach((colKey, idx) => {
           const value = row[colKey] ?? '(empty)'
           const key = String(value)
 
-          if (idx === activeGroupColumns.length - 1) {
+          if (idx === activeGrpCols.length - 1) {
             // Last level - store rows
             if (!current.groups[key]) {
               current.groups[key] = { rows: [] }
@@ -8317,7 +8320,7 @@ export default function TeeemTableView({
                           className="h-4 w-4 rounded border-white/50 text-white bg-transparent focus:ring-white"
                         />
                         {/* Show "Select Visible" option when groups are active and some are collapsed */}
-                        {activeGroupColumns.length > 0 && collapsedGroups.size > 0 && (
+                        {(groupByColumns.length > 0 || groupByColumn) && collapsedGroups.size > 0 && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
