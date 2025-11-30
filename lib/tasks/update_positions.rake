@@ -144,4 +144,30 @@ namespace :corporate do
 
     puts "Done!"
   end
+
+  desc "Update company purpose from companies_data.json"
+  task update_purpose: :environment do
+    puts "Updating company purpose..."
+
+    # Load the JSON data
+    json_path = Rails.root.join("db", "companies_data.json")
+    companies_data = JSON.parse(File.read(json_path))
+
+    companies_data.each do |data|
+      next if data["purpose"].blank?
+
+      company = Company.where("LOWER(name) = ?", data["name"].downcase).first
+      unless company
+        puts "Company not found: #{data["name"]}"
+        next
+      end
+
+      if company.purpose.blank?
+        company.update!(purpose: data["purpose"])
+        puts "  #{company.name}: Updated purpose to '#{data["purpose"]}'"
+      end
+    end
+
+    puts "Done!"
+  end
 end
