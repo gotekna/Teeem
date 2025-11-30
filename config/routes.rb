@@ -1032,6 +1032,9 @@ Rails.application.routes.draw do
           get :activities
           get :documents
           get :assets
+          get :hierarchy
+          get :shareholders
+          get :investments
         end
 
         # Bank Accounts (nested under companies)
@@ -1080,6 +1083,7 @@ Rails.application.routes.draw do
       resources :company_groups do
         member do
           get :companies
+          get :structure
         end
       end
 

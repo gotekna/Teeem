@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyGroupsController < ApplicationController
-      before_action :set_company_group, only: [:show, :update, :destroy, :companies]
+      before_action :set_company_group, only: [:show, :update, :destroy, :companies, :structure]
 
       # GET /api/v1/company_groups
       def index
@@ -88,6 +88,29 @@ module Api
         }
       end
 
+      # GET /api/v1/company_groups/:id/structure
+      def structure
+        # Get top-level companies (no parent) in this group
+        top_level = @company_group.companies.where(parent_company_id: nil).order(:name)
+
+        render json: {
+          success: true,
+          data: {
+            group: {
+              id: @company_group.id,
+              name: @company_group.name
+            },
+            companies: top_level.map { |c| build_hierarchy_tree(c) },
+            stats: {
+              total_companies: @company_group.companies.count,
+              top_level_count: top_level.count,
+              trustees_count: @company_group.companies.where(is_trustee: true).count,
+              trusts_count: @company_group.companies.where.not(trust_name: [nil, '']).count
+            }
+          }
+        }
+      end
+
       private
 
       def set_company_group
@@ -136,6 +159,49 @@ module Api
           abn: company.abn,
           status: company.status,
           abbreviation: company.abbreviation
+        }
+      end
+
+      def build_hierarchy_tree(company)
+        # Get shareholdings where this company is owned
+        shareholders = company.company_shareholdings.includes(:shareholder).map do |sh|
+          {
+            id: sh.id,
+            shareholder_type: sh.shareholder_type,
+            shareholder_id: sh.shareholder_id,
+            shareholder_name: sh.shareholder&.name,
+            shares: sh.number_of_shares,
+            percentage: sh.percentage_of_total,
+            share_class: sh.share_class,
+            beneficially_held: sh.beneficially_held
+          }
+        end
+
+        # Get investments (companies this company owns)
+        investments = company.investments.includes(:company).map do |inv|
+          {
+            company_id: inv.company_id,
+            company_name: inv.company&.name,
+            shares: inv.number_of_shares,
+            percentage: inv.percentage_of_total
+          }
+        end
+
+        {
+          id: company.id,
+          name: company.name,
+          code: company.code,
+          abbreviation: company.abbreviation,
+          acn: company.acn,
+          abn: company.abn,
+          status: company.status,
+          entity_type: company.entity_type,
+          is_trustee: company.is_trustee,
+          trust_name: company.trust_name,
+          hierarchy_level: company.hierarchy_level,
+          shareholders: shareholders,
+          investments: investments,
+          children: company.subsidiaries.order(:name).map { |s| build_hierarchy_tree(s) }
         }
       end
     end
