@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy, :download]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :validate]
 
       # GET /api/v1/company_documents
       def index
@@ -130,6 +130,29 @@ module Api
             error: 'No file available for download'
           }, status: :not_found
         end
+      end
+
+      # POST /api/v1/company_documents/:id/validate
+      # User validates that the document naming is correct
+      def validate
+        @document.update!(
+          user_validated_at: Time.current,
+          user_validated_by: current_user,
+          validation_required: false,
+          ai_verification_status: 'verified'
+        )
+
+        render json: {
+          success: true,
+          message: 'Document validated successfully',
+          document: @document.as_json(
+            include: {
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] }
+            },
+            methods: [:formatted_document_type, :file_size_mb]
+          )
+        }
       end
 
       private

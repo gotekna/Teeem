@@ -6,12 +6,28 @@ class CompanyDocument < ApplicationRecord
   belongs_to :asset, optional: true
   belongs_to :loan, class_name: 'CompanyLoan', optional: true
   belongs_to :document_type_record, class_name: 'DocumentType', foreign_key: 'document_type_id', optional: true
+  belongs_to :user_validated_by, class_name: 'User', optional: true
 
   # Active Storage for file upload
   has_one_attached :file
 
   # Storage types for Company Register tracking
   STORAGE_TYPES = %w[manual electronic both].freeze
+
+  # AI verification statuses
+  AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
+
+  # Document type abbreviations for display title generation
+  # These are expanded to human-readable names when showing documents
+  DOCUMENT_TYPE_ABBREVIATIONS = {
+    'CTR' => 'Company Tax Return',
+    'TTR' => 'Trust Tax Return',
+    'BAS' => 'Business Activity Statement',
+    'PPSR' => 'PPSR Registration',
+    'CA' => 'Client Advice',
+    'AA' => 'Accountant Advice',
+    'LA' => 'Legal Advice'
+  }.freeze
 
   # Validations
   validates :title, presence: true
@@ -51,6 +67,7 @@ class CompanyDocument < ApplicationRecord
   # Callbacks
   after_create :create_activity
   before_save :extract_financial_years_from_title
+  before_save :generate_display_title
 
   # Instance methods
   def formatted_document_type
@@ -89,6 +106,46 @@ class CompanyDocument < ApplicationRecord
     if company_id.blank? && contact_id.blank?
       errors.add(:base, "Document must belong to a company or contact")
     end
+  end
+
+  # Generate a user-friendly display title from the abbreviated filename
+  # Examples:
+  #   "TD FY21 CTR.pdf" -> "Company Tax Return 2021"
+  #   "TD BAS Jul-Sep 2024.pdf" -> "BAS Jul-Sep 2024"
+  def generate_display_title
+    return if title.blank?
+    # Only regenerate if title changed or display_title is blank
+    return if !title_changed? && display_title.present?
+
+    display = title.dup
+
+    # Remove company code prefix (e.g., "TD ", "THFT ")
+    # Company codes are typically 1-5 uppercase letters at the start
+    if company&.code.present?
+      # Match exact company code at start (case insensitive)
+      display = display.sub(/\A#{Regexp.escape(company.code)}\s+/i, '')
+    end
+
+    # Expand FY to full year (FY21 → 2021, FY2021 → 2021)
+    display = display.gsub(/\bFY(\d{2})\b/) { "20#{$1}" }
+    display = display.gsub(/\bFY(\d{4})\b/) { $1 }
+
+    # Expand document type abbreviations
+    DOCUMENT_TYPE_ABBREVIATIONS.each do |abbr, full|
+      display = display.gsub(/\b#{abbr}\b/, full)
+    end
+
+    # Titleize DRAFT/SIGNED
+    display = display.gsub(/\bDRAFT\b/i, 'Draft')
+    display = display.gsub(/\bSIGNED\b/i, 'Signed')
+
+    # Remove file extension
+    display = display.sub(/\.(pdf|docx?|xlsx?|png|jpg|jpeg)$/i, '')
+
+    # Clean up extra spaces
+    display = display.gsub(/\s+/, ' ').strip
+
+    self.display_title = display
   end
 
   # Extract financial years from title
@@ -161,5 +218,19 @@ class CompanyDocument < ApplicationRecord
       doc.extract_financial_years_from_title
       doc.save(validate: false) if doc.financial_years_changed?
     end
+  end
+
+  # Class method to generate display_title for all existing documents
+  def self.backfill_display_titles!
+    count = 0
+    CompanyDocument.includes(:company).find_each do |doc|
+      doc.send(:generate_display_title)
+      if doc.display_title_changed?
+        doc.save(validate: false)
+        count += 1
+      end
+    end
+    puts "Updated #{count} documents with display titles"
+    count
   end
 end
