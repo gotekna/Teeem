@@ -13,9 +13,20 @@ module Api
                                 .includes(:foundation)
                                 .group_by(&:lookup_foundation_id)
 
+        # Map foundations to JSON, skipping any that fail to serialize
+        foundations_json = foundations.map do |f|
+          begin
+            foundation_json(f, include_record_count: true, referencing_map: referencing_map)
+          rescue => e
+            Rails.logger.error "Failed to serialize foundation #{f.id} (#{f.name}): #{e.message}"
+            Rails.logger.error e.backtrace.join("\n")
+            nil
+          end
+        end.compact
+
         render json: {
           success: true,
-          foundations: foundations.map { |f| foundation_json(f, include_record_count: true, referencing_map: referencing_map) }
+          foundations: foundations_json
         }
       end
 
