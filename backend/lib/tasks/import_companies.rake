@@ -77,7 +77,7 @@ namespace :corporate do
       end
 
       attrs[:shares_on_issue] = company_data['shares_on_issue'] if company_data['shares_on_issue'].to_i > 0
-      attrs[:registered_office] = company_data['registered_office'] if company_data['registered_office'].present?
+      attrs[:registered_office_address] = company_data['registered_office'] if company_data['registered_office'].present?
       attrs[:principal_place_of_business] = company_data['principal_place'] if company_data['principal_place'].present?
       attrs[:is_trustee] = company_data['is_trustee']
       attrs[:trust_name] = company_data['trust_name'] if company_data['trust_name'].present?
