@@ -88,25 +88,35 @@ class CorporateOneDriveService
     results
   end
 
-  # Document type folders that should be created for each company
-  # These match the DocumentType.folder values from the database
-  DOCUMENT_TYPE_FOLDERS = %w[
+  # Primary folders matching the 14 UI tabs
+  # These are the main document type folders for each company
+  PRIMARY_FOLDERS = %w[
     ADVICE
     ASIC
     ASSETS
     ATO
     BANK
+    COMPANY
     DIVIDENDS
-    Disposal
-    Expenses
     FINANCIALS
     GENERAL
+    INSURANCE
     LOANS
     MINUTES
-    Purchases
     REGISTRY
+    TRUST
+  ].freeze
+
+  # ASSETS subfolders (4 sub-tabs under ASSETS)
+  ASSETS_SUBFOLDERS = %w[
+    Disposal
+    Expenses
+    Purchases
     Valuation
   ].freeze
+
+  # Combined list for backwards compatibility
+  DOCUMENT_TYPE_FOLDERS = (PRIMARY_FOLDERS + ASSETS_SUBFOLDERS).freeze
 
   # Preview the folder structure that would be created in 00 - Private
   # Returns a hash describing the structure without creating anything
