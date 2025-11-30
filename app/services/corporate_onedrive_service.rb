@@ -450,10 +450,12 @@ class CorporateOnedriveService
     document_type_string = parent_folder_name.upcase
 
     # Create or update company document record
+    # Find by onedrive_file_id only (unique constraint), then update company if needed
     company_doc = CompanyDocument.find_or_initialize_by(
-      company: company,
       onedrive_file_id: doc['id']
     )
+    # Update company_id to the correct company (may have been synced to wrong company before)
+    company_doc.company = company
 
     # Map folder name to valid document_type enum value
     # The document_type field validates against a specific list of lowercase values
