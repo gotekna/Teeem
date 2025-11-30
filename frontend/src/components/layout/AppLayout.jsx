@@ -780,6 +780,34 @@ export default function AppLayout({ children }) {
     setSidebarCollapsed(newPreference)
   }, [location.pathname])
 
+  // Debug: Find scrollable elements on mount
+  useEffect(() => {
+    const findScrollableElements = () => {
+      const all = document.querySelectorAll('*')
+      const scrollable = []
+      all.forEach(el => {
+        if (el.scrollHeight > el.clientHeight + 5) {
+          const style = window.getComputedStyle(el)
+          const overflow = style.overflow + ' ' + style.overflowY
+          scrollable.push({
+            tag: el.tagName,
+            class: el.className?.toString().substring(0, 80),
+            id: el.id,
+            scrollHeight: el.scrollHeight,
+            clientHeight: el.clientHeight,
+            overflow: overflow,
+            diff: el.scrollHeight - el.clientHeight
+          })
+        }
+      })
+      console.log('[SCROLL DEBUG] Scrollable elements found:', scrollable.length)
+      scrollable.forEach((s, i) => console.log(`[SCROLL DEBUG] ${i}:`, s))
+    }
+
+    // Run after render
+    setTimeout(findScrollableElements, 2000)
+  }, [])
+
   // Save sidebar preference to localStorage when toggled (per-route)
   const handleSidebarToggle = () => {
     const newValue = !sidebarCollapsed
@@ -819,34 +847,6 @@ export default function AppLayout({ children }) {
   if (!user) {
     return <Navigate to="/login" replace />
   }
-
-  // Debug: Find scrollable elements on mount
-  React.useEffect(() => {
-    const findScrollableElements = () => {
-      const all = document.querySelectorAll('*')
-      const scrollable = []
-      all.forEach(el => {
-        if (el.scrollHeight > el.clientHeight + 5) {
-          const style = window.getComputedStyle(el)
-          const overflow = style.overflow + ' ' + style.overflowY
-          scrollable.push({
-            tag: el.tagName,
-            class: el.className?.toString().substring(0, 80),
-            id: el.id,
-            scrollHeight: el.scrollHeight,
-            clientHeight: el.clientHeight,
-            overflow: overflow,
-            diff: el.scrollHeight - el.clientHeight
-          })
-        }
-      })
-      console.log('[SCROLL DEBUG] Scrollable elements found:', scrollable.length)
-      scrollable.forEach((s, i) => console.log(`[SCROLL DEBUG] ${i}:`, s))
-    }
-
-    // Run after render
-    setTimeout(findScrollableElements, 2000)
-  }, [])
 
   return (
     <div
