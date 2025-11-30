@@ -18,6 +18,9 @@ import {
   HeartIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
+
+// Table ID for Company Documents (from foundations table)
+const COMPANY_DOCUMENTS_TABLE_ID = 412
 import CompanyFinancialTab from '../components/corporate/CompanyFinancialTab'
 import CompanyAssetsTab from '../components/corporate/CompanyAssetsTab'
 import CompanyComplianceTab from '../components/corporate/CompanyComplianceTab'
@@ -95,7 +98,15 @@ export default function CompanyDetailPage() {
   }
 
   const handleTabChange = (tabId) => {
-    setSearchParams({ tab: tabId })
+    // Find the tab to check if it's a document tab
+    const tab = tabs.find(t => t.id === tabId)
+
+    // If it's a document tab (has docTab property) or the main documents tab, include table_id
+    if (tab?.docTab || tabId === 'documents') {
+      setSearchParams({ tab: tabId, table_id: COMPANY_DOCUMENTS_TABLE_ID })
+    } else {
+      setSearchParams({ tab: tabId })
+    }
   }
 
   // Get SharePoint URL for company folder

@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
 import {
   PlusIcon,
   DocumentTextIcon,
@@ -30,7 +29,6 @@ const buildDocumentColumns = () => [
 ]
 
 export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'all' }) {
-  const [searchParams, setSearchParams] = useSearchParams()
   const [documents, setDocuments] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -43,14 +41,6 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
   const [columns] = useState(buildDocumentColumns())
-
-  // Ensure table_id is in URL for Gold Standard tables
-  useEffect(() => {
-    if (!searchParams.get('table_id')) {
-      searchParams.set('table_id', COMPANY_DOCUMENTS_TABLE_ID)
-      setSearchParams(searchParams, { replace: true })
-    }
-  }, [])
 
   // Document organization tabs
   const tabs = [
