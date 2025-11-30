@@ -93,6 +93,34 @@ class EmailToJobService
     # Default to "Enquiry" status for new jobs from email
     job_status_id = user_edits['job_status_id'] || JobStatus.find_by(name: 'Enquiry')&.id
 
+    # Get property address and geocode it
+    property_address = user_edits['property_address'] || job_data['property_address']
+    location_data = {}
+
+    if property_address.present?
+      begin
+        address_service = JobAddressService.new
+        geocode_result = address_service.geocode_address(property_address)
+
+        if geocode_result
+          location_data = {
+            location: geocode_result[:formatted_address],
+            latitude: geocode_result[:latitude],
+            longitude: geocode_result[:longitude]
+          }
+          Rails.logger.info "Geocoded address '#{property_address}': #{location_data[:location]} (#{location_data[:latitude]}, #{location_data[:longitude]})"
+        else
+          # If geocoding fails, still save the address text
+          location_data = { location: property_address }
+          Rails.logger.warn "Geocoding failed for '#{property_address}', saving address text only"
+        end
+      rescue StandardError => e
+        Rails.logger.error "Error geocoding address: #{e.message}"
+        # Fallback to saving just the address text
+        location_data = { location: property_address }
+      end
+    end
+
     # Create job
     job = Job.create!(
       title: user_edits['job_title'] || job_data['job_title'] || "Job from #{@email.from_email}",
@@ -101,7 +129,8 @@ class EmailToJobService
       site_supervisor_name: @user.name,
       site_supervisor_email: @user.email,
       site_supervisor_phone: @user.mobile_phone,
-      contract_value: user_edits['contract_value'] || job_data['contract_value']&.to_f
+      contract_value: user_edits['contract_value'] || job_data['contract_value']&.to_f,
+      **location_data
     )
 
     # Link customer to job
