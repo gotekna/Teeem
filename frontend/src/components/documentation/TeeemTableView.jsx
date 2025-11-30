@@ -762,9 +762,25 @@ export default function TeeemTableView({
 
     // Load columns
     if (!skipColumns && view.visibleColumns) {
-      setVisibleColumns(view.visibleColumns)
-    }
-    if (!skipColumns && view.columnOrder) {
+      // FIX: Ensure columns marked as visible are actually in columnOrder
+      // If a column is visible but not in order, add it to the order
+      // This prevents checkbox/display mismatch when new columns are added after view was saved
+      let orderToUse = view.columnOrder ? [...new Set(view.columnOrder)] : []
+      const visibleToUse = { ...view.visibleColumns }
+
+      // Find columns marked visible but not in order - add them to order
+      Object.keys(visibleToUse).forEach(colKey => {
+        if (visibleToUse[colKey] && !orderToUse.includes(colKey)) {
+          // Add visible column to order (at the end)
+          orderToUse.push(colKey)
+          console.log('[loadViewState] Added missing visible column to order:', colKey)
+        }
+      })
+
+      setVisibleColumns(visibleToUse)
+      setVisibilityColumnOrder(orderToUse)
+      setColumnOrder(orderToUse)
+    } else if (!skipColumns && view.columnOrder) {
       const dedupedColumnOrder = [...new Set(view.columnOrder)]
       setVisibilityColumnOrder(dedupedColumnOrder)
       setColumnOrder(dedupedColumnOrder)
