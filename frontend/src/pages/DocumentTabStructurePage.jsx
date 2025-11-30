@@ -216,6 +216,37 @@ export default function DocumentTabStructurePage() {
     return codes.length > 0 ? codes.join(', ') : 'None'
   }
 
+  const getEntityTypes = (docTypeName) => {
+    const entities = []
+
+    // Check for Trust documents
+    if (docTypeName.includes('Trust') || docTypeName.includes('TTR') ||
+        docTypeName.includes('Trustee') || docTypeName.includes('Beneficiary')) {
+      entities.push('Trust')
+    }
+
+    // Check for Individual/Person documents
+    if (docTypeName.includes('Individual') || docTypeName.includes('ITR') ||
+        docTypeName.includes('Personal') || docTypeName.includes('Director') ||
+        docTypeName.includes('Shareholder')) {
+      entities.push('Person')
+    }
+
+    // Check for Company documents
+    if (docTypeName.includes('Company') || docTypeName.includes('CTR') ||
+        docTypeName.includes('ASIC') || docTypeName.includes('Dividend') ||
+        docTypeName.includes('Share Registry') || docTypeName.includes('Minutes')) {
+      entities.push('Company')
+    }
+
+    // If no specific entity detected, assume all types apply
+    if (entities.length === 0) {
+      return 'All'
+    }
+
+    return entities.join(', ')
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -325,6 +356,9 @@ export default function DocumentTabStructurePage() {
                     Code Types
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Entity Types
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Primary Tab
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -340,6 +374,7 @@ export default function DocumentTabStructurePage() {
                   const format = getNamingFormat(docType.name)
                   const example = getFormatExample(format)
                   const codeTypes = getCodeTypes(format)
+                  const entityTypes = getEntityTypes(docType.name)
 
                   return (
                     <tr key={docType.id} className="hover:bg-gray-50">
@@ -356,6 +391,9 @@ export default function DocumentTabStructurePage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{codeTypes}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{entityTypes}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {docType.primary_tab ? (
