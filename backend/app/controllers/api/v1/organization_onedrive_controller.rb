@@ -1026,7 +1026,7 @@ module Api
       end
 
       # GET /api/v1/organization_onedrive/preview_private_folders
-      # Preview the folder structure that would be created in 00 - Private
+      # Preview the folder structure that would be created in 00 TEEEM PRIVATE
       def preview_private_folders
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -1049,7 +1049,7 @@ module Api
       end
 
       # POST /api/v1/organization_onedrive/create_private_folders
-      # Create the folder structure in 00 - Private for all company groups
+      # Create the folder structure in 00 TEEEM PRIVATE for all company groups
       def create_private_folders
         credential = OrganizationOneDriveCredential.active_credential
 
