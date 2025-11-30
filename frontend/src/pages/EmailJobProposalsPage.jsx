@@ -412,6 +412,9 @@ function ProposalCard({ proposal, onApprove, onReject, onReExtract, processing, 
         <div className="mt-4 border-t border-gray-200 pt-4">
           <h4 className="text-sm font-medium text-gray-900 mb-3">Job Details</h4>
           <div className="pl-6 space-y-1 text-sm">
+            {data.property_address && (
+              <div><span className="font-medium">Address:</span> {data.property_address}</div>
+            )}
             {data.job_type && (
               <div><span className="font-medium">Type:</span> {data.job_type}</div>
             )}
