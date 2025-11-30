@@ -959,6 +959,10 @@ Rails.application.routes.draw do
       resources :tables, controller: 'foundations', only: [:index, :show, :create, :update, :destroy]
 
       resources :foundations do
+        member do
+          get :health  # GET /api/v1/foundations/:id/health - Health checks for this table
+        end
+
         # Column management
         resources :columns, only: [:create, :update, :destroy] do
           collection do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_203837) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_205946) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3031,6 +3031,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_203837) do
     t.index ["xero_tenant_id"], name: "index_sync_configurations_on_xero_tenant_id", unique: true
   end
 
+  create_table "table_health_checks", force: :cascade do |t|
+    t.bigint "foundation_id"
+    t.string "table_name"
+    t.string "check_type", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.string "api_endpoint", null: false
+    t.string "severity", default: "warning"
+    t.boolean "enabled", default: true
+    t.string "icon"
+    t.string "action_path"
+    t.integer "display_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["check_type"], name: "index_table_health_checks_on_check_type"
+    t.index ["enabled"], name: "index_table_health_checks_on_enabled"
+    t.index ["foundation_id"], name: "index_table_health_checks_on_foundation_id"
+    t.index ["table_name"], name: "index_table_health_checks_on_table_name"
+  end
+
   create_table "table_protections", force: :cascade do |t|
     t.string "table_name", null: false
     t.boolean "is_protected", default: true, null: false
@@ -3876,6 +3896,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_203837) do
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_dependencies", "project_tasks", column: "predecessor_task_id"
   add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
   add_foreign_key "task_updates", "project_tasks"

@@ -1,7 +1,7 @@
 module Api
   module V1
     class FoundationsController < ApplicationController
-      before_action :set_foundation, only: [:show, :update, :destroy]
+      before_action :set_foundation, only: [:show, :update, :destroy, :health]
 
       # GET /api/v1/foundations
       def index
@@ -85,6 +85,45 @@ module Api
             errors: @foundation.errors.full_messages
           }, status: :unprocessable_entity
         end
+      end
+
+      # GET /api/v1/foundations/:id/health
+      # Returns all health checks for this table with their current status
+      def health
+        # Find health checks for this foundation
+        # Try by foundation_id first, then by table_name
+        checks = TableHealthCheck.for_table_or_foundation(@foundation.id)
+
+        # If no checks found by ID, try by table name (for system tables)
+        if checks.empty? && @foundation.database_table_name.present?
+          checks = TableHealthCheck.for_table_or_foundation(@foundation.database_table_name)
+        end
+
+        # Execute each check and collect results
+        results = checks.map(&:execute)
+
+        # Calculate overall health score
+        total_issues = results.sum { |r| r[:count] }
+        critical_issues = results.select { |r| r[:severity] == 'critical' }.sum { |r| r[:count] }
+        warning_issues = results.select { |r| r[:severity] == 'warning' }.sum { |r| r[:count] }
+
+        # Health score: 100% if no issues, reduced based on severity
+        # Critical issues: -10 points each (capped at -50)
+        # Warning issues: -2 points each (capped at -30)
+        health_score = 100
+        health_score -= [critical_issues * 10, 50].min
+        health_score -= [warning_issues * 2, 30].min
+        health_score = [health_score, 0].max
+
+        render json: {
+          success: true,
+          foundation_id: @foundation.id,
+          table_name: @foundation.name,
+          overall_health: health_score,
+          total_issues: total_issues,
+          has_issues: total_issues > 0,
+          checks: results.sort_by { |r| TableHealthCheck::SEVERITY_ORDER[r[:severity]] || 99 }
+        }
       end
 
       # DELETE /api/v1/foundations/:id
