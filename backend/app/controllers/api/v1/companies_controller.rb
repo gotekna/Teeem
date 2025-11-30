@@ -13,6 +13,8 @@ module Api
         # Filtering
         @companies = @companies.by_group(params[:group]) if params[:group].present?
         @companies = @companies.where(status: params[:status]) if params[:status].present?
+        @companies = @companies.where(company_group_id: params[:company_group_id]) if params[:company_group_id].present?
+        @companies = @companies.where(consolidation_parent_id: params[:consolidation_parent_id]) if params[:consolidation_parent_id].present?
 
         # Search
         if params[:search].present?
@@ -440,6 +442,7 @@ module Api
           :encrypted_recovery_answer, :review_date, :gst_registration_status, :accounting_method,
           :shares_on_issue, :carry_forward_losses, :franking_balance, :amount_owing, :entity_type,
           :bank_name, :bank_bsb, :bank_account_number, :bank_account_name, :bank_start_date, :bank_end_date,
+          :consolidation_parent_id, :company_group_id,
           metadata: {}
         )
       end

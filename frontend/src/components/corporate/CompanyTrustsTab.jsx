@@ -21,10 +21,18 @@ export default function CompanyTrustsTab({ company, onUpdate }) {
   const [availableTrusts, setAvailableTrusts] = useState([])
   const [selectedTrustId, setSelectedTrustId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [companyGroups, setCompanyGroups] = useState([])
+  const [selectedGroupId, setSelectedGroupId] = useState(company.company_group_id || '')
+  const [savingGroup, setSavingGroup] = useState(false)
 
   useEffect(() => {
     loadTrusts()
+    loadCompanyGroups()
   }, [company.id])
+
+  useEffect(() => {
+    setSelectedGroupId(company.company_group_id || '')
+  }, [company.company_group_id])
 
   const loadTrusts = async () => {
     try {
@@ -68,6 +76,35 @@ export default function CompanyTrustsTab({ company, onUpdate }) {
       setAvailableTrusts(trustsAndSuperfunds)
     } catch (error) {
       console.error('Failed to load available trusts:', error)
+    }
+  }
+
+  const loadCompanyGroups = async () => {
+    try {
+      const response = await api.get('/api/v1/company_groups')
+      setCompanyGroups(response.data || [])
+    } catch (error) {
+      console.error('Failed to load company groups:', error)
+    }
+  }
+
+  const handleGroupChange = async (newGroupId) => {
+    if (newGroupId === selectedGroupId) return
+
+    try {
+      setSavingGroup(true)
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: {
+          company_group_id: newGroupId || null
+        }
+      })
+      setSelectedGroupId(newGroupId)
+      if (onUpdate) onUpdate()
+    } catch (error) {
+      console.error('Failed to update company group:', error)
+      alert('Failed to update company group')
+    } finally {
+      setSavingGroup(false)
     }
   }
 
@@ -127,6 +164,31 @@ export default function CompanyTrustsTab({ company, onUpdate }) {
 
   return (
     <div className="space-y-6">
+      {/* Company Group Selector */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+        <div className="flex items-center gap-4">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+            Company Group:
+          </label>
+          <select
+            value={selectedGroupId}
+            onChange={(e) => handleGroupChange(e.target.value)}
+            disabled={savingGroup}
+            className="block w-full max-w-md rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-gray-900 dark:text-white focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm disabled:opacity-50"
+          >
+            <option value="">No Group</option>
+            {companyGroups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+          {savingGroup && (
+            <span className="text-sm text-gray-500">Saving...</span>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

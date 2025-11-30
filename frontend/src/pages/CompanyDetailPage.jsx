@@ -30,6 +30,7 @@ import CompanyMinutesTab from '../components/corporate/CompanyMinutesTab'
 import CompanyDirectorsTab from '../components/corporate/CompanyDirectorsTab'
 import CompanyHealthTab from '../components/corporate/CompanyHealthTab'
 import CompanyTrustsTab from '../components/corporate/CompanyTrustsTab'
+import CompanyConsolidationTab from '../components/corporate/CompanyConsolidationTab'
 
 export default function CompanyDetailPage() {
   const { id } = useParams()
@@ -67,7 +68,8 @@ export default function CompanyDetailPage() {
     { id: 'health', name: 'Health' },
     { id: 'directors', name: 'Directors' },
     { id: 'shareholdings', name: 'Shareholdings' },
-    { id: 'trusts', name: 'Trusts' }
+    { id: 'trusts', name: 'Trusts' },
+    { id: 'consolidation', name: 'Consolidation' }
   ]
 
   const isNewCompany = !id
@@ -274,6 +276,7 @@ export default function CompanyDetailPage() {
             {overviewSubTab === 'directors' && <CompanyDirectorsTab company={company} onUpdate={loadCompany} />}
             {overviewSubTab === 'shareholdings' && <CompanyShareholdingsTab company={company} onUpdate={loadCompany} />}
             {overviewSubTab === 'trusts' && <CompanyTrustsTab company={company} onUpdate={loadCompany} />}
+            {overviewSubTab === 'consolidation' && <CompanyConsolidationTab company={company} onUpdate={loadCompany} />}
           </div>
         )}
 
