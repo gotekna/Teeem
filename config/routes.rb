@@ -939,6 +939,7 @@ Rails.application.routes.draw do
       post 'organization_onedrive/sync_pricebook_images', to: 'organization_onedrive#sync_pricebook_images'
       get 'organization_onedrive/sharepoint_sites', to: 'organization_onedrive#sharepoint_sites'
       post 'organization_onedrive/use_sharepoint_site', to: 'organization_onedrive#use_sharepoint_site'
+      post 'organization_onedrive/use_personal_drive', to: 'organization_onedrive#use_personal_drive'
       post 'organization_onedrive/sync_corporate_documents', to: 'organization_onedrive#sync_corporate_documents'
       get 'organization_onedrive/search', to: 'organization_onedrive#search'
 

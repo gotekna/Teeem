@@ -87,30 +87,54 @@ module Api
           # Initialize client and set up drive
           client = MicrosoftGraphClient.new(credential)
 
-          # ALWAYS use the TEEEM SharePoint site instead of personal OneDrive
-          Rails.logger.info "Switching to TEEEM SharePoint site..."
-          begin
-            result = client.use_sharepoint_site("TEEEM")
-            Rails.logger.info "Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
-          rescue StandardError => e
-            Rails.logger.warn "Could not find TEEEM SharePoint site, trying search..."
-            # Try to find it by searching available sites
-            sites = client.list_sharepoint_sites
-            teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
-            if teeem_site
-              result = client.use_sharepoint_site(teeem_site[:id])
-              Rails.logger.info "Connected to SharePoint site via search: #{teeem_site[:name]}"
-            else
-              Rails.logger.warn "TEEEM SharePoint site not found, falling back to default drive"
+          # Check if we should use personal OneDrive or SharePoint
+          # Default to personal OneDrive now (user can switch to SharePoint later)
+          use_personal = params[:use_personal] != 'false'
+
+          if use_personal
+            # Use personal OneDrive - just get the default drive info
+            Rails.logger.info "Using personal OneDrive..."
+            begin
+              drive_info = client.get('/me/drive')
+              credential.update!(
+                drive_id: drive_info['id'],
+                drive_name: drive_info['name'] || 'My OneDrive',
+                metadata: {
+                  drive_type: 'personal',
+                  owner_name: drive_info.dig('owner', 'user', 'displayName'),
+                  quota_total: drive_info.dig('quota', 'total'),
+                  quota_used: drive_info.dig('quota', 'used')
+                }
+              )
+              Rails.logger.info "Connected to personal OneDrive: #{drive_info['name']}"
+            rescue StandardError => e
+              Rails.logger.error "Failed to get personal OneDrive info: #{e.message}"
             end
+          else
+            # Use TEEEM SharePoint site
+            Rails.logger.info "Switching to TEEEM SharePoint site..."
+            begin
+              result = client.use_sharepoint_site("TEEEM")
+              Rails.logger.info "Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
+            rescue StandardError => e
+              Rails.logger.warn "Could not find TEEEM SharePoint site, trying search..."
+              sites = client.list_sharepoint_sites
+              teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
+              if teeem_site
+                result = client.use_sharepoint_site(teeem_site[:id])
+                Rails.logger.info "Connected to SharePoint site via search: #{teeem_site[:name]}"
+              else
+                Rails.logger.warn "TEEEM SharePoint site not found, falling back to default drive"
+              end
+            end
+
+            # Create root folder for all jobs in the SharePoint site
+            Rails.logger.info "Creating root folder 'TEEEM Jobs'..."
+            root_folder = client.create_jobs_root_folder("TEEEM Jobs")
+            Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
           end
 
-          # Create root folder for all jobs in the SharePoint site
-          Rails.logger.info "Creating root folder 'TEEEM Jobs'..."
-          root_folder = client.create_jobs_root_folder("TEEEM Jobs")
-          Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
-
-          Rails.logger.info "=== SharePoint Connection Completed Successfully ==="
+          Rails.logger.info "=== OneDrive Connection Completed Successfully ==="
 
           # Dynamically determine frontend URL based on request origin
           frontend_url = get_frontend_url_from_request
@@ -273,6 +297,53 @@ module Api
         rescue StandardError => e
           Rails.logger.error "Failed to list SharePoint sites: #{e.message}"
           render json: { error: "Failed to list sites: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/use_personal_drive
+      # Switch to using personal OneDrive instead of SharePoint
+      def use_personal_drive
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Get personal OneDrive info
+          drive_info = client.get('/me/drive')
+
+          # Update credential to use personal drive
+          credential.update!(
+            drive_id: drive_info['id'],
+            drive_name: drive_info['name'] || 'My OneDrive',
+            root_folder_id: nil,
+            root_folder_path: nil,
+            metadata: credential.metadata.merge({
+              drive_type: 'personal',
+              owner_name: drive_info.dig('owner', 'user', 'displayName'),
+              quota_total: drive_info.dig('quota', 'total'),
+              quota_used: drive_info.dig('quota', 'used'),
+              switched_at: Time.current
+            })
+          )
+
+          render json: {
+            message: 'Switched to personal OneDrive',
+            drive: {
+              id: drive_info['id'],
+              name: drive_info['name'],
+              type: 'personal'
+            }
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue StandardError => e
+          Rails.logger.error "Failed to switch to personal drive: #{e.message}"
+          render json: { error: "Failed to switch: #{e.message}" }, status: :internal_server_error
         end
       end
 
