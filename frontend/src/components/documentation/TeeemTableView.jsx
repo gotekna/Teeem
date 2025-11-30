@@ -99,6 +99,10 @@ import LocationMapCard from '../job-detail/LocationMapCard'
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, COLUMN_TYPES } from '../../constants/columnTypes'
 import { api } from '../../api'
 import { useAuth } from '../../contexts/AuthContext'
+import PricebookHealthWidget from '../health/PricebookHealthWidget'
+
+// Foundation IDs that should show the Pricebook Health widget
+const PRICEBOOK_HEALTH_TABLE_IDS = [205, 221, 214] // Pricebook, Price Histories, Contacts
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -5031,6 +5035,13 @@ export default function TeeemTableView({
                 <p className="text-sm text-red-100">{validationError}</p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Pricebook Health Widget - Shows on related tables */}
+        {PRICEBOOK_HEALTH_TABLE_IDS.includes(foundationIdNumeric) && (
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+            <PricebookHealthWidget compact={true} />
           </div>
         )}
 
