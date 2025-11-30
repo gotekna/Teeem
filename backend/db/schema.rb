@@ -3850,6 +3850,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_015644) do
   add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
   add_foreign_key "task_updates", "project_tasks"
   add_foreign_key "task_updates", "users"
+  add_foreign_key "user_microsoft_tokens", "users"
+  add_foreign_key "user_outlook_credentials", "users", name: "user_outlook_credentials_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"
   add_foreign_key "users", "user_groups"

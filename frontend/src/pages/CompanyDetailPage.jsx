@@ -42,16 +42,20 @@ export default function CompanyDetailPage() {
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: BuildingOfficeIcon },
+    { id: 'advice', name: 'ADVICE', icon: ClipboardDocumentCheckIcon, docTab: 'ADVICE' },
     { id: 'asic', name: 'ASIC', icon: DocumentTextIcon, docTab: 'ASIC' },
     { id: 'assets-docs', name: 'ASSETS', icon: TruckIcon, docTab: 'ASSETS' },
     { id: 'ato', name: 'ATO', icon: DocumentTextIcon, docTab: 'ATO' },
     { id: 'bank', name: 'BANK', icon: BanknotesIcon, docTab: 'BANK' },
+    { id: 'company', name: 'COMPANY', icon: BuildingOfficeIcon, docTab: 'COMPANY' },
     { id: 'dividends-docs', name: 'DIVIDENDS', icon: CurrencyDollarIcon, docTab: 'DIVIDENDS' },
     { id: 'financials', name: 'FINANCIALS', icon: DocumentTextIcon, docTab: 'FINANCIALS' },
     { id: 'general', name: 'GENERAL', icon: FolderIcon, docTab: 'GENERAL' },
+    { id: 'insurance', name: 'INSURANCE', icon: HeartIcon, docTab: 'INSURANCE' },
     { id: 'loans-docs', name: 'LOANS', icon: ArrowsRightLeftIcon, docTab: 'LOANS' },
     { id: 'minutes-docs', name: 'MINUTES', icon: DocumentDuplicateIcon, docTab: 'MINUTES' },
     { id: 'registry', name: 'REGISTRY', icon: DocumentTextIcon, docTab: 'REGISTRY' },
+    { id: 'trust', name: 'TRUST', icon: UsersIcon, docTab: 'TRUST' },
     { id: 'documents', name: 'Documents', icon: DocumentTextIcon },
     { id: 'activity', name: 'Activity', icon: ClockIcon }
   ]
