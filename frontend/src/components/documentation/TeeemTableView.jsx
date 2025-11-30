@@ -4909,7 +4909,11 @@ export default function TeeemTableView({
         }
       `}</style>
       {/* Full-width table container */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden">
+      <div
+        className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0"
+        style={{ overflow: 'clip' }}
+        onScroll={(e) => console.log('[DEBUG] TeeemTableView outer scrolled:', e.target.scrollTop)}
+      >
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
         {editModeActive && (
@@ -5667,7 +5671,11 @@ export default function TeeemTableView({
         {/* END TOP SECTION - Search/Buttons */}
 
         {/* Main content area - filters at top for now until code can be restructured */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div
+          className="flex-1 flex flex-col min-h-0"
+          style={{ overflow: 'clip' }}
+          onScroll={(e) => console.log('[DEBUG] TeeemTableView main content scrolled:', e.target.scrollTop)}
+        >
 
         {/* Filters row */}
         <div className="flex items-end gap-3 flex-wrap px-2 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex-shrink-0">
@@ -8093,51 +8101,7 @@ export default function TeeemTableView({
                 </button>
                 <span className="text-xs text-gray-300 dark:text-gray-600">|</span>
                 <button
-                  onClick={(e) => {
-                    e.preventDefault()
-                    // Debug: Log all scroll positions BEFORE expand
-                    console.log('[EXPAND DEBUG] ========== BEFORE EXPAND ==========')
-                    console.log('[EXPAND DEBUG] window.scrollY:', window.scrollY)
-                    console.log('[EXPAND DEBUG] document.documentElement.scrollTop:', document.documentElement.scrollTop)
-                    console.log('[EXPAND DEBUG] document.body.scrollTop:', document.body.scrollTop)
-
-                    // Find all scrollable parents
-                    let el = e.target.parentElement
-                    while (el) {
-                      if (el.scrollTop > 0 || el.scrollHeight > el.clientHeight) {
-                        console.log('[EXPAND DEBUG] Scrollable parent:', {
-                          tagName: el.tagName,
-                          className: el.className?.substring(0, 100),
-                          scrollTop: el.scrollTop,
-                          scrollHeight: el.scrollHeight,
-                          clientHeight: el.clientHeight
-                        })
-                      }
-                      el = el.parentElement
-                    }
-
-                    // Save scroll positions
-                    const scrollY = window.scrollY
-                    const docScrollTop = document.documentElement.scrollTop
-
-                    setCollapsedGroups(new Set())
-
-                    // Check scroll after state update
-                    requestAnimationFrame(() => {
-                      console.log('[EXPAND DEBUG] ========== AFTER EXPAND (RAF) ==========')
-                      console.log('[EXPAND DEBUG] window.scrollY:', window.scrollY)
-                      console.log('[EXPAND DEBUG] document.documentElement.scrollTop:', document.documentElement.scrollTop)
-                      console.log('[EXPAND DEBUG] Restoring scroll to:', scrollY)
-
-                      window.scrollTo(0, scrollY)
-                      document.documentElement.scrollTop = docScrollTop
-
-                      if (scrollContainerRef.current) {
-                        console.log('[EXPAND DEBUG] Table scroll container scrollTop:', scrollContainerRef.current.scrollTop)
-                        scrollContainerRef.current.scrollTop = 0
-                      }
-                    })
-                  }}
+                  onClick={() => setCollapsedGroups(new Set())}
                   className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
                   title="Expand All Groups"
                 >
@@ -8176,14 +8140,6 @@ export default function TeeemTableView({
             <div
               ref={scrollContainerRef}
               className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
-              onScroll={(e) => {
-                console.log('[SCROLL DEBUG] Scroll container scrolled:', {
-                  scrollTop: e.target.scrollTop,
-                  scrollHeight: e.target.scrollHeight,
-                  clientHeight: e.target.clientHeight,
-                  target: e.target.className
-                })
-              }}
             >
           <table className="border-separate border-spacing-0" style={{
             width: autoFitColumns ? 'auto' : (() => {

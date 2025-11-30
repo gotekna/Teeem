@@ -182,6 +182,18 @@ class Company < ApplicationRecord
     read_attribute(:company_group)
   end
 
+  # Build SharePoint folder URL
+  def sharepoint_folder_url
+    return nil unless sharepoint_folder_name.present?
+
+    base_url = "https://gotekna.sharepoint.com/sites/TEEEM/Shared Documents/Corporate File"
+
+    # URL encode the folder path
+    folder_path = ERB::Util.url_encode(sharepoint_folder_name)
+
+    "#{base_url}/#{folder_path}"
+  end
+
   private
 
   def create_initial_activity
