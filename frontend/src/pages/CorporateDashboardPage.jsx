@@ -393,6 +393,13 @@ export default function CorporateDashboardPage() {
               <FolderOpenIcon className="h-5 w-5 mr-2" />
               View Tab Structure
             </button>
+            <button
+              onClick={() => navigate('/corporate/groups')}
+              className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <BuildingOfficeIcon className="h-5 w-5 mr-2" />
+              Company Groups
+            </button>
           </div>
         </div>
       </div>
