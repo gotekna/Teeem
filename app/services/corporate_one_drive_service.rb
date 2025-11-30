@@ -118,18 +118,18 @@ class CorporateOneDriveService
   # Combined list for backwards compatibility
   DOCUMENT_TYPE_FOLDERS = (PRIMARY_FOLDERS + ASSETS_SUBFOLDERS).freeze
 
-  # Preview the folder structure that would be created in 00 - Private
+  # Preview the folder structure that would be created in 00 TEEEM PRIVATE
   # Returns a hash describing the structure without creating anything
   def preview_private_folder_structure(dry_run: true)
     structure = {
-      root: '00 - Private',
+      root: '00 TEEEM PRIVATE',
       groups: []
     }
 
     CompanyGroup.includes(:companies).order(:name).each do |group|
       group_info = {
         name: group.name,
-        folder_path: "00 - Private/#{group.name}",
+        folder_path: "00 TEEEM PRIVATE/#{group.name}",
         entities: []
       }
 
@@ -141,11 +141,11 @@ class CorporateOneDriveService
           code: company.code,
           entity_type: company.entity_type,
           folder_name: company_folder_name,
-          folder_path: "00 - Private/#{group.name}/#{company_folder_name}",
+          folder_path: "00 TEEEM PRIVATE/#{group.name}/#{company_folder_name}",
           subfolders: DOCUMENT_TYPE_FOLDERS.map do |folder|
             {
               name: folder,
-              path: "00 - Private/#{group.name}/#{company_folder_name}/#{folder}"
+              path: "00 TEEEM PRIVATE/#{group.name}/#{company_folder_name}/#{folder}"
             }
           end
         }
@@ -164,13 +164,13 @@ class CorporateOneDriveService
     structure
   end
 
-  # Create the entire folder structure in 00 - Private
-  # Structure: 00 - Private / [Group Name] / [Company Name] / [Document Type Folders]
+  # Create the entire folder structure in 00 TEEEM PRIVATE
+  # Structure: 00 TEEEM PRIVATE / [Group Name] / [Company Name] / [Document Type Folders]
   def create_private_folder_structure!
     Rails.logger.info "Creating private folder structure..."
 
-    # Get or create 00 - Private folder
-    private_folder = create_or_find_folder('00 - Private')
+    # Get or create 00 TEEEM PRIVATE folder
+    private_folder = create_or_find_folder('00 TEEEM PRIVATE')
     private_folder_id = private_folder['id']
 
     results = {
@@ -210,7 +210,7 @@ class CorporateOneDriveService
         # Update company with OneDrive folder info
         company.update_columns(
           onedrive_folder_id: company_folder_id,
-          onedrive_folder_path: "00 - Private/#{group.name}/#{company_folder_name}"
+          onedrive_folder_path: "00 TEEEM PRIVATE/#{group.name}/#{company_folder_name}"
         )
 
         group_result[:entities] << {

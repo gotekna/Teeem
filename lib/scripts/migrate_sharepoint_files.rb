@@ -1,5 +1,5 @@
 # SharePoint File Migration Script
-# This script migrates files from "Corporate File/" to the new "00 - Private" folder structure
+# This script migrates files from "Corporate File/" to the new "00 TEEEM PRIVATE" folder structure
 # with proper naming conventions based on detected document types
 
 puts '=== SharePoint File Migration ==='

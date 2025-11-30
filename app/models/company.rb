@@ -99,8 +99,8 @@ class Company < ApplicationRecord
     company_xero_connection.present? && company_xero_connection.connection_status == 'connected'
   end
 
-  # SharePoint folder URL for this company's root folder in 00 - Private
-  # Structure: 00 - Private / [Group Name] / [Company Name]
+  # SharePoint folder URL for this company's root folder in 00 TEEEM PRIVATE
+  # Structure: 00 TEEEM PRIVATE / [Group Name] / [Company Name]
   def sharepoint_folder_url
     return nil unless company_group.present?
 
@@ -113,7 +113,7 @@ class Company < ApplicationRecord
 
     # URL encode the path components
     encoded_path = [
-      '00 - Private',
+      '00 TEEEM PRIVATE',
       group_name,
       company_folder_name
     ].map { |p| ERB::Util.url_encode(p) }.join('/')
@@ -122,7 +122,7 @@ class Company < ApplicationRecord
   end
 
   # SharePoint folder URL for a specific document type/tab folder
-  # Structure: 00 - Private / [Group Name] / [Company Name] / [Folder Name]
+  # Structure: 00 TEEEM PRIVATE / [Group Name] / [Company Name] / [Folder Name]
   def sharepoint_folder_url_for_tab(folder_name)
     base_url = sharepoint_folder_url
     return nil unless base_url
