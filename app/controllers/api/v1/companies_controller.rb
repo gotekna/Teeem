@@ -388,8 +388,9 @@ module Api
 
       # GET /api/v1/companies/asic_logins
       # Returns all companies' ASIC login credentials for table view
+      # Excludes Person entity types (only shows companies, trusts, superfunds)
       def asic_logins
-        @companies = Company.all.order(:name)
+        @companies = Company.where.not(entity_type: 'Person').order(:name)
 
         # Filter by company group
         if params[:company_group_id].present?
