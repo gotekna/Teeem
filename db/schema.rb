@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_085016) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -303,7 +303,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_085016) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "company_group_id"
-    t.string "abbreviation"
     t.string "company_code"
     t.integer "health_score"
     t.string "health_status"
@@ -323,13 +322,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_085016) do
     t.string "bank_account_name"
     t.date "bank_start_date"
     t.date "bank_end_date"
-    t.index ["abbreviation"], name: "index_companies_on_abbreviation"
+    t.bigint "consolidation_parent_id"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
     t.index ["code"], name: "index_companies_on_code", unique: true
     t.index ["company_group"], name: "index_companies_on_company_group"
     t.index ["company_group_id", "parent_company_id"], name: "index_companies_on_group_and_parent"
     t.index ["company_group_id"], name: "index_companies_on_company_group_id"
+    t.index ["consolidation_parent_id"], name: "index_companies_on_consolidation_parent_id"
     t.index ["name"], name: "index_companies_on_name"
     t.index ["parent_company_id"], name: "index_companies_on_parent_company_id"
     t.index ["review_date"], name: "index_companies_on_review_date"
@@ -3658,6 +3658,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_085016) do
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "columns", "foundations"
+  add_foreign_key "companies", "companies", column: "consolidation_parent_id", on_delete: :nullify
   add_foreign_key "companies", "companies", column: "parent_company_id"
   add_foreign_key "companies", "company_groups"
   add_foreign_key "company_activities", "companies"

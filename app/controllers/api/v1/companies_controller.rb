@@ -457,7 +457,6 @@ module Api
           name: company.name,
           code: company.code,
           acn: company.acn,
-          abbreviation: company.abbreviation,
           is_trustee: company.is_trustee,
           trust_name: company.trust_name
         }

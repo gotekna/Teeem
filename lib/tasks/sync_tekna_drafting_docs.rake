@@ -88,7 +88,7 @@ namespace :corporate do
           # Extract company code from filename (should be TD)
           filename = file['name']
           name_parts = filename.split(' ')
-          code = name_parts.last && company.abbreviation.present? && name_parts.last.upcase.include?(company.abbreviation.upcase) ? company.abbreviation.upcase : company.abbreviation
+          code = name_parts.last && company.code.present? && name_parts.last.upcase.include?(company.code.upcase) ? company.code.upcase : company.code
 
           # Create document record
           doc = company.company_documents.create!(

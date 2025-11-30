@@ -719,8 +719,7 @@ namespace :corporate do
         .gsub(/\d{1,2}[-_]\d{1,2}[-_]\d{2,4}/, '')
         .gsub(doc_type, '')
         .gsub(company.name, '')
-        .gsub(company.abbreviation || '', '')
-        .gsub(company.company_code || '', '')
+        .gsub(company.code || '', '')
         .gsub(/[-_]+/, ' ')
         .strip
         .squeeze(' ')
@@ -728,8 +727,8 @@ namespace :corporate do
       # Build new filename
       date_str = date ? date.strftime('%Y-%m-%d') : Date.today.strftime('%Y-%m-%d')
 
-      # Use company_code if available, otherwise fall back to abbreviation
-      company_identifier = company.company_code.presence || company.abbreviation.presence || company.name.split.map(&:first).join.upcase
+      # Use code as single source of truth
+      company_identifier = company.code.presence || company.name.split.map(&:first).join.upcase
 
       new_name = "#{company_identifier} - #{date_str} - #{doc_type}"
       new_name += " - #{description}" if description.present? && description.length > 2
@@ -798,8 +797,8 @@ namespace :corporate do
         # Try to find matching folder
         folder_patterns = [
           company.name,
-          company.abbreviation,
-          "#{company.abbreviation} - #{company.name}",
+          company.code,
+          "#{company.code} - #{company.name}",
           company.name.split.first
         ].compact.map(&:downcase)
 

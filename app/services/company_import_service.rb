@@ -349,9 +349,9 @@ class CompanyImportService
         # Principal place is in a different column
         updates[:principal_place_of_business] = row[5].to_s if row[5].present? && company.principal_place_of_business.blank?
       when 'folder storage'
-        # Abbreviation is often in column 3-4 of this row
+        # Code is often in column 3-4 of this row
         if row[2].to_s.downcase.include?('abbreviation')
-          updates[:abbreviation] = row[3].to_s if row[3].present? && company.abbreviation.blank?
+          updates[:code] = row[3].to_s if row[3].present? && company.code.blank?
         end
       when 'current director'
         directors_data << { name: row[1].to_s, position: 'director', date: parse_date(row[2]) }

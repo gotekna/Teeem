@@ -169,7 +169,7 @@ module Api
           acn: company.acn,
           abn: company.abn,
           status: company.status,
-          abbreviation: company.abbreviation
+          code: company.code
         }
       end
 
@@ -222,7 +222,6 @@ module Api
               id: trust_entity.id,
               name: trust_entity.name,
               code: trust_entity.code,
-              abbreviation: trust_entity.abbreviation,
               acn: trust_entity.acn,
               abn: trust_entity.abn,
               status: trust_entity.status,
@@ -243,7 +242,6 @@ module Api
           id: company.id,
           name: company.name,
           code: company.code,
-          abbreviation: company.abbreviation,
           acn: company.acn,
           abn: company.abn,
           status: company.status,
