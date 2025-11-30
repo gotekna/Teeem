@@ -114,6 +114,14 @@ export default function CompaniesPage() {
   const groups = ['all', 'tekna', 'team_harder', 'promise', 'charity', 'other']
   const statuses = ['all', 'active', 'struck_off', 'in_liquidation', 'dormant']
 
+  // Ensure table_id is in URL for Gold Standard tables
+  useEffect(() => {
+    if (!searchParams.get('table_id')) {
+      searchParams.set('table_id', COMPANIES_TABLE_ID)
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [])
+
   useEffect(() => {
     loadCompanies()
     fetchColumns()
@@ -162,6 +170,8 @@ export default function CompaniesPage() {
     } else {
       searchParams.set('group', group)
     }
+    // Ensure table_id persists
+    searchParams.set('table_id', COMPANIES_TABLE_ID)
     setSearchParams(searchParams)
   }
 
@@ -172,6 +182,8 @@ export default function CompaniesPage() {
     } else {
       searchParams.set('status', status)
     }
+    // Ensure table_id persists
+    searchParams.set('table_id', COMPANIES_TABLE_ID)
     setSearchParams(searchParams)
   }
 

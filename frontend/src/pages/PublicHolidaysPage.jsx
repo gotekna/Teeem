@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { getTodayInCompanyTimezone } from '../utils/timezoneUtils'
 import { api } from '../api'
 import { PlusIcon } from '@heroicons/react/24/outline'
@@ -20,6 +21,7 @@ const buildPublicHolidaysColumns = () => [
 ]
 
 export default function PublicHolidaysPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [holidays, setHolidays] = useState([])
   const [loading, setLoading] = useState(true)
   const [columns, setColumns] = useState(buildPublicHolidaysColumns())
@@ -37,6 +39,14 @@ export default function PublicHolidaysPage() {
 
   const regions = ['ALL', 'QLD', 'NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT']
   const years = Array.from({ length: 10 }, (_, i) => getTodayInCompanyTimezone().getFullYear() + i - 2)
+
+  // Ensure table_id is in URL for Gold Standard tables
+  useEffect(() => {
+    if (!searchParams.get('table_id')) {
+      searchParams.set('table_id', PUBLIC_HOLIDAYS_TABLE_ID)
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [])
 
   useEffect(() => {
     loadHolidays()
