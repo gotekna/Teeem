@@ -16,7 +16,7 @@ export default function ApprovalModal({ proposal, onApprove, onCancel, processin
   const [searchMode, setSearchMode] = useState(null) // 'client', 'external_sales', or 'referral'
 
   // Job detail states
-  const [jobAddress, setJobAddress] = useState(data.job_title || '')
+  const [jobAddress, setJobAddress] = useState(data.property_address || data.job_title || '')
   const [jobType, setJobType] = useState(null)
   const [jobStatus, setJobStatus] = useState(null)
   const [jobEstimate, setJobEstimate] = useState(data.contract_value || '')
@@ -29,13 +29,14 @@ export default function ApprovalModal({ proposal, onApprove, onCancel, processin
 
   useEffect(() => {
     // Initialize with AI-detected contacts
-    if (data.customer?.contact_exists) {
+    // Handle customer data - it might have contact_id or just be raw extraction
+    if (data.customer) {
       setClientContact(data.customer)
     }
     if (data.external_sales?.length > 0) {
-      setExternalSalesContacts(data.external_sales.filter(s => s.contact_exists))
+      setExternalSalesContacts(data.external_sales.filter(s => s.contact_exists || s.email))
     }
-    if (data.referral_contact?.contact_exists) {
+    if (data.referral_contact) {
       setReferralContact(data.referral_contact)
     }
 
