@@ -259,9 +259,9 @@ namespace :corporate do
       updates = {}
       updates[:corporate_key] = data[:corporate_key] if data[:corporate_key].present? && company.corporate_key.blank?
       updates[:asic_username] = data[:asic_username] if data[:asic_username].present? && company.asic_username.blank?
-      updates[:asic_password] = data[:asic_password] if data[:asic_password].present?
+      updates[:encrypted_asic_password] = data[:asic_password] if data[:asic_password].present?
       updates[:recovery_question] = data[:recovery_question] if data[:recovery_question].present? && company.recovery_question.blank?
-      updates[:recovery_answer] = data[:recovery_answer] if data[:recovery_answer].present?
+      updates[:encrypted_recovery_answer] = data[:recovery_answer] if data[:recovery_answer].present?
 
       if updates.any?
         company.update!(updates)
