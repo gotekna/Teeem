@@ -242,6 +242,7 @@ export default function TeeemTableView({
   initialGroupByColumn = null,  // NEW: Initial column to group by (for tables that default to grouped view)
   onServerSearch = null,  // NEW: Callback for server-side search (called with debounced search term)
   serverSearchLoading = false,  // NEW: Shows loading indicator during server-side search
+  onViewApiParamsChange = null,  // NEW: Callback when view with apiParams is selected (for server-side filtering)
   customCellRenderer = null,  // NEW: Custom cell renderer function(entry, columnKey) => React element or null (null = use default)
   onRowUpdate = null,  // NEW: Callback for row updates (rowId, field, value) => void - enables inline editing
   extraRowProps = null,  // NEW: Extra props to pass to row rendering (e.g., suppliers list, allRows, etc.)
@@ -803,6 +804,16 @@ export default function TeeemTableView({
     // Set as active view
     if (setActive && view.id) {
       setActiveViewId(view.id)
+    }
+
+    // Handle apiParams for server-side filtering (e.g., duplicates_only for Contacts)
+    if (view.filters?.apiParams && onViewApiParamsChange) {
+      console.log('[loadViewState] Calling onViewApiParamsChange with:', view.filters.apiParams)
+      onViewApiParamsChange(view.filters.apiParams)
+    } else if (onViewApiParamsChange) {
+      // Clear apiParams when switching to a view without them
+      console.log('[loadViewState] Clearing apiParams (view has none)')
+      onViewApiParamsChange(null)
     }
   }
 

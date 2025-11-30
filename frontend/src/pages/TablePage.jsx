@@ -129,6 +129,7 @@ export default function TablePage({ embedded = false }) {
   const [viewsLoading, setViewsLoading] = useState(false) // Track if views are currently loading
   const [serverSearchLoading, setServerSearchLoading] = useState(false) // Track server-side search loading state
   const [currentSearchTerm, setCurrentSearchTerm] = useState('') // Track current search term for server-side search
+  const [viewApiParams, setViewApiParams] = useState(null) // Track API params from current view (for server-side filtering)
 
   // Reset progressive loading state when table changes
   useEffect(() => {
@@ -249,6 +250,24 @@ export default function TablePage({ embedded = false }) {
       loadRecords()
     }
   }, [viewsLoaded, table]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Step 3: Reload records when view apiParams change (e.g., "Possible Duplicates" view selected)
+  const previousApiParamsRef = useRef(null)
+  useEffect(() => {
+    // Skip initial render and only reload when apiParams actually change
+    const prevParams = previousApiParamsRef.current
+    const currentParams = viewApiParams
+
+    // Compare params (both null, or same object structure)
+    const paramsChanged = JSON.stringify(prevParams) !== JSON.stringify(currentParams)
+
+    if (paramsChanged && viewsLoaded && table) {
+      progressiveLoadLog('🔄 View apiParams changed, reloading records:', { from: prevParams, to: currentParams })
+      previousApiParamsRef.current = currentParams
+      // Pass the new apiParams directly to avoid closure issues
+      loadRecords(1, false, currentParams)
+    }
+  }, [viewApiParams, viewsLoaded, table]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track when loading state changes
   useEffect(() => {
@@ -384,7 +403,7 @@ export default function TablePage({ embedded = false }) {
     }
   }
 
-  const loadRecords = async (page = 1, append = false) => {
+  const loadRecords = async (page = 1, append = false, overrideApiParams = undefined) => {
     // Prevent duplicate loads (React Strict Mode protection)
     const now = Date.now()
     const timeSinceLastLoad = now - lastLoadStartTimeRef.current
@@ -458,8 +477,20 @@ export default function TablePage({ embedded = false }) {
       const defaultView = preloadedViews?.find(v => v.display_order === 0)
       const viewParam = useMinimalFields && defaultView ? `&view_id=${defaultView.id}` : ''
 
-      // Pass special filters from URL
-      const duplicatesParam = duplicatesOnly ? '&duplicates_only=true' : ''
+      // Pass special filters from URL or view apiParams
+      // overrideApiParams > viewApiParams > URL param (in priority order)
+      const effectiveApiParams = overrideApiParams !== undefined ? overrideApiParams : viewApiParams
+      let apiFilterParams = ''
+      if (effectiveApiParams) {
+        // Build query string from view's apiParams
+        Object.entries(effectiveApiParams).forEach(([key, value]) => {
+          apiFilterParams += `&${key}=${encodeURIComponent(value)}`
+        })
+        progressiveLoadLog('Using view apiParams:', effectiveApiParams)
+      } else if (duplicatesOnly) {
+        // Fallback to URL param
+        apiFilterParams = '&duplicates_only=true'
+      }
 
       progressiveLoadLog('loadRecords called:', {
         id,
@@ -478,7 +509,7 @@ export default function TablePage({ embedded = false }) {
 
       // Views are already loaded by loadViewsFirst() - no need to load them here
 
-      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}${duplicatesParam}`, {
+      const response = await api.get(`/api/v1/foundations/${id}/records?per_page=${perPage}&page=${page}${fieldsParam}${viewParam}${apiFilterParams}`, {
         onDownloadProgress: (progressEvent) => {
           // Just update progress if we have real data
           if (progressEvent.total) {
@@ -1027,6 +1058,10 @@ export default function TablePage({ embedded = false }) {
             preloadedViews={preloadedViews}
             onServerSearch={handleServerSearch}
             serverSearchLoading={serverSearchLoading}
+            onViewApiParamsChange={(apiParams) => {
+              console.log('[TablePage] View apiParams changed:', apiParams)
+              setViewApiParams(apiParams)
+            }}
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
