@@ -470,6 +470,52 @@ export default function ApprovalModal({ proposal, onApprove, onCancel, processin
             />
           )}
 
+          {/* Estimator Analysis */}
+          {(data.job_summary || data.key_points?.length > 0) && (
+            <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">AI Estimator Analysis</h4>
+
+              {data.job_summary && (
+                <div className="mb-3">
+                  <p className="text-sm text-gray-700 font-medium mb-1">Summary:</p>
+                  <p className="text-sm text-gray-600">{data.job_summary}</p>
+                </div>
+              )}
+
+              {data.key_points?.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-sm text-gray-700 font-medium mb-2">Key Points:</p>
+                  <ul className="space-y-1">
+                    {data.key_points.slice(0, 5).map((point, index) => (
+                      <li key={index} className="text-sm text-gray-600 flex gap-2">
+                        <span className="text-indigo-600 font-medium">{index + 1}.</span>
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {data.key_points.length > 5 && (
+                    <p className="text-xs text-gray-500 mt-1 italic">
+                      + {data.key_points.length - 5} more points (view in job Estimator tab)
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {data.estimated_scope?.complexity && (
+                <div className="flex gap-4 text-xs">
+                  <span className="text-gray-600">
+                    <span className="font-medium">Complexity:</span> {data.estimated_scope.complexity}
+                  </span>
+                  {data.estimated_scope.duration_estimate && (
+                    <span className="text-gray-600">
+                      <span className="font-medium">Duration:</span> {data.estimated_scope.duration_estimate}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Job Type */}
           <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
             <label className="block text-sm font-medium text-gray-700 mb-2">
