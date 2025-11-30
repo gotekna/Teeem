@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_115301) do
+ActiveRecord::Schema[8.0].define(version: 2025_11_30_203837) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -421,6 +421,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_115301) do
     t.bigint "asset_id"
     t.bigint "loan_id"
     t.bigint "contact_id"
+    t.integer "financial_years", default: [], array: true
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
@@ -428,6 +429,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_115301) do
     t.index ["document_date"], name: "index_company_documents_on_document_date"
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
+    t.index ["financial_years"], name: "index_company_documents_on_financial_years", using: :gin
     t.index ["folder"], name: "index_company_documents_on_folder"
     t.index ["loan_id"], name: "index_company_documents_on_loan_id"
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"

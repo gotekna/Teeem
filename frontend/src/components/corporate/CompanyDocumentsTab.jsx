@@ -20,6 +20,7 @@ const buildDocumentColumns = () => [
   { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32 },
   { key: 'id', label: 'ID', column_type: 'whole_number', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 60 },
   { key: 'title', label: 'Title', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'text', width: 300, is_title: true },
+  { key: 'financial_years', label: 'FY', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 80 },
   { key: 'folder', label: 'Folder', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
   { key: 'document_type', label: 'Type', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 120 },
   { key: 'source', label: 'Source', column_type: 'single_line_text', resizable: true, sortable: true, filterable: true, filterType: 'dropdown', width: 100 },
@@ -92,7 +93,9 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
         // Format file size for display
         file_size_display: formatFileSize(doc.file_size),
         // Add source badge info
-        source_display: doc.source === 'sharepoint' ? 'SharePoint' : 'Upload'
+        source_display: doc.source === 'sharepoint' ? 'SharePoint' : 'Upload',
+        // Format financial years as comma-separated string (e.g., "2021" or "2021, 2022")
+        financial_years: doc.financial_years?.length > 0 ? doc.financial_years.join(', ') : ''
       }))
       setDocuments(transformedDocs)
     } catch (error) {
