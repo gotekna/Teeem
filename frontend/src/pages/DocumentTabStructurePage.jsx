@@ -99,6 +99,7 @@ export default function DocumentTabStructurePage() {
       'Bank Statement': '{Bank} {Account} {Month} {Year}',
       'Directors\' Minutes': '{CompanyCode} Minutes {Date}',
       'Directors\' Resolution - Distribution': '{CompanyCode} Distribution Resolution FY{YY}',
+      'Distribution': '{CompanyCode} Distribution {Date}',
       'Dividend Payment Record': '{CompanyCode} Dividend {Date}',
       'Gift Deed Return': '{CompanyCode} Gift Deed {Beneficiary} {Date}',
       'Loan Agreement': '{LenderCode} to {BorrowerCode} Loan {Date}',
