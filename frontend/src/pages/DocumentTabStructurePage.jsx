@@ -75,7 +75,8 @@ export default function DocumentTabStructurePage() {
       'TRUST': 'bg-teal-100 text-teal-700',
       'GENERAL': 'bg-gray-100 text-gray-700',
       'STRUCTURE': 'bg-red-100 text-red-700',
-      'FINANCIALS': 'bg-emerald-100 text-emerald-700'
+      'FINANCIALS': 'bg-emerald-100 text-emerald-700',
+      'REGISTRY': 'bg-cyan-100 text-cyan-700'
     }
     return colors[tab] || 'bg-gray-100 text-gray-700'
   }
