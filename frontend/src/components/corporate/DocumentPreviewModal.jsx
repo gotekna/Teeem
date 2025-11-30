@@ -82,16 +82,9 @@ export default function DocumentPreviewModal({ document, onClose, onDocumentUpda
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center gap-3">
                     <DocumentTextIcon className="h-6 w-6 text-gray-400" />
-                    <div>
-                      <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {document.display_title || document.title}
-                      </Dialog.Title>
-                      {document.display_title && document.display_title !== document.title && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-md" title={document.title}>
-                          {document.title}
-                        </p>
-                      )}
-                    </div>
+                    <Dialog.Title className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {document.display_title || document.title}
+                    </Dialog.Title>
                   </div>
                   <button
                     onClick={onClose}

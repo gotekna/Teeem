@@ -273,14 +273,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
         return (
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-            <div className="flex flex-col">
-              <span className="font-medium text-gray-900 dark:text-white">{doc.display_title}</span>
-              {doc.display_title !== doc.title && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[300px]" title={doc.title}>
-                  {doc.title}
-                </span>
-              )}
-            </div>
+            <span className="font-medium text-gray-900 dark:text-white">{doc.display_title || doc.title}</span>
           </div>
         )
       case 'source':
