@@ -62,4 +62,91 @@ namespace :contacts do
     puts "  Person:  #{Contact.where(entity_type: 'person').count}"
     puts "  Nil:     #{Contact.where(entity_type: nil).count}"
   end
+
+  desc "Preview duplicate contacts that would be auto-merged (dry run)"
+  task auto_merge_preview: :environment do
+    puts "=" * 60
+    puts "CONTACT AUTO-MERGE PREVIEW (DRY RUN)"
+    puts "=" * 60
+    puts
+
+    service = ContactAutoMergeService.new(dry_run: true)
+    result = service.run
+
+    puts "\nSUMMARY"
+    puts "-" * 40
+    puts "  Duplicate groups found: #{result[:groups_found]}"
+    puts "  Contacts that would be merged: #{result[:contacts_merged]}"
+    puts "  Xero connections preserved: #{result[:xero_connections_preserved]}"
+    puts
+
+    if result[:merged_groups].any?
+      puts "MERGE PLAN"
+      puts "-" * 40
+      result[:merged_groups].each_with_index do |group, i|
+        xero_badge = group[:target_xero] ? " [XERO]" : ""
+        puts "  #{i + 1}. Keep: #{group[:target_name]} (ID: #{group[:target_id]})#{xero_badge}"
+        puts "     Merge: #{group[:source_names].join(', ')}"
+        puts "     IDs: #{group[:source_ids].join(', ')}"
+        puts
+      end
+    end
+
+    if result[:errors].any?
+      puts "ERRORS"
+      puts "-" * 40
+      result[:errors].each { |e| puts "  - #{e}" }
+    end
+
+    puts "\nTo actually merge, run: rails contacts:auto_merge"
+  end
+
+  desc "Auto-merge duplicate contacts with matching names (DESTRUCTIVE)"
+  task auto_merge: :environment do
+    puts "=" * 60
+    puts "CONTACT AUTO-MERGE (LIVE MODE)"
+    puts "=" * 60
+    puts
+    puts "WARNING: This will permanently merge duplicate contacts!"
+    puts "Xero connections will be preserved by keeping the linked contact."
+    puts
+
+    # Get confirmation
+    print "Type 'yes' to continue: "
+    confirmation = STDIN.gets&.chomp
+
+    unless confirmation == 'yes'
+      puts "Aborted."
+      exit 1
+    end
+
+    puts "\nRunning auto-merge..."
+    service = ContactAutoMergeService.new(dry_run: false)
+    result = service.run
+
+    puts "\nRESULTS"
+    puts "-" * 40
+    puts "  Duplicate groups processed: #{result[:groups_found]}"
+    puts "  Contacts merged: #{result[:contacts_merged]}"
+    puts "  Contacts deleted: #{result[:contacts_deleted]}"
+    puts "  Xero connections preserved: #{result[:xero_connections_preserved]}"
+
+    if result[:merged_groups].any?
+      puts "\nMERGED GROUPS"
+      puts "-" * 40
+      result[:merged_groups].each_with_index do |group, i|
+        xero_badge = group[:target_xero] ? " [XERO]" : ""
+        puts "  #{i + 1}. Kept: #{group[:target_name]} (ID: #{group[:target_id]})#{xero_badge}"
+        puts "     Merged: #{group[:source_names].join(', ')}"
+      end
+    end
+
+    if result[:errors].any?
+      puts "\nERRORS"
+      puts "-" * 40
+      result[:errors].each { |e| puts "  - #{e}" }
+    end
+
+    puts "\nDone!"
+  end
 end
