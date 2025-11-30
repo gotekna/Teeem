@@ -331,6 +331,18 @@ function DirectorCard({ director, isCurrent, onEdit, onResign }) {
     return new Date(date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
+  const formatPhone = (phone) => {
+    if (!phone) return '-'
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, '')
+    // Format as 0000 000 000 for Australian mobiles
+    if (digits.length === 10 && digits.startsWith('0')) {
+      return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`
+    }
+    // Return original if not a standard Australian mobile
+    return phone
+  }
+
   return (
     <div className={`bg-white border rounded-lg p-4 hover:border-indigo-300 ${isCurrent ? 'border-gray-200' : 'border-gray-100 bg-gray-50'}`}>
       <div className="flex items-start justify-between">
@@ -366,7 +378,7 @@ function DirectorCard({ director, isCurrent, onEdit, onResign }) {
             )}
             {contact.mobile_phone && (
               <div>
-                <span className="font-medium">Phone:</span> {contact.mobile_phone}
+                <span className="font-medium">Phone:</span> {formatPhone(contact.mobile_phone)}
               </div>
             )}
             {contact.date_of_birth && (
