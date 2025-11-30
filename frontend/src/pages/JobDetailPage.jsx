@@ -693,7 +693,7 @@ export default function JobDetailPage() {
           )}
 
           {activeTab === 'estimator' && (
-            <JobEstimatorTab jobId={id} />
+            <JobEstimatorTab jobId={id} job={job} />
           )}
 
           {isProfitSection && (
