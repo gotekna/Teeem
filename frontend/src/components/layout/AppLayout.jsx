@@ -821,7 +821,7 @@ export default function AppLayout({ children }) {
   }
 
   return (
-    <div style={{ overflow: 'clip', height: '100vh' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Mobile sidebar */}
       <Dialog open={sidebarOpen} onClose={setSidebarOpen} className="relative z-50 lg:hidden">
         <DialogBackdrop
