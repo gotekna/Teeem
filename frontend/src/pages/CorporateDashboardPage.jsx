@@ -14,8 +14,9 @@ import {
   FolderOpenIcon,
   PlusIcon
 } from '@heroicons/react/24/outline'
-import api from '../api'
+import { api } from '../api'
 import TeeemTableView from '../components/documentation/TeeemTableView'
+import Toast from '../components/Toast'
 
 // Table ID for Companies (from foundations table)
 const COMPANIES_TABLE_ID = 353
@@ -100,7 +101,9 @@ function convertColumnsToTEEEMFormat(apiColumns, foundationId) {
       sumType: defaults.sumType,
       tooltip: col.description || `${col.column_type} column`,
       is_title: col.column_name === 'name', // Mark name as title column
-      editable: col.column_name === 'code', // Make code editable
+      editable: ['code', 'entity_type', 'status', 'acn', 'abn'].includes(col.column_name), // Make key fields editable
+      // Pass choice options for dropdown columns
+      available_choices: col.available_choices,
       // Pass lookup info if available
       lookup_foundation_id: col.lookup_foundation_id,
       lookup_display_column: col.lookup_display_column,
@@ -129,6 +132,7 @@ export default function CorporateDashboardPage() {
   const [upcomingCompliance, setUpcomingCompliance] = useState([])
   const [companies, setCompanies] = useState([])
   const [columns, setColumns] = useState([])
+  const [toast, setToast] = useState(null)
 
   useEffect(() => {
     loadDashboardData()
@@ -192,6 +196,71 @@ export default function CorporateDashboardPage() {
       setColumns(teeemColumns)
     } catch (err) {
       console.error('❌ Dashboard: Failed to fetch columns:', err)
+    }
+  }
+
+  const handleEdit = async (entry) => {
+    console.log('🔥 Dashboard handleEdit CALLED with entry:', entry.id, entry.entity_type)
+    try {
+      console.log('🔥 Making PATCH request to /api/v1/companies/' + entry.id)
+      const response = await api.patch(`/api/v1/companies/${entry.id}`, { company: entry })
+      console.log('🔥 PATCH response:', response)
+
+      // Update local state with saved data
+      setCompanies(companies.map(c => c.id === entry.id ? response.company : c))
+      setToast({ message: 'Company updated successfully', type: 'success' })
+    } catch (err) {
+      console.error('🔥 Failed to update company:', err)
+      setToast({ message: 'Failed to update company', type: 'error' })
+    }
+  }
+
+  const handleBulkUpdate = async (entries) => {
+    try {
+      // Update all companies in parallel
+      const responses = await Promise.all(
+        entries.map(entry => api.patch(`/api/v1/companies/${entry.id}`, { company: entry }))
+      )
+
+      // Update local state with saved data
+      const updatedIds = new Set(entries.map(e => e.id))
+      setCompanies(companies.map(c => {
+        if (updatedIds.has(c.id)) {
+          const response = responses.find(r => r.company.id === c.id)
+          return response?.company || c
+        }
+        return c
+      }))
+
+      setToast({ message: `Successfully updated ${entries.length} companies`, type: 'success' })
+    } catch (err) {
+      console.error('Failed to bulk update companies:', err)
+      setToast({ message: 'Failed to update companies', type: 'error' })
+    }
+  }
+
+  const handleDelete = async (entry) => {
+    if (!confirm(`Delete company "${entry.name}"? This cannot be undone.`)) return
+
+    try {
+      await api.delete(`/api/v1/companies/${entry.id}`)
+      setCompanies(companies.filter(c => c.id !== entry.id))
+      setToast({ message: 'Company deleted successfully', type: 'success' })
+    } catch (err) {
+      console.error('Failed to delete company:', err)
+      setToast({ message: 'Failed to delete company', type: 'error' })
+    }
+  }
+
+  const handleBulkDelete = async (entries) => {
+    try {
+      const ids = entries.map(e => e.id)
+      await Promise.all(ids.map(id => api.delete(`/api/v1/companies/${id}`)))
+      setCompanies(companies.filter(c => !ids.includes(c.id)))
+      setToast({ message: `Successfully deleted ${entries.length} companies`, type: 'success' })
+    } catch (err) {
+      console.error('Failed to bulk delete companies:', err)
+      setToast({ message: 'Failed to delete companies', type: 'error' })
     }
   }
 
@@ -335,6 +404,10 @@ export default function CorporateDashboardPage() {
         tableName="All Companies"
         entries={companies}
         columns={columns}
+        onEdit={handleEdit}
+        onBulkUpdate={handleBulkUpdate}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
         onRowDoubleClick={(company) => navigate(`/corporate/companies/${company.id}`)}
         enableImport={false}
         enableExport={true}
@@ -392,6 +465,15 @@ export default function CorporateDashboardPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   )
