@@ -115,12 +115,12 @@ export default function DocumentTabStructurePage() {
       'Bank Statement': '{CompanyCode} {Bank} {Account} {Month} {Year}',
 
       // Loans
-      'Loan Agreement': '{BorrowerCode} Loan from {LenderCode} {Date}',
-      'Loan Agreement - Draft': '{BorrowerCode} Loan from {LenderCode} DRAFT {Date}',
-      'Loan Agreement - Signed': '{BorrowerCode} Loan from {LenderCode} SIGNED {Date}',
-      'Security Deed': '{CompanyCode} Security Deed {Date}',
-      'Security Deed - Draft': '{CompanyCode} Security Deed DRAFT {Date}',
-      'Security Deed - Signed': '{CompanyCode} Security Deed SIGNED {Date}',
+      'Loan Agreement': '{BorrowerCode} Loan from {LenderCode} {AssetCode} {Date}',
+      'Loan Agreement - Draft': '{BorrowerCode} Loan from {LenderCode} {AssetCode} DRAFT {Date}',
+      'Loan Agreement - Signed': '{BorrowerCode} Loan from {LenderCode} {AssetCode} SIGNED {Date}',
+      'Security Deed': '{CompanyCode} Security Deed {AssetCode} {Date}',
+      'Security Deed - Draft': '{CompanyCode} Security Deed {AssetCode} DRAFT {Date}',
+      'Security Deed - Signed': '{CompanyCode} Security Deed {AssetCode} SIGNED {Date}',
       'PPSR Registration': '{CompanyCode} PPSR {AssetCode} {Date}',
 
       // Minutes & Resolutions
