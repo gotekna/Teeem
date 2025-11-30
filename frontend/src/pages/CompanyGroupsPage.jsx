@@ -1,18 +1,75 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  BuildingOfficeIcon,
   ChevronRightIcon,
   ChevronDownIcon,
   PlusIcon,
   MagnifyingGlassIcon,
   UserGroupIcon,
   CurrencyDollarIcon,
-  DocumentTextIcon,
-  ArrowsPointingOutIcon
 } from '@heroicons/react/24/outline'
 import { api } from '../api'
 import Toast from '../components/Toast'
+
+// Shape icons matching the family trust diagram
+// Rectangle for Company
+const CompanyIcon = ({ className = "h-5 w-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="5" width="18" height="14" rx="1" />
+  </svg>
+)
+
+// Triangle for Trust
+const TrustIcon = ({ className = "h-5 w-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 3L22 20H2L12 3Z" strokeLinejoin="round" />
+  </svg>
+)
+
+// Circle/Oval for Person
+const PersonIcon = ({ className = "h-5 w-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <ellipse cx="12" cy="12" rx="9" ry="7" />
+  </svg>
+)
+
+// Diamond for Superfund
+const SuperfundIcon = ({ className = "h-5 w-5" }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 2L22 12L12 22L2 12L12 2Z" strokeLinejoin="round" />
+  </svg>
+)
+
+// Get the appropriate icon for an entity type
+const getEntityIcon = (entityType, className = "h-5 w-5") => {
+  switch (entityType?.toLowerCase()) {
+    case 'trust':
+      return <TrustIcon className={className} />
+    case 'superfund':
+      return <SuperfundIcon className={className} />
+    case 'person':
+      return <PersonIcon className={className} />
+    case 'company':
+    default:
+      return <CompanyIcon className={className} />
+  }
+}
+
+// Get color class for entity type
+const getEntityColor = (entityType, isTrustee = false) => {
+  if (isTrustee) return 'text-purple-600'
+  switch (entityType?.toLowerCase()) {
+    case 'trust':
+      return 'text-rose-500'
+    case 'superfund':
+      return 'text-amber-600'
+    case 'person':
+      return 'text-teal-600'
+    case 'company':
+    default:
+      return 'text-blue-600'
+  }
+}
 
 // Recursive component to render company hierarchy tree
 function CompanyTreeNode({ company, level = 0, expandedNodes, toggleNode, navigate }) {
@@ -48,9 +105,9 @@ function CompanyTreeNode({ company, level = 0, expandedNodes, toggleNode, naviga
           )}
         </button>
 
-        {/* Company icon */}
-        <div className={`flex-shrink-0 mr-3 ${company.is_trustee ? 'text-purple-600' : 'text-blue-600'}`}>
-          <BuildingOfficeIcon className="h-5 w-5" />
+        {/* Entity icon - shape based on type */}
+        <div className={`flex-shrink-0 mr-3 ${getEntityColor(company.entity_type, company.is_trustee)}`}>
+          {getEntityIcon(company.entity_type)}
         </div>
 
         {/* Company details */}
@@ -380,22 +437,36 @@ export default function CompanyGroupsPage() {
 
           {/* Legend */}
           <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
-            <div className="flex items-center gap-6 text-xs text-gray-500">
+            <div className="flex items-center gap-6 text-xs text-gray-600">
+              <span className="font-medium text-gray-500">Legend:</span>
               <div className="flex items-center gap-1.5">
-                <BuildingOfficeIcon className="h-4 w-4 text-blue-600" />
+                <CompanyIcon className="h-4 w-4 text-blue-600" />
                 <span>Company</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">Trustee</span>
-                <span>Acts as trustee for a trust</span>
+                <TrustIcon className="h-4 w-4 text-rose-500" />
+                <span>Trust</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <SuperfundIcon className="h-4 w-4 text-amber-600" />
+                <span>Superfund</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <PersonIcon className="h-4 w-4 text-teal-600" />
+                <span>Person</span>
+              </div>
+              <div className="border-l border-gray-300 h-4 mx-1" />
+              <div className="flex items-center gap-1.5">
+                <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-[10px]">Trustee</span>
+                <span>Acts as trustee</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <UserGroupIcon className="h-4 w-4" />
-                <span>Number of shareholders</span>
+                <span>Shareholders</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <CurrencyDollarIcon className="h-4 w-4" />
-                <span>Number of investments</span>
+                <span>Investments</span>
               </div>
             </div>
           </div>
