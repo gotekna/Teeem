@@ -130,15 +130,17 @@ export default function DocumentTabStructurePage() {
       'Directors\' Resolution - Distribution': '{CompanyCode} Distribution Resolution FY{YY}',
 
       // Dividends & Distributions
-      'Distribution': '{CompanyCode} Distribution {Date}',
-      'Distribution - Draft': '{CompanyCode} Distribution DRAFT {Date}',
-      'Distribution - Signed': '{CompanyCode} Distribution SIGNED {Date}',
-      'Dividend Payment Record': '{CompanyCode} Dividend {Date}',
-      'Gift Deed Return': '{CompanyCode} Gift Deed {Beneficiary} {Date}',
+      'Distribution Declaration': '{CompanyCode} Distribution Declaration FY{YY}',
+      'Dividend Declaration': '{CompanyCode} Dividend Declaration FY{YY}',
+      'Dividend Payment Record': '{CompanyCode} Dividend Payment Record FY{YY}',
+      'Gift Deed': '{CompanyCode} Gift Deed {Beneficiary} {Date}',
+      'Gift Deed - Signed': '{CompanyCode} Gift Deed - Signed {Beneficiary} {Date}',
+      'Gift Deed Return': '{CompanyCode} Gift Deed Return {Beneficiary} {Date}',
 
       // Financials
       'Draft Financials': '{CompanyCode} Draft Financials FY{YY}',
       'Final Financials': '{CompanyCode} Final Financials FY{YY}',
+      'Final Financials - Signed': '{CompanyCode} Final Financials - Signed FY{YY}',
 
       // Registry
       'Share Certificate': '{CompanyCode} Share Certificate {ShareholderCode} {Date}',
