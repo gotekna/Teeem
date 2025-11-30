@@ -65,6 +65,13 @@ module Api
           end
         end
 
+        # Filter to only show possible duplicate contacts
+        if params[:duplicates_only] == 'true'
+          # Find contacts that share a normalized full_name with at least one other contact
+          duplicate_ids = find_duplicate_contact_ids
+          @contacts = @contacts.where(id: duplicate_ids)
+        end
+
         # Filter by having contact info
         @contacts = @contacts.with_email if params[:with_email] == "true"
         @contacts = @contacts.with_phone if params[:with_phone] == "true"
@@ -1410,6 +1417,21 @@ module Api
       def normalize_name(name)
         return nil if name.blank?
         name.to_s.downcase.gsub(/\s+/, ' ').strip
+      end
+
+      # Find all contact IDs that are possible duplicates (share normalized name with another contact)
+      def find_duplicate_contact_ids
+        contacts_by_name = Contact.where(deleted: [false, nil])
+          .select(:id, :full_name)
+          .group_by { |c| normalize_name(c.full_name) }
+
+        duplicate_ids = []
+        contacts_by_name.each do |normalized_name, contacts|
+          next if normalized_name.blank?
+          next if contacts.size < 2
+          duplicate_ids.concat(contacts.map(&:id))
+        end
+        duplicate_ids
       end
 
       def contact_duplicate_json(contact)
