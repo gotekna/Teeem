@@ -133,10 +133,33 @@ class CorporateOnedriveService
       }
     end
 
-    # Find this company's folder
-    company_folders = list_folder_children(client, corporate_folder['id'])
-    company_folder = company_folders.find do |f|
+    # Find this company's folder - search both top-level and within group folders
+    company_folder = nil
+    group_name = nil
+
+    top_level_folders = list_folder_children(client, corporate_folder['id'])
+
+    # First, check if company folder is directly under corporate root
+    company_folder = top_level_folders.find do |f|
       f['folder'] && folder_matches_company?(f['name'], company)
+    end
+
+    # If not found, search within group folders
+    unless company_folder
+      top_level_folders.each do |folder|
+        next unless folder['folder'] && is_group_folder?(folder['name'])
+
+        group_children = list_folder_children(client, folder['id'])
+        matched_folder = group_children.find do |f|
+          f['folder'] && folder_matches_company?(f['name'], company)
+        end
+
+        if matched_folder
+          company_folder = matched_folder
+          group_name = folder['name']
+          break
+        end
+      end
     end
 
     unless company_folder
@@ -146,7 +169,7 @@ class CorporateOnedriveService
       }
     end
 
-    process_company_folder(client, company_folder, company)
+    process_company_folder(client, company_folder, company, group_name)
 
     {
       success: true,
