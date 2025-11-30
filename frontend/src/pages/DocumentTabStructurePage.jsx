@@ -148,10 +148,14 @@ export default function DocumentTabStructurePage() {
       // Bank
       'Bank Statement': '{CompanyCode} {Bank} {Account} {Month} {Year}',
 
-      // Loans
+      // Loans - Borrower perspective (we borrowed from someone)
       'Loan Agreement': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} {Date}',
       'Loan Agreement - Draft': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} DRAFT {Date}',
       'Loan Agreement - Signed': '{CompanyCode} {LoanID} Loan from {LenderCode} {AssetCode} SIGNED {Date}',
+      // Loans - Lender perspective (we lent to someone)
+      'Loan Agreement - Lender Copy': '{CompanyCode} {LoanID} Loan to {BorrowerCode} {AssetCode} {Date}',
+      'Loan Agreement - Lender Copy Draft': '{CompanyCode} {LoanID} Loan to {BorrowerCode} {AssetCode} DRAFT {Date}',
+      'Loan Agreement - Lender Copy Signed': '{CompanyCode} {LoanID} Loan to {BorrowerCode} {AssetCode} SIGNED {Date}',
       'Security Deed': '{CompanyCode} {LoanID} Security Deed {AssetCode} {Date}',
       'Security Deed - Draft': '{CompanyCode} {LoanID} Security Deed {AssetCode} DRAFT {Date}',
       'Security Deed - Signed': '{CompanyCode} {LoanID} Security Deed {AssetCode} SIGNED {Date}',
