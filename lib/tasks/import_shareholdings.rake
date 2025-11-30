@@ -55,7 +55,8 @@ namespace :corporate do
       cs.update!(
         number_of_shares: sh['number_of_shares'],
         share_class: sh['share_class'],
-        beneficially_held: sh['beneficially_held']
+        beneficially_held: sh['beneficially_held'],
+        beneficial_owner: sh['beneficial_owner']
       )
       shareholdings_count += 1
       puts "  #{company.name} owned by #{sh['shareholder_name']} (#{sh['number_of_shares']} shares)"
