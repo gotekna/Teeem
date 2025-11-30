@@ -8,7 +8,7 @@ module Api
       def index
         @shareholdings = @company.company_shareholdings
                                  .includes(:shareholder)
-                                 .order(:share_class, 'contacts.full_name')
+                                 .order(:share_class, :created_at)
 
         render json: {
           success: true,
@@ -148,12 +148,24 @@ module Api
       end
 
       def serialize_shareholding(shareholding, include_details: false)
+        shareholder = shareholding.shareholder
+        shareholder_name = if shareholder.respond_to?(:display_name)
+                             shareholder&.display_name
+                           elsif shareholder.respond_to?(:name)
+                             shareholder&.name
+                           elsif shareholder.respond_to?(:full_name)
+                             shareholder&.full_name
+                           else
+                             "Unknown"
+                           end
+
         data = {
           id: shareholding.id,
           company_id: shareholding.company_id,
           shareholder_id: shareholding.shareholder_id,
-          shareholder_name: shareholding.shareholder&.display_name,
-          shareholder_type: shareholding.shareholder&.entity_type,
+          shareholder_type: shareholding.shareholder_type,
+          shareholder_name: shareholder_name,
+          shareholder_entity_type: shareholder&.entity_type,
           share_class: shareholding.share_class,
           number_of_shares: shareholding.number_of_shares,
           percentage: calculate_percentage(shareholding),
@@ -165,13 +177,13 @@ module Api
           updated_at: shareholding.updated_at
         }
 
-        if include_details
+        if include_details && shareholder
           data[:shareholder] = {
-            id: shareholding.shareholder.id,
-            full_name: shareholding.shareholder.full_name,
-            entity_type: shareholding.shareholder.entity_type,
-            email: shareholding.shareholder.email
+            id: shareholder.id,
+            name: shareholder_name,
+            entity_type: shareholder.entity_type
           }
+          data[:shareholder][:email] = shareholder.email if shareholder.respond_to?(:email)
         end
 
         data
