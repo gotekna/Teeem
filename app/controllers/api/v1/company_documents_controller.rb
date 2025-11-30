@@ -10,6 +10,9 @@ module Api
         # Filter by company
         @documents = @documents.where(company_id: params[:company_id]) if params[:company_id].present?
 
+        # Filter by contact (for family member documents)
+        @documents = @documents.where(contact_id: params[:contact_id]) if params[:contact_id].present?
+
         # Filter by asset
         @documents = @documents.by_asset(params[:asset_id]) if params[:asset_id].present?
 
@@ -136,7 +139,7 @@ module Api
 
       def document_params
         params.require(:company_document).permit(
-          :company_id, :asset_id, :document_type_id, :title, :document_name,
+          :company_id, :contact_id, :asset_id, :document_type_id, :title, :document_name,
           :document_type, :description, :file_url, :year, :period, :folder,
           :storage_type, :source, :file_name, :file_size, :mime_type
         )
