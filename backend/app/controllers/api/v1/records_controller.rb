@@ -27,6 +27,11 @@ module Api
         model = @foundation.dynamic_model
         query = model.all
 
+        # Exclude soft-deleted records if the table has a 'deleted' column
+        if model.column_names.include?('deleted')
+          query = query.where(deleted: [false, nil])
+        end
+
         # Apply duplicates_only filter for Contacts
         if params[:duplicates_only] == 'true' && model.table_name == 'contacts'
           duplicate_ids = find_duplicate_contact_ids
