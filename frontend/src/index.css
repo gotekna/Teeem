@@ -11,9 +11,24 @@
 
 @tailwind utilities;
 
+/* Prevent Mac rubber-band scroll effect */
+html, body {
+  overflow: clip;
+  overscroll-behavior: none;
+  height: 100%;
+  position: fixed;
+  width: 100%;
+}
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+#root {
+  height: 100%;
+  overflow: clip;
+  overscroll-behavior: none;
 }
 
 /* Leaflet map z-index constraints to prevent overlap with navigation/header */
