@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   SparklesIcon,
   ClipboardDocumentListIcon,
@@ -6,13 +6,24 @@ import {
   ExclamationTriangleIcon,
   LightBulbIcon,
   ClockIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
-export default function JobEstimatorTab({ jobId }) {
+export default function JobEstimatorTab({ jobId, job }) {
   const [analysis, setAnalysis] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+
+  // Load estimator data from PDF extraction if available
+  useEffect(() => {
+    if (job?.estimator_analysis) {
+      setAnalysis({
+        ...job.estimator_analysis,
+        source: 'pdf_extraction'
+      })
+    }
+  }, [job])
 
   const handleAnalyze = async () => {
     try {
@@ -51,7 +62,7 @@ export default function JobEstimatorTab({ jobId }) {
       {/* Header */}
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-start justify-between">
-          <div>
+          <div className="flex-1">
             <h2 className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
               <SparklesIcon className="h-6 w-6 text-indigo-600" />
               AI Job Estimator
@@ -59,6 +70,12 @@ export default function JobEstimatorTab({ jobId }) {
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Get AI-powered insights and analysis of this job's scope, requirements, and key points
             </p>
+            {analysis?.source === 'pdf_extraction' && (
+              <div className="mt-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                <DocumentTextIcon className="h-4 w-4 mr-1" />
+                Auto-extracted from proposal PDFs
+              </div>
+            )}
           </div>
           <button
             onClick={handleAnalyze}
@@ -76,7 +93,7 @@ export default function JobEstimatorTab({ jobId }) {
             ) : (
               <>
                 <SparklesIcon className="h-4 w-4 mr-2" />
-                Analyze Job
+                {analysis?.source === 'pdf_extraction' ? 'Re-analyze Job' : 'Analyze Job'}
               </>
             )}
           </button>

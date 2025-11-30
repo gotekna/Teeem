@@ -4908,9 +4908,8 @@ export default function TeeemTableView({
           cursor: grabbing;
         }
       `}</style>
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 max-h-full overflow-hidden">
       {/* Full-width table container */}
-      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 max-h-full overflow-hidden">
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden">
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
         {editModeActive && (
@@ -8053,7 +8052,7 @@ export default function TeeemTableView({
           </div>
 
           {/* Collapse/Expand buttons (left) and Record count (right) */}
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-shrink-0 py-1">
             {/* Collapse/Expand All - shown when grouping is active */}
             {groupByColumns.length > 0 && filteredAndSorted.length > 0 ? (
               <div className="flex items-center gap-1">
@@ -8170,14 +8169,13 @@ export default function TeeemTableView({
         {/* END BOTTOM SECTION - Filters */}
 
         {/* Table Container with Border */}
-        <div className="flex-1 min-h-0 p-4 flex flex-col" style={{ minHeight: '300px' }}>
+        <div className="flex-1 min-h-0 p-4 flex flex-col">
           {/* Table wrapper with border and rounded corners - no overflow clipping */}
           <div className="flex-1 min-h-0 flex flex-col border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
             {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
             <div
               ref={scrollContainerRef}
-              className="teeem-table-scroll flex-1 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
-              style={{ minHeight: '200px' }}
+              className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
               onScroll={(e) => {
                 console.log('[SCROLL DEBUG] Scroll container scrolled:', {
                   scrollTop: e.target.scrollTop,
@@ -9089,7 +9087,6 @@ export default function TeeemTableView({
         {/* End Table Container with Border */}
       </div>
       {/* End Full-width table container */}
-      </div>
 
       {/* Full Entry Details Modal */}
       {selectedEntry && (

@@ -11,9 +11,107 @@ import {
   CalendarDaysIcon,
   HeartIcon,
   KeyIcon,
-  FolderOpenIcon
+  FolderOpenIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline'
 import api from '../api'
+import TeeemTableView from '../components/documentation/TeeemTableView'
+
+// Table ID for Companies (from foundations table)
+const COMPANIES_TABLE_ID = 353
+
+// Default width mappings for column types (Gold Standard Pattern)
+const COLUMN_TYPE_DEFAULTS = {
+  'single_line_text': { width: 150, filterable: true, filterType: 'text' },
+  'email': { width: 200, filterable: true, filterType: 'text' },
+  'phone': { width: 150, filterable: true, filterType: 'text' },
+  'mobile': { width: 150, filterable: true, filterType: 'text' },
+  'url': { width: 180, sortable: false, filterable: false },
+  'date': { width: 140, filterable: true, filterType: 'text' },
+  'date_and_time': { width: 180, filterable: true, filterType: 'text' },
+  'gps_coordinates': { width: 280, sortable: false, filterable: false },
+  'color_picker': { width: 320, sortable: false, filterable: false },
+  'file_upload': { width: 300, sortable: false, filterable: false },
+  'action_buttons': { width: 180, sortable: false, filterable: false },
+  'lookup': { width: 150, filterable: true, filterType: 'dropdown' },
+  'boolean': { width: 100, filterable: true, filterType: 'boolean' },
+  'percentage': { width: 120, filterable: true, filterType: 'text' },
+  'choice': { width: 140, filterable: true, filterType: 'dropdown' },
+  'currency': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'currency' },
+  'number': { width: 100, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'whole_number': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'multiple_lines_text': { width: 300, sortable: false, filterable: true, filterType: 'text' },
+  'multiple_lookups': { width: 200, sortable: false, filterable: false },
+  'user': { width: 120, filterable: true, filterType: 'dropdown' },
+  'computed': { width: 140, filterable: false, showSum: true, sumType: 'number' },
+}
+
+// Check if a column is a system column that's typically hidden
+function isSystemOrHiddenColumn(columnName) {
+  const systemColumns = [
+    'sys_type_id', 'deleted', 'drive_id', 'folder_id',
+    'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
+    'tedmodel$type', 'pricebook$type'
+  ]
+
+  if (systemColumns.includes(columnName)) return true
+  if (columnName.endsWith('$type')) return true
+  if (columnName.endsWith('_id') && !['product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id'].includes(columnName)) return true
+
+  return false
+}
+
+// Convert API column format to TeeemTableView column format (Gold Standard Pattern)
+function convertColumnsToTEEEMFormat(apiColumns, foundationId) {
+  // Start with select column for bulk actions
+  const columns = [
+    { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
+  ]
+
+  // Convert each API column
+  apiColumns.forEach(col => {
+    // Skip system/hidden columns
+    if (isSystemOrHiddenColumn(col.column_name)) return
+
+    const defaults = COLUMN_TYPE_DEFAULTS[col.column_type] || { width: 150 }
+
+    // Custom width overrides for specific columns
+    let width = defaults.width
+    if (col.column_name === 'id') width = 60
+    if (col.column_name === 'name') width = 250
+    if (col.column_name === 'code') width = 80
+    if (col.column_name === 'company_group') width = 120
+    if (col.column_name === 'status') width = 120
+    if (col.column_name === 'formatted_acn') width = 130
+    if (col.column_name === 'formatted_abn') width = 150
+
+    columns.push({
+      id: col.id, // Database column ID for schema editor
+      foundation_id: col.foundation_id || foundationId,
+      key: col.column_name,
+      label: col.name,
+      column_type: col.column_type,
+      resizable: true,
+      sortable: defaults.sortable !== false,
+      filterable: defaults.filterable || false,
+      filterType: defaults.filterType,
+      width: width,
+      showSum: defaults.showSum,
+      sumType: defaults.sumType,
+      tooltip: col.description || `${col.column_type} column`,
+      is_title: col.column_name === 'name', // Mark name as title column
+      editable: col.column_name === 'code', // Make code editable
+      // Pass lookup info if available
+      lookup_foundation_id: col.lookup_foundation_id,
+      lookup_display_column: col.lookup_display_column,
+      // Pass alignment from database
+      header_align: col.header_align,
+      data_align: col.data_align,
+    })
+  })
+
+  return columns
+}
 
 export default function CorporateDashboardPage() {
   const navigate = useNavigate()
@@ -29,10 +127,12 @@ export default function CorporateDashboardPage() {
   })
   const [recentActivity, setRecentActivity] = useState([])
   const [upcomingCompliance, setUpcomingCompliance] = useState([])
-  const [companiesWithHealth, setCompaniesWithHealth] = useState([])
+  const [companies, setCompanies] = useState([])
+  const [columns, setColumns] = useState([])
 
   useEffect(() => {
     loadDashboardData()
+    fetchColumns()
   }, [])
 
   const loadDashboardData = async () => {
@@ -41,7 +141,8 @@ export default function CorporateDashboardPage() {
 
       // Load companies
       const companiesResponse = await api.get('/api/v1/companies')
-      const companies = companiesResponse.companies || []
+      const companiesList = companiesResponse.companies || []
+      setCompanies(companiesList)
 
       // Load compliance items due soon
       const complianceResponse = await api.get('/api/v1/company_compliance_items', {
@@ -56,12 +157,11 @@ export default function CorporateDashboardPage() {
       // Load health report
       const healthResponse = await api.get('/api/v1/companies/health_report')
       const healthSummary = healthResponse.summary || {}
-      const healthCompanies = healthResponse.companies || []
 
       // Calculate stats
       setStats({
-        totalCompanies: companies.length,
-        activeCompanies: companies.filter(c => c.status === 'active').length,
+        totalCompanies: companiesList.length,
+        activeCompanies: companiesList.filter(c => c.status === 'active').length,
         totalAssets: assets.length,
         complianceDueSoon: compliance.length,
         insuranceExpiring: assets.filter(a => a.needs_attention).length,
@@ -69,8 +169,6 @@ export default function CorporateDashboardPage() {
         criticalCompanies: healthSummary.critical || 0
       })
 
-      // Sort companies by health score (worst first)
-      setCompaniesWithHealth(healthCompanies.sort((a, b) => a.health_score - b.health_score))
       setUpcomingCompliance(compliance.slice(0, 5))
 
     } catch (error) {
@@ -80,13 +178,30 @@ export default function CorporateDashboardPage() {
     }
   }
 
+  // Fetch columns from API and convert to TEEEM format (Gold Standard Pattern)
+  const fetchColumns = async () => {
+    try {
+      const response = await api.get(`/api/v1/foundations/${COMPANIES_TABLE_ID}`)
+      const dbColumns = response?.foundation?.columns || []
+      console.log('📥 Dashboard: Received', dbColumns.length, 'columns from API')
+
+      // Convert API columns to TEEEM format
+      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, COMPANIES_TABLE_ID)
+      console.log('✅ Dashboard: Converted to', teeemColumns.length, 'TEEEM columns')
+
+      setColumns(teeemColumns)
+    } catch (err) {
+      console.error('❌ Dashboard: Failed to fetch columns:', err)
+    }
+  }
+
   const statCards = [
-    { name: 'Total Companies', value: stats.totalCompanies, icon: BuildingOfficeIcon, href: '/corporate/companies/list' },
-    { name: 'Active Companies', value: stats.activeCompanies, icon: CheckCircleIcon, href: '/corporate/companies/list?status=active' },
+    { name: 'Total Companies', value: stats.totalCompanies, icon: BuildingOfficeIcon, href: '/corporate/companies' },
+    { name: 'Active Companies', value: stats.activeCompanies, icon: CheckCircleIcon, href: '/corporate/companies?status=active' },
     { name: 'Health Score', value: `${stats.healthScore}%`, icon: HeartIcon, href: '/corporate/health', alert: stats.criticalCompanies > 0, alertColor: stats.healthScore >= 80 ? 'green' : stats.healthScore >= 60 ? 'yellow' : 'red' },
     { name: 'Critical Companies', value: stats.criticalCompanies, icon: ExclamationTriangleIcon, href: '/corporate/health', alert: stats.criticalCompanies > 0 },
     { name: 'Total Assets', value: stats.totalAssets, icon: TruckIcon, href: '/corporate/assets' },
-    { name: 'Compliance Due (30 days)', value: stats.complianceDueSoon, icon: ClockIcon, href: '/corporate/companies/list', alert: stats.complianceDueSoon > 0 }
+    { name: 'Compliance Due (30 days)', value: stats.complianceDueSoon, icon: ClockIcon, href: '/corporate/companies', alert: stats.complianceDueSoon > 0 }
   ]
 
   if (loading) {
@@ -213,102 +328,32 @@ export default function CorporateDashboardPage() {
         </div>
       </div>
 
-      {/* Companies with Health Status */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">All Companies</h3>
-          <p className="mt-1 text-sm text-gray-500">Click a company to view details</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ACN</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ABN</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Directors</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Issues</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {companiesWithHealth.map((company) => {
-                const getStatusColor = (status) => {
-                  if (status === 'excellent') return 'bg-green-100 text-green-800'
-                  if (status === 'good') return 'bg-blue-100 text-blue-800'
-                  if (status === 'needs_attention') return 'bg-yellow-100 text-yellow-800'
-                  return 'bg-red-100 text-red-800'
-                }
-                const getScoreColor = (score) => {
-                  if (score >= 80) return 'text-green-600'
-                  if (score >= 60) return 'text-yellow-600'
-                  return 'text-red-600'
-                }
-                return (
-                  <tr
-                    key={company.id}
-                    onClick={() => navigate(`/corporate/companies/${company.id}?tab=health`)}
-                    className="hover:bg-gray-50 cursor-pointer"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <BuildingOfficeIcon className="h-5 w-5 text-gray-400 mr-2" />
-                        <span className="text-sm font-medium text-gray-900">{company.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-lg font-bold ${getScoreColor(company.health_score)}`}>
-                          {company.health_score}%
-                        </span>
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(company.health_status)}`}>
-                          {company.health_status.replace('_', ' ')}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {company.has_acn ? (
-                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {company.has_abn ? (
-                        <CheckCircleIcon className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`text-sm ${company.director_count > 0 ? 'text-gray-900' : 'text-red-600 font-medium'}`}>
-                        {company.director_count || 0}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex gap-1">
-                        {company.issues.length > 0 && (
-                          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                            {company.issues.length} issues
-                          </span>
-                        )}
-                        {company.warnings.length > 0 && (
-                          <span className="inline-flex items-center rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
-                            {company.warnings.length} warnings
-                          </span>
-                        )}
-                        {company.issues.length === 0 && company.warnings.length === 0 && (
-                          <span className="text-xs text-green-600">All clear</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* All Companies Table - Gold Standard Pattern */}
+      <TeeemTableView
+        foundationId="companies"
+        foundationIdNumeric={COMPANIES_TABLE_ID}
+        tableName="All Companies"
+        entries={companies}
+        columns={columns}
+        onRowDoubleClick={(company) => navigate(`/corporate/companies/${company.id}`)}
+        enableImport={false}
+        enableExport={true}
+        enableSchemaEditor={true}
+        hideUpdateViewButton={true}
+        onColumnUpdate={() => {
+          console.log('Dashboard: Refreshing columns after schema update')
+          fetchColumns()
+        }}
+        customActions={
+          <button
+            onClick={() => navigate('/corporate/companies/new')}
+            className="inline-flex items-center gap-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Add Company
+          </button>
+        }
+      />
 
       {/* Upcoming Compliance */}
       {upcomingCompliance.length > 0 && (

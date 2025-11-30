@@ -117,7 +117,6 @@ const WhsInspectionsPage = lazyWithRetry(() => import('./pages/WhsInspectionsPag
 const WhsIncidentsPage = lazyWithRetry(() => import('./pages/WhsIncidentsPage'))
 const WhsInductionsPage = lazyWithRetry(() => import('./pages/WhsInductionsPage'))
 const WhsActionItemsPage = lazyWithRetry(() => import('./pages/WhsActionItemsPage'))
-const CompaniesPage = lazyWithRetry(() => import('./pages/CompaniesPage'))
 const CompanyDetailPage = lazyWithRetry(() => import('./pages/CompanyDetailPage'))
 const ComplianceCalendarPage = lazyWithRetry(() => import('./pages/ComplianceCalendarPage'))
 const MinuteTemplatesPage = lazyWithRetry(() => import('./pages/MinuteTemplatesPage'))
@@ -276,7 +275,6 @@ function App() {
         <Route path="/corporate/dashboard" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
         <Route path="/corporate/health" element={<AppLayout><CorporateHealthPage /></AppLayout>} />
         <Route path="/corporate/companies" element={<AppLayout><CorporateDashboardPage /></AppLayout>} />
-        <Route path="/corporate/companies/list" element={<AppLayout><CompaniesPage /></AppLayout>} />
         <Route path="/corporate/companies/new" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id" element={<AppLayout><CompanyDetailPage /></AppLayout>} />
         <Route path="/corporate/companies/:id/edit" element={<AppLayout><CompanyDetailPage /></AppLayout>} />

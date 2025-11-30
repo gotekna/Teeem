@@ -952,7 +952,7 @@ export default function TablePage({ embedded = false }) {
   }
 
   return (
-    <div className={`${embedded ? '' : '-mx-4 sm:-mx-6 lg:-mx-8 -my-4'} flex-1 flex flex-col min-h-0 overflow-hidden bg-white dark:bg-gray-900`} ref={tableContainerRef}>
+    <div className={`${embedded ? '' : ''} flex-1 flex flex-col min-h-0 overflow-hidden bg-white dark:bg-gray-900`} ref={tableContainerRef}>
 
       {/* Progressive Loading Notification Banner (Table 205) */}
       {showNotification && fullDataLoaded && (
