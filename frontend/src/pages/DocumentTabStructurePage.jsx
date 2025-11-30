@@ -113,6 +113,20 @@ export default function DocumentTabStructurePage() {
       'Share Certificate': '{CompanyCode} Share Certificate {ShareholderCode} {Date}',
       'Share Transfer': '{CompanyCode} Share Transfer {Date}',
       'Register of Members': '{CompanyCode} Register of Members {Date}',
+      'Register of Directors': '{CompanyCode} Register of Directors {Date}',
+      'Register of Charges': '{CompanyCode} Register of Charges {Date}',
+      'Register of Debentures': '{CompanyCode} Register of Debentures {Date}',
+      'Allotment Journal': '{CompanyCode} Allotment Journal {Date}',
+      'Common Seal Register': '{CompanyCode} Common Seal Register {Date}',
+      'Occupier Consent': '{CompanyCode} Occupier Consent {Date}',
+      'Consent to Act': '{CompanyCode} Consent to Act {Role} {Person} {Date}',
+      'Notice of Appointment': '{CompanyCode} Notice {Role} {Person} {Date}',
+      'Application for Shares': '{CompanyCode} Share Application {ShareholderCode} {Date}',
+      'Deed of Novation': '{CompanyCode} Deed of Novation {Date}',
+      'Deed of Variation': '{CompanyCode} Deed of Variation {Date}',
+      'Engagement Letter': '{CompanyCode} Engagement Letter {Date}',
+      'Formation Documents': '{CompanyCode} Formation Documents {Date}',
+      'Certificate of Registration': '{CompanyCode} Certificate of Registration {Date}',
       'Structure': '{CompanyCode} Structure {Description} {Date}',
       'Tax Consolidation Schedule': '{CompanyCode} Tax Consolidation Schedule FY{YY}',
       'Trust': '{CompanyCode} Trust {Description} {Date}',
@@ -149,6 +163,8 @@ export default function DocumentTabStructurePage() {
       .replace(/{Document}/g, 'Certificate')
       .replace(/{Description}/g, 'Document')
       .replace(/{Account}/g, '123456')
+      .replace(/{Role}/g, 'Director')
+      .replace(/{Person}/g, 'Rachel Harder')
   }
 
   if (loading) {
