@@ -117,7 +117,12 @@ module Api
         begin
           ActiveRecord::Base.transaction do
             orders.each do |item|
-              view = current_user.foundation_views.find(item[:id])
+              # Try to find the view - check user's views first, then global views
+              view = current_user.foundation_views.find_by(id: item[:id])
+              view ||= FoundationView.global_views.find_by(id: item[:id])
+
+              raise ActiveRecord::RecordNotFound, "View #{item[:id]} not found" unless view
+
               Rails.logger.info "[Reorder] Updating view #{view.id} (#{view.name}) from display_order #{view.display_order} to #{item[:display_order]}"
               view.update!(display_order: item[:display_order])
               Rails.logger.info "[Reorder] Successfully updated view #{view.id}"
