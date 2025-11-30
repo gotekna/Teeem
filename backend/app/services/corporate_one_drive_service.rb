@@ -89,6 +89,7 @@ class CorporateOneDriveService
   end
 
   # Document type folders that should be created for each company
+  # These match the DocumentType.folder values from the database
   DOCUMENT_TYPE_FOLDERS = %w[
     ADVICE
     ASIC
@@ -96,11 +97,15 @@ class CorporateOneDriveService
     ATO
     BANK
     DIVIDENDS
+    Disposal
+    Expenses
     FINANCIALS
     GENERAL
     LOANS
     MINUTES
+    Purchases
     REGISTRY
+    Valuation
   ].freeze
 
   # Preview the folder structure that would be created in 00 - Private
