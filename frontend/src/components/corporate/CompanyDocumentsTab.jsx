@@ -26,18 +26,22 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState(null)
 
-  // 10 tabs for document organization
+  // Document organization tabs
   const tabs = [
+    'ADVICE',
     'ASIC',
     'ASSETS',
     'ATO',
     'BANK',
+    'COMPANY',
     'DIVIDENDS',
     'FINANCIALS',
     'GENERAL',
+    'INSURANCE',
     'LOANS',
     'MINUTES',
-    'REGISTRY'
+    'REGISTRY',
+    'TRUST'
   ]
 
   useEffect(() => {
