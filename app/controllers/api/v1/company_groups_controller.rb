@@ -91,7 +91,18 @@ module Api
       # GET /api/v1/company_groups/:id/structure
       def structure
         # Get top-level companies (no parent) in this group
-        top_level = @company_group.companies.where(parent_company_id: nil).order(:name)
+        # Exclude Trust entities that have a Trustee company (they'll be shown under the Trustee)
+        all_top_level = @company_group.companies.where(parent_company_id: nil).order(:name)
+
+        # Find trusts that have a trustee company in this group
+        trusts_with_trustees = @company_group.companies
+          .where(entity_type: 'Trust')
+          .where.not(trust_name: [nil, ''])
+          .select { |trust| @company_group.companies.exists?(is_trustee: true, trust_name: trust.trust_name) }
+          .map(&:id)
+
+        # Exclude those trusts from top level (they'll appear under their trustee)
+        top_level = all_top_level.where.not(id: trusts_with_trustees)
 
         render json: {
           success: true,
@@ -100,12 +111,12 @@ module Api
               id: @company_group.id,
               name: @company_group.name
             },
-            companies: top_level.map { |c| build_hierarchy_tree(c) },
+            companies: top_level.map { |c| build_hierarchy_tree(c, @company_group) },
             stats: {
               total_companies: @company_group.companies.count,
               top_level_count: top_level.count,
               trustees_count: @company_group.companies.where(is_trustee: true).count,
-              trusts_count: @company_group.companies.where.not(trust_name: [nil, '']).count
+              trusts_count: @company_group.companies.where(entity_type: 'Trust').count
             }
           }
         }
@@ -162,7 +173,7 @@ module Api
         }
       end
 
-      def build_hierarchy_tree(company)
+      def build_hierarchy_tree(company, company_group = nil)
         # Get shareholdings where this company is owned
         shareholders = company.company_shareholdings.includes(:shareholder).map do |sh|
           # Handle polymorphic shareholder - Company has 'name', Contact has 'full_name'
@@ -195,6 +206,35 @@ module Api
           }
         end
 
+        # Build children list
+        children = company.subsidiaries.order(:name).map { |s| build_hierarchy_tree(s, company_group) }
+
+        # If this company is a trustee, add the Trust entity as a child
+        if company.is_trustee && company.trust_name.present? && company_group
+          trust_entity = company_group.companies.find_by(entity_type: 'Trust', trust_name: company.trust_name)
+          if trust_entity
+            # Add the trust at the beginning of children
+            trust_node = {
+              id: trust_entity.id,
+              name: trust_entity.name,
+              code: trust_entity.code,
+              abbreviation: trust_entity.abbreviation,
+              acn: trust_entity.acn,
+              abn: trust_entity.abn,
+              status: trust_entity.status,
+              entity_type: trust_entity.entity_type,
+              is_trustee: false,
+              trust_name: trust_entity.trust_name,
+              hierarchy_level: trust_entity.hierarchy_level,
+              shareholders: [],
+              investments: [],
+              children: [],
+              is_trust_of_trustee: true  # Flag to indicate this is the trust managed by the parent trustee
+            }
+            children.unshift(trust_node)
+          end
+        end
+
         {
           id: company.id,
           name: company.name,
@@ -209,7 +249,7 @@ module Api
           hierarchy_level: company.hierarchy_level,
           shareholders: shareholders,
           investments: investments,
-          children: company.subsidiaries.order(:name).map { |s| build_hierarchy_tree(s) }
+          children: children
         }
       end
     end
