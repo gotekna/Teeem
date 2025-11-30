@@ -32,8 +32,11 @@ class CompanyDocument < ApplicationRecord
   scope :by_year, ->(year) { where(year: year) }
   scope :by_folder, ->(folder) { where(folder: folder) }
   scope :by_tab, ->(tab) {
+    # Match documents either by:
+    # 1. folder field matching the tab name (SharePoint synced documents)
+    # 2. document_type matching a DocumentType whose tabs array contains this tab
     joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
-      .where("document_types.tabs @> ?", [tab].to_json)
+      .where("UPPER(company_documents.folder) = ? OR document_types.tabs @> ?", tab.upcase, [tab].to_json)
   }
   scope :by_source, ->(source) { where(source: source) }
   scope :by_asset, ->(asset_id) { where(asset_id: asset_id) }
