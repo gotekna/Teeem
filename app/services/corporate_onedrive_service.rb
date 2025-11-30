@@ -473,8 +473,8 @@ class CorporateOnedriveService
       storage_type: 'electronic',
       source: 'sharepoint',
       register_folder: group_name,
-      folder: sharepoint_folder_path,
-      description: sharepoint_folder_path
+      folder: parent_folder_name,  # Use simple folder name (e.g., "ATO") for tab filtering
+      description: sharepoint_folder_path  # Keep full path in description for reference
     )
 
     if company_doc.save
