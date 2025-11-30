@@ -427,7 +427,11 @@ function ProposalCard({ proposal, onApprove, onReject, onReExtract, processing, 
             {email.has_attachments && (
               <div className="flex items-center text-blue-600">
                 <PaperClipIcon className="w-4 h-4 mr-1" />
-                {email.attachment_count || 1} attachment{email.attachment_count !== 1 ? 's' : ''}
+                {email.pdf_count > 0 && email.attachment_count > email.pdf_count ? (
+                  <span>{email.pdf_count} PDF{email.pdf_count !== 1 ? 's' : ''} / {email.attachment_count} total</span>
+                ) : (
+                  <span>{email.attachment_count || 1} attachment{email.attachment_count !== 1 ? 's' : ''}</span>
+                )}
               </div>
             )}
             {data.missing_info && data.missing_info.length > 0 && (
