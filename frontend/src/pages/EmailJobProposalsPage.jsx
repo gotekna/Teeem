@@ -57,15 +57,15 @@ export default function EmailJobProposalsPage() {
         user_edits: userEdits
       })
 
-      if (response.data.success) {
-        alert(`Job #${response.data.job.id} created successfully!`)
+      if (response.success) {
+        alert(`Job #${response.job.id} created successfully!`)
         setShowApprovalModal(false)
         setSelectedProposal(null)
         loadProposals()
 
         // Navigate to the new job
-        if (response.data.job.id) {
-          navigate(`/jobs/${response.data.job.id}`)
+        if (response.job.id) {
+          navigate(`/jobs/${response.job.id}`)
         }
       }
     } catch (error) {
@@ -86,7 +86,7 @@ export default function EmailJobProposalsPage() {
         rejection_reason: reason
       })
 
-      if (response.data.success) {
+      if (response.success) {
         alert('Proposal rejected')
         loadProposals()
       }
