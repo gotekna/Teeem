@@ -445,6 +445,10 @@ class CorporateOnedriveService
     # Extract full SharePoint folder path from parentReference
     sharepoint_folder_path = extract_folder_path(doc, group_name)
 
+    # Extract the immediate parent folder name (tab name like LOANS, ASIC, etc.)
+    parent_folder_name = doc.dig('parentReference', 'name') || 'GENERAL'
+    document_type_string = parent_folder_name.upcase
+
     # Create or update company document record
     company_doc = CompanyDocument.find_or_initialize_by(
       company: company,
@@ -453,6 +457,7 @@ class CorporateOnedriveService
 
     company_doc.assign_attributes(
       title: doc['name'],
+      document_type: document_type_string,
       document_type_id: document_type&.id,
       file_url: doc['webUrl'],
       file_name: doc['name'],
