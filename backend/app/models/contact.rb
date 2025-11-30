@@ -3,6 +3,9 @@ class Contact < ApplicationRecord
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy
 
+  # Company group for document filing (family members)
+  belongs_to :company_group, optional: true
+
   # Xero-related associations
   has_many :contact_persons, dependent: :destroy
   has_many :contact_addresses, dependent: :destroy
@@ -152,6 +155,15 @@ class Contact < ApplicationRecord
 
   def is_trust?
     entity_type == 'trust' || contact_types&.include?('trust')
+  end
+
+  # Family/Director helpers
+  def is_director?
+    current_directorships.any?
+  end
+
+  def director_companies
+    current_directorships.includes(:company).map(&:company)
   end
 
   # Company/Employment relationship helpers

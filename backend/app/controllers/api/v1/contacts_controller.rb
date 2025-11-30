@@ -23,6 +23,16 @@ module Api
           @contacts = @contacts.where(id: director_contact_ids)
         end
 
+        # Filter to only show family members
+        if params[:is_family_member] == 'true'
+          @contacts = @contacts.where(is_family_member: true)
+        end
+
+        # Filter to only show potential directors
+        if params[:is_potential_director] == 'true'
+          @contacts = @contacts.where(is_potential_director: true)
+        end
+
         # Search by name or email
         if params[:search].present?
           search_term = "%#{params[:search]}%"
@@ -69,11 +79,12 @@ module Api
         director_fields = params[:is_director] == 'true' ? [:director_id, :date_of_birth, :place_of_birth, :birth_state, :birth_country, :residential_address, :drivers_licence, :passport_number, :photo_url] : []
 
         contacts_json = @contacts.as_json(
-          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status] + director_fields,
+          only: [:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :xero_id, :xero_synced, :sync_with_xero, :last_synced_at, :total_purchase_orders_count, :total_purchase_orders_value, :teeem_rating, :entity_type, :primary_role, :employment_status, :is_family_member, :is_potential_director, :company_group_id] + director_fields,
           include: {
-            portal_user: { only: [:id, :email, :portal_type, :active] }
+            portal_user: { only: [:id, :email, :portal_type, :active] },
+            company_group: { only: [:id, :name] }
           },
-          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name]
+          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?]
         )
 
         # Add company and job counts for all contacts
@@ -122,6 +133,8 @@ module Api
             :drive_id, :folder_id, :contact_region_id, :contact_region, :branch, :created_at, :updated_at,
             :contact_types, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas,
             :entity_type, :primary_role, :employment_status,
+            # Family/Director flags
+            :is_family_member, :is_potential_director, :company_group_id,
             # Xero fields
             :bank_bsb, :bank_account_number, :bank_account_name,
             :default_purchase_account, :default_sales_account,
@@ -137,9 +150,10 @@ module Api
             contact_persons: { only: [:id, :first_name, :last_name, :email, :include_in_emails, :is_primary, :xero_contact_person_id] },
             contact_addresses: { only: [:id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary] },
             contact_groups: { only: [:id, :name, :status, :xero_contact_group_id] },
-            portal_user: { only: [:id, :email, :portal_type, :active, :last_login_at, :created_at] }
+            portal_user: { only: [:id, :email, :portal_type, :active, :last_login_at, :created_at] },
+            company_group: { only: [:id, :name] }
           },
-          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?]
+          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies]
         )
 
         # If contact is a supplier, add pricebook items and purchase orders
@@ -1526,6 +1540,10 @@ module Api
           :address,
           :notes,
           :entity_type,
+          # Family/Director fields
+          :is_family_member,
+          :is_potential_director,
+          :company_group_id,
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM
           # See Contact::XERO_READ_ONLY_FIELDS for the full list
