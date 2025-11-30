@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogBackdrop, DialogPanel, DialogTitle, RadioGroup } from '@headlessui/react'
 import { XMarkIcon, UserIcon, CheckCircleIcon, ExclamationTriangleIcon, TrashIcon } from '@heroicons/react/24/outline'
 
@@ -7,6 +7,38 @@ export default function MergeContactsModal({ isOpen, onClose, selectedContacts, 
   const [merging, setMerging] = useState(false)
   const [deleting, setDeleting] = useState(null) // Track which contact is being deleted
   const [error, setError] = useState(null)
+
+  // Auto-select the best contact when modal opens
+  // Priority: 1) Has Xero connection, 2) Has most data fields filled
+  const getBestContact = (contacts) => {
+    if (!contacts || contacts.length === 0) return null
+
+    // Score each contact
+    const scored = contacts.map(c => {
+      let score = 0
+      if (c.xero_id) score += 100 // Xero connection is most important
+      if (c.email) score += 10
+      if (c.mobile_phone) score += 5
+      if (c.office_phone) score += 5
+      return { contact: c, score }
+    })
+
+    // Sort by score descending and return the best
+    scored.sort((a, b) => b.score - a.score)
+    return scored[0]?.contact || contacts[0]
+  }
+
+  // Auto-select when contacts change or modal opens
+  useEffect(() => {
+    if (isOpen && selectedContacts?.length > 0) {
+      setTargetContact(getBestContact(selectedContacts))
+    }
+  }, [isOpen, selectedContacts])
+
+  // Check if we're about to lose a Xero connection
+  const xeroContactBeingDeleted = targetContact && selectedContacts?.some(
+    c => c.id !== targetContact.id && c.xero_id && !targetContact.xero_id
+  )
 
   const handleMerge = async () => {
     if (!targetContact) {
@@ -139,11 +171,16 @@ export default function MergeContactsModal({ isOpen, onClose, selectedContacts, 
                                 <div className="flex-1 min-w-0">
                                   <RadioGroup.Label
                                     as="p"
-                                    className={`font-medium ${
+                                    className={`font-medium flex items-center gap-2 ${
                                       checked ? 'text-indigo-900 dark:text-indigo-200' : 'text-gray-900 dark:text-white'
                                     }`}
                                   >
                                     {contact.full_name}
+                                    {contact.xero_id && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                        XERO
+                                      </span>
+                                    )}
                                   </RadioGroup.Label>
                                   <RadioGroup.Description
                                     as="div"
@@ -188,6 +225,26 @@ export default function MergeContactsModal({ isOpen, onClose, selectedContacts, 
                   ))}
                 </div>
               </RadioGroup>
+
+              {/* Xero Warning */}
+              {xeroContactBeingDeleted && (
+                <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+                  <div className="flex">
+                    <ExclamationTriangleIcon className="h-5 w-5 text-red-400 flex-shrink-0" />
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                        Warning: Xero Connection Will Be Lost
+                      </h3>
+                      <div className="mt-1 text-sm text-red-700 dark:text-red-300">
+                        <p>
+                          You are about to merge a Xero-connected contact into one that is not connected to Xero.
+                          The Xero connection will be lost. Consider selecting the contact with the XERO badge as the target instead.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* What will be merged */}
               {targetContact && (

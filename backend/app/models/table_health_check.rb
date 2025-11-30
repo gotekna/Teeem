@@ -158,7 +158,7 @@ class TableHealthCheck < ApplicationRecord
   def find_duplicate_groups
     # Find contacts with duplicate names (normalized)
     contacts = Contact.where(deleted: [false, nil])
-                     .select(:id, :full_name, :first_name, :last_name, :email)
+                     .select(:id, :full_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :xero_id, :xero_contact_status)
 
     groups = []
     seen_ids = Set.new
@@ -174,7 +174,15 @@ class TableHealthCheck < ApplicationRecord
         match_value: normalized,
         contacts: group.map { |c|
           seen_ids << c.id
-          { id: c.id, full_name: c.full_name, email: c.email }
+          {
+            id: c.id,
+            full_name: c.full_name,
+            email: c.email,
+            mobile_phone: c.mobile_phone,
+            office_phone: c.office_phone,
+            xero_id: c.xero_id,
+            xero_status: c.xero_contact_status
+          }
         }
       }
     end
