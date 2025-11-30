@@ -327,16 +327,16 @@ function ProposalCard({ proposal, onApprove, onReject, onReExtract, processing, 
               <button
                 onClick={() => onReExtract(proposal.id)}
                 disabled={processing === proposal.id}
-                className="inline-flex items-center px-3 py-2 border border-indigo-300 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-50"
+                className="inline-flex items-center px-3 py-2 border border-indigo-300 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 title="Re-extract data from email and PDFs with latest extraction logic"
               >
-                <ArrowPathIcon className="w-4 h-4 mr-1" />
-                Re-extract
+                <ArrowPathIcon className={`w-4 h-4 mr-1 ${processing === proposal.id ? 'animate-spin' : ''}`} />
+                {processing === proposal.id ? 'Re-extracting...' : 'Re-extract'}
               </button>
               <button
                 onClick={() => onApprove(proposal.id)}
                 disabled={processing === proposal.id}
-                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <CheckCircleIcon className="w-4 h-4 mr-1" />
                 Approve
@@ -344,10 +344,10 @@ function ProposalCard({ proposal, onApprove, onReject, onReExtract, processing, 
               <button
                 onClick={() => onReject(proposal.id)}
                 disabled={processing === proposal.id}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <XCircleIcon className="w-4 h-4 mr-1" />
-                Reject
+                <XCircleIcon className={`w-4 h-4 mr-1 ${processing === proposal.id ? 'animate-spin' : ''}`} />
+                {processing === proposal.id ? 'Processing...' : 'Reject'}
               </button>
             </div>
           )}
