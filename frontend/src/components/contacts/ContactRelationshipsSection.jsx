@@ -77,7 +77,12 @@ export default function ContactRelationshipsSection({ contactId, isEditMode }) {
     try {
       setLoading(true)
       const response = await api.get(`/api/v1/contacts/${contactId}/relationships`)
-      setRelationships(response.relationships || [])
+      // API returns { relationships: { outgoing: [...], incoming: [...] } }
+      // Flatten into a single array for display
+      const rels = response.relationships || {}
+      const outgoing = Array.isArray(rels.outgoing) ? rels.outgoing : []
+      const incoming = Array.isArray(rels.incoming) ? rels.incoming : []
+      setRelationships([...outgoing, ...incoming])
     } catch (err) {
       console.error('Failed to load relationships:', err)
     } finally {
