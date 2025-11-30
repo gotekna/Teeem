@@ -170,4 +170,107 @@ namespace :corporate do
 
     puts "Done!"
   end
+
+  desc "Import ASIC Portal credentials for companies"
+  task import_asic_credentials: :environment do
+    puts "Importing ASIC Portal credentials..."
+
+    # Data from spreadsheet: Company => { corporate_key, asic_username, asic_password, recovery_question, recovery_answer }
+    asic_data = {
+      "Tekna" => {
+        corporate_key: "94512428",
+        asic_username: "andrew@tekna.com.au",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      },
+      "Tekna Drafting" => {
+        corporate_key: "10135027",
+        asic_username: "rach@100xbestlife.com",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      },
+      "Tekna Homes" => {
+        corporate_key: "56845790",
+        asic_username: "rachel@tekna.com.au",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      },
+      "Tekna Admin" => {
+        corporate_key: "42468380",
+        asic_username: "andrew@tekna.com.au",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      },
+      "Team Harder" => {
+        corporate_key: "16724280",
+        asic_username: "rach@100xbestlife.com",
+        asic_password: "J4sper2010",
+        recovery_question: nil,
+        recovery_answer: nil
+      },
+      "Gen2612" => {
+        corporate_key: "8860820",
+        asic_username: "rach@100xbestlife.com",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      },
+      "Prov1322 Global" => {
+        corporate_key: "32350239",
+        asic_username: "rach@100xbestlife.com",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      },
+      "Team Harder Super Investments" => {
+        corporate_key: "24400857",
+        asic_username: "rach@100xbestlife.com",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      },
+      "W2G Assets" => {
+        corporate_key: "87081049",
+        asic_username: "w2gasset",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Adelaide"
+      },
+      "The Promise QLD" => {
+        corporate_key: "27845006",
+        asic_username: "rachel@tekna.com.au",
+        asic_password: "J4sper2010",
+        recovery_question: "What City was I Born In?",
+        recovery_answer: "Glenelg"
+      }
+    }
+
+    asic_data.each do |company_search, data|
+      company = Company.where("LOWER(name) LIKE ?", "%#{company_search.downcase}%").first
+      unless company
+        puts "Company not found: #{company_search}"
+        next
+      end
+
+      updates = {}
+      updates[:corporate_key] = data[:corporate_key] if data[:corporate_key].present? && company.corporate_key.blank?
+      updates[:asic_username] = data[:asic_username] if data[:asic_username].present? && company.asic_username.blank?
+      updates[:asic_password] = data[:asic_password] if data[:asic_password].present?
+      updates[:recovery_question] = data[:recovery_question] if data[:recovery_question].present? && company.recovery_question.blank?
+      updates[:recovery_answer] = data[:recovery_answer] if data[:recovery_answer].present?
+
+      if updates.any?
+        company.update!(updates)
+        puts "#{company.name}: Updated ASIC credentials (#{updates.keys.join(', ')})"
+      else
+        puts "#{company.name}: Already has ASIC credentials"
+      end
+    end
+
+    puts "Done!"
+  end
 end
