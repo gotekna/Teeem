@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy, :download, :validate]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :validate, :ai_verify, :apply_ai_suggestion]
 
       # GET /api/v1/company_documents
       def index
@@ -145,6 +145,62 @@ module Api
         render json: {
           success: true,
           message: 'Document validated successfully',
+          document: @document.as_json(
+            include: {
+              company: { only: [:id, :name, :code] },
+              user: { only: [:id, :name, :email] }
+            },
+            methods: [:formatted_document_type, :file_size_mb]
+          )
+        }
+      end
+
+      # POST /api/v1/company_documents/:id/ai_verify
+      # Triggers AI analysis of document naming
+      def ai_verify
+        # Check if OneDrive file exists
+        unless @document.onedrive_file_id.present?
+          return render json: {
+            success: false,
+            error: 'No OneDrive file available for this document'
+          }, status: :unprocessable_entity
+        end
+
+        # Mark as processing immediately for UI feedback
+        @document.update!(ai_verification_status: 'processing')
+
+        # Queue background job
+        DocumentVerificationJob.perform_later(@document.id)
+
+        render json: {
+          success: true,
+          message: 'AI verification started',
+          document_id: @document.id,
+          status: 'processing'
+        }
+      end
+
+      # POST /api/v1/company_documents/:id/apply_ai_suggestion
+      # Renames document to the AI-suggested name
+      def apply_ai_suggestion
+        unless @document.ai_suggested_name.present?
+          return render json: {
+            success: false,
+            error: 'No AI suggestion available'
+          }, status: :unprocessable_entity
+        end
+
+        old_title = @document.title
+        @document.update!(
+          title: @document.ai_suggested_name,
+          ai_verification_status: 'verified',
+          user_validated_at: Time.current,
+          user_validated_by: current_user
+        )
+
+        render json: {
+          success: true,
+          message: "Document renamed from '#{old_title}' to '#{@document.title}'",
           document: @document.as_json(
             include: {
               company: { only: [:id, :name, :code] },

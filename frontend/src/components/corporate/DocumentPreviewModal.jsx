@@ -1,17 +1,24 @@
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, Fragment, useRef } from 'react'
 import { Dialog, Transition } from '@headlessui/react'
 import {
   XMarkIcon,
   DocumentTextIcon,
   ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
-  CheckIcon
+  CheckIcon,
+  SparklesIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline'
 import api from '../../api'
 
-export default function DocumentPreviewModal({ document, onClose, onDocumentUpdate }) {
+export default function DocumentPreviewModal({ document: initialDocument, onClose, onDocumentUpdate }) {
+  const [document, setDocument] = useState(initialDocument)
   const [validating, setValidating] = useState(false)
-  const [validated, setValidated] = useState(document?.user_validated_at != null)
+  const [validated, setValidated] = useState(initialDocument?.user_validated_at != null)
+  const [aiVerifying, setAiVerifying] = useState(false)
+  const [applyingSuggestion, setApplyingSuggestion] = useState(false)
+  const pollingRef = useRef(null)
 
   // Determine file type for preview
   const getFileType = (filename) => {
@@ -25,6 +32,33 @@ export default function DocumentPreviewModal({ document, onClose, onDocumentUpda
   }
 
   const fileType = getFileType(document?.file_name || document?.title)
+
+  // Poll for AI verification results
+  useEffect(() => {
+    if (document?.ai_verification_status === 'processing') {
+      pollingRef.current = setInterval(async () => {
+        try {
+          const response = await api.get(`/api/v1/company_documents/${document.id}`)
+          if (response.document) {
+            setDocument(response.document)
+            // Stop polling when status changes from processing
+            if (response.document.ai_verification_status !== 'processing') {
+              clearInterval(pollingRef.current)
+              setAiVerifying(false)
+            }
+          }
+        } catch (error) {
+          console.error('Failed to poll document status:', error)
+        }
+      }, 2000)
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current)
+      }
+    }
+  }, [document?.id, document?.ai_verification_status])
 
   // Handle user validation
   const handleValidate = async () => {
@@ -43,6 +77,42 @@ export default function DocumentPreviewModal({ document, onClose, onDocumentUpda
     }
   }
 
+  // Handle AI verification
+  const handleAiVerify = async () => {
+    try {
+      setAiVerifying(true)
+      const response = await api.post(`/api/v1/company_documents/${document.id}/ai_verify`)
+      if (response.success) {
+        // Update document status to processing
+        setDocument(prev => ({ ...prev, ai_verification_status: 'processing' }))
+      }
+    } catch (error) {
+      console.error('Failed to start AI verification:', error)
+      alert(error.response?.error || 'Failed to start AI verification')
+      setAiVerifying(false)
+    }
+  }
+
+  // Handle applying AI suggestion
+  const handleApplySuggestion = async () => {
+    try {
+      setApplyingSuggestion(true)
+      const response = await api.post(`/api/v1/company_documents/${document.id}/apply_ai_suggestion`)
+      if (response.success) {
+        setDocument(response.document)
+        setValidated(true)
+        if (onDocumentUpdate) {
+          await onDocumentUpdate()
+        }
+      }
+    } catch (error) {
+      console.error('Failed to apply suggestion:', error)
+      alert(error.response?.error || 'Failed to apply suggestion')
+    } finally {
+      setApplyingSuggestion(false)
+    }
+  }
+
   // Format file size
   const formatFileSize = (bytes) => {
     if (!bytes) return '-'
@@ -50,6 +120,14 @@ export default function DocumentPreviewModal({ document, onClose, onDocumentUpda
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
     return `${Math.round(bytes / Math.pow(1024, i) * 100) / 100} ${sizes[i]}`
   }
+
+  // Check if document has OneDrive file for AI verification
+  const canAiVerify = document?.onedrive_file_id && !validated
+
+  // AI verification status
+  const aiStatus = document?.ai_verification_status
+  const hasAiSuggestion = document?.ai_suggested_name && aiStatus === 'mismatch'
+  const isProcessing = aiStatus === 'processing' || aiVerifying
 
   return (
     <Transition appear show={true} as={Fragment}>
@@ -164,6 +242,93 @@ export default function DocumentPreviewModal({ document, onClose, onDocumentUpda
                     )}
                   </div>
 
+                  {/* AI Verification Results */}
+                  {hasAiSuggestion && (
+                    <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <SparklesIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                            AI Suggests a Better Name
+                          </h4>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 dark:text-gray-400 w-20">Current:</span>
+                              <span className="font-mono text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                                {document.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-500 dark:text-gray-400 w-20">Suggested:</span>
+                              <span className="font-mono text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
+                                {document.ai_suggested_name}
+                              </span>
+                            </div>
+                            {document.ai_confidence_score && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-500 dark:text-gray-400 w-20">Confidence:</span>
+                                <span className="font-medium text-blue-700 dark:text-blue-300">
+                                  {document.ai_confidence_score}%
+                                </span>
+                              </div>
+                            )}
+                            {document.ai_analysis_notes && (
+                              <div className="mt-2 text-gray-600 dark:text-gray-400 italic">
+                                {document.ai_analysis_notes}
+                              </div>
+                            )}
+                          </div>
+                          <div className="mt-3 flex items-center gap-3">
+                            <button
+                              onClick={handleApplySuggestion}
+                              disabled={applyingSuggestion}
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              <CheckIcon className="h-4 w-4" />
+                              {applyingSuggestion ? 'Applying...' : 'Apply Suggestion'}
+                            </button>
+                            <button
+                              onClick={handleValidate}
+                              disabled={validating}
+                              className="inline-flex items-center gap-2 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {validating ? 'Keeping...' : 'Keep Current Name'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Error Status */}
+                  {aiStatus === 'error' && document.ai_analysis_notes && (
+                    <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
+                        <div>
+                          <h4 className="text-sm font-medium text-red-800 dark:text-red-200">
+                            AI Verification Failed
+                          </h4>
+                          <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                            {document.ai_analysis_notes}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI Processing Status */}
+                  {isProcessing && (
+                    <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <ArrowPathIcon className="h-5 w-5 text-purple-600 dark:text-purple-400 animate-spin" />
+                        <span className="text-sm font-medium text-purple-800 dark:text-purple-200">
+                          AI is analyzing document...
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Validation Status */}
                   {validated ? (
                     <div className="flex items-center gap-2 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
@@ -172,7 +337,7 @@ export default function DocumentPreviewModal({ document, onClose, onDocumentUpda
                         Document naming has been validated
                       </span>
                     </div>
-                  ) : (
+                  ) : !hasAiSuggestion && !isProcessing && (
                     <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                       <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
                         Please review the document and confirm the naming is correct.
@@ -186,6 +351,16 @@ export default function DocumentPreviewModal({ document, onClose, onDocumentUpda
                           <CheckIcon className="h-4 w-4" />
                           {validating ? 'Validating...' : 'Confirm Naming is Correct'}
                         </button>
+                        {canAiVerify && (
+                          <button
+                            onClick={handleAiVerify}
+                            disabled={isProcessing}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-purple-700 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-900 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            <SparklesIcon className="h-4 w-4" />
+                            {isProcessing ? 'Verifying...' : 'AI Verify'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
