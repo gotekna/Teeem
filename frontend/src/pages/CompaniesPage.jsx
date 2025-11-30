@@ -204,14 +204,17 @@ export default function CompaniesPage() {
   }
 
   const handleEdit = async (entry) => {
+    console.log('🔥 handleEdit CALLED with entry:', entry.id, entry.entity_type)
     try {
+      console.log('🔥 Making PATCH request to /api/v1/companies/' + entry.id)
       const response = await api.patch(`/api/v1/companies/${entry.id}`, { company: entry })
+      console.log('🔥 PATCH response:', response)
 
       // Update local state with saved data
       setCompanies(companies.map(c => c.id === entry.id ? response.company : c))
       setToast({ message: 'Company updated successfully', type: 'success' })
     } catch (err) {
-      console.error('Failed to update company:', err)
+      console.error('🔥 Failed to update company:', err)
       setToast({ message: 'Failed to update company', type: 'error' })
     }
   }
