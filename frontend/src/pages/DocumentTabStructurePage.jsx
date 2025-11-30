@@ -175,6 +175,12 @@ export default function DocumentTabStructurePage() {
       'Deed of Variation': '{CompanyCode} Deed of Variation {Date}',
       'Engagement Letter': '{CompanyCode} Engagement Letter {Date}',
       'ATO Documents': '{CompanyCode} ATO {Description} {Date}',
+
+      // Advice
+      'Accountant Advice': '{CompanyCode} Accountant {Description} {Date}',
+      'Legal Advice': '{CompanyCode} Lawyer {Description} {Date}',
+      'Client Advice': '{CompanyCode} Advice {Description} {Date}',
+
       'General': '{CompanyCode} {Description} {Date}'
     }
 
