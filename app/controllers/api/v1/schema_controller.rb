@@ -196,6 +196,10 @@ module Api
             end,
             type: type,
             usage_status: usage_status,
+            # Gold Standard Compliance fields
+            compliance_score: foundation.compliance_score,
+            compliance_checked_at: foundation.compliance_checked_at,
+            non_compliant_count: foundation.non_compliant_columns&.size || 0,
             created_at: foundation.created_at,
             updated_at: foundation.updated_at
           }

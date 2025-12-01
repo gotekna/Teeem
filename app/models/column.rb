@@ -1,6 +1,7 @@
 class Column < ApplicationRecord
   belongs_to :foundation
   belongs_to :lookup_foundation, class_name: 'Foundation', optional: true, foreign_key: :lookup_foundation_id
+  belongs_to :column_type_definition, optional: true
 
   # Serialize available_choices as JSON array
   serialize :available_choices, coder: JSON, type: Array
@@ -112,6 +113,64 @@ class Column < ApplicationRecord
 
   def sql_type
     COLUMN_SQL_TYPE_MAP[column_type] || 'UNKNOWN'
+  end
+
+  # ============================================
+  # Type Inheritance Methods (Gold Standard Compliance)
+  # ============================================
+
+  # Effective values: use override if set, otherwise inherit from type definition
+  def effective_max_length
+    override_max_length || column_type_definition&.default_max_length || max_length
+  end
+
+  def effective_min_length
+    override_min_length || column_type_definition&.default_min_length || min_length
+  end
+
+  def effective_min_value
+    override_min_value || column_type_definition&.default_min_value || min_value
+  end
+
+  def effective_max_value
+    override_max_value || column_type_definition&.default_max_value || max_value
+  end
+
+  def effective_sql_type
+    column_type_definition&.sql_type || COLUMN_SQL_TYPE_MAP[column_type] || 'VARCHAR(255)'
+  end
+
+  # Check if column is compliant with current type definition version
+  def compliant?
+    return true unless column_type_definition
+    type_version_applied == column_type_definition.version
+  end
+
+  # Apply the current type definition settings to this column (Auto-Fix)
+  def apply_type_definition!
+    return unless column_type_definition
+
+    update!(
+      max_length: column_type_definition.default_max_length,
+      min_length: column_type_definition.default_min_length,
+      min_value: column_type_definition.default_min_value,
+      max_value: column_type_definition.default_max_value,
+      type_version_applied: column_type_definition.version,
+      last_compliance_check: Time.current
+    )
+  end
+
+  # Link this column to its type definition (if not already linked)
+  def link_to_type_definition!
+    return if column_type_definition.present?
+
+    type_def = ColumnTypeDefinition.find_by(type_key: column_type)
+    return unless type_def
+
+    update!(
+      column_type_definition_id: type_def.id,
+      type_version_applied: type_def.version
+    )
   end
 
   private

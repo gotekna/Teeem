@@ -17,12 +17,10 @@ module Api
                        .distinct
         end
 
-        # Filter by job_status.name if provided (default to Active jobs, unless filtering by contact)
-        # Note: The frontend sends `status=Active` but we filter via the job_status association
-        status_filter = params[:status]
-        status_filter ||= "Active" unless params[:contact_id].present?
-        if status_filter.present?
-          @jobs = @jobs.joins(:job_status).where(job_status: { name: status_filter })
+        # Filter by job_status.name if provided
+        # Note: No default filter - frontend-next handles filtering via saved views
+        if params[:status].present?
+          @jobs = @jobs.joins(:job_status).where(job_status: { name: params[:status] })
         end
 
         # Filter by location presence if requested
@@ -32,7 +30,7 @@ module Api
 
         # Pagination
         page = params[:page]&.to_i || 1
-        per_page = params[:per_page]&.to_i || 50
+        per_page = params[:per_page]&.to_i || 500
 
         # Get total count before limiting results to avoid separate COUNT query
         total_count = @jobs.count
@@ -306,7 +304,20 @@ module Api
       private
 
       def set_job
-        @job = Job.find(params[:id])
+        # Support lookup by ID or slug (title-based)
+        id_or_slug = params[:id]
+
+        if id_or_slug.to_s.match?(/\A\d+\z/)
+          # Numeric ID - direct lookup
+          @job = Job.find(id_or_slug)
+        else
+          # Slug - search by title (convert slug back to search term)
+          # Remove the _God_Loves_You_ suffix if present
+          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
+          search_term = slug.gsub('-', ' ')
+          @job = Job.where('LOWER(title) LIKE ?', "%#{search_term.downcase}%").first
+          raise ActiveRecord::RecordNotFound, "Job not found with slug: #{id_or_slug}" unless @job
+        end
       end
 
       def job_params

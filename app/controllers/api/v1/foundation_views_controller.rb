@@ -1,6 +1,7 @@
 module Api
   module V1
     class FoundationViewsController < ApplicationController
+      skip_before_action :authorize_request, only: [:index]  # Allow unauthenticated access to read views (global views visible to all)
       before_action :set_foundation_view, only: [:show, :update, :destroy]
 
       # GET /api/v1/foundation_views
