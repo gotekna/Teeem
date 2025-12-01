@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -234,21 +235,29 @@ export default function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm">
-              <Briefcase className="h-4 w-4 mr-2" />
-              New Job
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/jobs/new">
+                <Briefcase className="h-4 w-4 mr-2" />
+                New Job
+              </Link>
             </Button>
-            <Button variant="outline" size="sm">
-              <FileText className="h-4 w-4 mr-2" />
-              Create PO
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/purchase-orders/new">
+                <FileText className="h-4 w-4 mr-2" />
+                Create PO
+              </Link>
             </Button>
-            <Button variant="outline" size="sm">
-              <Users className="h-4 w-4 mr-2" />
-              Add Contact
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/contacts/new">
+                <Users className="h-4 w-4 mr-2" />
+                Add Contact
+              </Link>
             </Button>
-            <Button variant="outline" size="sm">
-              <Calendar className="h-4 w-4 mr-2" />
-              Schedule Meeting
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/meetings/new">
+                <Calendar className="h-4 w-4 mr-2" />
+                Schedule Meeting
+              </Link>
             </Button>
           </div>
         </CardContent>

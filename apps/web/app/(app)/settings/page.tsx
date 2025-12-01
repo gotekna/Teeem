@@ -24,6 +24,9 @@ import {
   Upload,
   Loader2,
   ChevronRight,
+  Wrench,
+  HeartPulse,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -120,6 +123,10 @@ export default function SettingsPage() {
           <TabsTrigger value="integrations" className="gap-2">
             <Link2 className="h-4 w-4" />
             Integrations
+          </TabsTrigger>
+          <TabsTrigger value="system" className="gap-2">
+            <Wrench className="h-4 w-4" />
+            System
           </TabsTrigger>
         </TabsList>
 
@@ -414,6 +421,77 @@ export default function SettingsPage() {
                     <Badge variant="secondary">Not Connected</Badge>
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* System Tab */}
+        <TabsContent value="system">
+          <div className="space-y-4">
+            <Card
+              className="cursor-pointer hover:bg-accent/50 transition-colors"
+              onClick={() => router.push("/system-health")}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-green-100 rounded-lg">
+                      <HeartPulse className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">System Health</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Data quality checks and system diagnostics
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="cursor-pointer hover:bg-accent/50 transition-colors"
+              onClick={() => router.push("/corporate")}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-purple-100 rounded-lg">
+                      <Activity className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">Corporate Health</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Company compliance and document verification
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="cursor-pointer hover:bg-accent/50 transition-colors"
+              onClick={() => router.push("/admin")}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-orange-100 rounded-lg">
+                      <Wrench className="h-6 w-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">Admin Tools</h3>
+                      <p className="text-sm text-muted-foreground">
+                        User management and system configuration
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>

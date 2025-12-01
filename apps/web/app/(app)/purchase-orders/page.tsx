@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -153,9 +154,11 @@ export default function PurchaseOrdersPage() {
             Manage purchase orders across all jobs
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Create PO
+        <Button asChild>
+          <Link href="/purchase-orders/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Create PO
+          </Link>
         </Button>
       </div>
 
@@ -315,9 +318,11 @@ export default function PurchaseOrdersPage() {
                 <TableCell colSpan={7} className="text-center py-12">
                   <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No purchase orders found</p>
-                  <Button className="mt-4">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create First PO
+                  <Button className="mt-4" asChild>
+                    <Link href="/purchase-orders/new">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First PO
+                    </Link>
                   </Button>
                 </TableCell>
               </TableRow>

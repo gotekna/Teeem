@@ -18,6 +18,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -35,19 +36,37 @@ import {
   Loader2,
   Cloud,
   ChevronRight,
+  Sparkles,
+  Eye,
+  CheckCircle,
+  Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { AIVerificationModal } from "@/components/documents/ai-verification-modal";
+import { DocumentPreviewModal } from "@/components/documents/document-preview-modal";
 
 interface Document {
   id: number;
   name: string;
+  display_title?: string;
   type: string;
   size: number;
+  url?: string;
   job_title?: string;
   job_id?: number;
   uploaded_at: string;
   uploaded_by: string;
   folder_path?: string;
+  document_type?: {
+    id: number;
+    name: string;
+    abbreviation: string;
+  };
+  fiscal_year?: string;
+  company_name?: string;
+  verified: boolean;
+  verified_at?: string;
+  verified_by?: string;
 }
 
 interface Folder {
@@ -82,27 +101,68 @@ export default function DocumentsPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [oneDriveConnected, setOneDriveConnected] = React.useState(false);
 
-  React.useEffect(() => {
-    const fetchDocuments = async () => {
-      try {
-        const [docsData, statusData] = await Promise.all([
-          api.get<{ documents: Document[]; folders: Folder[] }>("/api/v1/documents"),
-          api.get<{ connected: boolean }>("/api/v1/organization_onedrive/status"),
-        ]);
-        setDocuments(docsData.documents || []);
-        setFolders(docsData.folders || []);
-        setOneDriveConnected(statusData.connected);
-      } catch (error) {
-        console.error("Failed to fetch documents:", error);
-        setDocuments([]);
-        setFolders([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Modal states
+  const [selectedDocument, setSelectedDocument] = React.useState<Document | null>(null);
+  const [previewModalOpen, setPreviewModalOpen] = React.useState(false);
+  const [verificationModalOpen, setVerificationModalOpen] = React.useState(false);
 
-    fetchDocuments();
+  const fetchDocuments = React.useCallback(async () => {
+    try {
+      const [docsData, statusData] = await Promise.all([
+        api.get<{ documents: Document[]; folders: Folder[] }>("/api/v1/documents"),
+        api.get<{ connected: boolean }>("/api/v1/organization_onedrive/status"),
+      ]);
+      setDocuments(docsData.documents || []);
+      setFolders(docsData.folders || []);
+      setOneDriveConnected(statusData.connected);
+    } catch (error) {
+      console.error("Failed to fetch documents:", error);
+      // Mock data for demo
+      setDocuments(getMockDocuments());
+      setFolders([
+        { id: "1", name: "Contracts", path: "/contracts", documents_count: 12 },
+        { id: "2", name: "Financial", path: "/financial", documents_count: 8 },
+        { id: "3", name: "Compliance", path: "/compliance", documents_count: 5 },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  const handleVerificationComplete = async (data: {
+    display_title: string;
+    document_type_id: number;
+    fiscal_year?: string;
+    verified: boolean;
+  }) => {
+    if (!selectedDocument) return;
+
+    try {
+      await api.patch(`/api/v1/documents/${selectedDocument.id}`, {
+        display_title: data.display_title,
+        document_type_id: data.document_type_id,
+        fiscal_year: data.fiscal_year,
+        verified: data.verified,
+      });
+      fetchDocuments();
+    } catch (error) {
+      console.error("Failed to update document:", error);
+    }
+  };
+
+  const handlePreview = (doc: Document) => {
+    setSelectedDocument(doc);
+    setPreviewModalOpen(true);
+  };
+
+  const handleVerify = (doc: Document) => {
+    setSelectedDocument(doc);
+    setVerificationModalOpen(true);
+  };
 
   const filteredDocuments = React.useMemo(() => {
     if (!searchQuery) return documents;
@@ -224,8 +284,9 @@ export default function DocumentsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Job</TableHead>
-                  <TableHead>Size</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Uploaded</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
@@ -233,19 +294,51 @@ export default function DocumentsPage() {
               <TableBody>
                 {filteredDocuments.length > 0 ? (
                   filteredDocuments.map((doc) => (
-                    <TableRow key={doc.id}>
+                    <TableRow
+                      key={doc.id}
+                      className="cursor-pointer hover:bg-secondary/50"
+                      onClick={() => handlePreview(doc)}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-2">
                           {getFileIcon(doc.type)}
-                          <span className="font-medium">{doc.name}</span>
+                          <div>
+                            <span className="font-medium">
+                              {doc.display_title || doc.name}
+                            </span>
+                            {doc.display_title && doc.display_title !== doc.name && (
+                              <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                {doc.name}
+                              </p>
+                            )}
+                          </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {doc.document_type ? (
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {doc.document_type.abbreviation}
+                            </Badge>
+                            {doc.fiscal_year && (
+                              <span className="text-xs text-muted-foreground">
+                                FY{doc.fiscal_year}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {doc.job_title ? (
                           <Button
                             variant="link"
                             className="p-0 h-auto text-sm"
-                            onClick={() => router.push(`/jobs/${doc.job_id}`)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/jobs/${doc.job_id}`);
+                            }}
                           >
                             {doc.job_title}
                           </Button>
@@ -253,8 +346,18 @@ export default function DocumentsPage() {
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatFileSize(doc.size)}
+                      <TableCell>
+                        {doc.verified ? (
+                          <Badge className="bg-green-100 text-green-700">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Verified
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         <div>
@@ -265,11 +368,26 @@ export default function DocumentsPage() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handlePreview(doc)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Preview
+                            </DropdownMenuItem>
+                            {!doc.verified && (
+                              <DropdownMenuItem onClick={() => handleVerify(doc)}>
+                                <Sparkles className="h-4 w-4 mr-2" />
+                                AI Verify
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem>
                               <Download className="h-4 w-4 mr-2" />
                               Download
@@ -278,6 +396,7 @@ export default function DocumentsPage() {
                               <ExternalLink className="h-4 w-4 mr-2" />
                               Open in OneDrive
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem className="text-destructive">
                               <Trash2 className="h-4 w-4 mr-2" />
                               Delete
@@ -289,7 +408,7 @@ export default function DocumentsPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12">
+                    <TableCell colSpan={6} className="text-center py-12">
                       <FolderOpen className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                       <p className="text-muted-foreground">No documents found</p>
                       <Button className="mt-4">
@@ -304,6 +423,99 @@ export default function DocumentsPage() {
           </Card>
         </div>
       </div>
+
+      {/* Modals */}
+      <AIVerificationModal
+        open={verificationModalOpen}
+        onOpenChange={setVerificationModalOpen}
+        document={selectedDocument}
+        onVerificationComplete={handleVerificationComplete}
+      />
+
+      <DocumentPreviewModal
+        open={previewModalOpen}
+        onOpenChange={setPreviewModalOpen}
+        document={selectedDocument}
+        onVerify={() => {
+          setPreviewModalOpen(false);
+          setVerificationModalOpen(true);
+        }}
+        onDownload={() => {
+          // TODO: Implement download
+        }}
+        onOpenExternal={() => {
+          // TODO: Open in OneDrive
+        }}
+      />
     </div>
   );
+}
+
+// Mock data for demo
+function getMockDocuments(): Document[] {
+  return [
+    {
+      id: 1,
+      name: "Acme Corp - CTR - FY2024.pdf",
+      display_title: "Company Tax Return FY2024",
+      type: "application/pdf",
+      size: 2456000,
+      uploaded_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+      uploaded_by: "Sarah Wilson",
+      document_type: { id: 1, name: "Company Tax Return", abbreviation: "CTR" },
+      fiscal_year: "2024",
+      company_name: "Acme Corporation",
+      verified: true,
+      verified_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      verified_by: "John Smith",
+    },
+    {
+      id: 2,
+      name: "BAS_Q3_2024.pdf",
+      type: "application/pdf",
+      size: 845000,
+      job_title: "Smith Residence",
+      job_id: 42,
+      uploaded_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      uploaded_by: "Mike Johnson",
+      verified: false,
+    },
+    {
+      id: 3,
+      name: "Site_Photo_001.jpg",
+      type: "image/jpeg",
+      size: 3200000,
+      job_title: "Commercial Fitout",
+      job_id: 67,
+      uploaded_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      uploaded_by: "Emma Davis",
+      verified: true,
+      verified_at: new Date().toISOString(),
+      verified_by: "Emma Davis",
+    },
+    {
+      id: 4,
+      name: "Contract_BuildRight_2024.pdf",
+      display_title: "BuildRight Subcontract Agreement",
+      type: "application/pdf",
+      size: 1250000,
+      job_title: "Office Renovation",
+      job_id: 89,
+      uploaded_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+      uploaded_by: "David Brown",
+      document_type: { id: 6, name: "Contract", abbreviation: "CON" },
+      verified: true,
+      verified_at: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
+      verified_by: "Sarah Wilson",
+    },
+    {
+      id: 5,
+      name: "Invoice_Supplier_Oct.xlsx",
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      size: 56000,
+      uploaded_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      uploaded_by: "John Smith",
+      verified: false,
+    },
+  ];
 }

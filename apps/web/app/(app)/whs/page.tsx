@@ -258,18 +258,87 @@ export default function WHSPage() {
 
         <Card
           className="cursor-pointer hover:bg-accent/50 transition-colors"
-          onClick={() => router.push("/whs/licenses")}
+          onClick={() => router.push("/whs/inspections")}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="p-3 bg-orange-100 rounded-lg">
-                  <HardHat className="h-6 w-6 text-orange-600" />
+                  <ClipboardCheck className="h-6 w-6 text-orange-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Site Inspections</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Safety audits & checklists
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Additional Quick Actions Row */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card
+          className="cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={() => router.push("/whs/incidents")}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-red-100 rounded-lg">
+                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Incident Reports</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Track & investigate incidents
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={() => router.push("/whs/licenses")}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-purple-100 rounded-lg">
+                  <HardHat className="h-6 w-6 text-purple-600" />
                 </div>
                 <div>
                   <h3 className="font-medium">License Tracking</h3>
                   <p className="text-sm text-muted-foreground">
                     Worker certifications & licenses
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card
+          className="cursor-pointer hover:bg-accent/50 transition-colors"
+          onClick={() => router.push("/whs/action-items")}
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-yellow-100 rounded-lg">
+                  <Clock className="h-6 w-6 text-yellow-600" />
+                </div>
+                <div>
+                  <h3 className="font-medium">Action Items</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Outstanding safety actions
                   </p>
                 </div>
               </div>

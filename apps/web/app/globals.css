@@ -194,6 +194,106 @@
 
 @layer components {
   /*
+   * MODAL/DIALOG STYLING
+   * Consistent padding, spacing, and typography for all modals.
+   */
+
+  /* Modal content padding */
+  .modal-content {
+    padding: var(--space-6);
+  }
+
+  /* Modal header */
+  .modal-header {
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid hsl(var(--border));
+    margin-bottom: var(--space-4);
+  }
+
+  /* Modal title */
+  .modal-title {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    color: hsl(var(--foreground));
+  }
+
+  /* Modal description */
+  .modal-description {
+    font-size: var(--text-md);
+    color: hsl(var(--muted-foreground));
+    margin-top: var(--space-1);
+  }
+
+  /* Modal body */
+  .modal-body {
+    padding: var(--space-4) 0;
+  }
+
+  /* Modal footer */
+  .modal-footer {
+    padding-top: var(--space-4);
+    border-top: 1px solid hsl(var(--border));
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+  }
+
+  /* Modal section divider */
+  .modal-section {
+    padding-top: var(--space-4);
+    margin-top: var(--space-4);
+    border-top: 1px solid hsl(var(--border));
+  }
+
+  .modal-section-title {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: var(--space-3);
+  }
+
+  /*
+   * FORM STYLING
+   * Consistent form field styling across the app.
+   */
+
+  /* Form field group */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  /* Form label */
+  .form-label {
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: hsl(var(--foreground));
+  }
+
+  /* Form helper text */
+  .form-helper {
+    font-size: var(--text-xs);
+    color: hsl(var(--muted-foreground));
+    margin-top: var(--space-1);
+  }
+
+  /* Form grid - 2 columns */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+  }
+
+  /* Full width in form grid */
+  .form-full {
+    grid-column: span 2;
+  }
+
+  /*
    * TABLE TYPOGRAPHY
    * Use these classes for consistent table styling across all pages.
    *
@@ -358,8 +458,29 @@
    COMPONENT OVERRIDES
    ======================================== */
 
-/* Ensure primary buttons have white text in light mode and black text in dark mode */
-button[class*="bg-primary"]:not([class*="bg-primary/"]):not([class*="bg-primary-"]) {
+/*
+ * PRIMARY BUTTON TEXT FIX
+ * Ensures primary buttons always have correct text contrast.
+ * Light mode: black bg → white text
+ * Dark mode: white bg → black text
+ */
+.bg-primary,
+.bg-primary:hover,
+button.bg-primary,
+a.bg-primary,
+[class*="bg-primary"]:not([class*="bg-primary/"]):not([class*="bg-primary-"]) {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* Ensure text-primary-foreground is applied */
+.text-primary-foreground {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* Fix for any svg icons inside primary buttons */
+.bg-primary svg,
+button.bg-primary svg,
+a.bg-primary svg {
   color: hsl(var(--primary-foreground)) !important;
 }
 

@@ -27,6 +27,11 @@ import {
   HelpCircle,
   ClipboardList,
   Loader2,
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  ClipboardCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -65,6 +70,7 @@ const tabs = [
   { name: "Activity", slug: "activity", icon: TrendingUp },
   { name: "Budget", slug: "budget", icon: DollarSign },
   { name: "Schedule", slug: "schedule", icon: Calendar },
+  { name: "WHS", slug: "whs", icon: Shield },
   { name: "Rain Log", slug: "rain-log", icon: Cloud },
   { name: "Documents", slug: "documents", icon: FileText },
   { name: "Coms", slug: "coms", icon: MessageSquare },
@@ -434,6 +440,157 @@ export default function JobDetailPage() {
               </p>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="whs" className="mt-6">
+          <div className="space-y-6">
+            {/* WHS Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2">
+                    <ClipboardCheck className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm text-muted-foreground">Active SWMS</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">2</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-green-500" />
+                    <span className="text-sm text-muted-foreground">Inducted Workers</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">8</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                    <span className="text-sm text-muted-foreground">Inspections</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">3</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-500" />
+                    <span className="text-sm text-muted-foreground">Open Incidents</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">0</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* SWMS for this job */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Safe Work Method Statements</CardTitle>
+                <Button size="sm">
+                  <ClipboardCheck className="h-4 w-4 mr-2" />
+                  Create SWMS
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                      <div>
+                        <p className="font-medium">Excavation Works SWMS</p>
+                        <p className="text-sm text-muted-foreground">Version 2 • 8 workers</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-100 text-green-700">Active</Badge>
+                      <span className="text-sm text-muted-foreground">60 days remaining</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                      <div>
+                        <p className="font-medium">Concrete Pouring SWMS</p>
+                        <p className="text-sm text-muted-foreground">Version 1 • Draft</p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary">Draft</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Inducted Workers */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>Inducted Workers</CardTitle>
+                <Button size="sm" variant="outline">
+                  <Users className="h-4 w-4 mr-2" />
+                  Start Induction
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {["James Wilson", "Mark Thompson", "Lisa Chen"].map((name) => (
+                    <div key={name} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                            {name.split(" ").map((n) => n[0]).join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{name}</p>
+                          <p className="text-sm text-muted-foreground">General Site Induction</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-muted-foreground">Inducted</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>TB</AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-medium">Tom Bradley</p>
+                        <p className="text-sm text-muted-foreground">Pending induction</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-orange-500" />
+                      <Button size="sm">Start</Button>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quick Links */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Button variant="outline" className="h-auto py-4 flex-col" onClick={() => router.push("/whs/inspections")}>
+                <CheckCircle className="h-5 w-5 mb-2" />
+                Run Inspection
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex-col" onClick={() => router.push("/whs/incidents")}>
+                <AlertTriangle className="h-5 w-5 mb-2" />
+                Report Incident
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex-col" onClick={() => router.push("/whs/swms")}>
+                <ClipboardCheck className="h-5 w-5 mb-2" />
+                All SWMS
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex-col" onClick={() => router.push("/whs")}>
+                <Shield className="h-5 w-5 mb-2" />
+                WHS Dashboard
+              </Button>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="rain-log" className="mt-6">

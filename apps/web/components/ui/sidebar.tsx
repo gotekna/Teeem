@@ -18,9 +18,8 @@ import {
   Moon,
   Menu,
   LogOut,
-  BarChart3,
   FolderOpen,
-  Wrench,
+  Target,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "./button";
@@ -28,29 +27,22 @@ import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "./dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "./popover";
 
 const navigationItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
+  { name: "Leads", href: "/leads", icon: Target },
   { name: "Jobs", href: "/jobs", icon: Briefcase },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
-  { name: "Estimates", href: "/estimates", icon: DollarSign },
+  { name: "Financial", href: "/financial", icon: DollarSign },
   { name: "Purchase Orders", href: "/purchase-orders", icon: FileText },
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Training", href: "/training", icon: GraduationCap },
-];
-
-const bottomNavigationItems = [
-  { name: "Schedule Demo", href: "/gantt", icon: BarChart3 },
-  { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Admin", href: "/admin", icon: Wrench },
 ];
 
 export function Sidebar() {
@@ -121,81 +113,15 @@ export function Sidebar() {
             </Link>
           );
         })}
-
-        {/* Separator */}
-        <div className="my-2 border-t border-border" />
-
-        {/* Bottom Navigation Items */}
-        {bottomNavigationItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 transition-colors relative group",
-                active
-                  ? "bg-secondary text-secondary-foreground"
-                  : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-              )}
-            >
-              <Icon size={20} className="shrink-0" />
-              <span
-                className={cn(
-                  "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm",
-                  isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
-                )}
-              >
-                {item.name}
-              </span>
-              {!isExpanded && !mobile && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
-                  {item.name}
-                </div>
-              )}
-            </Link>
-          );
-        })}
       </nav>
-
-      {/* Theme Toggle */}
-      <div className="p-2 border-t border-border">
-        <div
-          className={cn(
-            "flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors cursor-pointer",
-            !isExpanded && !mobile && "justify-center"
-          )}
-        >
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn("h-8 w-8", isExpanded || mobile ? "" : "mx-auto")}
-            onClick={(e) => {
-              e.stopPropagation();
-              setTheme(theme === "dark" ? "light" : "dark");
-            }}
-          >
-            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-            <span className="sr-only">Toggle theme</span>
-          </Button>
-          {(isExpanded || mobile) && (
-            <span className="text-sm text-muted-foreground whitespace-nowrap overflow-hidden">
-              Toggle Theme
-            </span>
-          )}
-        </div>
-      </div>
 
       {/* User Profile */}
       <div className="p-2 border-t border-border">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+        <Popover>
+          <PopoverTrigger asChild>
             <div
               className={cn(
-                "flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors cursor-pointer",
+                "flex items-center gap-3 p-2 hover:bg-secondary/50 transition-colors cursor-pointer rounded-md",
                 !isExpanded && !mobile && "justify-center"
               )}
             >
@@ -210,7 +136,7 @@ export function Sidebar() {
                 </AvatarFallback>
               </Avatar>
               {(isExpanded || mobile) && (
-                <div className="flex flex-col overflow-hidden">
+                <div className="flex flex-col overflow-hidden flex-1">
                   <span className="text-sm font-medium truncate">{user?.name || "User"}</span>
                   <span className="text-xs text-muted-foreground truncate">
                     {user?.email || ""}
@@ -218,21 +144,46 @@ export function Sidebar() {
                 </div>
               )}
             </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem asChild>
-              <Link href="/profile">Profile</Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/settings">Settings</Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-              <LogOut className="mr-2 h-4 w-4" />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </PopoverTrigger>
+          <PopoverContent side="right" align="end" className="w-56 p-2 ml-2">
+            <div className="flex flex-col gap-1">
+              <Link
+                href="/profile"
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+              >
+                <Users className="h-4 w-4" />
+                Profile
+              </Link>
+              <Link
+                href="/settings"
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
+              >
+                <Settings className="h-4 w-4" />
+                Settings
+              </Link>
+              <div className="my-1 border-t border-border" />
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left"
+              >
+                {theme === "dark" ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
+                {theme === "dark" ? "Light mode" : "Dark mode"}
+              </button>
+              <div className="my-1 border-t border-border" />
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors w-full text-left text-destructive"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign out
+              </button>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
     </div>
   );

@@ -129,9 +129,11 @@ export default function JobsPage() {
             Manage your construction projects and jobs
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Job
+        <Button asChild>
+          <Link href="/jobs/new">
+            <Plus className="h-4 w-4 mr-2" />
+            New Job
+          </Link>
         </Button>
       </div>
 

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -106,9 +107,11 @@ export default function MeetingsPage() {
             Schedule and manage site meetings
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Schedule Meeting
+        <Button asChild>
+          <Link href="/meetings/new">
+            <Plus className="h-4 w-4 mr-2" />
+            Schedule Meeting
+          </Link>
         </Button>
       </div>
 
@@ -206,9 +209,11 @@ export default function MeetingsPage() {
                 <p className="text-sm text-muted-foreground">
                   Schedule a meeting to get started
                 </p>
-                <Button className="mt-4">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Schedule Meeting
+                <Button className="mt-4" asChild>
+                  <Link href="/meetings/new">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Schedule Meeting
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
