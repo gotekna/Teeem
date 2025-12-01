@@ -25,6 +25,9 @@ import {
   GitCompare,
   Plus,
   Pencil,
+  Settings,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   Dialog,
@@ -101,12 +104,48 @@ function GoldStandardDataTab() {
   const [formData, setFormData] = React.useState<Record<string, unknown>>({});
   const [saving, setSaving] = React.useState(false);
   const [showMoreFields, setShowMoreFields] = React.useState(false);
+  const [showFieldConfig, setShowFieldConfig] = React.useState(false);
+  const [visibleFields, setVisibleFields] = React.useState<Set<string>>(new Set());
 
-  // Essential column types shown by default
-  const essentialColumnTypes = [
-    'short_text', 'long_text', 'number', 'whole_number', 'currency',
-    'date', 'boolean', 'email', 'dropdown', 'percentage'
-  ];
+  // Initialize visible fields when columns load
+  React.useEffect(() => {
+    if (rawColumns.length > 0 && visibleFields.size === 0) {
+      // Default: show common field types
+      const defaultVisible = new Set(
+        rawColumns
+          .filter(col =>
+            !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+            ['short_text', 'long_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'dropdown', 'percentage'].includes(col.column_type)
+          )
+          .map(col => col.column_name)
+      );
+      setVisibleFields(defaultVisible);
+    }
+  }, [rawColumns]);
+
+  const toggleFieldVisibility = (columnName: string) => {
+    setVisibleFields(prev => {
+      const next = new Set(prev);
+      if (next.has(columnName)) {
+        next.delete(columnName);
+      } else {
+        next.add(columnName);
+      }
+      return next;
+    });
+  };
+
+  const showAllFields = () => {
+    setVisibleFields(new Set(
+      rawColumns
+        .filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name))
+        .map(col => col.column_name)
+    ));
+  };
+
+  const hideAllFields = () => {
+    setVisibleFields(new Set());
+  };
 
   React.useEffect(() => {
     loadData();
@@ -492,22 +531,78 @@ function GoldStandardDataTab() {
       {/* Add Item Dialog */}
       <Dialog open={showAddDialog} onOpenChange={(open) => {
         setShowAddDialog(open);
-        if (!open) setShowMoreFields(false);
+        if (!open) {
+          setShowMoreFields(false);
+          setShowFieldConfig(false);
+        }
       }}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
           <DialogHeader className="pb-4">
-            <DialogTitle>Add New Item</DialogTitle>
-            <DialogDescription>
-              Create a new gold standard item with sample data for all column types.
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Add New Item</DialogTitle>
+                <DialogDescription>
+                  Create a new gold standard item with sample data for all column types.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFieldConfig(!showFieldConfig)}
+                className="text-muted-foreground"
+              >
+                <Settings className="h-4 w-4 mr-1" />
+                Fields
+              </Button>
+            </div>
           </DialogHeader>
 
-          {/* Essential Fields */}
+          {/* Field Configuration Panel */}
+          {showFieldConfig && (
+            <div className="border rounded-md p-4 mb-4 bg-muted/30">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium">Select fields to show</span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
+                    Show All
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={hideAllFields} className="text-xs h-7">
+                    Hide All
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {rawColumns
+                  .filter((col) => !['id', 'created_at', 'updated_at'].includes(col.column_name))
+                  .map((col) => (
+                  <button
+                    key={col.column_name}
+                    onClick={() => toggleFieldVisibility(col.column_name)}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors text-left",
+                      visibleFields.has(col.column_name)
+                        ? "bg-primary/10 border-primary/30 text-foreground"
+                        : "bg-background border-border text-muted-foreground hover:border-primary/30"
+                    )}
+                  >
+                    {visibleFields.has(col.column_name) ? (
+                      <Eye className="h-3 w-3 flex-shrink-0" />
+                    ) : (
+                      <EyeOff className="h-3 w-3 flex-shrink-0" />
+                    )}
+                    <span className="truncate">{col.name || col.column_name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Visible Fields */}
           <div className="grid grid-cols-2 gap-4 py-4">
             {rawColumns
               .filter((col) =>
                 !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                essentialColumnTypes.includes(col.column_type)
+                visibleFields.has(col.column_name)
               )
               .map((col) => (
               <div key={col.column_name}>
@@ -516,16 +611,16 @@ function GoldStandardDataTab() {
             ))}
           </div>
 
-          {/* Optional/Advanced Fields - Collapsible */}
+          {/* Hidden Fields - Collapsible */}
           {rawColumns.filter((col) =>
             !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-            !essentialColumnTypes.includes(col.column_type)
+            !visibleFields.has(col.column_name)
           ).length > 0 && (
             <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
               <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} More Fields ({rawColumns.filter((col) =>
+                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({rawColumns.filter((col) =>
                   !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                  !essentialColumnTypes.includes(col.column_type)
+                  !visibleFields.has(col.column_name)
                 ).length})
               </CollapsibleTrigger>
               <CollapsibleContent>
@@ -533,7 +628,7 @@ function GoldStandardDataTab() {
                   {rawColumns
                     .filter((col) =>
                       !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                      !essentialColumnTypes.includes(col.column_type)
+                      !visibleFields.has(col.column_name)
                     )
                     .map((col) => (
                     <div key={col.column_name}>
@@ -543,6 +638,12 @@ function GoldStandardDataTab() {
                 </div>
               </CollapsibleContent>
             </Collapsible>
+          )}
+
+          {visibleFields.size === 0 && !showMoreFields && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No fields visible. Click &quot;Fields&quot; to configure which fields to show.</p>
+            </div>
           )}
 
           <DialogFooter>
@@ -569,22 +670,78 @@ function GoldStandardDataTab() {
       {/* Edit Item Dialog */}
       <Dialog open={showEditDialog} onOpenChange={(open) => {
         setShowEditDialog(open);
-        if (!open) setShowMoreFields(false);
+        if (!open) {
+          setShowMoreFields(false);
+          setShowFieldConfig(false);
+        }
       }}>
         <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
           <DialogHeader className="pb-4">
-            <DialogTitle>Edit Item</DialogTitle>
-            <DialogDescription>
-              Update the gold standard item values.
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Edit Item</DialogTitle>
+                <DialogDescription>
+                  Update the gold standard item values.
+                </DialogDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowFieldConfig(!showFieldConfig)}
+                className="text-muted-foreground"
+              >
+                <Settings className="h-4 w-4 mr-1" />
+                Fields
+              </Button>
+            </div>
           </DialogHeader>
 
-          {/* Essential Fields */}
+          {/* Field Configuration Panel */}
+          {showFieldConfig && (
+            <div className="border rounded-md p-4 mb-4 bg-muted/30">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-medium">Select fields to show</span>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
+                    Show All
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={hideAllFields} className="text-xs h-7">
+                    Hide All
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {rawColumns
+                  .filter((col) => !['id', 'created_at', 'updated_at'].includes(col.column_name))
+                  .map((col) => (
+                  <button
+                    key={col.column_name}
+                    onClick={() => toggleFieldVisibility(col.column_name)}
+                    className={cn(
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors text-left",
+                      visibleFields.has(col.column_name)
+                        ? "bg-primary/10 border-primary/30 text-foreground"
+                        : "bg-background border-border text-muted-foreground hover:border-primary/30"
+                    )}
+                  >
+                    {visibleFields.has(col.column_name) ? (
+                      <Eye className="h-3 w-3 flex-shrink-0" />
+                    ) : (
+                      <EyeOff className="h-3 w-3 flex-shrink-0" />
+                    )}
+                    <span className="truncate">{col.name || col.column_name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Visible Fields */}
           <div className="grid grid-cols-2 gap-4 py-4">
             {rawColumns
               .filter((col) =>
                 !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                essentialColumnTypes.includes(col.column_type)
+                visibleFields.has(col.column_name)
               )
               .map((col) => (
               <div key={col.column_name}>
@@ -593,16 +750,16 @@ function GoldStandardDataTab() {
             ))}
           </div>
 
-          {/* Optional/Advanced Fields - Collapsible */}
+          {/* Hidden Fields - Collapsible */}
           {rawColumns.filter((col) =>
             !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-            !essentialColumnTypes.includes(col.column_type)
+            !visibleFields.has(col.column_name)
           ).length > 0 && (
             <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
               <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} More Fields ({rawColumns.filter((col) =>
+                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({rawColumns.filter((col) =>
                   !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                  !essentialColumnTypes.includes(col.column_type)
+                  !visibleFields.has(col.column_name)
                 ).length})
               </CollapsibleTrigger>
               <CollapsibleContent>
@@ -610,7 +767,7 @@ function GoldStandardDataTab() {
                   {rawColumns
                     .filter((col) =>
                       !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                      !essentialColumnTypes.includes(col.column_type)
+                      !visibleFields.has(col.column_name)
                     )
                     .map((col) => (
                     <div key={col.column_name}>
@@ -620,6 +777,12 @@ function GoldStandardDataTab() {
                 </div>
               </CollapsibleContent>
             </Collapsible>
+          )}
+
+          {visibleFields.size === 0 && !showMoreFields && (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No fields visible. Click &quot;Fields&quot; to configure which fields to show.</p>
+            </div>
           )}
 
           <DialogFooter>
