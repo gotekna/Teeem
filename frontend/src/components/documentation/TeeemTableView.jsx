@@ -8250,7 +8250,8 @@ export default function TeeemTableView({
             {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
             <div
               ref={scrollContainerRef}
-              className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+              className="teeem-table-scroll overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+              style={{ maxHeight: 'calc(100vh - 350px)', minHeight: '200px' }}
             >
           <table className="border-separate border-spacing-0" style={{
             width: autoFitColumns ? 'auto' : (() => {
