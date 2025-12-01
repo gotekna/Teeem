@@ -5,11 +5,24 @@ import {
   ArrowDownTrayIcon,
   FolderIcon,
   ExclamationCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from '@heroicons/react/24/outline'
 import { api } from '../../api'
 
 // Image file extensions
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.heic', '.heif']
+
+// Photo categories in display order
+const PHOTO_CATEGORIES = [
+  { key: 'site', label: 'Site', patterns: ['site'] },
+  { key: 'slab', label: 'Slab', patterns: ['slab'] },
+  { key: 'frame', label: 'Frame', patterns: ['frame'] },
+  { key: 'enclosed', label: 'Enclosed', patterns: ['enclosed', 'lockup', 'lock-up', 'lock up'] },
+  { key: 'fixing', label: 'Fixing', patterns: ['fixing'] },
+  { key: 'practical', label: 'Practical Completion', patterns: ['practical', 'pc', 'completion'] },
+  { key: 'handover', label: 'Handover', patterns: ['handover', 'hand over', 'hand-over'] },
+]
 
 function isImageFile(filename) {
   if (!filename) return false
@@ -29,7 +42,45 @@ function formatFileSize(bytes) {
   return `${size.toFixed(1)} ${units[unitIndex]}`
 }
 
-export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photos', '07 Supervisor Photos'] }) {
+// Determine category from filename
+function getCategoryFromFilename(filename) {
+  if (!filename) return null
+  const lowerName = filename.toLowerCase()
+
+  for (const category of PHOTO_CATEGORIES) {
+    for (const pattern of category.patterns) {
+      if (lowerName.includes(pattern)) {
+        return category.key
+      }
+    }
+  }
+  return null // Uncategorized
+}
+
+// Group files by category
+function groupFilesByCategory(files) {
+  const groups = {}
+
+  // Initialize groups in order
+  for (const category of PHOTO_CATEGORIES) {
+    groups[category.key] = []
+  }
+  groups['uncategorized'] = []
+
+  // Sort files into groups
+  for (const file of files) {
+    const category = getCategoryFromFilename(file.name)
+    if (category) {
+      groups[category].push(file)
+    } else {
+      groups['uncategorized'].push(file)
+    }
+  }
+
+  return groups
+}
+
+export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photos', '07 Supervisor Photos'], filenameFilter = null, onPhotoCountChange }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [files, setFiles] = useState([])
@@ -37,11 +88,12 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
   const [jobFolderUrl, setJobFolderUrl] = useState(null)
   const [selectedImage, setSelectedImage] = useState(null)
   const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
+  const [collapsedCategories, setCollapsedCategories] = useState({})
 
   useEffect(() => {
     fetchFolderContents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, folderNames.join(',')])
+  }, [jobId, folderNames.join(','), filenameFilter])
 
   const fetchFolderContents = async () => {
     try {
@@ -52,9 +104,24 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
         `/api/v1/organization_onedrive/folder_contents?job_id=${jobId}&folder_names=${folderNames.join(',')}`
       )
 
-      setFiles(response.files || [])
+      let loadedFiles = response.files || []
+
+      // Apply filename filter if specified (e.g., only show files with "client" in the name)
+      if (filenameFilter) {
+        loadedFiles = loadedFiles.filter(f =>
+          f.name?.toLowerCase().includes(filenameFilter.toLowerCase())
+        )
+      }
+
+      setFiles(loadedFiles)
       setFoundFolders(response.found_folders || [])
       setJobFolderUrl(response.job_folder_web_url)
+
+      // Notify parent component of photo count (after filtering)
+      if (onPhotoCountChange) {
+        const imageCount = loadedFiles.filter(f => isImageFile(f.name)).length
+        onPhotoCountChange(imageCount)
+      }
     } catch (err) {
       console.error('Failed to fetch folder contents:', err)
       if (err.response?.status === 404) {
@@ -63,6 +130,10 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
         setError('OneDrive not connected. Please connect in Settings.')
       } else {
         setError(err.message || 'Failed to load photos from SharePoint')
+      }
+      // Report 0 photos on error
+      if (onPhotoCountChange) {
+        onPhotoCountChange(0)
       }
     } finally {
       setLoading(false)
@@ -180,9 +251,14 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
       {files.length === 0 && (
         <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
           <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-4 text-sm font-medium text-gray-900 dark:text-white">No photos yet</h3>
+          <h3 className="mt-4 text-sm font-medium text-gray-900 dark:text-white">
+            {filenameFilter ? `No photos with "${filenameFilter}" in filename` : 'No photos yet'}
+          </h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Upload photos to the {folderNames.join(' or ')} folder in SharePoint
+            {filenameFilter
+              ? `Photos must include "${filenameFilter}" in the filename to appear here`
+              : `Upload photos to the ${folderNames.join(' or ')} folder in SharePoint`
+            }
           </p>
           {jobFolderUrl && (
             <button
@@ -196,137 +272,218 @@ export default function SharePointPhotoGallery({ jobId, folderNames = ['07 Photo
         </div>
       )}
 
-      {/* Grid view */}
-      {viewMode === 'grid' && imageFiles.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-          {imageFiles.map((file) => (
-            <div
-              key={file.id}
-              className="group relative aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all"
-              onClick={() => setSelectedImage(file)}
-            >
-              {/* Thumbnail - using OneDrive thumbnail URL or download URL as fallback */}
-              {(file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']) ? (
-                <img
-                  src={file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']}
-                  alt={file.name}
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    // If image fails to load, hide it and show placeholder
-                    e.target.style.display = 'none'
-                    e.target.nextSibling?.classList.remove('hidden')
-                  }}
-                />
-              ) : null}
-              <div className={`w-full h-full flex items-center justify-center ${(file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']) ? 'hidden' : ''}`}>
-                <PhotoIcon className="h-12 w-12 text-gray-400" />
-              </div>
+      {/* Grid view - grouped by category */}
+      {viewMode === 'grid' && imageFiles.length > 0 && (() => {
+        const groupedFiles = groupFilesByCategory(imageFiles)
+        const allCategories = [...PHOTO_CATEGORIES, { key: 'uncategorized', label: 'Uncategorized', patterns: [] }]
 
-              {/* Overlay with file info */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="absolute bottom-0 left-0 right-0 p-2">
-                  <p className="text-xs text-white truncate">{file.name}</p>
-                  {file.source_folder && (
-                    <p className="text-xs text-gray-300">{file.source_folder}</p>
-                  )}
-                </div>
-              </div>
+        return (
+          <div className="space-y-6">
+            {allCategories.map((category) => {
+              const categoryFiles = groupedFiles[category.key]
+              if (!categoryFiles || categoryFiles.length === 0) return null
 
-              {/* Source folder badge */}
-              {file.source_folder && (
-                <div className="absolute top-2 left-2">
-                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
-                    file.source_folder.toLowerCase().includes('client')
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
-                      : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-                  }`}>
-                    {file.source_folder}
-                  </span>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              const isCollapsed = collapsedCategories[category.key]
 
-      {/* List view */}
-      {viewMode === 'list' && files.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 shadow-sm rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">File</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Folder</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Modified</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {files.map((file) => (
-                <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {(file.thumbnails?.[0]?.small?.url || file['@microsoft.graph.downloadUrl']) ? (
-                        <img
-                          src={file.thumbnails?.[0]?.small?.url || file['@microsoft.graph.downloadUrl']}
-                          alt=""
-                          className="h-10 w-10 rounded object-cover"
-                          onError={(e) => {
-                            e.target.style.display = 'none'
-                          }}
-                        />
+              return (
+                <div key={category.key} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                  {/* Category header */}
+                  <button
+                    onClick={() => setCollapsedCategories(prev => ({
+                      ...prev,
+                      [category.key]: !prev[category.key]
+                    }))}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isCollapsed ? (
+                        <ChevronRightIcon className="h-5 w-5 text-gray-500" />
                       ) : (
-                        <div className="h-10 w-10 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                          <PhotoIcon className="h-5 w-5 text-gray-400" />
-                        </div>
+                        <ChevronDownIcon className="h-5 w-5 text-gray-500" />
                       )}
-                      <span className="text-sm text-gray-900 dark:text-white truncate max-w-xs">
-                        {file.name}
+                      <span className="font-medium text-gray-900 dark:text-white">{category.label}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        ({categoryFiles.length} {categoryFiles.length === 1 ? 'photo' : 'photos'})
                       </span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      file.source_folder?.toLowerCase().includes('client')
-                        ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
-                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-                    }`}>
-                      {file.source_folder || 'Unknown'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                    {formatFileSize(file.size)}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                    {file.lastModifiedDateTime
-                      ? new Date(file.lastModifiedDateTime).toLocaleDateString()
-                      : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleDownload(file)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        title="Download"
-                      >
-                        <ArrowDownTrayIcon className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenInSharePoint(file.webUrl)}
-                        className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        title="Open in SharePoint"
-                      >
-                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                      </button>
+                  </button>
+
+                  {/* Category photos grid */}
+                  {!isCollapsed && (
+                    <div className="p-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {categoryFiles.map((file) => (
+                          <div
+                            key={file.id}
+                            className="group relative aspect-square bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all"
+                            onClick={() => setSelectedImage(file)}
+                          >
+                            {/* Thumbnail - using OneDrive thumbnail URL or download URL as fallback */}
+                            {(file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']) ? (
+                              <img
+                                src={file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']}
+                                alt={file.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // If image fails to load, hide it and show placeholder
+                                  e.target.style.display = 'none'
+                                  e.target.nextSibling?.classList.remove('hidden')
+                                }}
+                              />
+                            ) : null}
+                            <div className={`w-full h-full flex items-center justify-center ${(file.thumbnails?.[0]?.large?.url || file['@microsoft.graph.downloadUrl']) ? 'hidden' : ''}`}>
+                              <PhotoIcon className="h-12 w-12 text-gray-400" />
+                            </div>
+
+                            {/* Overlay with file info - always visible */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent">
+                              <div className="absolute bottom-0 left-0 right-0 p-2">
+                                <p className="text-xs text-white truncate">{file.name}</p>
+                              </div>
+                            </div>
+
+                            {/* Source folder badge */}
+                            {file.source_folder && (
+                              <div className="absolute top-2 left-2">
+                                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${
+                                  file.source_folder.toLowerCase().includes('client')
+                                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
+                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                                }`}>
+                                  {file.source_folder}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
+
+      {/* List view - grouped by category */}
+      {viewMode === 'list' && files.length > 0 && (() => {
+        const groupedFiles = groupFilesByCategory(files)
+        const allCategories = [...PHOTO_CATEGORIES, { key: 'uncategorized', label: 'Uncategorized', patterns: [] }]
+
+        return (
+          <div className="space-y-4">
+            {allCategories.map((category) => {
+              const categoryFiles = groupedFiles[category.key]
+              if (!categoryFiles || categoryFiles.length === 0) return null
+
+              const isCollapsed = collapsedCategories[category.key]
+
+              return (
+                <div key={category.key} className="bg-white dark:bg-gray-900 shadow-sm rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  {/* Category header */}
+                  <button
+                    onClick={() => setCollapsedCategories(prev => ({
+                      ...prev,
+                      [category.key]: !prev[category.key]
+                    }))}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isCollapsed ? (
+                        <ChevronRightIcon className="h-5 w-5 text-gray-500" />
+                      ) : (
+                        <ChevronDownIcon className="h-5 w-5 text-gray-500" />
+                      )}
+                      <span className="font-medium text-gray-900 dark:text-white">{category.label}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        ({categoryFiles.length} {categoryFiles.length === 1 ? 'file' : 'files'})
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Category files table */}
+                  {!isCollapsed && (
+                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead className="bg-gray-50 dark:bg-gray-800/50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">File</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Folder</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Size</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Modified</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {categoryFiles.map((file) => (
+                          <tr key={file.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-3">
+                                {(file.thumbnails?.[0]?.small?.url || file['@microsoft.graph.downloadUrl']) ? (
+                                  <img
+                                    src={file.thumbnails?.[0]?.small?.url || file['@microsoft.graph.downloadUrl']}
+                                    alt=""
+                                    className="h-10 w-10 rounded object-cover"
+                                    onError={(e) => {
+                                      e.target.style.display = 'none'
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="h-10 w-10 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                                    <PhotoIcon className="h-5 w-5 text-gray-400" />
+                                  </div>
+                                )}
+                                <span className="text-sm text-gray-900 dark:text-white truncate max-w-xs">
+                                  {file.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                file.source_folder?.toLowerCase().includes('client')
+                                  ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300'
+                                  : 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+                              }`}>
+                                {file.source_folder || 'Unknown'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                              {formatFileSize(file.size)}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+                              {file.lastModifiedDateTime
+                                ? new Date(file.lastModifiedDateTime).toLocaleDateString()
+                                : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  onClick={() => handleDownload(file)}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                  title="Download"
+                                >
+                                  <ArrowDownTrayIcon className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleOpenInSharePoint(file.webUrl)}
+                                  className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                  title="Open in SharePoint"
+                                >
+                                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
 
       {/* Image lightbox/modal */}
       {selectedImage && (
