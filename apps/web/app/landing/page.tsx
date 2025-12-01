@@ -1107,6 +1107,13 @@ export default function LandingPreviewPage() {
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-status-success-foreground flex-shrink-0 mt-0.5" />
                   <div>
+                    <p className="font-medium">Zapier Integration</p>
+                    <p className="text-sm text-muted-foreground">Connect with 5,000+ apps and automate workflows</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-status-success-foreground flex-shrink-0 mt-0.5" />
+                  <div>
                     <p className="font-medium">Microsoft 365</p>
                     <p className="text-sm text-muted-foreground">Sign in and sync your calendar</p>
                   </div>
