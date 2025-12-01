@@ -266,16 +266,26 @@
     position: sticky;
     left: 0;
     z-index: 10;
-    @apply bg-background;
+    background: hsl(40, 11%, 95%); /* Light tint - between white and muted */
     box-shadow: 1px 0 0 hsl(var(--border));
   }
 
   .sticky-cell-header {
     position: sticky;
     left: 0;
-    z-index: 20;
-    @apply bg-background;
-    box-shadow: 1px 0 0 hsl(var(--border));
+    top: 0;
+    z-index: 30;
+    background: hsl(40, 11%, 89%); /* Match header muted color */
+    box-shadow: 1px 0 0 #d4d4d4, 0 1px 0 #d4d4d4; /* Right and bottom border */
+  }
+
+  /* Dark mode overrides */
+  .dark .sticky-cell {
+    background: hsl(0, 0%, 8%); /* Between body (5%) and header (11%) */
+  }
+
+  .dark .sticky-cell-header {
+    background: hsl(0, 0%, 11%);
   }
 }
 

@@ -1740,8 +1740,21 @@ export default function TeeemTableView({
         {visibleColumnsInOrder.map((column, colIndex) => (
           <TableHead
             key={`${column.key}-${colIndex}`}
-            style={{ width: columnWidths[column.key], minWidth: column.minWidth || 50 }}
-            className={cn("relative", column.key === "select" && "sticky-cell-header")}
+            style={{
+              width: columnWidths[column.key] || column.width,
+              minWidth: columnWidths[column.key] || column.width || 50,
+              position: 'sticky',
+              top: 0,
+              zIndex: column.key === "select" ? 30 : 20,
+              ...(column.key === "select" && {
+                left: 0,
+                background: 'hsl(40, 11%, 89%)', // Match header muted color
+                boxShadow: '1px 0 0 #d4d4d4, 0 1px 0 #d4d4d4', // Right and bottom border
+                textAlign: 'center',
+                verticalAlign: 'middle'
+              })
+            }}
+            className={cn("relative", column.key === "select" && "!border-r-0 !p-0")}
           >
             {column.key === "select" ? (
               <Checkbox
@@ -1841,8 +1854,15 @@ export default function TeeemTableView({
 
   // Render flat table
   const renderFlatTable = () => (
-    <div style={{ width: `${totalTableWidth}px` }}>
-      <Table className="w-full" style={{ tableLayout: 'fixed' }}>
+    <Table className="w-full" style={{ tableLayout: 'fixed', width: `${totalTableWidth}px` }}>
+        <colgroup>
+          {visibleColumnsInOrder.map((column) => (
+            <col
+              key={column.key}
+              style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
+            />
+          ))}
+        </colgroup>
         {renderTableHeader()}
         <TableBody>
           {filteredAndSortedEntries.length === 0 ? (
@@ -1870,8 +1890,20 @@ export default function TeeemTableView({
                 {visibleColumnsInOrder.map((column, colIndex) => (
                   <TableCell
                     key={`${column.key}-${colIndex}`}
-                    style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
-                    className={column.key === "select" ? "sticky-cell" : undefined}
+                    style={{
+                      width: columnWidths[column.key] || column.width,
+                      minWidth: columnWidths[column.key] || column.width,
+                      ...(column.key === "select" && {
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 10,
+                        background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
+                        boxShadow: '1px 0 0 #d4d4d4', // Right border
+                        textAlign: 'center',
+                        verticalAlign: 'middle'
+                      })
+                    }}
+                    className={column.key === "select" ? "!border-r-0 !p-0" : undefined}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
@@ -1881,7 +1913,6 @@ export default function TeeemTableView({
           )}
         </TableBody>
       </Table>
-    </div>
   );
 
   // Get active view name
@@ -2199,13 +2230,7 @@ export default function TeeemTableView({
       )}
 
       {/* Table - scrollable container */}
-      <div
-        className="flex-1 min-h-0 w-full table-scroll border"
-        style={{
-          overflowX: 'scroll',
-          overflowY: 'auto'
-        }}
-      >
+      <div className="flex-1 min-h-0 w-full overflow-auto">
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>
 

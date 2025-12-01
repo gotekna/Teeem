@@ -1077,13 +1077,31 @@ export default function TablePage({ embedded = false }) {
               const currentTableUrl = window.location.pathname + window.location.search
 
               // Navigate to detail page based on table type
-              if (table.slug === 'contacts' || table.database_table_name === 'contacts') {
+              // Check name, slug, and database_table_name (including partial matches for legacy tables)
+              const isContactsTable = table.slug === 'contacts' ||
+                table.database_table_name === 'contacts' ||
+                table.name?.toLowerCase() === 'contacts'
+
+              const isJobsTable = table.slug === 'jobs' ||
+                table.slug === 'active-jobs' ||
+                table.database_table_name === 'jobs' ||
+                table.database_table_name === 'constructions' ||
+                table.database_table_name?.startsWith('jobs_') ||
+                table.name?.toLowerCase() === 'jobs'
+
+              const isPricebookTable = table.slug === 'pricebook' ||
+                table.slug === 'pricebook-items' ||
+                table.database_table_name === 'pricebook' ||
+                table.database_table_name === 'pricebook_items' ||
+                table.name?.toLowerCase().includes('pricebook')
+
+              if (isContactsTable) {
                 sessionStorage.setItem('contactsTableView', currentTableUrl)
                 navigate(`/contacts/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'jobs' || table.slug === 'active-jobs' || table.database_table_name === 'jobs' || table.database_table_name === 'constructions') {
+              } else if (isJobsTable) {
                 sessionStorage.setItem('jobsTableView', currentTableUrl)
                 navigate(`/jobs/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'pricebook' || table.slug === 'pricebook-items' || table.database_table_name === 'pricebook' || table.database_table_name === 'pricebook_items') {
+              } else if (isPricebookTable) {
                 sessionStorage.setItem('pricebooksTableView', currentTableUrl)
                 navigate(`/price-books/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
               }
@@ -1094,13 +1112,31 @@ export default function TablePage({ embedded = false }) {
               const currentTableUrl = window.location.pathname + window.location.search
 
               // View button navigates to detail page
-              if (table.slug === 'contacts' || table.database_table_name === 'contacts') {
+              // Check name, slug, and database_table_name (including partial matches for legacy tables)
+              const isContactsTable = table.slug === 'contacts' ||
+                table.database_table_name === 'contacts' ||
+                table.name?.toLowerCase() === 'contacts'
+
+              const isJobsTable = table.slug === 'jobs' ||
+                table.slug === 'active-jobs' ||
+                table.database_table_name === 'jobs' ||
+                table.database_table_name === 'constructions' ||
+                table.database_table_name?.startsWith('jobs_') ||
+                table.name?.toLowerCase() === 'jobs'
+
+              const isPricebookTable = table.slug === 'pricebook' ||
+                table.slug === 'pricebook-items' ||
+                table.database_table_name === 'pricebook' ||
+                table.database_table_name === 'pricebook_items' ||
+                table.name?.toLowerCase().includes('pricebook')
+
+              if (isContactsTable) {
                 sessionStorage.setItem('contactsTableView', currentTableUrl)
                 navigate(`/contacts/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'jobs' || table.slug === 'active-jobs' || table.database_table_name === 'jobs' || table.database_table_name === 'constructions') {
+              } else if (isJobsTable) {
                 sessionStorage.setItem('jobsTableView', currentTableUrl)
                 navigate(`/jobs/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
-              } else if (table.slug === 'pricebook' || table.slug === 'pricebook-items' || table.database_table_name === 'pricebook' || table.database_table_name === 'pricebook_items') {
+              } else if (isPricebookTable) {
                 sessionStorage.setItem('pricebooksTableView', currentTableUrl)
                 navigate(`/price-books/${entry.id}?returnTo=${encodeURIComponent(currentTableUrl)}`)
               }
