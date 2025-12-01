@@ -105,7 +105,6 @@ export default function JobsPage() {
     // Default columns
     return [
       { key: "select", label: "", width: 40, sortable: false, filterable: false },
-      { key: "id", label: "ID", width: 60, sortable: true, filterable: true, column_type: "number" },
       { key: "ted_number", label: "TED #", width: 100, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "title", label: "Job Title", width: 250, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
@@ -232,6 +231,7 @@ export default function JobsPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Jobs</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage your construction projects and jobs
+            <span className="ml-2 text-xs font-mono opacity-50">Table #{JOBS_TABLE_ID}</span>
           </p>
         </div>
         <Button asChild>

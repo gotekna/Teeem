@@ -148,6 +148,7 @@ export default function PriceBookPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Price Book</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {stats.total.toLocaleString()} items across {stats.categoriesCount} categories
+            <span className="ml-2 text-xs font-mono opacity-50">Table #205</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
