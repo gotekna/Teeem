@@ -239,6 +239,7 @@ function CompanyTreeNode({
 export default function CompanyGroupsPage() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
+  const [loadingStructure, setLoadingStructure] = React.useState(false);
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = React.useState<CompanyGroup | null>(null);
   const [structure, setStructure] = React.useState<GroupStructure | null>(null);
@@ -250,7 +251,7 @@ export default function CompanyGroupsPage() {
     const loadGroups = async () => {
       try {
         setLoading(true);
-        const response = await api.get<{ data: CompanyGroup[] }>("/api/v1/company_groups");
+        const response = await api.get<{ success: boolean; data: CompanyGroup[] }>("/api/v1/company_groups");
         const groupsList = response.data || [];
         setGroups(groupsList);
 
@@ -261,13 +262,7 @@ export default function CompanyGroupsPage() {
         }
       } catch (error) {
         console.error("Failed to load company groups:", error);
-        // Mock data for demo
-        const mockGroups: CompanyGroup[] = [
-          { id: 1, name: "Smith Family Group", active: true, companies_count: 5 },
-          { id: 2, name: "Johnson Holdings", active: true, companies_count: 3 },
-        ];
-        setGroups(mockGroups);
-        setSelectedGroup(mockGroups[0]);
+        setGroups([]);
       } finally {
         setLoading(false);
       }
@@ -281,7 +276,8 @@ export default function CompanyGroupsPage() {
 
     const loadStructure = async () => {
       try {
-        const response = await api.get<{ data: GroupStructure }>(
+        setLoadingStructure(true);
+        const response = await api.get<{ success: boolean; data: GroupStructure }>(
           `/api/v1/company_groups/${selectedGroup.id}/structure`
         );
         setStructure(response.data);
@@ -291,64 +287,9 @@ export default function CompanyGroupsPage() {
         setExpandedNodes(topLevelIds);
       } catch (error) {
         console.error("Failed to load structure:", error);
-        // Mock structure
-        const mockStructure: GroupStructure = {
-          companies: [
-            {
-              id: 1,
-              name: "Smith Holdings Pty Ltd",
-              code: "SH",
-              acn: "123 456 789",
-              entity_type: "company",
-              is_trustee: true,
-              trust_name: "Smith Family Trust",
-              shareholders: [1, 2],
-              investments: [1],
-              children: [
-                {
-                  id: 2,
-                  name: "Smith Family Trust",
-                  entity_type: "trust",
-                  is_trust_of_trustee: true,
-                  ownership_percentage: 100,
-                  children: [
-                    {
-                      id: 3,
-                      name: "Smith Property Pty Ltd",
-                      code: "SP",
-                      acn: "234 567 890",
-                      entity_type: "company",
-                      ownership_percentage: 100,
-                      shareholders: [1],
-                    },
-                    {
-                      id: 4,
-                      name: "Smith Investments Pty Ltd",
-                      code: "SI",
-                      acn: "345 678 901",
-                      entity_type: "company",
-                      ownership_percentage: 100,
-                    },
-                  ],
-                },
-              ],
-            },
-            {
-              id: 5,
-              name: "Smith SMSF",
-              entity_type: "superfund",
-              children: [],
-            },
-          ],
-          stats: {
-            total_companies: 5,
-            top_level_count: 2,
-            trustees_count: 1,
-            trusts_count: 1,
-          },
-        };
-        setStructure(mockStructure);
-        setExpandedNodes(new Set([1, 2, 5]));
+        setStructure(null);
+      } finally {
+        setLoadingStructure(false);
       }
     };
     loadStructure();
@@ -511,7 +452,11 @@ export default function CompanyGroupsPage() {
 
           {/* Tree */}
           <div className="flex-1 overflow-y-auto">
-            {selectedGroup ? (
+            {loadingStructure ? (
+              <div className="flex items-center justify-center h-48">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : selectedGroup ? (
               filteredCompanies.length > 0 ? (
                 <div className="divide-y">
                   {filteredCompanies.map((company) => (
