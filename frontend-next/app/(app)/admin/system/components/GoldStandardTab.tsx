@@ -764,10 +764,16 @@ function GoldStandardDataTab() {
         enableExport={true}
         enableSchemaEditor={true}
         customActions={
-          <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
+              <Filter className="h-4 w-4 mr-2" />
+              Views
+            </Button>
+            <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item
+            </Button>
+          </div>
         }
       />
 
@@ -1026,6 +1032,15 @@ function GoldStandardDataTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Global Views Manager */}
+      <GlobalViewsManager
+        open={showViewsManager}
+        onOpenChange={setShowViewsManager}
+        foundationId={1}
+        columns={rawColumns}
+        onViewsChange={loadData}
+      />
     </div>
   );
 }

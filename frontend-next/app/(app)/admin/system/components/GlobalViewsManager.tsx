@@ -349,17 +349,18 @@ export function GlobalViewsManager({
       );
 
       if (response.success && response.views) {
-        const mappedViews = response.views.map((v: Record<string, unknown>) => ({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedViews = (response.views as any[]).map((v) => ({
           ...v,
-          filters: (v.filters as Record<string, unknown>)?.cascadeFilters as CascadeFilter[] || [],
-          filterGroups: (v.filters as Record<string, unknown>)?.filterGroups as FilterGroup[] || [{ id: "default", logic: "AND" }],
-          interGroupLogic: ((v.filters as Record<string, unknown>)?.interGroupLogic as "AND" | "OR") || "OR",
-          visibleColumns: (v.columns as Record<string, unknown>)?.visible as Record<string, boolean> || {},
-          columnOrder: (v.columns as Record<string, unknown>)?.order as string[] || [],
-          showFilters: (v.columns as Record<string, unknown>)?.showFilters !== false,
-          autoFitColumns: (v.columns as Record<string, unknown>)?.autoFitColumns === true,
-          sortColumns: Array.isArray(v.sort_order) ? v.sort_order as SortColumn[] : [],
-          groupByColumns: (v.group_by_columns as string[]) || [],
+          filters: v.filters?.cascadeFilters || [],
+          filterGroups: v.filters?.filterGroups || [{ id: "default", logic: "AND" }],
+          interGroupLogic: v.filters?.interGroupLogic || "OR",
+          visibleColumns: v.columns?.visible || {},
+          columnOrder: v.columns?.order || [],
+          showFilters: v.columns?.showFilters !== false,
+          autoFitColumns: v.columns?.autoFitColumns === true,
+          sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
+          groupByColumns: v.group_by_columns || [],
         })) as SavedView[];
 
         setViews(mappedViews);
@@ -448,21 +449,21 @@ export function GlobalViewsManager({
         group_by_column: editGroupByColumns[0] || null,
       };
 
-      let response;
+      let response: { success: boolean; error?: string } | null;
 
       if (typeof editingView.id === "string" && editingView.id.startsWith("new_")) {
         // Create new view
         if (editIsGlobal) {
-          response = await api.post("/api/v1/foundation_views/save_global", viewData);
+          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views/save_global", viewData);
         } else {
-          response = await api.post("/api/v1/foundation_views", viewData);
+          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views", viewData);
         }
       } else {
         // Update existing view
-        response = await api.patch(`/api/v1/foundation_views/${editingView.id}`, viewData);
+        response = await api.patch<{ success: boolean; error?: string }>(`/api/v1/foundation_views/${editingView.id}`, viewData);
       }
 
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Success",
           description: editIsGlobal ? "Global view saved for all users" : "View saved successfully",
@@ -470,7 +471,7 @@ export function GlobalViewsManager({
         await loadViews();
         onViewsChange?.();
       } else {
-        throw new Error(response.error || "Failed to save view");
+        throw new Error(response?.error || "Failed to save view");
       }
     } catch (error) {
       console.error("Failed to save view:", error);
