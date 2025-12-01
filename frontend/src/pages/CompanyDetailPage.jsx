@@ -86,12 +86,18 @@ export default function CompanyDetailPage() {
     }
   }, [id])
 
-  // Redirect to default tab if no tab is specified in URL
+  // Redirect to slug-based URL once company is loaded
   useEffect(() => {
-    if (id && !urlTab && !searchParams.get('tab')) {
+    if (company?.slug && id !== company.slug) {
+      // Replace numeric ID with slug in URL
+      const newUrl = urlTab
+        ? `/corporate/companies/${company.slug}/${urlTab}${window.location.search}`
+        : `/corporate/companies/${company.slug}/overview${window.location.search}`
+      navigate(newUrl, { replace: true })
+    } else if (id && !urlTab && !searchParams.get('tab')) {
       navigate(`/corporate/companies/${id}/overview`, { replace: true })
     }
-  }, [id, urlTab, searchParams, navigate])
+  }, [id, urlTab, searchParams, navigate, company?.slug])
 
   const loadCompany = async () => {
     try {
@@ -109,12 +115,15 @@ export default function CompanyDetailPage() {
     // Find the tab to check if it's a document tab
     const tab = tabs.find(t => t.id === tabId)
 
+    // Use slug for URL if available, fallback to id
+    const companyIdentifier = company?.slug || id
+
     // Use URL path for tab navigation (standard pattern like /jobs/59/purchase-orders)
     // If it's a document tab, include table_id as query param
     if (tab?.docTab || tabId === 'documents') {
-      navigate(`/corporate/companies/${id}/${tabId}?table_id=${COMPANY_DOCUMENTS_TABLE_ID}`)
+      navigate(`/corporate/companies/${companyIdentifier}/${tabId}?table_id=${COMPANY_DOCUMENTS_TABLE_ID}`)
     } else {
-      navigate(`/corporate/companies/${id}/${tabId}`)
+      navigate(`/corporate/companies/${companyIdentifier}/${tabId}`)
     }
   }
 

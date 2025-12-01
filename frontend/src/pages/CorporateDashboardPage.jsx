@@ -415,7 +415,7 @@ export default function CorporateDashboardPage() {
         onBulkUpdate={handleBulkUpdate}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
-        onRowDoubleClick={(company) => navigate(`/corporate/companies/${company.id}`)}
+        onRowDoubleClick={(company) => navigate(`/corporate/companies/${company.slug || company.id}`)}
         enableImport={false}
         enableExport={true}
         enableSchemaEditor={true}
@@ -444,7 +444,7 @@ export default function CorporateDashboardPage() {
               {upcomingCompliance.map((item) => (
                 <div
                   key={item.id}
-                  onClick={() => navigate(`/corporate/companies/${item.company.id}?tab=compliance`)}
+                  onClick={() => navigate(`/corporate/companies/${item.company.slug || item.company.id}?tab=compliance`)}
                   className="flex items-center justify-between p-3 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100"
                 >
                   <div className="flex-1">

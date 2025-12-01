@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import {
   PlusIcon,
   DocumentTextIcon,
-  FunnelIcon,
   CloudIcon,
   CheckCircleIcon,
   XCircleIcon,
@@ -38,9 +37,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [selectedTab, setSelectedTab] = useState(initialTab)
-  const [selectedAsset, setSelectedAsset] = useState('all')
   const [assets, setAssets] = useState([])
-  const [showFilters, setShowFilters] = useState(initialTab !== 'all')
   const [documentTypes, setDocumentTypes] = useState([])
   const [sharepointConnected, setSharepointConnected] = useState(false)
   const [syncing, setSyncing] = useState(false)
@@ -48,30 +45,12 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   const [columns] = useState(buildDocumentColumns())
   const [previewDocument, setPreviewDocument] = useState(null)
 
-  // Document organization tabs
-  const tabs = [
-    'ADVICE',
-    'ASIC',
-    'ASSETS',
-    'ATO',
-    'BANK',
-    'COMPANY',
-    'DIVIDENDS',
-    'FINANCIALS',
-    'GENERAL',
-    'INSURANCE',
-    'LOANS',
-    'MINUTES',
-    'REGISTRY',
-    'TRUST'
-  ]
-
   useEffect(() => {
     loadDocuments()
     loadAssets()
     loadDocumentTypes()
     checkSharePointConnection()
-  }, [company.id, selectedTab, selectedAsset])
+  }, [company.id, selectedTab])
 
   // Update selectedTab when initialTab prop changes
   useEffect(() => {
@@ -85,10 +64,6 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
 
       if (selectedTab !== 'all') {
         params.tab = selectedTab
-      }
-
-      if (selectedAsset !== 'all') {
-        params.asset_id = selectedAsset
       }
 
       const response = await api.get('/api/v1/company_documents', { params })
@@ -330,20 +305,7 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
   // Custom actions for the table header
   const customActions = (
     <div className="flex items-center gap-2">
-      {/* Filter Toggle */}
-      <button
-        onClick={() => setShowFilters(!showFilters)}
-        className={`inline-flex items-center gap-x-2 rounded-md px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-inset h-[42px] ${
-          showFilters || selectedTab !== 'all' || selectedAsset !== 'all'
-            ? 'bg-indigo-600 text-white ring-indigo-600'
-            : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600'
-        }`}
-      >
-        <FunnelIcon className="h-4 w-4" />
-        Filters
-      </button>
-
-      {/* SharePoint Connection Status */}
+      {/* SharePoint Folder Link */}
       {sharepointConnected && company.sharepoint_folder_url ? (
         <a
           href={selectedTab && selectedTab !== 'all'
@@ -450,66 +412,6 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
         </div>
       )}
 
-      {/* Filter Panel */}
-      {showFilters && (
-        <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Tab Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Document Tab
-              </label>
-              <select
-                value={selectedTab}
-                onChange={(e) => setSelectedTab(e.target.value)}
-                className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              >
-                <option value="all">All Tabs</option>
-                {tabs.map((tab) => (
-                  <option key={tab} value={tab}>
-                    {tab}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Asset Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Linked Asset
-              </label>
-              <select
-                value={selectedAsset}
-                onChange={(e) => setSelectedAsset(e.target.value)}
-                className="block w-full rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-              >
-                <option value="all">All Documents</option>
-                <option value="none">No Asset Linked</option>
-                {assets.map((asset) => (
-                  <option key={asset.id} value={asset.id}>
-                    {asset.abbreviation ? `${asset.abbreviation} - ` : ''}{asset.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Clear Filters */}
-          {(selectedTab !== 'all' || selectedAsset !== 'all') && (
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => {
-                  setSelectedTab('all')
-                  setSelectedAsset('all')
-                }}
-                className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium"
-              >
-                Clear all filters
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {showForm ? (
         <DocumentForm
@@ -535,8 +437,8 @@ export default function CompanyDocumentsTab({ company, onUpdate, initialTab = 'a
           customActions={customActions}
           customCellRenderer={customCellRenderer}
           emptyStateTitle="No documents"
-          emptyStateDescription={selectedTab !== 'all' || selectedAsset !== 'all'
-            ? 'No documents match your filters.'
+          emptyStateDescription={selectedTab !== 'all'
+            ? 'No documents match this tab.'
             : 'Get started by uploading a document or syncing from SharePoint.'}
         />
       )}
