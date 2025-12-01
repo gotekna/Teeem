@@ -97,7 +97,7 @@ export function LeadPipeline({
             {/* Column Header */}
             <div
               className={cn(
-                "rounded-t-lg px-3 py-2 border-b-2",
+                "rounded-t-lg px-2 py-2 border-b-2",
                 statusConfig.bgColor
               )}
               style={{

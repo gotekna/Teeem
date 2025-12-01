@@ -23,7 +23,7 @@ export function LeadCard({ lead, onClick, isDragging }: LeadCardProps) {
 
   return (
     <Card
-      className={`cursor-pointer hover:shadow-md transition-shadow ${
+      className={`cursor-pointer hover:shadow-md transition-shadow w-full ${
         isDragging ? "opacity-50 rotate-2 shadow-lg" : ""
       }`}
       onClick={onClick}

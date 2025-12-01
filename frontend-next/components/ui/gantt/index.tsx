@@ -163,9 +163,12 @@ function GanttChartInner({
     return map;
   }, [features, groups]);
 
+  // Use a stable ID to prevent hydration mismatch with dnd-kit
+  const dndContextId = React.useId();
+
   const content = (
     <DependencyConnectorProvider onCreateDependency={onCreateDependency}>
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <DndContext id={dndContextId} sensors={sensors} onDragEnd={handleDragEnd}>
         <div className={cn(
           "flex flex-col border border-border bg-background overflow-hidden",
           isFullscreen ? "h-full" : "",

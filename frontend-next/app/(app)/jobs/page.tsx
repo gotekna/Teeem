@@ -22,21 +22,29 @@ import { Plus, Search, Filter } from "lucide-react";
 interface Job {
   id: number;
   title: string;
-  job_number: string;
-  status: string;
-  client_name: string;
-  address: string;
-  construction_stage: string;
+  ted_number: string | null;
+  stage: string | null;
+  contract_value: number | null;
+  live_profit: number | null;
+  profit_percentage: number | null;
+  start_date: string | null;
+  location: string | null;
+  site_supervisor_name: string | null;
+  site_supervisor_email: string | null;
+  site_supervisor_phone: string | null;
+  design_name: string | null;
   created_at: string;
+  updated_at: string;
 }
 
-const statusColors: Record<string, "success" | "warning" | "error" | "info" | "default"> = {
-  active: "success",
-  "in_progress": "info",
-  completed: "success",
-  on_hold: "warning",
-  cancelled: "error",
-  draft: "default",
+const stageColors: Record<string, "success" | "warning" | "error" | "info" | "default"> = {
+  "Deposit": "info",
+  "Slab": "info",
+  "Frame": "warning",
+  "Lockup": "warning",
+  "Fixtures": "success",
+  "Completion": "success",
+  "Quote": "default",
 };
 
 export default function JobsPage() {
@@ -47,53 +55,8 @@ export default function JobsPage() {
   useEffect(() => {
     const loadJobs = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await api.get('/api/v1/jobs');
-        // setJobs(response.jobs);
-
-        // Mock data for now
-        setJobs([
-          {
-            id: 1,
-            title: "Project Alpha - Commercial Building",
-            job_number: "JOB-2024-001",
-            status: "active",
-            client_name: "Acme Corporation",
-            address: "123 Main Street, Sydney NSW 2000",
-            construction_stage: "Construction",
-            created_at: "2024-01-15",
-          },
-          {
-            id: 2,
-            title: "Residential Complex - Phase 2",
-            job_number: "JOB-2024-002",
-            status: "in_progress",
-            client_name: "Smith Holdings",
-            address: "456 Park Avenue, Melbourne VIC 3000",
-            construction_stage: "Framing",
-            created_at: "2024-02-20",
-          },
-          {
-            id: 3,
-            title: "Office Renovation - Tech Hub",
-            job_number: "JOB-2024-003",
-            status: "on_hold",
-            client_name: "TechStart Inc",
-            address: "789 Innovation Drive, Brisbane QLD 4000",
-            construction_stage: "Planning",
-            created_at: "2024-03-01",
-          },
-          {
-            id: 4,
-            title: "Warehouse Extension",
-            job_number: "JOB-2024-004",
-            status: "completed",
-            client_name: "Logistics Plus",
-            address: "321 Industrial Way, Perth WA 6000",
-            construction_stage: "Completed",
-            created_at: "2024-01-05",
-          },
-        ]);
+        const response = await api.get<{ jobs: Job[]; total: number }>('/api/v1/jobs');
+        setJobs(response.jobs || []);
       } catch (error) {
         console.error("Failed to load jobs:", error);
       } finally {
@@ -106,9 +69,10 @@ export default function JobsPage() {
 
   const filteredJobs = jobs.filter(
     (job) =>
-      job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.job_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.client_name.toLowerCase().includes(searchQuery.toLowerCase())
+      job.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.ted_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      job.site_supervisor_name?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -147,26 +111,26 @@ export default function JobsPage() {
         </Card>
         <Card>
           <CardContent className="pt-6">
+            <div className="text-2xl font-bold font-mono text-blue-600">
+              {jobs.filter((j) => j.stage === "Slab" || j.stage === "Frame").length}
+            </div>
+            <p className="text-xs text-muted-foreground">In Progress</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
             <div className="text-2xl font-bold font-mono text-green-600">
-              {jobs.filter((j) => j.status === "active" || j.status === "in_progress").length}
-            </div>
-            <p className="text-xs text-muted-foreground">Active</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-yellow-600">
-              {jobs.filter((j) => j.status === "on_hold").length}
-            </div>
-            <p className="text-xs text-muted-foreground">On Hold</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono">
-              {jobs.filter((j) => j.status === "completed").length}
+              {jobs.filter((j) => j.stage === "Completion").length}
             </div>
             <p className="text-xs text-muted-foreground">Completed</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-2xl font-bold font-mono text-purple-600">
+              ${jobs.reduce((sum, j) => sum + (j.contract_value || 0), 0).toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground">Total Value</p>
           </CardContent>
         </Card>
       </div>
@@ -192,18 +156,18 @@ export default function JobsPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Job Number</TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Client</TableHead>
+              <TableHead>TED #</TableHead>
+              <TableHead>Title / Location</TableHead>
+              <TableHead>Supervisor</TableHead>
               <TableHead>Stage</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Contract Value</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredJobs.map((job) => (
               <TableRow key={job.id}>
-                <TableCell className="font-mono">{job.job_number}</TableCell>
+                <TableCell className="font-mono">{job.ted_number || "-"}</TableCell>
                 <TableCell>
                   <Link
                     href={`/jobs/${job.id}`}
@@ -211,16 +175,25 @@ export default function JobsPage() {
                   >
                     {job.title}
                   </Link>
-                  <p className="text-xs text-muted-foreground mt-1">{job.address}</p>
-                </TableCell>
-                <TableCell>{job.client_name}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary">{job.construction_stage}</Badge>
+                  <p className="text-xs text-muted-foreground mt-1">{job.location}</p>
                 </TableCell>
                 <TableCell>
-                  <Pill variant={statusColors[job.status] || "default"} size="sm">
-                    {job.status.replace("_", " ")}
-                  </Pill>
+                  {job.site_supervisor_name || "-"}
+                  {job.site_supervisor_phone && (
+                    <p className="text-xs text-muted-foreground">{job.site_supervisor_phone}</p>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {job.stage ? (
+                    <Pill variant={stageColors[job.stage] || "default"} size="sm">
+                      {job.stage}
+                    </Pill>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell className="text-right font-mono">
+                  {job.contract_value ? `$${job.contract_value.toLocaleString()}` : "-"}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" asChild>

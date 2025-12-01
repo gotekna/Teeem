@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Home,
   Briefcase,
@@ -20,7 +20,26 @@ import {
   LogOut,
   FolderOpen,
   Target,
+  Package,
+  Building2,
+  LayoutTemplate,
+  ListTodo,
+  MessageSquare,
+  FileQuestion,
+  Layers,
+  CalendarClock,
+  ExternalLink,
+  HardHat,
+  LayoutGrid,
+  ChevronDown,
 } from "lucide-react";
+import {
+  Persona,
+  PERSONA_CONFIG,
+  PERSONA_ORDER,
+  getStoredPersona,
+  setStoredPersona,
+} from "@/lib/personas";
 import { useTheme } from "next-themes";
 import { Button } from "./button";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
@@ -36,21 +55,50 @@ const navigationItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Leads", href: "/leads", icon: Target },
   { name: "Jobs", href: "/jobs", icon: Briefcase },
+  { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
-  { name: "Financial", href: "/financial", icon: DollarSign },
+  { name: "Xero", href: "/xero", icon: Layers },
   { name: "Purchase Orders", href: "/purchase-orders", icon: FileText },
+  { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
   { name: "Contacts", href: "/contacts", icon: Users },
+  { name: "Price Book", href: "/pricebook", icon: Package },
   { name: "Documents", href: "/documents", icon: FolderOpen },
-  { name: "Training", href: "/training", icon: GraduationCap },
+  { name: "Portal", href: "/portal", icon: ExternalLink },
 ];
+
+const personaIcons: Record<Persona, typeof HardHat> = {
+  site: HardHat,
+  office: Building2,
+  manager: LayoutGrid,
+};
 
 export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [persona, setPersona] = useState<Persona>('manager');
+  const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
+
+  // Load persona from localStorage on mount
+  useEffect(() => {
+    setPersona(getStoredPersona());
+  }, []);
+
+  const handlePersonaChange = (newPersona: Persona) => {
+    setPersona(newPersona);
+    setStoredPersona(newPersona);
+    setPersonaMenuOpen(false);
+  };
+
+  // Filter navigation items based on persona
+  const filteredItems = useMemo(() => {
+    const config = PERSONA_CONFIG[persona];
+    if (config.items === 'all') return navigationItems;
+    return navigationItems.filter(item => config.items.includes(item.href));
+  }, [persona]);
 
   const handleLogout = () => {
     logout();
@@ -81,7 +129,7 @@ export function Sidebar() {
 
       {/* Main Navigation */}
       <nav className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
-        {navigationItems.map((item) => {
+        {filteredItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
 

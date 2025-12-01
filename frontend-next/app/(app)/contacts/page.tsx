@@ -21,21 +21,47 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
-import { Plus, Search, Filter, Mail, Phone, Users, AlertTriangle, Merge } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  Mail,
+  Phone,
+  Users,
+  AlertTriangle,
+  Merge,
+  Building2,
+  User,
+  Truck,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { api } from "@/lib/api";
 
 interface Contact {
   id: number;
-  name: string;
-  email: string;
-  phone: string;
-  company: string;
-  type: "customer" | "supplier" | "both";
-  created_at: string;
-  xero_contact_id?: string;
-  jobs_count: number;
-  purchase_orders_count: number;
-  completeness_score: number;
+  full_name: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  mobile_phone: string | null;
+  office_phone: string | null;
+  entity_type: string | null;
+  is_active: boolean;
+  portal_enabled: boolean;
+  xero_id: string | null;
+  xero_synced: boolean;
+  teeem_rating: number | null;
+  supplier_code: string | null;
+  address: string | null;
+  // Legacy compatibility
+  name?: string;
+  phone?: string;
+  company?: string;
+  type?: string;
+  jobs_count?: number;
+  purchase_orders_count?: number;
+  completeness_score?: number;
 }
 
 interface DuplicateGroup {
@@ -43,10 +69,22 @@ interface DuplicateGroup {
   contacts: Contact[];
 }
 
-const typeColors: Record<string, string> = {
-  customer: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
-  supplier: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  both: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
+const entityTypeColors: Record<string, string> = {
+  person: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
+  company: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
+  default_supplier: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
+};
+
+const entityTypeLabels: Record<string, string> = {
+  person: "Person",
+  company: "Company",
+  default_supplier: "Supplier",
+};
+
+const entityTypeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  person: User,
+  company: Building2,
+  default_supplier: Truck,
 };
 
 export default function ContactsPage() {
@@ -67,8 +105,7 @@ export default function ContactsPage() {
       setContacts(response.contacts || []);
     } catch (error) {
       console.error("Failed to load contacts:", error);
-      // Mock data for demo
-      setContacts(getMockContacts());
+      setContacts([]);
     }
   };
 
@@ -78,8 +115,7 @@ export default function ContactsPage() {
       setDuplicateGroups(response.duplicate_groups || []);
     } catch (error) {
       console.error("Failed to load duplicates:", error);
-      // Mock data for demo
-      setDuplicateGroups(getMockDuplicates());
+      setDuplicateGroups([]);
     }
   };
 
@@ -108,12 +144,32 @@ export default function ContactsPage() {
     });
   };
 
-  const filteredContacts = contacts.filter(
-    (contact) =>
-      contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contact.company.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const stats = {
+    total: contacts.length,
+    active: contacts.filter((c) => c.is_active).length,
+    persons: contacts.filter((c) => c.entity_type === "person").length,
+    companies: contacts.filter((c) => c.entity_type === "company").length,
+    suppliers: contacts.filter((c) => c.entity_type === "default_supplier").length,
+    withXero: contacts.filter((c) => c.xero_id || c.xero_synced).length,
+  };
+
+  const filteredContacts = contacts.filter((contact) => {
+    const name = contact.full_name || contact.name || "";
+    const email = contact.email || "";
+    const matchesSearch =
+      name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (contact.supplier_code?.toLowerCase() || "").includes(searchQuery.toLowerCase());
+
+    const matchesTab =
+      activeTab === "all" ||
+      activeTab === "duplicates" ||
+      (activeTab === "persons" && contact.entity_type === "person") ||
+      (activeTab === "companies" && contact.entity_type === "company") ||
+      (activeTab === "suppliers" && contact.entity_type === "default_supplier");
+
+    return matchesSearch && matchesTab;
+  });
 
   if (loading) {
     return (
@@ -130,7 +186,7 @@ export default function ContactsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your customers, suppliers, and business contacts
+            {stats.total.toLocaleString()} contacts - {stats.active.toLocaleString()} active
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -150,54 +206,77 @@ export default function ContactsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono">{contacts.length}</div>
-            <p className="text-xs text-muted-foreground">Total Contacts</p>
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-600" />
+              <span className="text-xs text-muted-foreground">Total</span>
+            </div>
+            <div className="text-2xl font-bold font-mono mt-2">{stats.total.toLocaleString()}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-blue-600">
-              {contacts.filter((c) => c.type === "customer").length}
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <span className="text-xs text-muted-foreground">Active</span>
             </div>
-            <p className="text-xs text-muted-foreground">Customers</p>
+            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
+              {stats.active.toLocaleString()}
+            </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-green-600">
-              {contacts.filter((c) => c.type === "supplier").length}
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-blue-600" />
+              <span className="text-xs text-muted-foreground">Persons</span>
             </div>
-            <p className="text-xs text-muted-foreground">Suppliers</p>
+            <div className="text-2xl font-bold font-mono mt-2">{stats.persons}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-purple-600">
-              {contacts.filter((c) => c.type === "both").length}
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-purple-600" />
+              <span className="text-xs text-muted-foreground">Companies</span>
             </div>
-            <p className="text-xs text-muted-foreground">Both</p>
+            <div className="text-2xl font-bold font-mono mt-2">{stats.companies}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-2">
+              <Truck className="h-4 w-4 text-green-600" />
+              <span className="text-xs text-muted-foreground">Suppliers</span>
+            </div>
+            <div className="text-2xl font-bold font-mono mt-2">{stats.suppliers}</div>
           </CardContent>
         </Card>
         <Card className={duplicateGroups.length > 0 ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10" : ""}>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-yellow-600">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <span className="text-xs text-muted-foreground">Duplicates</span>
+            </div>
+            <div className="text-2xl font-bold font-mono mt-2 text-yellow-600">
               {duplicateGroups.length}
             </div>
-            <p className="text-xs text-muted-foreground">Possible Duplicates</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <TabsList>
-            <TabsTrigger value="all">All Contacts</TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="persons">Persons</TabsTrigger>
+            <TabsTrigger value="companies">Companies</TabsTrigger>
+            <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
             <TabsTrigger value="duplicates" className="relative">
-              Possible Duplicates
+              Duplicates
               {duplicateGroups.length > 0 && (
                 <Badge variant="destructive" className="ml-2 h-5 px-1.5">
                   {duplicateGroups.length}
@@ -209,174 +288,222 @@ export default function ContactsPage() {
             <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search contacts..."
+                placeholder="Search name, email, code..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-9 w-[280px]"
               />
             </div>
-            <Button variant="outline" size="icon">
-              <Filter className="h-4 w-4" />
-            </Button>
           </div>
         </div>
 
-        <TabsContent value="all" className="mt-4">
-          {/* Contacts Table */}
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40px]"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContacts.map((contact) => (
-                  <TableRow key={contact.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedForMerge.some((c) => c.id === contact.id)}
-                        onCheckedChange={() => toggleContactForMerge(contact)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src="" />
-                          <AvatarFallback>
-                            {contact.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <Link
-                          href={`/contacts/${contact.id}`}
-                          className="font-medium hover:underline"
+        <TabsContent value={activeTab} className="mt-4">
+          {activeTab === "duplicates" ? (
+            duplicateGroups.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Users className="h-12 w-12 mx-auto text-green-600 mb-4" />
+                  <p className="font-medium">No duplicate contacts found</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Your contact list is clean
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Found {duplicateGroups.length} groups of possible duplicate contacts.
+                    Review and merge to keep your CRM clean.
+                  </AlertDescription>
+                </Alert>
+
+                {duplicateGroups.map((group) => (
+                  <Card key={group.key}>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                          <span className="font-medium">
+                            {group.contacts.length} similar contacts
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            setSelectedForMerge(group.contacts);
+                            setMergeModalOpen(true);
+                          }}
                         >
-                          {contact.name}
-                        </Link>
+                          <Merge className="h-4 w-4 mr-2" />
+                          Merge These
+                        </Button>
                       </div>
-                    </TableCell>
-                    <TableCell>{contact.company}</TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-sm">
-                          <Mail className="h-3 w-3 text-muted-foreground" />
-                          {contact.email}
-                        </div>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Phone className="h-3 w-3" />
-                          {contact.phone}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={typeColors[contact.type]}>{contact.type}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/contacts/${contact.id}`}>View</Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="duplicates" className="mt-4 space-y-4">
-          {duplicateGroups.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Users className="h-12 w-12 mx-auto text-green-600 mb-4" />
-                <p className="font-medium">No duplicate contacts found</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your contact list is clean
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  Found {duplicateGroups.length} groups of possible duplicate contacts.
-                  Review and merge to keep your CRM clean.
-                </AlertDescription>
-              </Alert>
-
-              {duplicateGroups.map((group) => (
-                <Card key={group.key}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                        <span className="font-medium">
-                          {group.contacts.length} similar contacts
-                        </span>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          setSelectedForMerge(group.contacts);
-                          setMergeModalOpen(true);
-                        }}
-                      >
-                        <Merge className="h-4 w-4 mr-2" />
-                        Merge These
-                      </Button>
-                    </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Company</TableHead>
-                          <TableHead>Jobs</TableHead>
-                          <TableHead>Completeness</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {group.contacts.map((contact) => (
-                          <TableRow key={contact.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-6 w-6">
-                                  <AvatarFallback className="text-xs">
-                                    {contact.name.split(" ").map((n) => n[0]).join("")}
-                                  </AvatarFallback>
-                                </Avatar>
-                                {contact.name}
-                                {contact.xero_contact_id && (
-                                  <Badge variant="outline" className="text-xs">Xero</Badge>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>{contact.email || "-"}</TableCell>
-                            <TableCell>{contact.company || "-"}</TableCell>
-                            <TableCell>{contact.jobs_count}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={contact.completeness_score >= 80 ? "default" : "secondary"}
-                              >
-                                {contact.completeness_score}%
-                              </Badge>
-                            </TableCell>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Status</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              ))}
-            </>
+                        </TableHeader>
+                        <TableBody>
+                          {group.contacts.map((contact) => (
+                            <TableRow key={contact.id}>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarFallback className="text-xs">
+                                      {(contact.full_name || contact.name || "?")
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  {contact.full_name || contact.name}
+                                  {contact.xero_id && (
+                                    <Badge variant="outline" className="text-xs">Xero</Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>{contact.email || "-"}</TableCell>
+                              <TableCell>
+                                {contact.entity_type && (
+                                  <Badge className={entityTypeColors[contact.entity_type] || ""}>
+                                    {entityTypeLabels[contact.entity_type] || contact.entity_type}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {contact.is_active ? (
+                                  <Badge className="bg-green-100 text-green-700">Active</Badge>
+                                ) : (
+                                  <Badge variant="secondary">Inactive</Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40px]"></TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredContacts.slice(0, 100).map((contact) => {
+                    const displayName = contact.full_name || contact.name || "Unknown";
+                    const Icon = contact.entity_type
+                      ? entityTypeIcons[contact.entity_type] || User
+                      : User;
+
+                    return (
+                      <TableRow key={contact.id} className={!contact.is_active ? "opacity-50" : ""}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedForMerge.some((c) => c.id === contact.id)}
+                            onCheckedChange={() => toggleContactForMerge(contact)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src="" />
+                              <AvatarFallback>
+                                {displayName
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <Link
+                                href={`/contacts/${contact.id}`}
+                                className="font-medium hover:underline"
+                              >
+                                {displayName}
+                              </Link>
+                              {contact.supplier_code && (
+                                <div className="text-xs text-muted-foreground">
+                                  Code: {contact.supplier_code}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {contact.entity_type && (
+                            <Badge className={entityTypeColors[contact.entity_type] || "bg-gray-100 text-gray-700"}>
+                              <Icon className="h-3 w-3 mr-1" />
+                              {entityTypeLabels[contact.entity_type] || contact.entity_type}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {contact.email && (
+                              <div className="flex items-center gap-1 text-sm">
+                                <Mail className="h-3 w-3 text-muted-foreground" />
+                                {contact.email}
+                              </div>
+                            )}
+                            {(contact.mobile_phone || contact.phone) && (
+                              <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <Phone className="h-3 w-3" />
+                                {contact.mobile_phone || contact.phone}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {contact.is_active ? (
+                              <Badge className="bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400">
+                                Active
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary">Inactive</Badge>
+                            )}
+                            {contact.xero_id && (
+                              <Badge variant="outline" className="text-xs">Xero</Badge>
+                            )}
+                            {contact.portal_enabled && (
+                              <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Portal</Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/contacts/${contact.id}`}>View</Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              {filteredContacts.length > 100 && (
+                <div className="p-4 text-center text-sm text-muted-foreground border-t">
+                  Showing 100 of {filteredContacts.length.toLocaleString()} contacts. Use search to filter.
+                </div>
+              )}
+            </Card>
           )}
         </TabsContent>
       </Tabs>
@@ -392,104 +519,3 @@ export default function ContactsPage() {
   );
 }
 
-// Mock data functions
-function getMockContacts(): Contact[] {
-  return [
-    {
-      id: 1,
-      name: "John Smith",
-      email: "john.smith@acme.com",
-      phone: "+61 412 345 678",
-      company: "Acme Corporation",
-      type: "customer",
-      created_at: "2024-01-15",
-      jobs_count: 5,
-      purchase_orders_count: 12,
-      completeness_score: 95,
-    },
-    {
-      id: 2,
-      name: "Jon Smith",
-      email: "jon.smith@acme.com",
-      phone: "+61 412 345 679",
-      company: "Acme Corp",
-      type: "customer",
-      created_at: "2024-02-20",
-      jobs_count: 1,
-      purchase_orders_count: 2,
-      completeness_score: 60,
-    },
-    {
-      id: 3,
-      name: "Sarah Johnson",
-      email: "sarah@steelsupply.com",
-      phone: "+61 423 456 789",
-      company: "Steel Supply Co",
-      type: "supplier",
-      created_at: "2024-02-20",
-      xero_contact_id: "xero-123",
-      jobs_count: 8,
-      purchase_orders_count: 24,
-      completeness_score: 100,
-    },
-    {
-      id: 4,
-      name: "Mike Williams",
-      email: "mike@buildright.com",
-      phone: "+61 434 567 890",
-      company: "BuildRight Contractors",
-      type: "both",
-      created_at: "2024-03-01",
-      jobs_count: 3,
-      purchase_orders_count: 6,
-      completeness_score: 85,
-    },
-    {
-      id: 5,
-      name: "Emma Davis",
-      email: "emma@concreteworks.com",
-      phone: "+61 445 678 901",
-      company: "Concrete Works",
-      type: "supplier",
-      created_at: "2024-01-05",
-      jobs_count: 2,
-      purchase_orders_count: 8,
-      completeness_score: 90,
-    },
-  ];
-}
-
-function getMockDuplicates(): DuplicateGroup[] {
-  return [
-    {
-      key: "john-smith",
-      contacts: [
-        {
-          id: 1,
-          name: "John Smith",
-          email: "john.smith@acme.com",
-          phone: "+61 412 345 678",
-          company: "Acme Corporation",
-          type: "customer",
-          created_at: "2024-01-15",
-          xero_contact_id: "xero-456",
-          jobs_count: 5,
-          purchase_orders_count: 12,
-          completeness_score: 95,
-        },
-        {
-          id: 2,
-          name: "Jon Smith",
-          email: "jon.smith@acme.com",
-          phone: "+61 412 345 679",
-          company: "Acme Corp",
-          type: "customer",
-          created_at: "2024-02-20",
-          jobs_count: 1,
-          purchase_orders_count: 2,
-          completeness_score: 60,
-        },
-      ],
-    },
-  ];
-}
