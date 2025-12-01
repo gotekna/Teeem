@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities]
+      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking]
 
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
@@ -297,6 +297,46 @@ module Api
             page: page,
             per_page: per_page,
             total_pages: (total_count.to_f / per_page).ceil
+          }
+        }
+      end
+
+      # GET /api/v1/jobs/:id/budget_tracking
+      # Returns budget vs invoiced summary for purchase orders
+      def budget_tracking
+        purchase_orders = @job.purchase_orders
+                              .where.not(status: 'cancelled')
+                              .includes(:supplier)
+
+        budget_items = purchase_orders.map do |po|
+          budgeted = po.total || 0
+          invoiced = po.invoiced_amount || 0
+          variance = invoiced - budgeted
+
+          {
+            id: po.id,
+            po_number: po.purchase_order_number,
+            supplier_name: po.supplier&.display_name || po.supplier&.company_name || 'Unknown Supplier',
+            item_description: po.description || po.line_items.first&.description || 'No description',
+            budgeted: budgeted.to_f.round(2),
+            invoiced: invoiced.to_f.round(2),
+            variance: variance.to_f.round(2),
+            payment_status: po.payment_status || 'pending'
+          }
+        end
+
+        total_budgeted = budget_items.sum { |i| i[:budgeted] }
+        total_invoiced = budget_items.sum { |i| i[:invoiced] }
+        total_variance = total_invoiced - total_budgeted
+        variance_percentage = total_budgeted > 0 ? (total_variance / total_budgeted * 100) : 0
+
+        render json: {
+          budget_items: budget_items,
+          totals: {
+            budgeted: total_budgeted.round(2),
+            invoiced: total_invoiced.round(2),
+            variance: total_variance.round(2),
+            variance_percentage: variance_percentage.round(2)
           }
         }
       end
