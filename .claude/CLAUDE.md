@@ -29,6 +29,15 @@
 - ✅ Use `--app teeem-rob-dev` for staging
 - ✅ Use `--app teeemlive` for production
 
+## 🔴 CRITICAL: Production Deployment Restriction
+
+**ONLY deploy to production (`teeemlive`) using the `/l` command.**
+
+- ❌ NEVER manually run `git push heroku-teeemlive` or `git subtree push` to production
+- ❌ NEVER deploy to production outside of the `/l` command workflow
+- ✅ Use `/l` command to deploy Live branch to production
+- ✅ The `/l` command ensures proper workflow: checkout Live → pull latest → git subtree deploy
+
 ### After Pushing to Rob Branch - Deploy to Heroku
 
 When you push to the `rob` branch, deploy directly to Heroku using git subtree:
