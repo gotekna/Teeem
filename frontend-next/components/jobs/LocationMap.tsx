@@ -356,7 +356,7 @@ export function LocationMap({
               </p>
               {latitude && longitude && (
                 <p className="text-xs text-muted-foreground">
-                  {latitude.toFixed(6)}, {longitude.toFixed(6)}
+                  {Number(latitude).toFixed(6)}, {Number(longitude).toFixed(6)}
                 </p>
               )}
             </div>

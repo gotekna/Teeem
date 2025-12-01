@@ -1,0 +1,292 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  MessageSquare,
+  Bell,
+  GraduationCap,
+  Menu,
+  ChevronDown,
+  User,
+  Settings,
+  LogOut,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { InspiringBanner } from "./InspiringBanner";
+import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+// Microsoft 365 icon component
+function Microsoft365Icon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M11.5 3v8.5H3V3h8.5zm0 18H3v-8.5h8.5V21zm1-18H21v8.5h-8.5V3zm8.5 9.5V21h-8.5v-8.5H21z" />
+    </svg>
+  );
+}
+
+// Xero icon component
+function XeroIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.41 14.59L7.17 13.17l1.41-1.41 2.01 2.01 4.84-4.84 1.41 1.41-6.25 6.25z" />
+    </svg>
+  );
+}
+
+interface HeaderBarProps {
+  onMenuClick?: () => void;
+}
+
+export function HeaderBar({ onMenuClick }: HeaderBarProps) {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const [unreadCount, setUnreadCount] = React.useState(0);
+  const [xeroConnected, setXeroConnected] = React.useState(false);
+  const [office365Connected, setOffice365Connected] = React.useState(false);
+
+  // Fetch unread message count and integration statuses
+  React.useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await api.get<{ unread_count: number }>("/api/v1/chat_messages/unread_count");
+        if (response?.unread_count !== undefined) {
+          setUnreadCount(response.unread_count);
+        }
+      } catch (error) {
+        console.debug("Failed to fetch unread count:", error);
+      }
+    };
+
+    const fetchIntegrationStatus = async () => {
+      try {
+        // Check Xero connection
+        const xeroResponse = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/xero/status");
+        setXeroConnected(xeroResponse?.connected === true);
+      } catch (error) {
+        console.debug("Failed to fetch Xero status:", error);
+        setXeroConnected(false);
+      }
+
+      try {
+        // Check Office 365 / OneDrive connection
+        const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/onedrive/status");
+        setOffice365Connected(office365Response?.connected === true);
+      } catch (error) {
+        console.debug("Failed to fetch Office 365 status:", error);
+        setOffice365Connected(false);
+      }
+    };
+
+    fetchUnreadCount();
+    fetchIntegrationStatus();
+
+    // Poll every 30 seconds for unread count
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleBack = () => {
+    router.back();
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
+  const userInitials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .substring(0, 2)
+        .toUpperCase()
+    : user?.email?.[0]?.toUpperCase() || "U";
+
+  return (
+    <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-gray-200 bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
+      {/* Mobile menu button */}
+      <button
+        type="button"
+        onClick={onMenuClick}
+        className="-m-1.5 p-1.5 text-gray-700 hover:text-gray-900 lg:hidden dark:text-gray-400 dark:hover:text-white"
+      >
+        <span className="sr-only">Open sidebar</span>
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Separator */}
+      <div
+        aria-hidden="true"
+        className="h-5 w-px bg-gray-200 lg:hidden dark:bg-white/10"
+      />
+
+      <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3">
+        <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2">
+          {/* Back Button */}
+          <button
+            onClick={handleBack}
+            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            title="Go back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+
+          {/* Chat Icon */}
+          <Link
+            href="/chat"
+            className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+          >
+            <span className="sr-only">Chat</span>
+            <MessageSquare className="h-4 w-4" />
+            {unreadCount > 0 && (
+              <Badge
+                variant="destructive"
+                className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center p-0 text-[10px]"
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Badge>
+            )}
+          </Link>
+
+          {/* Training Icon */}
+          <Link
+            href="/training"
+            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+            title="Training Sessions"
+          >
+            <span className="sr-only">Training Sessions</span>
+            <GraduationCap className="h-4 w-4" />
+          </Link>
+
+          {/* Notifications */}
+          <button
+            type="button"
+            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
+          >
+            <span className="sr-only">View notifications</span>
+            <Bell className="h-4 w-4" />
+          </button>
+
+          {/* Office 365 Connection Status */}
+          <Link
+            href="/settings/integrations/microsoft"
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              office365Connected
+                ? "text-green-500 hover:text-green-600"
+                : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
+            )}
+            title={office365Connected ? "Office 365 Connected - Click to manage" : "Office 365 Not Connected - Click to connect"}
+          >
+            <span className="sr-only">Office 365 Status</span>
+            <Microsoft365Icon className="h-4 w-4" />
+          </Link>
+
+          {/* Xero Connection Status */}
+          <Link
+            href="/settings/integrations/xero"
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              xeroConnected
+                ? "text-blue-500 hover:text-blue-600"
+                : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
+            )}
+            title={xeroConnected ? "Xero Connected - Click to manage" : "Xero Not Connected - Click to connect"}
+          >
+            <span className="sr-only">Xero Status</span>
+            <XeroIcon className="h-4 w-4" />
+          </Link>
+
+          {/* Inspiring Banner - centered */}
+          <div className="flex-1 flex justify-center px-2">
+            <InspiringBanner />
+          </div>
+
+          {/* Help Button */}
+          <FloatingHelpButton inline={true} />
+
+          {/* Separator */}
+          <div
+            aria-hidden="true"
+            className="hidden lg:block lg:h-5 lg:w-px lg:bg-gray-200 dark:lg:bg-white/10"
+          />
+
+          {/* Profile dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5">
+                <Avatar className="h-7 w-7">
+                  <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
+                </Avatar>
+                <span className="hidden lg:flex lg:items-center">
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {user?.name || user?.email || "Guest"}
+                  </span>
+                  {(() => {
+                    const role = user?.role;
+                    return typeof role === "string" && role ? (
+                      <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+                        {role}
+                      </Badge>
+                    ) : null;
+                  })()}
+                  <ChevronDown className="ml-1 h-4 w-4 text-gray-400" />
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {user && (
+                <>
+                  <div className="px-4 py-3">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {user.name || "User"}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {user.email}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              <DropdownMenuItem asChild>
+                <Link href="/profile" className="flex items-center">
+                  <User className="mr-2 h-4 w-4" />
+                  Your profile
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/settings" className="flex items-center">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="flex items-center">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+    </header>
+  );
+}

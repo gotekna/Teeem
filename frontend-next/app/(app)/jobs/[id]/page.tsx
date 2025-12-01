@@ -40,6 +40,9 @@ import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
 import { RainLogTab } from "@/components/jobs/RainLogTab";
 import { JobDocumentsTab } from "@/components/jobs/JobDocumentsTab";
 import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
+import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
+import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
+import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -75,6 +78,19 @@ interface Job {
   site_supervisor_email?: string;
   site_supervisor_phone?: string;
   contacts?: Contact[];
+  estimator_analysis?: {
+    job_summary?: string;
+    key_points?: string[];
+    estimated_scope?: {
+      complexity?: string;
+      duration_estimate?: string;
+      key_trades?: string[];
+      major_materials?: string[];
+      potential_challenges?: string[];
+    };
+    recommendations?: string[];
+    source?: string;
+  };
 }
 
 const tabs = [
@@ -405,14 +421,7 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="estimates" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Estimates</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Estimates will be displayed here.</p>
-            </CardContent>
-          </Card>
+          <JobEstimatorTab jobId={job.id} job={job} />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">
@@ -420,14 +429,7 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="budget" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Budget</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Budget management coming soon.</p>
-            </CardContent>
-          </Card>
+          <JobBudgetTab jobId={job.id} />
         </TabsContent>
 
         <TabsContent value="schedule" className="mt-6">
@@ -606,16 +608,7 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="coms" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Communications</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Internal messages, emails, and SMS will be displayed here.
-              </p>
-            </CardContent>
-          </Card>
+          <JobCommunicationsTab jobId={job.id} jobTitle={job.title} />
         </TabsContent>
 
         <TabsContent value="team" className="mt-6">

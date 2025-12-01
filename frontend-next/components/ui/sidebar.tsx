@@ -148,7 +148,7 @@ export function Sidebar() {
                   : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
               )}
             >
-              <Icon size={20} className="shrink-0" />
+              <Icon size={16} className="shrink-0" />
               <span
                 className={cn(
                   "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm",

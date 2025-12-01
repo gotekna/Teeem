@@ -230,9 +230,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       formData.append("job_id", String(jobId));
       formData.append("folder_id", uploadFolderId);
 
-      await api.post("/api/v1/organization_onedrive/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      await api.postFormData("/api/v1/organization_onedrive/upload", formData);
 
       setMessage({ type: "success", text: `File "${file.name}" uploaded successfully!` });
       await checkJobFolderStatus();
@@ -254,10 +252,9 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       formData.append("construction_id", String(jobId));
       formData.append("category", String(selectedCategory?.id));
 
-      const response = await api.post<{ document_url: string; uploaded_at: string }>(
+      const response = await api.postFormData<{ document_url: string; uploaded_at: string }>(
         `/api/v1/jobs/${jobId}/document_tasks/${taskId}/upload`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        formData
       );
 
       if (response) {
