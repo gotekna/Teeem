@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_01_015628) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3255,6 +3255,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.boolean "preload_price_books", default: false, null: false
     t.jsonb "assigned_roles", default: []
     t.bigint "user_group_id"
+    t.datetime "last_seen_at"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["role"], name: "index_users_on_role"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
