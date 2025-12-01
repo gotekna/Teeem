@@ -1741,7 +1741,7 @@ export default function TeeemTableView({
           <TableHead
             key={`${column.key}-${colIndex}`}
             style={{ width: columnWidths[column.key], minWidth: column.minWidth || 50 }}
-            className="relative"
+            className={cn("relative", column.key === "select" && "sticky left-0 z-20 bg-background shadow-[1px_0_0_hsl(var(--border))]")}
           >
             {column.key === "select" ? (
               <Checkbox
@@ -1822,6 +1822,7 @@ export default function TeeemTableView({
                           <TableCell
                             key={`${column.key}-${colIndex}`}
                             style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
+                            className={column.key === "select" ? "sticky left-0 z-10 bg-background shadow-[1px_0_0_hsl(var(--border))]" : undefined}
                           >
                             {renderCellValue(row, column)}
                           </TableCell>
@@ -1840,7 +1841,7 @@ export default function TeeemTableView({
 
   // Render flat table
   const renderFlatTable = () => (
-    <div className="border rounded-lg" style={{ width: `${totalTableWidth}px` }}>
+    <div style={{ width: `${totalTableWidth}px` }}>
       <Table className="w-full" style={{ tableLayout: 'fixed' }}>
         {renderTableHeader()}
         <TableBody>
@@ -1870,6 +1871,7 @@ export default function TeeemTableView({
                   <TableCell
                     key={`${column.key}-${colIndex}`}
                     style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
+                    className={column.key === "select" ? "sticky left-0 z-10 bg-background shadow-[1px_0_0_hsl(var(--border))]" : undefined}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
@@ -2198,7 +2200,7 @@ export default function TeeemTableView({
 
       {/* Table - scrollable container */}
       <div
-        className="flex-1 min-h-0 w-full table-scroll"
+        className="flex-1 min-h-0 w-full table-scroll border"
         style={{
           overflowX: 'scroll',
           overflowY: 'auto'

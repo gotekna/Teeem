@@ -3709,7 +3709,7 @@ export default function TeeemTableView({
                   }
                   setShowGpsModal(true)
                 }}
-                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex-shrink-0"
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex-shrink-0"
                 title="Open location picker"
               >
                 📍 Pick
@@ -3779,7 +3779,7 @@ export default function TeeemTableView({
                   setColorModalValue(colorValue)
                   setShowColorModal(true)
                 }}
-                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex-shrink-0"
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex-shrink-0"
                 title="Open color picker"
               >
                 🎨 Pick
@@ -3832,7 +3832,7 @@ export default function TeeemTableView({
                   setFileModalTab('upload')
                   setShowFileModal(true)
                 }}
-                className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex-shrink-0 flex items-center gap-1"
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex-shrink-0 flex items-center gap-1"
                 title="Browse files"
               >
                 📎 Browse
@@ -5411,7 +5411,7 @@ export default function TeeemTableView({
                           navigator.clipboard.writeText(String(foundationIdNumeric))
                           alert('Table ID copied to clipboard!')
                         }}
-                        className="ml-2 px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                        className="ml-2 px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                       >
                         Copy
                       </button>
@@ -5463,9 +5463,13 @@ export default function TeeemTableView({
 
           {/* Columns dropdown - appears when triggered from three-dot menu */}
           {showColumnsDropdown && (
-            <>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="columns-modal-title"
+            >
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowColumnsDropdown(false)} />
+              <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowColumnsDropdown(false)} aria-hidden="true" />
               {/* Dropdown positioned in center - Gold Standard styling */}
               <div
                 className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-2xl max-h-[85vh] overflow-hidden z-[60] flex flex-col"
@@ -5473,7 +5477,7 @@ export default function TeeemTableView({
               >
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0 bg-white dark:bg-gray-800">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200 uppercase tracking-wide">
+                  <span id="columns-modal-title" className="text-sm font-medium text-gray-700 dark:text-gray-200 uppercase tracking-wide">
                     SHOW/HIDE COLUMNS
                   </span>
                   <button
@@ -5591,14 +5595,18 @@ export default function TeeemTableView({
                   })}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Schema Modal - Full schema info for all columns */}
           {showSchemaModal && (
-            <>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="schema-modal-title"
+            >
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowSchemaModal(false)} />
+              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowSchemaModal(false)} aria-hidden="true" />
               {/* Modal */}
               <div
                 className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-6xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl max-h-[90vh] overflow-hidden z-[60] flex flex-col"
@@ -5608,7 +5616,7 @@ export default function TeeemTableView({
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-500 to-purple-600 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <h2 id="schema-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
                         🗄️ Table Schema
                         {tableName && <span className="text-indigo-100">- {tableName}</span>}
                       </h2>
@@ -5713,14 +5721,18 @@ export default function TeeemTableView({
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Delete Column Modal */}
           {showDeleteColumnModal && (
-            <>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-column-modal-title"
+            >
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowDeleteColumnModal(false)} />
+              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowDeleteColumnModal(false)} aria-hidden="true" />
               {/* Modal */}
               <div
                 className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-2xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl max-h-[80vh] overflow-hidden z-[60] flex flex-col"
@@ -5730,7 +5742,7 @@ export default function TeeemTableView({
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-red-500 to-red-600 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <h2 id="delete-column-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
                         🗑️ Delete Column
                         {tableName && <span className="text-red-100">- {tableName}</span>}
                       </h2>
@@ -5821,7 +5833,7 @@ export default function TeeemTableView({
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -6128,7 +6140,7 @@ export default function TeeemTableView({
                                 // Don't reset filters/columns - they were just saved
                                 setShowCascadeDropdown(false) // Close the popup
                               }}
-                              className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 rounded transition-colors whitespace-nowrap font-medium"
+                              className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded transition-colors whitespace-nowrap font-medium"
                             >
                               Save & Close
                             </button>
@@ -6252,7 +6264,7 @@ export default function TeeemTableView({
                                 }
                               }}
                               disabled={!newViewName.trim()}
-                              className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
+                              className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
                             >
                               Save & Close
                             </button>
@@ -8514,12 +8526,13 @@ export default function TeeemTableView({
                         )}
 
                         {showFilters && (columnShowFilters[colKey] ?? true) && (column.filterType === 'dropdown' || column.column_type === 'lookup') && colKey !== 'component' && (
-                          <select
-                            value={columnFilterInputs[colKey] || ''}
-                            onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
-                          >
+                          <div className="relative">
+                            <select
+                              value={columnFilterInputs[colKey] || ''}
+                              onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
+                            >
                             <option key="inline-all" value="">All</option>
                             <option key="inline-empty" value="__empty__">No Info</option>
                             {colKey === 'category' && (
@@ -9503,7 +9516,13 @@ export default function TeeemTableView({
 
       {/* Text Editing Modal */}
       {showTextEditModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowTextEditModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowTextEditModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="text-edit-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9515,7 +9534,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="text-edit-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Edit {getColumnLabel(textEditField)}
                 </h3>
                 <button
@@ -9737,7 +9756,13 @@ export default function TeeemTableView({
 
       {/* GPS Location Picker Modal - Using LocationMapCard */}
       {showGpsModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowGpsModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowGpsModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gps-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9749,7 +9774,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="gps-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Pick GPS Location
                 </h3>
                 <button
@@ -9845,7 +9870,13 @@ export default function TeeemTableView({
 
       {/* Color Picker Modal */}
       {showColorModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowColorModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowColorModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="color-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9857,7 +9888,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="color-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Pick a Color
                 </h3>
                 <button
@@ -9986,7 +10017,13 @@ export default function TeeemTableView({
 
       {/* File Upload Modal */}
       {showFileModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowFileModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowFileModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="file-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9998,7 +10035,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="file-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Upload File or Add Link
                 </h3>
                 <button
@@ -10462,7 +10499,13 @@ export default function TeeemTableView({
 
       {/* Bulk Update Modal */}
       {showBulkUpdateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bulk-update-modal-title"
+        >
           <div className="flex min-h-screen items-start justify-center p-4 pt-12">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -10472,7 +10515,7 @@ export default function TeeemTableView({
               className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              <h3 id="bulk-update-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Bulk Update {selectedRows.size} {selectedRows.size === 1 ? 'Record' : 'Records'}
               </h3>
 

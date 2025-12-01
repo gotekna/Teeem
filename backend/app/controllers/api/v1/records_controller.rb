@@ -27,6 +27,11 @@ module Api
         model = @foundation.dynamic_model
         query = model.all
 
+        # Include associations for system tables to prevent N+1 queries
+        if @foundation.table_type == 'system'
+          query = apply_system_table_includes(query, model)
+        end
+
         # Exclude soft-deleted records if the table has a 'deleted' column
         if model.column_names.include?('deleted')
           query = query.where(deleted: [false, nil])
@@ -482,6 +487,20 @@ module Api
       def normalize_contact_name(name)
         return nil if name.blank?
         name.to_s.downcase.gsub(/\s+/, ' ').strip
+      end
+
+      # Apply eager loading for system table associations to prevent N+1 queries
+      def apply_system_table_includes(query, model)
+        case model.name
+        when 'Job'
+          query.includes(:job_type, :job_status, :job_stage)
+        when 'Contact'
+          query.includes(:company_group, :primary_company)
+        when 'Company'
+          query.includes(:company_group, :parent_company)
+        else
+          query
+        end
       end
     end
   end
