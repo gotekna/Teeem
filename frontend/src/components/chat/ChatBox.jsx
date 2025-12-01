@@ -95,6 +95,13 @@ export default function ChatBox({ channel = 'general', projectId = null, userId 
       setMessages([...messages, response])
       setNewMessage('')
       scrollToBottom()
+
+      // Mark messages as read when sending a message (clears unread indicator)
+      try {
+        await api.post('/api/v1/chat_messages/mark_as_read', {})
+      } catch (markReadError) {
+        console.error('Failed to mark messages as read:', markReadError)
+      }
     } catch (error) {
       console.error('Failed to send message:', error)
       alert('Failed to send message. Please try again.')

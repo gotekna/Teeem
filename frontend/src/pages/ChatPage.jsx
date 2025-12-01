@@ -4,6 +4,27 @@ import AccountsLayout from '../components/layout/AccountsLayout'
 import ChatBox from '../components/chat/ChatBox'
 import { api } from '../api'
 
+// Presence status indicator component
+const PresenceIndicator = ({ status }) => {
+  const colors = {
+    online: 'bg-green-500',
+    away: 'bg-yellow-500',
+    offline: 'bg-gray-400'
+  }
+  const titles = {
+    online: 'Online',
+    away: 'Away',
+    offline: 'Offline'
+  }
+
+  return (
+    <span
+      className={`absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-gray-900 ${colors[status] || colors.offline}`}
+      title={titles[status] || 'Offline'}
+    />
+  )
+}
+
 export default function ChatPage() {
   const [users, setUsers] = useState([])
   const [selectedConversation, setSelectedConversation] = useState({ type: 'channel', id: 'general', name: '#general' })
@@ -20,12 +41,25 @@ export default function ChatPage() {
     }
     markAsRead()
     loadUsers()
+
+    // Refresh presence status every 10 seconds for more responsive updates
+    const interval = setInterval(loadUsers, 10000)
+    return () => clearInterval(interval)
   }, [])
 
   const loadUsers = async () => {
     try {
       const response = await api.get('/api/v1/users')
-      setUsers(Array.isArray(response) ? response : [])
+      const userList = Array.isArray(response) ? response : []
+      // Sort users: online first, then away, then offline, then alphabetically
+      const presenceOrder = { online: 0, away: 1, offline: 2 }
+      userList.sort((a, b) => {
+        const aOrder = presenceOrder[a.presence_status] ?? 2
+        const bOrder = presenceOrder[b.presence_status] ?? 2
+        if (aOrder !== bOrder) return aOrder - bOrder
+        return (a.name || '').localeCompare(b.name || '')
+      })
+      setUsers(userList)
     } catch (error) {
       console.error('Failed to load users:', error)
       setUsers([])
@@ -40,21 +74,33 @@ export default function ChatPage() {
     { id: 'support', name: 'support', description: 'Support requests' }
   ]
 
-  const selectChannel = (channel) => {
+  const selectChannel = async (channel) => {
     setSelectedConversation({
       type: 'channel',
       id: channel.id,
       name: `#${channel.name}`
     })
+    // Mark messages as read when selecting a conversation
+    try {
+      await api.post('/api/v1/chat_messages/mark_as_read', {})
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error)
+    }
   }
 
-  const selectUser = (user) => {
+  const selectUser = async (user) => {
     setSelectedConversation({
       type: 'direct',
       id: user.id,
       name: user.name,
       email: user.email
     })
+    // Mark messages as read when selecting a conversation
+    try {
+      await api.post('/api/v1/chat_messages/mark_as_read', {})
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error)
+    }
   }
 
   return (
@@ -107,13 +153,16 @@ export default function ChatPage() {
                   <button
                     key={user.id}
                     onClick={() => selectUser(user)}
-                    className={`w-full text-left px-3 py-2 rounded-lg mb-1 flex items-center gap-2 ${
+                    className={`w-full text-left px-3 py-2 rounded-lg mb-1 flex items-center gap-3 ${
                       selectedConversation.type === 'direct' && selectedConversation.id === user.id
                         ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-100'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                     }`}
                   >
-                    <UserCircleIcon className="h-5 w-5 flex-shrink-0" />
+                    <div className="relative flex-shrink-0">
+                      <UserCircleIcon className="h-8 w-8" />
+                      <PresenceIndicator status={user.presence_status} />
+                    </div>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{user.name}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</div>

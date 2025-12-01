@@ -1,4 +1,7 @@
 class Contact < ApplicationRecord
+  # Exclude soft-deleted contacts by default
+  default_scope { where(deleted: [false, nil]) }
+
   # Associations
   has_many :contact_activities, dependent: :destroy
   has_many :sms_messages, dependent: :destroy

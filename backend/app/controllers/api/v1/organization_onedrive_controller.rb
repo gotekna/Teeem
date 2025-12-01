@@ -1048,6 +1048,156 @@ module Api
         end
       end
 
+      # POST /api/v1/organization_onedrive/copy_files
+      # Copy files from selected records to a SharePoint/OneDrive folder
+      # Params:
+      #   - foundation_id: The foundation/table name to get records from
+      #   - record_ids: Array of record IDs to copy files from
+      #   - folder_id: Target folder ID in OneDrive (or null for root)
+      #   - new_folder_name: Optional - create a new folder with this name
+      def copy_files
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        foundation_id = params[:foundation_id]
+        record_ids = params[:record_ids] || []
+        folder_id = params[:folder_id]
+        new_folder_name = params[:new_folder_name]
+
+        if record_ids.empty?
+          return render json: { error: 'No records selected' }, status: :bad_request
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Create new folder if requested
+          if new_folder_name.present?
+            parent_id = folder_id || credential.root_folder_id
+            new_folder = if parent_id
+              client.create_folder(new_folder_name, parent_id: parent_id)
+            else
+              client.post("/me/drive/root/children", {
+                name: new_folder_name,
+                folder: {},
+                "@microsoft.graph.conflictBehavior": "rename"
+              })
+            end
+            folder_id = new_folder['id']
+          end
+
+          # Get the target folder ID (use root if not specified)
+          target_folder_id = folder_id || credential.root_folder_id
+
+          unless target_folder_id
+            return render json: { error: 'No target folder specified and no root folder configured' }, status: :bad_request
+          end
+
+          # Get the model class for the foundation
+          model_class = get_model_for_foundation(foundation_id)
+
+          unless model_class
+            return render json: { error: "Unknown foundation: #{foundation_id}" }, status: :bad_request
+          end
+
+          # Get records and their attachments
+          records = model_class.where(id: record_ids)
+
+          uploaded_files = []
+          errors = []
+
+          records.each do |record|
+            # Find all Active Storage attachments on this record
+            attachments = get_attachments_for_record(record)
+
+            attachments.each do |attachment|
+              begin
+                # Download the file content
+                file_content = attachment.download
+                filename = attachment.filename.to_s
+
+                # Upload to OneDrive
+                # For files < 4MB, use simple upload
+                if file_content.bytesize < 4.megabytes
+                  result = client.post(
+                    "/drives/#{credential.drive_id}/items/#{target_folder_id}:/#{filename}:/content",
+                    file_content,
+                    { 'Content-Type' => attachment.content_type || 'application/octet-stream' }
+                  )
+                  uploaded_files << {
+                    record_id: record.id,
+                    filename: filename,
+                    sharepoint_url: result['webUrl'],
+                    size: file_content.bytesize
+                  }
+                else
+                  # For larger files, create upload session
+                  session = client.create_upload_session(target_folder_id, filename, file_content.bytesize)
+
+                  # Upload in chunks
+                  upload_url = session['uploadUrl']
+                  chunk_size = 10.megabytes
+                  position = 0
+
+                  while position < file_content.bytesize
+                    chunk = file_content[position, chunk_size]
+                    end_position = [position + chunk.bytesize - 1, file_content.bytesize - 1].min
+
+                    response = HTTParty.put(
+                      upload_url,
+                      body: chunk,
+                      headers: {
+                        'Content-Length' => chunk.bytesize.to_s,
+                        'Content-Range' => "bytes #{position}-#{end_position}/#{file_content.bytesize}"
+                      }
+                    )
+
+                    position += chunk_size
+
+                    # Final chunk returns the file metadata
+                    if response['id']
+                      uploaded_files << {
+                        record_id: record.id,
+                        filename: filename,
+                        sharepoint_url: response['webUrl'],
+                        size: file_content.bytesize
+                      }
+                    end
+                  end
+                end
+              rescue StandardError => e
+                errors << {
+                  record_id: record.id,
+                  filename: attachment.filename.to_s,
+                  error: e.message
+                }
+                Rails.logger.error "Failed to upload #{attachment.filename}: #{e.message}"
+              end
+            end
+          end
+
+          render json: {
+            success: true,
+            message: "Uploaded #{uploaded_files.length} files to SharePoint",
+            uploaded_files: uploaded_files,
+            errors: errors,
+            target_folder_id: target_folder_id
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Failed to copy files: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to copy files: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       # POST /api/v1/organization_onedrive/create_private_folders
       # Create the folder structure in 00 TEEEM PRIVATE for all company groups
       def create_private_folders
@@ -1125,6 +1275,55 @@ module Api
       end
 
       private
+
+      # Map foundation_id to model class
+      def get_model_for_foundation(foundation_id)
+        case foundation_id&.to_s&.downcase
+        when 'contacts', 'contact'
+          Contact
+        when 'jobs', 'job'
+          Job
+        when 'companies', 'company'
+          Company
+        when 'assets', 'asset'
+          Asset
+        when 'documents', 'document', 'company_documents'
+          CompanyDocument
+        when 'pay_now_requests', 'pay_now_request'
+          PayNowRequest
+        when 'financial_transactions', 'financial_transaction'
+          FinancialTransaction
+        else
+          # Try to find a foundation and get its model
+          foundation = Foundation.find_by(foundation_id: foundation_id) || Foundation.find_by(id: foundation_id)
+          foundation&.model_class&.constantize rescue nil
+        end
+      end
+
+      # Get all Active Storage attachments for a record
+      def get_attachments_for_record(record)
+        attachments = []
+
+        # Check for common attachment names
+        attachment_names = [:file, :files, :photos, :photo, :invoice, :document, :documents, :receipt, :attachments, :proof_photos, :invoice_file]
+
+        attachment_names.each do |name|
+          if record.respond_to?(name) && record.send(name).respond_to?(:attached?)
+            attachment = record.send(name)
+            if attachment.attached?
+              if attachment.respond_to?(:each)
+                # has_many_attached
+                attachments.concat(attachment.to_a)
+              else
+                # has_one_attached
+                attachments << attachment
+              end
+            end
+          end
+        end
+
+        attachments
+      end
 
       # Dynamically determine the frontend URL from the request
       # This ensures OAuth redirects work correctly across different environments
