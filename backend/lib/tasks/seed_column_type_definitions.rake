@@ -2,7 +2,7 @@
 
 namespace :teeem do
   namespace :gold_standard do
-    desc 'Seed column_type_definitions table with all 21 column types'
+    desc 'Seed column_type_definitions table with all 30 column types'
     task seed_type_definitions: :environment do
       puts "🔄 Seeding column type definitions..."
       puts "=" * 80
@@ -196,6 +196,80 @@ namespace :teeem do
           validation_regex: nil,
           used_for: 'Calculated field based on formula',
           needs_config: true
+        },
+        # Advanced Data Types (PostgreSQL-specific)
+        {
+          type_key: 'structured_data',
+          display_name: 'Structured Data (JSON)',
+          sql_type: 'JSONB',
+          default_max_length: nil,
+          validation_regex: nil,
+          used_for: 'Flexible JSON objects for config, metadata, nested data'
+        },
+        {
+          type_key: 'array_of_items',
+          display_name: 'Array of Items',
+          sql_type: 'TEXT[]',
+          default_max_length: nil,
+          validation_regex: nil,
+          used_for: 'Multiple text values stored as an array (tags, IDs)'
+        },
+        {
+          type_key: 'searchable_text',
+          display_name: 'Full-Text Search',
+          sql_type: 'TSVECTOR',
+          default_max_length: nil,
+          validation_regex: nil,
+          used_for: 'Auto-generated search index (read-only)'
+        },
+        # Australian Standard Identifiers
+        {
+          type_key: 'abn',
+          display_name: 'ABN',
+          sql_type: 'VARCHAR(14)',
+          default_max_length: 14,
+          validation_regex: '^\d{2}\s?\d{3}\s?\d{3}\s?\d{3}$',
+          used_for: 'Australian Business Number (11 digits, format: XX XXX XXX XXX)'
+        },
+        {
+          type_key: 'acn',
+          display_name: 'ACN',
+          sql_type: 'VARCHAR(11)',
+          default_max_length: 11,
+          validation_regex: '^\d{3}\s?\d{3}\s?\d{3}$',
+          used_for: 'Australian Company Number (9 digits, format: XXX XXX XXX)'
+        },
+        {
+          type_key: 'bsb',
+          display_name: 'BSB',
+          sql_type: 'VARCHAR(7)',
+          default_max_length: 7,
+          validation_regex: '^\d{3}-?\d{3}$',
+          used_for: 'Bank State Branch (6 digits, format: XXX-XXX)'
+        },
+        {
+          type_key: 'bank_account',
+          display_name: 'Bank Account',
+          sql_type: 'VARCHAR(9)',
+          default_max_length: 9,
+          validation_regex: '^\d{1,9}$',
+          used_for: 'Bank Account Number (up to 9 digits)'
+        },
+        {
+          type_key: 'postcode',
+          display_name: 'Postcode',
+          sql_type: 'VARCHAR(4)',
+          default_max_length: 4,
+          validation_regex: '^\d{4}$',
+          used_for: 'Australian Postcode (4 digits)'
+        },
+        {
+          type_key: 'tfn',
+          display_name: 'TFN',
+          sql_type: 'VARCHAR(11)',
+          default_max_length: 11,
+          validation_regex: '^\d{3}\s?\d{3}\s?\d{3}$',
+          used_for: 'Tax File Number (9 digits, format: XXX XXX XXX)'
         }
       ]
 

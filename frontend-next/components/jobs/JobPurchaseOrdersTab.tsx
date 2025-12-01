@@ -153,7 +153,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     try {
       setLoading(true);
       const response = await api.get<{ purchase_orders: PurchaseOrder[] }>(
-        `/api/v1/jobs/${jobId}/purchase_orders`
+        `/api/v1/purchase_orders?job_id=${jobId}`
       );
       setPurchaseOrders(response?.purchase_orders || []);
     } catch (err) {
@@ -215,7 +215,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     try {
       setSaving(true);
       setError(null);
-      await api.post(`/api/v1/jobs/${jobId}/purchase_orders`, {
+      await api.post(`/api/v1/purchase_orders`, {
         purchase_order: {
           construction_id: jobId,
           supplier_id: selectedSupplier.id,

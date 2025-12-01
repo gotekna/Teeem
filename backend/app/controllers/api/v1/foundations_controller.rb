@@ -131,7 +131,7 @@ module Api
       def schema
         columns = if @foundation.columns.any?
           @foundation.columns.order(:position).map do |col|
-            {
+            schema_entry = {
               id: col.id,
               name: col.name,
               column_name: col.column_name,
@@ -152,8 +152,16 @@ module Api
               lookup_multiple: col.lookup_multiple,
               formula: col.formula,
               formula_output_type: col.formula_output_type,
-              choices: col.choices
+              choices: col.choices,
+              validation_regex: col.effective_validation_regex
             }
+
+            # Add format config for Australian identifier types (ABN, ACN, BSB, etc.)
+            if (fmt_config = col.format_config)
+              schema_entry[:format_config] = fmt_config
+            end
+
+            schema_entry
           end
         else
           # Auto-detect columns for system foundations

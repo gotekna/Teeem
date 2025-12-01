@@ -3,12 +3,20 @@
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab } from "@/components/table";
+import type { TableRow } from "@/components/table/types";
 import { TABLE_SLUGS, urls } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationData } from "@/hooks/useFoundationData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle } from "lucide-react";
+
+// Table IDs for navigation support
+const TABLE_IDS = {
+  JOBS: 204,
+  CONTACTS: 214,
+  PRICEBOOK: 205,
+};
 
 function PageSkeleton() {
   return (
@@ -47,6 +55,30 @@ function TablePageContent() {
   const tab = searchParams.get("tab");
 
   const [activeTab, setActiveTab] = useState(tab || "data");
+
+  // Handle row double-click - navigate to full page for supported tables
+  const handleRowDoubleClick = (row: TableRow) => {
+    console.log("[TablePage] Double-click on row:", row.id, "tableId:", tableId);
+
+    if (tableId === TABLE_IDS.JOBS) {
+      // Navigate to job detail page
+      const title = row.title || row.job_title || row.name;
+      const slug = title ? String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : String(row.id);
+      router.push(`/jobs/${slug}`);
+    } else if (tableId === TABLE_IDS.CONTACTS) {
+      // Navigate to contact detail page
+      const name = row.full_name || row.name;
+      const slug = name ? String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : String(row.id);
+      router.push(`/contacts/${slug}`);
+    } else if (tableId === TABLE_IDS.PRICEBOOK) {
+      // Navigate to pricebook detail page
+      const code = row.item_code || row.code;
+      const slug = code ? String(code).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : String(row.id);
+      router.push(`/pricebook/${slug}`);
+    } else {
+      console.log("[TablePage] No detail page for table:", tableId);
+    }
+  };
 
   // Get UI configuration for this table
   const uiConfig = getTableUIConfig(tableId);
@@ -110,6 +142,7 @@ function TablePageContent() {
     hideUpdateViewButton: uiConfig.hideUpdateViewButton,
     initialGroupByColumn: uiConfig.initialGroupByColumn,
     onRefresh: refresh,
+    onRowDoubleClick: handleRowDoubleClick,
   };
 
   return (
@@ -174,6 +207,7 @@ function TablePageContent() {
           <TeeemTableView {...tableProps} />
         </div>
       )}
+
     </div>
   );
 }
