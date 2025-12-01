@@ -1737,9 +1737,9 @@ export default function TeeemTableView({
   const renderTableHeader = () => (
     <TableHeader>
       <TableRow>
-        {visibleColumnsInOrder.map((column) => (
+        {visibleColumnsInOrder.map((column, colIndex) => (
           <TableHead
-            key={column.key}
+            key={`${column.key}-${colIndex}`}
             style={{ width: columnWidths[column.key], minWidth: column.minWidth || 50 }}
             className="relative"
           >
@@ -1809,18 +1809,18 @@ export default function TeeemTableView({
                 <Table className="w-full" style={{ tableLayout: 'fixed' }}>
                   {renderTableHeader()}
                   <TableBody>
-                    {groupRows.map((row) => (
+                    {groupRows.map((row, rowIndex) => (
                       <TableRow
-                        key={row.id}
+                        key={`${row.id}-${rowIndex}`}
                         className={cn(
                           selectedRows.has(row.id) && "bg-muted/50",
                           "hover:bg-muted/30 cursor-pointer"
                         )}
                         onDoubleClick={() => onRowDoubleClick?.(row)}
                       >
-                        {visibleColumnsInOrder.map((column) => (
+                        {visibleColumnsInOrder.map((column, colIndex) => (
                           <TableCell
-                            key={column.key}
+                            key={`${column.key}-${colIndex}`}
                             style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
                           >
                             {renderCellValue(row, column)}
@@ -1854,9 +1854,9 @@ export default function TeeemTableView({
               </TableCell>
             </TableRow>
           ) : (
-            filteredAndSortedEntries.map((row) => (
+            filteredAndSortedEntries.map((row, rowIndex) => (
               <TableRow
-                key={row.id}
+                key={`${row.id}-${rowIndex}`}
                 className={cn(
                   selectedRows.has(row.id) && "bg-muted/50",
                   editingRowId === row.id && "bg-blue-50 dark:bg-blue-950/20",
@@ -1866,9 +1866,9 @@ export default function TeeemTableView({
                   editingRowId !== row.id && onRowDoubleClick?.(row)
                 }
               >
-                {visibleColumnsInOrder.map((column) => (
+                {visibleColumnsInOrder.map((column, colIndex) => (
                   <TableCell
-                    key={column.key}
+                    key={`${column.key}-${colIndex}`}
                     style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
                   >
                     {renderCellValue(row, column)}
