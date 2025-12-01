@@ -1,26 +1,83 @@
-# Pull Heroku Database to Local
+# Pull Heroku Database from Production
 
-Pull the Heroku PostgreSQL database to your local development environment from **staging (teeem-rob-dev)**.
+Pull the production database (teeemlive) to both local and staging environments concurrently.
+
+## Data Flow
+
+```
+┌─────────────────────┐
+│  teeemlive (PROD)   │
+│  Heroku PostgreSQL  │
+└──────────┬──────────┘
+           │
+           │ Step 1: Capture backup
+           ▼
+┌─────────────────────┐
+│   Backup created    │
+│   on Heroku         │
+└──────────┬──────────┘
+           │
+     ┌─────┴─────┐
+     │           │
+     ▼           ▼
+┌─────────┐ ┌─────────────────┐
+│ Step 2a │ │    Step 2b      │
+│Download │ │ Direct restore  │
+│ .dump   │ │ from backup URL │
+└────┬────┘ └────────┬────────┘
+     │               │
+     ▼               ▼
+┌─────────────┐ ┌─────────────────┐
+│   LOCAL     │ │  teeem-rob-dev  │
+│ teeem_dev   │ │    (STAGING)    │
+└─────────────┘ └─────────────────┘
+
+Both restores run CONCURRENTLY
+
+Step 3: Restart local frontend & backend servers
+```
 
 ## Auto-Execute
 
-Run these commands immediately:
-
-1. Kill any existing database connections
-2. Capture a fresh backup from staging
-3. Restore to local database
-4. Run pending migrations
-
 ```bash
-# Kill existing connections, backup, restore from staging
+# Step 1: Kill existing local connections
 psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'teeem_development' AND pid <> pg_backend_pid();" 2>/dev/null || true
-cd /Users/robertharder/GitHub/teeem/backend && heroku pg:backups:capture --app teeem-rob-dev && heroku pg:backups:download --app teeem-rob-dev -o latest.dump && pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20; rm -f latest.dump && bin/rails db:migrate
+
+# Step 2: Capture backup from teeemlive (production)
+cd /Users/robertharder/GitHub/teeem/backend && heroku pg:backups:capture --app teeemlive && heroku pg:backups:download --app teeemlive -o latest.dump
+
+# Step 3: Restore CONCURRENTLY to both local and staging
+# 3a: teeemlive backup → local teeem_development
+(pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20 && bin/rails db:migrate) &
+# 3b: teeemlive backup → teeem-rob-dev (staging)
+(heroku pg:reset --app teeem-rob-dev --confirm teeem-rob-dev && heroku pg:restore "$(heroku pg:backups:url --app teeemlive)" --app teeem-rob-dev --confirm teeem-rob-dev) &
+wait
+
+# Step 4: Clean up
+rm -f latest.dump
+
+# Step 5: Restart local servers
+# Kill existing backend (Rails) server
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+# Kill existing frontend (Vite) server
+lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+
+# Start backend server
+cd /Users/robertharder/GitHub/teeem/backend && bin/rails server &
+
+# Start frontend server
+cd /Users/robertharder/GitHub/teeem/frontend && npm run dev &
+
+echo "✅ Database synced and servers restarted"
 ```
 
-## Manual Options
+## Summary
 
-**For Production (teeem-backend) - USE WITH CAUTION:**
-```bash
-psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'teeem_development' AND pid <> pg_backend_pid();" 2>/dev/null || true
-cd /Users/robertharder/GitHub/teeem/backend && heroku pg:backups:capture --app teeem-backend && heroku pg:backups:download --app teeem-backend -o latest.dump && pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20; rm -f latest.dump && bin/rails db:migrate
-```
+| Step | From | To | Method |
+|------|------|-----|--------|
+| 1 | teeemlive | Heroku backup | `pg:backups:capture` |
+| 2a | Heroku backup | local file | `pg:backups:download` |
+| 3a | local file | teeem_development | `pg_restore` |
+| 3b | Heroku backup URL | teeem-rob-dev | `pg:restore` |
+| 4 | - | - | Clean up dump file |
+| 5 | - | localhost:3000 + 5173 | Restart Rails + Vite |
