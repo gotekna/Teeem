@@ -34,15 +34,25 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     state_data = { user_id: current_user.id, nonce: SecureRandom.hex(8) }
     state = Base64.urlsafe_encode64(state_data.to_json)
 
-    auth_url = "https://login.microsoftonline.com/#{tenant}/oauth2/v2.0/authorize?" + URI.encode_www_form({
+    # Build auth URL params
+    auth_params = {
       client_id: client_id,
       response_type: 'code',
       redirect_uri: redirect_uri,
       response_mode: 'query',
       scope: REQUIRED_SCOPES.join(' '),
-      state: state,
-      prompt: 'select_account'  # Force account picker - important when impersonating
-    })
+      state: state
+    }
+
+    # Only force account picker if not using tenant-specific auth
+    # When OUTLOOK_TENANT_ID is set, users from that org are pre-consented
+    # and can sign in seamlessly without being asked for consent again
+    if tenant == 'common'
+      auth_params[:prompt] = 'select_account'
+    end
+    # For tenant-specific apps with admin consent, let Microsoft decide the flow
+
+    auth_url = "https://login.microsoftonline.com/#{tenant}/oauth2/v2.0/authorize?" + URI.encode_www_form(auth_params)
 
     render json: { auth_url: auth_url }
   end

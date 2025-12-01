@@ -398,6 +398,12 @@ export default function TablesTab() {
     if (sortColumn === 'records') {
       return ((a.record_count || 0) - (b.record_count || 0)) * multiplier
     }
+    if (sortColumn === 'compliance') {
+      // Put null/undefined at the end when sorting ascending, at the start when descending
+      const aScore = a.compliance_score ?? -1
+      const bScore = b.compliance_score ?? -1
+      return (aScore - bScore) * multiplier
+    }
 
     // Boolean columns
     if (sortColumn === 'has_ui') {
@@ -803,6 +809,18 @@ export default function TablesTab() {
                   <th
                     scope="col"
                     className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                    onClick={() => handleSort('compliance')}
+                  >
+                    <div className="flex items-center gap-1">
+                      Compliance
+                      {sortColumn === 'compliance' && (
+                        sortDirection === 'asc' ? <ChevronUpIcon className="h-4 w-4" /> : <ChevronDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                     onClick={() => handleSort('has_ui')}
                   >
                     <div className="flex items-center gap-1">
@@ -986,6 +1004,45 @@ export default function TablesTab() {
                             Draft
                           </span>
                         )}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm">
+                        {(() => {
+                          // Skip compliance display for system tables
+                          if (table.type === 'system') {
+                            return <span className="text-gray-400 dark:text-gray-600">-</span>
+                          }
+
+                          const score = table.compliance_score
+                          const nonCompliantCount = table.non_compliant_count || 0
+
+                          // No score yet
+                          if (score === null || score === undefined) {
+                            return (
+                              <span className="inline-flex items-center rounded-md bg-gray-50 dark:bg-gray-400/10 px-2 py-1 text-xs font-medium text-gray-500 dark:text-gray-500 ring-1 ring-inset ring-gray-500/10 dark:ring-gray-400/20">
+                                Not checked
+                              </span>
+                            )
+                          }
+
+                          // Color based on score
+                          let colorClass = ''
+                          if (score >= 100) {
+                            colorClass = 'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 ring-green-600/20 dark:ring-green-500/20'
+                          } else if (score >= 70) {
+                            colorClass = 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-amber-600/20 dark:ring-amber-500/20'
+                          } else {
+                            colorClass = 'bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 ring-red-600/20 dark:ring-red-500/20'
+                          }
+
+                          return (
+                            <span
+                              className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${colorClass}`}
+                              title={nonCompliantCount > 0 ? `${nonCompliantCount} non-compliant column${nonCompliantCount > 1 ? 's' : ''}` : 'All columns compliant'}
+                            >
+                              {score}%
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-center">
                         <input

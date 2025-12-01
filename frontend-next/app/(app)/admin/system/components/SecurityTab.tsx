@@ -1,0 +1,635 @@
+"use client";
+
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Users,
+  Shield,
+  UsersRound,
+  MoreHorizontal,
+  Plus,
+  Search,
+  Loader2,
+  Pencil,
+  Trash2,
+  Mail,
+  Check,
+  X,
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  last_sign_in_at: string | null;
+  created_at: string;
+}
+
+interface Role {
+  id: number;
+  name: string;
+  description: string;
+  users_count: number;
+}
+
+interface Group {
+  id: number;
+  name: string;
+  description: string;
+  members_count: number;
+}
+
+// Users Management Tab
+function UsersManagementTab() {
+  const { toast } = useToast();
+  const [users, setUsers] = React.useState<User[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [showInviteDialog, setShowInviteDialog] = React.useState(false);
+  const [inviteEmail, setInviteEmail] = React.useState("");
+  const [inviteRole, setInviteRole] = React.useState("");
+  const [roles, setRoles] = React.useState<Role[]>([]);
+  const [inviting, setInviting] = React.useState(false);
+
+  React.useEffect(() => {
+    loadUsers();
+    loadRoles();
+  }, []);
+
+  const loadUsers = async () => {
+    try {
+      const data = await api.get<User[]>("/api/v1/users");
+      setUsers(data);
+    } catch (error) {
+      console.error("Failed to load users:", error);
+      toast({ title: "Error", description: "Failed to load users", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadRoles = async () => {
+    try {
+      const data = await api.get<Role[]>("/api/v1/permissions/roles");
+      setRoles(data);
+    } catch (error) {
+      console.error("Failed to load roles:", error);
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteEmail) return;
+    setInviting(true);
+    try {
+      await api.post("/api/v1/users/invite", { email: inviteEmail, role: inviteRole });
+      toast({ title: "Success", description: "Invitation sent successfully" });
+      setShowInviteDialog(false);
+      setInviteEmail("");
+      setInviteRole("");
+      loadUsers();
+    } catch (error) {
+      console.error("Failed to send invitation:", error);
+      toast({ title: "Error", description: "Failed to send invitation", variant: "destructive" });
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const filteredUsers = users.filter(
+    (user) =>
+      user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="relative w-64">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search users..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+        <Button onClick={() => setShowInviteDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Invite User
+        </Button>
+      </div>
+
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Last Sign In</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredUsers.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell className="font-medium">{user.name}</TableCell>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">{user.role || "User"}</Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={user.status === "active" ? "default" : "secondary"}>
+                    {user.status || "Active"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground text-sm">
+                  {user.last_sign_in_at
+                    ? new Date(user.last_sign_in_at).toLocaleDateString()
+                    : "Never"}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Mail className="h-4 w-4 mr-2" />
+                        Resend Invite
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Deactivate
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite User</DialogTitle>
+            <DialogDescription>
+              Send an invitation email to add a new user to the system.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="user@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select value={inviteRole} onValueChange={setInviteRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((role) => (
+                    <SelectItem key={role.id} value={role.name}>
+                      {role.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowInviteDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleInvite} disabled={inviting || !inviteEmail}>
+              {inviting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                "Send Invitation"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Roles Management Tab
+function RolesManagementTab() {
+  const { toast } = useToast();
+  const [roles, setRoles] = React.useState<Role[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [newRoleName, setNewRoleName] = React.useState("");
+  const [newRoleDescription, setNewRoleDescription] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    loadRoles();
+  }, []);
+
+  const loadRoles = async () => {
+    try {
+      const data = await api.get<Role[]>("/api/v1/permissions/roles");
+      setRoles(data);
+    } catch (error) {
+      console.error("Failed to load roles:", error);
+      toast({ title: "Error", description: "Failed to load roles", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddRole = async () => {
+    if (!newRoleName) return;
+    setSaving(true);
+    try {
+      await api.post("/api/v1/permissions/roles", {
+        role: { name: newRoleName, description: newRoleDescription },
+      });
+      toast({ title: "Success", description: "Role created successfully" });
+      setShowAddDialog(false);
+      setNewRoleName("");
+      setNewRoleDescription("");
+      loadRoles();
+    } catch (error) {
+      console.error("Failed to create role:", error);
+      toast({ title: "Error", description: "Failed to create role", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <Button onClick={() => setShowAddDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Role
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {roles.map((role) => (
+          <Card key={role.id}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">{role.name}</CardTitle>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-2">
+                {role.description || "No description"}
+              </p>
+              <Badge variant="secondary">
+                {role.users_count || 0} users
+              </Badge>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Role</DialogTitle>
+            <DialogDescription>
+              Create a new role for user permission management.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="roleName">Role Name</Label>
+              <Input
+                id="roleName"
+                placeholder="e.g., Project Manager"
+                value={newRoleName}
+                onChange={(e) => setNewRoleName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="roleDescription">Description</Label>
+              <Input
+                id="roleDescription"
+                placeholder="Brief description of this role"
+                value={newRoleDescription}
+                onChange={(e) => setNewRoleDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddRole} disabled={saving || !newRoleName}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Role"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Groups Management Tab
+function GroupsManagementTab() {
+  const { toast } = useToast();
+  const [groups, setGroups] = React.useState<Group[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [newGroupName, setNewGroupName] = React.useState("");
+  const [newGroupDescription, setNewGroupDescription] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const loadGroups = async () => {
+    try {
+      const data = await api.get<Group[]>("/api/v1/groups");
+      setGroups(data);
+    } catch (error) {
+      console.error("Failed to load groups:", error);
+      // Mock data for development
+      setGroups([
+        { id: 1, name: "Supervisors", description: "Site supervisors", members_count: 5 },
+        { id: 2, name: "Office Staff", description: "Office administration", members_count: 8 },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddGroup = async () => {
+    if (!newGroupName) return;
+    setSaving(true);
+    try {
+      await api.post("/api/v1/groups", {
+        group: { name: newGroupName, description: newGroupDescription },
+      });
+      toast({ title: "Success", description: "Group created successfully" });
+      setShowAddDialog(false);
+      setNewGroupName("");
+      setNewGroupDescription("");
+      loadGroups();
+    } catch (error) {
+      console.error("Failed to create group:", error);
+      toast({ title: "Error", description: "Failed to create group", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <Button onClick={() => setShowAddDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Group
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {groups.map((group) => (
+          <Card key={group.id}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base">{group.name}</CardTitle>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem>
+                      <Users className="h-4 w-4 mr-2" />
+                      Manage Members
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Pencil className="h-4 w-4 mr-2" />
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground mb-2">
+                {group.description || "No description"}
+              </p>
+              <Badge variant="secondary">
+                {group.members_count || 0} members
+              </Badge>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Group</DialogTitle>
+            <DialogDescription>
+              Create a new group to organize users.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="groupName">Group Name</Label>
+              <Input
+                id="groupName"
+                placeholder="e.g., Site Team A"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="groupDescription">Description</Label>
+              <Input
+                id="groupDescription"
+                placeholder="Brief description of this group"
+                value={newGroupDescription}
+                onChange={(e) => setNewGroupDescription(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddGroup} disabled={saving || !newGroupName}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                "Create Group"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Main Security Tab Component
+export function SecurityTab() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const securityTab = searchParams.get("securityTab") || "users";
+
+  const handleTabChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("securityTab", value);
+    router.push(`/admin/system?${params.toString()}`);
+  };
+
+  return (
+    <div className="space-y-6">
+      <Tabs value={securityTab} onValueChange={handleTabChange}>
+        <TabsList>
+          <TabsTrigger value="users" className="gap-2">
+            <Users className="h-4 w-4" />
+            Users
+          </TabsTrigger>
+          <TabsTrigger value="roles" className="gap-2">
+            <Shield className="h-4 w-4" />
+            User Roles
+          </TabsTrigger>
+          <TabsTrigger value="groups" className="gap-2">
+            <UsersRound className="h-4 w-4" />
+            Groups
+          </TabsTrigger>
+        </TabsList>
+
+        <div className="mt-6">
+          <TabsContent value="users">
+            <UsersManagementTab />
+          </TabsContent>
+          <TabsContent value="roles">
+            <RolesManagementTab />
+          </TabsContent>
+          <TabsContent value="groups">
+            <GroupsManagementTab />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>
+  );
+}

@@ -89,6 +89,20 @@ Rails.application.routes.draw do
         to: 'job_status_stages#reorder'
       delete 'job_status_stages/:id', to: 'job_status_stages#destroy'
 
+      # Documents (simple alias for company documents)
+      resources :documents, only: [:index, :show, :update, :destroy] do
+        collection do
+          post :analyze
+        end
+      end
+
+      # Leads management
+      resources :leads do
+        member do
+          patch :status, action: :update_status
+        end
+      end
+
       # Jobs management
       resources :jobs do
         member do
@@ -275,6 +289,7 @@ Rails.application.routes.draw do
           post :match_supplier
           get :validate_abn
           get :possible_duplicates
+          get :duplicates, action: :possible_duplicates  # Alias for frontend-next
           get :read_only_fields
         end
         member do
@@ -559,8 +574,9 @@ Rails.application.routes.draw do
 
       # SM Tasks (nested under jobs)
       resources :jobs, only: [] do
-        resources :sm_tasks, only: [:index, :create] do
+        resources :sm_tasks, only: [:create] do
           collection do
+            get '/', action: :job_index
             get :gantt_data
             post :copy_from_template
           end
@@ -568,7 +584,7 @@ Rails.application.routes.draw do
       end
 
       # SM Tasks (non-nested routes)
-      resources :sm_tasks, only: [:show, :update, :destroy] do
+      resources :sm_tasks, only: [:index, :show, :update, :destroy] do
         member do
           post :start
           post :complete
@@ -944,6 +960,7 @@ Rails.application.routes.draw do
       get 'organization_onedrive/search', to: 'organization_onedrive#search'
       get 'organization_onedrive/preview_private_folders', to: 'organization_onedrive#preview_private_folders'
       post 'organization_onedrive/create_private_folders', to: 'organization_onedrive#create_private_folders'
+      post 'organization_onedrive/copy_files', to: 'organization_onedrive#copy_files'
 
       # Schema information
       get 'schema', to: 'schema#index'
@@ -1334,6 +1351,12 @@ Rails.application.routes.draw do
           get :history
           get :usage_report
         end
+      end
+
+      # Portal Users Admin Management (uses regular auth, not portal auth)
+      # This is an admin-only endpoint at /api/v1/portal/users
+      scope '/portal' do
+        resources :portal_users, path: 'users', only: [:index, :show]
       end
 
       # Subcontractor Portal routes (for external subcontractor access)

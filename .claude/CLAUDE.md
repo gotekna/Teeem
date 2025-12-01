@@ -1,5 +1,15 @@
 # Claude Code Instructions for TEEEM Project
 
+## 🔴 CRITICAL: Git Commit and Push Rules
+
+**NEVER commit or push unless the user explicitly says to.**
+
+- ❌ NEVER run `git commit` until the user confirms the fix works and says "commit" or "push"
+- ❌ NEVER run `git push` until the user explicitly requests it
+- ✅ Make code changes and let the user test locally first
+- ✅ Wait for user confirmation before committing
+- ✅ Only commit/push when user says: "commit", "push", "ship it", "looks good, push it", etc.
+
 ## 🔴 CRITICAL: Git Branch Protection
 
 **NEVER push directly to the `Live` branch.** This is our production branch (equivalent to main/master).
@@ -18,6 +28,15 @@
 - ❌ NEVER use the `heroku` git remote (points to teeem-backend)
 - ✅ Use `--app teeem-rob-dev` for staging
 - ✅ Use `--app teeemlive` for production
+
+## 🔴 CRITICAL: Production Deployment Restriction
+
+**ONLY deploy to production (`teeemlive`) using the `/l` command.**
+
+- ❌ NEVER manually run `git push heroku-teeemlive` or `git subtree push` to production
+- ❌ NEVER deploy to production outside of the `/l` command workflow
+- ✅ Use `/l` command to deploy Live branch to production
+- ✅ The `/l` command ensures proper workflow: checkout Live → pull latest → git subtree deploy
 
 ### After Pushing to Rob Branch - Deploy to Heroku
 

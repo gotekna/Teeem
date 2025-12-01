@@ -823,7 +823,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md shadow-lg border-t border-gray-200 dark:border-gray-700 z-[9999] py-1">
+    <div className="fixed bottom-0 left-0 right-0 bg-white/20 dark:bg-gray-800/20 border-t border-gray-200/30 dark:border-gray-700/30 z-[9999] py-1">
       <div className="flex items-center justify-between gap-1.5 max-w-screen-2xl mx-auto px-2">
         {/* Left side - Info */}
         <div className="flex items-center gap-1.5">

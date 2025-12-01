@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_01_205750) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -238,6 +238,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
+  create_table "column_type_definitions", force: :cascade do |t|
+    t.string "type_key", null: false
+    t.string "display_name", null: false
+    t.string "category"
+    t.string "sql_type", null: false
+    t.string "rails_type"
+    t.integer "default_max_length"
+    t.integer "default_min_length"
+    t.decimal "default_min_value", precision: 15, scale: 2
+    t.decimal "default_max_value", precision: 15, scale: 2
+    t.text "validation_regex"
+    t.text "validation_rules"
+    t.text "example_values"
+    t.text "used_for"
+    t.string "icon"
+    t.string "emoji"
+    t.boolean "needs_config", default: false
+    t.boolean "is_active", default: true
+    t.integer "version", default: 1
+    t.datetime "version_updated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_column_type_definitions_on_category"
+    t.index ["is_active"], name: "index_column_type_definitions_on_is_active"
+    t.index ["type_key"], name: "index_column_type_definitions_on_type_key", unique: true
+  end
+
   create_table "columns", force: :cascade do |t|
     t.bigint "foundation_id", null: false
     t.string "name", null: false
@@ -268,6 +295,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.string "data_align", default: "left"
     t.string "column_group"
     t.boolean "has_ui", default: false
+    t.bigint "column_type_definition_id"
+    t.integer "override_max_length"
+    t.integer "override_min_length"
+    t.decimal "override_min_value", precision: 15, scale: 2
+    t.decimal "override_max_value", precision: 15, scale: 2
+    t.text "override_validation_message"
+    t.integer "type_version_applied", default: 0
+    t.datetime "last_compliance_check"
+    t.index ["column_type_definition_id"], name: "index_columns_on_column_type_definition_id"
     t.index ["foundation_id", "column_name"], name: "index_columns_on_foundation_id_and_column_name", unique: true
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
@@ -428,15 +464,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.string "ai_verification_status"
     t.string "ai_suggested_name"
     t.string "ai_suggested_folder"
-    t.string "ai_suggested_type"
-    t.integer "ai_suggested_fy", default: [], array: true
     t.decimal "ai_confidence_score"
-    t.text "ai_analysis_notes"
     t.datetime "user_validated_at"
     t.bigint "user_validated_by_id"
-    t.boolean "validation_required", default: false
     t.string "display_title"
-    t.index ["ai_verification_status"], name: "index_company_documents_on_ai_verification_status"
+    t.string "ai_suggested_type"
+    t.integer "ai_suggested_fy", default: [], array: true
+    t.text "ai_analysis_notes"
+    t.boolean "validation_required", default: false
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
@@ -450,7 +485,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["source"], name: "index_company_documents_on_source"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
-    t.index ["validation_required"], name: "index_company_documents_on_validation_required"
   end
 
   create_table "company_groups", force: :cascade do |t|
@@ -803,6 +837,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.boolean "is_family_member", default: false
     t.boolean "is_potential_director", default: false
     t.bigint "company_group_id"
+    t.integer "xero_invoice_count", default: 0
+    t.boolean "xero_disconnect", default: false
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
@@ -1336,6 +1372,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.string "feature"
     t.boolean "has_ui", default: false
     t.boolean "allow_reserved_name", default: false
+    t.decimal "compliance_score", precision: 5, scale: 2
+    t.datetime "compliance_checked_at"
+    t.jsonb "non_compliant_columns", default: []
+    t.index ["compliance_score"], name: "index_foundations_on_compliance_score"
     t.index ["database_table_name"], name: "index_foundations_on_database_table_name"
     t.index ["model_class"], name: "index_foundations_on_model_class"
     t.index ["slug"], name: "index_foundations_on_slug", unique: true
@@ -1665,6 +1705,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.index ["quote_response_id"], name: "index_kudos_events_on_quote_response_id"
     t.index ["subcontractor_account_id", "event_type"], name: "index_kudos_events_on_subcontractor_account_id_and_event_type"
     t.index ["subcontractor_account_id"], name: "index_kudos_events_on_subcontractor_account_id"
+  end
+
+  create_table "leads", force: :cascade do |t|
+    t.string "lead_number"
+    t.string "title"
+    t.string "status", default: "new"
+    t.string "source"
+    t.string "client_name"
+    t.string "client_email"
+    t.string "client_phone"
+    t.string "client_company"
+    t.string "site_address"
+    t.string "site_suburb"
+    t.string "site_state"
+    t.string "site_postcode"
+    t.string "lot_plan_number"
+    t.string "project_type"
+    t.string "dwelling_type"
+    t.integer "number_of_storeys"
+    t.decimal "estimated_floor_area", precision: 10, scale: 2
+    t.decimal "estimated_value", precision: 12, scale: 2, default: "0.0"
+    t.date "expected_start_date"
+    t.string "decision_timeline"
+    t.text "notes"
+    t.bigint "job_id"
+    t.integer "contract_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_leads_on_job_id"
+    t.index ["lead_number"], name: "index_leads_on_lead_number", unique: true
+    t.index ["status"], name: "index_leads_on_status"
   end
 
   create_table "maintenance_requests", force: :cascade do |t|
@@ -3255,6 +3326,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
     t.boolean "preload_price_books", default: false, null: false
     t.jsonb "assigned_roles", default: []
     t.bigint "user_group_id"
+    t.datetime "last_seen_at"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["role"], name: "index_users_on_role"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
@@ -3698,6 +3770,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
+  add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
   add_foreign_key "companies", "companies", column: "consolidation_parent_id", on_delete: :nullify
   add_foreign_key "companies", "companies", column: "parent_company_id"
@@ -3712,7 +3785,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
   add_foreign_key "company_documents", "company_loans", column: "loan_id"
   add_foreign_key "company_documents", "contacts"
   add_foreign_key "company_documents", "document_types"
-  add_foreign_key "company_documents", "users", column: "user_validated_by_id"
   add_foreign_key "company_loans", "companies", column: "borrower_company_id"
   add_foreign_key "company_loans", "companies", column: "lender_company_id"
   add_foreign_key "company_minutes", "companies"
@@ -3783,6 +3855,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_003208) do
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"
+  add_foreign_key "leads", "jobs"
   add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
   add_foreign_key "maintenance_requests", "jobs"
   add_foreign_key "maintenance_requests", "purchase_orders"

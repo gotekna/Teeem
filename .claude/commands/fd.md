@@ -105,13 +105,29 @@ cd backend && bin/rails runner "Version.current.update(current_version: $(curl -
 
 **Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version number.
 
-### Step 7 - Report Status
+### Step 7 - Restart Local Rails Server (if running)
+```bash
+# Run migrations and restart local Rails server
+cd /Users/robertharder/GitHub/teeem/backend
+bin/rails db:migrate
+rm -f tmp/pids/server.pid
+bin/rails server -p 3001 -d
+
+# Verify local server is running
+sleep 2
+curl -s http://localhost:3001/version
+```
+
+**Note:** This ensures local dev environment has latest migrations and code.
+
+### Step 8 - Report Status
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
 - ✅ Backend deployed to Heroku: [version from /version endpoint]
 - ✅ Backend URL: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
 - ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel on push)
 - ✅ Local version synced to: [version]
+- ✅ Local Rails server restarted: [local version]
 - 🔴 Warnings (if any)
 
 ## Branch Strategy

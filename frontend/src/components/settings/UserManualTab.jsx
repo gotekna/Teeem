@@ -39,7 +39,7 @@ export default function UserManualTab() {
   }
 
   return (
-    <div className="fixed inset-0 top-16 flex flex-col overflow-hidden bg-white dark:bg-gray-900" style={{ left: '18rem', bottom: '40px' }}>
+    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
           📘 User Manual

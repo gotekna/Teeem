@@ -969,16 +969,17 @@ export default function TeeemTableView({
             loadViewState(defaultView)
           }
 
-          // Auto-create "Setup" view if it doesn't exist
-          const hasSetupView = converted.some(v => v.name === 'Setup')
-          if (!hasSetupView) {
-            console.log('[Load Views] No Setup view found, creating one')
+          // Auto-create "Setup" view only if NO views exist at all
+          // Don't create Setup if global views exist (LIVE, LOST, Completed, etc.)
+          if (converted.length === 0) {
+            console.log('[Load Views] No views found at all, creating Setup view')
             await createDefaultView()
           }
         }
       } catch (error) {
         console.error('Error loading saved views:', error)
-        setSavedFilters([])
+        // Don't clear savedFilters on error - keep showing whatever views we had
+        // This prevents the "views appear then disappear" bug when auth fails
       }
     }
 
@@ -2575,27 +2576,30 @@ export default function TeeemTableView({
           isDefault: response.view.is_default || false
         }
 
+        // Use functional form of setState to avoid stale closure issues
         // Insert new view at position 1 (second position) and shift others down
-        const reorderedFilters = [...savedFilters]
-        reorderedFilters.splice(1, 0, newView) // Insert at index 1
+        setSavedFilters(prevFilters => {
+          const reorderedFilters = [...prevFilters]
+          reorderedFilters.splice(1, 0, newView) // Insert at index 1
 
-        // Update display_order for all views
-        const updatedFilters = reorderedFilters.map((v, idx) => ({
-          ...v,
-          display_order: idx
-        }))
+          // Update display_order for all views
+          const updatedFilters = reorderedFilters.map((v, idx) => ({
+            ...v,
+            display_order: idx
+          }))
 
-        setSavedFilters(updatedFilters)
+          // Save new order to API in background
+          const orders = updatedFilters.map(v => ({
+            id: v.id,
+            display_order: v.display_order
+          }))
 
-        // Save new order to API in background
-        const orders = updatedFilters.map(v => ({
-          id: v.id,
-          display_order: v.display_order
-        }))
+          api.post('/api/v1/foundation_views/reorder', { orders })
+            .then(() => console.log('[Save View] View order updated - new view at position 2'))
+            .catch(err => console.error('[Save View] Failed to save view order:', err))
 
-        api.post('/api/v1/foundation_views/reorder', { orders })
-          .then(() => console.log('[Save View] View order updated - new view at position 2'))
-          .catch(err => console.error('[Save View] Failed to save view order:', err))
+          return updatedFilters
+        })
 
         return newView
       } else {
@@ -2658,7 +2662,8 @@ export default function TeeemTableView({
           ? response.view.group_by_columns
           : (response.view.group_by_column ? [response.view.group_by_column] : [])
 
-        setSavedFilters(savedFilters.map(v =>
+        // Use functional form of setState to avoid stale closure issues
+        setSavedFilters(prevFilters => prevFilters.map(v =>
           v.id === viewId ? {
             id: response.view.id,
             name: response.view.name,
@@ -2760,9 +2765,8 @@ export default function TeeemTableView({
 
       if (response.success) {
         console.log('[Delete View] Successfully deleted, updating state')
-        console.log('[Delete View] Before:', savedFilters.length, 'views')
-        setSavedFilters(savedFilters.filter(v => v.id !== viewId))
-        console.log('[Delete View] After: should have', savedFilters.filter(v => v.id !== viewId).length, 'views')
+        // Use functional form of setState to avoid stale closure issues
+        setSavedFilters(prevFilters => prevFilters.filter(v => v.id !== viewId))
         return true
       } else {
         console.error('Failed to delete view:', response.error)
@@ -3705,7 +3709,7 @@ export default function TeeemTableView({
                   }
                   setShowGpsModal(true)
                 }}
-                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex-shrink-0"
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex-shrink-0"
                 title="Open location picker"
               >
                 📍 Pick
@@ -3775,7 +3779,7 @@ export default function TeeemTableView({
                   setColorModalValue(colorValue)
                   setShowColorModal(true)
                 }}
-                className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex-shrink-0"
+                className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex-shrink-0"
                 title="Open color picker"
               >
                 🎨 Pick
@@ -3828,7 +3832,7 @@ export default function TeeemTableView({
                   setFileModalTab('upload')
                   setShowFileModal(true)
                 }}
-                className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors flex-shrink-0 flex items-center gap-1"
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex-shrink-0 flex items-center gap-1"
                 title="Browse files"
               >
                 📎 Browse
@@ -5012,8 +5016,7 @@ export default function TeeemTableView({
       `}</style>
       {/* Full-width table container */}
       <div
-        className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0"
-        style={{ overflow: 'clip' }}
+        className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden"
       >
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
@@ -5270,9 +5273,13 @@ export default function TeeemTableView({
 
                 {/* Columns toggle */}
                 <MenuItem>
-                  {({ focus }) => (
+                  {({ focus, close }) => (
                     <button
-                      onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
+                      onClick={() => {
+                        close()
+                        // Use setTimeout to ensure menu is fully closed before opening modal
+                        setTimeout(() => setShowColumnsDropdown(true), 0)
+                      }}
                       className={`${
                         focus ? 'bg-gray-100 dark:bg-gray-700' : ''
                       } group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200`}
@@ -5404,7 +5411,7 @@ export default function TeeemTableView({
                           navigator.clipboard.writeText(String(foundationIdNumeric))
                           alert('Table ID copied to clipboard!')
                         }}
-                        className="ml-2 px-2 py-1 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded transition-colors"
+                        className="ml-2 px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                       >
                         Copy
                       </button>
@@ -5456,98 +5463,150 @@ export default function TeeemTableView({
 
           {/* Columns dropdown - appears when triggered from three-dot menu */}
           {showColumnsDropdown && (
-            <>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="columns-modal-title"
+            >
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowColumnsDropdown(false)} />
-              {/* Dropdown positioned in center */}
+              <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowColumnsDropdown(false)} aria-hidden="true" />
+              {/* Dropdown positioned in center - Gold Standard styling */}
               <div
-                className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl max-h-[80vh] overflow-y-auto z-[60]"
+                className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-2xl max-h-[85vh] overflow-hidden z-[60] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-4">
-                  <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
-                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      Show/Hide Columns
-                    </span>
-                    <button
-                      onClick={() => setShowColumnsDropdown(false)}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                      ✕
-                    </button>
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0 bg-white dark:bg-gray-800">
+                  <span id="columns-modal-title" className="text-sm font-medium text-gray-700 dark:text-gray-200 uppercase tracking-wide">
+                    SHOW/HIDE COLUMNS
+                  </span>
+                  <button
+                    onClick={() => setShowColumnsDropdown(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Table Header Row */}
+                <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
+                  <div className="grid grid-cols-[28px_1fr_120px_70px_70px] gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    <div></div>
+                    <div>Column Name</div>
+                    <div>Display Type</div>
+                    <div className="text-center">Min Width</div>
+                    <div className="text-center">Show Filter</div>
                   </div>
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                        <th className="text-left py-2 font-medium w-8"></th>
-                        <th className="text-left py-2 font-medium">Column Name</th>
-                        <th className="text-left py-2 font-medium w-32">SQL Type</th>
-                        <th className="text-left py-2 font-medium w-28">Display Type</th>
-                        <th className="text-left py-2 font-medium w-20">Min Width</th>
-                        <th className="text-center py-2 font-medium w-24">Show Filter</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
-                        .sort((a, b) => a.label.localeCompare(b.label))
-                        .map((column) => {
-                        const colType = column.column_type || column.key
-                        return (
-                          <tr
-                            key={column.key}
-                            className="group hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <td className="py-2 text-base">{getColumnTypeEmoji(colType)}</td>
-                            <td className="py-2 text-sm text-gray-700 dark:text-gray-200">{column.label}</td>
-                            <td className="py-2 text-xs font-mono text-gray-400 dark:text-gray-500 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{getColumnTypeSqlType(colType)}</td>
-                            <td className="py-2 text-xs text-gray-400 dark:text-gray-500 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{getColumnTypeLabel(colType)}</td>
-                            <td className="py-2 px-1">
-                              <input
-                                type="number"
-                                min="0"
-                                max="500"
-                                value={columnMinWidths[column.key] ?? 75}
-                                onChange={(e) => {
-                                  const value = parseInt(e.target.value) || 0
-                                  setColumnMinWidths(prev => ({
-                                    ...prev,
-                                    [column.key]: Math.max(0, Math.min(500, value))
-                                  }))
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-16 px-2 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                              />
-                            </td>
-                            <td className="py-2 px-1 text-center">
-                              <input
-                                type="checkbox"
-                                checked={columnShowFilters[column.key] ?? true}
-                                onChange={(e) => {
-                                  setColumnShowFilters(prev => ({
-                                    ...prev,
-                                    [column.key]: e.target.checked
-                                  }))
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
-                                title="Uncheck to hide filter for this column"
-                              />
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                    .sort((a, b) => a.label.localeCompare(b.label))
+                    .map((column) => {
+                    const colType = column.column_type || column.key
+                    const sqlType = getColumnTypeSqlType(colType)
+                    const displayType = getColumnTypeLabel(colType)
+                    return (
+                      <div
+                        key={column.key}
+                        className="px-4 py-2 border-b border-gray-100 dark:border-gray-700/50 hover:bg-blue-50 dark:hover:bg-gray-700/30 transition-colors grid grid-cols-[28px_1fr_120px_70px_70px] gap-2 items-center"
+                      >
+                        {/* Icon */}
+                        <div className="flex items-center justify-center">
+                          <span className="text-lg">{getColumnTypeEmoji(colType)}</span>
+                        </div>
+
+                        {/* Column Name + SQL Type */}
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                            {column.label}
+                          </div>
+                          <div className="text-[10px] font-mono text-gray-400 dark:text-gray-500 truncate uppercase">
+                            {sqlType}
+                          </div>
+                        </div>
+
+                        {/* Display Type */}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {displayType}
+                        </div>
+
+                        {/* Min Width */}
+                        <div className="flex justify-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="500"
+                            value={columnMinWidths[column.key] ?? 75}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 0
+                              setColumnMinWidths(prev => ({
+                                ...prev,
+                                [column.key]: Math.max(0, Math.min(500, value))
+                              }))
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-12 px-1 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+
+                        {/* Show Filter Checkbox */}
+                        <div className="flex justify-center">
+                          <input
+                            type="checkbox"
+                            checked={columnShowFilters[column.key] ?? true}
+                            onChange={(e) => {
+                              setColumnShowFilters(prev => ({
+                                ...prev,
+                                [column.key]: e.target.checked
+                              }))
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
+                            title="Toggle filter visibility for this column"
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Quick Filter Buttons - Blue row at bottom like Image #1 */}
+                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-blue-500 flex items-center gap-2 flex-shrink-0">
+                  {['email', 'phone', 'mobile', 'url'].map((filterType) => {
+                    const col = COLUMNS.find(c => c.column_type === filterType || c.key === filterType)
+                    if (!col) return null
+                    return (
+                      <button
+                        key={filterType}
+                        onClick={() => {
+                          // Toggle filter for this column type
+                          setColumnShowFilters(prev => ({
+                            ...prev,
+                            [col.key]: !(prev[col.key] ?? true)
+                          }))
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                      >
+                        {col.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Schema Modal - Full schema info for all columns */}
           {showSchemaModal && (
-            <>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="schema-modal-title"
+            >
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowSchemaModal(false)} />
+              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowSchemaModal(false)} aria-hidden="true" />
               {/* Modal */}
               <div
                 className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-6xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl max-h-[90vh] overflow-hidden z-[60] flex flex-col"
@@ -5557,7 +5616,7 @@ export default function TeeemTableView({
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-indigo-500 to-purple-600 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <h2 id="schema-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
                         🗄️ Table Schema
                         {tableName && <span className="text-indigo-100">- {tableName}</span>}
                       </h2>
@@ -5662,14 +5721,18 @@ export default function TeeemTableView({
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Delete Column Modal */}
           {showDeleteColumnModal && (
-            <>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="delete-column-modal-title"
+            >
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowDeleteColumnModal(false)} />
+              <div className="fixed inset-0 bg-black/50 z-50" onClick={() => setShowDeleteColumnModal(false)} aria-hidden="true" />
               {/* Modal */}
               <div
                 className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-2xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl max-h-[80vh] overflow-hidden z-[60] flex flex-col"
@@ -5679,7 +5742,7 @@ export default function TeeemTableView({
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-red-500 to-red-600 flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <h2 id="delete-column-modal-title" className="text-xl font-bold text-white flex items-center gap-2">
                         🗑️ Delete Column
                         {tableName && <span className="text-red-100">- {tableName}</span>}
                       </h2>
@@ -5770,7 +5833,7 @@ export default function TeeemTableView({
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
 
@@ -5785,8 +5848,7 @@ export default function TeeemTableView({
 
         {/* Main content area - filters at top for now until code can be restructured */}
         <div
-          className="flex-1 flex flex-col min-h-0"
-          style={{ overflow: 'clip' }}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
         >
 
         {/* Filters row */}
@@ -6078,7 +6140,7 @@ export default function TeeemTableView({
                                 // Don't reset filters/columns - they were just saved
                                 setShowCascadeDropdown(false) // Close the popup
                               }}
-                              className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 rounded transition-colors whitespace-nowrap font-medium"
+                              className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded transition-colors whitespace-nowrap font-medium"
                             >
                               Save & Close
                             </button>
@@ -6202,7 +6264,7 @@ export default function TeeemTableView({
                                 }
                               }}
                               disabled={!newViewName.trim()}
-                              className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
+                              className="text-xs px-3 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed rounded transition-colors whitespace-nowrap font-medium"
                             >
                               Save & Close
                             </button>
@@ -8251,7 +8313,8 @@ export default function TeeemTableView({
             {/* Table with Sticky Gradient Headers (Chapter 20.2) */}
             <div
               ref={scrollContainerRef}
-              className="teeem-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+              className="teeem-table-scroll overflow-y-auto overflow-x-auto bg-white dark:bg-gray-900"
+              style={{ maxHeight: 'calc(100vh - 350px)', minHeight: '200px' }}
             >
           <table className="border-separate border-spacing-0" style={{
             width: autoFitColumns ? 'auto' : (() => {
@@ -8463,12 +8526,13 @@ export default function TeeemTableView({
                         )}
 
                         {showFilters && (columnShowFilters[colKey] ?? true) && (column.filterType === 'dropdown' || column.column_type === 'lookup') && colKey !== 'component' && (
-                          <select
-                            value={columnFilterInputs[colKey] || ''}
-                            onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
-                          >
+                          <div className="relative">
+                            <select
+                              value={columnFilterInputs[colKey] || ''}
+                              onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
+                            >
                             <option key="inline-all" value="">All</option>
                             <option key="inline-empty" value="__empty__">No Info</option>
                             {colKey === 'category' && (
@@ -8574,7 +8638,22 @@ export default function TeeemTableView({
                                 return <option key={`${colKey}-${value}-${idx}`} value={value}>{value}</option>
                               })
                             }
-                          </select>
+                            </select>
+                            {columnFilterInputs[colKey] && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleColumnFilterChange(colKey, '')
+                                }}
+                                className="absolute right-5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-0.5 z-10"
+                                title="Clear filter"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         )}
 
                         {/* Component multi-select checkboxes - Show only if showFilters is true */}
@@ -9437,7 +9516,13 @@ export default function TeeemTableView({
 
       {/* Text Editing Modal */}
       {showTextEditModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowTextEditModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowTextEditModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="text-edit-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9449,7 +9534,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="text-edit-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Edit {getColumnLabel(textEditField)}
                 </h3>
                 <button
@@ -9671,7 +9756,13 @@ export default function TeeemTableView({
 
       {/* GPS Location Picker Modal - Using LocationMapCard */}
       {showGpsModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowGpsModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowGpsModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gps-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9683,7 +9774,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="gps-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Pick GPS Location
                 </h3>
                 <button
@@ -9779,7 +9870,13 @@ export default function TeeemTableView({
 
       {/* Color Picker Modal */}
       {showColorModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowColorModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowColorModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="color-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9791,7 +9888,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="color-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Pick a Color
                 </h3>
                 <button
@@ -9920,7 +10017,13 @@ export default function TeeemTableView({
 
       {/* File Upload Modal */}
       {showFileModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => setShowFileModal(false)}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => setShowFileModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="file-modal-title"
+        >
           <div className="flex min-h-screen items-center justify-center p-4">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -9932,7 +10035,7 @@ export default function TeeemTableView({
             >
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                <h3 id="file-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white">
                   Upload File or Add Link
                 </h3>
                 <button
@@ -10396,7 +10499,13 @@ export default function TeeemTableView({
 
       {/* Bulk Update Modal */}
       {showBulkUpdateModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto" onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}>
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={() => { setShowBulkUpdateModal(false); setBulkUpdateColumnSearch(''); setBulkUpdateValueSearch('') }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bulk-update-modal-title"
+        >
           <div className="flex min-h-screen items-start justify-center p-4 pt-12">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50 dark:bg-black/70 transition-opacity" aria-hidden="true" />
@@ -10406,7 +10515,7 @@ export default function TeeemTableView({
               className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full p-6"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              <h3 id="bulk-update-modal-title" className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Bulk Update {selectedRows.size} {selectedRows.size === 1 ? 'Record' : 'Records'}
               </h3>
 

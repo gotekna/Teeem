@@ -3,15 +3,40 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_job, only: [:index, :create, :gantt_data, :copy_from_template]
+      before_action :set_job, only: [:job_index, :create, :gantt_data, :copy_from_template]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category
       ]
 
-      # GET /api/v1/constructions/:job_id/sm_tasks
+      # GET /api/v1/sm_tasks (global - all tasks across jobs)
       def index
+        @tasks = SmTask.ordered.includes(
+          :job, :hold_reason, :purchase_order, :assigned_user, :supplier,
+          :predecessor_dependencies, :successor_dependencies
+        )
+
+        # Apply filters
+        @tasks = @tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
+        @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
+        @tasks = @tasks.active if params[:active_only] == 'true'
+        @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == 'true'
+
+        render json: {
+          success: true,
+          tasks: @tasks.limit(500).map { |task| task_to_json_with_job(task) },
+          meta: {
+            total_count: @tasks.count,
+            active_count: SmTask.active.count,
+            hold_count: SmTask.hold_tasks.where(status: 'not_started').count,
+            completed_count: SmTask.status_completed.count
+          }
+        }
+      end
+
+      # GET /api/v1/jobs/:job_id/sm_tasks (nested under job)
+      def job_index
         @tasks = @job.sm_tasks.ordered.includes(
           :hold_reason, :purchase_order, :assigned_user, :supplier,
           :predecessor_dependencies, :successor_dependencies
@@ -506,6 +531,15 @@ module Api
           :sequence_order,
           documentation_category_ids: []
         )
+      end
+
+      def task_to_json_with_job(task)
+        json = task_to_json(task)
+        json[:job_id] = task.construction_id
+        json[:job_name] = task.job&.name || "Unknown Job"
+        json[:is_critical_path] = false # Placeholder - would need critical path calculation
+        json[:blockers] = task.is_hold_task ? [task.hold_notes].compact : []
+        json
       end
 
       def task_to_json(task, include_dependencies: false)
