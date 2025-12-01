@@ -1631,7 +1631,7 @@ export default function TeeemTableView({
           )}
 
           {/* Filter button */}
-          <Sheet open={filterPanelOpen} onOpenChange={setFilterPanelOpen}>
+          <Sheet open={filterPanelOpen} onOpenChange={setFilterPanelOpen} modal={false}>
             <SheetTrigger asChild>
               <Button
                 variant={safeFilters.length > 0 ? "default" : "outline"}

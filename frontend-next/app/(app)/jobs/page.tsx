@@ -118,11 +118,25 @@ export default function JobsPage() {
     ];
   }, [columns]);
 
-  // Convert jobs to table rows
+  // Convert jobs to table rows - flatten nested objects for display
   const tableRows: TableRow[] = useMemo(() => {
     return jobs.map((job) => ({
       ...job,
       id: job.id,
+      // Flatten nested objects to display their name property
+      job_type: typeof job.job_type === 'object' && job.job_type !== null
+        ? (job.job_type as { name?: string }).name || ''
+        : job.job_type,
+      job_status: typeof job.job_status === 'object' && job.job_status !== null
+        ? (job.job_status as { name?: string }).name || ''
+        : job.job_status,
+      // Keep original objects for filtering if needed
+      job_type_id: typeof job.job_type === 'object' && job.job_type !== null
+        ? (job.job_type as { id?: number }).id
+        : undefined,
+      job_status_id: typeof job.job_status === 'object' && job.job_status !== null
+        ? (job.job_status as { id?: number }).id
+        : undefined,
     }));
   }, [jobs]);
 

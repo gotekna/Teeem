@@ -5,7 +5,9 @@ import { type VariantProps, cva } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Sheet = SheetPrimitive.Root;
+const Sheet = ({ modal = true, ...props }: SheetPrimitive.DialogProps & { modal?: boolean }) => (
+  <SheetPrimitive.Root modal={modal} {...props} />
+);
 
 const SheetTrigger = SheetPrimitive.Trigger;
 

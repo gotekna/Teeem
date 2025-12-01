@@ -2,134 +2,350 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Building2,
+  Users,
+  Heart,
   AlertTriangle,
-  CheckCircle,
+  Package,
   Clock,
+  Plus,
   Calendar,
   FileText,
-  Users,
-  ChevronDown,
-  ChevronRight,
-  RefreshCw,
-  Loader2,
+  Key,
+  FolderOpen,
   ExternalLink,
-  DollarSign,
-  Shield,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow } from "@/components/table/types";
 
-interface CompanyHealthIssue {
-  id: number;
-  company_id: number;
-  company_name: string;
-  issue_type: string;
-  issue_description: string;
-  severity: "critical" | "warning" | "info";
-  due_date?: string;
-  fix_url: string;
+// Table ID for Companies (from foundations table)
+const COMPANIES_TABLE_ID = 353;
+
+// Default width mappings for column types
+const COLUMN_TYPE_DEFAULTS: Record<string, { width: number; filterable?: boolean; filterType?: string; sortable?: boolean; showSum?: boolean; sumType?: string }> = {
+  'single_line_text': { width: 150, filterable: true, filterType: 'text' },
+  'email': { width: 200, filterable: true, filterType: 'text' },
+  'phone': { width: 150, filterable: true, filterType: 'text' },
+  'mobile': { width: 150, filterable: true, filterType: 'text' },
+  'url': { width: 180, sortable: false, filterable: false },
+  'date': { width: 140, filterable: true, filterType: 'text' },
+  'date_and_time': { width: 180, filterable: true, filterType: 'text' },
+  'lookup': { width: 150, filterable: true, filterType: 'dropdown' },
+  'boolean': { width: 100, filterable: true, filterType: 'boolean' },
+  'percentage': { width: 120, filterable: true, filterType: 'text' },
+  'choice': { width: 140, filterable: true, filterType: 'dropdown' },
+  'currency': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'currency' },
+  'number': { width: 100, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'whole_number': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'multiple_lines_text': { width: 300, sortable: false, filterable: true, filterType: 'text' },
+  'computed': { width: 140, filterable: false, showSum: true, sumType: 'number' },
+};
+
+// Check if a column is a system column that's typically hidden
+function isSystemOrHiddenColumn(columnName: string): boolean {
+  const systemColumns = [
+    'sys_type_id', 'deleted', 'drive_id', 'folder_id',
+    'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
+    'tedmodel$type', 'pricebook$type'
+  ];
+
+  if (systemColumns.includes(columnName)) return true;
+  if (columnName.endsWith('$type')) return true;
+  if (columnName.endsWith('_id') && !['product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id'].includes(columnName)) return true;
+
+  return false;
 }
 
-interface CompanyHealth {
+interface ApiColumn {
   id: number;
+  foundation_id?: number;
+  column_name: string;
   name: string;
-  abn?: string;
-  status: "active" | "inactive";
-  health_score: number;
-  issues_count: number;
-  critical_count: number;
-  warning_count: number;
-  documents_verified: number;
-  documents_total: number;
-  next_review_date?: string;
-  annual_return_due?: string;
-  issues: CompanyHealthIssue[];
+  column_type: string;
+  description?: string;
+  available_choices?: string[];
+  lookup_foundation_id?: number;
+  lookup_display_column?: string;
+  header_align?: string;
+  data_align?: string;
 }
 
-interface CorporateHealthData {
-  overall_score: number;
-  total_companies: number;
-  total_issues: number;
-  critical_issues: number;
-  companies: CompanyHealth[];
-  upcoming_deadlines: {
-    company_name: string;
-    deadline_type: string;
-    due_date: string;
-  }[];
+// Convert API column format to TeeemTableView column format
+function convertColumnsToTEEEMFormat(apiColumns: ApiColumn[], foundationId: number): TableColumn[] {
+  const columns: TableColumn[] = [
+    { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
+  ];
+
+  apiColumns.forEach(col => {
+    if (isSystemOrHiddenColumn(col.column_name)) return;
+
+    const defaults = COLUMN_TYPE_DEFAULTS[col.column_type] || { width: 150 };
+
+    let width = defaults.width;
+    if (col.column_name === 'id') width = 60;
+    if (col.column_name === 'name') width = 250;
+    if (col.column_name === 'code') width = 80;
+    if (col.column_name === 'company_group') width = 120;
+    if (col.column_name === 'status') width = 120;
+    if (col.column_name === 'formatted_acn') width = 130;
+    if (col.column_name === 'formatted_abn') width = 150;
+
+    columns.push({
+      id: col.id,
+      foundation_id: col.foundation_id || foundationId,
+      key: col.column_name,
+      label: col.name,
+      column_type: col.column_type,
+      resizable: true,
+      sortable: defaults.sortable !== false,
+      filterable: defaults.filterable || false,
+      filterType: defaults.filterType as "text" | "dropdown" | "number" | "date" | "boolean" | undefined,
+      width: width,
+      showSum: defaults.showSum,
+      sumType: defaults.sumType as "currency" | "number" | "percentage" | undefined,
+      tooltip: col.description || `${col.column_type} column`,
+      choices: col.available_choices,
+    });
+  });
+
+  return columns;
 }
 
-function getHealthColor(score: number): string {
-  if (score >= 90) return "text-green-600";
-  if (score >= 70) return "text-yellow-600";
-  return "text-red-600";
+interface DashboardStats {
+  totalCompanies: number;
+  activeCompanies: number;
+  totalAssets: number;
+  complianceDueSoon: number;
+  healthScore: number;
+  criticalCompanies: number;
 }
 
-function getSeverityBadge(severity: string) {
-  switch (severity) {
-    case "critical":
-      return <Badge variant="destructive">Critical</Badge>;
-    case "warning":
-      return <Badge className="bg-yellow-100 text-yellow-700">Warning</Badge>;
-    default:
-      return <Badge variant="secondary">Info</Badge>;
-  }
+interface ComplianceItem {
+  id: number;
+  title: string;
+  due_date: string;
+  days_until_due: number;
+  company: {
+    id: number;
+    name: string;
+    slug?: string;
+  };
 }
 
-export default function CorporateHealthPage() {
+interface StatCardProps {
+  name: string;
+  value: string | number;
+  icon: React.ElementType;
+  href: string;
+  alert?: boolean;
+  alertColor?: "green" | "yellow" | "red" | "orange";
+}
+
+function StatCard({ name, value, icon: Icon, href, alert, alertColor }: StatCardProps) {
   const router = useRouter();
-  const [healthData, setHealthData] = React.useState<CorporateHealthData | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [refreshing, setRefreshing] = React.useState(false);
-  const [expandedCompanies, setExpandedCompanies] = React.useState<Set<number>>(new Set());
 
-  const fetchHealthData = React.useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    try {
-      const data = await api.get<CorporateHealthData>("/api/v1/corporate/health");
-      setHealthData(data);
-    } catch (error) {
-      // Mock data
-      setHealthData(getMockCorporateHealth());
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  const getColors = () => {
+    if (alertColor === "green") return { bg: "bg-green-500", ring: "ring-2 ring-green-500" };
+    if (alertColor === "yellow") return { bg: "bg-yellow-500", ring: "ring-2 ring-yellow-500" };
+    if (alertColor === "red") return { bg: "bg-red-500", ring: "ring-2 ring-red-500" };
+    if (alert) return { bg: "bg-orange-500", ring: "ring-2 ring-orange-500" };
+    return { bg: "bg-primary", ring: "" };
+  };
+
+  const colors = getColors();
+
+  return (
+    <Card
+      className={cn(
+        "cursor-pointer hover:shadow-md transition-shadow",
+        colors.ring
+      )}
+      onClick={() => router.push(href)}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start gap-4">
+          <div className={cn("p-3 rounded-md", colors.bg)}>
+            <Icon className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">{name}</p>
+            <p className="text-2xl font-semibold">{value}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface QuickActionProps {
+  label: string;
+  icon?: React.ElementType;
+  href: string;
+  variant?: "primary" | "secondary" | "outline";
+  color?: string;
+}
+
+function QuickAction({ label, icon: Icon, href, variant = "outline", color }: QuickActionProps) {
+  const router = useRouter();
+
+  const getButtonClass = () => {
+    if (color === "green") return "bg-green-600 hover:bg-green-700 text-white";
+    if (color === "indigo") return "bg-indigo-600 hover:bg-indigo-700 text-white";
+    if (color === "blue") return "bg-blue-600 hover:bg-blue-700 text-white";
+    if (variant === "primary") return "bg-primary hover:bg-primary/90 text-primary-foreground";
+    return "";
+  };
+
+  return (
+    <Button
+      variant={variant === "outline" ? "outline" : "default"}
+      className={cn("justify-start h-10", getButtonClass())}
+      onClick={() => router.push(href)}
+    >
+      {Icon && <Icon className="h-4 w-4 mr-2" />}
+      {label}
+    </Button>
+  );
+}
+
+export default function CorporateDashboardPage() {
+  const router = useRouter();
+  const [loading, setLoading] = React.useState(true);
+  const [stats, setStats] = React.useState<DashboardStats>({
+    totalCompanies: 0,
+    activeCompanies: 0,
+    totalAssets: 0,
+    complianceDueSoon: 0,
+    healthScore: 0,
+    criticalCompanies: 0,
+  });
+  const [upcomingCompliance, setUpcomingCompliance] = React.useState<ComplianceItem[]>([]);
+  const [companies, setCompanies] = React.useState<TableRow[]>([]);
+  const [columns, setColumns] = React.useState<TableColumn[]>([]);
 
   React.useEffect(() => {
-    fetchHealthData();
-  }, [fetchHealthData]);
+    loadDashboardData();
+    fetchColumns();
+  }, []);
 
-  const toggleCompany = (companyId: number) => {
-    setExpandedCompanies((prev) => {
-      const next = new Set(prev);
-      if (next.has(companyId)) {
-        next.delete(companyId);
-      } else {
-        next.add(companyId);
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+
+      // Load companies
+      const companiesResponse = await api.get<{ companies: TableRow[] }>("/api/v1/companies");
+      const companiesList = companiesResponse.companies || [];
+      setCompanies(companiesList);
+
+      // Load compliance items due soon
+      let compliance: ComplianceItem[] = [];
+      try {
+        const complianceResponse = await api.get<{ compliance_items: ComplianceItem[] }>("/api/v1/company_compliance_items", {
+          params: { due_soon: "true", days: 30 },
+        });
+        compliance = complianceResponse.compliance_items || [];
+      } catch {
+        // Compliance endpoint may not exist
       }
-      return next;
-    });
+
+      // Load assets
+      let assets: unknown[] = [];
+      try {
+        const assetsResponse = await api.get<{ assets: unknown[] }>("/api/v1/assets");
+        assets = assetsResponse.assets || [];
+      } catch {
+        // Assets endpoint may not exist
+      }
+
+      // Load health report
+      let healthSummary: { average_score?: number; critical?: number } = {};
+      try {
+        const healthResponse = await api.get<{ summary: { average_score?: number; critical?: number } }>("/api/v1/companies/health_report");
+        healthSummary = healthResponse.summary || {};
+      } catch {
+        // Health endpoint may not exist
+      }
+
+      setStats({
+        totalCompanies: companiesList.length,
+        activeCompanies: companiesList.filter((c) => c.status === "active" || c.status === "Active").length,
+        totalAssets: assets.length,
+        complianceDueSoon: compliance.length,
+        healthScore: healthSummary.average_score || 0,
+        criticalCompanies: healthSummary.critical || 0,
+      });
+
+      setUpcomingCompliance(compliance.slice(0, 5));
+    } catch (error) {
+      console.error("Failed to load dashboard:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const fetchColumns = async () => {
+    try {
+      const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(`/api/v1/foundations/${COMPANIES_TABLE_ID}`);
+      const dbColumns = response?.foundation?.columns || [];
+      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, COMPANIES_TABLE_ID);
+      setColumns(teeemColumns);
+    } catch (err) {
+      console.error("Failed to fetch columns:", err);
+    }
+  };
+
+  const handleEdit = async (entry: TableRow) => {
+    try {
+      const response = await api.patch<{ company: TableRow }>(`/api/v1/companies/${entry.id}`, { company: entry });
+      setCompanies(companies.map((c) => (c.id === entry.id ? response.company : c)));
+    } catch (err) {
+      console.error("Failed to update company:", err);
+    }
+  };
+
+  const handleDelete = async (entry: TableRow) => {
+    if (!confirm(`Delete company "${entry.name}"? This cannot be undone.`)) return;
+
+    try {
+      await api.delete(`/api/v1/companies/${entry.id}`);
+      setCompanies(companies.filter((c) => c.id !== entry.id));
+    } catch (err) {
+      console.error("Failed to delete company:", err);
+    }
+  };
+
+  const handleBulkDelete = async (ids: (number | string)[]) => {
+    try {
+      await Promise.all(ids.map((id) => api.delete(`/api/v1/companies/${id}`)));
+      setCompanies(companies.filter((c) => !ids.includes(c.id)));
+    } catch (err) {
+      console.error("Failed to bulk delete companies:", err);
+    }
+  };
+
+  const statCards: StatCardProps[] = [
+    { name: "Total Companies", value: stats.totalCompanies, icon: Building2, href: "/corporate" },
+    { name: "Active Companies", value: stats.activeCompanies, icon: CheckCircle2, href: "/corporate" },
+    {
+      name: "Health Score",
+      value: stats.healthScore > 0 ? `${stats.healthScore.toFixed(1)}%` : "N/A",
+      icon: Heart,
+      href: "/corporate/health",
+      alert: stats.criticalCompanies > 0,
+      alertColor: stats.healthScore >= 80 ? "green" : stats.healthScore >= 60 ? "yellow" : "red",
+    },
+    { name: "Critical Companies", value: stats.criticalCompanies, icon: AlertTriangle, href: "/corporate/health", alert: stats.criticalCompanies > 0 },
+    { name: "Total Assets", value: stats.totalAssets, icon: Package, href: "/corporate/assets" },
+    { name: "Compliance Due", value: stats.complianceDueSoon, icon: Clock, href: "/corporate", alert: stats.complianceDueSoon > 0 },
+  ];
 
   if (loading) {
     return (
@@ -139,438 +355,139 @@ export default function CorporateHealthPage() {
     );
   }
 
-  if (!healthData) {
-    return (
-      <div className="flex flex-col items-center justify-center h-96 gap-4">
-        <AlertTriangle className="h-12 w-12 text-muted-foreground" />
-        <p className="text-muted-foreground">Failed to load corporate health data</p>
-        <Button onClick={() => fetchHealthData()}>Retry</Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Corporate Health</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Monitor compliance and data quality across your companies
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          onClick={() => fetchHealthData(true)}
-          disabled={refreshing}
+      <div className="border-b pb-4">
+        <h1 className="text-2xl font-bold tracking-tight font-serif">Corporate Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage companies, assets, compliance, and Xero integrations
+        </p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {statCards.map((stat) => (
+          <StatCard key={stat.name} {...stat} />
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <Card>
+        <CardContent className="p-6">
+          <h3 className="text-base font-medium mb-4">Quick Actions</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <QuickAction label="Health Report" icon={Heart} href="/corporate/health" color="green" />
+            <QuickAction label="Company Groups" icon={Building2} href="/company-groups" color="indigo" />
+            <QuickAction label="Add Company" icon={Plus} href="/corporate/companies/new" color="blue" />
+            <QuickAction label="Add Asset" icon={Package} href="/corporate/assets/new" />
+            <QuickAction label="View Directors" icon={Users} href="/corporate/directors" />
+            <QuickAction label="Compliance Calendar" icon={Calendar} href="/corporate/compliance-calendar" />
+            <QuickAction label="Minute Templates" icon={FileText} href="/corporate/minute-templates" />
+            <QuickAction label="Xero Integration" icon={ExternalLink} href="/xero" />
+            <QuickAction label="ASIC Logins" icon={Key} href="/corporate/asic-logins" />
+            <QuickAction label="Document Types" icon={FolderOpen} href="/corporate/document-types" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Data Health Indicator */}
+      {stats.healthScore > 0 && (
+        <Card
+          className="cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push("/corporate/health")}
         >
-          <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-      </div>
-
-      {/* Overall Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className={`${healthData.overall_score >= 90 ? "bg-green-50 border-green-200" : healthData.overall_score >= 70 ? "bg-yellow-50 border-yellow-200" : "bg-red-50 border-red-200"}`}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className={`text-4xl font-bold font-mono ${getHealthColor(healthData.overall_score)}`}>
-                {healthData.overall_score}%
-              </div>
-              <div>
-                <p className="font-medium">Overall Health</p>
-                <Progress value={healthData.overall_score} className="h-2 w-24 mt-1" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
+          <CardContent className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Building2 className="h-8 w-8 text-muted-foreground" />
+              <div className={cn(
+                "p-2 rounded-full",
+                stats.healthScore >= 80 ? "bg-green-100 text-green-600" :
+                stats.healthScore >= 60 ? "bg-yellow-100 text-yellow-600" :
+                "bg-red-100 text-red-600"
+              )}>
+                <AlertTriangle className="h-5 w-5" />
+              </div>
               <div>
-                <div className="text-2xl font-bold font-mono">{healthData.total_companies}</div>
-                <p className="text-sm text-muted-foreground">Companies</p>
+                <p className="font-medium">Data Health</p>
+                <p className="text-sm text-muted-foreground">
+                  {stats.criticalCompanies > 0
+                    ? `${stats.criticalCompanies} issues found • Click to fix`
+                    : "All companies healthy"}
+                </p>
               </div>
             </div>
+            <span className={cn(
+              "text-2xl font-bold",
+              stats.healthScore >= 80 ? "text-green-600" :
+              stats.healthScore >= 60 ? "text-yellow-600" :
+              "text-red-600"
+            )}>
+              {stats.healthScore.toFixed(0)}%
+            </span>
           </CardContent>
         </Card>
+      )}
 
+      {/* Companies Table */}
+      <TeeemTableView
+        foundationId="companies"
+        foundationIdNumeric={COMPANIES_TABLE_ID}
+        tableName="All Companies"
+        entries={companies}
+        columns={columns}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        onRowDoubleClick={(company) => router.push(`/corporate/companies/${company.id}`)}
+        enableExport={true}
+        enableSchemaEditor={true}
+        hideUpdateViewButton={true}
+        onColumnUpdate={fetchColumns}
+        customActions={
+          <Button onClick={() => router.push("/corporate/companies/new")}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Company
+          </Button>
+        }
+      />
+
+      {/* Upcoming Compliance */}
+      {upcomingCompliance.length > 0 && (
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-8 w-8 text-red-500" />
-              <div>
-                <div className="text-2xl font-bold font-mono text-red-600">{healthData.critical_issues}</div>
-                <p className="text-sm text-muted-foreground">Critical Issues</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Clock className="h-8 w-8 text-orange-500" />
-              <div>
-                <div className="text-2xl font-bold font-mono text-orange-600">{healthData.total_issues}</div>
-                <p className="text-sm text-muted-foreground">Total Issues</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Companies List */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Company Health Status</CardTitle>
-              <CardDescription>Click on a company to view issues</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {healthData.companies.map((company) => (
-                <Collapsible
-                  key={company.id}
-                  open={expandedCompanies.has(company.id)}
-                  onOpenChange={() => toggleCompany(company.id)}
+          <CardContent className="p-6">
+            <h3 className="text-base font-medium mb-4">Upcoming Compliance (Next 30 Days)</h3>
+            <div className="space-y-3">
+              {upcomingCompliance.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => router.push(`/corporate/companies/${item.company.slug || item.company.id}?tab=compliance`)}
+                  className="flex items-center justify-between p-3 bg-orange-50 dark:bg-orange-950/20 rounded-lg cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-950/30 transition-colors"
                 >
-                  <CollapsibleTrigger asChild>
-                    <div className="flex items-center justify-between p-4 rounded-lg border hover:bg-secondary/50 cursor-pointer transition-colors">
-                      <div className="flex items-center gap-3">
-                        <Building2 className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{company.name}</p>
-                          {company.abn && (
-                            <p className="text-xs text-muted-foreground">ABN: {company.abn}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        {company.critical_count > 0 && (
-                          <Badge variant="destructive">{company.critical_count} critical</Badge>
-                        )}
-                        {company.warning_count > 0 && (
-                          <Badge className="bg-yellow-100 text-yellow-700">
-                            {company.warning_count} warnings
-                          </Badge>
-                        )}
-                        {company.issues_count === 0 && (
-                          <Badge className="bg-green-100 text-green-700">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            All good
-                          </Badge>
-                        )}
-                        <div className={`text-lg font-bold font-mono ${getHealthColor(company.health_score)}`}>
-                          {company.health_score}%
-                        </div>
-                        {expandedCompanies.has(company.id) ? (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        )}
-                      </div>
-                    </div>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="mt-2 ml-8 space-y-3">
-                      {/* Company Details */}
-                      <div className="grid grid-cols-3 gap-4 p-3 bg-secondary/30 rounded-lg text-sm">
-                        <div>
-                          <p className="text-muted-foreground">Documents</p>
-                          <p className="font-medium">
-                            {company.documents_verified}/{company.documents_total} verified
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Next Review</p>
-                          <p className="font-medium">
-                            {company.next_review_date
-                              ? new Date(company.next_review_date).toLocaleDateString("en-AU")
-                              : "-"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Annual Return</p>
-                          <p className="font-medium">
-                            {company.annual_return_due
-                              ? new Date(company.annual_return_due).toLocaleDateString("en-AU")
-                              : "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Issues */}
-                      {company.issues.length > 0 ? (
-                        <div className="border rounded-lg overflow-hidden">
-                          <Table>
-                            <TableBody>
-                              {company.issues.map((issue) => (
-                                <TableRow key={issue.id}>
-                                  <TableCell className="font-medium">{issue.issue_description}</TableCell>
-                                  <TableCell>{getSeverityBadge(issue.severity)}</TableCell>
-                                  <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm" asChild>
-                                      <a href={issue.fix_url}>
-                                        Fix <ExternalLink className="h-3 w-3 ml-1" />
-                                      </a>
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      ) : (
-                        <div className="text-center py-4 text-sm text-muted-foreground">
-                          <CheckCircle className="h-5 w-5 mx-auto mb-1 text-green-600" />
-                          No issues found
-                        </div>
-                      )}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{item.title}</p>
+                    <p className="text-sm text-muted-foreground">{item.company.name}</p>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant={item.days_until_due <= 7 ? "destructive" : "default"}>
+                      {item.days_until_due} days
+                    </Badge>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(item.due_date).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
               ))}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Upcoming Deadlines */}
-        <div>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
-                Upcoming Deadlines
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {healthData.upcoming_deadlines.length > 0 ? (
-                  healthData.upcoming_deadlines.map((deadline, i) => {
-                    const daysUntil = Math.ceil(
-                      (new Date(deadline.due_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-                    );
-                    const isUrgent = daysUntil <= 7;
-                    const isWarning = daysUntil <= 30;
-
-                    return (
-                      <div
-                        key={i}
-                        className={`p-3 rounded-lg border ${isUrgent ? "border-red-200 bg-red-50" : isWarning ? "border-yellow-200 bg-yellow-50" : ""}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium text-sm">{deadline.company_name}</p>
-                            <p className="text-xs text-muted-foreground">{deadline.deadline_type}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className={`text-sm font-medium ${isUrgent ? "text-red-600" : isWarning ? "text-yellow-600" : ""}`}>
-                              {new Date(deadline.due_date).toLocaleDateString("en-AU")}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {daysUntil} days
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No upcoming deadlines
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+            <Button
+              variant="link"
+              className="mt-4 p-0 h-auto"
+              onClick={() => router.push("/corporate/compliance-calendar")}
+            >
+              View all compliance items →
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
-}
-
-// Mock data
-function getMockCorporateHealth(): CorporateHealthData {
-  return {
-    overall_score: 82,
-    total_companies: 5,
-    total_issues: 8,
-    critical_issues: 2,
-    companies: [
-      {
-        id: 1,
-        name: "Acme Corporation Pty Ltd",
-        abn: "12 345 678 901",
-        status: "active",
-        health_score: 95,
-        issues_count: 1,
-        critical_count: 0,
-        warning_count: 1,
-        documents_verified: 12,
-        documents_total: 14,
-        next_review_date: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
-        annual_return_due: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString(),
-        issues: [
-          {
-            id: 1,
-            company_id: 1,
-            company_name: "Acme Corporation Pty Ltd",
-            issue_type: "document_pending",
-            issue_description: "2 documents awaiting verification",
-            severity: "warning",
-            fix_url: "/documents?company=1",
-          },
-        ],
-      },
-      {
-        id: 2,
-        name: "BuildRight Holdings Pty Ltd",
-        abn: "23 456 789 012",
-        status: "active",
-        health_score: 65,
-        issues_count: 4,
-        critical_count: 2,
-        warning_count: 2,
-        documents_verified: 8,
-        documents_total: 15,
-        next_review_date: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-        annual_return_due: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        issues: [
-          {
-            id: 2,
-            company_id: 2,
-            company_name: "BuildRight Holdings Pty Ltd",
-            issue_type: "review_overdue",
-            issue_description: "Annual review is 10 days overdue",
-            severity: "critical",
-            fix_url: "/companies/2",
-          },
-          {
-            id: 3,
-            company_id: 2,
-            company_name: "BuildRight Holdings Pty Ltd",
-            issue_type: "missing_abn",
-            issue_description: "Director ABN not recorded",
-            severity: "critical",
-            fix_url: "/companies/2/directors",
-          },
-          {
-            id: 4,
-            company_id: 2,
-            company_name: "BuildRight Holdings Pty Ltd",
-            issue_type: "document_pending",
-            issue_description: "7 documents awaiting verification",
-            severity: "warning",
-            fix_url: "/documents?company=2",
-          },
-          {
-            id: 5,
-            company_id: 2,
-            company_name: "BuildRight Holdings Pty Ltd",
-            issue_type: "asic_login",
-            issue_description: "ASIC login credentials expiring soon",
-            severity: "warning",
-            fix_url: "/companies/2/asic",
-          },
-        ],
-      },
-      {
-        id: 3,
-        name: "Smith Family Trust",
-        status: "active",
-        health_score: 100,
-        issues_count: 0,
-        critical_count: 0,
-        warning_count: 0,
-        documents_verified: 6,
-        documents_total: 6,
-        next_review_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-        issues: [],
-      },
-      {
-        id: 4,
-        name: "Tekna Projects Pty Ltd",
-        abn: "34 567 890 123",
-        status: "active",
-        health_score: 88,
-        issues_count: 2,
-        critical_count: 0,
-        warning_count: 2,
-        documents_verified: 20,
-        documents_total: 24,
-        next_review_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-        annual_return_due: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
-        issues: [
-          {
-            id: 6,
-            company_id: 4,
-            company_name: "Tekna Projects Pty Ltd",
-            issue_type: "document_pending",
-            issue_description: "4 documents awaiting verification",
-            severity: "warning",
-            fix_url: "/documents?company=4",
-          },
-          {
-            id: 7,
-            company_id: 4,
-            company_name: "Tekna Projects Pty Ltd",
-            issue_type: "contact_incomplete",
-            issue_description: "Missing registered office address",
-            severity: "warning",
-            fix_url: "/companies/4",
-          },
-        ],
-      },
-      {
-        id: 5,
-        name: "Property Investments Co",
-        abn: "45 678 901 234",
-        status: "active",
-        health_score: 92,
-        issues_count: 1,
-        critical_count: 0,
-        warning_count: 1,
-        documents_verified: 10,
-        documents_total: 11,
-        next_review_date: new Date(Date.now() + 150 * 24 * 60 * 60 * 1000).toISOString(),
-        annual_return_due: new Date(Date.now() + 210 * 24 * 60 * 60 * 1000).toISOString(),
-        issues: [
-          {
-            id: 8,
-            company_id: 5,
-            company_name: "Property Investments Co",
-            issue_type: "document_pending",
-            issue_description: "1 document awaiting verification",
-            severity: "warning",
-            fix_url: "/documents?company=5",
-          },
-        ],
-      },
-    ],
-    upcoming_deadlines: [
-      {
-        company_name: "BuildRight Holdings Pty Ltd",
-        deadline_type: "Annual Return Due",
-        due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        company_name: "Acme Corporation Pty Ltd",
-        deadline_type: "Annual Review",
-        due_date: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        company_name: "Tekna Projects Pty Ltd",
-        deadline_type: "Annual Review",
-        due_date: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-      {
-        company_name: "Smith Family Trust",
-        deadline_type: "Annual Review",
-        due_date: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-      },
-    ],
-  };
 }

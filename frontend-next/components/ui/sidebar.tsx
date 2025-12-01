@@ -32,6 +32,7 @@ import {
   HardHat,
   LayoutGrid,
   ChevronDown,
+  Network,
 } from "lucide-react";
 import {
   Persona,
@@ -64,6 +65,7 @@ const navigationItems = [
   { name: "Contacts", href: "/contacts", icon: Users },
   { name: "Price Book", href: "/pricebook", icon: Package },
   { name: "Documents", href: "/documents", icon: FolderOpen },
+  { name: "Corporate", href: "/corporate", icon: Building2 },
   { name: "Portal", href: "/portal", icon: ExternalLink },
 ];
 
