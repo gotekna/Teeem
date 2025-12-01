@@ -1,0 +1,50 @@
+import { Hedvig_Letters_Serif } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
+import { cn } from "@/lib/utils";
+import "./globals.css";
+import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { Toaster } from "@/components/ui/toaster";
+
+const hedvigSerif = Hedvig_Letters_Serif({
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-hedvig-serif",
+});
+
+export const metadata = {
+  title: "Teeem",
+  description: "Project management for construction",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className={cn(GeistSans.variable, GeistMono.variable)} suppressHydrationWarning>
+      <body
+        className={cn(
+          hedvigSerif.variable,
+          GeistSans.className,
+          "antialiased bg-background text-foreground"
+        )}
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}
