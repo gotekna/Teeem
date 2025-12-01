@@ -32,10 +32,18 @@ import {
   Banknote,
   Save,
   X,
+  Plus,
+  Upload,
+  Cloud,
+  CheckCircle,
+  XCircle,
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow } from "@/components/table/types";
 
 // Document category tabs
 const DOCUMENT_TABS = [
@@ -651,12 +659,244 @@ function ConsolidationTab() {
   );
 }
 
-function DocumentsTab({ category }: { category?: string }) {
-  return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-medium">{category || "All"} Documents</h3>
-      <p className="text-muted-foreground">Documents will be displayed here</p>
+// Document interface for table
+interface CompanyDocument extends TableRow {
+  display_title?: string;
+  title?: string;
+  validated?: boolean;
+  validation_source?: string;
+  financial_years?: string;
+  folder?: string;
+  document_type?: string;
+  source?: string;
+  file_size?: number;
+  document_date?: string;
+  created_at?: string;
+  file_url?: string;
+  user_validated_at?: string;
+  ai_verification_status?: string;
+}
+
+// Build column definitions for documents table
+const buildDocumentColumns = (): TableColumn[] => [
+  { key: "id", label: "ID", column_type: "whole_number", resizable: true, sortable: true, filterable: true, filterType: "text", width: 60 },
+  { key: "document_type", label: "Type", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
+  { key: "financial_years", label: "FY", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 80 },
+  { key: "folder", label: "Folder", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
+  { key: "source", label: "Source", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
+  { key: "file_size", label: "Size", column_type: "whole_number", resizable: true, sortable: true, filterable: false, width: 100 },
+  { key: "document_date", label: "Doc Date", column_type: "date", resizable: true, sortable: true, filterable: true, filterType: "date", width: 120 },
+  { key: "created_at", label: "Uploaded", column_type: "date_and_time", resizable: true, sortable: true, filterable: false, width: 150 },
+];
+
+// Format file size helper
+function formatFileSize(bytes?: number): string {
+  if (!bytes) return "-";
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return `${Math.round((bytes / Math.pow(1024, i)) * 100) / 100} ${sizes[i]}`;
+}
+
+function CompanyDocumentsTab({ companyId, company, category }: { companyId: string; company: Company; category?: string }) {
+  const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [sharepointConnected, setShaepointConnected] = React.useState(false);
+  const [columns] = React.useState(buildDocumentColumns());
+
+  React.useEffect(() => {
+    loadDocuments();
+    checkSharePointConnection();
+  }, [companyId, category]);
+
+  const loadDocuments = async () => {
+    try {
+      setLoading(true);
+      const params: Record<string, string> = { company_id: companyId };
+      if (category && category !== "all") {
+        params.tab = category;
+      }
+      const response = await api.get<{ documents: CompanyDocument[] }>("/api/v1/company_documents", { params });
+      const docs = response.documents || [];
+      // Transform documents for table display
+      const transformed = docs.map((doc) => ({
+        ...doc,
+        display_title: doc.display_title || doc.title,
+        file_size_display: formatFileSize(doc.file_size),
+        source_display: doc.source === "sharepoint" ? "SharePoint" : "Upload",
+        financial_years: Array.isArray(doc.financial_years)
+          ? (doc.financial_years as unknown as string[]).join(", ")
+          : doc.financial_years || "",
+        validated: !!(doc.user_validated_at || doc.ai_verification_status === "verified"),
+        validation_source: doc.user_validated_at ? "user" : doc.ai_verification_status === "verified" ? "ai" : undefined,
+      }));
+      setDocuments(transformed);
+    } catch (error) {
+      console.error("Failed to load documents:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkSharePointConnection = async () => {
+    try {
+      const response = await api.get<{ connected: boolean }>("/api/v1/organization_onedrive/status");
+      setShaepointConnected(response.connected === true);
+    } catch {
+      setShaepointConnected(false);
+    }
+  };
+
+  const handleRowClick = (doc: CompanyDocument) => {
+    if (doc.file_url) {
+      window.open(doc.file_url, "_blank");
+    }
+  };
+
+  const handleDelete = async (doc: CompanyDocument) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    try {
+      await api.delete(`/api/v1/company_documents/${doc.id}`);
+      await loadDocuments();
+    } catch (error) {
+      console.error("Failed to delete document:", error);
+    }
+  };
+
+  const handleBulkDelete = async (ids: (number | string)[]) => {
+    if (!confirm(`Delete ${ids.length} documents? This cannot be undone.`)) return;
+    try {
+      await Promise.all(ids.map((id) => api.delete(`/api/v1/company_documents/${id}`)));
+      await loadDocuments();
+    } catch (error) {
+      console.error("Failed to bulk delete documents:", error);
+    }
+  };
+
+  // Custom cell renderer
+  const customCellRenderer = (doc: CompanyDocument, columnKey: string) => {
+    switch (columnKey) {
+      case "validated":
+        if (doc.validated) {
+          return (
+            <div className="flex justify-center" title={doc.validation_source === "user" ? "Validated by user" : "Validated by AI"}>
+              <CheckCircle className={cn("h-5 w-5", doc.validation_source === "ai" ? "text-blue-500" : "text-green-500")} />
+            </div>
+          );
+        }
+        return (
+          <div className="flex justify-center" title="Not validated">
+            <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30" />
+          </div>
+        );
+      case "source":
+        if (doc.source === "sharepoint") {
+          return (
+            <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+              <Cloud className="h-3 w-3 mr-1" />
+              SharePoint
+            </Badge>
+          );
+        }
+        return <Badge variant="outline">Upload</Badge>;
+      case "file_size":
+        return <span className="text-muted-foreground">{formatFileSize(doc.file_size)}</span>;
+      case "folder":
+        return doc.folder ? (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+            {doc.folder}
+          </Badge>
+        ) : null;
+      case "document_type":
+        return doc.document_type ? (
+          <span className="text-muted-foreground capitalize">{doc.document_type.replace(/_/g, " ")}</span>
+        ) : null;
+      default:
+        return null;
+    }
+  };
+
+  // Get SharePoint folder URL for this tab
+  const getSharePointUrl = () => {
+    if (!company.sharepoint_folder_url) return null;
+    if (category && category !== "all") {
+      return `${company.sharepoint_folder_url}/${encodeURIComponent(category.toUpperCase())}`;
+    }
+    return company.sharepoint_folder_url;
+  };
+
+  // Custom actions for table header
+  const customActions = (
+    <div className="flex items-center gap-2">
+      {/* SharePoint status badge */}
+      {sharepointConnected && getSharePointUrl() ? (
+        <a
+          href={getSharePointUrl()!}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
+        >
+          <CheckCircle className="h-3.5 w-3.5" />
+          SharePoint
+          <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : (
+        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground">
+          <XCircle className="h-3.5 w-3.5" />
+          SharePoint Offline
+        </span>
+      )}
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Upload
+      </Button>
+      <Button variant="outline">
+        <Edit className="h-4 w-4 mr-2" />
+        Edit
+      </Button>
     </div>
+  );
+
+  if (loading && documents.length === 0) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (documents.length === 0 && !loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
+        <h3 className="text-lg font-medium mb-1">No documents</h3>
+        <p className="text-muted-foreground text-sm max-w-md">
+          {category && category !== "all"
+            ? `No ${category.toUpperCase()} documents found for this company.`
+            : "No documents found. Upload a document or sync from SharePoint."}
+        </p>
+        <div className="flex gap-2 mt-4">
+          {customActions}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <TeeemTableView
+      foundationId={`company-documents-${category || "all"}`}
+      tableName={`${category ? category.toUpperCase() : "All"} Documents (${documents.length})`}
+      entries={documents}
+      columns={columns}
+      onDelete={handleDelete}
+      onBulkDelete={handleBulkDelete}
+      onRowDoubleClick={handleRowClick}
+      enableImport={false}
+      enableExport={true}
+      enableSchemaEditor={false}
+      hideUpdateViewButton={true}
+      customActions={customActions}
+      customCellRenderer={customCellRenderer}
+    />
   );
 }
 
@@ -879,10 +1119,16 @@ export default function CompanyDetailPage() {
 
           {/* Document Category Tabs */}
           {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && (
-            <DocumentsTab category={DOCUMENT_TABS.find(t => t.id === activeTab)?.name.toUpperCase()} />
+            <CompanyDocumentsTab
+              companyId={companyId}
+              company={company}
+              category={DOCUMENT_TABS.find(t => t.id === activeTab)?.name}
+            />
           )}
 
-          {activeTab === "documents" && <DocumentsTab />}
+          {activeTab === "documents" && (
+            <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
+          )}
           {activeTab === "activity" && <ActivityTab />}
         </CardContent>
       </Card>
