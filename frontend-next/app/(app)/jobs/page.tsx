@@ -288,7 +288,7 @@ export default function JobsPage() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
-          onRowDoubleClick={handleView}
+          onRowClick={handleView}
           onServerSearch={handleServerSearch}
           serverSearchLoading={serverSearchLoading}
           enableExport={true}

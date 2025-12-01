@@ -96,6 +96,7 @@ export interface TeeemTableViewProps {
   onBulkDelete?: (ids: (number | string)[]) => void;
   onView?: (row: TableRow) => void;
   onRowDoubleClick?: (row: TableRow) => void;
+  onRowClick?: (row: TableRow) => void;
   onRowUpdate?: (rowId: number | string, field: string, value: unknown) => void;
   onColumnUpdate?: () => void;
   onEditRelationships?: (row: TableRow) => void;
