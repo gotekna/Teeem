@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_01_215700) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_01_231714) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1383,7 +1383,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_215700) do
   end
 
   create_table "gold_standard_table", force: :cascade do |t|
-    t.string "email"
+    t.string "email", limit: 255
     t.string "phone", limit: 20
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1391,17 +1391,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_215700) do
     t.string "mobile", limit: 20
     t.integer "user_id"
     t.text "multiple_category_ids"
-    t.string "action_buttons"
+    t.string "action_buttons", limit: 255
     t.string "single_line_text", limit: 255
     t.text "multiple_lines_text"
     t.string "url", limit: 500
     t.decimal "number", precision: 10, scale: 2
     t.decimal "currency", precision: 10, scale: 2
-    t.decimal "percentage", precision: 5, scale: 2
+    t.decimal "percentage", precision: 10, scale: 2
     t.date "date"
     t.datetime "date_and_time", precision: nil
-    t.string "gps_coordinates", limit: 100
-    t.string "color_picker", limit: 7
+    t.string "gps_coordinates", limit: 255
+    t.string "color_picker", limit: 255
     t.text "file_upload"
     t.boolean "boolean"
     t.string "choice", limit: 50

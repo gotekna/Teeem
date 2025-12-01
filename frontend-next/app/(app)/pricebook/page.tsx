@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
+import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
 
 interface PriceBookItem {
   id: number;
@@ -81,6 +82,13 @@ export default function PriceBookPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("all");
+  const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const handleRowDoubleClick = (item: PriceBookItem) => {
+    setSelectedItemId(item.id);
+    setDrawerOpen(true);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -279,7 +287,11 @@ export default function PriceBookPage() {
               </TableHeader>
               <TableBody>
                 {filteredItems.slice(0, 100).map((item) => (
-                  <TableRow key={item.id} className={!item.is_active ? "opacity-50" : ""}>
+                  <TableRow
+                    key={item.id}
+                    className={`cursor-pointer hover:bg-muted/50 ${!item.is_active ? "opacity-50" : ""}`}
+                    onDoubleClick={() => handleRowDoubleClick(item)}
+                  >
                     <TableCell>
                       <Badge variant="outline" className="font-mono text-xs">
                         {item.item_code}
@@ -393,6 +405,13 @@ export default function PriceBookPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Pricebook Detail Drawer */}
+      <PricebookDetailDrawer
+        itemId={selectedItemId}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </div>
   );
 }

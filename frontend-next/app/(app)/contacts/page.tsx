@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
+import { ContactDetailDrawer } from "@/components/contacts/ContactDetailDrawer";
 import {
   Plus,
   Search,
@@ -103,6 +104,13 @@ export default function ContactsPage() {
   const [activeTab, setActiveTab] = useState(showDuplicates ? "duplicates" : "all");
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const handleRowDoubleClick = (contact: Contact) => {
+    setSelectedContactId(contact.id);
+    setDrawerOpen(true);
+  };
 
   const loadContacts = async () => {
     try {
@@ -425,7 +433,7 @@ export default function ContactsPage() {
                           "cursor-pointer hover:bg-muted/50",
                           !contact.is_active && "opacity-50"
                         )}
-                        onDoubleClick={() => router.push(`/contacts/${slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name || contact.name)}`)}
+                        onDoubleClick={() => handleRowDoubleClick(contact)}
                       >
                         <TableCell>
                           <Checkbox
@@ -527,6 +535,13 @@ export default function ContactsPage() {
         onOpenChange={setMergeModalOpen}
         contacts={selectedForMerge}
         onMergeComplete={handleMergeComplete}
+      />
+
+      {/* Contact Detail Drawer */}
+      <ContactDetailDrawer
+        contactId={selectedContactId}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
       />
     </div>
   );

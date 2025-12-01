@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
 import { Loader } from "@/components/ui/loader";
 import { Plus } from "lucide-react";
+import { JobDetailDrawer } from "@/components/jobs/JobDetailDrawer";
 
 interface Job {
   id: number;
@@ -47,6 +48,8 @@ export default function JobsPage() {
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [views, setViews] = useState<SavedView[]>([]);
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<number | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Jobs table is foundation ID 204
   const JOBS_TABLE_ID = 204;
@@ -155,6 +158,11 @@ export default function JobsPage() {
   const handleView = (row: TableRow) => {
     const slug = row.title ? slugifyJobTitle(String(row.title)) : String(row.id);
     router.push(`/jobs/${slug}`);
+  };
+
+  const handleRowDoubleClick = (row: TableRow) => {
+    setSelectedJobId(row.id as number);
+    setDrawerOpen(true);
   };
 
   const handleEdit = (row: TableRow) => {
@@ -288,7 +296,7 @@ export default function JobsPage() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
-          onRowDoubleClick={handleView}
+          onRowDoubleClick={handleRowDoubleClick}
           onServerSearch={handleServerSearch}
           serverSearchLoading={serverSearchLoading}
           enableExport={true}
@@ -297,6 +305,13 @@ export default function JobsPage() {
           onRefresh={() => loadJobs()}
         />
       </div>
+
+      {/* Job Detail Drawer */}
+      <JobDetailDrawer
+        jobId={selectedJobId}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+      />
     </div>
   );
 }

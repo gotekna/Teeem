@@ -2,7 +2,7 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
-import { TeeemTableView } from "@/components/table";
+import { TeeemTableView, SchemaTab, ConnectionsTab } from "@/components/table";
 import { TABLE_SLUGS, urls } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationData } from "@/hooks/useFoundationData";
@@ -140,8 +140,31 @@ function TablePageContent() {
           </TabsList>
 
           {uiConfig.tabs.map((t) => (
-            <TabsContent key={t.id} value={t.id} className="flex-1 min-h-0">
-              {t.id === activeTab && <TeeemTableView {...tableProps} />}
+            <TabsContent key={t.id} value={t.id} className="flex-1 min-h-0 overflow-auto">
+              {t.id === activeTab && (
+                <>
+                  {t.id === "data" && <TeeemTableView {...tableProps} />}
+                  {t.id === "schema" && (
+                    <SchemaTab
+                      foundationId={tableId}
+                      columns={columns}
+                      tableName={tableName}
+                      onRefresh={refresh}
+                    />
+                  )}
+                  {t.id === "connections" && (
+                    <ConnectionsTab
+                      foundationId={tableId}
+                      columns={columns}
+                      tableName={tableName}
+                    />
+                  )}
+                  {/* Fallback to table view for unknown tab types */}
+                  {!["data", "schema", "connections"].includes(t.id) && (
+                    <TeeemTableView {...tableProps} />
+                  )}
+                </>
+              )}
             </TabsContent>
           ))}
         </Tabs>

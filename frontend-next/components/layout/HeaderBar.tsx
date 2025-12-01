@@ -122,6 +122,20 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
   return (
     <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-gray-200 bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
+      {/* Logo - always visible */}
+      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
+        <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
+          t
+        </div>
+        <span className="font-serif hidden sm:inline">teeem</span>
+      </Link>
+
+      {/* Separator */}
+      <div
+        aria-hidden="true"
+        className="h-5 w-px bg-gray-200 dark:bg-white/10"
+      />
+
       {/* Mobile menu button */}
       <button
         type="button"
@@ -131,12 +145,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         <span className="sr-only">Open sidebar</span>
         <Menu className="h-5 w-5" />
       </button>
-
-      {/* Separator */}
-      <div
-        aria-hidden="true"
-        className="h-5 w-px bg-gray-200 lg:hidden dark:bg-white/10"
-      />
 
       <div className="flex flex-1 gap-x-2 self-stretch lg:gap-x-3">
         <div className="flex flex-1 items-center gap-x-1 lg:gap-x-2">

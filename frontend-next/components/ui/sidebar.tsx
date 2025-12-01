@@ -33,6 +33,8 @@ import {
   HardHat,
   LayoutGrid,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Network,
   Wrench,
 } from "lucide-react";
@@ -69,6 +71,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Leads", href: "/leads", icon: Target, badgeKey: "pendingProposals" },
   { name: "Jobs", href: urls.jobs(), icon: Briefcase, tableId: TABLE_IDS.JOBS },
+  { name: "Tasks", href: "/tasks", icon: ListTodo },
   { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
@@ -80,7 +83,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Corporate", href: urls.companies(), icon: Building2, tableId: TABLE_IDS.COMPANIES },
   { name: "Portal", href: "/portal", icon: ExternalLink },
-  { name: "Admin", href: urls.goldStandard(), icon: Wrench, tableId: TABLE_IDS.GOLD_STANDARD },
+  { name: "Admin", href: "/admin", icon: Wrench },
 ];
 
 const personaIcons: Record<Persona, typeof HardHat> = {
@@ -153,20 +156,17 @@ export function Sidebar() {
 
   const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div
-        className={cn(
-          "h-[70px] flex items-center justify-center border-b border-border transition-all duration-300",
-          isExpanded || mobile ? "px-6 justify-start" : "px-0"
-        )}
-      >
-        <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
-          <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center">
-            t
-          </div>
-          {(isExpanded || mobile) && <span className="font-serif">teeem</span>}
-        </Link>
-      </div>
+      {/* Logo - only on mobile sheet */}
+      {mobile && (
+        <div className="h-[70px] flex items-center border-b border-border px-4">
+          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+            <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+              t
+            </div>
+            <span className="font-serif">teeem</span>
+          </Link>
+        </div>
+      )}
 
       {/* Main Navigation */}
       <nav className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
@@ -317,16 +317,26 @@ export function Sidebar() {
         </Sheet>
       </div>
 
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar - positioned by parent wrapper in layout */}
       <aside
         className={cn(
-          "hidden md:flex h-screen flex-shrink-0 flex-col justify-between fixed top-0 left-0 z-50 transition-all duration-300 ease-in-out bg-background border-r border-border",
+          "md:flex h-full flex-shrink-0 flex-col justify-between transition-all duration-300 ease-in-out bg-background border-r border-border",
           isExpanded ? "w-[240px]" : "w-[70px]"
         )}
-        onMouseEnter={() => setIsExpanded(true)}
-        onMouseLeave={() => setIsExpanded(false)}
       >
         <SidebarContent />
+        {/* Chevron Toggle Button */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-background border border-border rounded-full flex items-center justify-center hover:bg-secondary transition-colors shadow-sm z-10"
+          aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {isExpanded ? (
+            <ChevronLeft className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </button>
       </aside>
     </>
   );

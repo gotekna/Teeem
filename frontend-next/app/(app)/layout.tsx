@@ -34,8 +34,22 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="h-screen bg-background overflow-hidden flex flex-col">
-      <Sidebar />
+    <div className="h-screen bg-background overflow-hidden">
+      {/* Fixed Header Bar - spans full width, above everything */}
+      <div className="fixed top-0 left-0 right-0 z-50 hidden md:block">
+        <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
+      </div>
+
+      {/* Mobile Header */}
+      <div className="fixed top-0 left-0 right-0 z-50 md:hidden">
+        <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
+      </div>
+
+      {/* Sidebar - below header */}
+      <div className="hidden md:block fixed top-12 left-0 bottom-0 z-40">
+        <Sidebar />
+      </div>
+
       {/* CSS for sidebar width on desktop */}
       <style>{`
         @media (min-width: 768px) {
@@ -45,14 +59,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         }
       `}</style>
 
-      {/* Fixed Header Bar */}
-      <div className="sidebar-content-area flex-shrink-0 transition-all duration-300 ease-in-out pt-16 md:pt-0">
-        <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
-      </div>
-
-      {/* Main Content - children handle their own scrolling */}
-      <main className="sidebar-content-area flex-1 min-h-0 overflow-hidden transition-all duration-300 ease-in-out">
-        <div className="h-full p-6 flex flex-col">{children}</div>
+      {/* Main Content - below header, beside sidebar */}
+      <main className="sidebar-content-area pt-12 h-full overflow-hidden transition-all duration-300 ease-in-out">
+        <div className="h-full p-6 flex flex-col overflow-auto">{children}</div>
       </main>
 
       {/* Floating Help Button (for pages without header visible on mobile) */}
