@@ -724,7 +724,19 @@ module Api
       end
 
       def set_pricebook_item
-        @item = PricebookItem.find(params[:id])
+        id_or_slug = params[:id]
+
+        if id_or_slug.to_s.match?(/\A\d+\z/)
+          # Numeric ID - direct lookup
+          @item = PricebookItem.find(id_or_slug)
+        else
+          # Slug - search by item_code (convert slug back to search term)
+          # Remove the _God_Loves_You_ suffix if present
+          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
+          search_term = slug.gsub('-', ' ')
+          @item = PricebookItem.where('LOWER(item_code) LIKE ?', "%#{search_term.downcase}%").first
+          raise ActiveRecord::RecordNotFound, "Pricebook item not found with slug: #{id_or_slug}" unless @item
+        end
       rescue ActiveRecord::RecordNotFound
         render json: { error: "Price book item not found" }, status: :not_found
       end

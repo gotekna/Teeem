@@ -236,7 +236,7 @@ module Api
 
         # Add jobs/constructions
         contact_json[:jobs] = @contact.job_contacts
-          .includes(:job)
+          .includes(job: [:job_status, :job_stage])
           .map do |jc|
             {
               job_id: jc.job_id,
@@ -244,8 +244,8 @@ module Api
               location: jc.job.location,
               role: jc.role,
               primary: jc.primary,
-              status: jc.job.status,
-              stage: jc.job.stage
+              status: jc.job.job_status&.name,
+              stage: jc.job.job_stage&.name
             }
           end
 
@@ -1449,7 +1449,19 @@ module Api
       end
 
       def set_contact
-        @contact = Contact.find(params[:id])
+        id_or_slug = params[:id]
+
+        if id_or_slug.to_s.match?(/\A\d+\z/)
+          # Numeric ID - direct lookup
+          @contact = Contact.find(id_or_slug)
+        else
+          # Slug - search by name (convert slug back to search term)
+          # Remove the _God_Loves_You_ suffix if present
+          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
+          search_term = slug.gsub('-', ' ')
+          @contact = Contact.where('LOWER(full_name) LIKE ?', "%#{search_term.downcase}%").first
+          raise ActiveRecord::RecordNotFound, "Contact not found with slug: #{id_or_slug}" unless @contact
+        end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Contact not found" }, status: :not_found
       end
