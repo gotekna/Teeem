@@ -5,7 +5,7 @@ import { api } from '../../api'
 import OneDriveFolderPicker from './OneDriveFolderPicker'
 import PricebookMatchPreview from './PricebookMatchPreview'
 
-// OneDrive sync features component - requires Microsoft 365 connection from OutlookConnection
+// SharePoint sync features component - requires Office 365 connection from OutlookConnection
 export default function OneDriveConnection() {
   const { microsoftStatus } = useAuth()
   const [message, setMessage] = useState(null)
@@ -23,8 +23,8 @@ export default function OneDriveConnection() {
   const [syncingCorporate, setSyncingCorporate] = useState(false)
   const [corporateSyncResult, setCorporateSyncResult] = useState(null)
 
-  // Check if Microsoft 365 is connected with OneDrive access
-  const isConnected = microsoftStatus?.connected && microsoftStatus?.services?.onedrive
+  // Check if Office 365 is connected with SharePoint access
+  const isConnected = microsoftStatus?.connected && (microsoftStatus?.services?.onedrive || microsoftStatus?.services?.sharepoint)
 
   const handlePreviewMatches = async () => {
     if (!folderPath || folderPath.trim() === '') {
@@ -154,7 +154,7 @@ export default function OneDriveConnection() {
     setFolderPickerMode(null)
   }
 
-  // Don't render if Microsoft 365 is not connected with OneDrive
+  // Don't render if Office 365 is not connected with SharePoint
   if (!isConnected) {
     return null
   }
@@ -165,7 +165,7 @@ export default function OneDriveConnection() {
         <div className="flex items-center gap-x-3 mb-4">
           <FolderIcon className="h-6 w-6 text-blue-600 dark:text-blue-500" />
           <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">
-            OneDrive Sync Features
+            SharePoint Sync Features
           </h3>
         </div>
 
@@ -199,13 +199,13 @@ export default function OneDriveConnection() {
         <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
           <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Pricebook Image Sync</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Sync product images and QR codes from OneDrive to your pricebook. Files are matched by name to item names.
+            Sync product images and QR codes from SharePoint to your pricebook. Files are matched by name to item names.
           </p>
 
           <div className="space-y-3">
             <div>
               <label htmlFor="folder-path" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                OneDrive Folder Path
+                SharePoint Folder Path
               </label>
               <div className="mt-1 flex items-center gap-x-2">
                 <input
@@ -279,13 +279,13 @@ export default function OneDriveConnection() {
         <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
           <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Corporate Document Sync</h4>
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Sync corporate documents (constitutions, minutes, ASIC documents) from OneDrive to company records.
+            Sync corporate documents (constitutions, minutes, ASIC documents) from SharePoint to company records.
           </p>
 
           <div className="space-y-3">
             <div>
               <label htmlFor="corporate-folder-path" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                OneDrive Folder Path
+                SharePoint Folder Path
               </label>
               <div className="mt-1 flex items-center gap-x-2">
                 <input
