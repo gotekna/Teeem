@@ -1,0 +1,575 @@
+"use client";
+
+import * as React from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Building2,
+  Calendar,
+  CalendarDays,
+  Users,
+  ShieldCheck,
+  Banknote,
+  DollarSign,
+  ClipboardCheck,
+  Star,
+  Wrench,
+  Zap,
+  BookOpen,
+  Sparkles,
+  BarChart,
+  Rocket,
+  Loader2,
+  ExternalLink,
+  FileText,
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+
+// Import all tab components
+import { SecurityTab } from "./components/SecurityTab";
+import { PermissionsTab } from "./components/PermissionsTab";
+import { CorporateTab } from "./components/CorporateTab";
+import { HolidaysTab } from "./components/HolidaysTab";
+import { ConnectionsTab } from "./components/ConnectionsTab";
+import { XeroTab } from "./components/XeroTab";
+import { ContactRolesTab } from "./components/ContactRolesTab";
+import { WorkflowsTab } from "./components/WorkflowsTab";
+import { FoldersTab } from "./components/FoldersTab";
+import { JobSetupTab } from "./components/JobSetupTab";
+import { WorkflowConfigTab } from "./components/WorkflowConfigTab";
+import { DocSetupTab } from "./components/DocSetupTab";
+
+const TIMEZONES = [
+  { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
+  { value: "Australia/Melbourne", label: "Melbourne (AEST/AEDT)" },
+  { value: "Australia/Perth", label: "Perth (AWST)" },
+  { value: "Australia/Adelaide", label: "Adelaide (ACST/ACDT)" },
+  { value: "Australia/Darwin", label: "Darwin (ACST)" },
+  { value: "Australia/Hobart", label: "Hobart (AEST/AEDT)" },
+  { value: "Pacific/Auckland", label: "Auckland (NZST/NZDT)" },
+  { value: "America/New_York", label: "New York (EST/EDT)" },
+  { value: "America/Los_Angeles", label: "Los Angeles (PST/PDT)" },
+  { value: "Europe/London", label: "London (GMT/BST)" },
+  { value: "UTC", label: "UTC" },
+];
+
+const MAIN_TABS = [
+  { id: "company", label: "Company", icon: Building2 },
+  { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
+  { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
+  { id: "meeting-types", label: "Meeting Types", icon: Calendar },
+  { id: "whs", label: "WHS", icon: ShieldCheck },
+  { id: "financial", label: "Financial", icon: Banknote },
+  { id: "pricebook", label: "Price Book", icon: DollarSign },
+  { id: "supervisor-checklist", label: "Supervisor Checklist", icon: ClipboardCheck },
+  { id: "gold-standard", label: "Gold Standard View", icon: Star },
+  { id: "developer-tools", label: "Developer Tools", icon: Wrench },
+  { id: "claude-shortcuts", label: "Claude Shortcuts", icon: Zap },
+  { id: "user-manual", label: "User Manual", icon: BookOpen },
+  { id: "inspiring-quotes", label: "Inspiring Quotes", icon: Sparkles },
+  { id: "performance", label: "Performance", icon: BarChart },
+  { id: "deployment", label: "Deployment", icon: Rocket },
+];
+
+const COMPANY_TABS = [
+  { id: "info", label: "Info" },
+  { id: "security", label: "Security" },
+  { id: "permissions", label: "Permissions" },
+  { id: "corporate", label: "Corporate" },
+  { id: "holidays", label: "Holidays" },
+  { id: "connections", label: "Connections" },
+  { id: "xero", label: "Xero" },
+  { id: "contact-roles", label: "Contact Roles" },
+  { id: "workflows", label: "Workflows" },
+  { id: "folders", label: "Folders" },
+  { id: "job-setup", label: "Job Setup" },
+  { id: "workflow-config", label: "Workflow Config" },
+  { id: "doc-setup", label: "Doc Setup" },
+];
+
+interface CompanySettings {
+  company_name: string;
+  abn: string;
+  email: string;
+  phone: string;
+  address: string;
+  timezone: string;
+  working_days: {
+    monday: boolean;
+    tuesday: boolean;
+    wednesday: boolean;
+    thursday: boolean;
+    friday: boolean;
+    saturday: boolean;
+    sunday: boolean;
+  };
+}
+
+function CompanyInfoTab() {
+  const [settings, setSettings] = React.useState<CompanySettings>({
+    company_name: "",
+    abn: "",
+    email: "",
+    phone: "",
+    address: "",
+    timezone: "Australia/Brisbane",
+    working_days: {
+      monday: true,
+      tuesday: true,
+      wednesday: true,
+      thursday: true,
+      friday: true,
+      saturday: false,
+      sunday: false,
+    },
+  });
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+  const [message, setMessage] = React.useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  React.useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    try {
+      const response = await api.get<CompanySettings>("/api/v1/company_settings");
+      setSettings(response);
+    } catch (error) {
+      console.debug("Company settings unavailable:", error);
+      setMessage({ type: "error", text: "Failed to load settings" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      await api.put("/api/v1/company_settings", { company_setting: settings });
+      setMessage({ type: "success", text: "Settings saved successfully!" });
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      setMessage({ type: "error", text: "Failed to save settings" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleChange = (field: keyof CompanySettings, value: string | object) => {
+    setSettings((prev) => ({ ...prev, [field]: value }));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+      {message && (
+        <div
+          className={cn(
+            "rounded-md p-4",
+            message.type === "success"
+              ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+              : "bg-red-50 text-red-800 dark:bg-red-900/20 dark:text-red-400"
+          )}
+        >
+          <p className="text-sm">{message.text}</p>
+        </div>
+      )}
+
+      <div className="grid gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="company_name">Company Name</Label>
+          <Input
+            id="company_name"
+            value={settings.company_name || ""}
+            onChange={(e) => handleChange("company_name", e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="abn">ABN</Label>
+          <Input
+            id="abn"
+            value={settings.abn || ""}
+            onChange={(e) => handleChange("abn", e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="timezone">Timezone</Label>
+          <p className="text-sm text-muted-foreground">
+            This timezone will be used for calculating working days, displaying dates, and scheduling tasks.
+          </p>
+          <Select
+            value={settings.timezone || "Australia/Brisbane"}
+            onValueChange={(value) => handleChange("timezone", value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select timezone" />
+            </SelectTrigger>
+            <SelectContent>
+              {TIMEZONES.map((tz) => (
+                <SelectItem key={tz.value} value={tz.value}>
+                  {tz.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Working Days</Label>
+          <p className="text-sm text-muted-foreground">
+            Select which days are considered working days. Tasks will be scheduled only on selected days (unless locked).
+            Holidays are managed in the Holidays tab above.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+            {(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const).map((day) => (
+              <div key={day} className="flex items-center gap-2">
+                <Checkbox
+                  id={day}
+                  checked={settings.working_days?.[day] ?? true}
+                  onCheckedChange={(checked) => {
+                    const newWorkingDays = { ...settings.working_days, [day]: checked };
+                    handleChange("working_days", newWorkingDays);
+                  }}
+                />
+                <Label htmlFor={day} className="capitalize cursor-pointer">
+                  {day}
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            value={settings.email || ""}
+            onChange={(e) => handleChange("email", e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            type="tel"
+            value={settings.phone || ""}
+            onChange={(e) => handleChange("phone", e.target.value)}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="address">Address</Label>
+          <textarea
+            id="address"
+            rows={3}
+            value={settings.address || ""}
+            onChange={(e) => handleChange("address", e.target.value)}
+            className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end">
+        <Button type="submit" disabled={saving}>
+          {saving ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            "Save Settings"
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function PlaceholderTab({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="text-center py-12">
+      <h3 className="text-lg font-medium text-foreground">{title}</h3>
+      <p className="text-muted-foreground mt-2">{description}</p>
+      <p className="text-sm text-muted-foreground mt-4">
+        This tab is being migrated from the React app.
+      </p>
+    </div>
+  );
+}
+
+function CompanySettingsTab() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const subtab = searchParams.get("subtab") || "info";
+
+  const handleSubtabChange = (value: string) => {
+    router.push(`/admin/system?tab=company&subtab=${value}`);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Company Settings</h2>
+        <Link
+          href="/corporate"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          Go to Corporate Dashboard
+          <ExternalLink className="h-4 w-4" />
+        </Link>
+      </div>
+
+      <Tabs value={subtab} onValueChange={handleSubtabChange}>
+        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
+          {COMPANY_TABS.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="text-xs sm:text-sm whitespace-nowrap"
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <div className="mt-6">
+          <TabsContent value="info">
+            <CompanyInfoTab />
+          </TabsContent>
+          <TabsContent value="security">
+            <SecurityTab />
+          </TabsContent>
+          <TabsContent value="permissions">
+            <PermissionsTab />
+          </TabsContent>
+          <TabsContent value="corporate">
+            <CorporateTab />
+          </TabsContent>
+          <TabsContent value="holidays">
+            <HolidaysTab />
+          </TabsContent>
+          <TabsContent value="connections">
+            <ConnectionsTab />
+          </TabsContent>
+          <TabsContent value="xero">
+            <XeroTab />
+          </TabsContent>
+          <TabsContent value="contact-roles">
+            <ContactRolesTab />
+          </TabsContent>
+          <TabsContent value="workflows">
+            <WorkflowsTab />
+          </TabsContent>
+          <TabsContent value="folders">
+            <FoldersTab />
+          </TabsContent>
+          <TabsContent value="job-setup">
+            <JobSetupTab />
+          </TabsContent>
+          <TabsContent value="workflow-config">
+            <WorkflowConfigTab />
+          </TabsContent>
+          <TabsContent value="doc-setup">
+            <DocSetupTab />
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>
+  );
+}
+
+export default function SystemAdminPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const currentTab = searchParams.get("tab") || "company";
+
+  const handleTabChange = (value: string) => {
+    router.push(`/admin/system?tab=${value}`);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight font-serif">System Administration</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Configure system settings, integrations, and developer tools
+        </p>
+      </div>
+
+      {/* Main Tab Navigation */}
+      <Tabs value={currentTab} onValueChange={handleTabChange}>
+        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 w-full">
+          {MAIN_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5"
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+
+        <div className="mt-6">
+          <TabsContent value="company">
+            <CompanySettingsTab />
+          </TabsContent>
+          <TabsContent value="schedule-master">
+            <PlaceholderTab title="Schedule Master" description="Configure schedule templates and defaults" />
+          </TabsContent>
+          <TabsContent value="sm-gantt-v2">
+            <PlaceholderTab title="SM Gantt v2" description="Gantt chart configuration" />
+          </TabsContent>
+          <TabsContent value="meeting-types">
+            <PlaceholderTab title="Meeting Types" description="Configure meeting type templates" />
+          </TabsContent>
+          <TabsContent value="whs">
+            <Card>
+              <CardHeader>
+                <CardTitle>Workplace Health & Safety</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  Configure WHS templates, settings, and compliance requirements for Queensland construction projects.
+                </p>
+
+                <div className="space-y-4">
+                  <h3 className="font-semibold">WHS Modules</h3>
+                  <div className="space-y-2">
+                    <Link href="/whs/swms" className="flex items-center gap-2 text-primary hover:underline">
+                      <FileText className="h-5 w-5" />
+                      SWMS Management
+                    </Link>
+                    <Link href="/whs/inspections" className="flex items-center gap-2 text-primary hover:underline">
+                      <ClipboardCheck className="h-5 w-5" />
+                      Site Inspections & Templates
+                    </Link>
+                    <Link href="/whs/incidents" className="flex items-center gap-2 text-primary hover:underline">
+                      <ShieldCheck className="h-5 w-5" />
+                      Incident Reporting
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="financial">
+            <Card>
+              <CardHeader>
+                <CardTitle>Financial Tracking & Reporting</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  Track income and expenses, generate financial reports, and export data for your accountant.
+                </p>
+
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Financial Modules</h3>
+                  <div className="space-y-2">
+                    <Link href="/financial" className="flex items-center gap-2 text-primary hover:underline">
+                      <Banknote className="h-5 w-5" />
+                      Transactions (Income & Expenses)
+                    </Link>
+                    <Link href="/financial/reports" className="flex items-center gap-2 text-primary hover:underline">
+                      <BarChart className="h-5 w-5" />
+                      Financial Reports
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          <TabsContent value="pricebook">
+            <PlaceholderTab title="Price Book" description="Price book configuration" />
+          </TabsContent>
+          <TabsContent value="supervisor-checklist">
+            <PlaceholderTab title="Supervisor Checklist" description="Manage supervisor checklist templates" />
+          </TabsContent>
+          <TabsContent value="gold-standard">
+            <PlaceholderTab title="Gold Standard View" description="View and manage gold standard data" />
+          </TabsContent>
+          <TabsContent value="developer-tools">
+            <PlaceholderTab title="Developer Tools" description="Database tables, columns, schema, and agent status" />
+          </TabsContent>
+          <TabsContent value="claude-shortcuts">
+            <PlaceholderTab title="Claude Shortcuts" description="Configure AI assistant shortcuts" />
+          </TabsContent>
+          <TabsContent value="user-manual">
+            <PlaceholderTab title="User Manual" description="Edit user documentation" />
+          </TabsContent>
+          <TabsContent value="inspiring-quotes">
+            <PlaceholderTab title="Inspiring Quotes" description="Manage inspirational quotes" />
+          </TabsContent>
+          <TabsContent value="performance">
+            <PlaceholderTab title="Performance" description="System performance metrics" />
+          </TabsContent>
+          <TabsContent value="deployment">
+            <Card>
+              <CardHeader>
+                <CardTitle>Deployment</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <p className="text-sm text-muted-foreground">
+                  Manage your application deployments and view deployment status.
+                </p>
+
+                <div className="space-y-4">
+                  <h3 className="font-semibold">Vercel Dashboard</h3>
+                  <p className="text-sm text-muted-foreground">
+                    View deployment status, build logs, and manage your frontend deployments on Vercel.
+                  </p>
+                  <a
+                    href="https://vercel.com/abodable-dev/teeem"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2"
+                  >
+                    <Button>
+                      Open Vercel Dashboard
+                      <ExternalLink className="h-4 w-4 ml-2" />
+                    </Button>
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </div>
+      </Tabs>
+    </div>
+  );
+}

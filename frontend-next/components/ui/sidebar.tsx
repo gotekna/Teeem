@@ -33,6 +33,7 @@ import {
   LayoutGrid,
   ChevronDown,
   Network,
+  Wrench,
 } from "lucide-react";
 import {
   Persona,
@@ -67,6 +68,7 @@ const navigationItems = [
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Corporate", href: "/corporate", icon: Building2 },
   { name: "Portal", href: "/portal", icon: ExternalLink },
+  { name: "Admin", href: "/admin/system", icon: Wrench },
 ];
 
 const personaIcons: Record<Persona, typeof HardHat> = {

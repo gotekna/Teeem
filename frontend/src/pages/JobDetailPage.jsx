@@ -442,23 +442,17 @@ export default function JobDetailPage() {
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Status
                           </label>
-                          <input
-                            type="text"
-                            value={editedJob.status || ''}
-                            onChange={(e) => handleFieldChange('status', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          />
+                          <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">
+                            {editedJob.job_status?.name || '-'}
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                             Stage
                           </label>
-                          <input
-                            type="text"
-                            value={editedJob.stage || ''}
-                            onChange={(e) => handleFieldChange('stage', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          />
+                          <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">
+                            {editedJob.job_stage?.name || '-'}
+                          </div>
                         </div>
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -528,11 +522,11 @@ export default function JobDetailPage() {
                         </div>
                         <div>
                           <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Status</dt>
-                          <dd className="mt-1 text-sm text-gray-900 dark:text-white">{job.status || '-'}</dd>
+                          <dd className="mt-1 text-sm text-gray-900 dark:text-white">{job.job_status?.name || '-'}</dd>
                         </div>
                         <div>
                           <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Stage</dt>
-                          <dd className="mt-1 text-sm text-gray-900 dark:text-white">{job.stage || '-'}</dd>
+                          <dd className="mt-1 text-sm text-gray-900 dark:text-white">{job.job_stage?.name || '-'}</dd>
                         </div>
                         <div>
                           <dt className="text-sm font-medium text-gray-500 dark:text-gray-400">Contract Value</dt>
