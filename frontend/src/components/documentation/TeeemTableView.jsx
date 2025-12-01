@@ -969,10 +969,10 @@ export default function TeeemTableView({
             loadViewState(defaultView)
           }
 
-          // Auto-create "Setup" view if it doesn't exist
-          const hasSetupView = converted.some(v => v.name === 'Setup')
-          if (!hasSetupView) {
-            console.log('[Load Views] No Setup view found, creating one')
+          // Auto-create "Setup" view only if NO views exist at all
+          // Don't create Setup if global views exist (LIVE, LOST, Completed, etc.)
+          if (converted.length === 0) {
+            console.log('[Load Views] No views found at all, creating Setup view')
             await createDefaultView()
           }
         }
