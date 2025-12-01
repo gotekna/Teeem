@@ -1403,6 +1403,13 @@ export default function TeeemTableView({
       .filter((col): col is TableColumn => col !== undefined);
   }, [columnOrder, visibleColumns, COLUMNS]);
 
+  // Calculate total table width based on column widths
+  const totalTableWidth = useMemo(() => {
+    return visibleColumnsInOrder.reduce((sum, col) => {
+      return sum + (columnWidths[col.key] || col.width || 150);
+    }, 0);
+  }, [visibleColumnsInOrder, columnWidths]);
+
   // ============================================================================
   // CELL RENDERING
   // ============================================================================
@@ -1773,13 +1780,13 @@ export default function TeeemTableView({
     if (!groupedEntries) return null;
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-2" style={{ width: `${totalTableWidth}px` }}>
         {Object.entries(groupedEntries).map(([groupKey, groupRows]) => {
           const isCollapsed = collapsedGroups.has(groupKey);
           const groupColumn = COLUMNS.find((c) => c.key === groupByColumn);
 
           return (
-            <div key={groupKey} className="border rounded-lg overflow-x-auto">
+            <div key={groupKey} className="border rounded-lg" style={{ width: `${totalTableWidth}px` }}>
               <button
                 onClick={() => toggleGroupCollapse(groupKey)}
                 className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted transition-colors"
@@ -1798,7 +1805,7 @@ export default function TeeemTableView({
               </button>
 
               {!isCollapsed && (
-                <Table className="min-w-max">
+                <Table className="w-full" style={{ tableLayout: 'fixed' }}>
                   {renderTableHeader()}
                   <TableBody>
                     {groupRows.map((row) => (
@@ -1813,7 +1820,7 @@ export default function TeeemTableView({
                         {visibleColumnsInOrder.map((column) => (
                           <TableCell
                             key={column.key}
-                            style={{ width: columnWidths[column.key] }}
+                            style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
                           >
                             {renderCellValue(row, column)}
                           </TableCell>
@@ -1832,8 +1839,8 @@ export default function TeeemTableView({
 
   // Render flat table
   const renderFlatTable = () => (
-    <div className="border rounded-lg overflow-x-auto">
-      <Table className="min-w-max">
+    <div className="border rounded-lg" style={{ width: `${totalTableWidth}px` }}>
+      <Table className="w-full" style={{ tableLayout: 'fixed' }}>
         {renderTableHeader()}
         <TableBody>
           {filteredAndSortedEntries.length === 0 ? (
@@ -1861,7 +1868,7 @@ export default function TeeemTableView({
                 {visibleColumnsInOrder.map((column) => (
                   <TableCell
                     key={column.key}
-                    style={{ width: columnWidths[column.key] }}
+                    style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
@@ -1882,7 +1889,7 @@ export default function TeeemTableView({
   // ============================================================================
 
   return (
-    <div className="flex flex-col h-full gap-4">
+    <div className="flex flex-col h-full gap-4 overflow-hidden">
       {/* Data Health Widget */}
       {showDataHealth && foundationIdNumeric && (
         <DataHealthWidget
@@ -2335,8 +2342,16 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Table */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      {/* Table - scrollable container */}
+      {/* DEBUG: totalTableWidth={totalTableWidth}, visibleCols={visibleColumnsInOrder.length} */}
+      <div
+        className="flex-1 min-h-0 overflow-x-scroll overflow-y-auto border-2 border-red-500"
+        style={{ maxWidth: '100%' }}
+      >
+        <div className="bg-yellow-200 text-black text-xs p-1">
+          DEBUG: totalWidth={totalTableWidth}px, cols={visibleColumnsInOrder.length},
+          widths={JSON.stringify(Object.fromEntries(visibleColumnsInOrder.slice(0,3).map(c => [c.key, columnWidths[c.key] || c.width])))}
+        </div>
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>
 

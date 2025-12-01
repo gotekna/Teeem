@@ -44,6 +44,7 @@ import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
 import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
 import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
+import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -99,6 +100,7 @@ const tabs = [
   { name: "People", slug: "people", icon: Users },
   { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
   { name: "Estimates", slug: "estimates", icon: FileText },
+  { name: "Profit", slug: "profit", icon: TrendingUp },
   { name: "Activity", slug: "activity", icon: TrendingUp },
   { name: "Budget", slug: "budget", icon: DollarSign },
   { name: "Schedule", slug: "schedule", icon: Calendar },
@@ -449,6 +451,10 @@ export default function JobDetailPage() {
 
         <TabsContent value="estimates" className="mt-6">
           <JobEstimatorTab jobId={job.id} job={job} />
+        </TabsContent>
+
+        <TabsContent value="profit" className="mt-6">
+          <JobProfitTab jobId={job.id} />
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">

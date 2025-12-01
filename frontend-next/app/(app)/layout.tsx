@@ -39,7 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Header Bar */}
         <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
         {/* Main content */}
-        <main className="flex-1">
+        <main className="flex-1 overflow-x-auto">
           <div className="p-6">{children}</div>
         </main>
       </div>
