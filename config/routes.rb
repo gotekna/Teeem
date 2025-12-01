@@ -122,6 +122,7 @@ Rails.application.routes.draw do
           get :sms_messages
           get :documentation_tabs
           get :activities
+          get :budget_tracking
           # Xero bill import
           post :import_xero_bills
           post :link_xero_tracking
