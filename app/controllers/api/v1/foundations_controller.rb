@@ -1,7 +1,7 @@
 module Api
   module V1
     class FoundationsController < ApplicationController
-      before_action :set_foundation, only: [:show, :update, :destroy, :health]
+      before_action :set_foundation, only: [:show, :update, :destroy, :health, :schema]
 
       # GET /api/v1/foundations
       def index
@@ -123,6 +123,48 @@ module Api
           total_issues: total_issues,
           has_issues: total_issues > 0,
           checks: results.sort_by { |r| TableHealthCheck::SEVERITY_ORDER[r[:severity]] || 99 }
+        }
+      end
+
+      # GET /api/v1/foundations/:id/schema
+      # Returns the column schema for a foundation
+      def schema
+        columns = if @foundation.columns.any?
+          @foundation.columns.order(:position).map do |col|
+            {
+              id: col.id,
+              name: col.name,
+              column_name: col.column_name,
+              column_type: col.column_type,
+              column_group: col.column_group,
+              max_length: col.max_length,
+              min_length: col.min_length,
+              default_value: col.default_value,
+              description: col.description,
+              searchable: col.searchable,
+              is_title: col.is_title,
+              required: col.required,
+              position: col.position,
+              visible: col.visible,
+              editable: col.editable,
+              lookup_foundation_id: col.lookup_foundation_id,
+              lookup_display_column: col.lookup_display_column,
+              lookup_multiple: col.lookup_multiple,
+              formula: col.formula,
+              formula_output_type: col.formula_output_type,
+              choices: col.choices
+            }
+          end
+        else
+          # Auto-detect columns for system foundations
+          system_foundation_columns
+        end
+
+        render json: {
+          success: true,
+          foundation_id: @foundation.id,
+          table_name: @foundation.name,
+          columns: columns
         }
       end
 
