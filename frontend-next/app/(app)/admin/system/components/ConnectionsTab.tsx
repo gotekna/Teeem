@@ -63,8 +63,8 @@ function OneDriveConnection() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const data = await api.get<{ authorize_url: string }>("/api/v1/organization_onedrive/authorize");
-      window.location.href = data.authorize_url;
+      const data = await api.get<{ auth_url: string }>("/api/v1/organization_onedrive/authorize");
+      window.location.href = data.auth_url;
     } catch (error) {
       console.error("Failed to get auth URL:", error);
       toast({ title: "Error", description: "Failed to initiate connection", variant: "destructive" });
@@ -204,8 +204,8 @@ function OutlookConnection() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const data = await api.get<{ authorize_url: string }>("/api/v1/microsoft/authorize");
-      window.location.href = data.authorize_url;
+      const data = await api.get<{ auth_url: string }>("/api/v1/microsoft/auth_url");
+      window.location.href = data.auth_url;
     } catch (error) {
       console.error("Failed to get auth URL:", error);
       toast({ title: "Error", description: "Failed to initiate connection", variant: "destructive" });

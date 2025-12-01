@@ -1,6 +1,25 @@
 "use client";
 
 import * as React from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +47,8 @@ import {
   Settings,
   Eye,
   EyeOff,
+  GripVertical,
+  Filter,
 } from "lucide-react";
 import {
   Dialog,
@@ -45,6 +66,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TableColumn, TableRow as TableRowType } from "@/components/table/types";
+import { GlobalViewsManager } from "./GlobalViewsManager";
 import {
   Collapsible,
   CollapsibleContent,
@@ -85,6 +107,84 @@ interface SyncData {
   };
 }
 
+// Sortable field item for drag and drop
+interface SortableFieldItemProps {
+  id: string;
+  col: { column_name: string; name: string; column_type: string };
+  isVisible: boolean;
+  order: number;
+  onToggleVisibility: (columnName: string) => void;
+  onUpdateOrder: (columnName: string, order: number) => void;
+}
+
+function SortableFieldItem({
+  id,
+  col,
+  isVisible,
+  order,
+  onToggleVisibility,
+  onUpdateOrder,
+}: SortableFieldItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors",
+        isVisible
+          ? "bg-primary/10 border-primary/30 text-foreground"
+          : "bg-background border-border text-muted-foreground",
+        isDragging && "opacity-50 shadow-lg z-50 bg-background"
+      )}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </div>
+      <button
+        onClick={() => onToggleVisibility(col.column_name)}
+        className="flex items-center gap-2 flex-1 text-left hover:opacity-70"
+      >
+        {isVisible ? (
+          <Eye className="h-3 w-3 flex-shrink-0" />
+        ) : (
+          <EyeOff className="h-3 w-3 flex-shrink-0" />
+        )}
+        <span className="truncate">{col.name || col.column_name}</span>
+      </button>
+      <input
+        type="number"
+        min="1"
+        value={order < 100 ? order : ''}
+        onChange={(e) => onUpdateOrder(col.column_name, parseInt(e.target.value) || 0)}
+        className="w-10 h-6 text-center text-xs border rounded bg-background"
+        onClick={(e) => {
+          e.stopPropagation();
+          (e.target as HTMLInputElement).select();
+        }}
+        onFocus={(e) => e.target.select()}
+      />
+    </div>
+  );
+}
+
 // Gold Standard Data Tab - shows actual table records using TeeemTableView
 function GoldStandardDataTab() {
   const { toast } = useToast();
@@ -107,36 +207,72 @@ function GoldStandardDataTab() {
   const [showFieldConfig, setShowFieldConfig] = React.useState(false);
   const [visibleFields, setVisibleFields] = React.useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = React.useState<Record<string, number>>({});
+  const [showViewsManager, setShowViewsManager] = React.useState(false);
 
   // Initialize visible fields and order when columns load
   React.useEffect(() => {
     if (rawColumns.length > 0 && visibleFields.size === 0) {
       // Default: show common field types
-      const defaultVisible = new Set(
-        rawColumns
-          .filter(col =>
-            !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-            ['short_text', 'long_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'dropdown', 'percentage'].includes(col.column_type)
-          )
-          .map(col => col.column_name)
-      );
-      setVisibleFields(defaultVisible);
-
-      // Initialize field order based on position, excluding system columns from count
-      const initialOrder: Record<string, number> = {};
+      const defaultVisibleTypes = ['short_text', 'long_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'dropdown', 'percentage'];
       const nonSystemCols = rawColumns.filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name));
-      nonSystemCols.forEach((col, idx) => {
+
+      const visibleCols = nonSystemCols.filter(col => defaultVisibleTypes.includes(col.column_type));
+      const hiddenCols = nonSystemCols.filter(col => !defaultVisibleTypes.includes(col.column_type));
+
+      setVisibleFields(new Set(visibleCols.map(col => col.column_name)));
+
+      // Initialize field order: visible fields 1-N, hidden fields 100+
+      const initialOrder: Record<string, number> = {};
+      visibleCols.forEach((col, idx) => {
         initialOrder[col.column_name] = idx + 1;
+      });
+      hiddenCols.forEach((col, idx) => {
+        initialOrder[col.column_name] = 100 + idx;
       });
       setFieldOrder(initialOrder);
     }
   }, [rawColumns]);
 
-  const updateFieldOrder = (columnName: string, order: number) => {
-    setFieldOrder(prev => ({
-      ...prev,
-      [columnName]: order
-    }));
+  const updateFieldOrder = (columnName: string, newOrder: number) => {
+    setFieldOrder(prev => {
+      const updated = { ...prev };
+      const oldOrder = prev[columnName] || 0;
+
+      // Only handle conflicts for visible fields with valid order numbers
+      if (newOrder > 0 && newOrder < 100 && visibleFields.has(columnName)) {
+        // Find all visible fields and their current orders
+        const visibleFieldOrders = rawColumns
+          .filter(col =>
+            !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+            visibleFields.has(col.column_name) &&
+            col.column_name !== columnName
+          )
+          .map(col => ({ name: col.column_name, order: prev[col.column_name] || 0 }))
+          .filter(f => f.order > 0 && f.order < 100)
+          .sort((a, b) => a.order - b.order);
+
+        // If moving down (higher number), shift fields in between down
+        // If moving up (lower number), shift fields in between up
+        if (newOrder > oldOrder) {
+          // Moving down: shift fields between old and new position up by 1
+          visibleFieldOrders.forEach(f => {
+            if (f.order > oldOrder && f.order <= newOrder) {
+              updated[f.name] = f.order - 1;
+            }
+          });
+        } else if (newOrder < oldOrder) {
+          // Moving up: shift fields between new and old position down by 1
+          visibleFieldOrders.forEach(f => {
+            if (f.order >= newOrder && f.order < oldOrder) {
+              updated[f.name] = f.order + 1;
+            }
+          });
+        }
+      }
+
+      updated[columnName] = newOrder;
+      return updated;
+    });
   };
 
   // Get columns sorted by custom field order (visible first, then hidden)
@@ -158,24 +294,100 @@ function GoldStandardDataTab() {
     setVisibleFields(prev => {
       const next = new Set(prev);
       if (next.has(columnName)) {
+        // Hiding: remove from visible, renumber remaining visible fields
         next.delete(columnName);
+        // Renumber visible fields sequentially
+        const visibleCols = rawColumns
+          .filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name) && next.has(col.column_name))
+          .sort((a, b) => (fieldOrder[a.column_name] || 999) - (fieldOrder[b.column_name] || 999));
+        const newOrder: Record<string, number> = {};
+        visibleCols.forEach((col, idx) => {
+          newOrder[col.column_name] = idx + 1;
+        });
+        // Hidden fields get high numbers
+        rawColumns
+          .filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name) && !next.has(col.column_name))
+          .forEach((col, idx) => {
+            newOrder[col.column_name] = 100 + idx;
+          });
+        setFieldOrder(newOrder);
       } else {
+        // Showing: add to visible at the end
         next.add(columnName);
+        // Get current max order of visible fields
+        const maxOrder = Math.max(0, ...Array.from(next).map(name => fieldOrder[name] || 0));
+        setFieldOrder(prev => ({
+          ...prev,
+          [columnName]: maxOrder + 1
+        }));
       }
       return next;
     });
   };
 
   const showAllFields = () => {
-    setVisibleFields(new Set(
-      rawColumns
-        .filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name))
-        .map(col => col.column_name)
-    ));
+    const nonSystemCols = rawColumns.filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name));
+    setVisibleFields(new Set(nonSystemCols.map(col => col.column_name)));
+    // Renumber all fields 1-N
+    const newOrder: Record<string, number> = {};
+    nonSystemCols.forEach((col, idx) => {
+      newOrder[col.column_name] = idx + 1;
+    });
+    setFieldOrder(newOrder);
   };
 
   const hideAllFields = () => {
     setVisibleFields(new Set());
+    // All fields become hidden with high numbers
+    const newOrder: Record<string, number> = {};
+    rawColumns
+      .filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name))
+      .forEach((col, idx) => {
+        newOrder[col.column_name] = 100 + idx;
+      });
+    setFieldOrder(newOrder);
+  };
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const sortedCols = getSortedColumns();
+      const oldIndex = sortedCols.findIndex(c => c.column_name === active.id);
+      const newIndex = sortedCols.findIndex(c => c.column_name === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        // Reorder the columns
+        const reorderedCols = arrayMove(sortedCols, oldIndex, newIndex);
+
+        // Update field order - visible fields get 1-N, hidden get 100+
+        const newOrder: Record<string, number> = {};
+        let visibleIndex = 1;
+        let hiddenIndex = 100;
+
+        reorderedCols.forEach(col => {
+          if (visibleFields.has(col.column_name)) {
+            newOrder[col.column_name] = visibleIndex++;
+          } else {
+            newOrder[col.column_name] = hiddenIndex++;
+          }
+        });
+
+        setFieldOrder(newOrder);
+      }
+    }
   };
 
   React.useEffect(() => {
@@ -592,7 +804,7 @@ function GoldStandardDataTab() {
           {showFieldConfig && (
             <div className="border rounded-md p-4 mb-4 bg-muted/30">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Select fields to show (type order number on right)</span>
+                <span className="text-sm font-medium">Drag to reorder, or type order number</span>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
                     Show All
@@ -602,43 +814,30 @@ function GoldStandardDataTab() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {getSortedColumns().map((col) => (
-                  <div
-                    key={col.column_name}
-                    className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors",
-                      visibleFields.has(col.column_name)
-                        ? "bg-primary/10 border-primary/30 text-foreground"
-                        : "bg-background border-border text-muted-foreground"
-                    )}
-                  >
-                    <button
-                      onClick={() => toggleFieldVisibility(col.column_name)}
-                      className="flex items-center gap-2 flex-1 text-left hover:opacity-70"
-                    >
-                      {visibleFields.has(col.column_name) ? (
-                        <Eye className="h-3 w-3 flex-shrink-0" />
-                      ) : (
-                        <EyeOff className="h-3 w-3 flex-shrink-0" />
-                      )}
-                      <span className="truncate">{col.name || col.column_name}</span>
-                    </button>
-                    <input
-                      type="number"
-                      min="1"
-                      value={fieldOrder[col.column_name] || ''}
-                      onChange={(e) => updateFieldOrder(col.column_name, parseInt(e.target.value) || 0)}
-                      className="w-10 h-6 text-center text-xs border rounded bg-background"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        (e.target as HTMLInputElement).select();
-                      }}
-                      onFocus={(e) => e.target.select()}
-                    />
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={getSortedColumns().map(c => c.column_name)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-1">
+                    {getSortedColumns().map((col) => (
+                      <SortableFieldItem
+                        key={col.column_name}
+                        id={col.column_name}
+                        col={col}
+                        isVisible={visibleFields.has(col.column_name)}
+                        order={fieldOrder[col.column_name] || 0}
+                        onToggleVisibility={toggleFieldVisibility}
+                        onUpdateOrder={updateFieldOrder}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
 
@@ -733,7 +932,7 @@ function GoldStandardDataTab() {
           {showFieldConfig && (
             <div className="border rounded-md p-4 mb-4 bg-muted/30">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Select fields to show (type order number on right)</span>
+                <span className="text-sm font-medium">Drag to reorder, or type order number</span>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
                     Show All
@@ -743,43 +942,30 @@ function GoldStandardDataTab() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {getSortedColumns().map((col) => (
-                  <div
-                    key={col.column_name}
-                    className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors",
-                      visibleFields.has(col.column_name)
-                        ? "bg-primary/10 border-primary/30 text-foreground"
-                        : "bg-background border-border text-muted-foreground"
-                    )}
-                  >
-                    <button
-                      onClick={() => toggleFieldVisibility(col.column_name)}
-                      className="flex items-center gap-2 flex-1 text-left hover:opacity-70"
-                    >
-                      {visibleFields.has(col.column_name) ? (
-                        <Eye className="h-3 w-3 flex-shrink-0" />
-                      ) : (
-                        <EyeOff className="h-3 w-3 flex-shrink-0" />
-                      )}
-                      <span className="truncate">{col.name || col.column_name}</span>
-                    </button>
-                    <input
-                      type="number"
-                      min="1"
-                      value={fieldOrder[col.column_name] || ''}
-                      onChange={(e) => updateFieldOrder(col.column_name, parseInt(e.target.value) || 0)}
-                      className="w-10 h-6 text-center text-xs border rounded bg-background"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        (e.target as HTMLInputElement).select();
-                      }}
-                      onFocus={(e) => e.target.select()}
-                    />
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={getSortedColumns().map(c => c.column_name)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-1">
+                    {getSortedColumns().map((col) => (
+                      <SortableFieldItem
+                        key={col.column_name}
+                        id={col.column_name}
+                        col={col}
+                        isVisible={visibleFields.has(col.column_name)}
+                        order={fieldOrder[col.column_name] || 0}
+                        onToggleVisibility={toggleFieldVisibility}
+                        onUpdateOrder={updateFieldOrder}
+                      />
+                    ))}
                   </div>
-                ))}
-              </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
 
