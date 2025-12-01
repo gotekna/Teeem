@@ -10,6 +10,15 @@
 - NEVER ask the user to create PRs or merge to Live - they will handle this themselves
 - NEVER mention "ready for PR" or "create a PR" - just push to the feature branch and move on
 
+## 🔴 CRITICAL: Heroku App Restriction
+
+**NEVER use the `teeem-backend` Heroku app.** This is a deprecated/unused app.
+
+- ❌ NEVER run `heroku` commands with `--app teeem-backend`
+- ❌ NEVER use the `heroku` git remote (points to teeem-backend)
+- ✅ Use `--app teeem-rob-dev` for staging
+- ✅ Use `--app teeemlive` for production
+
 ### After Pushing to Rob Branch - Deploy to Heroku
 
 When you push to the `rob` branch, deploy directly to Heroku using git subtree:
@@ -44,7 +53,7 @@ Verify with: `git remote -v | grep heroku`
 
 | Environment | Heroku App | Branch | Frontend |
 |-------------|-----------|--------|----------|
-| **Production** | `teeem-backend` | Live | https://teeem.vercel.app |
+| **Production** | `teeemlive` | Live | https://teeemlive.vercel.app |
 | **Staging/Dev** | `teeem-rob-dev` | rob | https://teeemrob.vercel.app |
 
 **Staging URLs:**
