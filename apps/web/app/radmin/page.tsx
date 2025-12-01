@@ -89,7 +89,7 @@ const adminSections = [
   },
 ];
 
-export default function AdminPage() {
+export default function RadminPage() {
   return (
     <div className="space-y-6">
       {/* Warning Banner */}
@@ -106,7 +106,7 @@ export default function AdminPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight font-serif">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold tracking-tight font-serif">Rob Admin Dashboard</h1>
         <p className="text-muted-foreground mt-1">
           System configuration, schema management, and internal tools
         </p>
