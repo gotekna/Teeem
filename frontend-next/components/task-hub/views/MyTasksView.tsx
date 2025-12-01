@@ -2,274 +2,174 @@
 
 import { useMemo } from 'react';
 import { useTaskHub, SmTask } from '@/contexts/TaskHubContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   AlertTriangle,
-  Calendar,
-  Clock,
   CheckCircle2,
   PlayCircle,
+  Circle,
+  ChevronDown,
   ChevronRight,
-  Briefcase,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useState } from 'react';
 
-const statusColors: Record<string, string> = {
-  not_started: 'bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400',
-  started: 'bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400',
-  completed: 'bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400',
+const statusIcons = {
+  not_started: Circle,
+  started: PlayCircle,
+  completed: CheckCircle2,
 };
 
-interface TaskItemProps {
+const statusColors = {
+  not_started: 'text-gray-400',
+  started: 'text-blue-500',
+  completed: 'text-green-500',
+};
+
+interface TaskRowProps {
   task: SmTask;
-  showJob?: boolean;
 }
 
-function TaskItem({ task, showJob = true }: TaskItemProps) {
+function TaskRow({ task }: TaskRowProps) {
   const { updateTask, toggleTaskSelection, selectedTaskIds } = useTaskHub();
+  const StatusIcon = statusIcons[task.status];
 
-  const handleStatusToggle = async () => {
+  const handleStatusClick = async () => {
     const nextStatus = task.status === 'not_started' ? 'started' :
                        task.status === 'started' ? 'completed' : 'not_started';
     await updateTask(task.id, { status: nextStatus });
   };
 
-  const isSelected = selectedTaskIds.has(task.id);
-
   return (
     <div
       className={cn(
-        'flex items-center gap-3 p-3 rounded-lg border transition-colors hover:bg-secondary/50',
-        isSelected && 'bg-primary/5 border-primary/20',
-        task.is_overdue && task.status !== 'completed' && 'border-red-200 bg-red-50/50 dark:bg-red-900/10'
+        'flex items-center gap-2 py-1 px-2 hover:bg-muted/50 rounded text-sm group',
+        selectedTaskIds.has(task.id) && 'bg-primary/5',
+        task.is_overdue && task.status !== 'completed' && 'bg-red-50/50 dark:bg-red-950/20'
       )}
     >
       <Checkbox
-        checked={isSelected}
+        checked={selectedTaskIds.has(task.id)}
         onCheckedChange={() => toggleTaskSelection(task.id)}
+        className="h-3.5 w-3.5"
       />
-
-      <button
-        onClick={handleStatusToggle}
-        className="shrink-0"
-      >
-        {task.status === 'completed' ? (
-          <CheckCircle2 className="h-5 w-5 text-green-600" />
-        ) : task.status === 'started' ? (
-          <PlayCircle className="h-5 w-5 text-blue-600" />
-        ) : (
-          <div className="h-5 w-5 rounded-full border-2 border-gray-300" />
-        )}
+      <button onClick={handleStatusClick} className="shrink-0">
+        <StatusIcon className={cn('h-4 w-4', statusColors[task.status])} />
       </button>
-
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className={cn(
-            'font-medium truncate',
-            task.status === 'completed' && 'line-through text-muted-foreground'
-          )}>
-            {task.name}
-          </span>
-          {task.is_overdue && task.status !== 'completed' && (
-            <Badge variant="destructive" className="text-xs">Overdue</Badge>
-          )}
-          {task.locked && (
-            <Badge variant="outline" className="text-xs">Locked</Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-          {showJob && task.job_name && (
-            <>
-              <Briefcase className="h-3 w-3" />
-              <span className="truncate">{task.job_name}</span>
-              <span>•</span>
-            </>
-          )}
-          {task.trade && (
-            <>
-              <span>{task.trade}</span>
-              <span>•</span>
-            </>
-          )}
-          <Calendar className="h-3 w-3" />
-          <span>{new Date(task.start_date).toLocaleDateString()}</span>
-        </div>
-      </div>
-
-      <Badge className={statusColors[task.status]}>
-        {task.status.replace('_', ' ')}
-      </Badge>
-
-      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+      <span className={cn(
+        'flex-1 truncate',
+        task.status === 'completed' && 'line-through text-muted-foreground'
+      )}>
+        {task.name}
+      </span>
+      {task.is_overdue && task.status !== 'completed' && (
+        <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
+      )}
+      {task.job_name && task.job_name !== 'Personal Task' && (
+        <span className="text-xs text-muted-foreground truncate max-w-[120px] hidden sm:inline">
+          {task.job_name}
+        </span>
+      )}
+      {task.trade && (
+        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 hidden md:inline-flex">
+          {task.trade}
+        </Badge>
+      )}
+      <span className="text-xs text-muted-foreground w-16 text-right shrink-0">
+        {new Date(task.end_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}
+      </span>
     </div>
   );
 }
 
-interface TaskSectionProps {
+interface SectionProps {
   title: string;
-  description?: string;
   tasks: SmTask[];
-  icon: React.ReactNode;
-  variant?: 'default' | 'warning' | 'danger';
+  defaultOpen?: boolean;
+  variant?: 'default' | 'danger' | 'warning';
 }
 
-function TaskSection({ title, description, tasks, icon, variant = 'default' }: TaskSectionProps) {
+function Section({ title, tasks, defaultOpen = true, variant = 'default' }: SectionProps) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
   if (tasks.length === 0) return null;
 
   return (
-    <Card className={cn(
-      variant === 'danger' && 'border-red-200',
-      variant === 'warning' && 'border-yellow-200'
+    <div className={cn(
+      'border rounded',
+      variant === 'danger' && 'border-red-200 dark:border-red-900',
+      variant === 'warning' && 'border-yellow-200 dark:border-yellow-900'
     )}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          {icon}
-          <CardTitle className="text-lg">{title}</CardTitle>
-          <Badge variant="secondary">{tasks.length}</Badge>
-        </div>
-        {description && (
-          <CardDescription>{description}</CardDescription>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={cn(
+          'w-full flex items-center gap-2 px-2 py-1.5 text-xs font-medium hover:bg-muted/50',
+          variant === 'danger' && 'text-red-700 dark:text-red-400 bg-red-50/50 dark:bg-red-950/20',
+          variant === 'warning' && 'text-yellow-700 dark:text-yellow-400 bg-yellow-50/50 dark:bg-yellow-950/20'
         )}
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {tasks.map(task => (
-          <TaskItem key={task.id} task={task} />
-        ))}
-      </CardContent>
-    </Card>
+      >
+        {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {title}
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-auto">
+          {tasks.length}
+        </Badge>
+      </button>
+      {isOpen && (
+        <div className="py-1">
+          {tasks.map(task => (
+            <TaskRow key={task.id} task={task} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 export function MyTasksView() {
-  const { myTasks, overdueTasks, todayTasks, thisWeekTasks, meta } = useTaskHub();
+  const { myTasks, overdueTasks, todayTasks, thisWeekTasks } = useTaskHub();
 
-  // Split tasks into sections
-  const { upcoming, completed } = useMemo(() => {
+  const { upcoming, completed, myOverdue, myToday, myThisWeek } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const nextWeek = new Date(today);
     nextWeek.setDate(nextWeek.getDate() + 7);
 
+    const myOverdue = overdueTasks.filter(t => myTasks.some(mt => mt.id === t.id));
+    const myToday = todayTasks.filter(t => myTasks.some(mt => mt.id === t.id));
+    const myThisWeek = thisWeekTasks.filter(t =>
+      myTasks.some(mt => mt.id === t.id) && !myToday.some(tt => tt.id === t.id)
+    );
+
     const upcoming = myTasks.filter(task => {
       if (task.status === 'completed') return false;
-      const startDate = new Date(task.start_date);
-      return startDate >= nextWeek;
+      if (myOverdue.some(t => t.id === task.id)) return false;
+      if (myToday.some(t => t.id === task.id)) return false;
+      if (myThisWeek.some(t => t.id === task.id)) return false;
+      return true;
     });
 
     const completed = myTasks.filter(task => task.status === 'completed').slice(0, 5);
 
-    return { upcoming, completed };
-  }, [myTasks]);
-
-  // My overdue tasks only
-  const myOverdueTasks = overdueTasks.filter(t => myTasks.some(mt => mt.id === t.id));
-  const myTodayTasks = todayTasks.filter(t => myTasks.some(mt => mt.id === t.id));
-  const myThisWeekTasks = thisWeekTasks.filter(t =>
-    myTasks.some(mt => mt.id === t.id) && !myTodayTasks.some(tt => tt.id === t.id)
-  );
+    return { upcoming, completed, myOverdue, myToday, myThisWeek };
+  }, [myTasks, overdueTasks, todayTasks, thisWeekTasks]);
 
   if (myTasks.length === 0) {
     return (
-      <div className="text-center py-12">
-        <CheckCircle2 className="h-16 w-16 mx-auto text-green-500 mb-4" />
-        <h3 className="text-lg font-medium">All caught up!</h3>
-        <p className="text-muted-foreground mt-1">
-          You have no tasks assigned to you.
-        </p>
+      <div className="text-center py-8 text-muted-foreground">
+        <CheckCircle2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No tasks assigned to you</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Stats Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Briefcase className="h-4 w-4" />
-              <span className="text-sm">My Tasks</span>
-            </div>
-            <p className="text-2xl font-bold font-mono mt-1">{myTasks.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <PlayCircle className="h-4 w-4 text-blue-600" />
-              <span className="text-sm">In Progress</span>
-            </div>
-            <p className="text-2xl font-bold font-mono mt-1 text-blue-600">
-              {myTasks.filter(t => t.status === 'started').length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className={myOverdueTasks.length > 0 ? 'border-red-200' : ''}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-sm">Overdue</span>
-            </div>
-            <p className={cn('text-2xl font-bold font-mono mt-1', myOverdueTasks.length > 0 && 'text-red-600')}>
-              {myOverdueTasks.length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <span className="text-sm">Completed</span>
-            </div>
-            <p className="text-2xl font-bold font-mono mt-1 text-green-600">
-              {myTasks.filter(t => t.status === 'completed').length}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Task Sections */}
-      <TaskSection
-        title="Overdue"
-        description="Tasks past their due date"
-        tasks={myOverdueTasks}
-        icon={<AlertTriangle className="h-5 w-5 text-red-600" />}
-        variant="danger"
-      />
-
-      <TaskSection
-        title="Today"
-        description="Tasks starting today"
-        tasks={myTodayTasks}
-        icon={<Calendar className="h-5 w-5 text-yellow-600" />}
-        variant="warning"
-      />
-
-      <TaskSection
-        title="This Week"
-        description="Tasks starting within the next 7 days"
-        tasks={myThisWeekTasks}
-        icon={<Clock className="h-5 w-5 text-blue-600" />}
-      />
-
-      <TaskSection
-        title="Upcoming"
-        description="Tasks starting after this week"
-        tasks={upcoming}
-        icon={<Calendar className="h-5 w-5 text-gray-600" />}
-      />
-
-      {completed.length > 0 && (
-        <TaskSection
-          title="Recently Completed"
-          tasks={completed}
-          icon={<CheckCircle2 className="h-5 w-5 text-green-600" />}
-        />
-      )}
+    <div className="space-y-2">
+      <Section title="Overdue" tasks={myOverdue} variant="danger" />
+      <Section title="Today" tasks={myToday} variant="warning" />
+      <Section title="This Week" tasks={myThisWeek} />
+      <Section title="Upcoming" tasks={upcoming} defaultOpen={myOverdue.length === 0 && myToday.length === 0} />
+      <Section title="Completed" tasks={completed} defaultOpen={false} />
     </div>
   );
 }
