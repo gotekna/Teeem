@@ -38,6 +38,8 @@ import {
   CheckCircle,
   XCircle,
   Eye,
+  AlertTriangle,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -130,6 +132,7 @@ interface Company {
   current_directors?: Director[];
   pending_compliance_items?: ComplianceItem[];
   company_group?: string | { name: string };
+  company_group_id?: number;
   group_name?: string;
   // Corporate details
   corporate_key?: string;
@@ -631,30 +634,781 @@ function ShareholdingsTab({ company, companyId }: { company: Company; companyId:
   );
 }
 
-// Placeholder tabs
-function HealthTab() {
+// Health status colors
+const HEALTH_STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  excellent: { bg: "bg-green-100 dark:bg-green-900/30", text: "text-green-800 dark:text-green-300", border: "border-green-200 dark:border-green-800" },
+  good: { bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-800 dark:text-blue-300", border: "border-blue-200 dark:border-blue-800" },
+  needs_attention: { bg: "bg-yellow-100 dark:bg-yellow-900/30", text: "text-yellow-800 dark:text-yellow-300", border: "border-yellow-200 dark:border-yellow-800" },
+  critical: { bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-800 dark:text-red-300", border: "border-red-200 dark:border-red-800" },
+};
+
+interface HealthData {
+  company?: {
+    id: number;
+    name: string;
+    health_score: number;
+    health_status: string;
+    issues?: string[];
+    warnings?: string[];
+    has_acn?: boolean;
+    has_abn?: boolean;
+    has_tfn?: boolean;
+    has_registered_office?: boolean;
+    has_corporate_key?: boolean;
+    director_count?: number;
+    bank_account_count?: number;
+    shareholder_count?: number;
+  };
+  summary?: {
+    total: number;
+    excellent: number;
+    good: number;
+    needs_attention: number;
+    critical: number;
+    average_score: number;
+  };
+  allCompanies?: Array<{
+    id: number;
+    name: string;
+    health_score: number;
+    health_status: string;
+    issues: string[];
+    warnings: string[];
+  }>;
+}
+
+function CompletionItem({ label, completed, value }: { label: string; completed?: boolean; value?: number }) {
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-medium">Health</h3>
-      <p className="text-muted-foreground">Health information coming soon</p>
+    <div className="flex items-center space-x-2">
+      {completed ? (
+        <CheckCircle className="h-5 w-5 text-green-500" />
+      ) : (
+        <XCircle className="h-5 w-5 text-red-400" />
+      )}
+      <span className="text-sm text-muted-foreground">
+        {label}
+        {value !== undefined && value > 0 && <span className="ml-1 opacity-60">({value})</span>}
+      </span>
     </div>
   );
 }
 
-function TrustsTab() {
+function HealthTab({ company, onUpdate }: { company: Company; onUpdate: () => void }) {
+  const [healthData, setHealthData] = React.useState<HealthData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [reloading, setReloading] = React.useState(false);
+
+  React.useEffect(() => {
+    loadHealthReport();
+  }, [company.id]);
+
+  const loadHealthReport = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ companies: HealthData["allCompanies"]; summary: HealthData["summary"] }>("/api/v1/companies/health_report");
+      const companyHealth = response.companies?.find((c) => c.id === company.id);
+      setHealthData({
+        company: companyHealth,
+        summary: response.summary,
+        allCompanies: response.companies,
+      });
+    } catch (error) {
+      console.error("Failed to load health report:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReloadFromSpreadsheet = async () => {
+    try {
+      setReloading(true);
+      await api.post("/api/v1/companies/reload");
+      await loadHealthReport();
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to reload:", error);
+    } finally {
+      setReloading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const companyHealth = healthData?.company;
+  const colors = companyHealth ? HEALTH_STATUS_COLORS[companyHealth.health_status] || HEALTH_STATUS_COLORS.critical : HEALTH_STATUS_COLORS.critical;
+
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-medium">Trusts</h3>
-      <p className="text-muted-foreground">Trust relationships coming soon</p>
+    <div className="space-y-6">
+      {/* Actions */}
+      <div className="flex justify-end">
+        <Button onClick={handleReloadFromSpreadsheet} disabled={reloading}>
+          <Loader2 className={cn("h-4 w-4 mr-2", reloading ? "animate-spin" : "hidden")} />
+          {reloading ? "Reloading..." : "Reload from Spreadsheet"}
+        </Button>
+      </div>
+
+      {/* Health Score Card */}
+      {companyHealth && (
+        <div className={cn("rounded-lg p-6 border", colors.bg, colors.border)}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className={cn("text-lg font-medium", colors.text)}>Health Score: {companyHealth.health_score}%</h3>
+              <p className={cn("text-sm mt-1 opacity-75", colors.text)}>
+                Status: {companyHealth.health_status.replace("_", " ").toUpperCase()}
+              </p>
+            </div>
+            <div className={cn("text-5xl font-bold", colors.text)}>{companyHealth.health_score}</div>
+          </div>
+        </div>
+      )}
+
+      {/* Issues */}
+      {companyHealth?.issues && companyHealth.issues.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-800">
+          <h4 className="text-sm font-medium text-red-800 dark:text-red-300 flex items-center mb-3">
+            <XCircle className="h-5 w-5 mr-2" />
+            Critical Issues ({companyHealth.issues.length})
+          </h4>
+          <ul className="space-y-2">
+            {companyHealth.issues.map((issue, idx) => (
+              <li key={idx} className="text-sm text-red-700 dark:text-red-400 flex items-start">
+                <span className="inline-block w-2 h-2 bg-red-500 rounded-full mt-1.5 mr-2" />
+                {issue}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Warnings */}
+      {companyHealth?.warnings && companyHealth.warnings.length > 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-800">
+          <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-300 flex items-center mb-3">
+            <AlertTriangle className="h-5 w-5 mr-2" />
+            Warnings ({companyHealth.warnings.length})
+          </h4>
+          <ul className="space-y-2">
+            {companyHealth.warnings.map((warning, idx) => (
+              <li key={idx} className="text-sm text-yellow-700 dark:text-yellow-400 flex items-start">
+                <span className="inline-block w-2 h-2 bg-yellow-500 rounded-full mt-1.5 mr-2" />
+                {warning}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* All Clear */}
+      {companyHealth?.issues?.length === 0 && companyHealth?.warnings?.length === 0 && (
+        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+          <h4 className="text-sm font-medium text-green-800 dark:text-green-300 flex items-center">
+            <CheckCircle className="h-5 w-5 mr-2" />
+            All checks passed - company data is complete
+          </h4>
+        </div>
+      )}
+
+      {/* Data Completeness */}
+      <Card>
+        <CardContent className="p-4">
+          <h4 className="text-sm font-medium mb-4">Data Completeness</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <CompletionItem label="ACN" completed={companyHealth?.has_acn} />
+            <CompletionItem label="ABN" completed={companyHealth?.has_abn} />
+            <CompletionItem label="TFN" completed={companyHealth?.has_tfn} />
+            <CompletionItem label="Registered Office" completed={companyHealth?.has_registered_office} />
+            <CompletionItem label="Corporate Key" completed={companyHealth?.has_corporate_key} />
+            <CompletionItem label="Directors" completed={(companyHealth?.director_count || 0) > 0} value={companyHealth?.director_count} />
+            <CompletionItem label="Bank Accounts" completed={(companyHealth?.bank_account_count || 0) > 0} value={companyHealth?.bank_account_count} />
+            <CompletionItem label="Shareholders" completed={(companyHealth?.shareholder_count || 0) > 0} value={companyHealth?.shareholder_count} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* All Companies Summary */}
+      {healthData?.summary && (
+        <div className="bg-muted/50 rounded-lg p-4">
+          <h4 className="text-sm font-medium mb-4 flex items-center">
+            <BarChart3 className="h-5 w-5 mr-2" />
+            All Companies Overview
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold">{healthData.summary.total}</div>
+              <div className="text-xs text-muted-foreground">Total</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-green-600">{healthData.summary.excellent}</div>
+              <div className="text-xs text-muted-foreground">Excellent</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{healthData.summary.good}</div>
+              <div className="text-xs text-muted-foreground">Good</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-yellow-600">{healthData.summary.needs_attention}</div>
+              <div className="text-xs text-muted-foreground">Needs Attention</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-red-600">{healthData.summary.critical}</div>
+              <div className="text-xs text-muted-foreground">Critical</div>
+            </div>
+          </div>
+          <div className="mt-4 pt-4 border-t text-center">
+            <div className="text-sm text-muted-foreground">
+              Average Health Score: <span className="font-medium">{healthData.summary.average_score}%</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ConsolidationTab() {
+// Trust icon SVG component
+function TrustIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
-    <div className="space-y-4">
-      <h3 className="text-lg font-medium">Consolidation</h3>
-      <p className="text-muted-foreground">Consolidation information coming soon</p>
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 3L22 20H2L12 3Z" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+interface CompanyGroup {
+  id: number;
+  name: string;
+}
+
+interface TrustCompany {
+  id: number;
+  name: string;
+  abn?: string;
+  entity_type?: string;
+}
+
+function TrustsTab({ company, onUpdate }: { company: Company; onUpdate: () => void }) {
+  const router = useRouter();
+  const [trusts, setTrusts] = React.useState<TrustCompany[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showAddForm, setShowAddForm] = React.useState(false);
+  const [availableTrusts, setAvailableTrusts] = React.useState<TrustCompany[]>([]);
+  const [selectedTrustId, setSelectedTrustId] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [companyGroups, setCompanyGroups] = React.useState<CompanyGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = React.useState(String(company.company_group_id || ""));
+  const [savingGroup, setSavingGroup] = React.useState(false);
+
+  React.useEffect(() => {
+    loadTrusts();
+    loadCompanyGroups();
+  }, [company.id]);
+
+  const loadTrusts = async () => {
+    try {
+      setLoading(true);
+      if (company.is_trustee && company.trust_name) {
+        const response = await api.get<{ companies: TrustCompany[] }>("/api/v1/companies", {
+          params: { search: company.trust_name, company_group_id: company.company_group_id },
+        });
+        const matchingTrust = (response.companies || []).find(
+          (t) => t.name === company.trust_name && ["Trust", "Superfund"].includes(t.entity_type || "")
+        );
+        setTrusts(matchingTrust ? [matchingTrust] : []);
+      } else {
+        setTrusts([]);
+      }
+    } catch (error) {
+      console.error("Failed to load trusts:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAvailableTrusts = async () => {
+    try {
+      const response = await api.get<{ companies: TrustCompany[] }>("/api/v1/companies", {
+        params: { company_group_id: company.company_group_id },
+      });
+      const trustsAndSuperfunds = (response.companies || []).filter((c) =>
+        ["Trust", "Superfund"].includes(c.entity_type || "")
+      );
+      setAvailableTrusts(trustsAndSuperfunds);
+    } catch (error) {
+      console.error("Failed to load available trusts:", error);
+    }
+  };
+
+  const loadCompanyGroups = async () => {
+    try {
+      const response = await api.get<{ data: CompanyGroup[] }>("/api/v1/company_groups");
+      setCompanyGroups(response.data || []);
+    } catch (error) {
+      console.error("Failed to load company groups:", error);
+    }
+  };
+
+  const handleGroupChange = async (newGroupId: string) => {
+    if (newGroupId === selectedGroupId) return;
+    try {
+      setSavingGroup(true);
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: { company_group_id: newGroupId || null },
+      });
+      setSelectedGroupId(newGroupId);
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to update company group:", error);
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleAddTrust = () => {
+    loadAvailableTrusts();
+    setShowAddForm(true);
+  };
+
+  const handleSaveTrust = async () => {
+    if (!selectedTrustId) return;
+    try {
+      setSaving(true);
+      const selectedTrust = availableTrusts.find((t) => t.id === parseInt(selectedTrustId));
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: { is_trustee: true, trust_name: selectedTrust?.name },
+      });
+      setShowAddForm(false);
+      setSelectedTrustId("");
+      onUpdate();
+      loadTrusts();
+    } catch (error) {
+      console.error("Failed to save trust link:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveTrust = async () => {
+    if (!confirm("Remove this company as trustee for this trust?")) return;
+    try {
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: { is_trustee: false, trust_name: "" },
+      });
+      onUpdate();
+      loadTrusts();
+    } catch (error) {
+      console.error("Failed to remove trust link:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Company Group Selector */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <Label className="whitespace-nowrap">Company Group:</Label>
+            <select
+              value={selectedGroupId}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              disabled={savingGroup}
+              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            >
+              <option value="">Select a group...</option>
+              {companyGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+            {savingGroup && <span className="text-sm text-muted-foreground">Saving...</span>}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium">Trusts</h3>
+          <p className="text-sm text-muted-foreground">
+            {company.is_trustee
+              ? "This company acts as trustee for the following trust(s)"
+              : "Make this company a trustee for a trust"}
+          </p>
+        </div>
+        {!company.is_trustee && !showAddForm && (
+          <Button onClick={handleAddTrust}>
+            <Plus className="h-4 w-4 mr-2" />
+            Link Trust
+          </Button>
+        )}
+      </div>
+
+      {/* Add Trust Form */}
+      {showAddForm && (
+        <Card className="bg-muted/50">
+          <CardContent className="p-4">
+            <h4 className="text-sm font-medium mb-3">Select Trust to Link</h4>
+            <div className="space-y-4">
+              <select
+                value={selectedTrustId}
+                onChange={(e) => setSelectedTrustId(e.target.value)}
+                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Select a trust...</option>
+                {availableTrusts.map((trust) => (
+                  <option key={trust.id} value={trust.id}>
+                    {trust.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => { setShowAddForm(false); setSelectedTrustId(""); }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveTrust} disabled={!selectedTrustId || saving}>
+                  {saving ? "Saving..." : "Link Trust"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Trusts List */}
+      {trusts.length === 0 && !showAddForm ? (
+        <div className="text-center py-12 bg-muted/50 rounded-lg border-2 border-dashed">
+          <TrustIcon className="mx-auto h-12 w-12 text-muted-foreground" />
+          <h3 className="mt-2 text-sm font-semibold">No trusts linked</h3>
+          <p className="mt-1 text-sm text-muted-foreground">This company is not a trustee for any trust.</p>
+          <Button className="mt-4" onClick={handleAddTrust}>
+            <Plus className="h-4 w-4 mr-2" />
+            Link Trust
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {trusts.map((trust) => (
+            <Card key={trust.id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 text-purple-600 dark:text-purple-400">
+                      <TrustIcon className="h-8 w-8" />
+                    </div>
+                    <div>
+                      <button
+                        onClick={() => router.push(`/corporate/companies/${trust.id}`)}
+                        className="text-lg font-medium hover:text-primary"
+                      >
+                        {trust.name}
+                      </button>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        {trust.abn && <span>ABN: {trust.abn}</span>}
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                          Trust
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {company.name} acts as trustee for this trust
+                      </p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={handleRemoveTrust} title="Remove trust link">
+                    <X className="h-5 w-5 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Info box */}
+      {company.is_trustee && trusts.length > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            <strong>Note:</strong> In the Company Groups hierarchy view, this company will display as
+            &quot;{company.name} ATF {company.trust_name}&quot; and the trust will appear as a child when expanded.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ConsolidatedCompany {
+  id: number;
+  name: string;
+  code?: string;
+  acn?: string;
+  entity_type?: string;
+  status?: string;
+}
+
+function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: () => void }) {
+  const router = useRouter();
+  const [consolidatedCompanies, setConsolidatedCompanies] = React.useState<ConsolidatedCompany[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showAddForm, setShowAddForm] = React.useState(false);
+  const [availableCompanies, setAvailableCompanies] = React.useState<ConsolidatedCompany[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [companyGroups, setCompanyGroups] = React.useState<CompanyGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = React.useState(String(company.company_group_id || ""));
+  const [savingGroup, setSavingGroup] = React.useState(false);
+
+  React.useEffect(() => {
+    loadConsolidatedCompanies();
+    loadCompanyGroups();
+  }, [company.id]);
+
+  const loadConsolidatedCompanies = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ companies: ConsolidatedCompany[] }>("/api/v1/companies", {
+        params: { consolidation_parent_id: company.id },
+      });
+      setConsolidatedCompanies(response.companies || []);
+    } catch (error) {
+      console.error("Failed to load consolidated companies:", error);
+      setConsolidatedCompanies([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadAvailableCompanies = async () => {
+    try {
+      const response = await api.get<{ companies: ConsolidatedCompany[] }>("/api/v1/companies");
+      const available = (response.companies || []).filter(
+        (c) => c.id !== company.id && !consolidatedCompanies.find((cc) => cc.id === c.id)
+      );
+      setAvailableCompanies(available);
+    } catch (error) {
+      console.error("Failed to load available companies:", error);
+    }
+  };
+
+  const loadCompanyGroups = async () => {
+    try {
+      const response = await api.get<{ data: CompanyGroup[] }>("/api/v1/company_groups");
+      setCompanyGroups(response.data || []);
+    } catch (error) {
+      console.error("Failed to load company groups:", error);
+    }
+  };
+
+  const handleGroupChange = async (newGroupId: string) => {
+    if (newGroupId === selectedGroupId) return;
+    try {
+      setSavingGroup(true);
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: { company_group_id: newGroupId || null },
+      });
+      setSelectedGroupId(newGroupId);
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to update company group:", error);
+    } finally {
+      setSavingGroup(false);
+    }
+  };
+
+  const handleAddCompany = () => {
+    loadAvailableCompanies();
+    setShowAddForm(true);
+  };
+
+  const handleSaveConsolidation = async () => {
+    if (!selectedCompanyId) return;
+    try {
+      setSaving(true);
+      await api.put(`/api/v1/companies/${selectedCompanyId}`, {
+        company: { consolidation_parent_id: company.id, company_group_id: company.company_group_id },
+      });
+      setShowAddForm(false);
+      setSelectedCompanyId("");
+      loadConsolidatedCompanies();
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to add to consolidation:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveConsolidation = async (companyId: number) => {
+    if (!confirm("Remove this company from consolidation?")) return;
+    try {
+      await api.put(`/api/v1/companies/${companyId}`, {
+        company: { consolidation_parent_id: null },
+      });
+      loadConsolidatedCompanies();
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to remove from consolidation:", error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Company Group Selector */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <Label className="whitespace-nowrap">Company Group:</Label>
+            <select
+              value={selectedGroupId}
+              onChange={(e) => handleGroupChange(e.target.value)}
+              disabled={savingGroup}
+              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            >
+              <option value="">Select a group...</option>
+              {companyGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+            {savingGroup && <span className="text-sm text-muted-foreground">Saving...</span>}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium">Consolidation</h3>
+          <p className="text-sm text-muted-foreground">Companies included in this entity&apos;s financial consolidation</p>
+        </div>
+        {!showAddForm && (
+          <Button onClick={handleAddCompany}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Company
+          </Button>
+        )}
+      </div>
+
+      {/* Add Company Form */}
+      {showAddForm && (
+        <Card className="bg-muted/50">
+          <CardContent className="p-4">
+            <h4 className="text-sm font-medium mb-3">Add Company to Consolidation</h4>
+            <div className="space-y-4">
+              <select
+                value={selectedCompanyId}
+                onChange={(e) => setSelectedCompanyId(e.target.value)}
+                className="block w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Select a company...</option>
+                {availableCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} {c.code ? `(${c.code})` : ""}
+                  </option>
+                ))}
+              </select>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => { setShowAddForm(false); setSelectedCompanyId(""); }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveConsolidation} disabled={!selectedCompanyId || saving}>
+                  {saving ? "Adding..." : "Add to Consolidation"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Consolidated Companies List */}
+      {consolidatedCompanies.length === 0 && !showAddForm ? (
+        <div className="text-center py-12 bg-muted/50 rounded-lg border-2 border-dashed">
+          <Building2 className="mx-auto h-12 w-12 text-muted-foreground" />
+          <h3 className="mt-2 text-sm font-semibold">No consolidated companies</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Add subsidiaries that are included in this company&apos;s financial consolidation.
+          </p>
+          <Button className="mt-4" onClick={handleAddCompany}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Company
+          </Button>
+        </div>
+      ) : (
+        <Card>
+          <div className="overflow-hidden">
+            <table className="min-w-full divide-y divide-border">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Company</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">ACN</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {consolidatedCompanies.map((c) => (
+                  <tr key={c.id} className="hover:bg-muted/50">
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => router.push(`/corporate/companies/${c.id}`)}
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        {c.name}
+                      </button>
+                      {c.code && <span className="ml-2 text-xs text-muted-foreground">({c.code})</span>}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{c.acn || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{c.entity_type || "Company"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={c.status === "active" ? "default" : "secondary"} className={c.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" : ""}>
+                        {c.status || "active"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Button variant="ghost" size="icon" onClick={() => handleRemoveConsolidation(c.id)} title="Remove from consolidation">
+                        <X className="h-5 w-5 text-muted-foreground hover:text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Info box */}
+      {consolidatedCompanies.length > 0 && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <p className="text-sm text-blue-800 dark:text-blue-300">
+            <strong>Consolidation Summary:</strong> {consolidatedCompanies.length}{" "}
+            {consolidatedCompanies.length === 1 ? "company" : "companies"} consolidated under {company.name}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -1109,11 +1863,11 @@ export default function CompanyDetailPage() {
               {/* Overview Sub-tab Content */}
               {overviewSubTab === "info" && <InformationTab company={company} />}
               {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
-              {overviewSubTab === "health" && <HealthTab />}
+              {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
               {overviewSubTab === "directors" && <DirectorsTab company={company} />}
               {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
-              {overviewSubTab === "trusts" && <TrustsTab />}
-              {overviewSubTab === "consolidation" && <ConsolidationTab />}
+              {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
+              {overviewSubTab === "consolidation" && <ConsolidationTab company={company} onUpdate={loadCompany} />}
             </div>
           )}
 
