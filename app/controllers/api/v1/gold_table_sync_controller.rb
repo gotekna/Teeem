@@ -78,18 +78,17 @@ class Api::V1::GoldTableSyncController < ApplicationController
   def get_trinity_sql_type(column_type)
     return nil unless column_type
 
-    # Search Trinity for the column type entry by matching title
-    # Trinity entries were created with title like "Mobile - mobile"
-    # Match the exact column_type after the dash to avoid partial matches
-    # (e.g., "number" should not match "Phone number")
+    # Search Trinity for the column type entry by matching metadata.column_type_value
+    # Trinity entries in Chapter 19 have metadata like:
+    #   {"column_type_value": "mobile", "sql_type": "VARCHAR(20)", ...}
     trinity_entry = Trinity.where(category: 'teacher', chapter_number: 19)
-                           .where("title ILIKE ?", "% - #{column_type}")
+                           .where("metadata->>'column_type_value' = ?", column_type)
                            .first
 
-    # Extract SQL type from description (format: "Column type: VARCHAR(20)")
-    if trinity_entry && trinity_entry.description
-      sql_type = trinity_entry.description.match(/Column type: (.+)/)&.captures&.first
-      return sql_type if sql_type
+    # Extract SQL type from metadata (stored in metadata.sql_type)
+    if trinity_entry && trinity_entry.metadata.present?
+      sql_type = trinity_entry.metadata['sql_type']
+      return sql_type if sql_type.present?
     end
 
     nil
