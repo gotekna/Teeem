@@ -42,8 +42,8 @@ export default function ChatPage() {
     markAsRead()
     loadUsers()
 
-    // Refresh presence status every 30 seconds
-    const interval = setInterval(loadUsers, 30000)
+    // Refresh presence status every 10 seconds for more responsive updates
+    const interval = setInterval(loadUsers, 10000)
     return () => clearInterval(interval)
   }, [])
 
@@ -74,21 +74,33 @@ export default function ChatPage() {
     { id: 'support', name: 'support', description: 'Support requests' }
   ]
 
-  const selectChannel = (channel) => {
+  const selectChannel = async (channel) => {
     setSelectedConversation({
       type: 'channel',
       id: channel.id,
       name: `#${channel.name}`
     })
+    // Mark messages as read when selecting a conversation
+    try {
+      await api.post('/api/v1/chat_messages/mark_as_read', {})
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error)
+    }
   }
 
-  const selectUser = (user) => {
+  const selectUser = async (user) => {
     setSelectedConversation({
       type: 'direct',
       id: user.id,
       name: user.name,
       email: user.email
     })
+    // Mark messages as read when selecting a conversation
+    try {
+      await api.post('/api/v1/chat_messages/mark_as_read', {})
+    } catch (error) {
+      console.error('Failed to mark messages as read:', error)
+    }
   }
 
   return (
