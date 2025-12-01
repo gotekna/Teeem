@@ -2576,27 +2576,30 @@ export default function TeeemTableView({
           isDefault: response.view.is_default || false
         }
 
+        // Use functional form of setState to avoid stale closure issues
         // Insert new view at position 1 (second position) and shift others down
-        const reorderedFilters = [...savedFilters]
-        reorderedFilters.splice(1, 0, newView) // Insert at index 1
+        setSavedFilters(prevFilters => {
+          const reorderedFilters = [...prevFilters]
+          reorderedFilters.splice(1, 0, newView) // Insert at index 1
 
-        // Update display_order for all views
-        const updatedFilters = reorderedFilters.map((v, idx) => ({
-          ...v,
-          display_order: idx
-        }))
+          // Update display_order for all views
+          const updatedFilters = reorderedFilters.map((v, idx) => ({
+            ...v,
+            display_order: idx
+          }))
 
-        setSavedFilters(updatedFilters)
+          // Save new order to API in background
+          const orders = updatedFilters.map(v => ({
+            id: v.id,
+            display_order: v.display_order
+          }))
 
-        // Save new order to API in background
-        const orders = updatedFilters.map(v => ({
-          id: v.id,
-          display_order: v.display_order
-        }))
+          api.post('/api/v1/foundation_views/reorder', { orders })
+            .then(() => console.log('[Save View] View order updated - new view at position 2'))
+            .catch(err => console.error('[Save View] Failed to save view order:', err))
 
-        api.post('/api/v1/foundation_views/reorder', { orders })
-          .then(() => console.log('[Save View] View order updated - new view at position 2'))
-          .catch(err => console.error('[Save View] Failed to save view order:', err))
+          return updatedFilters
+        })
 
         return newView
       } else {
@@ -2659,7 +2662,8 @@ export default function TeeemTableView({
           ? response.view.group_by_columns
           : (response.view.group_by_column ? [response.view.group_by_column] : [])
 
-        setSavedFilters(savedFilters.map(v =>
+        // Use functional form of setState to avoid stale closure issues
+        setSavedFilters(prevFilters => prevFilters.map(v =>
           v.id === viewId ? {
             id: response.view.id,
             name: response.view.name,
@@ -2761,9 +2765,8 @@ export default function TeeemTableView({
 
       if (response.success) {
         console.log('[Delete View] Successfully deleted, updating state')
-        console.log('[Delete View] Before:', savedFilters.length, 'views')
-        setSavedFilters(savedFilters.filter(v => v.id !== viewId))
-        console.log('[Delete View] After: should have', savedFilters.filter(v => v.id !== viewId).length, 'views')
+        // Use functional form of setState to avoid stale closure issues
+        setSavedFilters(prevFilters => prevFilters.filter(v => v.id !== viewId))
         return true
       } else {
         console.error('Failed to delete view:', response.error)
