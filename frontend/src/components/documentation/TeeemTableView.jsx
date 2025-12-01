@@ -5013,8 +5013,7 @@ export default function TeeemTableView({
       `}</style>
       {/* Full-width table container */}
       <div
-        className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0"
-        style={{ overflow: 'clip' }}
+        className="flex-1 flex flex-col bg-white dark:bg-gray-900 min-h-0 overflow-hidden"
       >
 
         {/* Edit Mode Banner - Shows when edit mode is active */}
@@ -5786,8 +5785,7 @@ export default function TeeemTableView({
 
         {/* Main content area - filters at top for now until code can be restructured */}
         <div
-          className="flex-1 flex flex-col min-h-0"
-          style={{ overflow: 'clip' }}
+          className="flex-1 flex flex-col min-h-0 overflow-hidden"
         >
 
         {/* Filters row */}
