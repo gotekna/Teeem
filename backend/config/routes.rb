@@ -992,6 +992,7 @@ Rails.application.routes.draw do
       resources :foundations do
         member do
           get :health  # GET /api/v1/foundations/:id/health - Health checks for this table
+          get :schema  # GET /api/v1/foundations/:id/schema - Column schema for this table
         end
 
         # Column management
