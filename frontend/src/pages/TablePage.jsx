@@ -423,11 +423,13 @@ export default function TablePage({ embedded = false }) {
     let simulatedProgress = 0 // Track simulated progress for download
 
     try {
-      // For Price Books table (ID: 205, slug: price-books), load ALL items with full data
+      // For certain tables, load ALL items with full data (no pagination)
       const isPriceBooks = id === '205' || id === 'price-books'
+      const isContacts = id === 'contacts' // System table for contacts - load all for accurate grouping counts
+      const shouldLoadAll = isPriceBooks || isContacts // Tables that should load all records
 
       // Check for preloaded data in sessionStorage (Price Books only)
-      if (isPriceBooks && !append) {
+      if (shouldLoadAll && !append) {
         const preloadedData = sessionStorage.getItem('preloaded_table_price_books')
         if (preloadedData) {
           try {
@@ -467,7 +469,7 @@ export default function TablePage({ embedded = false }) {
         // Don't show loading screen - data loads fast enough
         setLoading(false)
       }
-      const perPage = isPriceBooks && !append ? 10000 : PAGE_SIZE // Load all items for Price Books
+      const perPage = shouldLoadAll && !append ? 10000 : PAGE_SIZE // Load all items for PriceBooks/Contacts
 
       // PHASE 2/3: Use minimal fields on initial load for better performance
       const useMinimalFields = !append && page === 1 // First page only
@@ -575,8 +577,8 @@ export default function TablePage({ embedded = false }) {
       setTotalPages(response.pagination?.total_pages || 1)
       setTotalCount(response.pagination?.total_count || 0)
 
-      // For Price Books, disable infinite scroll since we load everything at once
-      if (isPriceBooks && !append) {
+      // For tables that load all records, disable infinite scroll
+      if (shouldLoadAll && !append) {
         setHasMore(false)
       } else {
         setHasMore(page < (response.pagination?.total_pages || 1))
@@ -729,9 +731,10 @@ export default function TablePage({ embedded = false }) {
   // Called by TeeemTableView when search term changes (with 300ms debounce)
   // searchAllColumns: when true, searches all text columns instead of just marked searchable ones
   const handleServerSearch = useCallback(async (searchTerm, searchAllColumns = false) => {
-    // Only enable server-side search for tables that need it (not Price Books which loads all)
+    // Only enable server-side search for tables that need it (not tables that load all records)
     const isPriceBooks = id === '205' || id === 'price-books'
-    if (isPriceBooks) return  // Price Books loads all records, use client-side search
+    const isContacts = id === 'contacts'
+    if (isPriceBooks || isContacts) return  // These tables load all records, use client-side search
 
     const searchStartTime = performance.now()
     console.log(`[Search] handleServerSearch called: "${searchTerm}"`)
