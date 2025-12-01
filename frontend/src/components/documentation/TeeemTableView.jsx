@@ -978,7 +978,8 @@ export default function TeeemTableView({
         }
       } catch (error) {
         console.error('Error loading saved views:', error)
-        setSavedFilters([])
+        // Don't clear savedFilters on error - keep showing whatever views we had
+        // This prevents the "views appear then disappear" bug when auth fails
       }
     }
 

@@ -1,5 +1,6 @@
 class ApplicationController < ActionController::API
   before_action :authorize_request
+  after_action :update_last_seen
 
   # Global exception handlers
   rescue_from StandardError, with: :handle_standard_error
@@ -35,6 +36,15 @@ class ApplicationController < ActionController::API
     unless current_user&.admin?
       render json: { error: 'Unauthorized. Admin access required.' }, status: :forbidden
     end
+  end
+
+  # Update user's last_seen_at timestamp (throttled to once per minute to reduce DB writes)
+  def update_last_seen
+    return unless @current_user
+    return if @current_user.last_seen_at && @current_user.last_seen_at > 1.minute.ago
+
+    # Use update_column to skip callbacks and validations for performance
+    @current_user.update_column(:last_seen_at, Time.current)
   end
 
   # Exception handlers

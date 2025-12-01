@@ -2,14 +2,14 @@ class Api::V1::UsersController < ApplicationController
   # GET /api/v1/users
   # Returns list of all users for chat/contact purposes
   def index
-    @users = User.select(:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at).order(:name)
-    render json: @users.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at])
+    @users = User.select(:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at, :last_seen_at).order(:name)
+    render json: @users.map { |user| user_with_presence(user) }
   end
 
   # GET /api/v1/users/:id
   def show
     @user = User.find(params[:id])
-    render json: @user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at])
+    render json: user_with_presence(@user)
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'User not found' }, status: :not_found
   end
@@ -90,5 +90,23 @@ class Api::V1::UsersController < ApplicationController
 
   def user_params
     params.require(:user).permit(:name, :email, :mobile_phone, :role, assigned_roles: [])
+  end
+
+  # Returns user data with presence status
+  def user_with_presence(user)
+    last_seen = user.last_seen_at
+    presence_status = if last_seen.nil?
+                        'offline'
+                      elsif last_seen > 5.minutes.ago
+                        'online'
+                      elsif last_seen > 30.minutes.ago
+                        'away'
+                      else
+                        'offline'
+                      end
+
+    user.as_json(only: [:id, :name, :email, :mobile_phone, :role, :assigned_roles, :last_login_at, :last_seen_at]).merge(
+      presence_status: presence_status
+    )
   end
 end

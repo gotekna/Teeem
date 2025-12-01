@@ -2735,8 +2735,8 @@ export default function AppLayout({ children }) {
         </div>
 
         {/* Main content */}
-        <main className="flex-1 flex flex-col min-h-0 overflow-auto">
-          <div className="flex-1 flex flex-col min-h-0">
+        <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {children}
           </div>
         </main>
