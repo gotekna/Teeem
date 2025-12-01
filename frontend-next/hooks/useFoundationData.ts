@@ -1,8 +1,25 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
+
+/**
+ * API column format (what the backend returns)
+ */
+interface ApiColumn {
+  id: number;
+  foundation_id?: number;
+  column_name: string;
+  name: string;
+  column_type: string;
+  description?: string;
+  available_choices?: string[];
+  lookup_foundation_id?: number;
+  lookup_display_column?: string;
+  required?: boolean;
+  is_unique?: boolean;
+}
 
 /**
  * Foundation data from the API
@@ -14,7 +31,7 @@ export interface Foundation {
   model_class?: string;
   database_table_name?: string;
   api_endpoint?: string;
-  columns: TableColumn[];
+  columns: ApiColumn[];
 }
 
 /**
@@ -109,8 +126,41 @@ export function useFoundationData(
     }
   }, [autoLoad, loadData]);
 
-  // Extract columns from foundation
-  const columns = foundation?.columns || [];
+  // System columns to hide
+  const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
+
+  // Transform API columns to TeeemTableView format
+  const columns: TableColumn[] = useMemo(() => {
+    if (!foundation?.columns) return [];
+
+    const tableColumns: TableColumn[] = [
+      { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 40 }
+    ];
+
+    foundation.columns.forEach((col) => {
+      // Skip system columns
+      if (SYSTEM_COLUMNS.includes(col.column_name)) return;
+
+      tableColumns.push({
+        id: col.id,
+        foundation_id: col.foundation_id || foundation.id,
+        key: col.column_name, // Map column_name to key
+        label: col.name,
+        column_type: col.column_type,
+        resizable: true,
+        sortable: true,
+        filterable: true,
+        width: getDefaultWidth(col.column_name, col.column_type),
+        choices: col.available_choices,
+        lookup_config: col.lookup_foundation_id ? {
+          target_table_id: col.lookup_foundation_id,
+          display_column: col.lookup_display_column,
+        } : undefined,
+      });
+    });
+
+    return tableColumns;
+  }, [foundation]);
 
   return {
     foundation,
@@ -120,6 +170,38 @@ export function useFoundationData(
     error,
     refresh: loadData,
   };
+}
+
+/**
+ * Get default column width based on column name and type
+ */
+function getDefaultWidth(columnName: string, columnType: string): number {
+  // Specific column overrides
+  if (columnName === 'id') return 60;
+  if (columnName === 'name' || columnName === 'title') return 250;
+  if (columnName === 'ted_number') return 100;
+  if (columnName === 'status' || columnName === 'job_status') return 120;
+  if (columnName === 'job_type') return 120;
+  if (columnName === 'code') return 80;
+  if (columnName.includes('email')) return 200;
+  if (columnName.includes('phone')) return 130;
+
+  // Type-based defaults
+  switch (columnType) {
+    case 'currency':
+    case 'percentage':
+      return 100;
+    case 'date':
+    case 'date_and_time':
+      return 120;
+    case 'boolean':
+      return 80;
+    case 'multiple_lines_text':
+    case 'long_text':
+      return 300;
+    default:
+      return 150;
+  }
 }
 
 export default useFoundationData;

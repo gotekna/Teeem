@@ -1004,7 +1004,7 @@ export function DeveloperToolsTab() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
+            <div className="border rounded-lg max-h-96 overflow-y-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
