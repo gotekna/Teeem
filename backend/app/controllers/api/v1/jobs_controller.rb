@@ -17,12 +17,10 @@ module Api
                        .distinct
         end
 
-        # Filter by job_status.name if provided (default to Active jobs, unless filtering by contact)
-        # Note: The frontend sends `status=Active` but we filter via the job_status association
-        status_filter = params[:status]
-        status_filter ||= "Active" unless params[:contact_id].present?
-        if status_filter.present?
-          @jobs = @jobs.joins(:job_status).where(job_status: { name: status_filter })
+        # Filter by job_status.name if provided
+        # Note: No default filter - frontend-next handles filtering via saved views
+        if params[:status].present?
+          @jobs = @jobs.joins(:job_status).where(job_status: { name: params[:status] })
         end
 
         # Filter by location presence if requested
