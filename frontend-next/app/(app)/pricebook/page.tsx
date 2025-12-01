@@ -320,7 +320,7 @@ export default function PriceBookPage() {
                       {item.brand || <span className="text-muted-foreground">-</span>}
                     </TableCell>
                     <TableCell className="text-right font-mono">
-                      ${item.current_price?.toFixed(2) || "0.00"}
+                      ${Number(item.current_price || 0).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {item.unit_of_measure}

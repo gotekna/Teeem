@@ -30,16 +30,20 @@ import { api } from "@/lib/api";
 
 interface Contact {
   id: number;
-  name: string;
-  email?: string;
-  phone?: string;
-  company?: string;
-  type: "customer" | "supplier" | "both";
-  xero_contact_id?: string;
-  jobs_count: number;
-  purchase_orders_count: number;
-  completeness_score: number;
-  created_at: string;
+  name?: string;
+  full_name?: string;
+  email?: string | null;
+  phone?: string | null;
+  mobile_phone?: string | null;
+  company?: string | null;
+  type?: "customer" | "supplier" | "both" | string | null;
+  entity_type?: string | null;
+  xero_contact_id?: string | null;
+  xero_id?: string | null;
+  jobs_count?: number;
+  purchase_orders_count?: number;
+  completeness_score?: number;
+  created_at?: string;
 }
 
 interface MergeContactsModalProps {
@@ -49,7 +53,8 @@ interface MergeContactsModalProps {
   onMergeComplete: () => void;
 }
 
-function getInitials(name: string): string {
+function getInitials(name: string | undefined | null): string {
+  if (!name) return "?";
   return name
     .split(" ")
     .map((n) => n[0])
@@ -58,7 +63,8 @@ function getInitials(name: string): string {
     .slice(0, 2);
 }
 
-function getCompletenessColor(score: number): string {
+function getCompletenessColor(score: number | undefined | null): string {
+  if (!score) return "text-gray-400";
   if (score >= 80) return "text-green-600";
   if (score >= 50) return "text-yellow-600";
   return "text-red-600";
@@ -79,10 +85,12 @@ export function MergeContactsModal({
     if (contacts.length > 0 && !primaryContactId) {
       const sorted = [...contacts].sort((a, b) => {
         // Prefer contacts with Xero connection
-        if (a.xero_contact_id && !b.xero_contact_id) return -1;
-        if (!a.xero_contact_id && b.xero_contact_id) return 1;
+        const aXero = a.xero_contact_id || a.xero_id;
+        const bXero = b.xero_contact_id || b.xero_id;
+        if (aXero && !bXero) return -1;
+        if (!aXero && bXero) return 1;
         // Then by completeness score
-        return b.completeness_score - a.completeness_score;
+        return (b.completeness_score || 0) - (a.completeness_score || 0);
       });
       setPrimaryContactId(sorted[0].id);
     }
@@ -228,8 +236,8 @@ export function MergeContactsModal({
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="h-4 w-4 text-green-600" />
-                  Merge {secondaryContacts.reduce((sum, c) => sum + c.jobs_count, 0)} jobs
-                  and {secondaryContacts.reduce((sum, c) => sum + c.purchase_orders_count, 0)} POs
+                  Merge {secondaryContacts.reduce((sum, c) => sum + (c.jobs_count || 0), 0)} jobs
+                  and {secondaryContacts.reduce((sum, c) => sum + (c.purchase_orders_count || 0), 0)} POs
                 </li>
                 <li className="flex items-center gap-2">
                   <Trash2 className="h-4 w-4 text-red-600" />

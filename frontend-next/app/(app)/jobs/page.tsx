@@ -1,29 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Pill } from "@/components/ui/pill";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { TeeemTableView } from "@/components/table";
+import type { TableColumn, TableRow, SavedView } from "@/components/table/types";
 import { api } from "@/lib/api";
 import { Loader } from "@/components/ui/loader";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus } from "lucide-react";
 
 interface Job {
   id: number;
   title: string;
   ted_number: string | null;
   stage: string | null;
+  job_status: string | null;
+  job_type: string | null;
   contract_value: number | null;
   live_profit: number | null;
   profit_percentage: number | null;
@@ -37,43 +32,172 @@ interface Job {
   updated_at: string;
 }
 
-const stageColors: Record<string, "success" | "warning" | "error" | "info" | "default"> = {
-  "Deposit": "info",
-  "Slab": "info",
-  "Frame": "warning",
-  "Lockup": "warning",
-  "Fixtures": "success",
-  "Completion": "success",
-  "Quote": "default",
-};
+interface JobsResponse {
+  jobs: Job[];
+  total: number;
+  columns?: TableColumn[];
+  views?: SavedView[];
+}
 
 export default function JobsPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [columns, setColumns] = useState<TableColumn[]>([]);
+  const [views, setViews] = useState<SavedView[]>([]);
+  const [serverSearchLoading, setServerSearchLoading] = useState(false);
+
+  // Jobs table is foundation ID 204
+  const JOBS_TABLE_ID = 204;
 
   useEffect(() => {
-    const loadJobs = async () => {
-      try {
-        const response = await api.get<{ jobs: Job[]; total: number }>('/api/v1/jobs');
-        setJobs(response.jobs || []);
-      } catch (error) {
-        console.error("Failed to load jobs:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadJobs();
   }, []);
 
-  const filteredJobs = jobs.filter(
-    (job) =>
-      job.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.ted_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      job.site_supervisor_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const loadJobs = async (searchTerm?: string, searchAllColumns?: boolean) => {
+    try {
+      if (searchTerm) {
+        setServerSearchLoading(true);
+      } else {
+        setLoading(true);
+      }
+
+      const params: Record<string, string | number | boolean> = {};
+      if (searchTerm) {
+        params.search = searchTerm;
+        if (searchAllColumns) {
+          params.search_all = true;
+        }
+      }
+
+      const response = await api.get<JobsResponse>("/api/v1/jobs", { params });
+      setJobs(response.jobs || []);
+
+      // Load columns if not already loaded
+      if (!columns.length && response.columns) {
+        setColumns(response.columns);
+      }
+
+      // Load views if provided
+      if (response.views) {
+        setViews(response.views);
+      }
+    } catch (error) {
+      console.error("Failed to load jobs:", error);
+    } finally {
+      setLoading(false);
+      setServerSearchLoading(false);
+    }
+  };
+
+  // Define columns for the jobs table
+  const tableColumns: TableColumn[] = useMemo(() => {
+    // If columns came from API, use those
+    if (columns.length > 0) {
+      return [
+        { key: "select", label: "", width: 40, sortable: false, filterable: false },
+        ...columns,
+        { key: "actions", label: "Actions", width: 100, sortable: false, filterable: false },
+      ];
+    }
+
+    // Default columns
+    return [
+      { key: "select", label: "", width: 40, sortable: false, filterable: false },
+      { key: "id", label: "ID", width: 60, sortable: true, filterable: true, column_type: "number" },
+      { key: "ted_number", label: "TED #", width: 100, sortable: true, filterable: true, column_type: "single_line_text" },
+      { key: "title", label: "Job Title", width: 250, sortable: true, filterable: true, column_type: "single_line_text" },
+      { key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
+      { key: "job_status", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
+      { key: "stage", label: "Stage", width: 100, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
+      { key: "location", label: "Location", width: 200, sortable: true, filterable: true, column_type: "single_line_text" },
+      { key: "site_supervisor_name", label: "Supervisor", width: 150, sortable: true, filterable: true, column_type: "single_line_text" },
+      { key: "contract_value", label: "Contract Value", width: 130, sortable: true, filterable: true, column_type: "currency" },
+      { key: "start_date", label: "Start Date", width: 120, sortable: true, filterable: true, column_type: "date" },
+      { key: "actions", label: "Actions", width: 100, sortable: false, filterable: false },
+    ];
+  }, [columns]);
+
+  // Convert jobs to table rows
+  const tableRows: TableRow[] = useMemo(() => {
+    return jobs.map((job) => ({
+      ...job,
+      id: job.id,
+    }));
+  }, [jobs]);
+
+  // Calculate stats
+  const stats = useMemo(() => {
+    const inProgress = jobs.filter(
+      (j) => j.stage === "Slab" || j.stage === "Frame" || j.stage === "Lockup"
+    ).length;
+    const completed = jobs.filter((j) => j.stage === "Completion").length;
+    const totalValue = jobs.reduce((sum, j) => sum + (j.contract_value || 0), 0);
+
+    return { total: jobs.length, inProgress, completed, totalValue };
+  }, [jobs]);
+
+  // Handlers
+  const handleView = (row: TableRow) => {
+    router.push(`/jobs/${row.id}`);
+  };
+
+  const handleEdit = (row: TableRow) => {
+    router.push(`/jobs/${row.id}?edit=true`);
+  };
+
+  const handleDelete = async (row: TableRow) => {
+    if (!confirm(`Are you sure you want to delete this job?`)) return;
+
+    try {
+      await api.delete(`/api/v1/jobs/${row.id}`);
+      setJobs((prev) => prev.filter((j) => j.id !== row.id));
+    } catch (error) {
+      console.error("Failed to delete job:", error);
+      alert("Failed to delete job");
+    }
+  };
+
+  const handleBulkDelete = async (ids: (number | string)[]) => {
+    if (!confirm(`Are you sure you want to delete ${ids.length} jobs?`)) return;
+
+    try {
+      await Promise.all(ids.map((id) => api.delete(`/api/v1/jobs/${id}`)));
+      setJobs((prev) => prev.filter((j) => !ids.includes(j.id)));
+    } catch (error) {
+      console.error("Failed to delete jobs:", error);
+      alert("Failed to delete some jobs");
+    }
+  };
+
+  const handleServerSearch = (term: string, searchAllColumns: boolean) => {
+    loadJobs(term, searchAllColumns);
+  };
+
+  const handleExport = () => {
+    // Export jobs to CSV
+    const headers = ["ID", "TED #", "Title", "Type", "Status", "Stage", "Location", "Supervisor", "Contract Value"];
+    const rows = jobs.map((j) => [
+      j.id,
+      j.ted_number || "",
+      j.title,
+      j.job_type || "",
+      j.job_status || "",
+      j.stage || "",
+      j.location || "",
+      j.site_supervisor_name || "",
+      j.contract_value || "",
+    ]);
+
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `jobs-export-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   if (loading) {
     return (
@@ -84,7 +208,7 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full gap-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -105,14 +229,14 @@ export default function JobsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono">{jobs.length}</div>
+            <div className="text-2xl font-bold font-mono">{stats.total}</div>
             <p className="text-xs text-muted-foreground">Total Jobs</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold font-mono text-blue-600">
-              {jobs.filter((j) => j.stage === "Slab" || j.stage === "Frame").length}
+              {stats.inProgress}
             </div>
             <p className="text-xs text-muted-foreground">In Progress</p>
           </CardContent>
@@ -120,7 +244,7 @@ export default function JobsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold font-mono text-green-600">
-              {jobs.filter((j) => j.stage === "Completion").length}
+              {stats.completed}
             </div>
             <p className="text-xs text-muted-foreground">Completed</p>
           </CardContent>
@@ -128,83 +252,33 @@ export default function JobsPage() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold font-mono text-purple-600">
-              ${jobs.reduce((sum, j) => sum + (j.contract_value || 0), 0).toLocaleString()}
+              ${stats.totalValue.toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">Total Value</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search jobs..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Button variant="outline" size="icon">
-          <Filter className="h-4 w-4" />
-        </Button>
+      {/* Table */}
+      <div className="flex-1 min-h-0">
+        <TeeemTableView
+          entries={tableRows}
+          columns={tableColumns}
+          foundationId="jobs"
+          foundationIdNumeric={JOBS_TABLE_ID}
+          tableName="Jobs"
+          onView={handleView}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
+          onServerSearch={handleServerSearch}
+          serverSearchLoading={serverSearchLoading}
+          enableExport={true}
+          onExport={handleExport}
+          preloadedViews={views}
+          onRefresh={() => loadJobs()}
+        />
       </div>
-
-      {/* Jobs Table */}
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>TED #</TableHead>
-              <TableHead>Title / Location</TableHead>
-              <TableHead>Supervisor</TableHead>
-              <TableHead>Stage</TableHead>
-              <TableHead className="text-right">Contract Value</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredJobs.map((job) => (
-              <TableRow key={job.id}>
-                <TableCell className="font-mono">{job.ted_number || "-"}</TableCell>
-                <TableCell>
-                  <Link
-                    href={`/jobs/${job.id}`}
-                    className="font-medium hover:underline"
-                  >
-                    {job.title}
-                  </Link>
-                  <p className="text-xs text-muted-foreground mt-1">{job.location}</p>
-                </TableCell>
-                <TableCell>
-                  {job.site_supervisor_name || "-"}
-                  {job.site_supervisor_phone && (
-                    <p className="text-xs text-muted-foreground">{job.site_supervisor_phone}</p>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {job.stage ? (
-                    <Pill variant={stageColors[job.stage] || "default"} size="sm">
-                      {job.stage}
-                    </Pill>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right font-mono">
-                  {job.contract_value ? `$${job.contract_value.toLocaleString()}` : "-"}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/jobs/${job.id}`}>View</Link>
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
     </div>
   );
 }

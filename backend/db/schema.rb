@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_01_015628) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_01_064034) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1667,6 +1667,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_015628) do
     t.index ["subcontractor_account_id"], name: "index_kudos_events_on_subcontractor_account_id"
   end
 
+  create_table "leads", force: :cascade do |t|
+    t.string "lead_number"
+    t.string "title"
+    t.string "status", default: "new"
+    t.string "source"
+    t.string "client_name"
+    t.string "client_email"
+    t.string "client_phone"
+    t.string "client_company"
+    t.string "site_address"
+    t.string "site_suburb"
+    t.string "site_state"
+    t.string "site_postcode"
+    t.string "lot_plan_number"
+    t.string "project_type"
+    t.string "dwelling_type"
+    t.integer "number_of_storeys"
+    t.decimal "estimated_floor_area", precision: 10, scale: 2
+    t.decimal "estimated_value", precision: 12, scale: 2, default: "0.0"
+    t.date "expected_start_date"
+    t.string "decision_timeline"
+    t.text "notes"
+    t.bigint "job_id"
+    t.integer "contract_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_leads_on_job_id"
+    t.index ["lead_number"], name: "index_leads_on_lead_number", unique: true
+    t.index ["status"], name: "index_leads_on_status"
+  end
+
   create_table "maintenance_requests", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "supplier_contact_id"
@@ -3262,8 +3293,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_015628) do
     t.index ["wphs_appointee"], name: "index_users_on_wphs_appointee"
   end
 
-  create_table "versions", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "versions", force: :cascade do |t|
     t.integer "current_version", default: 101, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -3784,6 +3814,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_015628) do
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"
+  add_foreign_key "leads", "jobs"
   add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
   add_foreign_key "maintenance_requests", "jobs"
   add_foreign_key "maintenance_requests", "purchase_orders"

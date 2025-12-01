@@ -50,7 +50,7 @@ export default function NewJobPage() {
     setLoading(true);
 
     try {
-      const response = await api.post("/api/v1/jobs", {
+      const response = await api.post<{ id: number }>("/api/v1/jobs", {
         job: {
           ...formData,
           contract_value: formData.contract_value ? parseFloat(formData.contract_value) : 0,
@@ -58,7 +58,7 @@ export default function NewJobPage() {
       });
 
       // Navigate to the new job
-      router.push(`/jobs/${response.id || 1}`);
+      router.push(`/jobs/${response?.id || 1}`);
     } catch (error) {
       console.error("Failed to create job:", error);
       // For demo purposes, navigate to jobs list

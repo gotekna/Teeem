@@ -50,11 +50,11 @@ export default function NewContactPage() {
     setLoading(true);
 
     try {
-      const response = await api.post("/api/v1/contacts", {
+      const response = await api.post<{ id: number }>("/api/v1/contacts", {
         contact: formData,
       });
 
-      router.push(`/contacts/${response.id || ""}`);
+      router.push(`/contacts/${response?.id || ""}`);
     } catch (error) {
       console.error("Failed to create contact:", error);
       router.push("/contacts");
