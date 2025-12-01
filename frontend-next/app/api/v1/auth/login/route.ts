@@ -1,58 +1,21 @@
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  role: string;
-}
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = body;
 
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email is required' },
-        { status: 400 }
-      );
-    }
-
-    // Find user by email (dev mode - no password check)
-    const users = await query<User>(`
-      SELECT id, email, name, role
-      FROM users
-      WHERE email = $1
-      LIMIT 1
-    `, [email]);
-
-    if (users.length === 0) {
-      // In dev mode, just return the first user
-      const anyUser = await query<User>(`
-        SELECT id, email, name, role
-        FROM users
-        LIMIT 1
-      `);
-
-      if (anyUser.length === 0) {
-        return NextResponse.json(
-          { error: 'No users found in database' },
-          { status: 401 }
-        );
-      }
-
-      return NextResponse.json({
-        user: anyUser[0],
-        token: 'dev-token-' + anyUser[0].id,
-      });
-    }
-
-    return NextResponse.json({
-      user: users[0],
-      token: 'dev-token-' + users[0].id,
+    const response = await fetch(`${BACKEND_URL}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
     });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Auth login API error:', error);
     return NextResponse.json(

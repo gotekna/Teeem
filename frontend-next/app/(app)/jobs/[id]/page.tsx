@@ -37,6 +37,9 @@ import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
+import { RainLogTab } from "@/components/jobs/RainLogTab";
+import { JobDocumentsTab } from "@/components/jobs/JobDocumentsTab";
+import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -129,22 +132,22 @@ export default function JobDetailPage() {
   const [loading, setLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState("overview");
 
-  React.useEffect(() => {
-    const fetchJob = async () => {
-      try {
-        const data = await api.get<Job>(`/api/v1/jobs/${jobId}`);
-        setJob(data);
-      } catch (error) {
-        console.error("Failed to fetch job:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (jobId) {
-      fetchJob();
+  const loadJob = React.useCallback(async () => {
+    try {
+      const data = await api.get<Job>(`/api/v1/jobs/${jobId}`);
+      setJob(data);
+    } catch (error) {
+      console.error("Failed to fetch job:", error);
+    } finally {
+      setLoading(false);
     }
   }, [jobId]);
+
+  React.useEffect(() => {
+    if (jobId) {
+      loadJob();
+    }
+  }, [jobId, loadJob]);
 
   if (loading) {
     return (
@@ -398,15 +401,7 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="purchase-orders" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Purchase Orders</CardTitle>
-              <Button>Create PO</Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Purchase orders will be displayed here.</p>
-            </CardContent>
-          </Card>
+          <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.title} />
         </TabsContent>
 
         <TabsContent value="estimates" className="mt-6">
@@ -603,28 +598,11 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="rain-log" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Rain Log</CardTitle>
-              <Button>Add Entry</Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Rain log entries will be displayed here.</p>
-            </CardContent>
-          </Card>
+          <RainLogTab jobId={job.id} />
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Documents</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Documents and OneDrive integration will be displayed here.
-              </p>
-            </CardContent>
-          </Card>
+          <JobDocumentsTab jobId={job.id} jobTitle={job.title} />
         </TabsContent>
 
         <TabsContent value="coms" className="mt-6">

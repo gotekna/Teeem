@@ -241,7 +241,9 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
         },
       });
 
-      setContacts([...contacts, response]);
+      if (response) {
+        setContacts([...contacts, response]);
+      }
       setAddingRole(null);
       setSearchQuery("");
       setSearchResults([]);
@@ -263,7 +265,9 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
         },
       });
 
-      setContacts([...contacts, response]);
+      if (response) {
+        setContacts([...contacts, response]);
+      }
       setAddingRole(null);
       onUpdate?.();
     } catch (err) {

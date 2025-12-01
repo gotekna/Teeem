@@ -1,32 +1,21 @@
-import { NextResponse } from 'next/server';
-import { query } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  role: string;
-  created_at: string;
-}
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Get the first user for dev mode
-    // In production, this would validate the JWT token from the Authorization header
-    const users = await query<User>(`
-      SELECT id, email, name, role, created_at
-      FROM users
-      LIMIT 1
-    `);
+    const authHeader = request.headers.get('authorization');
 
-    if (users.length === 0) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
-    }
+    const response = await fetch(`${BACKEND_URL}/api/v1/auth/me`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader ? { 'Authorization': authHeader } : {}),
+      },
+    });
 
-    return NextResponse.json({ user: users[0] });
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Auth me API error:', error);
     return NextResponse.json(

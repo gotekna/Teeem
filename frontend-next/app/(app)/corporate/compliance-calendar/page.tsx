@@ -109,7 +109,7 @@ export default function ComplianceCalendarPage() {
     try {
       setGenerating(true);
       const response = await api.post<{ generated: number }>("/api/v1/compliance_calendar/generate");
-      alert(`Generated ${response.generated} compliance items`);
+      alert(`Generated ${response?.generated || 0} compliance items`);
       loadCalendarData();
     } catch (error) {
       console.error("Failed to generate compliance items:", error);

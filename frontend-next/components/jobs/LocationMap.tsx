@@ -67,7 +67,7 @@ export function LocationMap({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searching, setSearching] = useState(false);
   const [leafletReady, setLeafletReady] = useState(false);
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Default to Brisbane if no location
   const DEFAULT_POSITION: [number, number] = [-27.4698, 153.0251];

@@ -913,9 +913,11 @@ function TrustsTab({ company, onUpdate }: { company: Company; onUpdate: () => vo
     try {
       setLoading(true);
       if (company.is_trustee && company.trust_name) {
-        const response = await api.get<{ companies: TrustCompany[] }>("/api/v1/companies", {
-          params: { search: company.trust_name, company_group_id: company.company_group_id },
-        });
+        const params: Record<string, string | number | boolean> = { search: company.trust_name };
+        if (company.company_group_id) {
+          params.company_group_id = company.company_group_id;
+        }
+        const response = await api.get<{ companies: TrustCompany[] }>("/api/v1/companies", { params });
         const matchingTrust = (response.companies || []).find(
           (t) => t.name === company.trust_name && ["Trust", "Superfund"].includes(t.entity_type || "")
         );
@@ -932,9 +934,11 @@ function TrustsTab({ company, onUpdate }: { company: Company; onUpdate: () => vo
 
   const loadAvailableTrusts = async () => {
     try {
-      const response = await api.get<{ companies: TrustCompany[] }>("/api/v1/companies", {
-        params: { company_group_id: company.company_group_id },
-      });
+      const params: Record<string, string | number | boolean> = {};
+      if (company.company_group_id) {
+        params.company_group_id = company.company_group_id;
+      }
+      const response = await api.get<{ companies: TrustCompany[] }>("/api/v1/companies", { params });
       const trustsAndSuperfunds = (response.companies || []).filter((c) =>
         ["Trust", "Superfund"].includes(c.entity_type || "")
       );

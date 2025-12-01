@@ -52,6 +52,16 @@ import { FoldersTab } from "./components/FoldersTab";
 import { JobSetupTab } from "./components/JobSetupTab";
 import { WorkflowConfigTab } from "./components/WorkflowConfigTab";
 import { DocSetupTab } from "./components/DocSetupTab";
+import { ScheduleMasterTab } from "./components/ScheduleMasterTab";
+import { SMGanttTab } from "./components/SMGanttTab";
+import { MeetingTypesTab } from "./components/MeetingTypesTab";
+import { SupervisorChecklistTab } from "./components/SupervisorChecklistTab";
+import { GoldStandardTab } from "./components/GoldStandardTab";
+import { DeveloperToolsTab } from "./components/DeveloperToolsTab";
+import { ClaudeShortcutsTab } from "./components/ClaudeShortcutsTab";
+import { UserManualTab } from "./components/UserManualTab";
+import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
+import { PerformanceTab } from "./components/PerformanceTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -450,13 +460,13 @@ export default function SystemAdminPage() {
             <CompanySettingsTab />
           </TabsContent>
           <TabsContent value="schedule-master">
-            <PlaceholderTab title="Schedule Master" description="Configure schedule templates and defaults" />
+            <ScheduleMasterTab />
           </TabsContent>
           <TabsContent value="sm-gantt-v2">
-            <PlaceholderTab title="SM Gantt v2" description="Gantt chart configuration" />
+            <SMGanttTab />
           </TabsContent>
           <TabsContent value="meeting-types">
-            <PlaceholderTab title="Meeting Types" description="Configure meeting type templates" />
+            <MeetingTypesTab />
           </TabsContent>
           <TabsContent value="whs">
             <Card>
@@ -518,25 +528,25 @@ export default function SystemAdminPage() {
             <PlaceholderTab title="Price Book" description="Price book configuration" />
           </TabsContent>
           <TabsContent value="supervisor-checklist">
-            <PlaceholderTab title="Supervisor Checklist" description="Manage supervisor checklist templates" />
+            <SupervisorChecklistTab />
           </TabsContent>
           <TabsContent value="gold-standard">
-            <PlaceholderTab title="Gold Standard View" description="View and manage gold standard data" />
+            <GoldStandardTab />
           </TabsContent>
           <TabsContent value="developer-tools">
-            <PlaceholderTab title="Developer Tools" description="Database tables, columns, schema, and agent status" />
+            <DeveloperToolsTab />
           </TabsContent>
           <TabsContent value="claude-shortcuts">
-            <PlaceholderTab title="Claude Shortcuts" description="Configure AI assistant shortcuts" />
+            <ClaudeShortcutsTab />
           </TabsContent>
           <TabsContent value="user-manual">
-            <PlaceholderTab title="User Manual" description="Edit user documentation" />
+            <UserManualTab />
           </TabsContent>
           <TabsContent value="inspiring-quotes">
-            <PlaceholderTab title="Inspiring Quotes" description="Manage inspirational quotes" />
+            <InspiringQuotesTab />
           </TabsContent>
           <TabsContent value="performance">
-            <PlaceholderTab title="Performance" description="System performance metrics" />
+            <PerformanceTab />
           </TabsContent>
           <TabsContent value="deployment">
             <Card>
