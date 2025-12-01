@@ -17,19 +17,27 @@ export function DebugToolbar() {
   const [errorCount, setErrorCount] = useState(0);
   const [copiedButton, setCopiedButton] = useState<string | null>(null);
   const [isVisible, setIsVisible] = useState(true);
+  const [shouldRender, setShouldRender] = useState(false);
   const isMountedRef = useRef(true);
 
-  // Only show in development or staging
+  // Only show in development or staging - check after mount to avoid hydration mismatch
   const isDev = process.env.NODE_ENV === "development";
-  const isStaging =
-    typeof window !== "undefined" &&
-    (window.location.hostname.includes("vercel.app") ||
+
+  // Determine if we should render on the client side only
+  useEffect(() => {
+    const isStaging =
+      window.location.hostname.includes("vercel.app") ||
       window.location.hostname.includes("staging") ||
       window.location.hostname === "localhost" ||
-      window.location.hostname === "127.0.0.1");
+      window.location.hostname === "127.0.0.1";
+
+    if (isDev || isStaging) {
+      setShouldRender(true);
+    }
+  }, [isDev]);
 
   useEffect(() => {
-    if (!isDev && !isStaging) return;
+    if (!shouldRender) return;
 
     isMountedRef.current = true;
 
@@ -63,9 +71,10 @@ export function DebugToolbar() {
       isMountedRef.current = false;
       unsubscribe();
     };
-  }, [isDev, isStaging]);
+  }, [shouldRender]);
 
-  if (!isDev && !isStaging) return null;
+  // Return null initially and on server to avoid hydration mismatch
+  if (!shouldRender) return null;
 
   const handleCopy = async () => {
     try {

@@ -25,10 +25,6 @@ import {
   GitCompare,
   Plus,
   Pencil,
-  Trash2,
-  Copy,
-  Settings,
-  Eye,
 } from "lucide-react";
 import {
   Dialog,
@@ -46,6 +42,11 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TableColumn, TableRow as TableRowType } from "@/components/table/types";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface ColumnType {
   columnName: string;
@@ -99,6 +100,13 @@ function GoldStandardDataTab() {
   const [editingEntry, setEditingEntry] = React.useState<TableRowType | null>(null);
   const [formData, setFormData] = React.useState<Record<string, unknown>>({});
   const [saving, setSaving] = React.useState(false);
+  const [showMoreFields, setShowMoreFields] = React.useState(false);
+
+  // Essential column types shown by default
+  const essentialColumnTypes = [
+    'short_text', 'long_text', 'number', 'whole_number', 'currency',
+    'date', 'boolean', 'email', 'dropdown', 'percentage'
+  ];
 
   React.useEffect(() => {
     loadData();
@@ -139,8 +147,11 @@ function GoldStandardDataTab() {
         // Store raw columns for form building
         setRawColumns(sortedCols);
 
+        // System columns that should not be editable
+        const systemColumns = ['id', 'created_at', 'updated_at'];
+
         const tableColumns: TableColumn[] = [
-          { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
+          { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 32, editable: false },
           ...sortedCols.map((col) => ({
             key: col.column_name,
             label: col.name || col.column_name,
@@ -148,9 +159,11 @@ function GoldStandardDataTab() {
             resizable: true,
             sortable: true,
             filterable: true,
-            width: 150,
+            width: col.column_name === 'id' ? 60 : 150,
+            editable: !systemColumns.includes(col.column_name),
+            system: systemColumns.includes(col.column_name),
           })),
-          { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 },
+          { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 80, editable: false },
         ];
         setColumns(tableColumns);
       }
@@ -477,21 +490,61 @@ function GoldStandardDataTab() {
       />
 
       {/* Add Item Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+      <Dialog open={showAddDialog} onOpenChange={(open) => {
+        setShowAddDialog(open);
+        if (!open) setShowMoreFields(false);
+      }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
+          <DialogHeader className="pb-4">
             <DialogTitle>Add New Item</DialogTitle>
             <DialogDescription>
               Create a new gold standard item with sample data for all column types.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Essential Fields */}
           <div className="grid grid-cols-2 gap-4 py-4">
-            {rawColumns.map((col) => (
+            {rawColumns
+              .filter((col) =>
+                !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+                essentialColumnTypes.includes(col.column_type)
+              )
+              .map((col) => (
               <div key={col.column_name}>
                 {renderFormField(col)}
               </div>
             ))}
           </div>
+
+          {/* Optional/Advanced Fields - Collapsible */}
+          {rawColumns.filter((col) =>
+            !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+            !essentialColumnTypes.includes(col.column_type)
+          ).length > 0 && (
+            <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
+              <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
+                {showMoreFields ? "Hide" : "Show"} More Fields ({rawColumns.filter((col) =>
+                  !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+                  !essentialColumnTypes.includes(col.column_type)
+                ).length})
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
+                  {rawColumns
+                    .filter((col) =>
+                      !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+                      !essentialColumnTypes.includes(col.column_type)
+                    )
+                    .map((col) => (
+                    <div key={col.column_name}>
+                      {renderFormField(col)}
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
@@ -514,21 +567,61 @@ function GoldStandardDataTab() {
       </Dialog>
 
       {/* Edit Item Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
+      <Dialog open={showEditDialog} onOpenChange={(open) => {
+        setShowEditDialog(open);
+        if (!open) setShowMoreFields(false);
+      }}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
+          <DialogHeader className="pb-4">
             <DialogTitle>Edit Item</DialogTitle>
             <DialogDescription>
               Update the gold standard item values.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Essential Fields */}
           <div className="grid grid-cols-2 gap-4 py-4">
-            {rawColumns.map((col) => (
+            {rawColumns
+              .filter((col) =>
+                !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+                essentialColumnTypes.includes(col.column_type)
+              )
+              .map((col) => (
               <div key={col.column_name}>
                 {renderFormField(col)}
               </div>
             ))}
           </div>
+
+          {/* Optional/Advanced Fields - Collapsible */}
+          {rawColumns.filter((col) =>
+            !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+            !essentialColumnTypes.includes(col.column_type)
+          ).length > 0 && (
+            <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
+              <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
+                {showMoreFields ? "Hide" : "Show"} More Fields ({rawColumns.filter((col) =>
+                  !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+                  !essentialColumnTypes.includes(col.column_type)
+                ).length})
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
+                  {rawColumns
+                    .filter((col) =>
+                      !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
+                      !essentialColumnTypes.includes(col.column_type)
+                    )
+                    .map((col) => (
+                    <div key={col.column_name}>
+                      {renderFormField(col)}
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancel

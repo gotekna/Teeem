@@ -26,6 +26,8 @@ export interface TableColumn {
     target_table_id?: number;
     display_column?: string;
   };
+  editable?: boolean; // Whether the column can be edited (default: true)
+  system?: boolean; // System column like id, created_at, updated_at (default: false)
 }
 
 // Row data - generic record with id

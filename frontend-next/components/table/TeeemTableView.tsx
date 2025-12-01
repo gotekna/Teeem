@@ -1889,7 +1889,7 @@ export default function TeeemTableView({
   // ============================================================================
 
   return (
-    <div className="flex flex-col h-full gap-4 overflow-hidden">
+    <div className="flex flex-col h-full gap-4">
       {/* Data Health Widget */}
       {showDataHealth && foundationIdNumeric && (
         <DataHealthWidget
@@ -2343,15 +2343,13 @@ export default function TeeemTableView({
       )}
 
       {/* Table - scrollable container */}
-      {/* DEBUG: totalTableWidth={totalTableWidth}, visibleCols={visibleColumnsInOrder.length} */}
       <div
-        className="flex-1 min-h-0 overflow-x-scroll overflow-y-auto border-2 border-red-500"
-        style={{ maxWidth: '100%' }}
+        className="flex-1 min-h-0 w-full table-scroll"
+        style={{
+          overflowX: 'scroll',
+          overflowY: 'auto'
+        }}
       >
-        <div className="bg-yellow-200 text-black text-xs p-1">
-          DEBUG: totalWidth={totalTableWidth}px, cols={visibleColumnsInOrder.length},
-          widths={JSON.stringify(Object.fromEntries(visibleColumnsInOrder.slice(0,3).map(c => [c.key, columnWidths[c.key] || c.width])))}
-        </div>
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>
 
