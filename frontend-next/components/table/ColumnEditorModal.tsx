@@ -4,12 +4,17 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -17,11 +22,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   X,
   Loader2,
   Save,
   Lock,
+  Info,
+  RefreshCw,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  FolderOpen,
+  Database,
+  FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -128,7 +142,6 @@ export function ColumnEditorModal({
   const handleSave = async () => {
     if (!column || !foundationId) return;
 
-    // Validate
     if (!editedColumn.name.trim()) {
       toast({
         title: "Error",
@@ -180,7 +193,7 @@ export function ColumnEditorModal({
     }
 
     const confirmed = window.confirm(
-      `⚠️ Warning: You are changing the type from "${editedColumn.data_type}" to "${newColumnType}".\n\n` +
+      `Warning: You are changing the type from "${editedColumn.data_type}" to "${newColumnType}".\n\n` +
         "This will rebuild the database table and may result in data loss if the types are incompatible.\n\n" +
         "Are you sure you want to continue?"
     );
@@ -219,414 +232,251 @@ export function ColumnEditorModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-6xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
-        {/* Header - Purple gradient */}
-        <div
-          className={cn(
-            "px-6 py-4 bg-gradient-to-r flex-shrink-0",
-            isSystemGenerated
-              ? "from-red-600 to-red-700"
-              : "from-purple-500 to-pink-600"
-          )}
-        >
+      <DialogContent className="max-w-5xl max-h-[85vh] p-0 overflow-hidden flex flex-col">
+        <DialogHeader className="px-6 py-4 border-b">
           <div className="flex items-center justify-between">
             <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-xl font-bold text-white">
-                  Edit Column: {column.label}
-                </h2>
+              <DialogTitle className="flex items-center gap-2">
+                Edit Column: {column.label}
                 {isSystemGenerated && (
-                  <Badge
-                    variant="secondary"
-                    className="bg-white/20 text-white border-white/30"
-                  >
+                  <Badge variant="secondary" className="ml-2">
                     <Lock className="h-3 w-3 mr-1" />
-                    System Generated
+                    System
                   </Badge>
                 )}
-              </div>
-              <p
-                className={cn(
-                  "text-sm mt-1",
-                  isSystemGenerated ? "text-red-100" : "text-purple-100"
-                )}
-              >
-                {metadata.icon} {metadata.label} •{" "}
-                {(column as any).required ? "Required" : "Optional"}
-                {isSystemGenerated && " • Auto-managed by database"}
-              </p>
+              </DialogTitle>
+              <DialogDescription className="mt-1">
+                {metadata.icon} {metadata.label} • {(column as any).required ? "Required" : "Optional"}
+              </DialogDescription>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onClose}
-              className="text-white hover:bg-white/20"
-            >
-              <X className="h-5 w-5" />
-            </Button>
           </div>
-        </div>
+        </DialogHeader>
 
-        {/* Tabs */}
-        <div className="border-b bg-muted/30 px-6 flex-shrink-0">
-          <div className="flex">
-            <button
-              onClick={() => setActiveTab("info")}
-              className={cn(
-                "px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
-                activeTab === "info"
-                  ? "border-purple-500 text-purple-600"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span className="mr-2">ℹ️</span>
-              Column Info
-            </button>
-            <button
-              onClick={() => setActiveTab("type")}
-              className={cn(
-                "px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors",
-                activeTab === "type"
-                  ? "border-purple-500 text-purple-600"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <span className="mr-2">🔄</span>
-              Change Type
-            </button>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "info" | "type")} className="flex-1 flex flex-col overflow-hidden">
+          <div className="border-b px-6">
+            <TabsList className="h-10">
+              <TabsTrigger value="info" className="gap-2">
+                <Info className="h-4 w-4" />
+                Column Info
+              </TabsTrigger>
+              <TabsTrigger value="type" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Change Type
+              </TabsTrigger>
+            </TabsList>
           </div>
-        </div>
 
-        <div className="flex flex-1 overflow-hidden">
-          {/* Main Content */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {activeTab === "info" && (
-              <div className="space-y-6">
+          <div className="flex flex-1 overflow-hidden">
+            {/* Main Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <TabsContent value="info" className="m-0 space-y-6">
                 {/* System Generated Warning */}
                 {isSystemGenerated && (
-                  <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="text-2xl">🔒</div>
-                      <div>
-                        <h3 className="font-bold text-red-900 dark:text-red-100">
-                          System-Generated Column
-                        </h3>
-                        <p className="text-sm text-red-800 dark:text-red-200 mt-1">
-                          This column is automatically managed by the database.
-                          While you can view its configuration, modifying system
-                          columns is not recommended.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                  <Card className="border-destructive/50 bg-destructive/5">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Lock className="h-4 w-4" />
+                        System-Generated Column
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        This column is automatically managed by the database. Modifying system columns is not recommended.
+                      </p>
+                    </CardContent>
+                  </Card>
                 )}
 
-                {/* Column Name Section - Blue */}
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-xl p-6 border-2 border-blue-200 dark:border-blue-700">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">✏️</div>
-                    <div>
-                      <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">
-                        Column Name
-                      </h3>
-                      <p className="text-xs text-blue-700 dark:text-blue-300">
-                        Display name and database identifier
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Display Name
-                      </Label>
+                {/* Column Name */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Column Name
+                    </CardTitle>
+                    <CardDescription>Display name and database identifier</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Display Name</Label>
                       <Input
                         value={editedColumn.name}
                         onChange={(e) =>
-                          setEditedColumn((prev) => ({
-                            ...prev,
-                            name: e.target.value,
-                          }))
+                          setEditedColumn((prev) => ({ ...prev, name: e.target.value }))
                         }
-                        className="mt-2 bg-white dark:bg-gray-700"
                         placeholder="Column display name"
                       />
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      <p className="text-xs text-muted-foreground">
                         The name shown to users in the interface
                       </p>
                     </div>
 
-                    <div>
-                      <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Column Name (Database)
-                      </Label>
-                      <div className="mt-2 px-4 py-3 bg-gray-100 dark:bg-gray-600 rounded-lg border-2 border-gray-300 dark:border-gray-500 font-mono text-sm text-gray-700 dark:text-gray-300">
-                        {editedColumn.column_name}
-                      </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <div className="space-y-2">
+                      <Label>Column Name (Database)</Label>
+                      <Input
+                        value={editedColumn.column_name}
+                        disabled
+                        className="font-mono bg-muted"
+                      />
+                      <p className="text-xs text-muted-foreground">
                         Database column name cannot be changed after creation
                       </p>
                     </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
-                {/* Column Alignment Section - Yellow */}
-                <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 rounded-xl p-6 border-2 border-yellow-200 dark:border-yellow-700">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">⚡</div>
-                    <div>
-                      <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-100">
-                        Column Alignment
-                      </h3>
-                      <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                        Control text alignment for headers and data cells
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    {/* Header Alignment */}
-                    <div>
-                      <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Header Alignment
-                      </Label>
-                      <div className="flex gap-2 mt-2">
+                {/* Column Alignment */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <AlignLeft className="h-4 w-4" />
+                      Column Alignment
+                    </CardTitle>
+                    <CardDescription>Control text alignment for headers and data cells</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Header Alignment</Label>
+                      <div className="flex gap-2">
                         {(["left", "center", "right"] as const).map((align) => (
-                          <button
+                          <Button
                             key={align}
                             type="button"
+                            variant={editedColumn.header_align === align ? "default" : "outline"}
+                            className="flex-1"
                             onClick={() =>
-                              setEditedColumn((prev) => ({
-                                ...prev,
-                                header_align: align,
-                              }))
+                              setEditedColumn((prev) => ({ ...prev, header_align: align }))
                             }
-                            className={cn(
-                              "flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all",
-                              editedColumn.header_align === align
-                                ? "bg-blue-500 text-white border-blue-600 shadow-lg"
-                                : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-blue-400"
-                            )}
                           >
-                            <span className="mr-2">
-                              {align === "left" && "⬅️"}
-                              {align === "center" && "↔️"}
-                              {align === "right" && "➡️"}
-                            </span>
+                            {align === "left" && <AlignLeft className="h-4 w-4 mr-2" />}
+                            {align === "center" && <AlignCenter className="h-4 w-4 mr-2" />}
+                            {align === "right" && <AlignRight className="h-4 w-4 mr-2" />}
                             {align.charAt(0).toUpperCase() + align.slice(1)}
-                          </button>
+                          </Button>
                         ))}
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Controls how the column header text is aligned
-                      </p>
                     </div>
 
-                    {/* Data Alignment */}
-                    <div>
-                      <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Data Alignment
-                      </Label>
-                      <div className="flex gap-2 mt-2">
+                    <div className="space-y-2">
+                      <Label>Data Alignment</Label>
+                      <div className="flex gap-2">
                         {(["left", "center", "right"] as const).map((align) => (
-                          <button
+                          <Button
                             key={align}
                             type="button"
+                            variant={editedColumn.data_align === align ? "default" : "outline"}
+                            className="flex-1"
                             onClick={() =>
-                              setEditedColumn((prev) => ({
-                                ...prev,
-                                data_align: align,
-                              }))
+                              setEditedColumn((prev) => ({ ...prev, data_align: align }))
                             }
-                            className={cn(
-                              "flex-1 px-4 py-3 rounded-lg border-2 font-medium transition-all",
-                              editedColumn.data_align === align
-                                ? "bg-green-500 text-white border-green-600 shadow-lg"
-                                : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-green-400"
-                            )}
                           >
-                            <span className="mr-2">
-                              {align === "left" && "⬅️"}
-                              {align === "center" && "↔️"}
-                              {align === "right" && "➡️"}
-                            </span>
+                            {align === "left" && <AlignLeft className="h-4 w-4 mr-2" />}
+                            {align === "center" && <AlignCenter className="h-4 w-4 mr-2" />}
+                            {align === "right" && <AlignRight className="h-4 w-4 mr-2" />}
                             {align.charAt(0).toUpperCase() + align.slice(1)}
-                          </button>
+                          </Button>
                         ))}
                       </div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Controls how the data cell content is aligned (currency
-                        columns default to right)
+                      <p className="text-xs text-muted-foreground">
+                        Currency columns default to right alignment
                       </p>
                     </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
-                {/* Column Group Section - Teal */}
-                <div className="bg-gradient-to-r from-teal-50 to-teal-100 dark:from-teal-900/20 dark:to-teal-800/20 rounded-xl p-6 border-2 border-teal-200 dark:border-teal-700">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">📁</div>
-                    <div>
-                      <h3 className="text-lg font-bold text-teal-900 dark:text-teal-100">
-                        Column Group
-                      </h3>
-                      <p className="text-xs text-teal-700 dark:text-teal-300">
-                        Group columns together in the visibility panel
+                {/* Column Group */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FolderOpen className="h-4 w-4" />
+                      Column Group
+                    </CardTitle>
+                    <CardDescription>Group columns together in the visibility panel</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      <Label>Group Name</Label>
+                      <Input
+                        value={editedColumn.column_group}
+                        onChange={(e) =>
+                          setEditedColumn((prev) => ({ ...prev, column_group: e.target.value }))
+                        }
+                        placeholder="e.g., Contact Info, Financial, System"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Leave empty for &quot;Other&quot; group
                       </p>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
 
-                  <div>
-                    <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Group Name
-                    </Label>
-                    <Input
-                      value={editedColumn.column_group}
-                      onChange={(e) =>
-                        setEditedColumn((prev) => ({
-                          ...prev,
-                          column_group: e.target.value,
-                        }))
-                      }
-                      className="mt-2 bg-white dark:bg-gray-700"
-                      placeholder="e.g., Contact Info, Financial, System"
-                    />
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Columns with the same group name will be grouped together.
-                      Leave empty for &quot;Other&quot; group.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Column Type Display - Purple */}
-                <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-xl p-6 border-2 border-purple-200 dark:border-purple-700">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">🎯</div>
-                    <div>
-                      <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100">
-                        Column Type
-                      </h3>
-                      <p className="text-xs text-purple-700 dark:text-purple-300">
-                        Data type and validation rules
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Current Type
-                    </Label>
-                    <div className="mt-2 px-4 py-3 bg-gray-100 dark:bg-gray-600 rounded-lg border-2 border-gray-300 dark:border-gray-500 font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                {/* Column Type Info */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Database className="h-4 w-4" />
+                      Column Type
+                    </CardTitle>
+                    <CardDescription>Data type and validation rules</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
                       <span className="text-xl">{metadata.icon}</span>
-                      <span>{metadata.label}</span>
+                      <div>
+                        <p className="font-medium">{metadata.label}</p>
+                        <p className="text-sm text-muted-foreground font-mono">
+                          SQL: {metadata.sqlType}
+                        </p>
+                      </div>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      Use the &quot;Change Type&quot; tab to convert column type (requires data migration)
-                    </p>
-                  </div>
-                </div>
 
-                {/* SQL Type & Metadata - Green */}
-                <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-xl p-6 border-2 border-green-200 dark:border-green-700">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">🗄️</div>
-                    <div>
-                      <h3 className="text-lg font-bold text-green-900 dark:text-green-100">
-                        SQL Type & Metadata
-                      </h3>
-                      <p className="text-xs text-green-700 dark:text-green-300">
-                        Database implementation details
+                    <div className="grid gap-3">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Validation</Label>
+                        <p className="text-sm mt-1">{metadata.validation}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Example</Label>
+                        <p className="text-sm mt-1 font-mono">{metadata.example}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Used For</Label>
+                        <p className="text-sm mt-1">{metadata.usedFor}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="type" className="m-0 space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <RefreshCw className="h-4 w-4" />
+                      Change Column Type
+                    </CardTitle>
+                    <CardDescription>Convert this column to a different data type</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Warning:</strong> Changing column types may result in data loss if the types are incompatible.
                       </p>
                     </div>
-                  </div>
 
-                  <div className="space-y-4">
-                    {/* Current Type Display */}
-                    <div className="p-4 bg-white dark:bg-gray-700 rounded-lg border-2 border-green-300 dark:border-green-600">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl">{metadata.icon}</span>
-                        <span className="text-base font-bold text-green-900 dark:text-green-100">
-                          {metadata.label}
-                        </span>
-                      </div>
-                      <p className="text-sm font-mono text-green-700 dark:text-green-300">
-                        SQL Type: {metadata.sqlType}
-                      </p>
-                    </div>
-
-                    {/* Validation Rules */}
-                    <div>
-                      <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Validation Rules
-                      </Label>
-                      <div className="mt-2 p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg border-2 border-orange-200 dark:border-orange-700 text-sm text-orange-900 dark:text-orange-100">
-                        {metadata.validation}
-                      </div>
-                    </div>
-
-                    {/* Example */}
-                    <div>
-                      <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Example
-                      </Label>
-                      <div className="mt-2 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border-2 border-purple-200 dark:border-purple-700 text-sm font-mono text-purple-900 dark:text-purple-100">
-                        {metadata.example}
-                      </div>
-                    </div>
-
-                    {/* Used For */}
-                    <div>
-                      <Label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                        Used For
-                      </Label>
-                      <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border-2 border-blue-200 dark:border-blue-700 text-sm text-blue-900 dark:text-blue-100">
-                        {metadata.usedFor}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === "type" && (
-              <div className="space-y-6">
-                <div className="bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-xl p-6 border-2 border-orange-200 dark:border-orange-700">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="text-3xl">🔄</div>
-                    <div>
-                      <h3 className="text-lg font-bold text-orange-900 dark:text-orange-100">
-                        Change Column Type
-                      </h3>
-                      <p className="text-xs text-orange-700 dark:text-orange-300">
-                        Convert this column to a different data type
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-300 dark:border-yellow-700 rounded-lg p-4 mb-4">
-                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      <strong>⚠️ Warning:</strong> Changing column types may result in
-                      data loss if the types are incompatible. The database table
-                      will be rebuilt.
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-sm font-semibold">Current Type</Label>
-                      <div className="mt-2 p-3 bg-white dark:bg-gray-700 rounded-lg border flex items-center gap-2">
-                        <span className="text-xl">{metadata.icon}</span>
+                    <div className="space-y-2">
+                      <Label>Current Type</Label>
+                      <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                        <span className="text-lg">{metadata.icon}</span>
                         <span className="font-medium">{metadata.label}</span>
-                        <span className="text-sm text-muted-foreground">
-                          ({editedColumn.data_type})
-                        </span>
+                        <span className="text-sm text-muted-foreground">({editedColumn.data_type})</span>
                       </div>
                     </div>
 
-                    <div>
-                      <Label className="text-sm font-semibold">New Type</Label>
+                    <div className="space-y-2">
+                      <Label>New Type</Label>
                       <Select value={newColumnType} onValueChange={setNewColumnType}>
-                        <SelectTrigger className="mt-2">
+                        <SelectTrigger>
                           <SelectValue placeholder="Select new type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -645,7 +495,8 @@ export function ColumnEditorModal({
                     <Button
                       onClick={handleTypeChange}
                       disabled={saving || newColumnType === editedColumn.data_type}
-                      className="w-full bg-red-600 hover:bg-red-700 text-white"
+                      variant="destructive"
+                      className="w-full"
                     >
                       {saving ? (
                         <>
@@ -654,109 +505,89 @@ export function ColumnEditorModal({
                         </>
                       ) : (
                         <>
-                          🔄 Convert Column Type
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Convert Column Type
                         </>
                       )}
                     </Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Columns Sidebar */}
-          <div className="w-72 border-l bg-gray-50 dark:bg-gray-900/30 overflow-hidden flex flex-col flex-shrink-0">
-            <div className="p-4 border-b">
-              <h3 className="text-sm font-bold flex items-center gap-2">
-                <span>📊</span> Available Columns
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                {allColumns.length} columns in this table
-              </p>
+                  </CardContent>
+                </Card>
+              </TabsContent>
             </div>
 
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-2">
-                {allColumns.map((col) => (
-                  <div
-                    key={col.key}
-                    className={cn(
-                      "p-3 rounded-lg border transition-all",
-                      col.key === column?.key
-                        ? "bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700"
-                        : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-purple-300 dark:hover:border-purple-600"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div
-                          className={cn(
-                            "text-sm font-medium truncate",
-                            col.key === column?.key &&
-                              "text-purple-900 dark:text-purple-100"
-                          )}
-                        >
-                          {col.label}
-                          {col.key === column?.key && (
-                            <span className="ml-1 text-xs text-purple-600 dark:text-purple-400">
-                              (current)
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground font-mono truncate mt-0.5">
-                          [{col.key}]
-                        </div>
+            {/* Columns Sidebar */}
+            <div className="w-64 border-l bg-muted/30 overflow-hidden flex flex-col">
+              <div className="p-4 border-b">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Available Columns
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {allColumns.length} columns in this table
+                </p>
+              </div>
+
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                  {allColumns.map((col) => (
+                    <div
+                      key={col.key}
+                      className={cn(
+                        "p-2 rounded-md text-sm",
+                        col.key === column?.key
+                          ? "bg-primary/10 border border-primary/20"
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <div className="font-medium truncate">
+                        {col.label}
+                        {col.key === column?.key && (
+                          <span className="ml-1 text-xs text-primary">(current)</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground font-mono truncate">
+                        [{col.key}]
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {col.column_type || "text"}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-1 truncate">
-                      {col.column_type || "text"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
           </div>
-        </div>
+        </Tabs>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t bg-gray-50 dark:bg-gray-900/50 flex justify-between items-center flex-shrink-0">
-          <div className="text-sm">
-            {activeTab === "info" && hasChanges() ? (
-              <span className="text-orange-600 dark:text-orange-400 font-medium">
-                Unsaved changes
-              </span>
-            ) : (
-              <span className="text-muted-foreground">No changes</span>
-            )}
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-            {activeTab === "info" && (
-              <Button
-                onClick={handleSave}
-                disabled={saving || !hasChanges()}
-                className={cn(
-                  "bg-green-600 hover:bg-green-700",
-                  !hasChanges() && "opacity-50"
-                )}
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save
-                  </>
-                )}
+        <DialogFooter className="px-6 py-4 border-t">
+          <div className="flex items-center justify-between w-full">
+            <div className="text-sm text-muted-foreground">
+              {activeTab === "info" && hasChanges() && (
+                <span className="text-orange-600 dark:text-orange-400">Unsaved changes</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onClose}>
+                Close
               </Button>
-            )}
+              {activeTab === "info" && (
+                <Button onClick={handleSave} disabled={saving || !hasChanges()}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
