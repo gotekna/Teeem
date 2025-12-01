@@ -184,6 +184,10 @@
   * {
     @apply border-border;
   }
+  html, body {
+    @apply h-full overflow-hidden;
+    overscroll-behavior: none;
+  }
   body {
     font-family: var(--font-geist-sans), system-ui, sans-serif;
     @apply bg-background text-foreground;

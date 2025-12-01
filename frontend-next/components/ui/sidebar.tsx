@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useEffect, useMemo } from "react";
+import { useSidebar, COLLAPSED_WIDTH, EXPANDED_WIDTH } from "@/contexts/SidebarContext";
 import {
   Home,
   Briefcase,
@@ -54,30 +55,32 @@ import {
 } from "./popover";
 import { Badge } from "./badge";
 import { api } from "@/lib/api";
+import { urls, TABLE_IDS } from "@/lib/url-utils";
 
 interface NavigationItem {
   name: string;
   href: string;
   icon: typeof Home;
   badgeKey?: string;
+  tableId?: number;
 }
 
 const navigationItems: NavigationItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Leads", href: "/leads", icon: Target, badgeKey: "pendingProposals" },
-  { name: "Jobs", href: "/jobs", icon: Briefcase },
+  { name: "Jobs", href: urls.jobs(), icon: Briefcase, tableId: TABLE_IDS.JOBS },
   { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
   { name: "Xero", href: "/xero", icon: Layers },
   { name: "Purchase Orders", href: "/purchase-orders", icon: FileText },
   { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
-  { name: "Contacts", href: "/contacts", icon: Users },
-  { name: "Price Book", href: "/pricebook", icon: Package },
+  { name: "Contacts", href: urls.contacts(), icon: Users, tableId: TABLE_IDS.CONTACTS },
+  { name: "Price Book", href: urls.pricebook(), icon: Package, tableId: TABLE_IDS.PRICEBOOK },
   { name: "Documents", href: "/documents", icon: FolderOpen },
-  { name: "Corporate", href: "/corporate", icon: Building2 },
+  { name: "Corporate", href: urls.companies(), icon: Building2, tableId: TABLE_IDS.COMPANIES },
   { name: "Portal", href: "/portal", icon: ExternalLink },
-  { name: "Admin", href: "/admin/system", icon: Wrench },
+  { name: "Admin", href: urls.goldStandard(), icon: Wrench, tableId: TABLE_IDS.GOLD_STANDARD },
 ];
 
 const personaIcons: Record<Persona, typeof HardHat> = {
@@ -87,7 +90,7 @@ const personaIcons: Record<Persona, typeof HardHat> = {
 };
 
 export function Sidebar() {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const { isExpanded, setIsExpanded } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const [badges, setBadges] = useState<Record<string, number>>({});

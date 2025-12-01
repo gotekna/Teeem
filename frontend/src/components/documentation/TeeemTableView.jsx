@@ -5273,9 +5273,13 @@ export default function TeeemTableView({
 
                 {/* Columns toggle */}
                 <MenuItem>
-                  {({ focus }) => (
+                  {({ focus, close }) => (
                     <button
-                      onClick={() => setShowColumnsDropdown(!showColumnsDropdown)}
+                      onClick={() => {
+                        close()
+                        // Use setTimeout to ensure menu is fully closed before opening modal
+                        setTimeout(() => setShowColumnsDropdown(true), 0)
+                      }}
                       className={`${
                         focus ? 'bg-gray-100 dark:bg-gray-700' : ''
                       } group flex w-full items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-200`}
@@ -5462,85 +5466,129 @@ export default function TeeemTableView({
             <>
               {/* Backdrop */}
               <div className="fixed inset-0 bg-black/30 z-50" onClick={() => setShowColumnsDropdown(false)} />
-              {/* Dropdown positioned in center */}
+              {/* Dropdown positioned in center - Gold Standard styling */}
               <div
-                className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-2xl max-h-[80vh] overflow-y-auto z-[60]"
+                className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[520px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-2xl max-h-[85vh] overflow-hidden z-[60] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-4">
-                  <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 pb-2 mb-3">
-                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      Show/Hide Columns
-                    </span>
-                    <button
-                      onClick={() => setShowColumnsDropdown(false)}
-                      className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                    >
-                      ✕
-                    </button>
+                {/* Header */}
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0 bg-white dark:bg-gray-800">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200 uppercase tracking-wide">
+                    SHOW/HIDE COLUMNS
+                  </span>
+                  <button
+                    onClick={() => setShowColumnsDropdown(false)}
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1"
+                  >
+                    <XMarkIcon className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Table Header Row */}
+                <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
+                  <div className="grid grid-cols-[28px_1fr_120px_70px_70px] gap-2 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    <div></div>
+                    <div>Column Name</div>
+                    <div>Display Type</div>
+                    <div className="text-center">Min Width</div>
+                    <div className="text-center">Show Filter</div>
                   </div>
-                  <table className="w-full">
-                    <thead>
-                      <tr className="text-xs text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
-                        <th className="text-left py-2 font-medium w-8"></th>
-                        <th className="text-left py-2 font-medium">Column Name</th>
-                        <th className="text-left py-2 font-medium w-32">SQL Type</th>
-                        <th className="text-left py-2 font-medium w-28">Display Type</th>
-                        <th className="text-left py-2 font-medium w-20">Min Width</th>
-                        <th className="text-center py-2 font-medium w-24">Show Filter</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
-                        .sort((a, b) => a.label.localeCompare(b.label))
-                        .map((column) => {
-                        const colType = column.column_type || column.key
-                        return (
-                          <tr
-                            key={column.key}
-                            className="group hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <td className="py-2 text-base">{getColumnTypeEmoji(colType)}</td>
-                            <td className="py-2 text-sm text-gray-700 dark:text-gray-200">{column.label}</td>
-                            <td className="py-2 text-xs font-mono text-gray-400 dark:text-gray-500 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{getColumnTypeSqlType(colType)}</td>
-                            <td className="py-2 text-xs text-gray-400 dark:text-gray-500 cursor-pointer" onClick={() => handleToggleColumn(column.key)}>{getColumnTypeLabel(colType)}</td>
-                            <td className="py-2 px-1">
-                              <input
-                                type="number"
-                                min="0"
-                                max="500"
-                                value={columnMinWidths[column.key] ?? 75}
-                                onChange={(e) => {
-                                  const value = parseInt(e.target.value) || 0
-                                  setColumnMinWidths(prev => ({
-                                    ...prev,
-                                    [column.key]: Math.max(0, Math.min(500, value))
-                                  }))
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-16 px-2 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                              />
-                            </td>
-                            <td className="py-2 px-1 text-center">
-                              <input
-                                type="checkbox"
-                                checked={columnShowFilters[column.key] ?? true}
-                                onChange={(e) => {
-                                  setColumnShowFilters(prev => ({
-                                    ...prev,
-                                    [column.key]: e.target.checked
-                                  }))
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
-                                title="Uncheck to hide filter for this column"
-                              />
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                </div>
+
+                {/* Scrollable Content */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
+                    .sort((a, b) => a.label.localeCompare(b.label))
+                    .map((column) => {
+                    const colType = column.column_type || column.key
+                    const sqlType = getColumnTypeSqlType(colType)
+                    const displayType = getColumnTypeLabel(colType)
+                    return (
+                      <div
+                        key={column.key}
+                        className="px-4 py-2 border-b border-gray-100 dark:border-gray-700/50 hover:bg-blue-50 dark:hover:bg-gray-700/30 transition-colors grid grid-cols-[28px_1fr_120px_70px_70px] gap-2 items-center"
+                      >
+                        {/* Icon */}
+                        <div className="flex items-center justify-center">
+                          <span className="text-lg">{getColumnTypeEmoji(colType)}</span>
+                        </div>
+
+                        {/* Column Name + SQL Type */}
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                            {column.label}
+                          </div>
+                          <div className="text-[10px] font-mono text-gray-400 dark:text-gray-500 truncate uppercase">
+                            {sqlType}
+                          </div>
+                        </div>
+
+                        {/* Display Type */}
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {displayType}
+                        </div>
+
+                        {/* Min Width */}
+                        <div className="flex justify-center">
+                          <input
+                            type="number"
+                            min="0"
+                            max="500"
+                            value={columnMinWidths[column.key] ?? 75}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value) || 0
+                              setColumnMinWidths(prev => ({
+                                ...prev,
+                                [column.key]: Math.max(0, Math.min(500, value))
+                              }))
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-12 px-1 py-1 text-xs text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+
+                        {/* Show Filter Checkbox */}
+                        <div className="flex justify-center">
+                          <input
+                            type="checkbox"
+                            checked={columnShowFilters[column.key] ?? true}
+                            onChange={(e) => {
+                              setColumnShowFilters(prev => ({
+                                ...prev,
+                                [column.key]: e.target.checked
+                              }))
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
+                            title="Toggle filter visibility for this column"
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Quick Filter Buttons - Blue row at bottom like Image #1 */}
+                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-blue-500 flex items-center gap-2 flex-shrink-0">
+                  {['email', 'phone', 'mobile', 'url'].map((filterType) => {
+                    const col = COLUMNS.find(c => c.column_type === filterType || c.key === filterType)
+                    if (!col) return null
+                    return (
+                      <button
+                        key={filterType}
+                        onClick={() => {
+                          // Toggle filter for this column type
+                          setColumnShowFilters(prev => ({
+                            ...prev,
+                            [col.key]: !(prev[col.key] ?? true)
+                          }))
+                        }}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded transition-colors"
+                      >
+                        {col.label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </>
