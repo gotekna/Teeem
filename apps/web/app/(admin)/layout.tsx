@@ -17,10 +17,17 @@ import {
   Bot,
   ChevronLeft,
   Terminal,
+  LayoutDashboard,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const adminNavItems = [
+  {
+    title: "Dashboard",
+    href: "/admin/dashboard",
+    icon: LayoutDashboard,
+    description: "Admin overview",
+  },
   {
     title: "Tables",
     href: "/admin/tables",

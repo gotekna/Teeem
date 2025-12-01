@@ -383,8 +383,17 @@ export default function SettingsPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-blue-100 rounded-lg">
-                      <Mail className="h-6 w-6 text-blue-600" />
+                    <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                      <img
+                        src="https://logo.clearbit.com/microsoft.com"
+                        alt="Microsoft"
+                        className="h-8 w-8 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <Mail className="h-6 w-6 text-blue-600 hidden" />
                     </div>
                     <div>
                       <h3 className="font-medium">Microsoft 365</h3>
@@ -408,8 +417,17 @@ export default function SettingsPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-cyan-100 rounded-lg">
-                      <CreditCard className="h-6 w-6 text-cyan-600" />
+                    <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                      <img
+                        src="https://logo.clearbit.com/xero.com"
+                        alt="Xero"
+                        className="h-8 w-8 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <CreditCard className="h-6 w-6 text-cyan-600 hidden" />
                     </div>
                     <div>
                       <h3 className="font-medium">Xero</h3>
@@ -433,8 +451,17 @@ export default function SettingsPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-orange-100 rounded-lg">
-                      <Zap className="h-6 w-6 text-orange-600" />
+                    <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                      <img
+                        src="https://logo.clearbit.com/zapier.com"
+                        alt="Zapier"
+                        className="h-8 w-8 object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                      <Zap className="h-6 w-6 text-orange-600 hidden" />
                     </div>
                     <div>
                       <h3 className="font-medium">Zapier</h3>
@@ -502,7 +529,7 @@ export default function SettingsPage() {
 
             <Card
               className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => router.push("/admin")}
+              onClick={() => router.push("/admin/dashboard")}
             >
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
