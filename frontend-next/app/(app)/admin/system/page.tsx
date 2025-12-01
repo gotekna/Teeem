@@ -439,7 +439,7 @@ export default function SystemAdminPage() {
 
       {/* Main Tab Navigation */}
       <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 w-full">
+        <TabsList className="inline-flex flex-wrap h-auto gap-1 bg-muted/50 p-1">
           {MAIN_TABS.map((tab) => {
             const Icon = tab.icon;
             return (
