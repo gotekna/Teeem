@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -418,7 +419,7 @@ function CompanySettingsTab() {
   );
 }
 
-export default function SystemAdminPage() {
+function SystemAdminPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const currentTab = searchParams.get("tab") || "company";
@@ -581,5 +582,25 @@ export default function SystemAdminPage() {
         </div>
       </Tabs>
     </div>
+  );
+}
+
+export default function SystemAdminPage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight font-serif">System Administration</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Configure system settings, integrations, and developer tools
+          </p>
+        </div>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    }>
+      <SystemAdminPageContent />
+    </Suspense>
   );
 }
