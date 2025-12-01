@@ -1,0 +1,22 @@
+{
+  "name": "teeem-zapier",
+  "version": "1.0.0",
+  "description": "Zapier integration for Teeem - Construction Management Platform",
+  "main": "index.js",
+  "scripts": {
+    "test": "zapier test",
+    "deploy": "zapier push",
+    "validate": "zapier validate",
+    "lint": "eslint ."
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "zapier-platform-core": "^15.0.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  },
+  "private": true
+}

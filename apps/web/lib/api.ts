@@ -233,6 +233,37 @@ export const api = {
     getStatus: () => api.get<{ connected: boolean }>('/api/v1/xero/status'),
     disconnect: () => api.delete('/api/v1/xero/disconnect'),
   },
+
+  // Zapier Integration APIs
+  zapier: {
+    getStatus: () => api.get<{
+      connected: boolean;
+      organization_name?: string;
+      connected_at?: string;
+      active_webhooks?: number;
+    }>('/api/v1/zapier/status'),
+    getWebhooks: () => api.get<{
+      webhooks: Array<{
+        id: number;
+        event_type: string;
+        target_url: string;
+        active: boolean;
+        created_at: string;
+        last_triggered_at?: string;
+      }>;
+    }>('/api/v1/zapier/webhooks'),
+    getActivityLog: () => api.get<{
+      activities: Array<{
+        id: number;
+        event_type: string;
+        status: 'success' | 'failed' | 'pending';
+        created_at: string;
+        details?: string;
+      }>;
+    }>('/api/v1/zapier/activity'),
+    disconnect: () => api.delete('/api/v1/zapier/disconnect'),
+    deleteWebhook: (webhookId: number) => api.delete(`/api/v1/zapier/webhooks/${webhookId}`),
+  },
 };
 
 export default api;

@@ -27,6 +27,7 @@ import {
   Wrench,
   HeartPulse,
   Activity,
+  Zap,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -414,6 +415,31 @@ export default function SettingsPage() {
                       <h3 className="font-medium">Xero</h3>
                       <p className="text-sm text-muted-foreground">
                         Accounting & invoicing
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">Not Connected</Badge>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card
+              className="cursor-pointer hover:bg-accent/50 transition-colors"
+              onClick={() => router.push("/settings/integrations/zapier")}
+            >
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-orange-100 rounded-lg">
+                      <Zap className="h-6 w-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium">Zapier</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Connect with 5,000+ apps
                       </p>
                     </div>
                   </div>
