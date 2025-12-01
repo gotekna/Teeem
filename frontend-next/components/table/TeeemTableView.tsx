@@ -1779,7 +1779,7 @@ export default function TeeemTableView({
           const groupColumn = COLUMNS.find((c) => c.key === groupByColumn);
 
           return (
-            <div key={groupKey} className="border rounded-lg overflow-hidden">
+            <div key={groupKey} className="border rounded-lg overflow-x-auto">
               <button
                 onClick={() => toggleGroupCollapse(groupKey)}
                 className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted transition-colors"
@@ -1798,7 +1798,7 @@ export default function TeeemTableView({
               </button>
 
               {!isCollapsed && (
-                <Table>
+                <Table className="min-w-max">
                   {renderTableHeader()}
                   <TableBody>
                     {groupRows.map((row) => (
@@ -1832,8 +1832,8 @@ export default function TeeemTableView({
 
   // Render flat table
   const renderFlatTable = () => (
-    <div className="border rounded-lg overflow-hidden">
-      <Table>
+    <div className="border rounded-lg overflow-x-auto">
+      <Table className="min-w-max">
         {renderTableHeader()}
         <TableBody>
           {filteredAndSortedEntries.length === 0 ? (

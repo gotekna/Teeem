@@ -17,7 +17,7 @@ interface FeatureChapter {
 interface FeatureTracker extends TableRow {
   id: number;
   feature_name: string;
-  feature_chapter: { id: number; display: string } | null;
+  feature_chapter: { id: number; display_value: string } | null;
   detail_point_1: string;
   detail_point_2: string;
   detail_point_3: string;
@@ -251,13 +251,14 @@ export default function FeaturesTrackingTable() {
       }>("/api/v1/feature_trackers");
 
       if (response?.success) {
-        // Transform feature_chapter to lookup format { id, display }
+        // Transform feature_chapter to lookup format { id, display_value }
+        // TeeemTableView expects display_value for lookup columns
         const processedFeatures = response.feature_trackers.map((f) => ({
           ...f,
           feature_chapter: f.feature_chapter
             ? {
                 id: f.feature_chapter.id,
-                display: f.feature_chapter.display_name,
+                display_value: f.feature_chapter.display_name,
               }
             : null,
         }));

@@ -450,6 +450,7 @@ function GoldStandardDataTab() {
           <h2 className="text-lg font-semibold">Gold Standard Table Data</h2>
           <p className="text-sm text-muted-foreground">
             Live database table demonstrating all TeeemTableView column types and features.
+            <span className="ml-2 text-xs font-mono text-muted-foreground">Table #1</span>
           </p>
         </div>
       </div>

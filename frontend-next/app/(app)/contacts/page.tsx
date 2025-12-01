@@ -192,7 +192,7 @@ export default function ContactsPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {stats.total.toLocaleString()} contacts - {stats.active.toLocaleString()} active
-            <span className="ml-2 text-xs font-mono opacity-50">Table #214</span>
+            <span className="ml-2 text-xs font-mono">Table #214</span>
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -80,7 +80,9 @@ const TIMEZONES = [
 ];
 
 const MAIN_TABS = [
+  { id: "gold-standard", label: "Gold Standard View", icon: Star },
   { id: "company", label: "Company", icon: Building2 },
+  { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
   { id: "meeting-types", label: "Meeting Types", icon: Calendar },
@@ -88,8 +90,6 @@ const MAIN_TABS = [
   { id: "financial", label: "Financial", icon: Banknote },
   { id: "pricebook", label: "Price Book", icon: DollarSign },
   { id: "supervisor-checklist", label: "Supervisor Checklist", icon: ClipboardCheck },
-  { id: "gold-standard", label: "Gold Standard View", icon: Star },
-  { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "claude-shortcuts", label: "Claude Shortcuts", icon: Zap },
   { id: "user-manual", label: "User Manual", icon: BookOpen },
   { id: "inspiring-quotes", label: "Inspiring Quotes", icon: Sparkles },
@@ -422,7 +422,7 @@ function CompanySettingsTab() {
 function SystemAdminPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const currentTab = searchParams.get("tab") || "company";
+  const currentTab = searchParams.get("tab") || "gold-standard";
 
   const handleTabChange = (value: string) => {
     router.push(`/admin/system?tab=${value}`);
