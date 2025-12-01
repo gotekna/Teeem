@@ -145,11 +145,34 @@ const FEATURE_OPTIONS = [
 
 // Mock data for fallback
 const MOCK_TABLES: TableInfo[] = [
-  { id: 1, name: "Gold Standard Reference", database_table_name: "gold_standard_table", type: "system", usage_status: "TEEEMTableView", column_count: 27, record_count: 1, is_live: true, icon: "🏆" },
-  { id: 352, name: "Chat Messages", database_table_name: "chat_messages", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 4, is_live: true },
-  { id: 371, name: "Emails", database_table_name: "emails", type: "system", usage_status: "TEEEMTableView", column_count: 1, record_count: 0, is_live: true },
-  { id: 374, name: "External Integrations", database_table_name: "external_integrations", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 0, is_live: true },
-  { id: 376, name: "Folder Template Items", database_table_name: "folder_template_items", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 68, is_live: true },
+  // System tables
+  { id: 1, name: "Gold Standard Reference", database_table_name: "gold_standard_table", type: "system", usage_status: "TEEEMTableView", column_count: 27, record_count: 1, is_live: true, icon: "🏆", feature: "System" },
+  { id: 2, name: "Jobs", database_table_name: "jobs", type: "system", usage_status: "TEEEMTableView", column_count: 45, record_count: 156, is_live: true, feature: "Jobs" },
+  { id: 3, name: "Contacts", database_table_name: "contacts", type: "system", usage_status: "TEEEMTableView", column_count: 32, record_count: 432, is_live: true, feature: "Contacts" },
+  { id: 4, name: "Schedule Tasks", database_table_name: "schedule_tasks", type: "system", usage_status: "TEEEMTableView", column_count: 28, record_count: 1289, is_live: true, feature: "Schedule" },
+  { id: 5, name: "Foundations", database_table_name: "foundations", type: "system", usage_status: "Rails System", column_count: 18, record_count: 133, is_live: true, feature: "System" },
+  { id: 6, name: "Columns", database_table_name: "columns", type: "system", usage_status: "Rails System", column_count: 24, record_count: 890, is_live: true, feature: "System" },
+  { id: 7, name: "Users", database_table_name: "users", type: "system", usage_status: "Rails System", column_count: 15, record_count: 8, is_live: true, feature: "Users" },
+  { id: 8, name: "Companies", database_table_name: "companies", type: "system", usage_status: "TEEEMTableView", column_count: 22, record_count: 45, is_live: true, feature: "Companies" },
+  { id: 9, name: "Purchase Orders", database_table_name: "purchase_orders", type: "system", usage_status: "TEEEMTableView", column_count: 35, record_count: 234, is_live: true, feature: "Purchase Orders" },
+  { id: 10, name: "Quotes", database_table_name: "quotes", type: "system", usage_status: "TEEEMTableView", column_count: 40, record_count: 89, is_live: true, feature: "Quotes" },
+  { id: 11, name: "Invoices", database_table_name: "invoices", type: "system", usage_status: "TEEEMTableView", column_count: 28, record_count: 567, is_live: true, feature: "Financial" },
+  { id: 12, name: "Transactions", database_table_name: "transactions", type: "system", usage_status: "TEEEMTableView", column_count: 20, record_count: 1234, is_live: true, feature: "Financial" },
+  { id: 352, name: "Chat Messages", database_table_name: "chat_messages", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 4, is_live: true, feature: "System" },
+  { id: 371, name: "Emails", database_table_name: "emails", type: "system", usage_status: "TEEEMTableView", column_count: 1, record_count: 0, is_live: true, feature: "System" },
+  { id: 374, name: "External Integrations", database_table_name: "external_integrations", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 0, is_live: true, feature: "Xero" },
+  { id: 376, name: "Folder Template Items", database_table_name: "folder_template_items", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 68, is_live: true, feature: "System" },
+  { id: 377, name: "Xero Credentials", database_table_name: "xero_credentials", type: "system", usage_status: "Rails System", column_count: 8, record_count: 1, is_live: true, feature: "Xero" },
+  { id: 378, name: "Trinity Entries", database_table_name: "trinity_entries", type: "system", usage_status: "TEEEMTableView", column_count: 15, record_count: 245, is_live: true, feature: "Documentation" },
+  { id: 379, name: "Meeting Types", database_table_name: "meeting_types", type: "system", usage_status: "TEEEMTableView", column_count: 8, record_count: 12, is_live: true, feature: "Meetings" },
+  { id: 380, name: "Holidays", database_table_name: "holidays", type: "system", usage_status: "TEEEMTableView", column_count: 6, record_count: 24, is_live: true, feature: "System" },
+  // User tables
+  { id: 100, name: "Custom Products", database_table_name: "custom_products", type: "user", usage_status: "User Table", column_count: 12, record_count: 45, is_live: true, feature: "Pricebook" },
+  { id: 101, name: "Project Notes", database_table_name: "project_notes", type: "user", usage_status: "User Table", column_count: 8, record_count: 234, is_live: true, feature: "Jobs" },
+  { id: 102, name: "Site Photos", database_table_name: "site_photos", type: "user", usage_status: "User Table", column_count: 10, record_count: 567, is_live: true, feature: "Jobs" },
+  // Import tables
+  { id: 200, name: "Imported Suppliers", database_table_name: "imported_suppliers", type: "import", usage_status: "Import", column_count: 15, record_count: 89, is_live: true, feature: "Contacts" },
+  { id: 201, name: "Imported Products", database_table_name: "imported_products", type: "import", usage_status: "Import", column_count: 20, record_count: 1500, is_live: true, feature: "Pricebook" },
 ];
 
 const MOCK_AGENTS: AgentInfo[] = [
@@ -235,7 +258,7 @@ export function DeveloperToolsTab() {
     try {
       setCreatingSetupViews(true);
       const response = await api.post<{ success: boolean; message: string }>("/api/v1/foundation_views/create_all_setup_views");
-      if (response.success) {
+      if (response?.success) {
         toast({ title: "Success", description: response.message || "Setup views created" });
         await loadData();
       }
@@ -262,7 +285,7 @@ export function DeveloperToolsTab() {
         },
       });
 
-      if (response.success && response.foundation) {
+      if (response?.success && response?.foundation) {
         toast({ title: "Success", description: "Table created successfully" });
         setShowCreateModal(false);
         setNewTableName("");
