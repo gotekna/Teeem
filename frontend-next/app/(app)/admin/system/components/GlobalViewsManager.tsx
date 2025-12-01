@@ -631,7 +631,7 @@ export function GlobalViewsManager({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-[900px] flex flex-col p-0">
+        <SheetContent className="flex flex-col p-0" side="right-full">
           <SheetHeader className="px-6 pt-6 pb-4 border-b">
             <SheetTitle className="flex items-center gap-2">
               <Filter className="h-5 w-5" />
@@ -735,7 +735,7 @@ export function GlobalViewsManager({
 
                     {/* Editor Content */}
                     <ScrollArea className="flex-1 p-4">
-                      <div className="space-y-4 max-w-3xl">
+                      <div className="space-y-4">
                         {/* View Filter Section */}
                         <Collapsible open={filtersExpanded} onOpenChange={setFiltersExpanded}>
                           <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
@@ -1124,7 +1124,7 @@ export function GlobalViewsManager({
                                     items={editColumnOrder}
                                     strategy={verticalListSortingStrategy}
                                   >
-                                    <div className="space-y-1 max-h-[300px] overflow-y-auto">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1">
                                       {getSortedColumns().map(col => (
                                         <SortableColumnItem
                                           key={col.column_name}

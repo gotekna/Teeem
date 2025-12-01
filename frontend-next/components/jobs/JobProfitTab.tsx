@@ -34,7 +34,7 @@ interface Invoice {
   invoice_number: string;
   reference?: string;
   contact_name?: string;
-  date: string;
+  invoice_date: string;
   due_date?: string;
   status: string;
   subtotal: number;
@@ -50,7 +50,7 @@ interface Bill {
   invoice_number: string;
   reference?: string;
   contact_name?: string;
-  date: string;
+  invoice_date: string;
   due_date?: string;
   status: string;
   subtotal: number;
@@ -63,10 +63,10 @@ interface Bill {
 
 interface CreditNote {
   id: string;
-  credit_note_number: string;
+  invoice_number: string;
   reference?: string;
   contact_name?: string;
-  date: string;
+  invoice_date: string;
   status: string;
   subtotal: number;
   total_tax: number;
@@ -485,7 +485,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                       <TableRow key={invoice.id}>
                         <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
                         <TableCell>{invoice.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(invoice.date)}</TableCell>
+                        <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                         <TableCell>{formatDate(invoice.due_date)}</TableCell>
                         <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(invoice.subtotal)}</TableCell>
@@ -528,9 +528,9 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                   <TableBody>
                     {activeCreditNotes.map((cn) => (
                       <TableRow key={cn.id}>
-                        <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
+                        <TableCell className="font-medium">{cn.invoice_number}</TableCell>
                         <TableCell>{cn.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(cn.date)}</TableCell>
+                        <TableCell>{formatDate(cn.invoice_date)}</TableCell>
                         <TableCell>{getStatusBadge(cn.status)}</TableCell>
                         <TableCell className="text-right text-red-600">-{formatCurrency(cn.total)}</TableCell>
                       </TableRow>
@@ -572,7 +572,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                       <TableRow key={bill.id}>
                         <TableCell className="font-medium">{bill.invoice_number}</TableCell>
                         <TableCell>{bill.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(bill.date)}</TableCell>
+                        <TableCell>{formatDate(bill.invoice_date)}</TableCell>
                         <TableCell>{formatDate(bill.due_date)}</TableCell>
                         <TableCell>{getStatusBadge(bill.status)}</TableCell>
                         <TableCell className="text-right">{formatCurrency(bill.subtotal)}</TableCell>
@@ -615,9 +615,9 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
                   <TableBody>
                     {activeSupplierCredits.map((cn) => (
                       <TableRow key={cn.id}>
-                        <TableCell className="font-medium">{cn.credit_note_number}</TableCell>
+                        <TableCell className="font-medium">{cn.invoice_number}</TableCell>
                         <TableCell>{cn.contact_name || "-"}</TableCell>
-                        <TableCell>{formatDate(cn.date)}</TableCell>
+                        <TableCell>{formatDate(cn.invoice_date)}</TableCell>
                         <TableCell>{getStatusBadge(cn.status)}</TableCell>
                         <TableCell className="text-right text-green-600">-{formatCurrency(cn.total)}</TableCell>
                       </TableRow>
