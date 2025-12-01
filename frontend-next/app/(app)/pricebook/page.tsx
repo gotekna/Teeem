@@ -302,7 +302,13 @@ export default function PriceBookPage() {
                           </div>
                         )}
                         <div>
-                          <div className="font-medium">{item.item_name}</div>
+                          <Link
+                            href={`/pricebook/${item.id}`}
+                            target="_blank"
+                            className="font-medium hover:underline hover:text-primary"
+                          >
+                            {item.item_name}
+                          </Link>
                           {item.notes && (
                             <div className="text-xs text-muted-foreground truncate max-w-[250px]">
                               {item.notes}
