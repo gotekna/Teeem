@@ -31,11 +31,27 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     hideClose?: boolean;
   }
->(({ className, children, hideClose, ...props }, ref) => (
+>(({ className, children, hideClose, onOpenAutoFocus, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      onOpenAutoFocus={(e) => {
+        // Prevent auto-focus to avoid aria-hidden conflict
+        e.preventDefault();
+        // Find first focusable element in dialog and focus it after a microtask
+        // to ensure aria-hidden has been applied to background
+        setTimeout(() => {
+          const dialog = document.querySelector('[role="dialog"]');
+          if (dialog) {
+            const firstFocusable = dialog.querySelector<HTMLElement>(
+              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            );
+            firstFocusable?.focus();
+          }
+        }, 0);
+        onOpenAutoFocus?.(e);
+      }}
       className={cn(
         "bg-background border-border border fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[calc(100svh-10vw)] overflow-y-scroll w-[90vw] max-w-xl dark:p-px text-primary z-50 data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
         className,
@@ -58,11 +74,27 @@ DialogContent.displayName = DialogPrimitive.Content.displayName;
 const DialogContentFrameless = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onOpenAutoFocus, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
+      onOpenAutoFocus={(e) => {
+        // Prevent auto-focus to avoid aria-hidden conflict
+        e.preventDefault();
+        // Find first focusable element in dialog and focus it after a microtask
+        // to ensure aria-hidden has been applied to background
+        setTimeout(() => {
+          const dialog = document.querySelector('[role="dialog"]');
+          if (dialog) {
+            const firstFocusable = dialog.querySelector<HTMLElement>(
+              'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            );
+            firstFocusable?.focus();
+          }
+        }, 0);
+        onOpenAutoFocus?.(e);
+      }}
       className={cn(
         "fixed bg-background top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-xl border dark:border-none dark:p-px text-primary z-50 data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
         className,

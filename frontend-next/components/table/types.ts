@@ -116,6 +116,7 @@ export interface TeeemTableViewProps {
   onViewSchema?: () => void;
 
   // Custom rendering
+  leftActions?: React.ReactNode;
   customActions?: React.ReactNode;
   customCellRenderer?: (entry: TableRow, columnKey: string) => React.ReactNode | null;
   extraRowProps?: Record<string, unknown>;
