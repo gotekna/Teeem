@@ -143,37 +143,7 @@ const FEATURE_OPTIONS = [
   "System",
 ];
 
-// Mock data for fallback
-const MOCK_TABLES: TableInfo[] = [
-  // System tables
-  { id: 1, name: "Gold Standard Reference", database_table_name: "gold_standard_table", type: "system", usage_status: "TEEEMTableView", column_count: 27, record_count: 1, is_live: true, icon: "🏆", feature: "System" },
-  { id: 2, name: "Jobs", database_table_name: "jobs", type: "system", usage_status: "TEEEMTableView", column_count: 45, record_count: 156, is_live: true, feature: "Jobs" },
-  { id: 3, name: "Contacts", database_table_name: "contacts", type: "system", usage_status: "TEEEMTableView", column_count: 32, record_count: 432, is_live: true, feature: "Contacts" },
-  { id: 4, name: "Schedule Tasks", database_table_name: "schedule_tasks", type: "system", usage_status: "TEEEMTableView", column_count: 28, record_count: 1289, is_live: true, feature: "Schedule" },
-  { id: 5, name: "Foundations", database_table_name: "foundations", type: "system", usage_status: "Rails System", column_count: 18, record_count: 133, is_live: true, feature: "System" },
-  { id: 6, name: "Columns", database_table_name: "columns", type: "system", usage_status: "Rails System", column_count: 24, record_count: 890, is_live: true, feature: "System" },
-  { id: 7, name: "Users", database_table_name: "users", type: "system", usage_status: "Rails System", column_count: 15, record_count: 8, is_live: true, feature: "Users" },
-  { id: 8, name: "Companies", database_table_name: "companies", type: "system", usage_status: "TEEEMTableView", column_count: 22, record_count: 45, is_live: true, feature: "Companies" },
-  { id: 9, name: "Purchase Orders", database_table_name: "purchase_orders", type: "system", usage_status: "TEEEMTableView", column_count: 35, record_count: 234, is_live: true, feature: "Purchase Orders" },
-  { id: 10, name: "Quotes", database_table_name: "quotes", type: "system", usage_status: "TEEEMTableView", column_count: 40, record_count: 89, is_live: true, feature: "Quotes" },
-  { id: 11, name: "Invoices", database_table_name: "invoices", type: "system", usage_status: "TEEEMTableView", column_count: 28, record_count: 567, is_live: true, feature: "Financial" },
-  { id: 12, name: "Transactions", database_table_name: "transactions", type: "system", usage_status: "TEEEMTableView", column_count: 20, record_count: 1234, is_live: true, feature: "Financial" },
-  { id: 352, name: "Chat Messages", database_table_name: "chat_messages", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 4, is_live: true, feature: "System" },
-  { id: 371, name: "Emails", database_table_name: "emails", type: "system", usage_status: "TEEEMTableView", column_count: 1, record_count: 0, is_live: true, feature: "System" },
-  { id: 374, name: "External Integrations", database_table_name: "external_integrations", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 0, is_live: true, feature: "Xero" },
-  { id: 376, name: "Folder Template Items", database_table_name: "folder_template_items", type: "system", usage_status: "TEEEMTableView", column_count: 3, record_count: 68, is_live: true, feature: "System" },
-  { id: 377, name: "Xero Credentials", database_table_name: "xero_credentials", type: "system", usage_status: "Rails System", column_count: 8, record_count: 1, is_live: true, feature: "Xero" },
-  { id: 378, name: "Trinity Entries", database_table_name: "trinity_entries", type: "system", usage_status: "TEEEMTableView", column_count: 15, record_count: 245, is_live: true, feature: "Documentation" },
-  { id: 379, name: "Meeting Types", database_table_name: "meeting_types", type: "system", usage_status: "TEEEMTableView", column_count: 8, record_count: 12, is_live: true, feature: "Meetings" },
-  { id: 380, name: "Holidays", database_table_name: "holidays", type: "system", usage_status: "TEEEMTableView", column_count: 6, record_count: 24, is_live: true, feature: "System" },
-  // User tables
-  { id: 100, name: "Custom Products", database_table_name: "custom_products", type: "user", usage_status: "User Table", column_count: 12, record_count: 45, is_live: true, feature: "Pricebook" },
-  { id: 101, name: "Project Notes", database_table_name: "project_notes", type: "user", usage_status: "User Table", column_count: 8, record_count: 234, is_live: true, feature: "Jobs" },
-  { id: 102, name: "Site Photos", database_table_name: "site_photos", type: "user", usage_status: "User Table", column_count: 10, record_count: 567, is_live: true, feature: "Jobs" },
-  // Import tables
-  { id: 200, name: "Imported Suppliers", database_table_name: "imported_suppliers", type: "import", usage_status: "Import", column_count: 15, record_count: 89, is_live: true, feature: "Contacts" },
-  { id: 201, name: "Imported Products", database_table_name: "imported_products", type: "import", usage_status: "Import", column_count: 20, record_count: 1500, is_live: true, feature: "Pricebook" },
-];
+// No mock data - we want real data from the API
 
 const MOCK_AGENTS: AgentInfo[] = [
   { name: "Backend Developer", description: "Rails API, database, models", status: "active", last_run: new Date().toISOString(), run_count: 156 },
@@ -194,6 +164,7 @@ export function DeveloperToolsTab() {
   const { toast } = useToast();
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
   const [tables, setTables] = React.useState<TableInfo[]>([]);
   const [agents, setAgents] = React.useState<AgentInfo[]>([]);
   const [branches, setBranches] = React.useState<GitBranchInfo[]>([]);
@@ -218,30 +189,23 @@ export function DeveloperToolsTab() {
   }, []);
 
   const loadData = async () => {
+    setLoadError(null);
+
     try {
-      // Load tables
+      // Load tables from API
       const tablesData = await api.get<{ tables: TableInfo[] }>("/api/v1/schema/tables");
       setTables(tablesData.tables || []);
     } catch (error) {
       console.error("Failed to load tables:", error);
-      setTables(MOCK_TABLES);
+      setLoadError("Failed to load tables. Please ensure you are logged in.");
+      setTables([]);
     }
 
-    try {
-      // Load agents - mock for now
-      setAgents(MOCK_AGENTS);
-    } catch (error) {
-      console.error("Failed to load agents:", error);
-      setAgents(MOCK_AGENTS);
-    }
+    // Load agents - mock for now (no API endpoint yet)
+    setAgents(MOCK_AGENTS);
 
-    try {
-      // Load branches - mock for now
-      setBranches(MOCK_BRANCHES);
-    } catch (error) {
-      console.error("Failed to load branches:", error);
-      setBranches(MOCK_BRANCHES);
-    }
+    // Load branches - mock for now (no API endpoint yet)
+    setBranches(MOCK_BRANCHES);
 
     setLoading(false);
   };
@@ -663,7 +627,21 @@ export function DeveloperToolsTab() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredTables.length === 0 ? (
+                      {loadError ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-12">
+                            <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+                            <p className="text-red-600 font-medium">{loadError}</p>
+                            <p className="text-sm text-muted-foreground mt-2">
+                              Make sure you are logged in and the backend is running.
+                            </p>
+                            <Button variant="outline" className="mt-4" onClick={handleRefresh}>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Retry
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ) : filteredTables.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                             <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
