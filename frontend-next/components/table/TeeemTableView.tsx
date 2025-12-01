@@ -924,15 +924,22 @@ export default function TeeemTableView({
   // Load view state helper
   const loadViewState = useCallback(
     (view: SavedView) => {
+      // Helper to ensure filters have unique ids
+      const ensureFilterIds = (filters: CascadeFilter[]) =>
+        filters.map((f, idx) => ({
+          ...f,
+          id: f.id || `filter_${Date.now()}_${idx}`,
+        }));
+
       // Handle filters - may be array (legacy) or object with cascadeFilters (current)
       if (view.filters) {
         if (Array.isArray(view.filters)) {
-          setCascadeFilters(view.filters);
+          setCascadeFilters(ensureFilterIds(view.filters));
         } else if (typeof view.filters === 'object' && view.filters !== null) {
           // New format: filters is an object containing cascadeFilters
           const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
           if (Array.isArray(filtersObj.cascadeFilters)) {
-            setCascadeFilters(filtersObj.cascadeFilters);
+            setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
           }
           if (Array.isArray(filtersObj.filterGroups)) {
             setFilterGroups(filtersObj.filterGroups);
