@@ -51,6 +51,7 @@ class Company < ApplicationRecord
   validates :gst_registration_status, inclusion: { in: %w[registered not_registered] }, allow_blank: true
   validates :accounting_method, inclusion: { in: %w[cash accrual] }, allow_blank: true
   validates :code, uniqueness: true, allow_blank: true, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
+  validates :slug, uniqueness: true, allow_blank: true
 
   # Scopes
   scope :active, -> { where(status: 'active') }
@@ -71,6 +72,7 @@ class Company < ApplicationRecord
   before_validation :normalize_acn_abn
   before_validation :normalize_status
   before_validation :normalize_code
+  before_validation :generate_slug
   after_create :create_initial_activity
   after_update :create_update_activity
 
@@ -207,6 +209,25 @@ class Company < ApplicationRecord
     find_each(&:calculate_health!)
   end
 
+  # Find by slug or ID (for friendly URLs)
+  def self.find_by_slug_or_id(slug_or_id)
+    # If it looks like a numeric ID, try finding by ID first
+    if slug_or_id.to_s.match?(/\A\d+\z/)
+      find_by(id: slug_or_id) || find_by(slug: slug_or_id)
+    else
+      find_by(slug: slug_or_id)
+    end
+  end
+
+  # Class method to populate slugs for all companies without one
+  def self.populate_all_slugs!
+    where(slug: nil).find_each do |company|
+      company.send(:generate_slug)
+      company.save!
+      puts "  Generated slug for #{company.name}: #{company.slug}"
+    end
+  end
+
   # Total owed to this company
   def total_loans_receivable
     loans_as_lender.active.sum(:current_balance) || 0
@@ -322,6 +343,32 @@ class Company < ApplicationRecord
   # Normalize code to uppercase and remove invalid characters
   def normalize_code
     self.code = code.upcase.gsub(/[^A-Z0-9\-]/, '') if code.present?
+  end
+
+  # Generate a URL-friendly slug from the company name
+  def generate_slug
+    return if slug.present?
+    return if name.blank?
+
+    base_slug = name
+      .downcase
+      .gsub(/pty\.?\s*ltd\.?/i, '')      # Remove "Pty Ltd" variations
+      .gsub(/\s+trust\s*$/i, '-trust')   # Keep "Trust" but clean format
+      .gsub(/[^a-z0-9\s-]/, '')          # Remove special characters
+      .gsub(/\s+/, '-')                  # Replace spaces with hyphens
+      .gsub(/-+/, '-')                   # Remove consecutive hyphens
+      .gsub(/^-|-$/, '')                 # Remove leading/trailing hyphens
+      .truncate(50, omission: '')        # Limit length
+
+    # Ensure uniqueness by adding a number suffix if needed
+    candidate = base_slug
+    counter = 1
+    while Company.where(slug: candidate).where.not(id: id).exists?
+      counter += 1
+      candidate = "#{base_slug}-#{counter}"
+    end
+
+    self.slug = candidate
   end
 
   def create_initial_activity
