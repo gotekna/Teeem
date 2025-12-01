@@ -8658,7 +8658,22 @@ export default function TeeemTableView({
                                 return <option key={`${colKey}-${value}-${idx}`} value={value}>{value}</option>
                               })
                             }
-                          </select>
+                            </select>
+                            {columnFilterInputs[colKey] && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleColumnFilterChange(colKey, '')
+                                }}
+                                className="absolute right-5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-0.5 z-10"
+                                title="Clear filter"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         )}
 
                         {/* Component multi-select checkboxes - Show only if showFilters is true */}
