@@ -210,8 +210,17 @@ export default function ZapierIntegrationPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-orange-100 rounded-lg">
-                <Zap className="h-6 w-6 text-orange-600" />
+              <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                <img
+                  src="https://logo.clearbit.com/zapier.com"
+                  alt="Zapier"
+                  className="h-8 w-8 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <Zap className="h-6 w-6 text-orange-600 hidden" />
               </div>
               <div>
                 <CardTitle>Zapier</CardTitle>

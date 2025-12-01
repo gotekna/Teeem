@@ -520,3 +520,96 @@ a.bg-primary svg {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+/* ========================================
+   FOLDER CARD STYLING
+   ======================================== */
+
+.folder-card {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: center;
+}
+
+.folder-card:hover .folder-card-front {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.folder-card-icon {
+  position: relative;
+}
+
+.folder-card-back {
+  transform: perspective(200px) rotateX(5deg);
+  transform-origin: bottom;
+}
+
+.folder-card-front {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.folder-card-tab {
+  box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.folder-card-paper {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Dark mode adjustments for folder cards */
+.dark .folder-card-back {
+  background: #4a4a4a;
+}
+
+.dark .folder-card-front {
+  background: #5a5a5a;
+}
+
+.dark .folder-card-tab {
+  background: #5a5a5a;
+}
+
+.dark .folder-card-paper {
+  background: #e5e5e5;
+}
+
+/* ========================================
+   FOLDER TREE STYLING
+   ======================================== */
+
+.folder-tree-node {
+  position: relative;
+}
+
+.folder-tree-lines {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.folder-tree-line-vertical {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: hsl(var(--border));
+}
+
+.folder-tree-line-horizontal {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 1px;
+  background: hsl(var(--border));
+}
+
+.folder-tree-line-corner {
+  position: absolute;
+  top: 0;
+  height: 50%;
+  width: 1px;
+  background: hsl(var(--border));
+}

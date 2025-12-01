@@ -99,8 +99,17 @@ export default function XeroIntegrationPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-cyan-100 rounded-lg">
-                <CreditCard className="h-6 w-6 text-cyan-600" />
+              <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                <img
+                  src="https://logo.clearbit.com/xero.com"
+                  alt="Xero"
+                  className="h-8 w-8 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <CreditCard className="h-6 w-6 text-cyan-600 hidden" />
               </div>
               <div>
                 <CardTitle>Xero</CardTitle>

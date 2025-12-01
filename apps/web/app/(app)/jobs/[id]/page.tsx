@@ -22,9 +22,6 @@ import {
   FileText,
   ShoppingCart,
   Cloud,
-  MessageSquare,
-  Settings,
-  HelpCircle,
   ClipboardList,
   Loader2,
   Shield,
@@ -65,18 +62,13 @@ interface Job {
 
 const tabs = [
   { name: "Overview", slug: "overview", icon: ClipboardList },
-  { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
   { name: "Estimates", slug: "estimates", icon: FileText },
-  { name: "Activity", slug: "activity", icon: TrendingUp },
   { name: "Budget", slug: "budget", icon: DollarSign },
   { name: "Schedule", slug: "schedule", icon: Calendar },
+  { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
   { name: "WHS", slug: "whs", icon: Shield },
-  { name: "Rain Log", slug: "rain-log", icon: Cloud },
   { name: "Documents", slug: "documents", icon: FileText },
-  { name: "Coms", slug: "coms", icon: MessageSquare },
   { name: "Team", slug: "team", icon: Users },
-  { name: "Settings", slug: "settings", icon: Settings },
-  { name: "Help", slug: "help", icon: HelpCircle },
 ];
 
 function formatCurrency(value: number): string {
@@ -123,8 +115,12 @@ export default function JobDetailPage() {
       try {
         const data = await api.get<Job>(`/api/v1/jobs/${jobId}`);
         setJob(data);
-      } catch (error) {
-        console.error("Failed to fetch job:", error);
+      } catch {
+        // Use mock data for demo when API is unavailable
+        const mockJob = getMockJob(jobId);
+        if (mockJob) {
+          setJob(mockJob);
+        }
       } finally {
         setLoading(false);
       }
@@ -382,15 +378,7 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="purchase-orders" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Purchase Orders</CardTitle>
-              <Button>Create PO</Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Purchase orders will be displayed here.</p>
-            </CardContent>
-          </Card>
+          <JobPurchaseOrders jobId={parseInt(jobId)} />
         </TabsContent>
 
         <TabsContent value="estimates" className="mt-6">
@@ -400,17 +388,6 @@ export default function JobDetailPage() {
             </CardHeader>
             <CardContent>
               <p className="text-muted-foreground">Estimates will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="activity" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Activity timeline coming soon.</p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -445,7 +422,7 @@ export default function JobDetailPage() {
         <TabsContent value="whs" className="mt-6">
           <div className="space-y-6">
             {/* WHS Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <Card>
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-2">
@@ -482,45 +459,92 @@ export default function JobDetailPage() {
                   <p className="text-2xl font-bold mt-1">0</p>
                 </CardContent>
               </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-2">
+                    <Cloud className="h-4 w-4 text-blue-500" />
+                    <span className="text-sm text-muted-foreground">Rain Days</span>
+                  </div>
+                  <p className="text-2xl font-bold mt-1">4</p>
+                </CardContent>
+              </Card>
             </div>
 
-            {/* SWMS for this job */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Safe Work Method Statements</CardTitle>
-                <Button size="sm">
-                  <ClipboardCheck className="h-4 w-4 mr-2" />
-                  Create SWMS
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="font-medium">Excavation Works SWMS</p>
-                        <p className="text-sm text-muted-foreground">Version 2 • 8 workers</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* SWMS for this job */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Safe Work Method Statements</CardTitle>
+                  <Button size="sm">
+                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                    Create SWMS
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                        <div>
+                          <p className="font-medium">Excavation Works SWMS</p>
+                          <p className="text-sm text-muted-foreground">Version 2 • 8 workers</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Active</Badge>
+                        <span className="text-sm text-muted-foreground">60 days</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-green-100 text-green-700">Active</Badge>
-                      <span className="text-sm text-muted-foreground">60 days remaining</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <ClipboardCheck className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="font-medium">Concrete Pouring SWMS</p>
-                        <p className="text-sm text-muted-foreground">Version 1 • Draft</p>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <ClipboardCheck className="h-5 w-5 text-blue-500" />
+                        <div>
+                          <p className="font-medium">Concrete Pouring SWMS</p>
+                          <p className="text-sm text-muted-foreground">Version 1 • Draft</p>
+                        </div>
                       </div>
+                      <Badge variant="secondary">Draft</Badge>
                     </div>
-                    <Badge variant="secondary">Draft</Badge>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* Rain Log */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>Rain Log</CardTitle>
+                  <Button size="sm" variant="outline">
+                    <Cloud className="h-4 w-4 mr-2" />
+                    Add Entry
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">28 Nov 2024</p>
+                        <p className="text-sm text-muted-foreground">Heavy rain - No work</p>
+                      </div>
+                      <Badge variant="secondary">8 hrs</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">22 Nov 2024</p>
+                        <p className="text-sm text-muted-foreground">Morning showers - Delayed start</p>
+                      </div>
+                      <Badge variant="secondary">3 hrs</Badge>
+                    </div>
+                    <div className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">15 Nov 2024</p>
+                        <p className="text-sm text-muted-foreground">Afternoon storm</p>
+                      </div>
+                      <Badge variant="secondary">2 hrs</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Inducted Workers */}
             <Card>
@@ -552,7 +576,7 @@ export default function JobDetailPage() {
                       </div>
                     </div>
                   ))}
-                  <div className="flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50">
+                  <div className="flex items-center justify-between p-3 border rounded-lg border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>TB</AvatarFallback>
@@ -593,18 +617,6 @@ export default function JobDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="rain-log" className="mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Rain Log</CardTitle>
-              <Button>Add Entry</Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Rain log entries will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="documents" className="mt-6">
           <Card>
             <CardHeader>
@@ -641,29 +653,459 @@ export default function JobDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="settings" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Job Settings</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Job settings coming soon.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="help" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Help & Documentation</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Help documentation will be displayed here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );
+}
+
+// Job Purchase Orders Component
+interface PurchaseOrder {
+  id: number;
+  po_number: string;
+  supplier_name: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+  description: string;
+}
+
+function JobPurchaseOrders({ jobId }: { jobId: number }) {
+  const mockPurchaseOrdersByJob: Record<number, PurchaseOrder[]> = {
+    1: [
+      { id: 1, po_number: "PO-2024-001", supplier_name: "Boral Timber", total_amount: 42850, status: "sent", created_at: "2024-10-15", description: "Framing timber package - LVL beams, studs, plates" },
+      { id: 2, po_number: "PO-2024-002", supplier_name: "QLD Steel Supplies", total_amount: 28400, status: "received", created_at: "2024-10-10", description: "Steel lintels and connections" },
+      { id: 3, po_number: "PO-2024-003", supplier_name: "Truecore Windows & Doors", total_amount: 67200, status: "approved", created_at: "2024-11-01", description: "Aluminium windows and bifold doors" },
+      { id: 22, po_number: "PO-2024-022", supplier_name: "Austral Bricks", total_amount: 22400, status: "draft", created_at: "2024-11-18", description: "Face brickwork - feature walls" },
+    ],
+    2: [
+      { id: 4, po_number: "PO-2024-004", supplier_name: "Hanson Concrete", total_amount: 18900, status: "sent", created_at: "2024-10-28", description: "Slab concrete - 32MPa" },
+      { id: 5, po_number: "PO-2024-005", supplier_name: "Reo Steel Fixers", total_amount: 24500, status: "sent", created_at: "2024-10-25", description: "Reinforcement mesh and labour" },
+      { id: 6, po_number: "PO-2024-006", supplier_name: "Gold Coast Formwork", total_amount: 15200, status: "received", created_at: "2024-10-20", description: "Slab edge formwork hire" },
+      { id: 23, po_number: "PO-2024-023", supplier_name: "QLD Scaffolding Hire", total_amount: 8500, status: "draft", created_at: "2024-11-19", description: "Scaffold hire - 8 weeks" },
+    ],
+    3: [
+      { id: 7, po_number: "PO-2024-007", supplier_name: "Reece Plumbing", total_amount: 12450, status: "sent", created_at: "2024-11-05", description: "Bathroom fixtures and fittings" },
+      { id: 8, po_number: "PO-2024-008", supplier_name: "Beacon Lighting", total_amount: 8900, status: "approved", created_at: "2024-11-08", description: "LED downlights and pendants" },
+      { id: 9, po_number: "PO-2024-009", supplier_name: "Bunnings Trade", total_amount: 4250, status: "received", created_at: "2024-10-30", description: "Hardware and sundries" },
+    ],
+    4: [
+      { id: 10, po_number: "PO-2024-010", supplier_name: "CSR Bradford Insulation", total_amount: 6800, status: "sent", created_at: "2024-11-10", description: "Wall and ceiling batts R4.0" },
+      { id: 11, po_number: "PO-2024-011", supplier_name: "Brickworks Building Products", total_amount: 19500, status: "received", created_at: "2024-09-15", description: "Face bricks - 12,000 units" },
+      { id: 12, po_number: "PO-2024-012", supplier_name: "Stratco Roofing", total_amount: 31200, status: "received", created_at: "2024-10-01", description: "Colorbond roofing and gutters" },
+    ],
+    6: [
+      { id: 13, po_number: "PO-2024-013", supplier_name: "BlueScope Steel", total_amount: 156000, status: "sent", created_at: "2024-10-20", description: "Portal frame steel structure" },
+      { id: 14, po_number: "PO-2024-014", supplier_name: "Lysaght Building Solutions", total_amount: 42800, status: "approved", created_at: "2024-11-12", description: "Wall and roof sheeting" },
+      { id: 15, po_number: "PO-2024-015", supplier_name: "Industrial Concrete QLD", total_amount: 38500, status: "received", created_at: "2024-10-10", description: "Industrial slab - 150mm thick" },
+    ],
+    8: [
+      { id: 16, po_number: "PO-2024-016", supplier_name: "Monier Roofing", total_amount: 24600, status: "sent", created_at: "2024-11-01", description: "Concrete roof tiles - Elabana" },
+      { id: 17, po_number: "PO-2024-017", supplier_name: "Fletcher Insulation", total_amount: 5400, status: "pending", created_at: "2024-11-14", description: "Roof blanket insulation R5.0" },
+      { id: 18, po_number: "PO-2024-018", supplier_name: "James Hardie", total_amount: 18200, status: "approved", created_at: "2024-10-25", description: "HardiePlank cladding" },
+    ],
+    9: [
+      { id: 19, po_number: "PO-2024-019", supplier_name: "Clipsal Electrical", total_amount: 34200, status: "sent", created_at: "2024-10-28", description: "Commercial electrical package" },
+      { id: 20, po_number: "PO-2024-020", supplier_name: "USG Boral Plasterboard", total_amount: 12800, status: "received", created_at: "2024-10-15", description: "Fire-rated plasterboard" },
+      { id: 21, po_number: "PO-2024-021", supplier_name: "Rinnai Hot Water", total_amount: 8900, status: "pending", created_at: "2024-11-15", description: "Commercial hot water system" },
+      { id: 24, po_number: "PO-2024-024", supplier_name: "Actrol HVAC", total_amount: 45600, status: "draft", created_at: "2024-11-20", description: "Split system AC units x 6" },
+    ],
+  };
+
+  const purchaseOrders = mockPurchaseOrdersByJob[jobId] || [];
+  const totalValue = purchaseOrders.reduce((sum, po) => sum + po.total_amount, 0);
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "draft":
+        return <Badge variant="outline">Draft</Badge>;
+      case "pending":
+        return <Badge variant="secondary">Pending</Badge>;
+      case "approved":
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Approved</Badge>;
+      case "sent":
+        return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Sent</Badge>;
+      case "received":
+        return <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100">Received</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Total POs</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{purchaseOrders.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Total Value</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{formatCurrency(totalValue)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span className="text-sm text-muted-foreground">Received</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{purchaseOrders.filter(po => po.status === "received").length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-2">
+              <Clock className="h-4 w-4 text-orange-500" />
+              <span className="text-sm text-muted-foreground">Pending</span>
+            </div>
+            <p className="text-2xl font-bold mt-1">{purchaseOrders.filter(po => po.status === "pending" || po.status === "draft").length}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* PO List */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Purchase Orders</CardTitle>
+          <Button>
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Create PO
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {purchaseOrders.length > 0 ? (
+            <div className="space-y-3">
+              {purchaseOrders.map((po) => (
+                <div key={po.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 cursor-pointer">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <ShoppingCart className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{po.po_number}</p>
+                        {getStatusBadge(po.status)}
+                      </div>
+                      <p className="text-sm text-muted-foreground">{po.supplier_name}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{po.description}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold">{formatCurrency(po.total_amount)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(po.created_at).toLocaleDateString("en-AU")}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">No purchase orders for this job yet</p>
+              <Button className="mt-4">
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Create First PO
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Mock data for demo
+function getMockJob(jobId: string): Job | null {
+  const mockJobs: Record<string, Job> = {
+    "1": {
+      id: 1,
+      title: "Harrison Residence - Custom Home",
+      status: "Active",
+      stage: "Framing",
+      contract_value: 875000,
+      live_profit: 142500,
+      profit_percentage: 16.3,
+      certifier_job_no: "BC-2024-1842",
+      start_date: "2024-09-15",
+      location: "42 Riverside Drive, Bulimba QLD 4171",
+      latitude: -27.4545,
+      longitude: 153.0584,
+      site_supervisor_name: "James Wilson",
+      site_supervisor_email: "james.wilson@teeem.com.au",
+      site_supervisor_phone: "0412 345 678",
+      contacts: [
+        {
+          id: 1,
+          name: "Michael Harrison",
+          email: "michael.harrison@email.com",
+          mobile: "0423 456 789",
+          company: "Harrison Family Trust",
+          is_primary: true,
+        },
+        {
+          id: 2,
+          name: "Sarah Harrison",
+          email: "sarah.harrison@email.com",
+          mobile: "0434 567 890",
+          is_primary: false,
+        },
+      ],
+    },
+    "2": {
+      id: 2,
+      title: "Coastal Views Duplex",
+      status: "Active",
+      stage: "Slab",
+      contract_value: 1250000,
+      live_profit: 187500,
+      profit_percentage: 15.0,
+      certifier_job_no: "BC-2024-2156",
+      start_date: "2024-10-01",
+      location: "18 Ocean Parade, Mermaid Beach QLD 4218",
+      latitude: -28.0442,
+      longitude: 153.4311,
+      site_supervisor_name: "Mark Thompson",
+      site_supervisor_email: "mark.thompson@teeem.com.au",
+      site_supervisor_phone: "0421 234 567",
+      contacts: [
+        {
+          id: 3,
+          name: "Steve Patterson",
+          email: "steve@pattersondevelopments.com.au",
+          mobile: "0400 111 222",
+          company: "Patterson Developments",
+          is_primary: true,
+        },
+      ],
+    },
+    "3": {
+      id: 3,
+      title: "Thompson Family Home - Renovation",
+      status: "In Progress",
+      stage: "Internal Fit-out",
+      contract_value: 320000,
+      live_profit: 48000,
+      profit_percentage: 15.0,
+      certifier_job_no: "BC-2024-1567",
+      start_date: "2024-08-20",
+      location: "156 Queensport Road, Murarrie QLD 4172",
+      latitude: -27.4612,
+      longitude: 153.0945,
+      site_supervisor_name: "Lisa Chen",
+      site_supervisor_email: "lisa.chen@teeem.com.au",
+      site_supervisor_phone: "0433 456 789",
+      contacts: [
+        {
+          id: 4,
+          name: "David Thompson",
+          email: "david.thompson@gmail.com",
+          mobile: "0411 222 333",
+          is_primary: true,
+        },
+      ],
+    },
+    "4": {
+      id: 4,
+      title: "Greenfield Estate - Lot 45",
+      status: "Active",
+      stage: "Lock-up",
+      contract_value: 485000,
+      live_profit: 72750,
+      profit_percentage: 15.0,
+      certifier_job_no: "BC-2024-1234",
+      start_date: "2024-07-10",
+      location: "45 Greenfield Circuit, Springfield QLD 4300",
+      latitude: -27.6607,
+      longitude: 152.9067,
+      site_supervisor_name: "James Wilson",
+      site_supervisor_email: "james.wilson@teeem.com.au",
+      site_supervisor_phone: "0412 345 678",
+      contacts: [
+        {
+          id: 5,
+          name: "James Chen",
+          email: "james.chen@outlook.com",
+          mobile: "0422 333 444",
+          is_primary: true,
+        },
+        {
+          id: 6,
+          name: "Emily Chen",
+          email: "emily.chen@outlook.com",
+          mobile: "0433 444 555",
+          is_primary: false,
+        },
+      ],
+    },
+    "5": {
+      id: 5,
+      title: "Ascot Terrace - Townhouse",
+      status: "On Hold",
+      stage: "Planning",
+      contract_value: 720000,
+      live_profit: 0,
+      profit_percentage: 0,
+      start_date: "2024-11-01",
+      location: "8/22 Lancaster Road, Ascot QLD 4007",
+      latitude: -27.4322,
+      longitude: 153.0658,
+      contacts: [
+        {
+          id: 7,
+          name: "Robert Mitchell",
+          email: "r.mitchell@ascotproperty.com.au",
+          mobile: "0444 555 666",
+          company: "Ascot Property Group",
+          is_primary: true,
+        },
+      ],
+    },
+    "6": {
+      id: 6,
+      title: "Industrial Shed - BrisWest",
+      status: "Active",
+      stage: "Steel Erection",
+      contract_value: 580000,
+      live_profit: 87000,
+      profit_percentage: 15.0,
+      certifier_job_no: "BC-2024-2089",
+      start_date: "2024-10-15",
+      location: "Unit 3, 89 Industrial Avenue, Wacol QLD 4076",
+      latitude: -27.5876,
+      longitude: 152.9312,
+      site_supervisor_name: "Mark Thompson",
+      site_supervisor_email: "mark.thompson@teeem.com.au",
+      site_supervisor_phone: "0421 234 567",
+      contacts: [
+        {
+          id: 8,
+          name: "Karen Wright",
+          email: "karen@briswest.com.au",
+          mobile: "0455 666 777",
+          company: "BrisWest Logistics Pty Ltd",
+          is_primary: true,
+        },
+      ],
+    },
+    "7": {
+      id: 7,
+      title: "Roberts Granny Flat",
+      status: "Completed",
+      stage: "Completed",
+      contract_value: 145000,
+      live_profit: 21750,
+      profit_percentage: 15.0,
+      certifier_job_no: "BC-2024-0892",
+      start_date: "2024-06-01",
+      location: "14 Jacaranda Street, Kenmore QLD 4069",
+      latitude: -27.5073,
+      longitude: 152.9378,
+      site_supervisor_name: "Lisa Chen",
+      site_supervisor_email: "lisa.chen@teeem.com.au",
+      site_supervisor_phone: "0433 456 789",
+      contacts: [
+        {
+          id: 9,
+          name: "Margaret Roberts",
+          email: "margaret.roberts@bigpond.com",
+          mobile: "0466 777 888",
+          is_primary: true,
+        },
+      ],
+    },
+    "8": {
+      id: 8,
+      title: "Waverly Heights - New Build",
+      status: "Active",
+      stage: "Roof",
+      contract_value: 695000,
+      live_profit: 104250,
+      profit_percentage: 15.0,
+      certifier_job_no: "BC-2024-1678",
+      start_date: "2024-08-05",
+      location: "27 Hillcrest Avenue, Camp Hill QLD 4152",
+      latitude: -27.4932,
+      longitude: 153.0712,
+      site_supervisor_name: "James Wilson",
+      site_supervisor_email: "james.wilson@teeem.com.au",
+      site_supervisor_phone: "0412 345 678",
+      contacts: [
+        {
+          id: 10,
+          name: "Tom Miller",
+          email: "tom.miller@gmail.com",
+          mobile: "0477 888 999",
+          is_primary: true,
+        },
+        {
+          id: 11,
+          name: "Jessica Miller",
+          email: "jess.miller@gmail.com",
+          mobile: "0488 999 000",
+          is_primary: false,
+        },
+      ],
+    },
+    "9": {
+      id: 9,
+      title: "Commercial Fit-out - Queen St",
+      status: "In Progress",
+      stage: "Services Rough-in",
+      contract_value: 420000,
+      live_profit: 63000,
+      profit_percentage: 15.0,
+      certifier_job_no: "BC-2024-1945",
+      start_date: "2024-09-20",
+      location: "Level 5, 120 Queen Street, Brisbane QLD 4000",
+      latitude: -27.4679,
+      longitude: 153.0256,
+      site_supervisor_name: "Mark Thompson",
+      site_supervisor_email: "mark.thompson@teeem.com.au",
+      site_supervisor_phone: "0421 234 567",
+      contacts: [
+        {
+          id: 12,
+          name: "Dr. Amanda Lee",
+          email: "admin@cbdmedical.com.au",
+          mobile: "0499 000 111",
+          company: "CBD Medical Centre",
+          is_primary: true,
+        },
+      ],
+    },
+    "10": {
+      id: 10,
+      title: "Poolside Pavilion - Johnson",
+      status: "Draft",
+      stage: "Quoting",
+      contract_value: 95000,
+      live_profit: 0,
+      profit_percentage: 0,
+      location: "89 Esplanade, Sandgate QLD 4017",
+      latitude: -27.3234,
+      longitude: 153.0678,
+      contacts: [
+        {
+          id: 13,
+          name: "Richard Johnson",
+          email: "richard.j@outlook.com",
+          mobile: "0400 222 333",
+          is_primary: true,
+        },
+      ],
+    },
+  };
+
+  return mockJobs[jobId] || null;
 }

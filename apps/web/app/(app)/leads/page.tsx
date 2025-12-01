@@ -51,9 +51,8 @@ export default function LeadsPage() {
     try {
       const response = await api.get<{ leads: Lead[] }>("/api/v1/leads");
       setLeads(response.leads || []);
-    } catch (error) {
-      console.error("Failed to load leads:", error);
-      // Mock data for development
+    } catch {
+      // Mock data for development when API is unavailable
       setLeads(getMockLeads());
     }
   };

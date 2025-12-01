@@ -529,7 +529,7 @@ export default function SettingsPage() {
 
             <Card
               className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => router.push("/admin/dashboard")}
+              onClick={() => router.push("/radmin")}
             >
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">

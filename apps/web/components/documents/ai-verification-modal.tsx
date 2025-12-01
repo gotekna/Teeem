@@ -143,7 +143,10 @@ export function AIVerificationModal({
         document_id: document.id,
       });
 
-      const suggestion = response.suggestion;
+      const suggestion = response?.suggestion;
+      if (!suggestion) {
+        throw new Error("No suggestion received");
+      }
       setSuggestion(suggestion);
 
       // Pre-fill form with suggestions

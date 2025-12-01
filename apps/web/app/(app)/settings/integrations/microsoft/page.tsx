@@ -112,8 +112,17 @@ export default function MicrosoftIntegrationPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Mail className="h-6 w-6 text-blue-600" />
+              <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                <img
+                  src="https://logo.clearbit.com/microsoft.com"
+                  alt="Microsoft"
+                  className="h-8 w-8 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <Mail className="h-6 w-6 text-blue-600 hidden" />
               </div>
               <div>
                 <CardTitle>Microsoft 365</CardTitle>
