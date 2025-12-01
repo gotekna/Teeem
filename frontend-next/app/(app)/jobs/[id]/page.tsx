@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { slugifyJobTitle } from "@/lib/url-utils";
 import dynamic from "next/dynamic";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
@@ -142,22 +143,48 @@ function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const jobId = params.id as string;
 
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState("overview");
+
+  // Get tab from URL or default to "overview"
+  const tabFromUrl = searchParams.get("tab") || "overview";
+  const [activeTab, setActiveTab] = React.useState(tabFromUrl);
+
+  // Update URL when tab changes - use slug if job is loaded
+  // Don't show ?tab=overview for default tab (cleaner URLs)
+  const handleTabChange = React.useCallback((newTab: string) => {
+    setActiveTab(newTab);
+    // Use slug from job title if available, otherwise use current URL param
+    const urlSlug = job?.title ? slugifyJobTitle(job.title) : jobId;
+    // Only add ?tab= for non-default tabs
+    const newUrl = newTab === "overview"
+      ? `/jobs/${urlSlug}`
+      : `/jobs/${urlSlug}?tab=${newTab}`;
+    router.replace(newUrl, { scroll: false });
+  }, [job, jobId, router]);
 
   const loadJob = React.useCallback(async () => {
     try {
       const data = await api.get<Job>(`/api/v1/jobs/${jobId}`);
       setJob(data);
+
+      // If URL is using numeric ID, redirect to slug-based URL
+      if (data?.title && /^\d+$/.test(jobId)) {
+        const slug = slugifyJobTitle(data.title);
+        const tab = searchParams.get("tab");
+        // Only include ?tab= for non-default tabs (cleaner URLs)
+        const newUrl = (tab && tab !== "overview") ? `/jobs/${slug}?tab=${tab}` : `/jobs/${slug}`;
+        router.replace(newUrl, { scroll: false });
+      }
     } catch (error) {
       console.error("Failed to fetch job:", error);
     } finally {
       setLoading(false);
     }
-  }, [jobId]);
+  }, [jobId, router, searchParams]);
 
   React.useEffect(() => {
     if (jobId) {
@@ -264,7 +291,7 @@ export default function JobDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="w-full justify-start overflow-x-auto">
           {tabs.map((tab) => (
             <TabsTrigger key={tab.slug} value={tab.slug} className="gap-2">

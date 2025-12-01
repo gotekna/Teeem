@@ -107,6 +107,11 @@ export interface TeeemTableViewProps {
 
   // Schema editor
   enableSchemaEditor?: boolean;
+  onCreateColumn?: () => void;
+  onEditColumns?: () => void;
+  onDeleteColumn?: () => void;
+  onEditIndividual?: () => void;
+  onViewSchema?: () => void;
 
   // Custom rendering
   customActions?: React.ReactNode;

@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import {
   MessageCircle,
   Mail,
@@ -14,14 +16,47 @@ import {
   Search,
   Loader2,
   User,
+  RefreshCw,
+  Paperclip,
+  MessageSquare,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import DOMPurify from "isomorphic-dompurify";
 
 interface Message {
   id: number;
   content: string;
   user_name?: string;
   created_at: string;
+}
+
+interface Email {
+  id: number;
+  subject: string | null;
+  from_email: string;
+  display_from?: string;
+  to_emails: string[];
+  cc_emails?: string[];
+  body_text?: string;
+  body_html?: string;
+  preview_body?: string;
+  received_at: string;
+  has_attachments?: boolean;
+  attachment_count?: number;
+  thread_count?: number;
+  match_type?: string;
+}
+
+interface SuggestedEmail {
+  email: Email;
+  reason: string;
+}
+
+interface SyncStatus {
+  total_emails_synced: number;
+  last_sync_at: string | null;
 }
 
 interface JobCommunicationsTabProps {
@@ -214,16 +249,330 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
   );
 }
 
-// Email placeholder component
+// Email Section Component with email warehouse integration
 function EmailsSection({ jobId }: { jobId: string | number }) {
+  const [emails, setEmails] = useState<Email[]>([]);
+  const [suggestedEmails, setSuggestedEmails] = useState<SuggestedEmail[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
+  const [showAllInThread, setShowAllInThread] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+
+  useEffect(() => {
+    loadEmails();
+    loadSyncStatus();
+  }, [jobId, showAllInThread]);
+
+  const loadEmails = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ emails: Email[]; suggested: SuggestedEmail[] }>(
+        `/api/v1/email_warehouse/for_job/${jobId}`,
+        {
+          params: {
+            include_suggestions: true,
+            show_all_in_thread: showAllInThread,
+          },
+        }
+      );
+      setEmails(response?.emails || []);
+      setSuggestedEmails(response?.suggested || []);
+    } catch (error) {
+      console.error("Failed to load emails:", error);
+      setEmails([]);
+      setSuggestedEmails([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSyncStatus = async () => {
+    try {
+      const response = await api.get<SyncStatus>("/api/v1/email_warehouse/sync_status");
+      setSyncStatus(response);
+    } catch (error) {
+      console.error("Failed to load sync status:", error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    await loadEmails();
+    await loadSyncStatus();
+  };
+
+  const handleAssignSuggested = async (suggestion: SuggestedEmail) => {
+    try {
+      await api.post(`/api/v1/email_warehouse/${suggestion.email.id}/assign_to_job`, {
+        job_id: jobId,
+        assign_thread: true,
+      });
+      await loadEmails();
+    } catch (error) {
+      console.error("Failed to assign email:", error);
+      alert("Failed to assign email to this job");
+    }
+  };
+
+  const filteredEmails = emails.filter((email) => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      email.subject?.toLowerCase().includes(searchLower) ||
+      email.from_email?.toLowerCase().includes(searchLower) ||
+      email.preview_body?.toLowerCase().includes(searchLower) ||
+      email.to_emails?.some((to) => to.toLowerCase().includes(searchLower))
+    );
+  });
+
+  const handleEmailClick = (email: Email) => {
+    setSelectedEmail(selectedEmail?.id === email.id ? null : email);
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card>
-      <CardContent className="py-12 text-center">
-        <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-        <h3 className="text-base font-medium">Email Integration</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Email history and integration will be displayed here.
-        </p>
+    <Card className="flex flex-col h-[calc(100vh-20rem)]">
+      {/* Search bar with sync/import buttons */}
+      <CardHeader className="border-b bg-muted/50 py-4">
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search emails..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
+
+        {/* Warehouse status */}
+        {syncStatus && syncStatus.total_emails_synced > 0 && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            <span>{syncStatus.total_emails_synced.toLocaleString()} emails in warehouse</span>
+            {syncStatus.last_sync_at && (
+              <span className="ml-2">
+                • Last sync: {new Date(syncStatus.last_sync_at).toLocaleString()}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Thread toggle */}
+        <div className="mt-2 flex items-center space-x-2">
+          <Checkbox
+            id="showAllInThread"
+            checked={showAllInThread}
+            onCheckedChange={(checked) => setShowAllInThread(checked === true)}
+          />
+          <label
+            htmlFor="showAllInThread"
+            className="text-sm text-muted-foreground cursor-pointer"
+          >
+            Show all emails in conversations (instead of latest only)
+          </label>
+        </div>
+      </CardHeader>
+
+      {/* Suggested emails section */}
+      {suggestedEmails.length > 0 && (
+        <div className="border-b p-4 bg-yellow-50 dark:bg-yellow-900/20">
+          <h4 className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+            Suggested Emails ({suggestedEmails.length})
+          </h4>
+          <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-3">
+            These emails might belong to this job based on contact matches or address mentions.
+          </p>
+          <div className="space-y-2 max-h-32 overflow-y-auto">
+            {suggestedEmails.slice(0, 5).map((suggestion) => (
+              <div
+                key={suggestion.email.id}
+                className="flex items-center justify-between p-2 bg-white dark:bg-gray-800 rounded border border-yellow-200 dark:border-yellow-800"
+              >
+                <div className="flex-1 min-w-0 mr-3">
+                  <p className="text-sm font-medium truncate">
+                    {suggestion.email.subject || "(No Subject)"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    From: {suggestion.email.from_email} • {suggestion.reason}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAssignSuggested(suggestion)}
+                  className="text-primary"
+                >
+                  Add to Job
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Emails list */}
+      <CardContent className="flex-1 overflow-y-auto p-4">
+        {filteredEmails.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center py-12">
+            <Mail className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">
+              {searchTerm ? "No emails found" : "No emails yet"}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-md">
+              {searchTerm
+                ? "Try adjusting your search terms"
+                : 'No emails matched to this job yet. Emails with job contacts or "id:XX" in the subject will auto-match.'}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredEmails.map((email) => (
+              <div
+                key={email.id}
+                className="bg-muted/50 rounded-lg overflow-hidden"
+              >
+                {/* Email header - always visible */}
+                <div
+                  className="p-4 cursor-pointer hover:bg-muted transition-colors"
+                  onClick={() => handleEmailClick(email)}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="font-semibold text-sm truncate">
+                          {email.display_from || email.from_email}
+                        </span>
+                        {email.has_attachments && (
+                          <div className="flex items-center text-xs text-muted-foreground">
+                            <Paperclip className="h-3 w-3 mr-1" />
+                            {email.attachment_count}
+                          </div>
+                        )}
+                        {email.thread_count && email.thread_count > 1 && (
+                          <div className="flex items-center text-xs text-primary">
+                            <MessageSquare className="h-3 w-3 mr-1" />
+                            {email.thread_count} in thread
+                          </div>
+                        )}
+                        {email.match_type === "auto" && (
+                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                            Auto-matched
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-sm font-medium truncate">
+                        {email.subject || "(No Subject)"}
+                      </div>
+                      {(!selectedEmail || selectedEmail.id !== email.id) && (
+                        <div className="text-xs text-muted-foreground truncate mt-1">
+                          {email.preview_body}
+                        </div>
+                      )}
+                    </div>
+                    <div className="ml-4 flex-shrink-0 flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {email.received_at ? new Date(email.received_at).toLocaleString() : ""}
+                      </span>
+                      {selectedEmail?.id === email.id ? (
+                        <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Recipients preview */}
+                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <span>To:</span>
+                    <span className="truncate">
+                      {email.to_emails?.join(", ") || "Unknown"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Email body - expandable */}
+                {selectedEmail && selectedEmail.id === email.id && (
+                  <div className="border-t p-4 bg-background">
+                    {/* Full email details */}
+                    <div className="space-y-2 mb-4 text-sm">
+                      <div>
+                        <span className="font-semibold text-muted-foreground">From: </span>
+                        <span>{email.from_email}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-muted-foreground">To: </span>
+                        <span>{email.to_emails?.join(", ")}</span>
+                      </div>
+                      {email.cc_emails && email.cc_emails.length > 0 && (
+                        <div>
+                          <span className="font-semibold text-muted-foreground">CC: </span>
+                          <span>{email.cc_emails.join(", ")}</span>
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Subject: </span>
+                        <span>{email.subject || "(No Subject)"}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-muted-foreground">Date: </span>
+                        <span>{new Date(email.received_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    {/* Email body */}
+                    <div className="border-t pt-4">
+                      {email.body_html ? (
+                        <div
+                          className="prose dark:prose-invert max-w-none text-sm"
+                          dangerouslySetInnerHTML={{
+                            __html: DOMPurify.sanitize(email.body_html, {
+                              ALLOWED_TAGS: [
+                                "p", "br", "strong", "em", "u", "a", "ul", "ol", "li",
+                                "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre",
+                                "code", "span", "div",
+                              ],
+                              ALLOWED_ATTR: ["href", "target", "rel", "class", "style"],
+                              ALLOW_DATA_ATTR: false,
+                              FORBID_TAGS: [
+                                "script", "style", "iframe", "object", "embed", "form",
+                                "input", "button",
+                              ],
+                              FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
+                            }),
+                          }}
+                        />
+                      ) : (
+                        <div className="whitespace-pre-wrap text-sm">
+                          {email.body_text}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

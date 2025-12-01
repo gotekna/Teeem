@@ -23,10 +23,29 @@ import {
   Database,
   FileText,
   GitCompare,
+  Plus,
+  Pencil,
+  Trash2,
+  Copy,
+  Settings,
+  Eye,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { TableColumn, TableRow as TableRowType } from "@/components/table/types";
 
 interface ColumnType {
   columnName: string;
@@ -62,6 +81,478 @@ interface SyncData {
   };
 }
 
+// Gold Standard Data Tab - shows actual table records using TeeemTableView
+function GoldStandardDataTab() {
+  const { toast } = useToast();
+  const [entries, setEntries] = React.useState<TableRowType[]>([]);
+  const [columns, setColumns] = React.useState<TableColumn[]>([]);
+  const [rawColumns, setRawColumns] = React.useState<Array<{
+    id: number;
+    column_name: string;
+    name: string;
+    column_type: string;
+    position?: number;
+  }>>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [showEditDialog, setShowEditDialog] = React.useState(false);
+  const [editingEntry, setEditingEntry] = React.useState<TableRowType | null>(null);
+  const [formData, setFormData] = React.useState<Record<string, unknown>>({});
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+
+      // Fetch foundation (table) data including columns
+      const foundationData = await api.get<{
+        success: boolean;
+        foundation: {
+          id: number;
+          name: string;
+          columns: Array<{
+            id: number;
+            column_name: string;
+            name: string;
+            column_type: string;
+            position?: number;
+          }>;
+        };
+      }>("/api/v1/foundations/1");
+
+      // Fetch gold standard items
+      const itemsData = await api.get<{
+        success: boolean;
+        items: TableRowType[];
+      }>("/api/v1/gold_standard_table");
+
+      if (foundationData?.foundation?.columns) {
+        // Build columns from API response, sorted by position
+        const sortedCols = [...foundationData.foundation.columns].sort(
+          (a, b) => (a.position || 0) - (b.position || 0)
+        );
+
+        // Store raw columns for form building
+        setRawColumns(sortedCols);
+
+        const tableColumns: TableColumn[] = [
+          { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
+          ...sortedCols.map((col) => ({
+            key: col.column_name,
+            label: col.name || col.column_name,
+            column_type: col.column_type,
+            resizable: true,
+            sortable: true,
+            filterable: true,
+            width: 150,
+          })),
+          { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 },
+        ];
+        setColumns(tableColumns);
+      }
+
+      if (itemsData?.items) {
+        setEntries(itemsData.items);
+      }
+    } catch (error) {
+      console.error("Failed to load gold standard data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load gold standard data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = async (entry: TableRowType) => {
+    // TODO: Implement edit modal
+    console.log("Edit:", entry);
+  };
+
+  const handleDelete = async (entry: TableRowType) => {
+    if (!confirm("Are you sure you want to delete this item?")) return;
+
+    try {
+      await api.delete(`/api/v1/gold_standard_table/${entry.id}`);
+      setEntries((prev) => prev.filter((e) => e.id !== entry.id));
+      toast({
+        title: "Success",
+        description: "Item deleted successfully",
+      });
+    } catch (error) {
+      console.error("Failed to delete:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRowUpdate = async (id: number | string, column: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/gold_standard_table/${id}`, {
+        gold_standard_item: { [column]: value },
+      });
+      setEntries((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, [column]: value } : e))
+      );
+    } catch (error) {
+      console.error("Failed to update:", error);
+      throw error;
+    }
+  };
+
+  const handleOpenAddDialog = () => {
+    // Initialize form with empty values for all columns
+    const initialData: Record<string, unknown> = {};
+    rawColumns.forEach((col) => {
+      if (col.column_type === "boolean") {
+        initialData[col.column_name] = false;
+      } else if (col.column_type === "number" || col.column_type === "whole_number" || col.column_type === "currency" || col.column_type === "percentage") {
+        initialData[col.column_name] = "";
+      } else {
+        initialData[col.column_name] = "";
+      }
+    });
+    setFormData(initialData);
+    setEditingEntry(null);
+    setShowAddDialog(true);
+  };
+
+  const handleOpenEditDialog = (entry: TableRowType) => {
+    // Initialize form with entry values
+    const initialData: Record<string, unknown> = {};
+    rawColumns.forEach((col) => {
+      initialData[col.column_name] = entry[col.column_name] ?? "";
+    });
+    setFormData(initialData);
+    setEditingEntry(entry);
+    setShowEditDialog(true);
+  };
+
+  const handleSaveItem = async () => {
+    setSaving(true);
+    try {
+      if (editingEntry) {
+        // Update existing
+        await api.patch(`/api/v1/gold_standard_table/${editingEntry.id}`, {
+          gold_standard_item: formData,
+        });
+        setEntries((prev) =>
+          prev.map((e) => (e.id === editingEntry.id ? { ...e, ...formData } : e))
+        );
+        toast({ title: "Success", description: "Item updated successfully" });
+        setShowEditDialog(false);
+      } else {
+        // Create new
+        const response = await api.post<{ success: boolean; item: TableRowType }>("/api/v1/gold_standard_table", {
+          gold_standard_item: formData,
+        });
+        if (response?.success && response.item) {
+          setEntries((prev) => [...prev, response.item]);
+        } else {
+          // Reload to get the new item
+          await loadData();
+        }
+        toast({ title: "Success", description: "Item created successfully" });
+        setShowAddDialog(false);
+      }
+    } catch (error) {
+      console.error("Failed to save:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save item",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDuplicateEntry = async (entry: TableRowType) => {
+    // Create a copy without id
+    const duplicateData: Record<string, unknown> = {};
+    rawColumns.forEach((col) => {
+      duplicateData[col.column_name] = entry[col.column_name];
+    });
+
+    try {
+      const response = await api.post<{ success: boolean; item: TableRowType }>("/api/v1/gold_standard_table", {
+        gold_standard_item: duplicateData,
+      });
+      if (response?.success && response.item) {
+        setEntries((prev) => [...prev, response.item]);
+      } else {
+        await loadData();
+      }
+      toast({ title: "Success", description: "Item duplicated successfully" });
+    } catch (error) {
+      console.error("Failed to duplicate:", error);
+      toast({
+        title: "Error",
+        description: "Failed to duplicate item",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Render form field based on column type
+  const renderFormField = (col: typeof rawColumns[0]) => {
+    const value = formData[col.column_name];
+
+    switch (col.column_type) {
+      case "boolean":
+        return (
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id={col.column_name}
+              checked={value === true}
+              onCheckedChange={(checked) =>
+                setFormData({ ...formData, [col.column_name]: checked === true })
+              }
+            />
+            <Label htmlFor={col.column_name} className="cursor-pointer">
+              {col.name || col.column_name}
+            </Label>
+          </div>
+        );
+      case "long_text":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <textarea
+              id={col.column_name}
+              value={String(value || "")}
+              onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+              rows={3}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        );
+      case "number":
+      case "whole_number":
+      case "currency":
+      case "percentage":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <Input
+              id={col.column_name}
+              type="number"
+              step={col.column_type === "whole_number" ? "1" : "any"}
+              value={String(value || "")}
+              onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+            />
+          </div>
+        );
+      case "date":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <Input
+              id={col.column_name}
+              type="date"
+              value={String(value || "")}
+              onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+            />
+          </div>
+        );
+      case "date_and_time":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <Input
+              id={col.column_name}
+              type="datetime-local"
+              value={String(value || "")}
+              onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+            />
+          </div>
+        );
+      case "email":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <Input
+              id={col.column_name}
+              type="email"
+              value={String(value || "")}
+              onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+            />
+          </div>
+        );
+      case "url":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <Input
+              id={col.column_name}
+              type="url"
+              value={String(value || "")}
+              onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+            />
+          </div>
+        );
+      case "color_picker":
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id={col.column_name}
+                type="color"
+                value={String(value || "#000000")}
+                onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+                className="w-16 h-10 p-1"
+              />
+              <Input
+                value={String(value || "")}
+                onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+                placeholder="#000000"
+                className="flex-1"
+              />
+            </div>
+          </div>
+        );
+      default:
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={col.column_name}>{col.name || col.column_name}</Label>
+            <Input
+              id={col.column_name}
+              value={String(value || "")}
+              onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
+            />
+          </div>
+        );
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Gold Standard Table Data</h2>
+          <p className="text-sm text-muted-foreground">
+            Live database table demonstrating all TeeemTableView column types and features.
+          </p>
+        </div>
+      </div>
+
+      <TeeemTableView
+        entries={entries}
+        columns={columns}
+        foundationId="gold-standard"
+        foundationIdNumeric={1}
+        tableName="Gold Standard"
+        onEdit={handleOpenEditDialog}
+        onDelete={handleDelete}
+        onRowUpdate={handleRowUpdate}
+        onRefresh={loadData}
+        enableImport={true}
+        enableExport={true}
+        enableSchemaEditor={true}
+        customActions={
+          <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Item
+          </Button>
+        }
+      />
+
+      {/* Add Item Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Item</DialogTitle>
+            <DialogDescription>
+              Create a new gold standard item with sample data for all column types.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {rawColumns.map((col) => (
+              <div key={col.column_name}>
+                {renderFormField(col)}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveItem} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Item
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Item Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Item</DialogTitle>
+            <DialogDescription>
+              Update the gold standard item values.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {rawColumns.map((col) => (
+              <div key={col.column_name}>
+                {renderFormField(col)}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveItem} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// Column Info Tab - shows column type reference
 function GoldStandardTableTab() {
   const { toast } = useToast();
   const [columns, setColumns] = React.useState<ColumnType[]>([]);
@@ -556,7 +1047,7 @@ export function GoldStandardTab() {
       </TabsList>
 
       <TabsContent value="table">
-        <GoldStandardTableTab />
+        <GoldStandardDataTab />
       </TabsContent>
 
       <TabsContent value="column-info">

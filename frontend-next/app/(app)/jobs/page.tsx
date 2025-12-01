@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TeeemTableView } from "@/components/table";
 import type { TableColumn, TableRow, SavedView } from "@/components/table/types";
 import { api } from "@/lib/api";
+import { slugifyJobTitle } from "@/lib/url-utils";
 import { Loader } from "@/components/ui/loader";
 import { Plus } from "lucide-react";
 
@@ -153,11 +154,13 @@ export default function JobsPage() {
 
   // Handlers
   const handleView = (row: TableRow) => {
-    router.push(`/jobs/${row.id}`);
+    const slug = row.title ? slugifyJobTitle(String(row.title)) : String(row.id);
+    router.push(`/jobs/${slug}`);
   };
 
   const handleEdit = (row: TableRow) => {
-    router.push(`/jobs/${row.id}?edit=true`);
+    const slug = row.title ? slugifyJobTitle(String(row.title)) : String(row.id);
+    router.push(`/jobs/${slug}?edit=true`);
   };
 
   const handleDelete = async (row: TableRow) => {

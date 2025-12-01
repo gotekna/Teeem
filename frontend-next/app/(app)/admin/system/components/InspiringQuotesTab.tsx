@@ -40,23 +40,27 @@ import { cn } from "@/lib/utils";
 interface InspiringQuote {
   id: number;
   quote: string;
+  original_quote?: string;
   author: string;
   category: string;
-  active: boolean;
+  is_active: boolean;
+  display_order?: number;
+  aussie_slang?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 const CATEGORIES = ["Motivation", "Leadership", "Success", "Perseverance", "Teamwork", "Construction"];
 
 const DEFAULT_QUOTES: InspiringQuote[] = [
-  { id: 1, quote: "The only way to do great work is to love what you do.", author: "Steve Jobs", category: "Motivation", active: true, created_at: new Date().toISOString() },
-  { id: 2, quote: "Quality is not an act, it is a habit.", author: "Aristotle", category: "Success", active: true, created_at: new Date().toISOString() },
-  { id: 3, quote: "The best way to predict the future is to create it.", author: "Peter Drucker", category: "Leadership", active: true, created_at: new Date().toISOString() },
-  { id: 4, quote: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill", category: "Perseverance", active: true, created_at: new Date().toISOString() },
-  { id: 5, quote: "Alone we can do so little; together we can do so much.", author: "Helen Keller", category: "Teamwork", active: true, created_at: new Date().toISOString() },
-  { id: 6, quote: "A building has integrity just like a man. And just as seldom.", author: "Ayn Rand", category: "Construction", active: true, created_at: new Date().toISOString() },
-  { id: 7, quote: "We shape our buildings; thereafter they shape us.", author: "Winston Churchill", category: "Construction", active: true, created_at: new Date().toISOString() },
-  { id: 8, quote: "Excellence is not a destination but a continuous journey that never ends.", author: "Brian Tracy", category: "Success", active: true, created_at: new Date().toISOString() },
+  { id: 1, quote: "The only way to do great work is to love what you do.", author: "Steve Jobs", category: "Motivation", is_active: true, created_at: new Date().toISOString() },
+  { id: 2, quote: "Quality is not an act, it is a habit.", author: "Aristotle", category: "Success", is_active: true, created_at: new Date().toISOString() },
+  { id: 3, quote: "The best way to predict the future is to create it.", author: "Peter Drucker", category: "Leadership", is_active: true, created_at: new Date().toISOString() },
+  { id: 4, quote: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill", category: "Perseverance", is_active: true, created_at: new Date().toISOString() },
+  { id: 5, quote: "Alone we can do so little; together we can do so much.", author: "Helen Keller", category: "Teamwork", is_active: true, created_at: new Date().toISOString() },
+  { id: 6, quote: "A building has integrity just like a man. And just as seldom.", author: "Ayn Rand", category: "Construction", is_active: true, created_at: new Date().toISOString() },
+  { id: 7, quote: "We shape our buildings; thereafter they shape us.", author: "Winston Churchill", category: "Construction", is_active: true, created_at: new Date().toISOString() },
+  { id: 8, quote: "Excellence is not a destination but a continuous journey that never ends.", author: "Brian Tracy", category: "Success", is_active: true, created_at: new Date().toISOString() },
 ];
 
 export function InspiringQuotesTab() {
@@ -88,8 +92,12 @@ export function InspiringQuotesTab() {
 
   const loadQuotes = async () => {
     try {
-      const data = await api.get<InspiringQuote[]>("/api/v1/inspiring_quotes");
-      setQuotes(data);
+      const response = await api.get<{ success: boolean; data: InspiringQuote[] }>("/api/v1/inspiring_quotes");
+      if (response?.success && Array.isArray(response.data)) {
+        setQuotes(response.data);
+      } else {
+        throw new Error("Invalid response format");
+      }
     } catch (error) {
       console.error("Failed to load quotes:", error);
       // Use localStorage or defaults
@@ -101,7 +109,7 @@ export function InspiringQuotesTab() {
   };
 
   const pickRandomQuote = () => {
-    const activeQuotes = quotes.filter((q) => q.active);
+    const activeQuotes = quotes.filter((q) => q.is_active);
     if (activeQuotes.length > 0) {
       const random = activeQuotes[Math.floor(Math.random() * activeQuotes.length)];
       setRandomQuote(random);
@@ -124,7 +132,7 @@ export function InspiringQuotesTab() {
       quote: quote.quote,
       author: quote.author,
       category: quote.category,
-      active: quote.active,
+      active: quote.is_active,
     });
     setEditingQuote(quote);
     setShowDialog(true);
@@ -138,17 +146,25 @@ export function InspiringQuotesTab() {
 
     setSaving(true);
     try {
+      // Map formData.active to is_active for API and state
+      const quoteData = {
+        quote: formData.quote,
+        author: formData.author,
+        category: formData.category,
+        is_active: formData.active,
+      };
+
       let updatedQuotes: InspiringQuote[];
 
       if (editingQuote) {
         updatedQuotes = quotes.map((q) =>
-          q.id === editingQuote.id ? { ...q, ...formData } : q
+          q.id === editingQuote.id ? { ...q, ...quoteData } : q
         );
         toast({ title: "Success", description: "Quote updated successfully" });
       } else {
         const newQuote: InspiringQuote = {
           id: Date.now(),
-          ...formData,
+          ...quoteData,
           created_at: new Date().toISOString(),
         };
         updatedQuotes = [...quotes, newQuote];
@@ -161,9 +177,9 @@ export function InspiringQuotesTab() {
       // Try to save to API
       try {
         if (editingQuote) {
-          await api.patch(`/api/v1/inspiring_quotes/${editingQuote.id}`, { inspiring_quote: formData });
+          await api.patch(`/api/v1/inspiring_quotes/${editingQuote.id}`, { inspiring_quote: quoteData });
         } else {
-          await api.post("/api/v1/inspiring_quotes", { inspiring_quote: formData });
+          await api.post("/api/v1/inspiring_quotes", { inspiring_quote: quoteData });
         }
       } catch {
         // Saved locally as fallback
@@ -193,7 +209,7 @@ export function InspiringQuotesTab() {
 
   const handleToggleActive = async (id: number) => {
     const updatedQuotes = quotes.map((q) =>
-      q.id === id ? { ...q, active: !q.active } : q
+      q.id === id ? { ...q, is_active: !q.is_active } : q
     );
     setQuotes(updatedQuotes);
     localStorage.setItem("inspiringQuotes", JSON.stringify(updatedQuotes));
@@ -202,7 +218,7 @@ export function InspiringQuotesTab() {
       const quote = quotes.find((q) => q.id === id);
       if (quote) {
         await api.patch(`/api/v1/inspiring_quotes/${id}`, {
-          inspiring_quote: { active: !quote.active },
+          inspiring_quote: { is_active: !quote.is_active },
         });
       }
     } catch {
@@ -319,10 +335,10 @@ export function InspiringQuotesTab() {
                 </TableRow>
               ) : (
                 filteredQuotes.map((quote) => (
-                  <TableRow key={quote.id} className={cn(!quote.active && "opacity-50")}>
+                  <TableRow key={quote.id} className={cn(!quote.is_active && "opacity-50")}>
                     <TableCell>
                       <Checkbox
-                        checked={quote.active}
+                        checked={quote.is_active}
                         onCheckedChange={() => handleToggleActive(quote.id)}
                       />
                     </TableCell>
@@ -369,7 +385,7 @@ export function InspiringQuotesTab() {
       </Card>
 
       <p className="text-sm text-muted-foreground">
-        {quotes.filter((q) => q.active).length} of {quotes.length} quotes active
+        {quotes.filter((q) => q.is_active).length} of {quotes.length} quotes active
       </p>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>

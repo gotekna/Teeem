@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { slugifyContactName } from "@/lib/url-utils";
 
 interface Contact {
   id: number;
@@ -91,6 +93,7 @@ const entityTypeIcons: Record<string, React.ComponentType<{ className?: string }
 
 export default function ContactsPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const showDuplicates = searchParams.get("duplicates") === "true";
 
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -415,7 +418,14 @@ export default function ContactsPage() {
                       : User;
 
                     return (
-                      <TableRow key={contact.id} className={!contact.is_active ? "opacity-50" : ""}>
+                      <TableRow
+                        key={contact.id}
+                        className={cn(
+                          "cursor-pointer hover:bg-muted/50",
+                          !contact.is_active && "opacity-50"
+                        )}
+                        onDoubleClick={() => router.push(`/contacts/${slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name || contact.name)}`)}
+                      >
                         <TableCell>
                           <Checkbox
                             checked={selectedForMerge.some((c) => c.id === contact.id)}
@@ -436,7 +446,7 @@ export default function ContactsPage() {
                             </Avatar>
                             <div>
                               <Link
-                                href={`/contacts/${contact.id}`}
+                                href={`/contacts/${slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name || contact.name)}`}
                                 className="font-medium hover:underline"
                               >
                                 {displayName}
@@ -492,7 +502,7 @@ export default function ContactsPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/contacts/${contact.id}`}>View</Link>
+                            <Link href={`/contacts/${slugifyContactName(contact.first_name || undefined, contact.last_name || undefined, contact.full_name || contact.name)}`}>View</Link>
                           </Button>
                         </TableCell>
                       </TableRow>

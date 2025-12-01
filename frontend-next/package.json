@@ -47,6 +47,8 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "geist": "^1.5.1",
+    "html2canvas": "^1.4.1",
+    "isomorphic-dompurify": "^2.33.0",
     "jotai": "^2.15.1",
     "leaflet": "^1.9.4",
     "lodash.throttle": "^4.1.1",

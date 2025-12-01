@@ -304,7 +304,20 @@ module Api
       private
 
       def set_job
-        @job = Job.find(params[:id])
+        # Support lookup by ID or slug (title-based)
+        id_or_slug = params[:id]
+
+        if id_or_slug.to_s.match?(/\A\d+\z/)
+          # Numeric ID - direct lookup
+          @job = Job.find(id_or_slug)
+        else
+          # Slug - search by title (convert slug back to search term)
+          # Remove the _God_Loves_You_ suffix if present
+          slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
+          search_term = slug.gsub('-', ' ')
+          @job = Job.where('LOWER(title) LIKE ?', "%#{search_term.downcase}%").first
+          raise ActiveRecord::RecordNotFound, "Job not found with slug: #{id_or_slug}" unless @job
+        end
       end
 
       def job_params

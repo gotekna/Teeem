@@ -47,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
+import { slugifyPricebookCode } from "@/lib/url-utils";
 
 interface PriceBookItem {
   id: number;
@@ -303,7 +304,7 @@ export default function PriceBookPage() {
                         )}
                         <div>
                           <Link
-                            href={`/pricebook/${item.id}`}
+                            href={`/pricebook/${slugifyPricebookCode(item.item_code)}`}
                             target="_blank"
                             className="font-medium hover:underline hover:text-primary"
                           >

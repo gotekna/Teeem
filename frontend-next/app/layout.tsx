@@ -6,6 +6,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/toaster";
+import { DebugToolbar } from "@/components/debug/DebugToolbar";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -42,6 +43,7 @@ export default function RootLayout({
           <AuthProvider>
             {children}
             <Toaster />
+            <DebugToolbar />
           </AuthProvider>
         </ThemeProvider>
       </body>

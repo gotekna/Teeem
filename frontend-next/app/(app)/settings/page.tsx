@@ -92,8 +92,9 @@ const personaIcons: Record<Persona, typeof HardHat> = {
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
   const [organization, setOrganization] = React.useState<Organization | null>(null);
   const [persona, setPersona] = React.useState<Persona>('manager');
   const [settings, setSettings] = React.useState<UserSettings>({
@@ -105,10 +106,26 @@ export default function SettingsPage() {
   const [trainingModules, setTrainingModules] = React.useState<TrainingModule[]>([]);
   const [trainingStats, setTrainingStats] = React.useState<TrainingStats | null>(null);
 
+  // Profile form state
+  const [profileName, setProfileName] = React.useState("");
+  const [profileEmail, setProfileEmail] = React.useState("");
+  const [profilePhone, setProfilePhone] = React.useState("");
+  const [profileJobTitle, setProfileJobTitle] = React.useState("");
+
   // Load persona from localStorage on mount
   React.useEffect(() => {
     setPersona(getStoredPersona());
   }, []);
+
+  // Initialize profile form when user data is available
+  React.useEffect(() => {
+    if (user) {
+      setProfileName(user.name || "");
+      setProfileEmail(user.email || "");
+      setProfilePhone((user as any).mobile_phone || "");
+      setProfileJobTitle((user as any).job_title || "");
+    }
+  }, [user]);
 
   const handlePersonaChange = (newPersona: Persona) => {
     setPersona(newPersona);
@@ -178,6 +195,39 @@ export default function SettingsPage() {
   const handleToggle = (key: keyof UserSettings) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
     // TODO: Save to API
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+
+    setSaving(true);
+    try {
+      const response = await api.patch<{ success: boolean; user: any; errors?: string[] }>(
+        `/api/v1/users/${user.id}`,
+        {
+          user: {
+            name: profileName,
+            email: profileEmail,
+            mobile_phone: profilePhone,
+          },
+        }
+      );
+
+      if (response?.success) {
+        // Refresh user context to get updated data
+        if (refreshUser) {
+          await refreshUser();
+        }
+        alert("Profile saved successfully!");
+      } else {
+        alert(`Failed to save: ${response?.errors?.join(", ") || "Unknown error"}`);
+      }
+    } catch (error) {
+      console.error("Failed to save profile:", error);
+      alert("Failed to save profile. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const formatDuration = (minutes: number): string => {
@@ -278,19 +328,34 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Full Name</Label>
-                  <Input defaultValue={user?.name || ""} />
+                  <Input
+                    value={profileName}
+                    onChange={(e) => setProfileName(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input defaultValue={user?.email || ""} type="email" />
+                  <Input
+                    value={profileEmail}
+                    onChange={(e) => setProfileEmail(e.target.value)}
+                    type="email"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Phone</Label>
-                  <Input placeholder="+61 400 000 000" />
+                  <Input
+                    value={profilePhone}
+                    onChange={(e) => setProfilePhone(e.target.value)}
+                    placeholder="+61 400 000 000"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Job Title</Label>
-                  <Input placeholder="Project Manager" />
+                  <Input
+                    value={profileJobTitle}
+                    onChange={(e) => setProfileJobTitle(e.target.value)}
+                    placeholder="Project Manager"
+                  />
                 </div>
               </div>
 
@@ -332,7 +397,10 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button>Save Changes</Button>
+                <Button onClick={handleSaveProfile} disabled={saving}>
+                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Save Changes
+                </Button>
               </div>
             </CardContent>
           </Card>

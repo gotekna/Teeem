@@ -16,6 +16,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<{ success: boolean; errors?: string[] }>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   loading: boolean;
   isAuthenticated: boolean;
 }
@@ -48,15 +49,21 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState<string | null>(null);
+  const [tokenChecked, setTokenChecked] = useState(false);
 
   // Initialize token from localStorage (client-side only)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setToken(localStorage.getItem('token'));
+      const storedToken = localStorage.getItem('token');
+      setToken(storedToken);
+      setTokenChecked(true);
     }
   }, []);
 
   useEffect(() => {
+    // Wait until we've checked localStorage for token
+    if (!tokenChecked) return;
+
     // Auto-login in dev mode - skip API calls entirely
     if (devModeBypass) {
       devLogin();
@@ -69,7 +76,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } else {
       setLoading(false);
     }
-  }, [token, devModeBypass]);
+  }, [token, tokenChecked, devModeBypass]);
 
   const checkAuth = async () => {
     try {
@@ -170,11 +177,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    if (devModeBypass) {
+      // In dev mode, just keep the mock user
+      return;
+    }
+    await checkAuth();
+  };
+
   const value: AuthContextType = {
     user,
     login,
     signup,
     logout,
+    refreshUser,
     loading,
     isAuthenticated: !!user
   };

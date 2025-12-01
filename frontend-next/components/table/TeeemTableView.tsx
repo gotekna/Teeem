@@ -60,6 +60,11 @@ import {
   Layers,
   Globe,
   User,
+  ExternalLink,
+  Copy,
+  Table2,
+  FileSpreadsheet,
+  RefreshCw,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -78,6 +83,7 @@ import {
   DropdownMenuSub,
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Table,
@@ -119,6 +125,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/components/ui/use-toast";
 
 import {
   type TableColumn,
@@ -136,6 +143,7 @@ import {
 } from "./types";
 import { getColumnTypeEmoji } from "@/lib/column-types";
 import { DataHealthWidget } from "./DataHealthWidget";
+import { ColumnEditorModal } from "./ColumnEditorModal";
 
 // ============================================================================
 // SUBCOMPONENTS
@@ -239,8 +247,10 @@ const ResizableColumnHeader = memo(function ResizableColumnHeader({
   onHide,
   onGroupBy,
   onAddFilter,
+  onEdit,
   sortInfo,
   isGroupedBy,
+  isEditMode,
   children,
 }: {
   column: TableColumn;
@@ -250,8 +260,10 @@ const ResizableColumnHeader = memo(function ResizableColumnHeader({
   onHide: (key: string) => void;
   onGroupBy: (key: string | null) => void;
   onAddFilter: (key: string) => void;
+  onEdit?: (key: string) => void;
   sortInfo?: SortColumn;
   isGroupedBy: boolean;
+  isEditMode?: boolean;
   children: React.ReactNode;
 }) {
   const [isResizing, setIsResizing] = useState(false);
@@ -433,6 +445,21 @@ const ResizableColumnHeader = memo(function ResizableColumnHeader({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {/* Edit column button - outside dropdown trigger */}
+      {isEditMode && onEdit && column.key !== "id" && column.key !== "created_at" && column.key !== "updated_at" && (
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onEdit(column.key);
+          }}
+          className="p-1 rounded hover:bg-muted ml-1 flex-shrink-0 z-10"
+          title="Edit column settings"
+        >
+          <Settings className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+        </button>
+      )}
+
       {column.resizable !== false && (
         <div
           className={cn(
@@ -575,6 +602,11 @@ export default function TeeemTableView({
   onImport,
   onExport,
   enableSchemaEditor = false,
+  onCreateColumn,
+  onEditColumns,
+  onDeleteColumn,
+  onEditIndividual,
+  onViewSchema,
   customActions,
   customCellRenderer,
   extraRowProps,
@@ -594,6 +626,7 @@ export default function TeeemTableView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const { toast } = useToast();
 
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => columns || DEFAULT_COLUMNS, [columns]);
@@ -660,6 +693,21 @@ export default function TeeemTableView({
   const [newViewName, setNewViewName] = useState("");
   const [saveAsGlobal, setSaveAsGlobal] = useState(false);
   const [savingView, setSavingView] = useState(false);
+
+  // Schema editor modal states
+  const [showCreateColumnModal, setShowCreateColumnModal] = useState(false);
+  const [showEditColumnsModal, setShowEditColumnsModal] = useState(false);
+  const [showDeleteColumnModal, setShowDeleteColumnModal] = useState(false);
+  const [showViewSchemaModal, setShowViewSchemaModal] = useState(false);
+  const [showEditColumnModal, setShowEditColumnModal] = useState(false);
+  const [newColumnName, setNewColumnName] = useState("");
+  const [newColumnType, setNewColumnType] = useState("text");
+  const [selectedColumnToDelete, setSelectedColumnToDelete] = useState("");
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [columnEditMode, setColumnEditMode] = useState(false);
+  const [editingColumnKey, setEditingColumnKey] = useState<string | null>(null);
+  const [editColumnName, setEditColumnName] = useState("");
+  const [editColumnType, setEditColumnType] = useState("");
 
   // ============================================================================
   // HANDLERS
@@ -865,6 +913,135 @@ export default function TeeemTableView({
       setBulkUpdateSaving(false);
     }
   }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, onRowUpdate, onRefresh]);
+
+  // ============================================================================
+  // SCHEMA HANDLERS
+  // ============================================================================
+
+  // Create new column
+  const handleCreateColumn = useCallback(async () => {
+    if (!newColumnName.trim()) {
+      toast({ title: "Error", description: "Column name is required", variant: "destructive" });
+      return;
+    }
+
+    setSchemaLoading(true);
+    try {
+      if (onCreateColumn) {
+        onCreateColumn();
+      } else if (foundationIdNumeric) {
+        // Default implementation: call API
+        await api.post(`/api/v1/foundations/${foundationIdNumeric}/columns`, {
+          column: {
+            name: newColumnName,
+            column_name: newColumnName.toLowerCase().replace(/\s+/g, "_"),
+            column_type: newColumnType,
+          },
+        });
+        toast({ title: "Success", description: `Column "${newColumnName}" created` });
+        onRefresh?.();
+      }
+      setShowCreateColumnModal(false);
+      setNewColumnName("");
+      setNewColumnType("text");
+    } catch (error) {
+      console.error("Failed to create column:", error);
+      toast({ title: "Error", description: "Failed to create column", variant: "destructive" });
+    } finally {
+      setSchemaLoading(false);
+    }
+  }, [newColumnName, newColumnType, foundationIdNumeric, onCreateColumn, onRefresh, toast]);
+
+  // Delete column
+  const handleDeleteColumn = useCallback(async () => {
+    if (!selectedColumnToDelete) {
+      toast({ title: "Error", description: "Please select a column to delete", variant: "destructive" });
+      return;
+    }
+
+    setSchemaLoading(true);
+    try {
+      if (onDeleteColumn) {
+        onDeleteColumn();
+      } else if (foundationIdNumeric) {
+        // Find column ID
+        const col = COLUMNS.find((c) => c.key === selectedColumnToDelete);
+        if (col && "id" in col) {
+          await api.delete(`/api/v1/foundations/${foundationIdNumeric}/columns/${(col as { id: number }).id}`);
+          toast({ title: "Success", description: `Column deleted` });
+          onRefresh?.();
+        }
+      }
+      setShowDeleteColumnModal(false);
+      setSelectedColumnToDelete("");
+    } catch (error) {
+      console.error("Failed to delete column:", error);
+      toast({ title: "Error", description: "Failed to delete column", variant: "destructive" });
+    } finally {
+      setSchemaLoading(false);
+    }
+  }, [selectedColumnToDelete, foundationIdNumeric, COLUMNS, onDeleteColumn, onRefresh, toast]);
+
+  // Copy table ID to clipboard
+  const handleCopyTableId = useCallback(() => {
+    if (foundationIdNumeric) {
+      navigator.clipboard.writeText(String(foundationIdNumeric));
+      toast({ title: "Copied", description: `Table ID ${foundationIdNumeric} copied to clipboard` });
+    }
+  }, [foundationIdNumeric, toast]);
+
+  // Open column edit modal
+  const handleOpenColumnEdit = useCallback((columnKey: string) => {
+    const col = COLUMNS.find((c) => c.key === columnKey);
+    if (col) {
+      setEditingColumnKey(columnKey);
+      setEditColumnName(col.label);
+      setEditColumnType(col.column_type || "text");
+      setShowEditColumnModal(true);
+    }
+  }, [COLUMNS]);
+
+  // Save column changes
+  const handleSaveColumnChanges = useCallback(async () => {
+    if (!editingColumnKey) return;
+
+    setSchemaLoading(true);
+    try {
+      if (foundationIdNumeric) {
+        // Call API to update column
+        const col = COLUMNS.find((c) => c.key === editingColumnKey);
+        if (col && "id" in col) {
+          await api.patch(`/api/v1/foundations/${foundationIdNumeric}/columns/${(col as { id: number }).id}`, {
+            column: {
+              name: editColumnName,
+              column_type: editColumnType,
+            },
+          });
+          toast({ title: "Success", description: "Column updated successfully" });
+          // Trigger refresh callback to reload data
+          onColumnUpdate?.();
+          onRefresh?.();
+        }
+      }
+      setShowEditColumnModal(false);
+      setEditingColumnKey(null);
+    } catch (error) {
+      console.error("Failed to update column:", error);
+      toast({ title: "Error", description: "Failed to update column", variant: "destructive" });
+    } finally {
+      setSchemaLoading(false);
+    }
+  }, [editingColumnKey, editColumnName, editColumnType, foundationIdNumeric, COLUMNS, onColumnUpdate, onRefresh, toast]);
+
+  // Toggle column edit mode
+  const toggleColumnEditMode = useCallback(() => {
+    setColumnEditMode((prev) => !prev);
+    if (columnEditMode) {
+      toast({ title: "Edit Mode Off", description: "Column editing disabled" });
+    } else {
+      toast({ title: "Edit Mode On", description: "Click the cog icon on any column to edit it" });
+    }
+  }, [columnEditMode, toast]);
 
   // ============================================================================
   // SAVED VIEWS
@@ -1315,17 +1492,147 @@ export default function TeeemTableView({
       }
 
       // Handle null/undefined
-      if (value == null) {
+      if (value == null || value === "") {
         return <span className="text-muted-foreground">-</span>;
       }
 
       // Handle boolean
-      if (typeof value === "boolean") {
-        return value ? (
+      if (typeof value === "boolean" || column.column_type === "boolean") {
+        const boolValue = typeof value === "boolean" ? value : value === "true" || value === true || value === 1;
+        return boolValue ? (
           <Check className="h-4 w-4 text-green-600" />
         ) : (
           <X className="h-4 w-4 text-muted-foreground" />
         );
+      }
+
+      // Handle email - clickable link
+      if (column.column_type === "email" && value) {
+        return (
+          <a href={`mailto:${value}`} className="text-blue-600 hover:underline">
+            {String(value)}
+          </a>
+        );
+      }
+
+      // Handle phone/mobile - clickable link
+      if ((column.column_type === "phone" || column.column_type === "mobile") && value) {
+        return (
+          <a href={`tel:${value}`} className="text-blue-600 hover:underline">
+            {String(value)}
+          </a>
+        );
+      }
+
+      // Handle URL - clickable link
+      if (column.column_type === "url" && value) {
+        const urlStr = String(value);
+        const href = urlStr.startsWith("http") ? urlStr : `https://${urlStr}`;
+        return (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline flex items-center gap-1"
+          >
+            {urlStr.length > 30 ? urlStr.slice(0, 30) + "..." : urlStr}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        );
+      }
+
+      // Handle color_picker - show color swatch
+      if (column.column_type === "color_picker" && value) {
+        return (
+          <div className="flex items-center gap-2">
+            <div
+              className="w-5 h-5 rounded border border-gray-200"
+              style={{ backgroundColor: String(value) }}
+            />
+            <span className="font-mono text-xs">{String(value)}</span>
+          </div>
+        );
+      }
+
+      // Handle GPS coordinates
+      if (column.column_type === "gps_coordinates" && value) {
+        const coords = String(value);
+        return (
+          <a
+            href={`https://maps.google.com/?q=${coords}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline flex items-center gap-1"
+          >
+            📍 {coords}
+          </a>
+        );
+      }
+
+      // Handle file_upload - show file info
+      if (column.column_type === "file_upload" && value) {
+        const fileData = typeof value === "string" ? value : JSON.stringify(value);
+        return (
+          <div className="flex items-center gap-1 text-sm">
+            📎 {fileData.length > 20 ? fileData.slice(0, 20) + "..." : fileData}
+          </div>
+        );
+      }
+
+      // Handle user type - display user name
+      if (column.column_type === "user" && value) {
+        const userData = value as { name?: string; email?: string; id?: number } | string | number;
+        if (typeof userData === "object" && userData.name) {
+          return <span>👤 {userData.name}</span>;
+        }
+        return <span>👤 User #{String(value)}</span>;
+      }
+
+      // Handle lookup - display linked record
+      if (column.column_type === "lookup" && value) {
+        const lookupData = value as { display_value?: string; id?: number } | string | number;
+        if (typeof lookupData === "object" && lookupData.display_value) {
+          return <span>{lookupData.display_value}</span>;
+        }
+        return <span>#{String(value)}</span>;
+      }
+
+      // Handle multiple_lookups - display linked records
+      if (column.column_type === "multiple_lookups" && value) {
+        const items = Array.isArray(value) ? value : [];
+        if (items.length === 0) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {items.slice(0, 3).map((item, idx) => (
+              <Badge key={idx} variant="secondary" className="text-xs">
+                {typeof item === "object" ? item.display_value || item.name || `#${item.id}` : String(item)}
+              </Badge>
+            ))}
+            {items.length > 3 && (
+              <Badge variant="outline" className="text-xs">
+                +{items.length - 3} more
+              </Badge>
+            )}
+          </div>
+        );
+      }
+
+      // Handle computed - display calculated value
+      if (column.column_type === "computed" && value != null) {
+        const numValue = typeof value === "number" ? value : parseFloat(String(value));
+        if (!isNaN(numValue)) {
+          return (
+            <span className="font-mono text-purple-600 dark:text-purple-400">
+              {numValue.toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+            </span>
+          );
+        }
+        return <span className="font-mono">{String(value)}</span>;
+      }
+
+      // Handle number/whole_number
+      if ((column.column_type === "number" || column.column_type === "whole_number") && typeof value === "number") {
+        return value.toLocaleString("en-AU");
       }
 
       // Handle currency
@@ -1447,8 +1754,10 @@ export default function TeeemTableView({
                 onHide={hideColumn}
                 onGroupBy={handleGroupByColumn}
                 onAddFilter={addFilterForColumn}
+                onEdit={handleOpenColumnEdit}
                 sortInfo={sortColumns.find((s) => s.column === column.key)}
                 isGroupedBy={groupByColumn === column.key}
+                isEditMode={columnEditMode}
               >
                 <span className="truncate">{column.label}</span>
               </ResizableColumnHeader>
@@ -1777,22 +2086,123 @@ export default function TeeemTableView({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {enableExport && (
-                <DropdownMenuItem onClick={onExport}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export
-                </DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-56">
+              {/* Hide/Show Filters */}
+              <DropdownMenuItem onClick={() => setFilterPanelOpen(!filterPanelOpen)}>
+                {filterPanelOpen ? (
+                  <EyeOff className="h-4 w-4 mr-2" />
+                ) : (
+                  <Eye className="h-4 w-4 mr-2" />
+                )}
+                {filterPanelOpen ? "Hide Filters" : "Show Filters"}
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onClick={() => {}}>
+                <Columns className="h-4 w-4 mr-2" />
+                Columns
+              </DropdownMenuItem>
+
+              {/* Schema Section */}
+              {enableSchemaEditor && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
+                    SCHEMA
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => setShowCreateColumnModal(true)}>
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    Create New Column
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onEditColumns ? onEditColumns() : setShowEditColumnsModal(true)}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Edit Columns
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShowDeleteColumnModal(true)}>
+                    <MinusCircle className="h-4 w-4 mr-2" />
+                    Delete Column
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={toggleColumnEditMode}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    {columnEditMode ? "Exit Edit Mode" : "Edit Individual"}
+                    {columnEditMode && (
+                      <Badge variant="secondary" className="ml-2 text-xs">ON</Badge>
+                    )}
+                  </DropdownMenuItem>
+                </>
               )}
+
+              {/* Data Section */}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
+                DATA
+              </DropdownMenuLabel>
               {enableImport && (
                 <DropdownMenuItem onClick={onImport}>
-                  <Upload className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4 mr-2" />
                   Import
                 </DropdownMenuItem>
               )}
-              {(enableExport || enableImport) && <DropdownMenuSeparator />}
+              {enableExport && (
+                <DropdownMenuItem onClick={onExport}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Export
+                </DropdownMenuItem>
+              )}
+
+              {/* Table Info Section */}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
+                TABLE INFO
+              </DropdownMenuLabel>
+
+              {foundationIdNumeric && (
+                <div className="px-2 py-1.5 flex items-center justify-between">
+                  <span className="text-sm">
+                    Table ID: <span className="font-mono font-medium">{foundationIdNumeric}</span>
+                  </span>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    onClick={handleCopyTableId}
+                  >
+                    Copy
+                  </Button>
+                </div>
+              )}
+
+              <div className="px-2 py-1.5 border rounded-md mx-2 mb-2 bg-muted/50">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Current View:</span>
+                  <span className="text-xs text-green-600">
+                    {safeFilters.length} filters
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  {activeViewId ? (
+                    <>
+                      <span className="text-yellow-500">⭐</span>
+                      <span className="text-sm font-medium">
+                        {savedViews.find(v => v.id === activeViewId)?.name || "Custom"}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No saved view</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {Object.values(visibleColumns).filter(Boolean).length} of {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").length} columns visible
+                </div>
+              </div>
+
+              <DropdownMenuItem onClick={() => onViewSchema ? onViewSchema() : setShowViewSchemaModal(true)}>
+                <Table2 className="h-4 w-4 mr-2" />
+                View Schema
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onRefresh}>
-                <Play className="h-4 w-4 mr-2" />
+                <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -2088,6 +2498,249 @@ export default function TeeemTableView({
                 <Save className="h-4 w-4 mr-1" />
               )}
               {saveAsGlobal ? "Save Global View" : "Save View"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Column Modal */}
+      <Dialog open={showCreateColumnModal} onOpenChange={setShowCreateColumnModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Column</DialogTitle>
+            <DialogDescription>
+              Add a new column to this table
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Column Name</Label>
+              <Input
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                placeholder="e.g., Status, Due Date, Priority..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Column Type</Label>
+              <Select value={newColumnType} onValueChange={setNewColumnType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="text">Text</SelectItem>
+                  <SelectItem value="long_text">Long Text</SelectItem>
+                  <SelectItem value="number">Number</SelectItem>
+                  <SelectItem value="whole_number">Whole Number</SelectItem>
+                  <SelectItem value="currency">Currency</SelectItem>
+                  <SelectItem value="percentage">Percentage</SelectItem>
+                  <SelectItem value="date">Date</SelectItem>
+                  <SelectItem value="date_and_time">Date & Time</SelectItem>
+                  <SelectItem value="boolean">Boolean (Yes/No)</SelectItem>
+                  <SelectItem value="choice">Choice</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="phone">Phone</SelectItem>
+                  <SelectItem value="url">URL</SelectItem>
+                  <SelectItem value="color_picker">Color Picker</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateColumnModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateColumn} disabled={schemaLoading}>
+              {schemaLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <PlusCircle className="h-4 w-4 mr-1" />
+              )}
+              Create Column
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Column Modal */}
+      <Dialog open={showDeleteColumnModal} onOpenChange={setShowDeleteColumnModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Column</DialogTitle>
+            <DialogDescription>
+              Select a column to delete. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Select Column</Label>
+              <Select value={selectedColumnToDelete} onValueChange={setSelectedColumnToDelete}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select column to delete" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COLUMNS.filter(
+                    (c) =>
+                      c.key !== "select" &&
+                      c.key !== "actions" &&
+                      c.key !== "id" &&
+                      c.key !== "created_at" &&
+                      c.key !== "updated_at"
+                  ).map((col) => (
+                    <SelectItem key={col.key} value={col.key}>
+                      {col.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedColumnToDelete && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+                <p className="text-sm text-destructive">
+                  Warning: Deleting this column will remove all data stored in it. This cannot be undone.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteColumnModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteColumn}
+              disabled={!selectedColumnToDelete || schemaLoading}
+            >
+              {schemaLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <MinusCircle className="h-4 w-4 mr-1" />
+              )}
+              Delete Column
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Schema Modal */}
+      <Dialog open={showViewSchemaModal} onOpenChange={setShowViewSchemaModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Table Schema</DialogTitle>
+            <DialogDescription>
+              {tableName} - {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").length} columns
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="h-[400px] pr-4">
+            <div className="space-y-2">
+              {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").map((col, index) => (
+                <div
+                  key={col.key}
+                  className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground w-6">{index + 1}</span>
+                    <div>
+                      <p className="font-medium">{col.label}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{col.key}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {col.column_type || "text"}
+                    </Badge>
+                    {col.key === "id" || col.key === "created_at" || col.key === "updated_at" ? (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        System
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowViewSchemaModal(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Single Column Modal - Full featured editor */}
+      <ColumnEditorModal
+        isOpen={showEditColumnModal}
+        column={editingColumnKey ? COLUMNS.find((c) => c.key === editingColumnKey) || null : null}
+        foundationId={foundationIdNumeric || null}
+        allColumns={COLUMNS.filter((c) => c.key !== "select" && c.key !== "actions")}
+        onClose={() => {
+          setShowEditColumnModal(false);
+          setEditingColumnKey(null);
+        }}
+        onUpdate={() => {
+          onColumnUpdate?.();
+          onRefresh?.();
+        }}
+      />
+
+      {/* Edit Columns Modal (basic reorder/visibility) */}
+      <Dialog open={showEditColumnsModal} onOpenChange={setShowEditColumnsModal}>
+        <DialogContent className="max-w-lg max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Edit Columns</DialogTitle>
+            <DialogDescription>
+              Toggle column visibility and reorder columns
+            </DialogDescription>
+          </DialogHeader>
+
+          <ScrollArea className="h-[400px] pr-4">
+            <div className="space-y-2">
+              {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").map((col) => (
+                <div
+                  key={col.key}
+                  className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={visibleColumns[col.key] === true}
+                      onCheckedChange={(checked) =>
+                        setVisibleColumns((prev) => ({
+                          ...prev,
+                          [col.key]: checked === true,
+                        }))
+                      }
+                    />
+                    <div>
+                      <p className="font-medium">{col.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {col.column_type || "text"}
+                      </p>
+                    </div>
+                  </div>
+                  <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setVisibleColumns(getDefaultVisibleColumns())}
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Reset
+            </Button>
+            <Button onClick={() => setShowEditColumnsModal(false)}>
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>
