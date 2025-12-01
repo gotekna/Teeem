@@ -100,7 +100,6 @@ import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, COLUMN_TY
 import { api } from '../../api'
 import { useAuth } from '../../contexts/AuthContext'
 import TableHealthWidget from '../health/TableHealthWidget'
-import SaveToSharePointDialog from '../sharepoint/SaveToSharePointDialog'
 import {
   MagnifyingGlassIcon,
   XMarkIcon,
@@ -123,8 +122,7 @@ import {
   WrenchScrewdriverIcon,
   PlayIcon,
   PlusCircleIcon,
-  MinusCircleIcon,
-  CloudArrowUpIcon
+  MinusCircleIcon
 } from '@heroicons/react/24/outline'
 
 const CHAPTER_NAMES = {
@@ -554,7 +552,6 @@ export default function TeeemTableView({
   const [bulkUpdateColumn, setBulkUpdateColumn] = useState('')
   const [bulkUpdateValue, setBulkUpdateValue] = useState('')
   const [bulkUpdateSaving, setBulkUpdateSaving] = useState(false)
-  const [showSharePointDialog, setShowSharePointDialog] = useState(false)
   const [bulkUpdateColumnSearch, setBulkUpdateColumnSearch] = useState('')
   const [bulkUpdateValueSearch, setBulkUpdateValueSearch] = useState('')
 
@@ -5230,13 +5227,6 @@ export default function TeeemTableView({
                 Bulk Update ({selectedRows.size})
               </button>
               <button
-                onClick={() => setShowSharePointDialog(true)}
-                className="inline-flex items-center gap-2 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
-              >
-                <CloudArrowUpIcon className="h-4 w-4" />
-                Save to SharePoint
-              </button>
-              <button
                 onClick={() => {
                   setSelectedRows(new Set())
                   setShowDeleteButton(false)
@@ -5815,9 +5805,9 @@ export default function TeeemTableView({
                   const currentOrder = visibilityColumnOrder
                     ? [...visibilityColumnOrder]
                     : filteredCols.sort((a, b) => a.label.localeCompare(b.label)).map(c => c.key)
-                  // Separate visible and hidden columns (use === true to match table rendering)
-                  const visibleCols = currentOrder.filter(key => visibleColumns[key] === true)
-                  const hiddenCols = currentOrder.filter(key => visibleColumns[key] !== true)
+                  // Separate visible and hidden columns
+                  const visibleCols = currentOrder.filter(key => visibleColumns[key] !== false)
+                  const hiddenCols = currentOrder.filter(key => visibleColumns[key] === false)
                   // Combine: visible first, then hidden
                   const sortedOrder = [...visibleCols, ...hiddenCols]
                   setVisibilityColumnOrder(sortedOrder)
@@ -7569,10 +7559,8 @@ export default function TeeemTableView({
                           const currentOrder = visibilityColumnOrder || filteredCols.map(c => c.key)
 
                           // Split into visible and hidden
-                          // IMPORTANT: Use truthy check (visibleColumns[col.key] === true) to match table rendering
-                          // This ensures new columns (undefined in visibleColumns) show as unchecked, matching their actual hidden state
                           const visibleCols = filteredCols
-                            .filter(col => visibleColumns[col.key] === true)
+                            .filter(col => visibleColumns[col.key] !== false)
                             .sort((a, b) => {
                               const aIndex = currentOrder.indexOf(a.key)
                               const bIndex = currentOrder.indexOf(b.key)
@@ -7582,7 +7570,7 @@ export default function TeeemTableView({
                               return aIndex - bIndex
                             })
                           const hiddenCols = filteredCols
-                            .filter(col => visibleColumns[col.key] !== true)
+                            .filter(col => visibleColumns[col.key] === false)
                             .sort((a, b) => a.label.localeCompare(b.label))
 
                           // Calculate grid columns based on total columns (same for both sections)
@@ -7616,7 +7604,7 @@ export default function TeeemTableView({
                                 e.stopPropagation()
                                 if (draggedVisibilityColumn && draggedVisibilityColumn !== column.key) {
                                   // Check if dragged column visibility needs to change
-                                  const draggedIsVisible = visibleColumns[draggedVisibilityColumn] === true
+                                  const draggedIsVisible = visibleColumns[draggedVisibilityColumn] !== false
                                   const targetIsVisible = isVisible
 
                                   // Update visibility if moving between zones
@@ -7684,10 +7672,8 @@ export default function TeeemTableView({
                                       if (!fullOrder.includes(key)) fullOrder.push(key)
                                     })
 
-                                    // Get visible columns in current order (must match visibleCols - exclude system columns)
-                                    // filteredCols already excludes 'select' and 'actions', so use that as the source of truth
-                                    const filteredColKeys = new Set(filteredCols.map(c => c.key))
-                                    const visibleKeys = fullOrder.filter(key => filteredColKeys.has(key) && visibleColumns[key] === true)
+                                    // Get visible columns in current order
+                                    const visibleKeys = fullOrder.filter(key => visibleColumns[key] !== false)
                                     const currentIndex = visibleKeys.indexOf(column.key)
                                     const targetIndex = clampedPos - 1
 
@@ -7697,11 +7683,9 @@ export default function TeeemTableView({
                                       // Insert at new position
                                       visibleKeys.splice(targetIndex, 0, column.key)
 
-                                      // Rebuild full order: visible columns first in new order, then hidden (within filteredCols)
-                                      const hiddenKeys = fullOrder.filter(key => filteredColKeys.has(key) && visibleColumns[key] !== true)
-                                      // Keep any system columns that may have been in the order (select, id, actions) at their positions
-                                      const systemKeys = fullOrder.filter(key => !filteredColKeys.has(key))
-                                      setVisibilityColumnOrder([...systemKeys, ...visibleKeys, ...hiddenKeys])
+                                      // Rebuild full order: visible columns first in new order, then hidden
+                                      const hiddenKeys = fullOrder.filter(key => visibleColumns[key] === false)
+                                      setVisibilityColumnOrder([...visibleKeys, ...hiddenKeys])
                                     }
                                   }}
                                   className="w-6 text-[9px] text-center text-green-700 dark:text-green-300 font-medium bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-500 hover:border-green-400 focus:border-green-500 focus:outline-none rounded [appearance:textfield]"
@@ -7787,7 +7771,7 @@ export default function TeeemTableView({
                           const handleZoneDrop = (e, makeVisible) => {
                             e.preventDefault()
                             if (draggedVisibilityColumn) {
-                              const draggedIsVisible = visibleColumns[draggedVisibilityColumn] === true
+                              const draggedIsVisible = visibleColumns[draggedVisibilityColumn] !== false
                               if (draggedIsVisible !== makeVisible) {
                                 setVisibleColumns({ ...visibleColumns, [draggedVisibilityColumn]: makeVisible })
                               }
@@ -7888,7 +7872,7 @@ export default function TeeemTableView({
                                 {!hiddenColumnsSectionCollapsed && (
                                 <div
                                   className={`border rounded p-1 transition-colors ${
-                                    draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] === true
+                                    draggedVisibilityColumn && visibleColumns[draggedVisibilityColumn] !== false
                                       ? 'border-gray-400 border-2 bg-gray-200/50 dark:bg-gray-700/50'
                                       : 'border-gray-200 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/30'
                                   }`}
@@ -7955,10 +7939,10 @@ export default function TeeemTableView({
                           Object.keys(groupedColumns).forEach(group => {
                             const cols = groupedColumns[group]
                             const checkedCols = cols
-                              .filter(col => visibleColumns[col.key] === true)
+                              .filter(col => visibleColumns[col.key] !== false)
                               .sort((a, b) => a.label.localeCompare(b.label))
                             const uncheckedCols = cols
-                              .filter(col => visibleColumns[col.key] !== true)
+                              .filter(col => visibleColumns[col.key] === false)
                               .sort((a, b) => a.label.localeCompare(b.label))
                             groupedColumns[group] = [...checkedCols, ...uncheckedCols]
                           })
@@ -7989,7 +7973,7 @@ export default function TeeemTableView({
                           return sortedGroups.map(groupName => {
                             const groupCols = groupedColumns[groupName]
                             const isCollapsed = collapsedColumnGroups.has(groupName)
-                            const checkedCount = groupCols.filter(col => visibleColumns[col.key] === true).length
+                            const checkedCount = groupCols.filter(col => visibleColumns[col.key] !== false).length
                             const totalCount = groupCols.length
 
                             return (
@@ -8081,7 +8065,7 @@ export default function TeeemTableView({
                               }
                             }}
                             className={`relative flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300 px-2 py-1.5 rounded select-none transition-all duration-150 ${
-                              visibleColumns[column.key] === true
+                              visibleColumns[column.key] !== false
                                 ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/50 border-2 border-green-300 dark:border-green-700'
                                 : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 border-2 border-gray-300 dark:border-gray-600'
                             } ${draggedVisibilityColumn === column.key ? 'opacity-40 scale-95 border-dashed border-orange-400 bg-orange-50 dark:bg-orange-900/30' : ''} ${dragOverVisibilityColumn === column.key ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50' : ''}`}
@@ -8115,7 +8099,7 @@ export default function TeeemTableView({
                             {/* Visible checkbox (blue) - show/hide now */}
                             <input
                               type="checkbox"
-                              checked={visibleColumns[column.key] === true}
+                              checked={visibleColumns[column.key] !== false}
                               onChange={(e) => {
                                 e.stopPropagation()
                                 const isChecking = e.target.checked
@@ -8138,7 +8122,7 @@ export default function TeeemTableView({
                                   // Find the position to insert: after the last checked column
                                   const allCols = COLUMNS.filter(col => col.key !== 'select' && col.key !== 'actions')
                                   const checkedKeys = allCols
-                                    .filter(col => col.key !== column.key && visibleColumns[col.key] === true)
+                                    .filter(col => col.key !== column.key && visibleColumns[col.key] !== false)
                                     .map(col => col.key)
 
                                   // Find the last checked column in the current order
@@ -8257,19 +8241,6 @@ export default function TeeemTableView({
                     ? `${filteredAndSorted.length} records`
                     : `${filteredAndSorted.length} of ${entries.length} records`}
               </span>
-              {/* Clear All Filters button - only show when column filters are active */}
-              {Object.values(columnFilterInputs).some(v => v && v.trim() !== '') && (
-                <button
-                  onClick={() => setColumnFilterInputs({})}
-                  className="text-xs px-2 py-0.5 bg-orange-100 hover:bg-orange-200 dark:bg-orange-900/30 dark:hover:bg-orange-900/50 text-orange-700 dark:text-orange-300 rounded border border-orange-300 dark:border-orange-700 transition-colors flex items-center gap-1"
-                  title="Clear all column filters"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                  Clear Filters
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -8307,9 +8278,6 @@ export default function TeeemTableView({
                 const isFirst = index === 0
                 const isLast = index === visibleCols.length - 1
 
-                // Check if this column has an active filter
-                const hasActiveFilter = columnFilterInputs[colKey] && columnFilterInputs[colKey].trim() !== ''
-
                 return (
                   <th
                     key={colKey}
@@ -8334,11 +8302,7 @@ export default function TeeemTableView({
                       verticalAlign: 'top',
                     }}
                     className={`group align-top ${colKey === 'select' ? 'px-2 py-5' : 'px-3 py-5'} text-white border-r-2 border-white/50 last:border-r-0 ${
-                      hasActiveFilter
-                        ? 'bg-gradient-to-b from-orange-500 to-orange-600 dark:from-orange-600 dark:to-orange-700'
-                        : isSystemGenerated
-                          ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700'
-                          : 'bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800'
+                      isSystemGenerated ? 'bg-gradient-to-b from-purple-500 to-purple-600 dark:from-purple-600 dark:to-purple-700' : 'bg-gradient-to-b from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800'
                     } ${column.sortable ? 'cursor-pointer hover:bg-blue-400/20 dark:hover:bg-blue-600/20' : ''} ${
                       isFirst ? 'rounded-tl-lg' : ''
                     } ${isLast ? 'rounded-tr-lg' : ''} ${
@@ -8478,81 +8442,36 @@ export default function TeeemTableView({
 
                         {/* Inline Column Filter (Chapter 20.1) - Show only if showFilters is true AND column filter is enabled */}
                         {showFilters && (columnShowFilters[colKey] ?? true) && column.filterType === 'text' && (
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Filter..."
-                              value={columnFilterInputs[colKey] || ''}
-                              onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`w-full text-xs px-2 py-1 pr-6 border rounded focus:ring-1 focus:ring-white focus:border-white text-white placeholder-blue-200 dark:placeholder-blue-300 ${
-                                hasActiveFilter
-                                  ? 'border-orange-300 dark:border-orange-600 bg-orange-500 dark:bg-orange-600'
-                                  : 'border-blue-400 dark:border-blue-700 bg-blue-500 dark:bg-blue-700'
-                              }`}
-                            />
-                            {columnFilterInputs[colKey] && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleColumnFilterChange(colKey, '')
-                                }}
-                                className="absolute right-1 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-0.5"
-                                title="Clear filter"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
+                          <input
+                            type="text"
+                            placeholder="Filter..."
+                            value={columnFilterInputs[colKey] || ''}
+                            onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
+                          />
                         )}
 
                         {showFilters && (columnShowFilters[colKey] ?? true) && column.filterType === 'boolean' && (
-                          <div className="relative">
-                            <select
-                              value={columnFilterInputs[colKey] || ''}
-                              onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`w-full text-xs px-2 py-1 pr-6 border rounded focus:ring-1 focus:ring-white focus:border-white text-white ${
-                                hasActiveFilter
-                                  ? 'border-orange-300 dark:border-orange-600 bg-orange-500 dark:bg-orange-600'
-                                  : 'border-blue-400 dark:border-blue-700 bg-blue-500 dark:bg-blue-700'
-                              }`}
-                            >
-                              <option value="">All</option>
-                              <option value="true">✓ Checked</option>
-                              <option value="false">✗ Unchecked</option>
-                            </select>
-                            {columnFilterInputs[colKey] && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleColumnFilterChange(colKey, '')
-                                }}
-                                className="absolute right-5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-0.5 z-10"
-                                title="Clear filter"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
+                          <select
+                            value={columnFilterInputs[colKey] || ''}
+                            onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white"
+                          >
+                            <option value="">All</option>
+                            <option value="true">✓ Checked</option>
+                            <option value="false">✗ Unchecked</option>
+                          </select>
                         )}
 
                         {showFilters && (columnShowFilters[colKey] ?? true) && (column.filterType === 'dropdown' || column.column_type === 'lookup') && colKey !== 'component' && (
-                          <div className="relative">
-                            <select
-                              value={columnFilterInputs[colKey] || ''}
-                              onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`w-full text-xs px-2 py-1 pr-6 border rounded focus:ring-1 focus:ring-white focus:border-white text-white ${
-                                hasActiveFilter
-                                  ? 'border-orange-300 dark:border-orange-600 bg-orange-500 dark:bg-orange-600'
-                                  : 'border-blue-400 dark:border-blue-700 bg-blue-500 dark:bg-blue-700'
-                              }`}
-                            >
+                          <select
+                            value={columnFilterInputs[colKey] || ''}
+                            onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
+                          >
                             <option key="inline-all" value="">All</option>
                             <option key="inline-empty" value="__empty__">No Info</option>
                             {colKey === 'category' && (
@@ -8721,34 +8640,14 @@ export default function TeeemTableView({
                         {showFilters && (columnShowFilters[colKey] ?? true) && colKey !== 'component' && colKey !== 'select' && colKey !== 'actions' &&
                          column.column_type !== 'lookup' &&
                          (!column.filterType || !['text', 'boolean', 'dropdown'].includes(column.filterType)) && (
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Filter..."
-                              value={columnFilterInputs[colKey] || ''}
-                              onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              className={`w-full text-xs px-2 py-1 pr-6 border rounded focus:ring-1 focus:ring-white focus:border-white text-white placeholder-blue-200 dark:placeholder-blue-300 ${
-                                hasActiveFilter
-                                  ? 'border-orange-300 dark:border-orange-600 bg-orange-500 dark:bg-orange-600'
-                                  : 'border-blue-400 dark:border-blue-700 bg-blue-500 dark:bg-blue-700'
-                              }`}
-                            />
-                            {columnFilterInputs[colKey] && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleColumnFilterChange(colKey, '')
-                                }}
-                                className="absolute right-1 top-1/2 -translate-y-1/2 text-white/70 hover:text-white p-0.5"
-                                title="Clear filter"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                              </button>
-                            )}
-                          </div>
+                          <input
+                            type="text"
+                            placeholder="Filter..."
+                            value={columnFilterInputs[colKey] || ''}
+                            onChange={(e) => handleColumnFilterChange(colKey, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full text-xs px-2 py-1 border border-blue-400 dark:border-blue-700 rounded focus:ring-1 focus:ring-white focus:border-white bg-blue-500 dark:bg-blue-700 text-white placeholder-blue-200 dark:placeholder-blue-300"
+                          />
                         )}
 
                         {/* Empty spacer for select column */}
@@ -10913,23 +10812,6 @@ export default function TeeemTableView({
           </div>
         </div>
       )}
-
-      {/* Save to SharePoint Dialog */}
-      <SaveToSharePointDialog
-        isOpen={showSharePointDialog}
-        onClose={() => setShowSharePointDialog(false)}
-        selectedRecordIds={Array.from(selectedRows)}
-        foundationId={foundationId}
-        onSuccess={(result) => {
-          console.log('✅ Files saved to SharePoint:', result)
-          setSelectedRows(new Set())
-          setShowDeleteButton(false)
-          alert(`Successfully saved ${result.uploaded_files?.length || 0} files to SharePoint!`)
-        }}
-        onError={(error) => {
-          console.error('❌ SharePoint save failed:', error)
-        }}
-      />
     </>
   )
 }
