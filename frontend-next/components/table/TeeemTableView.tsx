@@ -1741,7 +1741,7 @@ export default function TeeemTableView({
           <TableHead
             key={`${column.key}-${colIndex}`}
             style={{ width: columnWidths[column.key], minWidth: column.minWidth || 50 }}
-            className={cn("relative", column.key === "select" && "sticky left-0 z-20 bg-background shadow-[1px_0_0_hsl(var(--border))]")}
+            className={cn("relative", column.key === "select" && "sticky-cell-header")}
           >
             {column.key === "select" ? (
               <Checkbox
@@ -1822,7 +1822,7 @@ export default function TeeemTableView({
                           <TableCell
                             key={`${column.key}-${colIndex}`}
                             style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
-                            className={column.key === "select" ? "sticky left-0 z-10 bg-background shadow-[1px_0_0_hsl(var(--border))]" : undefined}
+                            className={column.key === "select" ? "sticky-cell" : undefined}
                           >
                             {renderCellValue(row, column)}
                           </TableCell>
@@ -1871,7 +1871,7 @@ export default function TeeemTableView({
                   <TableCell
                     key={`${column.key}-${colIndex}`}
                     style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
-                    className={column.key === "select" ? "sticky left-0 z-10 bg-background shadow-[1px_0_0_hsl(var(--border))]" : undefined}
+                    className={column.key === "select" ? "sticky-cell" : undefined}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>

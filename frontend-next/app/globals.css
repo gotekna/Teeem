@@ -260,6 +260,23 @@
     text-align: right;
     color: hsl(var(--status-error-text));
   }
+
+  /* Sticky table cells - solid background for horizontal scroll */
+  .sticky-cell {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    @apply bg-background;
+    box-shadow: 1px 0 0 hsl(var(--border));
+  }
+
+  .sticky-cell-header {
+    position: sticky;
+    left: 0;
+    z-index: 20;
+    @apply bg-background;
+    box-shadow: 1px 0 0 hsl(var(--border));
+  }
 }
 
 /* ========================================
