@@ -429,9 +429,10 @@ module Api
       private
 
       def set_company
-        @company = Company.find(params[:id])
-      rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: 'Company not found' }, status: :not_found
+        @company = Company.find_by_slug_or_id(params[:id])
+        unless @company
+          render json: { success: false, error: 'Company not found' }, status: :not_found
+        end
       end
 
       def company_params
