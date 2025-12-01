@@ -1,5 +1,15 @@
 # Claude Code Instructions for TEEEM Project
 
+## 🔴 CRITICAL: Git Commit and Push Rules
+
+**NEVER commit or push unless the user explicitly says to.**
+
+- ❌ NEVER run `git commit` until the user confirms the fix works and says "commit" or "push"
+- ❌ NEVER run `git push` until the user explicitly requests it
+- ✅ Make code changes and let the user test locally first
+- ✅ Wait for user confirmation before committing
+- ✅ Only commit/push when user says: "commit", "push", "ship it", "looks good, push it", etc.
+
 ## 🔴 CRITICAL: Git Branch Protection
 
 **NEVER push directly to the `Live` branch.** This is our production branch (equivalent to main/master).

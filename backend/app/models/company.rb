@@ -41,6 +41,28 @@ class Company < ApplicationRecord
   encrypts :encrypted_asic_password
   encrypts :encrypted_recovery_answer
 
+  # Safe accessors for encrypted fields that may have decryption issues
+  def tfn
+    super
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.warn("Company##{id}: TFN decryption failed - #{e.message}")
+    nil
+  end
+
+  def encrypted_asic_password
+    super
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.warn("Company##{id}: ASIC password decryption failed - #{e.message}")
+    nil
+  end
+
+  def encrypted_recovery_answer
+    super
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.warn("Company##{id}: Recovery answer decryption failed - #{e.message}")
+    nil
+  end
+
   # Validations
   validates :name, presence: true
   validates :acn, uniqueness: { allow_blank: true }, format: { with: /\A\d{9}\z/, message: "must be 9 digits", allow_blank: true }
