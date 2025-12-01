@@ -439,23 +439,21 @@ export default function SystemAdminPage() {
 
       {/* Main Tab Navigation */}
       <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <div className="overflow-x-auto pb-2">
-          <TabsList className="inline-flex h-auto gap-1 bg-muted/50 p-1 min-w-max">
-            {MAIN_TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <TabsTrigger
-                  key={tab.id}
-                  value={tab.id}
-                  className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5"
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </div>
+        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start">
+          {MAIN_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
+                className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 data-[state=active]:bg-background"
+              >
+                <Icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
 
         <div className="mt-6">
           <TabsContent value="company">
