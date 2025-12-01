@@ -763,17 +763,17 @@ function GoldStandardDataTab() {
         enableImport={true}
         enableExport={true}
         enableSchemaEditor={true}
+        leftActions={
+          <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Item
+          </Button>
+        }
         customActions={
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
-              <Filter className="h-4 w-4 mr-2" />
-              Views
-            </Button>
-            <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
+            <Filter className="h-4 w-4 mr-2" />
+            Filters
+          </Button>
         }
       />
 

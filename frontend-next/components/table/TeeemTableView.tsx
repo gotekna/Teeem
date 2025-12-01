@@ -608,6 +608,7 @@ export default function TeeemTableView({
   onEditIndividual,
   onViewSchema,
   customActions,
+  leftActions,
   customCellRenderer,
   extraRowProps,
   viewOnly = false,
@@ -1902,20 +1903,20 @@ export default function TeeemTableView({
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        {/* Search */}
-        <SearchInput
+        {/* Left section: leftActions + Search */}
+        <div className="flex items-center gap-2">
+          {leftActions}
+          <SearchInput
           onSearch={handleSearchFromInput}
           onSearchAllChange={handleSearchAllChange}
           searchAllColumns={searchAllColumns}
           serverSearchLoading={serverSearchLoading}
           hasServerSearch={!!onServerSearch}
         />
+        </div>
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          {/* Custom actions */}
-          {customActions}
-
           {/* Saved Views */}
           {savedViews.length > 0 && (
             <div className="flex items-center gap-1">
@@ -1946,145 +1947,8 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Filter button */}
-          <Sheet open={filterPanelOpen} onOpenChange={setFilterPanelOpen} modal={false}>
-            <SheetTrigger asChild>
-              <Button
-                variant={safeFilters.length > 0 ? "default" : "outline"}
-                size="sm"
-              >
-                <Filter className="h-4 w-4 mr-1" />
-                Filters
-                {safeFilters.length > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {safeFilters.length}
-                  </Badge>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-[400px] sm:w-[540px]">
-              <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
-                <SheetDescription>
-                  Add filters to narrow down your results
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="mt-6 space-y-4">
-                {safeFilters.map((filter) => (
-                  <CascadeFilterItem
-                    key={filter.id}
-                    filter={filter}
-                    columns={COLUMNS}
-                    onUpdate={updateFilter}
-                    onRemove={removeFilter}
-                  />
-                ))}
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={addFilter}
-                  className="w-full"
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Filter
-                </Button>
-
-                {safeFilters.length > 0 && (
-                  <>
-                    <Separator />
-                    <div className="flex items-center justify-between">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={clearAllFilters}
-                      >
-                        <RotateCcw className="h-4 w-4 mr-1" />
-                        Clear All
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => setShowSaveViewModal(true)}
-                      >
-                        <Save className="h-4 w-4 mr-1" />
-                        Save as View
-                      </Button>
-                    </div>
-                  </>
-                )}
-
-                {/* Group By */}
-                <Separator />
-                <div className="space-y-2">
-                  <Label>Group By</Label>
-                  <Select
-                    value={groupByColumn || "none"}
-                    onValueChange={(value) => {
-                      if (value === "none") {
-                        setGroupByColumn(null);
-                        setGroupByColumns([]);
-                      } else {
-                        setGroupByColumn(value);
-                        setGroupByColumns([value]);
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="No grouping" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">No grouping</SelectItem>
-                      {COLUMNS.filter(
-                        (c) =>
-                          c.key !== "select" &&
-                          c.key !== "actions" &&
-                          c.key !== "id"
-                      ).map((col) => (
-                        <SelectItem key={col.key} value={col.key}>
-                          {col.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          {/* Columns dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Columns className="h-4 w-4 mr-1" />
-                Columns
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-56 max-h-80 overflow-auto"
-            >
-              {COLUMNS.filter(
-                (col) => col.key !== "select" && col.key !== "actions"
-              ).map((column) => (
-                <DropdownMenuItem
-                  key={column.key}
-                  onClick={() =>
-                    setVisibleColumns((prev) => ({
-                      ...prev,
-                      [column.key]: !prev[column.key],
-                    }))
-                  }
-                >
-                  <Checkbox
-                    checked={visibleColumns[column.key] === true}
-                    className="mr-2"
-                  />
-                  {column.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Custom actions (Filters button) */}
+          {customActions}
 
           {/* More actions menu */}
           <DropdownMenu>
@@ -2094,17 +1958,7 @@ export default function TeeemTableView({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              {/* Hide/Show Filters */}
-              <DropdownMenuItem onClick={() => setFilterPanelOpen(!filterPanelOpen)}>
-                {filterPanelOpen ? (
-                  <EyeOff className="h-4 w-4 mr-2" />
-                ) : (
-                  <Eye className="h-4 w-4 mr-2" />
-                )}
-                {filterPanelOpen ? "Hide Filters" : "Show Filters"}
-              </DropdownMenuItem>
-
-              <DropdownMenuItem onClick={() => {}}>
+              <DropdownMenuItem onClick={() => setShowEditColumnsModal(true)}>
                 <Columns className="h-4 w-4 mr-2" />
                 Columns
               </DropdownMenuItem>

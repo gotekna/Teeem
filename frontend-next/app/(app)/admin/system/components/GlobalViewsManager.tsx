@@ -67,7 +67,6 @@ import {
   Filter,
   ArrowUpDown,
   Columns3,
-  Settings2,
   Globe,
   User,
   Loader2,
@@ -110,7 +109,6 @@ interface SavedView {
   sortColumns?: SortColumn[];
   groupByColumn?: string | null;
   groupByColumns?: string[];
-  showFilters?: boolean;
   autoFitColumns?: boolean;
   display_order?: number;
 }
@@ -236,11 +234,85 @@ function SortableColumnItem({
   column,
   isVisible,
   onToggleVisibility,
+  index,
 }: {
   id: string;
   column: Column;
   isVisible: boolean;
   onToggleVisibility: () => void;
+  index?: number;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(column.column_name);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-1.5 px-2 py-1.5 rounded border transition-all",
+        isVisible ? "bg-background border-border" : "bg-muted/30 border-border",
+        isSystemColumn && "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50",
+        isDragging && "opacity-50 shadow-lg"
+      )}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </div>
+      {index !== undefined && (
+        <span className="flex items-center justify-center w-4 h-4 text-[9px] font-medium bg-muted rounded">
+          {index}
+        </span>
+      )}
+      <button
+        onClick={onToggleVisibility}
+        className="flex items-center gap-1 flex-1 text-left hover:opacity-70 min-w-0"
+      >
+        {isVisible ? (
+          <Check className="h-3 w-3 text-primary shrink-0" />
+        ) : (
+          <EyeOff className="h-3 w-3 text-muted-foreground shrink-0" />
+        )}
+        <span className={cn("text-xs font-medium truncate", !isVisible && "text-muted-foreground font-normal")}>
+          {column.name || column.column_name}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+// Sortable Sort By Item
+function SortableSortByItem({
+  id,
+  sort,
+  columns,
+  onChangeColumn,
+  onChangeDir,
+  onRemove,
+}: {
+  id: string;
+  sort: SortColumn;
+  columns: Column[];
+  onChangeColumn: (col: string) => void;
+  onChangeDir: (dir: "asc" | "desc") => void;
+  onRemove: () => void;
 }) {
   const {
     attributes,
@@ -261,9 +333,8 @@ function SortableColumnItem({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-2 p-2 rounded border transition-all",
-        isVisible ? "bg-background border-border" : "bg-muted/30 border-border",
-        isDragging && "opacity-50 shadow-lg"
+        "flex items-center gap-2",
+        isDragging && "opacity-50"
       )}
     >
       <div
@@ -271,21 +342,105 @@ function SortableColumnItem({
         {...listeners}
         className="cursor-grab active:cursor-grabbing touch-none"
       >
-        <GripVertical className="h-3 w-3 text-muted-foreground" />
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
-      <button
-        onClick={onToggleVisibility}
-        className="flex items-center gap-2 flex-1 text-left hover:opacity-70"
+      <Select value={sort.column} onValueChange={onChangeColumn}>
+        <SelectTrigger className="flex-1 h-8">
+          <SelectValue placeholder="Column..." />
+        </SelectTrigger>
+        <SelectContent>
+          {columns.map(c => (
+            <SelectItem key={c.column_name} value={c.column_name}>
+              {c.name || c.column_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc")}>
+        <SelectTrigger className="w-[100px] h-8">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="asc">A → Z</SelectItem>
+          <SelectItem value="desc">Z → A</SelectItem>
+        </SelectContent>
+      </Select>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+        onClick={onRemove}
       >
-        {isVisible ? (
-          <Eye className="h-3 w-3 text-primary" />
-        ) : (
-          <EyeOff className="h-3 w-3 text-muted-foreground" />
-        )}
-        <span className={cn("text-xs truncate", !isVisible && "text-muted-foreground")}>
-          {column.name || column.column_name}
-        </span>
-      </button>
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
+
+// Sortable Group By Item
+function SortableGroupByItem({
+  id,
+  columnName,
+  columns,
+  onChangeColumn,
+  onRemove,
+}: {
+  id: string;
+  columnName: string;
+  columns: Column[];
+  onChangeColumn: (col: string) => void;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2",
+        isDragging && "opacity-50"
+      )}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <Select value={id} onValueChange={onChangeColumn}>
+        <SelectTrigger className="flex-1 h-8">
+          <SelectValue placeholder="Column...">{columnName}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {columns.map(c => (
+            <SelectItem key={c.column_name} value={c.column_name}>
+              {c.name || c.column_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+        onClick={onRemove}
+      >
+        <X className="h-3 w-3" />
+      </Button>
     </div>
   );
 }
@@ -307,6 +462,9 @@ export function GlobalViewsManager({
   const [editingView, setEditingView] = React.useState<SavedView | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [viewToDelete, setViewToDelete] = React.useState<SavedView | null>(null);
+  const [showCreateDialog, setShowCreateDialog] = React.useState(false);
+  const [newViewName, setNewViewName] = React.useState("New View");
+  const [newViewBaseId, setNewViewBaseId] = React.useState<string>("blank");
 
   // Edit state
   const [editName, setEditName] = React.useState("");
@@ -318,15 +476,12 @@ export function GlobalViewsManager({
   const [editGroupByColumns, setEditGroupByColumns] = React.useState<string[]>([]);
   const [editVisibleColumns, setEditVisibleColumns] = React.useState<Record<string, boolean>>({});
   const [editColumnOrder, setEditColumnOrder] = React.useState<string[]>([]);
-  const [editShowFilters, setEditShowFilters] = React.useState(true);
-  const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(false);
+  const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(true);
 
   // Collapse state
   const [filtersExpanded, setFiltersExpanded] = React.useState(true);
   const [sortExpanded, setSortExpanded] = React.useState(true);
   const [groupByExpanded, setGroupByExpanded] = React.useState(true);
-  const [columnsExpanded, setColumnsExpanded] = React.useState(true);
-  const [displayExpanded, setDisplayExpanded] = React.useState(true);
 
   // DnD sensors
   const sensors = useSensors(
@@ -357,7 +512,6 @@ export function GlobalViewsManager({
           interGroupLogic: v.filters?.interGroupLogic || "OR",
           visibleColumns: v.columns?.visible || {},
           columnOrder: v.columns?.order || [],
-          showFilters: v.columns?.showFilters !== false,
           autoFitColumns: v.columns?.autoFitColumns === true,
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
           groupByColumns: v.group_by_columns || [],
@@ -394,7 +548,6 @@ export function GlobalViewsManager({
     setEditGroupByColumns(view.groupByColumns || []);
     setEditVisibleColumns(view.visibleColumns || {});
     setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
-    setEditShowFilters(view.showFilters !== false);
     setEditAutoFitColumns(view.autoFitColumns || false);
   };
 
@@ -404,23 +557,34 @@ export function GlobalViewsManager({
   };
 
   const handleCreateNew = () => {
+    setNewViewName("New View");
+    setNewViewBaseId("blank");
+    setShowCreateDialog(true);
+  };
+
+  const handleConfirmCreate = () => {
+    // Find the base view if one was selected
+    const baseView = newViewBaseId !== "blank"
+      ? views.find(v => String(v.id) === newViewBaseId)
+      : null;
+
     const newView: SavedView = {
       id: `new_${Date.now()}`,
-      name: "New View",
+      name: newViewName || "New View",
       is_global: false,
-      filters: [],
-      filterGroups: [{ id: "default", logic: "AND" }],
-      interGroupLogic: "OR",
-      visibleColumns: Object.fromEntries(columns.map(c => [c.column_name, true])),
-      columnOrder: columns.map(c => c.column_name),
-      sortColumns: [],
-      groupByColumns: [],
-      showFilters: true,
-      autoFitColumns: false,
+      filters: baseView?.filters || [],
+      filterGroups: baseView?.filterGroups || [{ id: "default", logic: "AND" }],
+      interGroupLogic: baseView?.interGroupLogic || "OR",
+      visibleColumns: baseView?.visibleColumns || Object.fromEntries(columns.map(c => [c.column_name, true])),
+      columnOrder: baseView?.columnOrder || columns.map(c => c.column_name),
+      sortColumns: baseView?.sortColumns || [],
+      groupByColumns: baseView?.groupByColumns || [],
+      autoFitColumns: baseView?.autoFitColumns ?? true,
     };
 
     setActiveViewId(newView.id);
     loadViewIntoEditor(newView);
+    setShowCreateDialog(false);
   };
 
   const handleSaveView = async () => {
@@ -441,7 +605,6 @@ export function GlobalViewsManager({
         columns: {
           visible: editVisibleColumns,
           order: editColumnOrder,
-          showFilters: editShowFilters,
           autoFitColumns: editAutoFitColumns,
         },
         sort_order: editSortColumns,
@@ -721,7 +884,7 @@ export function GlobalViewsManager({
                           <Button variant="outline" size="sm" onClick={() => loadViewIntoEditor(editingView)}>
                             Reset
                           </Button>
-                          <Button size="sm" onClick={handleSaveView} disabled={saving}>
+                          <Button variant="outline" size="sm" onClick={handleSaveView} disabled={saving}>
                             {saving ? (
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                             ) : (
@@ -729,15 +892,25 @@ export function GlobalViewsManager({
                             )}
                             Save
                           </Button>
+                          <Button size="sm" onClick={async () => { await handleSaveView(); onOpenChange(false); }} disabled={saving}>
+                            {saving ? (
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4 mr-2" />
+                            )}
+                            Save & Close
+                          </Button>
                         </div>
                       </div>
                     </div>
 
-                    {/* Editor Content */}
-                    <ScrollArea className="flex-1 p-4">
-                      <div className="space-y-4">
-                        {/* View Filter Section */}
-                        <Collapsible open={filtersExpanded} onOpenChange={setFiltersExpanded}>
+                    {/* Editor Content - Two Column Layout */}
+                    <div className="flex-1 flex overflow-hidden">
+                      {/* Left Side - Settings (Scrollable, fixed width) */}
+                      <ScrollArea className="w-[400px] shrink-0 p-4 border-r">
+                        <div className="space-y-4">
+                          {/* View Filter Section */}
+                          <Collapsible open={filtersExpanded} onOpenChange={setFiltersExpanded}>
                           <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
                             {filtersExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             <Filter className="h-4 w-4" />
@@ -853,13 +1026,13 @@ export function GlobalViewsManager({
                                             </p>
                                           ) : (
                                             groupFilters.map(filter => (
-                                              <div key={filter.id} className="flex items-center gap-2 p-2 bg-background rounded border">
+                                              <div key={filter.id} className="flex flex-wrap items-center gap-2 p-2 bg-background rounded border">
                                                 {/* Column Select */}
                                                 <Select
                                                   value={filter.column}
                                                   onValueChange={(v) => updateFilter(filter.id, { column: v })}
                                                 >
-                                                  <SelectTrigger className="w-[140px] h-8">
+                                                  <SelectTrigger className="w-[120px] h-8">
                                                     <SelectValue placeholder="Column..." />
                                                   </SelectTrigger>
                                                   <SelectContent>
@@ -876,7 +1049,7 @@ export function GlobalViewsManager({
                                                   value={filter.operator}
                                                   onValueChange={(v) => updateFilter(filter.id, { operator: v })}
                                                 >
-                                                  <SelectTrigger className="w-[100px] h-8">
+                                                  <SelectTrigger className="w-[90px] h-8">
                                                     <SelectValue />
                                                   </SelectTrigger>
                                                   <SelectContent>
@@ -887,8 +1060,8 @@ export function GlobalViewsManager({
                                                     <SelectItem value="<">{"<"}</SelectItem>
                                                     <SelectItem value=">=">≥</SelectItem>
                                                     <SelectItem value="<=">≤</SelectItem>
-                                                    <SelectItem value="empty">is empty</SelectItem>
-                                                    <SelectItem value="notEmpty">is not empty</SelectItem>
+                                                    <SelectItem value="empty">empty</SelectItem>
+                                                    <SelectItem value="notEmpty">not empty</SelectItem>
                                                   </SelectContent>
                                                 </Select>
 
@@ -898,7 +1071,7 @@ export function GlobalViewsManager({
                                                     value={String(filter.value || "")}
                                                     onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
                                                     placeholder="Value..."
-                                                    className="flex-1 h-8"
+                                                    className="w-[80px] h-8"
                                                   />
                                                 )}
 
@@ -941,51 +1114,40 @@ export function GlobalViewsManager({
                           <CollapsibleContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
-                                <div className="space-y-2">
-                                  {editSortColumns.map((sort, index) => (
-                                    <div key={index} className="flex items-center gap-2">
-                                      <Select
-                                        value={sort.column}
-                                        onValueChange={(v) => updateSortColumn(index, { column: v })}
-                                      >
-                                        <SelectTrigger className="flex-1 h-8">
-                                          <SelectValue placeholder="Column..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {filteredColumns.map(col => (
-                                            <SelectItem key={col.column_name} value={col.column_name}>
-                                              {col.name || col.column_name}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <Select
-                                        value={sort.dir}
-                                        onValueChange={(v) => updateSortColumn(index, { dir: v as "asc" | "desc" })}
-                                      >
-                                        <SelectTrigger className="w-[100px] h-8">
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="asc">A → Z</SelectItem>
-                                          <SelectItem value="desc">Z → A</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                        onClick={() => removeSortColumn(index)}
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
+                                <DndContext
+                                  sensors={sensors}
+                                  collisionDetection={closestCenter}
+                                  onDragEnd={(event) => {
+                                    const { active, over } = event;
+                                    if (!over || active.id === over.id) return;
+                                    const oldIndex = editSortColumns.findIndex(s => `sort-${s.column}` === active.id);
+                                    const newIndex = editSortColumns.findIndex(s => `sort-${s.column}` === over.id);
+                                    setEditSortColumns(arrayMove(editSortColumns, oldIndex, newIndex));
+                                  }}
+                                >
+                                  <SortableContext
+                                    items={editSortColumns.map(s => `sort-${s.column}`)}
+                                    strategy={verticalListSortingStrategy}
+                                  >
+                                    <div className="space-y-2">
+                                      {editSortColumns.map((sort, index) => (
+                                        <SortableSortByItem
+                                          key={`sort-${sort.column}`}
+                                          id={`sort-${sort.column}`}
+                                          sort={sort}
+                                          columns={filteredColumns}
+                                          onChangeColumn={(col) => updateSortColumn(index, { column: col })}
+                                          onChangeDir={(dir) => updateSortColumn(index, { dir })}
+                                          onRemove={() => removeSortColumn(index)}
+                                        />
+                                      ))}
                                     </div>
-                                  ))}
-                                  <Button variant="outline" size="sm" onClick={addSortColumn}>
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Add Sort Column
-                                  </Button>
-                                </div>
+                                  </SortableContext>
+                                </DndContext>
+                                <Button variant="outline" size="sm" className="mt-2" onClick={addSortColumn}>
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add Sort Column
+                                </Button>
                               </CardContent>
                             </Card>
                           </CollapsibleContent>
@@ -1008,141 +1170,159 @@ export function GlobalViewsManager({
                           <CollapsibleContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
-                                <div className="space-y-2">
-                                  {editGroupByColumns.map((col, index) => (
-                                    <div key={index} className="flex items-center gap-2">
-                                      <Select
-                                        value={col}
-                                        onValueChange={(v) => {
-                                          const newCols = [...editGroupByColumns];
-                                          newCols[index] = v;
-                                          setEditGroupByColumns(newCols);
-                                        }}
-                                      >
-                                        <SelectTrigger className="flex-1 h-8">
-                                          <SelectValue placeholder="Column..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {filteredColumns.map(c => (
-                                            <SelectItem key={c.column_name} value={c.column_name}>
-                                              {c.name || c.column_name}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                        onClick={() => {
-                                          setEditGroupByColumns(editGroupByColumns.filter((_, i) => i !== index));
-                                        }}
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                  ))}
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      const available = filteredColumns.find(c => !editGroupByColumns.includes(c.column_name));
-                                      if (available) {
-                                        setEditGroupByColumns([...editGroupByColumns, available.column_name]);
-                                      }
-                                    }}
-                                  >
-                                    <Plus className="h-3 w-3 mr-1" />
-                                    Add Group Column
-                                  </Button>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
-
-                        <Separator />
-
-                        {/* Display Options Section */}
-                        <Collapsible open={displayExpanded} onOpenChange={setDisplayExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {displayExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <Settings2 className="h-4 w-4" />
-                            Display Options
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
-                            <Card>
-                              <CardContent className="p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-sm">Show inline filters</Label>
-                                  <Switch
-                                    checked={editShowFilters}
-                                    onCheckedChange={setEditShowFilters}
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <Label className="text-sm">Auto-fit columns</Label>
-                                  <Switch
-                                    checked={editAutoFitColumns}
-                                    onCheckedChange={setEditAutoFitColumns}
-                                  />
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
-
-                        <Separator />
-
-                        {/* Columns Section */}
-                        <Collapsible open={columnsExpanded} onOpenChange={setColumnsExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {columnsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <Eye className="h-4 w-4" />
-                            Columns
-                            <Badge variant="secondary" className="ml-2">
-                              {Object.values(editVisibleColumns).filter(Boolean).length} visible
-                            </Badge>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
-                            <Card>
-                              <CardContent className="p-4">
-                                <div className="flex items-center gap-2 mb-3">
-                                  <Button variant="outline" size="sm" onClick={showAllColumns}>
-                                    Show All
-                                  </Button>
-                                  <Button variant="outline" size="sm" onClick={hideAllColumns}>
-                                    Hide All
-                                  </Button>
-                                </div>
                                 <DndContext
                                   sensors={sensors}
                                   collisionDetection={closestCenter}
-                                  onDragEnd={handleColumnDragEnd}
+                                  onDragEnd={(event) => {
+                                    const { active, over } = event;
+                                    if (!over || active.id === over.id) return;
+                                    const oldIndex = editGroupByColumns.indexOf(active.id as string);
+                                    const newIndex = editGroupByColumns.indexOf(over.id as string);
+                                    setEditGroupByColumns(arrayMove(editGroupByColumns, oldIndex, newIndex));
+                                  }}
                                 >
                                   <SortableContext
-                                    items={editColumnOrder}
+                                    items={editGroupByColumns}
                                     strategy={verticalListSortingStrategy}
                                   >
-                                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-1">
-                                      {getSortedColumns().map(col => (
+                                    <div className="space-y-2">
+                                      {editGroupByColumns.map((col) => {
+                                        const columnInfo = columns.find(c => c.column_name === col);
+                                        return (
+                                          <SortableGroupByItem
+                                            key={col}
+                                            id={col}
+                                            columnName={columnInfo?.name || col}
+                                            columns={filteredColumns}
+                                            onChangeColumn={(newCol) => {
+                                              setEditGroupByColumns(editGroupByColumns.map(c => c === col ? newCol : c));
+                                            }}
+                                            onRemove={() => {
+                                              setEditGroupByColumns(editGroupByColumns.filter(c => c !== col));
+                                            }}
+                                          />
+                                        );
+                                      })}
+                                    </div>
+                                  </SortableContext>
+                                </DndContext>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-2"
+                                  onClick={() => {
+                                    const available = filteredColumns.find(c => !editGroupByColumns.includes(c.column_name));
+                                    if (available) {
+                                      setEditGroupByColumns([...editGroupByColumns, available.column_name]);
+                                    }
+                                  }}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add Group Column
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          </CollapsibleContent>
+                        </Collapsible>
+
+                        </div>
+                      </ScrollArea>
+
+                      {/* Right Side - Columns (Takes remaining space) */}
+                      <div className="flex-1 flex flex-col p-4 overflow-hidden min-w-0">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2 font-semibold text-sm">
+                            <Eye className="h-4 w-4" />
+                            Columns
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
+                            <Switch
+                              id="auto-fit"
+                              checked={editAutoFitColumns}
+                              onCheckedChange={setEditAutoFitColumns}
+                            />
+                          </div>
+                        </div>
+                        <ScrollArea className="flex-1 -mx-4 px-4">
+                          <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleColumnDragEnd}
+                          >
+                            <SortableContext
+                              items={editColumnOrder}
+                              strategy={verticalListSortingStrategy}
+                            >
+                              {/* Visible Columns Section */}
+                              <div className="mb-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                    <Eye className="h-3.5 w-3.5" />
+                                    Visible
+                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                      {Object.values(editVisibleColumns).filter(Boolean).length}
+                                    </Badge>
+                                  </div>
+                                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={hideAllColumns}>
+                                    Hide All
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-3 gap-1">
+                                  {getSortedColumns()
+                                    .filter(col => editVisibleColumns[col.column_name] !== false)
+                                    .map((col, index) => (
+                                      <SortableColumnItem
+                                        key={col.column_name}
+                                        id={col.column_name}
+                                        column={col}
+                                        isVisible={true}
+                                        onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                        index={index + 1}
+                                      />
+                                    ))}
+                                </div>
+                              </div>
+
+                              {/* Hidden Columns Section */}
+                              <div>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                    <EyeOff className="h-3.5 w-3.5" />
+                                    Hidden
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                      {Object.values(editVisibleColumns).filter(v => v === false).length}
+                                    </Badge>
+                                  </div>
+                                  {Object.values(editVisibleColumns).filter(v => v === false).length > 0 && (
+                                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={showAllColumns}>
+                                      Show All
+                                    </Button>
+                                  )}
+                                </div>
+                                {getSortedColumns().filter(col => editVisibleColumns[col.column_name] === false).length > 0 ? (
+                                  <div className="grid grid-cols-3 gap-1">
+                                    {getSortedColumns()
+                                      .filter(col => editVisibleColumns[col.column_name] === false)
+                                      .map(col => (
                                         <SortableColumnItem
                                           key={col.column_name}
                                           id={col.column_name}
                                           column={col}
-                                          isVisible={editVisibleColumns[col.column_name] !== false}
+                                          isVisible={false}
                                           onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
                                         />
                                       ))}
-                                    </div>
-                                  </SortableContext>
-                                </DndContext>
-                              </CardContent>
-                            </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
+                                  </div>
+                                ) : (
+                                  <p className="text-xs text-muted-foreground italic py-2">No hidden columns</p>
+                                )}
+                              </div>
+                            </SortableContext>
+                          </DndContext>
+                        </ScrollArea>
                       </div>
-                    </ScrollArea>
+                    </div>
                   </>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -1157,6 +1337,65 @@ export function GlobalViewsManager({
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Create View Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New View</DialogTitle>
+            <DialogDescription>
+              Choose a name and optionally start from an existing view.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="view-name">View Name</Label>
+              <Input
+                id="view-name"
+                value={newViewName}
+                onChange={(e) => setNewViewName(e.target.value)}
+                placeholder="Enter view name..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="base-view">Start From</Label>
+              <Select value={newViewBaseId} onValueChange={setNewViewBaseId}>
+                <SelectTrigger id="base-view">
+                  <SelectValue placeholder="Select a starting view..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="blank">
+                    <span className="flex items-center gap-2">
+                      <Plus className="h-4 w-4 text-muted-foreground" />
+                      Blank View
+                    </span>
+                  </SelectItem>
+                  {views.filter(v => v.name !== "__default_setup__").map(view => (
+                    <SelectItem key={view.id} value={String(view.id)}>
+                      <span className="flex items-center gap-2">
+                        {view.is_global ? (
+                          <Globe className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <User className="h-4 w-4 text-muted-foreground" />
+                        )}
+                        {view.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmCreate}>
+              Create View
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
