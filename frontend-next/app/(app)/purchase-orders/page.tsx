@@ -147,19 +147,11 @@ export default function PurchaseOrdersPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Purchase Orders</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage purchase orders across all jobs
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/purchase-orders/new">
-            <Plus className="h-4 w-4 mr-2" />
-            Create PO
-          </Link>
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight font-serif">Purchase Orders</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Manage purchase orders across all jobs
+        </p>
       </div>
 
       {/* Stats */}
@@ -318,12 +310,6 @@ export default function PurchaseOrdersPage() {
                 <TableCell colSpan={7} className="text-center py-12">
                   <ShoppingCart className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <p className="text-muted-foreground">No purchase orders found</p>
-                  <Button className="mt-4" asChild>
-                    <Link href="/purchase-orders/new">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create First PO
-                    </Link>
-                  </Button>
                 </TableCell>
               </TableRow>
             )}
