@@ -1,0 +1,822 @@
+'use client';
+
+import { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import { api } from '@/lib/api';
+import { useAuth } from './AuthContext';
+
+// Types
+export interface SmTask {
+  id: number;
+  task_number: number;
+  name: string;
+  description?: string;
+  status: 'not_started' | 'started' | 'completed';
+  start_date: string;
+  end_date: string;
+  duration_days: number;
+  progress_percentage: number;
+  trade?: string;
+  stage?: string;
+  sequence_order?: number;
+
+  // Job relationship
+  construction_id: number;
+  job_name?: string;
+
+  // Assignment
+  assigned_user_id?: number;
+  assigned_user_name?: string;
+  supplier_id?: number;
+  supplier_name?: string;
+
+  // Lock status
+  locked: boolean;
+  lock_type?: 'supplier_confirm' | 'confirm' | 'started' | 'completed' | 'manually_positioned';
+
+  // Hold status
+  is_hold_task: boolean;
+  hold_reason?: string;
+
+  // Computed fields
+  is_overdue: boolean;
+  days_until_due: number;
+  predecessor_count?: number;
+  successor_count?: number;
+}
+
+export interface TaskFilters {
+  jobIds: number[];
+  statuses: ('not_started' | 'started' | 'completed')[];
+  assignedUserIds: number[];
+  trades: string[];
+  stages: string[];
+  dateRange: { start: Date; end: Date } | null;
+  search: string;
+  showMyTasksOnly: boolean;
+  showOverdueOnly: boolean;
+}
+
+export type ViewType = 'board' | 'list' | 'my-tasks';
+
+export interface TaskHubState {
+  tasks: SmTask[];
+  filters: TaskFilters;
+  activeView: ViewType;
+  selectedTaskIds: Set<number>;
+  loading: boolean;
+  error: string | null;
+}
+
+export interface TaskHubContextType extends TaskHubState {
+  // Filtered data
+  filteredTasks: SmTask[];
+  myTasks: SmTask[];
+  overdueTasks: SmTask[];
+  todayTasks: SmTask[];
+  thisWeekTasks: SmTask[];
+
+  // Meta
+  meta: {
+    totalCount: number;
+    overdueCount: number;
+    dueTodayCount: number;
+    inProgressCount: number;
+  };
+
+  // Actions
+  updateTask: (taskId: number, updates: Partial<SmTask>) => Promise<void>;
+  createTask: (task: Partial<SmTask>) => Promise<SmTask>;
+  deleteTask: (taskId: number) => Promise<void>;
+
+  // Bulk actions
+  bulkUpdateStatus: (taskIds: number[], status: SmTask['status']) => Promise<void>;
+  bulkAssign: (taskIds: number[], userId: number) => Promise<void>;
+
+  // View & filter actions
+  setActiveView: (view: ViewType) => void;
+  setFilters: (filters: Partial<TaskFilters>) => void;
+  clearFilters: () => void;
+
+  // Selection
+  selectTask: (taskId: number) => void;
+  deselectTask: (taskId: number) => void;
+  toggleTaskSelection: (taskId: number) => void;
+  selectAll: () => void;
+  deselectAll: () => void;
+
+  // Refresh
+  refresh: () => Promise<void>;
+}
+
+const defaultFilters: TaskFilters = {
+  jobIds: [],
+  statuses: [],
+  assignedUserIds: [],
+  trades: [],
+  stages: [],
+  dateRange: null,
+  search: '',
+  showMyTasksOnly: false,
+  showOverdueOnly: false,
+};
+
+// Mock data for development testing
+const USE_MOCK_DATA = process.env.NODE_ENV === 'development';
+
+const generateMockTasks = (currentUserId?: number): SmTask[] => {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const twoDaysAgo = new Date(today);
+  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const nextWeek = new Date(today);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+  const inTwoWeeks = new Date(today);
+  inTwoWeeks.setDate(inTwoWeeks.getDate() + 14);
+
+  const formatDate = (d: Date) => d.toISOString().split('T')[0];
+
+  return [
+    // GANTT TASKS - Part of job schedules
+    {
+      id: 1001,
+      task_number: 1,
+      name: 'Foundation Pour - Stage 1',
+      description: 'Pour concrete foundation for main building',
+      status: 'completed',
+      start_date: formatDate(twoDaysAgo),
+      end_date: formatDate(yesterday),
+      duration_days: 2,
+      progress_percentage: 100,
+      trade: 'Concrete',
+      stage: 'Foundation',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      assigned_user_id: currentUserId,
+      assigned_user_name: 'You',
+      locked: true,
+      lock_type: 'completed',
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: -1,
+      predecessor_count: 0,
+      successor_count: 2,
+    },
+    {
+      id: 1002,
+      task_number: 2,
+      name: 'Framing - Ground Floor',
+      description: 'Frame ground floor walls and ceiling',
+      status: 'started',
+      start_date: formatDate(yesterday),
+      end_date: formatDate(tomorrow),
+      duration_days: 3,
+      progress_percentage: 60,
+      trade: 'Carpentry',
+      stage: 'Framing',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      assigned_user_id: currentUserId,
+      assigned_user_name: 'You',
+      supplier_id: 201,
+      supplier_name: 'ABC Carpentry',
+      locked: true,
+      lock_type: 'started',
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 1,
+      predecessor_count: 1,
+      successor_count: 3,
+    },
+    {
+      id: 1003,
+      task_number: 3,
+      name: 'Electrical Rough-In',
+      description: 'Run electrical wiring before drywall',
+      status: 'not_started',
+      start_date: formatDate(tomorrow),
+      end_date: formatDate(nextWeek),
+      duration_days: 5,
+      progress_percentage: 0,
+      trade: 'Electrical',
+      stage: 'Rough-In',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      assigned_user_id: 2,
+      assigned_user_name: 'Mike Electrician',
+      supplier_id: 202,
+      supplier_name: 'Spark Electric Co',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 7,
+      predecessor_count: 1,
+      successor_count: 1,
+    },
+    {
+      id: 1004,
+      task_number: 4,
+      name: 'Plumbing Rough-In',
+      description: 'Install water and drain lines',
+      status: 'not_started',
+      start_date: formatDate(tomorrow),
+      end_date: formatDate(nextWeek),
+      duration_days: 4,
+      progress_percentage: 0,
+      trade: 'Plumbing',
+      stage: 'Rough-In',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      assigned_user_id: 3,
+      assigned_user_name: 'Pete Plumber',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 7,
+      predecessor_count: 1,
+      successor_count: 1,
+    },
+
+    // OVERDUE TASK
+    {
+      id: 1005,
+      task_number: 5,
+      name: 'Site Inspection - Council',
+      description: 'Council building inspector visit',
+      status: 'not_started',
+      start_date: formatDate(twoDaysAgo),
+      end_date: formatDate(yesterday),
+      duration_days: 1,
+      progress_percentage: 0,
+      trade: 'Admin',
+      stage: 'Inspection',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      assigned_user_id: currentUserId,
+      assigned_user_name: 'You',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: true,
+      days_until_due: -1,
+      predecessor_count: 0,
+      successor_count: 0,
+    },
+
+    // HOLD TASK
+    {
+      id: 1006,
+      task_number: 6,
+      name: 'HVAC Installation',
+      description: 'Install heating and cooling system',
+      status: 'not_started',
+      start_date: formatDate(nextWeek),
+      end_date: formatDate(inTwoWeeks),
+      duration_days: 5,
+      progress_percentage: 0,
+      trade: 'HVAC',
+      stage: 'Fit-Off',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      assigned_user_id: 4,
+      assigned_user_name: 'Harry HVAC',
+      locked: false,
+      is_hold_task: true,
+      hold_reason: 'Waiting for equipment delivery',
+      is_overdue: false,
+      days_until_due: 14,
+      predecessor_count: 2,
+      successor_count: 1,
+    },
+
+    // SECOND JOB - Different project
+    {
+      id: 2001,
+      task_number: 1,
+      name: 'Demolition',
+      description: 'Remove existing structures',
+      status: 'completed',
+      start_date: formatDate(twoDaysAgo),
+      end_date: formatDate(twoDaysAgo),
+      duration_days: 1,
+      progress_percentage: 100,
+      trade: 'Demolition',
+      stage: 'Site Prep',
+      construction_id: 102,
+      job_name: 'Johnson Reno - 15 Pine Ave',
+      assigned_user_id: 5,
+      assigned_user_name: 'Demo Dave',
+      locked: true,
+      lock_type: 'completed',
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: -2,
+      predecessor_count: 0,
+      successor_count: 1,
+    },
+    {
+      id: 2002,
+      task_number: 2,
+      name: 'Kitchen Cabinets Install',
+      description: 'Install new kitchen cabinetry',
+      status: 'started',
+      start_date: formatDate(today),
+      end_date: formatDate(tomorrow),
+      duration_days: 2,
+      progress_percentage: 40,
+      trade: 'Carpentry',
+      stage: 'Fit-Off',
+      construction_id: 102,
+      job_name: 'Johnson Reno - 15 Pine Ave',
+      assigned_user_id: currentUserId,
+      assigned_user_name: 'You',
+      supplier_id: 203,
+      supplier_name: 'Kitchen Kings',
+      locked: true,
+      lock_type: 'started',
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 1,
+      predecessor_count: 1,
+      successor_count: 2,
+    },
+
+    // PERSONAL/ADMIN TASKS - Not on Gantt
+    {
+      id: 3001,
+      task_number: 1,
+      name: 'Order materials for next week',
+      description: 'Place orders for timber, nails, and fixtures',
+      status: 'not_started',
+      start_date: formatDate(today),
+      end_date: formatDate(today),
+      duration_days: 1,
+      progress_percentage: 0,
+      trade: 'Admin',
+      construction_id: 0, // No job
+      job_name: 'Personal Task',
+      assigned_user_id: currentUserId,
+      assigned_user_name: 'You',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 0,
+      predecessor_count: 0,
+      successor_count: 0,
+    },
+    {
+      id: 3002,
+      task_number: 2,
+      name: 'Submit timesheet',
+      description: 'Weekly timesheet submission',
+      status: 'not_started',
+      start_date: formatDate(today),
+      end_date: formatDate(today),
+      duration_days: 1,
+      progress_percentage: 0,
+      trade: 'Admin',
+      construction_id: 0,
+      job_name: 'Personal Task',
+      assigned_user_id: currentUserId,
+      assigned_user_name: 'You',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 0,
+      predecessor_count: 0,
+      successor_count: 0,
+    },
+    {
+      id: 3003,
+      task_number: 3,
+      name: 'Call supplier about delay',
+      description: 'Follow up on late material delivery',
+      status: 'started',
+      start_date: formatDate(yesterday),
+      end_date: formatDate(today),
+      duration_days: 2,
+      progress_percentage: 50,
+      trade: 'Admin',
+      construction_id: 0,
+      job_name: 'Personal Task',
+      assigned_user_id: currentUserId,
+      assigned_user_name: 'You',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 0,
+      predecessor_count: 0,
+      successor_count: 0,
+    },
+
+    // UNASSIGNED TASKS
+    {
+      id: 4001,
+      task_number: 7,
+      name: 'Paint - Interior Walls',
+      description: 'First coat of interior paint',
+      status: 'not_started',
+      start_date: formatDate(nextWeek),
+      end_date: formatDate(inTwoWeeks),
+      duration_days: 4,
+      progress_percentage: 0,
+      trade: 'Painting',
+      stage: 'Finishing',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 14,
+      predecessor_count: 3,
+      successor_count: 1,
+    },
+    {
+      id: 4002,
+      task_number: 8,
+      name: 'Flooring - Hardwood Install',
+      description: 'Install hardwood flooring throughout',
+      status: 'not_started',
+      start_date: formatDate(inTwoWeeks),
+      end_date: formatDate(inTwoWeeks),
+      duration_days: 3,
+      progress_percentage: 0,
+      trade: 'Flooring',
+      stage: 'Finishing',
+      construction_id: 101,
+      job_name: 'Smith Residence - 42 Oak St',
+      locked: false,
+      is_hold_task: false,
+      is_overdue: false,
+      days_until_due: 14,
+      predecessor_count: 1,
+      successor_count: 0,
+    },
+  ];
+};
+
+const TaskHubContext = createContext<TaskHubContextType | null>(null);
+
+export const useTaskHub = (): TaskHubContextType => {
+  const context = useContext(TaskHubContext);
+  if (!context) {
+    throw new Error('useTaskHub must be used within a TaskHubProvider');
+  }
+  return context;
+};
+
+interface TaskHubProviderProps {
+  children: ReactNode;
+  initialJobId?: number;
+}
+
+export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps) => {
+  const { user } = useAuth();
+
+  const [tasks, setTasks] = useState<SmTask[]>([]);
+  const [filters, setFiltersState] = useState<TaskFilters>(() => {
+    // Load saved filters from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taskHub_filters');
+      if (saved) {
+        try {
+          return { ...defaultFilters, ...JSON.parse(saved) };
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
+    }
+    return {
+      ...defaultFilters,
+      jobIds: initialJobId ? [initialJobId] : [],
+    };
+  });
+
+  const [activeView, setActiveViewState] = useState<ViewType>(() => {
+    // Load saved view from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('taskHub_activeView') as ViewType;
+      if (saved && ['board', 'list', 'my-tasks'].includes(saved)) {
+        return saved;
+      }
+    }
+    return 'my-tasks';
+  });
+
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<number>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load tasks from API
+  const loadTasks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (filters.jobIds.length > 0) {
+        filters.jobIds.forEach(id => params.append('job_ids[]', id.toString()));
+      }
+      if (filters.statuses.length > 0) {
+        filters.statuses.forEach(s => params.append('statuses[]', s));
+      }
+      if (filters.showMyTasksOnly && user?.id) {
+        params.append('assigned_user_id', user.id.toString());
+      }
+
+      const response = await api.get<{ tasks: SmTask[]; success: boolean }>(`/api/v1/sm_tasks?${params.toString()}`);
+
+      if (response.success && response.tasks && response.tasks.length > 0) {
+        setTasks(response.tasks);
+      } else if (USE_MOCK_DATA) {
+        // Use mock data in development when no real tasks exist
+        console.log('[TaskHub] Using mock data for development');
+        setTasks(generateMockTasks(user?.id));
+      } else {
+        setTasks([]);
+      }
+    } catch (err) {
+      console.error('Failed to load tasks:', err);
+      if (USE_MOCK_DATA) {
+        // Fall back to mock data on error in development
+        console.log('[TaskHub] API error, using mock data for development');
+        setTasks(generateMockTasks(user?.id));
+        setError(null); // Clear error since we have mock data
+      } else {
+        setError('Failed to load tasks');
+        setTasks([]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [filters.jobIds, filters.statuses, filters.showMyTasksOnly, user?.id]);
+
+  // Initial load
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  // Save preferences to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('taskHub_activeView', activeView);
+    }
+  }, [activeView]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('taskHub_filters', JSON.stringify(filters));
+    }
+  }, [filters]);
+
+  // Computed: filtered tasks
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      // Search filter
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        const matchesSearch =
+          task.name.toLowerCase().includes(searchLower) ||
+          task.job_name?.toLowerCase().includes(searchLower) ||
+          task.trade?.toLowerCase().includes(searchLower) ||
+          task.assigned_user_name?.toLowerCase().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
+
+      // Trade filter
+      if (filters.trades.length > 0 && task.trade && !filters.trades.includes(task.trade)) {
+        return false;
+      }
+
+      // Stage filter
+      if (filters.stages.length > 0 && task.stage && !filters.stages.includes(task.stage)) {
+        return false;
+      }
+
+      // Assignee filter
+      if (filters.assignedUserIds.length > 0 && task.assigned_user_id && !filters.assignedUserIds.includes(task.assigned_user_id)) {
+        return false;
+      }
+
+      // Overdue only
+      if (filters.showOverdueOnly && !task.is_overdue) {
+        return false;
+      }
+
+      // Date range
+      if (filters.dateRange) {
+        const taskStart = new Date(task.start_date);
+        const taskEnd = new Date(task.end_date);
+        if (taskEnd < filters.dateRange.start || taskStart > filters.dateRange.end) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [tasks, filters]);
+
+  // Computed: my tasks (assigned to current user)
+  const myTasks = useMemo(() => {
+    if (!user?.id) return [];
+    return filteredTasks.filter(task => task.assigned_user_id === user.id);
+  }, [filteredTasks, user?.id]);
+
+  // Computed: overdue tasks
+  const overdueTasks = useMemo(() => {
+    return filteredTasks.filter(task => task.is_overdue && task.status !== 'completed');
+  }, [filteredTasks]);
+
+  // Computed: today's tasks
+  const todayTasks = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return filteredTasks.filter(task => {
+      const startDate = new Date(task.start_date);
+      startDate.setHours(0, 0, 0, 0);
+      return startDate >= today && startDate < tomorrow && task.status !== 'completed';
+    });
+  }, [filteredTasks]);
+
+  // Computed: this week's tasks
+  const thisWeekTasks = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    return filteredTasks.filter(task => {
+      const startDate = new Date(task.start_date);
+      startDate.setHours(0, 0, 0, 0);
+      return startDate >= today && startDate < nextWeek && task.status !== 'completed';
+    });
+  }, [filteredTasks]);
+
+  // Meta stats
+  const meta = useMemo(() => ({
+    totalCount: filteredTasks.length,
+    overdueCount: overdueTasks.length,
+    dueTodayCount: todayTasks.length,
+    inProgressCount: filteredTasks.filter(t => t.status === 'started').length,
+  }), [filteredTasks, overdueTasks, todayTasks]);
+
+  // Actions
+  const updateTask = useCallback(async (taskId: number, updates: Partial<SmTask>) => {
+    // Optimistic update
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updates } : t));
+
+    try {
+      await api.patch(`/api/v1/sm_tasks/${taskId}`, { sm_task: updates });
+    } catch (err) {
+      // Rollback on failure
+      console.error('Failed to update task:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
+  const createTask = useCallback(async (task: Partial<SmTask>): Promise<SmTask> => {
+    const response = await api.post<{ task: SmTask; success: boolean }>('/api/v1/sm_tasks', { sm_task: task });
+    if (response?.success && response?.task) {
+      setTasks(prev => [...prev, response.task]);
+      return response.task;
+    }
+    throw new Error('Failed to create task');
+  }, []);
+
+  const deleteTask = useCallback(async (taskId: number) => {
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+
+    try {
+      await api.delete(`/api/v1/sm_tasks/${taskId}`);
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
+  const bulkUpdateStatus = useCallback(async (taskIds: number[], status: SmTask['status']) => {
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.map(t => taskIds.includes(t.id) ? { ...t, status } : t));
+
+    try {
+      await api.post('/api/v1/sm_tasks/bulk_update', {
+        task_ids: taskIds,
+        updates: { status }
+      });
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      console.error('Failed to bulk update:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
+  const bulkAssign = useCallback(async (taskIds: number[], userId: number) => {
+    const originalTasks = [...tasks];
+    setTasks(prev => prev.map(t => taskIds.includes(t.id) ? { ...t, assigned_user_id: userId } : t));
+
+    try {
+      await api.post('/api/v1/sm_tasks/bulk_update', {
+        task_ids: taskIds,
+        updates: { assigned_user_id: userId }
+      });
+      setSelectedTaskIds(new Set());
+    } catch (err) {
+      console.error('Failed to bulk assign:', err);
+      setTasks(originalTasks);
+      throw err;
+    }
+  }, [tasks]);
+
+  const setActiveView = useCallback((view: ViewType) => {
+    setActiveViewState(view);
+  }, []);
+
+  const setFilters = useCallback((newFilters: Partial<TaskFilters>) => {
+    setFiltersState(prev => ({ ...prev, ...newFilters }));
+  }, []);
+
+  const clearFilters = useCallback(() => {
+    setFiltersState(defaultFilters);
+  }, []);
+
+  const selectTask = useCallback((taskId: number) => {
+    setSelectedTaskIds(prev => new Set(prev).add(taskId));
+  }, []);
+
+  const deselectTask = useCallback((taskId: number) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      next.delete(taskId);
+      return next;
+    });
+  }, []);
+
+  const toggleTaskSelection = useCallback((taskId: number) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    setSelectedTaskIds(new Set(filteredTasks.map(t => t.id)));
+  }, [filteredTasks]);
+
+  const deselectAll = useCallback(() => {
+    setSelectedTaskIds(new Set());
+  }, []);
+
+  const refresh = useCallback(async () => {
+    await loadTasks();
+  }, [loadTasks]);
+
+  const value: TaskHubContextType = {
+    // State
+    tasks,
+    filters,
+    activeView,
+    selectedTaskIds,
+    loading,
+    error,
+
+    // Computed
+    filteredTasks,
+    myTasks,
+    overdueTasks,
+    todayTasks,
+    thisWeekTasks,
+    meta,
+
+    // Actions
+    updateTask,
+    createTask,
+    deleteTask,
+    bulkUpdateStatus,
+    bulkAssign,
+    setActiveView,
+    setFilters,
+    clearFilters,
+    selectTask,
+    deselectTask,
+    toggleTaskSelection,
+    selectAll,
+    deselectAll,
+    refresh,
+  };
+
+  return <TaskHubContext.Provider value={value}>{children}</TaskHubContext.Provider>;
+};

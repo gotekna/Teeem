@@ -8857,9 +8857,11 @@ export default function TeeemTableView({
                           }
                         }}
                         onDoubleClick={(e) => {
+                          console.log('Row double-clicked (grouped):', { entry, editModeActive, hasHandler: !!onRowDoubleClick })
                           if (!editModeActive) {
                             e.stopPropagation()
                             if (onRowDoubleClick) {
+                              console.log('Calling onRowDoubleClick (grouped):', entry)
                               onRowDoubleClick(entry)
                             } else {
                               setModalEditData({...entry})
@@ -8886,7 +8888,6 @@ export default function TeeemTableView({
                               return (
                                 <td
                                   key={colKey}
-                                  onDoubleClick={(e) => {}}
                                   onClick={(e) => {
                                     const textColumns = ['title', 'content'];
                                     if (textColumns.includes(colKey) && !editModeActive) {
@@ -9035,12 +9036,14 @@ export default function TeeemTableView({
                     handleDragSelectOver(entry.id)
                   }
                 }}
-                onDoubleClick={(e) => {
+onDoubleClick={(e) => {
+                  console.log('Row double-clicked:', { entry, editModeActive, hasHandler: !!onRowDoubleClick })
                   // Double-click row when NOT in edit mode
                   if (!editModeActive) {
                     e.stopPropagation()
                     // If custom handler provided, use it (e.g., navigate to detail page)
                     if (onRowDoubleClick) {
+                      console.log('Calling onRowDoubleClick with entry:', entry)
                       onRowDoubleClick(entry)
                     } else {
                       // Default: open editable modal
@@ -9068,9 +9071,6 @@ export default function TeeemTableView({
                   return (
                     <td
                       key={colKey}
-                      onDoubleClick={(e) => {
-                        // Double-click row when NOT in edit mode to open editable modal (handled at row level)
-                      }}
                       onClick={(e) => {
                         // Debug logging
                         console.log('Cell clicked:', {

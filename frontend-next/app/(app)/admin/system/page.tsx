@@ -80,8 +80,8 @@ const TIMEZONES = [
 ];
 
 const MAIN_TABS = [
-  { id: "gold-standard", label: "Gold Standard View", icon: Star },
   { id: "company", label: "Company", icon: Building2 },
+  { id: "gold-standard", label: "Gold Standard View", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
@@ -422,7 +422,7 @@ function CompanySettingsTab() {
 function SystemAdminPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const currentTab = searchParams.get("tab") || "gold-standard";
+  const currentTab = searchParams.get("tab") || "company";
 
   const handleTabChange = (value: string) => {
     router.push(`/admin/system?tab=${value}`);

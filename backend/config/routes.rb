@@ -16,6 +16,17 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [:index, :create, :update, :destroy]
 
+      # Notifications
+      resources :notifications, only: [:index] do
+        collection do
+          get :unread_count
+          post :mark_all_read
+        end
+        member do
+          patch :mark_read
+        end
+      end
+
       # Authentication routes
       post 'auth/signup', to: 'authentication#signup'
       post 'auth/login', to: 'authentication#login'
@@ -585,6 +596,9 @@ Rails.application.routes.draw do
 
       # SM Tasks (non-nested routes)
       resources :sm_tasks, only: [:index, :show, :update, :destroy] do
+        collection do
+          post :bulk_update
+        end
         member do
           post :start
           post :complete
