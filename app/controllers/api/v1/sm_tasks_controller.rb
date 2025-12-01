@@ -19,6 +19,9 @@ module Api
 
         # Apply filters
         @tasks = @tasks.where(construction_id: params[:job_id]) if params[:job_id].present?
+        @tasks = @tasks.where(construction_id: params[:job_ids]) if params[:job_ids].present?
+        @tasks = @tasks.where(assigned_user_id: params[:assigned_user_id]) if params[:assigned_user_id].present?
+        @tasks = @tasks.where(status: params[:statuses]) if params[:statuses].present?
         @tasks = @tasks.by_trade(params[:trade]) if params[:trade].present?
         @tasks = @tasks.active if params[:active_only] == 'true'
         @tasks = @tasks.hold_tasks if params[:hold_tasks_only] == 'true'
@@ -162,6 +165,9 @@ module Api
         @task.updated_by = current_user
 
         if @task.update(sm_task_params)
+          # Create notification if task was assigned to a new user
+          notify_task_assignment(@task)
+
           render json: {
             success: true,
             sm_task: task_to_json(@task)
@@ -181,6 +187,26 @@ module Api
         render json: {
           success: true,
           message: 'Task deleted successfully'
+        }
+      end
+
+      # POST /api/v1/sm_tasks/bulk_update
+      def bulk_update
+        task_ids = params[:task_ids]
+        updates = params[:updates]&.permit(:status, :assigned_user_id, :trade, :stage)
+
+        unless task_ids.present? && updates.present?
+          return render json: {
+            success: false,
+            error: 'task_ids and updates are required'
+          }, status: :unprocessable_entity
+        end
+
+        updated_count = SmTask.where(id: task_ids).update_all(updates.to_h.merge(updated_at: Time.current))
+
+        render json: {
+          success: true,
+          updated_count: updated_count
         }
       end
 
@@ -533,12 +559,44 @@ module Api
         )
       end
 
+      def notify_task_assignment(task)
+        # Only notify if assigned_user_id changed and there's a new assignee
+        return unless task.saved_change_to_assigned_user_id?
+        return if task.assigned_user_id.blank?
+
+        # Don't notify if the user assigned it to themselves
+        return if task.assigned_user_id == current_user&.id
+
+        job_name = task.job&.name || 'Unknown Job'
+
+        Notification.create!(
+          user_id: task.assigned_user_id,
+          notification_type: 'task_assigned',
+          notifiable: task,
+          title: "New task assigned: #{task.name}",
+          message: "You've been assigned the task \"#{task.name}\" on job \"#{job_name}\"#{current_user ? " by #{current_user.name}" : ''}."
+        )
+      rescue StandardError => e
+        Rails.logger.error("Failed to create task assignment notification: #{e.message}")
+        # Don't fail the update if notification fails
+      end
+
       def task_to_json_with_job(task)
         json = task_to_json(task)
         json[:job_id] = task.construction_id
         json[:job_name] = task.job&.name || "Unknown Job"
         json[:is_critical_path] = false # Placeholder - would need critical path calculation
         json[:blockers] = task.is_hold_task ? [task.hold_notes].compact : []
+
+        # Additional fields for Task Hub
+        json[:assigned_user_name] = task.assigned_user&.name
+        json[:supplier_name] = task.supplier&.name
+        json[:stage] = task.stage
+        json[:is_overdue] = task.status != 'completed' && task.end_date.present? && task.end_date < Date.current
+        json[:days_until_due] = task.end_date.present? ? (task.end_date - Date.current).to_i : nil
+        json[:predecessor_count] = task.predecessor_dependencies.count
+        json[:successor_count] = task.successor_dependencies.count
+
         json
       end
 
