@@ -35,6 +35,15 @@ class Column < ApplicationRecord
       color_picker
       file_upload
       action_buttons
+      structured_data
+      array_of_items
+      searchable_text
+      abn
+      acn
+      bsb
+      bank_account
+      postcode
+      tfn
     ]
   }
 
@@ -73,7 +82,16 @@ class Column < ApplicationRecord
     'gps_coordinates' => :string,  # stored as "lat,lng"
     'color_picker' => :string,  # stored as hex color #RRGGBB
     'file_upload' => :text,  # stored as file path or URL
-    'action_buttons' => :string  # stored as JSON configuration
+    'action_buttons' => :string,  # stored as JSON configuration
+    'structured_data' => :jsonb,  # JSONB for flexible structured data
+    'array_of_items' => :text,  # TEXT[] array for multiple values
+    'searchable_text' => :tsvector,  # Full-text search index
+    'abn' => :string,  # Australian Business Number
+    'acn' => :string,  # Australian Company Number
+    'bsb' => :string,  # Bank State Branch
+    'bank_account' => :string,  # Bank Account Number
+    'postcode' => :string,  # Australian Postcode (4 digits)
+    'tfn' => :string  # Tax File Number
   }.freeze
 
   # Map column types to SQL types with proper limits
@@ -104,7 +122,16 @@ class Column < ApplicationRecord
     'lookup' => 'VARCHAR(255)',
     'multiple_lookups' => 'TEXT',
     'user' => 'INTEGER',
-    'computed' => 'VIRTUAL/COMPUTED'
+    'computed' => 'VIRTUAL/COMPUTED',
+    'structured_data' => 'JSONB',
+    'array_of_items' => 'TEXT[]',
+    'searchable_text' => 'TSVECTOR',
+    'abn' => 'VARCHAR(14)',
+    'acn' => 'VARCHAR(11)',
+    'bsb' => 'VARCHAR(7)',
+    'bank_account' => 'VARCHAR(9)',
+    'postcode' => 'VARCHAR(4)',
+    'tfn' => 'VARCHAR(11)'
   }.freeze
 
   def db_type
@@ -138,6 +165,84 @@ class Column < ApplicationRecord
 
   def effective_sql_type
     column_type_definition&.sql_type || COLUMN_SQL_TYPE_MAP[column_type] || 'VARCHAR(255)'
+  end
+
+  # ============================================
+  # Australian Business Identifier Formatting
+  # ============================================
+  # Validation and formatting rules for Australian standard identifiers.
+  # These are now proper column types, not just name-based detection.
+
+  AUSTRALIAN_FORMAT_RULES = {
+    'abn' => {
+      regex: '^\d{2}\s?\d{3}\s?\d{3}\s?\d{3}$',
+      format: 'XX XXX XXX XXX',
+      display_format: ->(val) { val.to_s.gsub(/\D/, '').gsub(/^(\d{2})(\d{3})(\d{3})(\d{3})$/, '\1 \2 \3 \4') },
+      example: '51 824 753 556',
+      description: 'Australian Business Number (11 digits)'
+    },
+    'acn' => {
+      regex: '^\d{3}\s?\d{3}\s?\d{3}$',
+      format: 'XXX XXX XXX',
+      display_format: ->(val) { val.to_s.gsub(/\D/, '').gsub(/^(\d{3})(\d{3})(\d{3})$/, '\1 \2 \3') },
+      example: '004 085 616',
+      description: 'Australian Company Number (9 digits)'
+    },
+    'bsb' => {
+      regex: '^\d{3}-?\d{3}$',
+      format: 'XXX-XXX',
+      display_format: ->(val) { val.to_s.gsub(/\D/, '').gsub(/^(\d{3})(\d{3})$/, '\1-\2') },
+      example: '063-000',
+      description: 'Bank State Branch (6 digits)'
+    },
+    'bank_account' => {
+      regex: '^\d{1,9}$',
+      format: 'Up to 9 digits',
+      display_format: ->(val) { val.to_s.gsub(/\D/, '') },
+      example: '12345678',
+      description: 'Bank Account Number'
+    },
+    'postcode' => {
+      regex: '^\d{4}$',
+      format: 'XXXX',
+      display_format: ->(val) { val.to_s.gsub(/\D/, '').first(4) },
+      example: '3000',
+      description: 'Australian Postcode (4 digits)'
+    },
+    'tfn' => {
+      regex: '^\d{3}\s?\d{3}\s?\d{3}$',
+      format: 'XXX XXX XXX',
+      display_format: ->(val) { val.to_s.gsub(/\D/, '').gsub(/^(\d{3})(\d{3})(\d{3})$/, '\1 \2 \3') },
+      example: '123 456 789',
+      description: 'Tax File Number (9 digits)'
+    }
+  }.freeze
+
+  # Get validation regex for this column type
+  def effective_validation_regex
+    AUSTRALIAN_FORMAT_RULES.dig(column_type, :regex) || column_type_definition&.validation_regex
+  end
+
+  # Get format config for Australian identifier types
+  def format_config
+    return nil unless AUSTRALIAN_FORMAT_RULES.key?(column_type)
+
+    config = AUSTRALIAN_FORMAT_RULES[column_type]
+    {
+      type: column_type,
+      regex: config[:regex],
+      format: config[:format],
+      example: config[:example],
+      description: config[:description]
+    }
+  end
+
+  # Format a value according to Australian format rules
+  def format_value(value)
+    return value unless value.present? && AUSTRALIAN_FORMAT_RULES.key?(column_type)
+
+    formatter = AUSTRALIAN_FORMAT_RULES[column_type][:display_format]
+    formatter.call(value)
   end
 
   # Check if column is compliant with current type definition version

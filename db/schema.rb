@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_01_231714) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_01_235736) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1395,9 +1395,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_231714) do
     t.string "single_line_text", limit: 255
     t.text "multiple_lines_text"
     t.string "url", limit: 500
-    t.decimal "number", precision: 10, scale: 2
-    t.decimal "currency", precision: 10, scale: 2
-    t.decimal "percentage", precision: 10, scale: 2
+    t.decimal "number", precision: 15, scale: 2
+    t.decimal "currency", precision: 15, scale: 2
+    t.decimal "percentage", precision: 15, scale: 2
     t.date "date"
     t.datetime "date_and_time", precision: nil
     t.string "gps_coordinates", limit: 255
@@ -1409,6 +1409,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_01_231714) do
     t.text "multiple_lookups"
     t.integer "user"
     t.string "computed", limit: 255
+    t.jsonb "structured_data", default: {}
+    t.text "array_of_items", default: [], array: true
+    t.tsvector "searchable_text"
+    t.string "abn", limit: 14
+    t.string "acn", limit: 11
+    t.string "bsb", limit: 7
+    t.string "bank_account", limit: 9
+    t.string "postcode", limit: 4
+    t.string "tfn", limit: 11
   end
 
   create_table "grok_plans", force: :cascade do |t|
