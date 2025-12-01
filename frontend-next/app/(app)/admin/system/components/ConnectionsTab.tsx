@@ -28,7 +28,7 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 
 // OneDrive Connection Component

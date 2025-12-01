@@ -42,7 +42,7 @@ import {
   Globe,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ContactType {
   id: number;

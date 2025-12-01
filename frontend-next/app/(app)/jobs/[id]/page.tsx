@@ -34,6 +34,15 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import dynamic from "next/dynamic";
+import { JobActivityTab } from "@/components/jobs/JobActivityTab";
+import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
+
+// Dynamically import LocationMap to avoid SSR issues with Leaflet
+const LocationMap = dynamic(
+  () => import("@/components/jobs/LocationMap").then((mod) => mod.LocationMap),
+  { ssr: false, loading: () => <div className="h-64 bg-muted animate-pulse rounded-lg" /> }
+);
 
 interface Contact {
   id: number;
@@ -49,6 +58,8 @@ interface Job {
   title: string;
   status: string;
   stage: string;
+  job_status?: { id: number; name: string; color?: string };
+  job_stage?: { id: number; name: string };
   contract_value: number;
   live_profit: number;
   profit_percentage: number;
@@ -65,6 +76,7 @@ interface Job {
 
 const tabs = [
   { name: "Overview", slug: "overview", icon: ClipboardList },
+  { name: "People", slug: "people", icon: Users },
   { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
   { name: "Estimates", slug: "estimates", icon: FileText },
   { name: "Activity", slug: "activity", icon: TrendingUp },
@@ -74,9 +86,7 @@ const tabs = [
   { name: "Rain Log", slug: "rain-log", icon: Cloud },
   { name: "Documents", slug: "documents", icon: FileText },
   { name: "Coms", slug: "coms", icon: MessageSquare },
-  { name: "Team", slug: "team", icon: Users },
   { name: "Settings", slug: "settings", icon: Settings },
-  { name: "Help", slug: "help", icon: HelpCircle },
 ];
 
 function formatCurrency(value: number): string {
@@ -260,7 +270,11 @@ export default function JobDetailPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Stage</Label>
-                    <Input value={job.stage} readOnly />
+                    <Input value={job.job_stage?.name || job.stage || "-"} readOnly />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Input value={job.job_status?.name || job.status || "-"} readOnly />
                   </div>
                   <div className="space-y-2">
                     <Label>Contract Value</Label>
@@ -363,23 +377,24 @@ export default function JobDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Location Map Placeholder */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Location</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="aspect-square bg-muted flex items-center justify-center">
-                  <div className="text-center">
-                    <MapPin className="h-8 w-8 text-muted-foreground mx-auto" />
-                    <p className="text-sm text-muted-foreground mt-2">
-                      {job.location || "No location set"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Location Map */}
+            <div className="lg:col-span-1">
+              <LocationMap
+                jobId={job.id}
+                location={job.location}
+                latitude={job.latitude}
+                longitude={job.longitude}
+                onLocationUpdate={(data) => {
+                  // Update job state with new location data
+                  setJob({ ...job, ...data });
+                }}
+              />
+            </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="people" className="mt-6">
+          <JobPeopleTab jobId={job.id} onUpdate={loadJob} />
         </TabsContent>
 
         <TabsContent value="purchase-orders" className="mt-6">
@@ -406,14 +421,7 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="activity" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Activity timeline coming soon.</p>
-            </CardContent>
-          </Card>
+          <JobActivityTab jobId={job.id} />
         </TabsContent>
 
         <TabsContent value="budget" className="mt-6">

@@ -44,7 +44,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 
 const REGIONS = [
