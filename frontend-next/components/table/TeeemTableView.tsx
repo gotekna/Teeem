@@ -58,6 +58,8 @@ import {
   Minus,
   AlertTriangle,
   Layers,
+  Globe,
+  User,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -656,6 +658,7 @@ export default function TeeemTableView({
   // Save view modal state
   const [showSaveViewModal, setShowSaveViewModal] = useState(false);
   const [newViewName, setNewViewName] = useState("");
+  const [saveAsGlobal, setSaveAsGlobal] = useState(false);
   const [savingView, setSavingView] = useState(false);
 
   // ============================================================================
@@ -894,13 +897,20 @@ export default function TeeemTableView({
         if (data.success && data.views) {
           setSavedViews(data.views);
 
-          // Auto-apply default view
-          const sortedViews = [...data.views].sort(
-            (a, b) => (a.display_order || 0) - (b.display_order || 0)
-          );
-          const defaultView = sortedViews.find((v) => v.display_order === 0);
-          if (defaultView && !activeViewId) {
-            loadViewState(defaultView);
+          // Auto-apply default view - prioritize global views, then display_order
+          // Views are already sorted from API: global first, then by display_order
+          if (!activeViewId && data.views.length > 0) {
+            // Find the best default: first check for explicit isDefault, then first global, then first by display_order
+            const defaultView =
+              data.views.find((v: SavedView) => v.isDefault && v.is_global) ||
+              data.views.find((v: SavedView) => v.isDefault) ||
+              data.views.find((v: SavedView) => v.is_global && v.display_order === 0) ||
+              data.views.find((v: SavedView) => v.display_order === 0) ||
+              data.views[0]; // Fallback to first view
+
+            if (defaultView) {
+              loadViewState(defaultView);
+            }
           }
         }
       } catch (error) {
@@ -996,15 +1006,31 @@ export default function TeeemTableView({
         group_by_columns: groupByColumns,
       };
 
-      const response = await api.post<{ success: boolean; view: SavedView }>(
-        "/api/v1/foundation_views",
-        viewData
-      );
+      let response;
+      if (saveAsGlobal) {
+        // Use the global save endpoint
+        response = await api.post<{ success: boolean; view: SavedView }>(
+          "/api/v1/foundation_views/save_global",
+          viewData
+        );
+      } else {
+        // Regular personal view save
+        response = await api.post<{ success: boolean; view: SavedView }>(
+          "/api/v1/foundation_views",
+          viewData
+        );
+      }
 
       if (response?.success && response.view) {
-        setSavedViews((prev) => [...prev, response.view]);
+        // Insert global views at the beginning, personal views at the end
+        if (saveAsGlobal) {
+          setSavedViews((prev) => [response.view, ...prev]);
+        } else {
+          setSavedViews((prev) => [...prev, response.view]);
+        }
         setActiveViewId(response.view.id);
         setNewViewName("");
+        setSaveAsGlobal(false);
         setShowSaveViewModal(false);
       }
     } catch (error) {
@@ -1023,6 +1049,7 @@ export default function TeeemTableView({
     columnWidths,
     sortColumns,
     groupByColumns,
+    saveAsGlobal,
   ]);
 
   // ============================================================================
@@ -1570,19 +1597,28 @@ export default function TeeemTableView({
           {savedViews.length > 0 && (
             <div className="flex items-center gap-1">
               {savedViews.slice(0, 5).map((view) => (
-                <Button
-                  key={view.id}
-                  variant={activeViewId === view.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => loadViewState(view)}
-                >
-                  {view.name}
-                  {view.is_global && (
-                    <Badge variant="secondary" className="ml-1 text-xs">
-                      G
-                    </Badge>
-                  )}
-                </Button>
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                        )}
+                        {view.name}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? "Global view (visible to all users)" : "Personal view"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ))}
             </div>
           )}
@@ -1968,7 +2004,13 @@ export default function TeeemTableView({
       </Dialog>
 
       {/* Save View Modal */}
-      <Dialog open={showSaveViewModal} onOpenChange={setShowSaveViewModal}>
+      <Dialog open={showSaveViewModal} onOpenChange={(open) => {
+        setShowSaveViewModal(open);
+        if (!open) {
+          setSaveAsGlobal(false);
+          setNewViewName("");
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Save View</DialogTitle>
@@ -1986,6 +2028,38 @@ export default function TeeemTableView({
                 placeholder="e.g., Active Jobs, Pending Orders..."
               />
             </div>
+
+            {/* Global vs Personal toggle */}
+            <div className="space-y-2">
+              <Label>View type</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={!saveAsGlobal ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setSaveAsGlobal(false)}
+                >
+                  <User className="h-4 w-4 mr-2" />
+                  Personal
+                </Button>
+                <Button
+                  type="button"
+                  variant={saveAsGlobal ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setSaveAsGlobal(true)}
+                >
+                  <Globe className="h-4 w-4 mr-2" />
+                  Global (All Users)
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {saveAsGlobal
+                  ? "Global views are visible to all users and appear first in the view list."
+                  : "Personal views are only visible to you."}
+              </p>
+            </div>
           </div>
 
           <DialogFooter>
@@ -2001,10 +2075,12 @@ export default function TeeemTableView({
             >
               {savingView ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : saveAsGlobal ? (
+                <Globe className="h-4 w-4 mr-1" />
               ) : (
                 <Save className="h-4 w-4 mr-1" />
               )}
-              Save View
+              {saveAsGlobal ? "Save Global View" : "Save View"}
             </Button>
           </DialogFooter>
         </DialogContent>
