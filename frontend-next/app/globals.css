@@ -266,6 +266,32 @@
    UTILITY CLASSES
    ======================================== */
 
+/* Scroll Patterns - see docs/SCROLL_PATTERNS.md */
+.scroll-page {
+  @apply flex-1 min-h-0 overflow-y-auto;
+}
+
+.scroll-table {
+  @apply flex-1 min-h-0 overflow-x-scroll overflow-y-auto;
+}
+
+.scroll-modal {
+  @apply flex-1 min-h-0 overflow-y-auto;
+}
+
+.scroll-horizontal {
+  @apply overflow-x-auto;
+}
+
+.scroll-horizontal::-webkit-scrollbar {
+  display: none;
+}
+
+.scroll-horizontal {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
