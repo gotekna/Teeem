@@ -52,10 +52,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "./popover";
+import { Badge } from "./badge";
+import { api } from "@/lib/api";
 
-const navigationItems = [
+interface NavigationItem {
+  name: string;
+  href: string;
+  icon: typeof Home;
+  badgeKey?: string;
+}
+
+const navigationItems: NavigationItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Leads", href: "/leads", icon: Target },
+  { name: "Leads", href: "/leads", icon: Target, badgeKey: "pendingProposals" },
   { name: "Jobs", href: "/jobs", icon: Briefcase },
   { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
   { name: "Meetings", href: "/meetings", icon: Calendar },
@@ -81,6 +90,7 @@ export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [persona, setPersona] = useState<Persona>('manager');
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
+  const [badges, setBadges] = useState<Record<string, number>>({});
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -90,6 +100,30 @@ export function Sidebar() {
   useEffect(() => {
     setPersona(getStoredPersona());
   }, []);
+
+  // Load badge counts (pending proposals, etc.)
+  useEffect(() => {
+    const loadBadgeCounts = async () => {
+      try {
+        // Load pending email proposals count
+        const response = await api.get<{ proposals: Array<{ status: string }> }>(
+          "/api/v1/email_job_proposals?status=pending"
+        );
+        const pendingCount = (response.proposals || []).filter(p => p.status === "pending").length;
+        setBadges(prev => ({ ...prev, pendingProposals: pendingCount }));
+      } catch (error) {
+        // Silently fail - badge just won't show
+        console.debug("Failed to load badge counts:", error);
+      }
+    };
+
+    if (isAuthenticated) {
+      loadBadgeCounts();
+      // Refresh every 60 seconds
+      const interval = setInterval(loadBadgeCounts, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated]);
 
   const handlePersonaChange = (newPersona: Persona) => {
     setPersona(newPersona);
@@ -136,6 +170,7 @@ export function Sidebar() {
         {filteredItems.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.href);
+          const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
 
           return (
             <Link
@@ -148,18 +183,35 @@ export function Sidebar() {
                   : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
               )}
             >
-              <Icon size={16} className="shrink-0" />
+              <div className="relative shrink-0">
+                <Icon size={16} />
+                {badgeCount > 0 && !isExpanded && !mobile && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {badgeCount > 9 ? "9+" : badgeCount}
+                  </span>
+                )}
+              </div>
               <span
                 className={cn(
-                  "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm",
+                  "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
                   isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
                 )}
               >
                 {item.name}
+                {badgeCount > 0 && (isExpanded || mobile) && (
+                  <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                    {badgeCount}
+                  </Badge>
+                )}
               </span>
               {!isExpanded && !mobile && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
                   {item.name}
+                  {badgeCount > 0 && (
+                    <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                      {badgeCount}
+                    </Badge>
+                  )}
                 </div>
               )}
             </Link>

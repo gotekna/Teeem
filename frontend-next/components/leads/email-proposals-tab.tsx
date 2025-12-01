@@ -124,7 +124,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
         { user_edits: userEdits }
       );
 
-      if (response.success) {
+      if (response?.success) {
         setShowApprovalDialog(false);
         setSelectedProposal(null);
         loadProposals();
@@ -396,7 +396,7 @@ function ProposalCard({
   getConfidenceBadge,
   readonly = false,
 }: ProposalCardProps) {
-  const email = proposal.email || {};
+  const email = proposal.email || { from_email: "", subject: "", has_attachments: false };
   const data = proposal.extracted_data || {};
   const customer = data.customer || {};
 
