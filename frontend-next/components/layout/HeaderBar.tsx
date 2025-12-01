@@ -85,8 +85,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       }
 
       try {
-        // Check Office 365 / OneDrive connection
-        const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/onedrive/status");
+        // Check Office 365 / OneDrive connection (organization-wide)
+        const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/organization_onedrive/status");
         setOffice365Connected(office365Response?.connected === true);
       } catch (error) {
         console.debug("Failed to fetch Office 365 status:", error);

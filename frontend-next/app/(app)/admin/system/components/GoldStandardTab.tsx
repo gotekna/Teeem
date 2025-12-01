@@ -106,8 +106,9 @@ function GoldStandardDataTab() {
   const [showMoreFields, setShowMoreFields] = React.useState(false);
   const [showFieldConfig, setShowFieldConfig] = React.useState(false);
   const [visibleFields, setVisibleFields] = React.useState<Set<string>>(new Set());
+  const [fieldOrder, setFieldOrder] = React.useState<Record<string, number>>({});
 
-  // Initialize visible fields when columns load
+  // Initialize visible fields and order when columns load
   React.useEffect(() => {
     if (rawColumns.length > 0 && visibleFields.size === 0) {
       // Default: show common field types
@@ -120,8 +121,38 @@ function GoldStandardDataTab() {
           .map(col => col.column_name)
       );
       setVisibleFields(defaultVisible);
+
+      // Initialize field order based on position, excluding system columns from count
+      const initialOrder: Record<string, number> = {};
+      const nonSystemCols = rawColumns.filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name));
+      nonSystemCols.forEach((col, idx) => {
+        initialOrder[col.column_name] = idx + 1;
+      });
+      setFieldOrder(initialOrder);
     }
   }, [rawColumns]);
+
+  const updateFieldOrder = (columnName: string, order: number) => {
+    setFieldOrder(prev => ({
+      ...prev,
+      [columnName]: order
+    }));
+  };
+
+  // Get columns sorted by custom field order (visible first, then hidden)
+  const getSortedColumns = () => {
+    const nonSystemCols = [...rawColumns].filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name));
+
+    // Separate visible and hidden columns
+    const visibleCols = nonSystemCols.filter(col => visibleFields.has(col.column_name));
+    const hiddenCols = nonSystemCols.filter(col => !visibleFields.has(col.column_name));
+
+    // Sort visible by order, hidden by order (but they'll appear after visible)
+    visibleCols.sort((a, b) => (fieldOrder[a.column_name] || 999) - (fieldOrder[b.column_name] || 999));
+    hiddenCols.sort((a, b) => (fieldOrder[a.column_name] || 999) - (fieldOrder[b.column_name] || 999));
+
+    return [...visibleCols, ...hiddenCols];
+  };
 
   const toggleFieldVisibility = (columnName: string) => {
     setVisibleFields(prev => {
@@ -561,7 +592,7 @@ function GoldStandardDataTab() {
           {showFieldConfig && (
             <div className="border rounded-md p-4 mb-4 bg-muted/30">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Select fields to show</span>
+                <span className="text-sm font-medium">Select fields to show (type order number on right)</span>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
                     Show All
@@ -571,27 +602,41 @@ function GoldStandardDataTab() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {rawColumns
-                  .filter((col) => !['id', 'created_at', 'updated_at'].includes(col.column_name))
-                  .map((col) => (
-                  <button
+              <div className="grid grid-cols-2 gap-2">
+                {getSortedColumns().map((col) => (
+                  <div
                     key={col.column_name}
-                    onClick={() => toggleFieldVisibility(col.column_name)}
                     className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors text-left",
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors",
                       visibleFields.has(col.column_name)
                         ? "bg-primary/10 border-primary/30 text-foreground"
-                        : "bg-background border-border text-muted-foreground hover:border-primary/30"
+                        : "bg-background border-border text-muted-foreground"
                     )}
                   >
-                    {visibleFields.has(col.column_name) ? (
-                      <Eye className="h-3 w-3 flex-shrink-0" />
-                    ) : (
-                      <EyeOff className="h-3 w-3 flex-shrink-0" />
-                    )}
-                    <span className="truncate">{col.name || col.column_name}</span>
-                  </button>
+                    <button
+                      onClick={() => toggleFieldVisibility(col.column_name)}
+                      className="flex items-center gap-2 flex-1 text-left hover:opacity-70"
+                    >
+                      {visibleFields.has(col.column_name) ? (
+                        <Eye className="h-3 w-3 flex-shrink-0" />
+                      ) : (
+                        <EyeOff className="h-3 w-3 flex-shrink-0" />
+                      )}
+                      <span className="truncate">{col.name || col.column_name}</span>
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={fieldOrder[col.column_name] || ''}
+                      onChange={(e) => updateFieldOrder(col.column_name, parseInt(e.target.value) || 0)}
+                      className="w-10 h-6 text-center text-xs border rounded bg-background"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        (e.target as HTMLInputElement).select();
+                      }}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -599,11 +644,8 @@ function GoldStandardDataTab() {
 
           {/* Visible Fields */}
           <div className="grid grid-cols-2 gap-4 py-4">
-            {rawColumns
-              .filter((col) =>
-                !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                visibleFields.has(col.column_name)
-              )
+            {getSortedColumns()
+              .filter((col) => visibleFields.has(col.column_name))
               .map((col) => (
               <div key={col.column_name}>
                 {renderFormField(col)}
@@ -612,24 +654,15 @@ function GoldStandardDataTab() {
           </div>
 
           {/* Hidden Fields - Collapsible */}
-          {rawColumns.filter((col) =>
-            !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-            !visibleFields.has(col.column_name)
-          ).length > 0 && (
+          {getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length > 0 && (
             <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
               <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({rawColumns.filter((col) =>
-                  !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                  !visibleFields.has(col.column_name)
-                ).length})
+                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
-                  {rawColumns
-                    .filter((col) =>
-                      !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                      !visibleFields.has(col.column_name)
-                    )
+                  {getSortedColumns()
+                    .filter((col) => !visibleFields.has(col.column_name))
                     .map((col) => (
                     <div key={col.column_name}>
                       {renderFormField(col)}
@@ -700,7 +733,7 @@ function GoldStandardDataTab() {
           {showFieldConfig && (
             <div className="border rounded-md p-4 mb-4 bg-muted/30">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium">Select fields to show</span>
+                <span className="text-sm font-medium">Select fields to show (type order number on right)</span>
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
                     Show All
@@ -710,27 +743,41 @@ function GoldStandardDataTab() {
                   </Button>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                {rawColumns
-                  .filter((col) => !['id', 'created_at', 'updated_at'].includes(col.column_name))
-                  .map((col) => (
-                  <button
+              <div className="grid grid-cols-2 gap-2">
+                {getSortedColumns().map((col) => (
+                  <div
                     key={col.column_name}
-                    onClick={() => toggleFieldVisibility(col.column_name)}
                     className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors text-left",
+                      "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors",
                       visibleFields.has(col.column_name)
                         ? "bg-primary/10 border-primary/30 text-foreground"
-                        : "bg-background border-border text-muted-foreground hover:border-primary/30"
+                        : "bg-background border-border text-muted-foreground"
                     )}
                   >
-                    {visibleFields.has(col.column_name) ? (
-                      <Eye className="h-3 w-3 flex-shrink-0" />
-                    ) : (
-                      <EyeOff className="h-3 w-3 flex-shrink-0" />
-                    )}
-                    <span className="truncate">{col.name || col.column_name}</span>
-                  </button>
+                    <button
+                      onClick={() => toggleFieldVisibility(col.column_name)}
+                      className="flex items-center gap-2 flex-1 text-left hover:opacity-70"
+                    >
+                      {visibleFields.has(col.column_name) ? (
+                        <Eye className="h-3 w-3 flex-shrink-0" />
+                      ) : (
+                        <EyeOff className="h-3 w-3 flex-shrink-0" />
+                      )}
+                      <span className="truncate">{col.name || col.column_name}</span>
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      value={fieldOrder[col.column_name] || ''}
+                      onChange={(e) => updateFieldOrder(col.column_name, parseInt(e.target.value) || 0)}
+                      className="w-10 h-6 text-center text-xs border rounded bg-background"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        (e.target as HTMLInputElement).select();
+                      }}
+                      onFocus={(e) => e.target.select()}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -738,11 +785,8 @@ function GoldStandardDataTab() {
 
           {/* Visible Fields */}
           <div className="grid grid-cols-2 gap-4 py-4">
-            {rawColumns
-              .filter((col) =>
-                !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                visibleFields.has(col.column_name)
-              )
+            {getSortedColumns()
+              .filter((col) => visibleFields.has(col.column_name))
               .map((col) => (
               <div key={col.column_name}>
                 {renderFormField(col)}
@@ -751,24 +795,15 @@ function GoldStandardDataTab() {
           </div>
 
           {/* Hidden Fields - Collapsible */}
-          {rawColumns.filter((col) =>
-            !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-            !visibleFields.has(col.column_name)
-          ).length > 0 && (
+          {getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length > 0 && (
             <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
               <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({rawColumns.filter((col) =>
-                  !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                  !visibleFields.has(col.column_name)
-                ).length})
+                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
-                  {rawColumns
-                    .filter((col) =>
-                      !['id', 'created_at', 'updated_at'].includes(col.column_name) &&
-                      !visibleFields.has(col.column_name)
-                    )
+                  {getSortedColumns()
+                    .filter((col) => !visibleFields.has(col.column_name))
                     .map((col) => (
                     <div key={col.column_name}>
                       {renderFormField(col)}
