@@ -35,12 +35,17 @@ class Api::V1::GoldTableSyncController < ApplicationController
       backend_sql = Column::COLUMN_SQL_TYPE_MAP[column_type] if column_type
       frontend_sql = get_frontend_sql_type(column_type) if column_type
 
-      # Determine status
+      # Determine status - normalize SQL types for comparison
+      # (e.g., DECIMAL vs NUMERIC, DATETIME vs TIMESTAMP are equivalent)
+      normalized_trinity = normalize_sql_type(trinity_sql)
+      normalized_backend = normalize_sql_type(backend_sql)
+      normalized_frontend = normalize_sql_type(frontend_sql)
+
       status = if is_system
         'system'
       elsif column_type.nil?
         'no_type'
-      elsif trinity_sql == backend_sql && backend_sql == frontend_sql
+      elsif normalized_trinity == normalized_backend && normalized_backend == normalized_frontend
         'match'
       else
         'mismatch'
@@ -100,5 +105,22 @@ class Api::V1::GoldTableSyncController < ApplicationController
     # Source of Truth: Column::COLUMN_SQL_TYPE_MAP (see Bible Rule #19.37)
     # DO NOT hardcode a duplicate map here - read from the single source
     Column::COLUMN_SQL_TYPE_MAP[column_type]
+  end
+
+  # Normalize SQL types to handle synonyms in PostgreSQL
+  # DECIMAL and NUMERIC are identical in PostgreSQL
+  # DATETIME and TIMESTAMP are equivalent
+  # COMPUTED/VIRTUAL are implementation-specific
+  def normalize_sql_type(sql_type)
+    return nil unless sql_type
+
+    normalized = sql_type.upcase
+    # Normalize DECIMAL to NUMERIC (PostgreSQL treats them identically)
+    normalized = normalized.gsub(/\bDECIMAL\b/, 'NUMERIC')
+    # Normalize DATETIME to TIMESTAMP
+    normalized = normalized.gsub(/\bDATETIME\b/, 'TIMESTAMP')
+    # Normalize computed column variants
+    normalized = normalized.gsub(/\bVIRTUAL\/COMPUTED\b|\bCOMPUTED\b|\bVIRTUAL\b/, 'COMPUTED')
+    normalized
   end
 end
