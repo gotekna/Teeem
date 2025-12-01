@@ -15,7 +15,7 @@ class Api::V1::GoldTableSyncController < ApplicationController
     end
 
     # Get all columns from Gold Standard foundation (from database schema)
-    db_columns = ActiveRecord::Base.connection.columns('gold_standard_items')
+    db_columns = ActiveRecord::Base.connection.columns('gold_standard_table')
 
     # Get column metadata from columns table
     metadata_columns = gold_standard_foundation.columns.index_by(&:column_name)
