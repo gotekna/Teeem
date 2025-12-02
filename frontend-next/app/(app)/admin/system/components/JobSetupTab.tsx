@@ -117,13 +117,13 @@ function SortableList<T extends { id: number; name: string; color?: string; posi
           <div className="flex items-center justify-center h-32">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : items.length === 0 ? (
+        ) : !Array.isArray(items) || items.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             No items yet. Click Add to create one.
           </div>
         ) : (
           <div className="space-y-1">
-            {items
+            {[...items]
               .sort((a, b) => a.position - b.position)
               .map((item, index) => (
                 <div
@@ -208,14 +208,14 @@ export function JobSetupTab() {
 
   const loadData = async () => {
     try {
-      const [types, statuses, stages] = await Promise.all([
-        api.get<JobType[]>("/api/v1/job_types"),
-        api.get<JobStatus[]>("/api/v1/job_status"),
-        api.get<JobStage[]>("/api/v1/job_stages"),
+      const [typesRes, statusesRes, stagesRes] = await Promise.all([
+        api.get<{ job_types: JobType[] }>("/api/v1/job_types"),
+        api.get<{ job_statuses: JobStatus[] }>("/api/v1/job_status"),
+        api.get<{ job_stages: JobStage[] }>("/api/v1/job_stages"),
       ]);
-      setJobTypes(types);
-      setJobStatuses(statuses);
-      setJobStages(stages);
+      setJobTypes(typesRes.job_types || []);
+      setJobStatuses(statusesRes.job_statuses || []);
+      setJobStages(stagesRes.job_stages || []);
     } catch (error) {
       console.error("Failed to load data:", error);
       // Mock data
