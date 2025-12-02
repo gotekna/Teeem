@@ -65,6 +65,9 @@ import {
   Table2,
   FileSpreadsheet,
   RefreshCw,
+  Paperclip,
+  CalendarIcon,
+  GitMerge,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -126,6 +129,14 @@ import {
 } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
+import { Switch } from "@/components/ui/switch";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { format, parseISO } from "date-fns";
 
 import {
   type TableColumn,
@@ -141,7 +152,7 @@ import {
   STATUS_COLORS,
   SEVERITY_COLORS,
 } from "./types";
-import { getColumnTypeEmoji } from "@/lib/column-types";
+import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumnTypeValidationRules, COLUMN_TYPES } from "@/lib/column-types";
 import { DataHealthWidget } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 
@@ -591,6 +602,8 @@ export default function TeeemTableView({
   onEdit,
   onDelete,
   onBulkDelete,
+  onBulkEdit,
+  onBulkMerge,
   onView,
   onRowDoubleClick,
   onRowClick,
@@ -616,6 +629,7 @@ export default function TeeemTableView({
   preloadedViews = null,
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
+  showFilterButton = false,
   onServerSearch,
   serverSearchLoading = false,
   onViewApiParamsChange,
@@ -711,6 +725,14 @@ export default function TeeemTableView({
   const [editColumnName, setEditColumnName] = useState("");
   const [editColumnType, setEditColumnType] = useState("");
 
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportScope, setExportScope] = useState<"visible" | "all">("visible");
+  const [exportFormat, setExportFormat] = useState<"csv">("csv");
+
+  // Filter modal state
+  const [showFilterModal, setShowFilterModal] = useState(false);
+
   // ============================================================================
   // HANDLERS
   // ============================================================================
@@ -776,6 +798,7 @@ export default function TeeemTableView({
         groupId: "default",
       },
     ]);
+    setShowFilters(true); // Show filter editor rows
   }, [COLUMNS]);
 
   // Add filter for specific column (from column header dropdown)
@@ -1074,18 +1097,55 @@ export default function TeeemTableView({
         }
 
         if (data.success && data.views) {
-          setSavedViews(data.views);
+          // Map API format to frontend format and filter/sort
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mappedViews = (data.views as any[]).map((v) => ({
+            ...v,
+            // Map columns.visible to visibleColumns (API format -> frontend format)
+            visibleColumns: v.columns?.visible || v.visibleColumns || {},
+            columnOrder: v.columns?.order || v.columnOrder || [],
+            columnWidths: v.columns?.widths || v.columnWidths || {},
+            // Map filters format
+            filters: v.filters?.cascadeFilters || v.filters || [],
+            filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
+            interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
+            // Map sort and group
+            sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
+            groupByColumns: v.group_by_columns || v.groupByColumns || [],
+          })) as SavedView[];
+
+          // Filter out __default_setup__ views (internal use only) and sort by display_order
+          const filteredViews = mappedViews
+            .filter((v) => v.name !== '__default_setup__')
+            .sort((a, b) => {
+              // Global views first
+              if (a.is_global && !b.is_global) return -1;
+              if (!a.is_global && b.is_global) return 1;
+              // Then by display_order
+              return (a.display_order ?? 999) - (b.display_order ?? 999);
+            });
+
+          setSavedViews(filteredViews);
 
           // Auto-apply default view - prioritize global views, then display_order
-          // Views are already sorted from API: global first, then by display_order
-          if (!activeViewId && data.views.length > 0) {
+          // Check URL for view parameter first
+          const urlViewId = searchParams.get('view');
+          if (urlViewId) {
+            const urlView = filteredViews.find((v) => String(v.id) === urlViewId);
+            if (urlView) {
+              loadViewState(urlView);
+              return;
+            }
+          }
+
+          if (!activeViewId && filteredViews.length > 0) {
             // Find the best default: first check for explicit isDefault, then first global, then first by display_order
             const defaultView =
-              data.views.find((v: SavedView) => v.isDefault && v.is_global) ||
-              data.views.find((v: SavedView) => v.isDefault) ||
-              data.views.find((v: SavedView) => v.is_global && v.display_order === 0) ||
-              data.views.find((v: SavedView) => v.display_order === 0) ||
-              data.views[0]; // Fallback to first view
+              filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
+              filteredViews.find((v: SavedView) => v.isDefault) ||
+              filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
+              filteredViews.find((v: SavedView) => v.display_order === 0) ||
+              filteredViews[0]; // Fallback to first view
 
             if (defaultView) {
               loadViewState(defaultView);
@@ -1154,11 +1214,16 @@ export default function TeeemTableView({
         setGroupByColumn(view.groupByColumn);
         setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
       }
-      if (view.showFilters !== undefined) {
-        setShowFilters(view.showFilters);
-      }
+      // Hide filter editor when loading a saved view (user can click Filters button to show)
+      setShowFilters(false);
       if (view.id) {
         setActiveViewId(view.id);
+
+        // Update URL with view parameter for persistence
+        const currentParams = new URLSearchParams(searchParams.toString());
+        currentParams.set('view', String(view.id));
+        const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+        router.replace(newUrl, { scroll: false });
       }
 
       // Handle apiParams for server-side filtering
@@ -1166,7 +1231,7 @@ export default function TeeemTableView({
         onViewApiParamsChange(null);
       }
     },
-    [onViewApiParamsChange]
+    [onViewApiParamsChange, searchParams, router]
   );
 
   // Save current state as new view
@@ -1379,23 +1444,60 @@ export default function TeeemTableView({
     evaluateFilter,
   ]);
 
-  // Group entries if grouping is enabled
-  const groupedEntries = useMemo(() => {
-    if (!groupByColumn || groupByColumns.length === 0) {
+  // Helper to extract display value from a cell (handles objects with display/name properties)
+  const getDisplayValue = useCallback((value: unknown): string => {
+    if (value === null || value === undefined) return "No Value";
+    if (typeof value === "object") {
+      const obj = value as Record<string, unknown>;
+      return String(obj.display || obj.display_value || obj.name || obj.id || "No Value");
+    }
+    return String(value);
+  }, []);
+
+  // Nested group structure type
+  type NestedGroup = {
+    rows: TableRowType[];
+    subgroups?: Record<string, NestedGroup>;
+  };
+
+  // Group entries hierarchically if grouping is enabled (supports nested group columns)
+  const groupedEntries = useMemo((): Record<string, NestedGroup> | null => {
+    if (groupByColumns.length === 0) {
       return null;
     }
 
-    const groups: Record<string, TableRowType[]> = {};
-    for (const entry of filteredAndSortedEntries) {
-      const groupKey = String(entry[groupByColumn] ?? "No Value");
-      if (!groups[groupKey]) {
-        groups[groupKey] = [];
+    const buildNestedGroups = (
+      entries: TableRowType[],
+      columns: string[],
+      depth: number = 0
+    ): Record<string, NestedGroup> => {
+      if (columns.length === 0 || depth >= columns.length) {
+        return {};
       }
-      groups[groupKey].push(entry);
-    }
 
-    return groups;
-  }, [filteredAndSortedEntries, groupByColumn, groupByColumns]);
+      const currentCol = columns[depth];
+      const groups: Record<string, NestedGroup> = {};
+
+      for (const entry of entries) {
+        const groupKey = getDisplayValue(entry[currentCol]);
+        if (!groups[groupKey]) {
+          groups[groupKey] = { rows: [] };
+        }
+        groups[groupKey].rows.push(entry);
+      }
+
+      // If there are more columns, recursively build subgroups
+      if (depth < columns.length - 1) {
+        for (const [key, group] of Object.entries(groups)) {
+          group.subgroups = buildNestedGroups(group.rows, columns, depth + 1);
+        }
+      }
+
+      return groups;
+    };
+
+    return buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
+  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue]);
 
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
@@ -1411,6 +1513,72 @@ export default function TeeemTableView({
       return sum + (columnWidths[col.key] || col.width || 150);
     }, 0);
   }, [visibleColumnsInOrder, columnWidths]);
+
+  // Get all data columns (excluding select and actions)
+  const allDataColumns = useMemo(() => {
+    return COLUMNS.filter((c) => c.key !== "select" && c.key !== "actions");
+  }, [COLUMNS]);
+
+  // Get visible data columns (excluding select and actions)
+  const visibleDataColumns = useMemo(() => {
+    return visibleColumnsInOrder.filter((c) => c.key !== "select" && c.key !== "actions");
+  }, [visibleColumnsInOrder]);
+
+  // Export handler - exports to CSV
+  const handleExportCSV = useCallback(() => {
+    const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
+
+    // Helper to escape CSV values
+    const escapeCSV = (value: unknown): string => {
+      if (value === null || value === undefined) return "";
+      const str = String(value);
+      // If contains comma, quote, or newline, wrap in quotes and escape existing quotes
+      if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes("\r")) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    // Build header row
+    const headers = columnsToExport.map((col) => escapeCSV(col.label || col.key));
+
+    // Build data rows from filtered/sorted entries
+    const rows = filteredAndSortedEntries.map((entry) => {
+      return columnsToExport.map((col) => {
+        const value = entry[col.key];
+        // Handle objects (like nested relations)
+        if (typeof value === "object" && value !== null) {
+          if ("name" in value) return escapeCSV((value as { name: string }).name);
+          if ("label" in value) return escapeCSV((value as { label: string }).label);
+          return escapeCSV(JSON.stringify(value));
+        }
+        return escapeCSV(value);
+      });
+    });
+
+    // Combine into CSV string
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+
+    // Create and download blob
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const timestamp = new Date().toISOString().split("T")[0];
+    const scopeLabel = exportScope === "visible" ? "visible" : "all";
+    a.download = `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    // Close modal and show toast
+    setShowExportModal(false);
+    toast({
+      title: "Export Complete",
+      description: `Exported ${filteredAndSortedEntries.length} rows with ${columnsToExport.length} columns`,
+    });
+  }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast]);
 
   // ============================================================================
   // CELL RENDERING
@@ -1457,18 +1625,14 @@ export default function TeeemTableView({
                   <Eye className="h-4 w-4" />
                 </Button>
               )}
-              {!viewOnly && onEdit && (
-                <Button variant="ghost" size="sm" onClick={() => onEdit(entry)}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
-              {!viewOnly && onRowUpdate && (
+              {/* Single edit button: inline edit if onRowUpdate available, otherwise modal edit via onEdit */}
+              {!viewOnly && (onRowUpdate || onEdit) && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => startEditing(entry)}
+                  onClick={() => onRowUpdate ? startEditing(entry) : onEdit?.(entry)}
                 >
-                  <Pencil className="h-3 w-3" />
+                  <Pencil className="h-4 w-4" />
                 </Button>
               )}
               {!viewOnly && onDelete && (
@@ -1484,8 +1648,215 @@ export default function TeeemTableView({
           );
       }
 
-      // Inline editing mode
-      if (isEditing && column.key !== "id") {
+      // Inline editing mode - with column type-specific editors
+      // System columns that are NEVER editable
+      const NON_EDITABLE_COLUMNS = ['id', 'created_at', 'updated_at', 'select', 'actions'];
+      const isComputed = column.column_type === 'computed' || column.column_type === 'formula';
+      const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
+      const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
+
+      if (isEditing && isColumnEditable) {
+        const columnType = column.column_type || 'single_line_text';
+
+        // Boolean - Switch toggle
+        if (columnType === 'boolean') {
+          const boolValue = editingData[column.key] === true || editingData[column.key] === 'true' || editingData[column.key] === 1;
+          return (
+            <div className="flex items-center justify-center">
+              <Switch
+                checked={boolValue}
+                onCheckedChange={(checked) =>
+                  setEditingData((prev) => ({
+                    ...prev,
+                    [column.key]: checked,
+                  }))
+                }
+              />
+            </div>
+          );
+        }
+
+        // Choice - Dropdown with predefined options
+        if (columnType === 'choice' || columnType === 'single_select' || columnType === 'multi_select') {
+          const choices = column.choices || [];
+          return (
+            <Select
+              value={String(editingData[column.key] ?? "")}
+              onValueChange={(val) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [column.key]: val,
+                }))
+              }
+            >
+              <SelectTrigger className="h-7 text-sm">
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent>
+                {choices.map((choice) => (
+                  <SelectItem key={choice} value={choice}>
+                    {choice}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        }
+
+        // User - Dropdown (would need users fetched, for now use text input)
+        if (columnType === 'user') {
+          // TODO: Fetch users from API and show dropdown
+          return (
+            <Input
+              className="h-7 text-sm"
+              placeholder="User..."
+              value={String(editingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [column.key]: e.target.value,
+                }))
+              }
+            />
+          );
+        }
+
+        // Date - Date picker
+        if (columnType === 'date') {
+          const dateValue = editingData[column.key];
+          let parsedDate: Date | undefined;
+          try {
+            if (dateValue) {
+              parsedDate = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue as number);
+            }
+          } catch {
+            parsedDate = undefined;
+          }
+
+          return (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-7 w-full justify-start text-left font-normal text-sm",
+                    !parsedDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-3 w-3" />
+                  {parsedDate ? format(parsedDate, "yyyy-MM-dd") : "Pick date..."}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={parsedDate}
+                  onSelect={(date) =>
+                    setEditingData((prev) => ({
+                      ...prev,
+                      [column.key]: date ? format(date, "yyyy-MM-dd") : null,
+                    }))
+                  }
+                />
+              </PopoverContent>
+            </Popover>
+          );
+        }
+
+        // Date and Time - DateTime picker
+        if (columnType === 'date_and_time' || columnType === 'datetime') {
+          const dateValue = editingData[column.key];
+          let parsedDate: Date | undefined;
+          try {
+            if (dateValue) {
+              parsedDate = typeof dateValue === 'string' ? parseISO(dateValue) : new Date(dateValue as number);
+            }
+          } catch {
+            parsedDate = undefined;
+          }
+
+          return (
+            <Input
+              type="datetime-local"
+              className="h-7 text-sm"
+              value={parsedDate ? format(parsedDate, "yyyy-MM-dd'T'HH:mm") : ""}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [column.key]: e.target.value ? new Date(e.target.value).toISOString() : null,
+                }))
+              }
+            />
+          );
+        }
+
+        // File Upload - Show paperclip button
+        if (columnType === 'file_upload' || columnType === 'file' || columnType === 'attachment') {
+          return (
+            <div className="flex items-center gap-1">
+              <Input
+                className="h-7 text-sm flex-1"
+                placeholder="File URL..."
+                value={String(editingData[column.key] ?? "")}
+                onChange={(e) =>
+                  setEditingData((prev) => ({
+                    ...prev,
+                    [column.key]: e.target.value,
+                  }))
+                }
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                onClick={() => {
+                  // TODO: Open file picker dialog
+                  toast({ title: "File upload coming soon" });
+                }}
+              >
+                <Paperclip className="h-3 w-3" />
+              </Button>
+            </div>
+          );
+        }
+
+        // Lookup - Would need to fetch from related table
+        if (columnType === 'lookup' || columnType === 'relation') {
+          // TODO: Fetch options from lookup_config.target_table_id
+          return (
+            <Input
+              className="h-7 text-sm"
+              placeholder="Lookup..."
+              value={String(editingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [column.key]: e.target.value,
+                }))
+              }
+            />
+          );
+        }
+
+        // Number types
+        if (columnType === 'number' || columnType === 'integer' || columnType === 'decimal' || columnType === 'currency' || columnType === 'percentage') {
+          return (
+            <Input
+              type="number"
+              className="h-7 text-sm"
+              value={String(editingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [column.key]: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+            />
+          );
+        }
+
+        // Default - Text input for single_line_text, long_text, etc.
         return (
           <Input
             className="h-7 text-sm"
@@ -1498,6 +1869,22 @@ export default function TeeemTableView({
             }
           />
         );
+      }
+
+      // Show read-only indicator for non-editable columns when in edit mode
+      if (isEditing && !isColumnEditable) {
+        // Don't show indicator for select/actions columns
+        if (column.key === 'select' || column.key === 'actions') {
+          // Fall through to normal rendering
+        } else {
+          // Show the value with a subtle indicator it's not editable
+          const displayValue = value == null || value === "" ? "-" : String(value);
+          return (
+            <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
+              {displayValue}
+            </span>
+          );
+        }
       }
 
       // Handle null/undefined
@@ -1599,11 +1986,30 @@ export default function TeeemTableView({
 
       // Handle lookup - display linked record
       if (column.column_type === "lookup" && value) {
-        const lookupData = value as { display_value?: string; id?: number } | string | number;
-        if (typeof lookupData === "object" && lookupData.display_value) {
-          return <span>{lookupData.display_value}</span>;
+        const lookupData = value as { display_value?: string; display?: string; name?: string; id?: number } | string | number;
+        if (typeof lookupData === "object") {
+          // Support multiple display field names: display_value, display, name
+          const displayText = lookupData.display_value || lookupData.display || lookupData.name;
+          if (displayText) {
+            return <span>{displayText}</span>;
+          }
+          if (lookupData.id) {
+            return <span>#{lookupData.id}</span>;
+          }
         }
         return <span>#{String(value)}</span>;
+      }
+
+      // Handle _id columns that have expanded lookup data (system tables)
+      if (column.key.endsWith('_id') && typeof value === 'object' && value !== null) {
+        const lookupData = value as { display?: string; display_value?: string; name?: string; id?: number };
+        const displayText = lookupData.display || lookupData.display_value || lookupData.name;
+        if (displayText) {
+          return <span>{displayText}</span>;
+        }
+        if (lookupData.id) {
+          return <span>#{lookupData.id}</span>;
+        }
       }
 
       // Handle multiple_lookups - display linked records
@@ -1746,16 +2152,25 @@ export default function TeeemTableView({
               minWidth: columnWidths[column.key] || column.width || 50,
               position: 'sticky',
               top: 0,
-              zIndex: column.key === "select" ? 30 : 20,
+              zIndex: column.key === "select" || column.key === "actions" ? 30 : 20,
               ...(column.key === "select" && {
                 left: 0,
                 background: 'hsl(40, 11%, 89%)', // Match header muted color
                 boxShadow: '1px 0 0 #d4d4d4, 0 1px 0 #d4d4d4', // Right and bottom border
                 textAlign: 'center',
                 verticalAlign: 'middle'
+              }),
+              ...(column.key === "actions" && {
+                right: 0,
+                background: 'hsl(40, 11%, 89%)', // Match header muted color
+                boxShadow: '-1px 0 0 #d4d4d4, 0 1px 0 #d4d4d4', // Left and bottom border
               })
             }}
-            className={cn("relative", column.key === "select" && "!border-r-0 !p-0")}
+            className={cn(
+              "relative",
+              column.key === "select" && "!border-r-0 !p-0",
+              column.key === "actions" && "!border-l-0"
+            )}
           >
             {column.key === "select" ? (
               <Checkbox
@@ -1790,40 +2205,63 @@ export default function TeeemTableView({
     </TableHeader>
   );
 
-  // Render grouped table
-  const renderGroupedTable = () => {
-    if (!groupedEntries) return null;
+  // Render nested group recursively
+  const renderNestedGroup = (
+    groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
+    depth: number = 0,
+    parentKey: string = ""
+  ): React.ReactNode => {
+    const currentColKey = groupByColumns[depth];
+    const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
+    const isLastLevel = depth === groupByColumns.length - 1;
 
-    return (
-      <div className="space-y-2" style={{ width: `${totalTableWidth}px` }}>
-        {Object.entries(groupedEntries).map(([groupKey, groupRows]) => {
-          const isCollapsed = collapsedGroups.has(groupKey);
-          const groupColumn = COLUMNS.find((c) => c.key === groupByColumn);
+    return Object.entries(groups).map(([groupKey, group]) => {
+      const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
+      const isCollapsed = collapsedGroups.has(fullKey);
+      const rowCount = group.rows.length;
 
-          return (
-            <div key={groupKey} className="border rounded-lg" style={{ width: `${totalTableWidth}px` }}>
-              <button
-                onClick={() => toggleGroupCollapse(groupKey)}
-                className="w-full flex items-center justify-between p-3 bg-muted/50 hover:bg-muted transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  {isCollapsed ? (
-                    <ChevronRight className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                  <span className="font-medium">
-                    {groupColumn?.label || groupByColumn}: {groupKey}
-                  </span>
-                  <Badge variant="secondary">{groupRows.length} rows</Badge>
+      return (
+        <div
+          key={fullKey}
+          className={cn(
+            "border rounded-lg overflow-hidden",
+            depth > 0 && "ml-6 mt-2"
+          )}
+          style={depth === 0 ? { width: `${totalTableWidth}px` } : undefined}
+        >
+          <button
+            onClick={() => toggleGroupCollapse(fullKey)}
+            className={cn(
+              "w-full flex items-center justify-between p-3 hover:bg-muted transition-colors",
+              depth === 0 ? "bg-muted/50" : "bg-muted/30"
+            )}
+          >
+            <div className="flex items-center gap-2">
+              {isCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+              <span className="font-medium">
+                {currentColLabel}: {groupKey}
+              </span>
+              <Badge variant="secondary">{rowCount} rows</Badge>
+            </div>
+          </button>
+
+          {!isCollapsed && (
+            <div className="p-2">
+              {/* If there are subgroups, render them recursively */}
+              {group.subgroups && Object.keys(group.subgroups).length > 0 ? (
+                <div className="space-y-2">
+                  {renderNestedGroup(group.subgroups as typeof groups, depth + 1, fullKey)}
                 </div>
-              </button>
-
-              {!isCollapsed && (
+              ) : (
+                /* Otherwise render the table with rows */
                 <Table className="w-full" style={{ tableLayout: 'fixed' }}>
                   {renderTableHeader()}
                   <TableBody>
-                    {groupRows.map((row, rowIndex) => (
+                    {group.rows.map((row, rowIndex) => (
                       <TableRow
                         key={`${row.id}-${rowIndex}`}
                         className={cn(
@@ -1836,8 +2274,28 @@ export default function TeeemTableView({
                         {visibleColumnsInOrder.map((column, colIndex) => (
                           <TableCell
                             key={`${column.key}-${colIndex}`}
-                            style={{ width: columnWidths[column.key], minWidth: columnWidths[column.key] }}
-                            className={column.key === "select" ? "sticky-cell" : undefined}
+                            style={{
+                              width: columnWidths[column.key],
+                              minWidth: columnWidths[column.key],
+                              ...(column.key === "select" && {
+                                position: 'sticky',
+                                left: 0,
+                                zIndex: 10,
+                                background: 'hsl(40, 11%, 95%)',
+                                boxShadow: '1px 0 0 #d4d4d4',
+                              }),
+                              ...(column.key === "actions" && {
+                                position: 'sticky',
+                                right: 0,
+                                zIndex: 10,
+                                background: 'hsl(40, 11%, 95%)',
+                                boxShadow: '-1px 0 0 #d4d4d4',
+                              })
+                            }}
+                            className={cn(
+                              column.key === "select" && "!border-r-0 !p-0",
+                              column.key === "actions" && "!border-l-0"
+                            )}
                           >
                             {renderCellValue(row, column)}
                           </TableCell>
@@ -1848,8 +2306,19 @@ export default function TeeemTableView({
                 </Table>
               )}
             </div>
-          );
-        })}
+          )}
+        </div>
+      );
+    });
+  };
+
+  // Render grouped table
+  const renderGroupedTable = () => {
+    if (!groupedEntries) return null;
+
+    return (
+      <div className="space-y-2" style={{ width: `${totalTableWidth}px` }}>
+        {renderNestedGroup(groupedEntries)}
       </div>
     );
   };
@@ -1909,9 +2378,19 @@ export default function TeeemTableView({
                         boxShadow: '1px 0 0 #d4d4d4', // Right border
                         textAlign: 'center',
                         verticalAlign: 'middle'
+                      }),
+                      ...(column.key === "actions" && {
+                        position: 'sticky',
+                        right: 0,
+                        zIndex: 10,
+                        background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
+                        boxShadow: '-1px 0 0 #d4d4d4', // Left border
                       })
                     }}
-                    className={column.key === "select" ? "!border-r-0 !p-0" : undefined}
+                    className={cn(
+                      column.key === "select" && "!border-r-0 !p-0",
+                      column.key === "actions" && "!border-l-0"
+                    )}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
@@ -1988,7 +2467,25 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Custom actions (Filters button) */}
+          {/* Filters button - only show if no custom actions provided (custom actions may have their own filter) */}
+          {!customActions && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilterModal(true)}
+              className="gap-2 shrink-0"
+            >
+              <Filter className="h-4 w-4" />
+              {safeFilters.length > 0 ? "Filters" : "+ Filter"}
+              {safeFilters.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                  {safeFilters.length}
+                </Badge>
+              )}
+            </Button>
+          )}
+
+          {/* Custom actions */}
           {customActions}
 
           {/* More actions menu */}
@@ -2045,7 +2542,7 @@ export default function TeeemTableView({
                 </DropdownMenuItem>
               )}
               {enableExport && (
-                <DropdownMenuItem onClick={onExport}>
+                <DropdownMenuItem onClick={() => setShowExportModal(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   Export
                 </DropdownMenuItem>
@@ -2073,67 +2570,28 @@ export default function TeeemTableView({
                 </div>
               )}
 
-              <div className="px-2 py-1.5 border rounded-md mx-2 mb-2 bg-muted/50">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Current View:</span>
-                  <span className="text-xs text-green-600">
-                    {safeFilters.length} filters
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 mt-1">
-                  {activeViewId ? (
-                    <>
-                      <span className="text-yellow-500">⭐</span>
-                      <span className="text-sm font-medium">
-                        {savedViews.find(v => v.id === activeViewId)?.name || "Custom"}
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">No saved view</span>
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {Object.values(visibleColumns).filter(Boolean).length} of {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").length} columns visible
-                </div>
-              </div>
-
-              <DropdownMenuItem onClick={() => onViewSchema ? onViewSchema() : setShowViewSchemaModal(true)}>
-                <Table2 className="h-4 w-4 mr-2" />
-                View Schema
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onRefresh}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
 
-      {/* Active filters display */}
-      {safeFilters.length > 0 && (
+      {/* Active filters indicator - only show when NO saved view is active (view buttons already indicate active view) */}
+      {safeFilters.length > 0 && !activeViewId && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground">Filters:</span>
+          <span className="text-sm text-muted-foreground">Active filters:</span>
           {safeFilters.map((filter) => {
             const col = COLUMNS.find((c) => c.key === filter.column);
             return (
               <Badge
                 key={filter.id}
                 variant="secondary"
-                className="gap-1 pl-2"
+                className="gap-1 cursor-pointer hover:bg-secondary/80"
+                onClick={() => setShowFilterModal(true)}
               >
                 {col?.label || filter.column}{" "}
                 {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
                 {!["is_empty", "is_not_empty"].includes(filter.operator) &&
                   `"${filter.value}"`}
-                <button
-                  onClick={() => removeFilter(filter.id)}
-                  className="ml-1 hover:text-destructive"
-                >
-                  <X className="h-3 w-3" />
-                </button>
               </Badge>
             );
           })}
@@ -2141,7 +2599,7 @@ export default function TeeemTableView({
             variant="ghost"
             size="sm"
             onClick={clearAllFilters}
-            className="h-6 px-2"
+            className="h-6 px-2 text-muted-foreground"
           >
             Clear all
           </Button>
@@ -2161,6 +2619,18 @@ export default function TeeemTableView({
           >
             Clear selection
           </Button>
+          {/* Bulk Edit button - for editing multiple rows */}
+          {onBulkEdit && !viewOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onBulkEdit(Array.from(selectedRows))}
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Edit
+            </Button>
+          )}
+          {/* Bulk Update - column-based update modal */}
           {onRowUpdate && (
             <Button
               variant="outline"
@@ -2171,6 +2641,18 @@ export default function TeeemTableView({
               Bulk Update
             </Button>
           )}
+          {/* Merge button - combine rows into one */}
+          {onBulkMerge && !viewOnly && selectedRows.size >= 2 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onBulkMerge(Array.from(selectedRows))}
+            >
+              <GitMerge className="h-4 w-4 mr-1" />
+              Merge
+            </Button>
+          )}
+          {/* Delete button */}
           {onBulkDelete && !viewOnly && (
             <Button
               variant="destructive"
@@ -2178,32 +2660,15 @@ export default function TeeemTableView({
               onClick={() => onBulkDelete(Array.from(selectedRows))}
             >
               <Trash2 className="h-4 w-4 mr-1" />
-              Delete selected
+              Delete
             </Button>
           )}
         </div>
       )}
 
-      {/* Group/Sort controls */}
-      {(groupByColumn || sortColumns.length > 0) && (
+      {/* Sort controls - indicators hidden but functionality preserved */}
+      {false && sortColumns.length > 0 && (
         <div className="flex items-center gap-4 text-sm">
-          {groupByColumn && (
-            <div className="flex items-center gap-1">
-              <span className="text-muted-foreground">Grouped by:</span>
-              <Badge variant="secondary">{groupByColumn}</Badge>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5"
-                onClick={() => {
-                  setGroupByColumn(null);
-                  setGroupByColumns([]);
-                }}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
           {sortColumns.length > 0 && (
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">Sorted by:</span>
@@ -2405,13 +2870,13 @@ export default function TeeemTableView({
         </DialogContent>
       </Dialog>
 
-      {/* Create Column Modal */}
+      {/* Create Column Modal - Table-based type selection */}
       <Dialog open={showCreateColumnModal} onOpenChange={setShowCreateColumnModal}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[85vh]">
           <DialogHeader>
             <DialogTitle>Create New Column</DialogTitle>
             <DialogDescription>
-              Add a new column to this table
+              Add a new column to this table. Select a column type from the list below.
             </DialogDescription>
           </DialogHeader>
 
@@ -2427,27 +2892,81 @@ export default function TeeemTableView({
 
             <div className="space-y-2">
               <Label>Column Type</Label>
-              <Select value={newColumnType} onValueChange={setNewColumnType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="text">Text</SelectItem>
-                  <SelectItem value="long_text">Long Text</SelectItem>
-                  <SelectItem value="number">Number</SelectItem>
-                  <SelectItem value="whole_number">Whole Number</SelectItem>
-                  <SelectItem value="currency">Currency</SelectItem>
-                  <SelectItem value="percentage">Percentage</SelectItem>
-                  <SelectItem value="date">Date</SelectItem>
-                  <SelectItem value="date_and_time">Date & Time</SelectItem>
-                  <SelectItem value="boolean">Boolean (Yes/No)</SelectItem>
-                  <SelectItem value="choice">Choice</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="phone">Phone</SelectItem>
-                  <SelectItem value="url">URL</SelectItem>
-                  <SelectItem value="color_picker">Color Picker</SelectItem>
-                </SelectContent>
-              </Select>
+              <ScrollArea className="h-[400px] border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead className="w-48">Type</TableHead>
+                      <TableHead className="w-32">SQL Type</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="w-48">Example</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {COLUMN_TYPES.map((colType) => {
+                      const isSelected = newColumnType === colType.value;
+                      return (
+                        <TableRow
+                          key={colType.value}
+                          className={cn(
+                            "cursor-pointer hover:bg-muted/50",
+                            isSelected && "bg-primary/10 border-l-2 border-l-primary"
+                          )}
+                          onClick={() => setNewColumnType(colType.value)}
+                        >
+                          <TableCell>
+                            <div className="flex items-center justify-center">
+                              {isSelected ? (
+                                <Check className="h-4 w-4 text-primary" />
+                              ) : (
+                                <div className="h-4 w-4 rounded-full border border-muted-foreground/30" />
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span>{getColumnTypeEmoji(colType.value)}</span>
+                              <span className="font-medium">{colType.label}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                              {colType.sqlType}
+                            </code>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm text-muted-foreground">
+                              {colType.description}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <code className="text-xs text-muted-foreground">
+                              {colType.example.length > 30
+                                ? colType.example.substring(0, 30) + "..."
+                                : colType.example}
+                            </code>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+              {newColumnType && (
+                <div className="p-3 bg-muted/50 rounded-md border">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span>{getColumnTypeEmoji(newColumnType)}</span>
+                    <span className="font-medium">{getColumnTypeLabel(newColumnType)}</span>
+                    <Badge variant="secondary" className="text-xs font-mono">
+                      {getColumnTypeSqlType(newColumnType)}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {COLUMN_TYPES.find(t => t.value === newColumnType)?.usedFor || ""}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -2455,7 +2974,7 @@ export default function TeeemTableView({
             <Button variant="outline" onClick={() => setShowCreateColumnModal(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateColumn} disabled={schemaLoading}>
+            <Button onClick={handleCreateColumn} disabled={schemaLoading || !newColumnName || !newColumnType}>
               {schemaLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               ) : (
@@ -2593,55 +3112,304 @@ export default function TeeemTableView({
         }}
       />
 
-      {/* Edit Columns Modal (basic reorder/visibility) */}
+      {/* Edit Columns Modal - Gold Standard style table */}
       <Dialog open={showEditColumnsModal} onOpenChange={setShowEditColumnsModal}>
-        <DialogContent className="max-w-lg max-h-[80vh]">
+        <DialogContent className="max-w-6xl max-h-[90vh] p-8">
+          <DialogHeader className="pb-4">
+            <DialogTitle>SHOW/HIDE COLUMNS</DialogTitle>
+          </DialogHeader>
+
+          <ScrollArea className="h-[600px] border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="w-44">Column Name</TableHead>
+                  <TableHead className="w-32">SQL Type</TableHead>
+                  <TableHead className="w-32">Display Type</TableHead>
+                  <TableHead className="min-w-[200px]">Validation Rules</TableHead>
+                  <TableHead className="w-20">Width</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").map((col) => {
+                  // Map column_type to display info
+                  const columnType = col.column_type || "single_line_text";
+                  const sqlType = getColumnTypeSqlType(columnType);
+                  const displayLabel = getColumnTypeLabel(columnType);
+                  const typeEmoji = getColumnTypeEmoji(columnType);
+                  const validationRules = getColumnTypeValidationRules(columnType);
+
+                  return (
+                    <TableRow key={col.key} className="hover:bg-muted/50">
+                      <TableCell>
+                        <Checkbox
+                          checked={visibleColumns[col.key] === true}
+                          onCheckedChange={(checked) =>
+                            setVisibleColumns((prev) => ({
+                              ...prev,
+                              [col.key]: checked === true,
+                            }))
+                          }
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span>{typeEmoji}</span>
+                          <span className="font-medium">{col.label}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                          {sqlType}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-muted-foreground">
+                          {displayLabel}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {validationRules}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          value={columnWidths[col.key] || col.width || 150}
+                          onChange={(e) =>
+                            setColumnWidths((prev) => ({
+                              ...prev,
+                              [col.key]: parseInt(e.target.value) || 150,
+                            }))
+                          }
+                          className="w-16 h-8 text-sm"
+                          min={50}
+                          max={500}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+
+          <DialogFooter className="flex justify-between pt-4">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Show all columns
+                  const allVisible: VisibleColumnsState = {};
+                  COLUMNS.forEach(c => { allVisible[c.key] = true; });
+                  setVisibleColumns(allVisible);
+                }}
+              >
+                Show All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Hide all except essential columns
+                  const hidden: VisibleColumnsState = {};
+                  COLUMNS.forEach(c => { hidden[c.key] = c.key === "id"; });
+                  setVisibleColumns(hidden);
+                }}
+              >
+                Hide All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setVisibleColumns(getDefaultVisibleColumns())}
+              >
+                <RotateCcw className="h-4 w-4 mr-1" />
+                Reset
+              </Button>
+            </div>
+            <Button onClick={() => setShowEditColumnsModal(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export Modal */}
+      <Dialog open={showExportModal} onOpenChange={setShowExportModal}>
+        <DialogContent className="max-w-md p-8">
           <DialogHeader>
-            <DialogTitle>Edit Columns</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Export to CSV
+            </DialogTitle>
             <DialogDescription>
-              Toggle column visibility and reorder columns
+              Export {filteredAndSortedEntries.length} rows to a CSV file
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="h-[400px] pr-4">
-            <div className="space-y-2">
-              {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").map((col) => (
-                <div
-                  key={col.key}
-                  className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50"
+          <div className="space-y-4 py-4">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Columns to Export</Label>
+              <div className="grid gap-2">
+                <label
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    exportScope === "visible"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
                 >
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={visibleColumns[col.key] === true}
-                      onCheckedChange={(checked) =>
-                        setVisibleColumns((prev) => ({
-                          ...prev,
-                          [col.key]: checked === true,
-                        }))
-                      }
-                    />
-                    <div>
-                      <p className="font-medium">{col.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {col.column_type || "text"}
-                      </p>
+                  <input
+                    type="radio"
+                    name="exportScope"
+                    value="visible"
+                    checked={exportScope === "visible"}
+                    onChange={() => setExportScope("visible")}
+                    className="h-4 w-4 text-primary"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">Visible Columns Only</div>
+                    <div className="text-sm text-muted-foreground">
+                      Export {visibleDataColumns.length} columns currently shown
                     </div>
                   </div>
-                  <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                </div>
-              ))}
+                  <Badge variant="secondary">{visibleDataColumns.length}</Badge>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    exportScope === "all"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="exportScope"
+                    value="all"
+                    checked={exportScope === "all"}
+                    onChange={() => setExportScope("all")}
+                    className="h-4 w-4 text-primary"
+                  />
+                  <div className="flex-1">
+                    <div className="font-medium">All Columns</div>
+                    <div className="text-sm text-muted-foreground">
+                      Export all {allDataColumns.length} columns in the table
+                    </div>
+                  </div>
+                  <Badge variant="secondary">{allDataColumns.length}</Badge>
+                </label>
+              </div>
             </div>
-          </ScrollArea>
+
+            <div className="p-3 bg-muted/50 rounded-lg border">
+              <div className="text-sm font-medium mb-1">Export Summary</div>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <div className="flex justify-between">
+                  <span>Rows:</span>
+                  <span className="font-mono">{filteredAndSortedEntries.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Columns:</span>
+                  <span className="font-mono">
+                    {exportScope === "visible" ? visibleDataColumns.length : allDataColumns.length}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Format:</span>
+                  <span className="font-mono">CSV</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <DialogFooter>
+            <Button variant="outline" onClick={() => setShowExportModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleExportCSV}>
+              <Upload className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Filter Modal */}
+      <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
+        <DialogContent className="max-w-2xl p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Filter className="h-5 w-5" />
+              Filters
+            </DialogTitle>
+            <DialogDescription>
+              Add, edit, or reorder filters for this table
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Current Filters */}
+            {safeFilters.length > 0 ? (
+              <div className="space-y-2">
+                {safeFilters.map((filter, index) => (
+                  <div key={filter.id} className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
+                    <CascadeFilterItem
+                      filter={filter}
+                      columns={COLUMNS}
+                      onUpdate={updateFilter}
+                      onRemove={removeFilter}
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No filters applied. Click &quot;Add Filter&quot; to create one.
+              </div>
+            )}
+
+            {/* Add Filter Button */}
             <Button
               variant="outline"
-              onClick={() => setVisibleColumns(getDefaultVisibleColumns())}
+              onClick={() => {
+                const firstColumn = COLUMNS.find(
+                  (c) => c.filterable !== false && c.key !== "select" && c.key !== "actions"
+                );
+                if (!firstColumn) return;
+                setCascadeFilters((prev) => [
+                  ...prev,
+                  {
+                    id: `filter_${Date.now()}`,
+                    column: firstColumn.key,
+                    operator: "=",
+                    value: "",
+                    groupId: "default",
+                  },
+                ]);
+              }}
+              className="w-full"
             >
-              <RotateCcw className="h-4 w-4 mr-1" />
-              Reset
+              <Plus className="h-4 w-4 mr-2" />
+              Add Filter
             </Button>
-            <Button onClick={() => setShowEditColumnsModal(false)}>
+          </div>
+
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="ghost"
+              onClick={clearAllFilters}
+              disabled={safeFilters.length === 0}
+            >
+              Clear All
+            </Button>
+            <Button onClick={() => setShowFilterModal(false)}>
               Done
             </Button>
           </DialogFooter>

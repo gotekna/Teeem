@@ -546,7 +546,14 @@ export function GlobalViewsManager({
     setEditInterGroupLogic(view.interGroupLogic || "OR");
     setEditSortColumns(view.sortColumns || []);
     setEditGroupByColumns(view.groupByColumns || []);
-    setEditVisibleColumns(view.visibleColumns || {});
+
+    // If visibleColumns is empty or missing, default all columns to visible
+    const hasVisibleColumns = view.visibleColumns && Object.keys(view.visibleColumns).length > 0;
+    const visibleColumnsToSet = hasVisibleColumns
+      ? view.visibleColumns
+      : Object.fromEntries(columns.map(c => [c.column_name, true]));
+    setEditVisibleColumns(visibleColumnsToSet!);
+
     setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
     setEditAutoFitColumns(view.autoFitColumns || false);
   };
@@ -1270,7 +1277,7 @@ export function GlobalViewsManager({
                                 </div>
                                 <div className="grid grid-cols-3 gap-1">
                                   {getSortedColumns()
-                                    .filter(col => editVisibleColumns[col.column_name] !== false)
+                                    .filter(col => editVisibleColumns[col.column_name] === true)
                                     .map((col, index) => (
                                       <SortableColumnItem
                                         key={col.column_name}
@@ -1291,19 +1298,19 @@ export function GlobalViewsManager({
                                     <EyeOff className="h-3.5 w-3.5" />
                                     Hidden
                                     <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                      {Object.values(editVisibleColumns).filter(v => v === false).length}
+                                      {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length}
                                     </Badge>
                                   </div>
-                                  {Object.values(editVisibleColumns).filter(v => v === false).length > 0 && (
+                                  {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 && (
                                     <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={showAllColumns}>
                                       Show All
                                     </Button>
                                   )}
                                 </div>
-                                {getSortedColumns().filter(col => editVisibleColumns[col.column_name] === false).length > 0 ? (
+                                {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 ? (
                                   <div className="grid grid-cols-3 gap-1">
                                     {getSortedColumns()
-                                      .filter(col => editVisibleColumns[col.column_name] === false)
+                                      .filter(col => editVisibleColumns[col.column_name] !== true)
                                       .map(col => (
                                         <SortableColumnItem
                                           key={col.column_name}

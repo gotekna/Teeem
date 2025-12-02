@@ -94,6 +94,8 @@ export interface TeeemTableViewProps {
   onEdit?: (row: TableRow) => void;
   onDelete?: (row: TableRow) => void;
   onBulkDelete?: (ids: (number | string)[]) => void;
+  onBulkEdit?: (ids: (number | string)[]) => void;
+  onBulkMerge?: (ids: (number | string)[]) => void;
   onView?: (row: TableRow) => void;
   onRowDoubleClick?: (row: TableRow) => void;
   onRowClick?: (row: TableRow) => void;
@@ -127,6 +129,7 @@ export interface TeeemTableViewProps {
   preloadedViews?: SavedView[] | null;
   hideUpdateViewButton?: boolean;
   initialGroupByColumn?: string | null;
+  showFilterButton?: boolean; // Show a "Filters" button in the toolbar
 
   // Server-side operations
   onServerSearch?: (term: string, searchAllColumns: boolean) => void;

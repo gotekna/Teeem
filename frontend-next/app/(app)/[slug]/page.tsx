@@ -4,13 +4,14 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
 import type { TableRow } from "@/components/table/types";
-import { TABLE_IDS, TABLE_SLUGS, urls } from "@/lib/url-utils";
+import { TABLE_IDS, urls, stripUrlSuffix } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
-import { useFoundationData } from "@/hooks/useFoundationData";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Plus } from "lucide-react";
+import { AlertCircle, Plus, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
 
 function PageSkeleton() {
   return (
@@ -22,7 +23,7 @@ function PageSkeleton() {
   );
 }
 
-function ErrorDisplay({ error, tableId }: { error: Error; tableId: number }) {
+function ErrorDisplay({ error, slug }: { error: Error; slug: string }) {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center gap-2 text-destructive">
@@ -30,7 +31,7 @@ function ErrorDisplay({ error, tableId }: { error: Error; tableId: number }) {
         <h1 className="text-xl font-semibold">Failed to load table</h1>
       </div>
       <p className="text-sm text-muted-foreground">
-        Could not load data for Table #{tableId}
+        Could not load data for &quot;{slug}&quot;
       </p>
       <pre className="text-xs bg-muted p-4 rounded overflow-auto">
         {error.message}
@@ -44,32 +45,34 @@ function TablePageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  const tableId = Number(params.tableId);
-  const slug = params.slug as string;
+  const rawSlug = params.slug as string;
   const tab = searchParams.get("tab");
+
+  // Strip the _GOD_LOVES_YOU_ suffix to get the clean slug
+  const cleanSlug = stripUrlSuffix(rawSlug);
 
   const [activeTab, setActiveTab] = useState(tab || "data");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showViewsManager, setShowViewsManager] = useState(false);
+
+  // Load foundation data by slug
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug(cleanSlug);
+
+  // Get table ID from foundation (needed for UI config)
+  const tableId = foundation?.id || 0;
 
   // Handle row double-click - navigate to full page for supported tables
   const handleRowDoubleClick = (row: TableRow) => {
     console.log("[TablePage] Double-click on row:", row.id, "tableId:", tableId);
 
     if (tableId === TABLE_IDS.JOBS) {
-      // Navigate to job detail page
-      const title = row.title || row.job_title || row.name;
-      const slug = title ? String(title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : String(row.id);
-      router.push(`/jobs/${slug}`);
+      router.push(`/jobs/${row.id}`);
     } else if (tableId === TABLE_IDS.CONTACTS) {
-      // Navigate to contact detail page
-      const name = row.full_name || row.name;
-      const slug = name ? String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : String(row.id);
-      router.push(`/contacts/${slug}`);
+      router.push(`/contacts/${row.id}`);
     } else if (tableId === TABLE_IDS.PRICEBOOK) {
-      // Navigate to pricebook detail page
-      const code = row.item_code || row.code;
-      const slug = code ? String(code).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : String(row.id);
-      router.push(`/pricebook/${slug}`);
+      router.push(`/pricebook/${row.id}`);
+    } else if (tableId === TABLE_IDS.COMPANIES) {
+      router.push(`/companies/${row.id}`);
     } else {
       console.log("[TablePage] No detail page for table:", tableId);
     }
@@ -78,30 +81,20 @@ function TablePageContent() {
   // Get UI configuration for this table
   const uiConfig = getTableUIConfig(tableId);
 
-  // Load foundation data using unified hook
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationData(tableId);
-
   // Validate URL has _GOD_LOVES_YOU_ suffix
   useEffect(() => {
-    if (slug && !slug.includes("_GOD_LOVES_YOU_")) {
-      const tableName = TABLE_SLUGS[tableId] || `table-${tableId}`;
-      router.replace(urls.table(tableId, tableName, tab || undefined));
+    if (rawSlug && !rawSlug.includes("_GOD_LOVES_YOU_")) {
+      router.replace(`/${cleanSlug}_GOD_LOVES_YOU_${tab ? `?tab=${tab}` : ''}`);
     }
-  }, [tableId, slug, tab, router]);
-
-  // Parse the slug for item detection
-  const cleanSlug = slug?.replace(/_GOD_LOVES_YOU_$/i, "") || "";
-  const itemIdMatch = cleanSlug.match(/-(\d+)(?:-|$)/);
-  const itemId = itemIdMatch ? itemIdMatch[1] : null;
+  }, [rawSlug, cleanSlug, tab, router]);
 
   // Get table name from foundation or fallback
-  const tableName = foundation?.name || `Table ${tableId}`;
+  const tableName = foundation?.name || cleanSlug;
 
   // Handle tab changes - update URL
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
-    const newUrl = urls.table(tableId, cleanSlug, newTab);
-    router.replace(newUrl, { scroll: false });
+    router.replace(`/${cleanSlug}_GOD_LOVES_YOU_?tab=${newTab}`, { scroll: false });
   };
 
   // Set initial tab from URL or config
@@ -120,36 +113,31 @@ function TablePageContent() {
   }
 
   if (error) {
-    return <ErrorDisplay error={error} tableId={tableId} />;
+    return <ErrorDisplay error={error} slug={cleanSlug} />;
   }
 
   // Handle add new record
   const handleAddNew = () => {
-    // For now, just log - we'll need to implement a create modal
     console.log("[TablePage] Add new record for table:", tableId);
     setShowAddModal(true);
-    // TODO: Open create modal or navigate to create page
   };
 
   // Handle row click - navigate to detail page
   const handleRowClick = (row: { id: number | string; [key: string]: unknown }) => {
     console.log('handleRowClick called with row:', row, 'tableId:', tableId);
-    // Use dedicated detail pages for known tables
     switch (tableId) {
-      case 204: // Jobs - use /jobs/[id] route
-        console.log('Navigating to /jobs/' + row.id);
+      case TABLE_IDS.JOBS:
         router.push(`/jobs/${row.id}`);
         break;
-      case 214: // Contacts - use /contacts/[id] route
+      case TABLE_IDS.CONTACTS:
         router.push(`/contacts/${row.id}`);
         break;
-      case 353: // Companies - use /companies/[id] route
+      case TABLE_IDS.COMPANIES:
         router.push(`/companies/${row.id}`);
         break;
       default:
-        // For other tables, use generic item URL
-        const itemName = (row.title || row.name || row.job_title || '') as string;
-        router.push(urls.tableItem(tableId, row.id, itemName || undefined));
+        // For other tables, use the slug-based URL with item ID
+        router.push(`/${cleanSlug}/${row.id}_GOD_LOVES_YOU_`);
     }
   };
 
@@ -161,9 +149,13 @@ function TablePageContent() {
     </Button>
   ) : null;
 
-  // Note: Filter functionality is built into TeeemTableView's three-dot menu
-  // No need for a separate filter button - it's available via "Filter by this column" in column headers
-  // and the cascade filter system in the menu
+  // Custom actions - Filters button (same as Gold Standard)
+  const customActions = (
+    <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
+      <Filter className="h-4 w-4 mr-2" />
+      Filters
+    </Button>
+  );
 
   // Common table props
   const tableProps = {
@@ -182,6 +174,7 @@ function TablePageContent() {
     onRowDoubleClick: handleRowDoubleClick,
     onRowClick: handleRowClick,
     leftActions: leftActions,
+    customActions: customActions,
   };
 
   return (
@@ -190,13 +183,11 @@ function TablePageContent() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          <span className="font-mono">Table #{tableId}</span>
           {foundation?.table_type === 'system' && (
-            <span className="ml-2 text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded">
+            <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded">
               System
             </span>
           )}
-          {itemId && <span className="ml-2">• Item #{itemId}</span>}
         </p>
       </div>
 
@@ -231,7 +222,6 @@ function TablePageContent() {
                       tableName={tableName}
                     />
                   )}
-                  {/* Fallback to table view for unknown tab types */}
                   {!["data", "schema", "connections"].includes(t.id) && (
                     <TeeemTableView {...tableProps} />
                   )}
@@ -241,7 +231,6 @@ function TablePageContent() {
           ))}
         </Tabs>
       ) : (
-        /* No tabs - just show table */
         <div className="flex-1 min-h-0">
           <TeeemTableView {...tableProps} />
         </div>
@@ -255,6 +244,23 @@ function TablePageContent() {
         tableName={tableName}
         columns={columns}
         onSuccess={refresh}
+      />
+
+      {/* Global Views Manager */}
+      <GlobalViewsManager
+        open={showViewsManager}
+        onOpenChange={setShowViewsManager}
+        foundationId={tableId}
+        columns={columns
+          .filter(col => col.key !== 'select' && col.key !== 'actions')
+          .map((col, index) => ({
+            id: col.id || index,
+            column_name: col.key,
+            name: col.label,
+            column_type: col.column_type || 'single_line_text',
+            position: index,
+          }))}
+        onViewsChange={refresh}
       />
     </div>
   );

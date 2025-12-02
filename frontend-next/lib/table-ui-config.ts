@@ -5,7 +5,15 @@
  * This is separate from the Foundation data which comes from the API.
  */
 
-import { TABLE_IDS } from './url-utils';
+// Hardcoded table IDs (these are stable in production)
+const HARDCODED_TABLE_IDS = {
+  GOLD_STANDARD: 1,
+  JOBS: 204,
+  PRICEBOOK: 205,
+  CONTACTS: 214,
+  COMPANIES: 353,
+  FEATURES_TRACKING: 428,
+};
 
 /**
  * Tab configuration for tables with multiple views
@@ -27,6 +35,7 @@ export interface TableUIConfig {
   enableImport?: boolean;
   enableExport?: boolean;
   enableSchemaEditor?: boolean;
+  showFilterButton?: boolean;
 
   // Row behavior
   rowClickBehavior?: 'view' | 'edit' | 'none';
@@ -44,6 +53,7 @@ export const DEFAULT_TABLE_UI_CONFIG: TableUIConfig = {
   enableExport: true,
   enableImport: false,
   enableSchemaEditor: false,
+  showFilterButton: true,
   rowClickBehavior: 'none',
   viewOnly: false,
 };
@@ -54,7 +64,7 @@ export const DEFAULT_TABLE_UI_CONFIG: TableUIConfig = {
  */
 export const TABLE_UI_CONFIG: Record<number, TableUIConfig> = {
   // Gold Standard (Admin System)
-  [TABLE_IDS.GOLD_STANDARD]: {
+  [HARDCODED_TABLE_IDS.GOLD_STANDARD]: {
     tabs: [
       { id: 'data', label: 'Data' },
       { id: 'schema', label: 'Schema' },
@@ -67,32 +77,34 @@ export const TABLE_UI_CONFIG: Record<number, TableUIConfig> = {
   },
 
   // Jobs
-  [TABLE_IDS.JOBS]: {
+  [HARDCODED_TABLE_IDS.JOBS]: {
     enableExport: true,
+    enableImport: true,
+    enableSchemaEditor: true,
     rowClickBehavior: 'view',
   },
 
   // Contacts
-  [TABLE_IDS.CONTACTS]: {
+  [HARDCODED_TABLE_IDS.CONTACTS]: {
     enableExport: true,
     rowClickBehavior: 'view',
   },
 
   // Price Book
-  [TABLE_IDS.PRICEBOOK]: {
+  [HARDCODED_TABLE_IDS.PRICEBOOK]: {
     enableExport: true,
     enableImport: true,
     enableSchemaEditor: true,
   },
 
   // Companies
-  [TABLE_IDS.COMPANIES]: {
+  [HARDCODED_TABLE_IDS.COMPANIES]: {
     enableExport: true,
     rowClickBehavior: 'view',
   },
 
   // Features Tracking
-  [TABLE_IDS.FEATURES_TRACKING]: {
+  [HARDCODED_TABLE_IDS.FEATURES_TRACKING]: {
     enableExport: true,
     initialGroupByColumn: 'feature_chapter',
   },

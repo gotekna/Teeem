@@ -10,8 +10,10 @@ import { TeeemTableView } from "@/components/table";
 import type { TableColumn, TableRow, SavedView } from "@/components/table/types";
 import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
+import { getTableUIConfig } from "@/lib/table-ui-config";
 import { Loader } from "@/components/ui/loader";
-import { Plus } from "lucide-react";
+import { Plus, Filter } from "lucide-react";
+import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
 
 interface Job {
   id: number;
@@ -47,9 +49,11 @@ export default function JobsPage() {
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [views, setViews] = useState<SavedView[]>([]);
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
+  const [showViewsManager, setShowViewsManager] = useState(false);
 
   // Jobs table is foundation ID 204
   const JOBS_TABLE_ID = 204;
+  const tableConfig = getTableUIConfig(JOBS_TABLE_ID);
 
   useEffect(() => {
     loadJobs();
@@ -130,13 +134,13 @@ export default function JobsPage() {
       job_status: typeof job.job_status === 'object' && job.job_status !== null
         ? (job.job_status as { name?: string }).name || ''
         : job.job_status,
-      // Keep original objects for filtering if needed
+      // Map _id columns to show names (for views that use job_type_id instead of job_type)
       job_type_id: typeof job.job_type === 'object' && job.job_type !== null
-        ? (job.job_type as { id?: number }).id
-        : undefined,
+        ? (job.job_type as { name?: string }).name || ''
+        : job.job_type,
       job_status_id: typeof job.job_status === 'object' && job.job_status !== null
-        ? (job.job_status as { id?: number }).id
-        : undefined,
+        ? (job.job_status as { name?: string }).name || ''
+        : job.job_status,
     }));
   }, [jobs]);
 
@@ -194,31 +198,6 @@ export default function JobsPage() {
 
   const handleServerSearch = (term: string, searchAllColumns: boolean) => {
     loadJobs(term, searchAllColumns);
-  };
-
-  const handleExport = () => {
-    // Export jobs to CSV
-    const headers = ["ID", "TED #", "Title", "Type", "Status", "Stage", "Location", "Supervisor", "Contract Value"];
-    const rows = jobs.map((j) => [
-      j.id,
-      j.ted_number || "",
-      j.title,
-      j.job_type || "",
-      j.job_status || "",
-      j.stage || "",
-      j.location || "",
-      j.site_supervisor_name || "",
-      j.contract_value || "",
-    ]);
-
-    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `jobs-export-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   if (loading) {
@@ -297,13 +276,36 @@ export default function JobsPage() {
           onRowDoubleClick={handleRowDoubleClick}
           onServerSearch={handleServerSearch}
           serverSearchLoading={serverSearchLoading}
-          enableExport={true}
-          onExport={handleExport}
+          enableExport={tableConfig.enableExport}
+          enableImport={tableConfig.enableImport}
+          enableSchemaEditor={tableConfig.enableSchemaEditor}
           preloadedViews={views}
           onRefresh={() => loadJobs()}
+          customActions={
+            <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+            </Button>
+          }
         />
       </div>
 
+      {/* Global Views Manager */}
+      <GlobalViewsManager
+        open={showViewsManager}
+        onOpenChange={setShowViewsManager}
+        foundationId={JOBS_TABLE_ID}
+        columns={tableColumns
+          .filter(col => col.key !== 'select' && col.key !== 'actions')
+          .map((col, index) => ({
+            id: col.id || index,
+            column_name: col.key,
+            name: col.label,
+            column_type: col.column_type || 'single_line_text',
+            position: index,
+          }))}
+        onViewsChange={() => loadJobs()}
+      />
     </div>
   );
 }

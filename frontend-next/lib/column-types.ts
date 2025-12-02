@@ -436,6 +436,14 @@ export const getColumnTypeSqlType = (value: string): string => {
 };
 
 /**
+ * Get the validation rules for a column type value
+ */
+export const getColumnTypeValidationRules = (value: string): string => {
+  const type = COLUMN_TYPES.find((t) => t.value === value);
+  return type?.validationRules || "";
+};
+
+/**
  * Get the icon component for a column type value
  */
 export const getColumnTypeIcon = (value: string): LucideIcon => {

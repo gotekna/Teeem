@@ -36,7 +36,13 @@ import {
   FolderOpen,
   Database,
   FileText,
+  Calculator,
+  List,
+  Link2,
+  Plus,
+  Trash2,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -59,6 +65,10 @@ interface EditedColumn {
   header_align: "left" | "center" | "right";
   data_align: "left" | "center" | "right";
   column_group: string;
+  formula: string;
+  choices: string[];
+  lookup_table_id: number | null;
+  lookup_display_column: string;
 }
 
 // Get column metadata from COLUMN_TYPES
@@ -97,7 +107,7 @@ export function ColumnEditorModal({
   onUpdate,
 }: ColumnEditorModalProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"info" | "type">("info");
+  const [activeTab, setActiveTab] = useState<"info" | "type" | "formula" | "choices" | "lookup">("info");
   const [editedColumn, setEditedColumn] = useState<EditedColumn>({
     name: "",
     column_name: "",
@@ -105,14 +115,67 @@ export function ColumnEditorModal({
     header_align: "left",
     data_align: "left",
     column_group: "",
+    formula: "",
+    choices: [],
+    lookup_table_id: null,
+    lookup_display_column: "",
   });
+  const [newChoice, setNewChoice] = useState("");
   const [saving, setSaving] = useState(false);
   const [newColumnType, setNewColumnType] = useState("");
+  const [availableTables, setAvailableTables] = useState<Array<{ id: number; name: string }>>([]);
+  const [loadingTables, setLoadingTables] = useState(false);
+  const [targetTableColumns, setTargetTableColumns] = useState<Array<{ column_name: string; name: string }>>([]);
+  const [loadingTargetColumns, setLoadingTargetColumns] = useState(false);
 
   // System-generated columns
   const isSystemGenerated = column
     ? ["id", "created_at", "updated_at"].includes(column.key)
     : false;
+
+  // Load available tables for lookup dropdown
+  useEffect(() => {
+    const loadTables = async () => {
+      if (!isOpen) return;
+      setLoadingTables(true);
+      try {
+        const response = await api.get<{ success: boolean; foundations: Array<{ id: number; name: string }> }>("/api/v1/foundations");
+        if (response?.foundations) {
+          setAvailableTables(response.foundations.sort((a, b) => a.name.localeCompare(b.name)));
+        }
+      } catch (error) {
+        console.error("Failed to load tables:", error);
+      } finally {
+        setLoadingTables(false);
+      }
+    };
+    loadTables();
+  }, [isOpen]);
+
+  // Load columns from target table when lookup_table_id changes
+  useEffect(() => {
+    const loadTargetColumns = async () => {
+      if (!editedColumn.lookup_table_id) {
+        setTargetTableColumns([]);
+        return;
+      }
+      setLoadingTargetColumns(true);
+      try {
+        const response = await api.get<{ success: boolean; foundation: { columns: Array<{ column_name: string; name: string }> } }>(
+          `/api/v1/foundations/${editedColumn.lookup_table_id}`
+        );
+        if (response?.foundation?.columns) {
+          setTargetTableColumns(response.foundation.columns);
+        }
+      } catch (error) {
+        console.error("Failed to load target table columns:", error);
+        setTargetTableColumns([]);
+      } finally {
+        setLoadingTargetColumns(false);
+      }
+    };
+    loadTargetColumns();
+  }, [editedColumn.lookup_table_id]);
 
   // Sync state when column changes
   useEffect(() => {
@@ -124,6 +187,10 @@ export function ColumnEditorModal({
         header_align: (column as any).header_align || "left",
         data_align: (column as any).data_align || "left",
         column_group: (column as any).column_group || "",
+        formula: (column as any).formula || "",
+        choices: column.choices || [],
+        lookup_table_id: column.lookup_config?.target_table_id || null,
+        lookup_display_column: column.lookup_config?.display_column || "",
       });
       setNewColumnType(column.column_type || "text");
     }
@@ -252,7 +319,7 @@ export function ColumnEditorModal({
           </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "info" | "type")} className="flex-1 flex flex-col overflow-hidden">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "info" | "type" | "formula" | "choices" | "lookup")} className="flex-1 flex flex-col overflow-hidden">
           <div className="border-b px-6">
             <TabsList className="h-10">
               <TabsTrigger value="info" className="gap-2">
@@ -263,6 +330,27 @@ export function ColumnEditorModal({
                 <RefreshCw className="h-4 w-4" />
                 Change Type
               </TabsTrigger>
+              {/* Show Formula tab for computed columns */}
+              {editedColumn.data_type === "computed" && (
+                <TabsTrigger value="formula" className="gap-2">
+                  <Calculator className="h-4 w-4" />
+                  Formula
+                </TabsTrigger>
+              )}
+              {/* Show Choices tab for choice/dropdown columns */}
+              {(editedColumn.data_type === "choice" || editedColumn.data_type === "dropdown") && (
+                <TabsTrigger value="choices" className="gap-2">
+                  <List className="h-4 w-4" />
+                  Choices
+                </TabsTrigger>
+              )}
+              {/* Show Lookup tab for lookup/relationship columns */}
+              {(editedColumn.data_type === "lookup" || editedColumn.data_type === "multiple_lookups") && (
+                <TabsTrigger value="lookup" className="gap-2">
+                  <Link2 className="h-4 w-4" />
+                  Lookup
+                </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -507,6 +595,501 @@ export function ColumnEditorModal({
                         <>
                           <RefreshCw className="h-4 w-4 mr-2" />
                           Convert Column Type
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Formula Tab - for computed columns with sub-tabs */}
+              <TabsContent value="formula" className="m-0 space-y-4">
+                <Tabs defaultValue="formula-editor" className="w-full">
+                  <TabsList className="w-full justify-start">
+                    <TabsTrigger value="formula-editor" className="gap-2">
+                      <Calculator className="h-4 w-4" />
+                      Formula
+                    </TabsTrigger>
+                    <TabsTrigger value="text-template" className="gap-2">
+                      <FileText className="h-4 w-4" />
+                      Text Template
+                    </TabsTrigger>
+                    <TabsTrigger value="linked-data" className="gap-2">
+                      <Link2 className="h-4 w-4" />
+                      Linked Data
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* Formula Editor Sub-Tab */}
+                  <TabsContent value="formula-editor" className="mt-4 space-y-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Excel-like Formula</CardTitle>
+                        <CardDescription>
+                          Write formulas using functions like SUM, AVG, IF, CONCAT
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="space-y-2">
+                          <Label>Formula Expression</Label>
+                          <Textarea
+                            value={editedColumn.formula}
+                            onChange={(e) =>
+                              setEditedColumn((prev) => ({ ...prev, formula: e.target.value }))
+                            }
+                            placeholder="e.g., SUM({quantity} * {unit_price})"
+                            rows={4}
+                            className="font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Click to insert column</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {allColumns
+                              .filter(c => c.key !== column?.key && c.key !== "select" && c.key !== "actions")
+                              .map((col) => (
+                                <Badge
+                                  key={col.key}
+                                  variant="secondary"
+                                  className="cursor-pointer hover:bg-primary/20 font-mono text-xs"
+                                  onClick={() => {
+                                    setEditedColumn((prev) => ({
+                                      ...prev,
+                                      formula: prev.formula + `{${col.key}}`,
+                                    }));
+                                  }}
+                                >
+                                  {col.key}
+                                </Badge>
+                              ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Operators</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {["+", "-", "*", "/", "(", ")", "=", ">", "<", ","].map((op) => (
+                              <Badge
+                                key={op}
+                                variant="outline"
+                                className="cursor-pointer hover:bg-primary/20 font-mono"
+                                onClick={() => {
+                                  setEditedColumn((prev) => ({
+                                    ...prev,
+                                    formula: prev.formula + ` ${op} `,
+                                  }));
+                                }}
+                              >
+                                {op}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Functions</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {["SUM", "AVG", "IF", "CONCAT", "ROUND", "ABS", "UPPER", "LOWER", "LEN", "LOOKUP", "ROLLUP"].map((fn) => (
+                              <Badge
+                                key={fn}
+                                variant="outline"
+                                className="cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900 text-blue-700 dark:text-blue-300 font-mono text-xs"
+                                onClick={() => {
+                                  setEditedColumn((prev) => ({
+                                    ...prev,
+                                    formula: prev.formula + `${fn}()`,
+                                  }));
+                                }}
+                              >
+                                {fn}()
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-muted/50 rounded-md text-xs space-y-1">
+                          <p><strong>Examples:</strong></p>
+                          <p className="font-mono text-muted-foreground">{`{quantity} * {unit_price}`}</p>
+                          <p className="font-mono text-muted-foreground">{`IF({status} = "paid", {amount}, 0)`}</p>
+                          <p className="font-mono text-muted-foreground">{`CONCAT({first_name}, " ", {last_name})`}</p>
+                          <p className="font-mono text-muted-foreground">{`ROUND({total} * 1.1, 2)`}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Text Template Sub-Tab */}
+                  <TabsContent value="text-template" className="mt-4 space-y-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Text Template Builder</CardTitle>
+                        <CardDescription>
+                          Create text by combining columns with static text
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
+                            Use <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded">{"{column_name}"}</code> to insert column values.
+                            This will be converted to a CONCAT formula.
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Template</Label>
+                          <Textarea
+                            value={editedColumn.formula}
+                            onChange={(e) =>
+                              setEditedColumn((prev) => ({ ...prev, formula: e.target.value }))
+                            }
+                            placeholder="e.g., {first_name} {last_name} - {email}"
+                            rows={4}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Click to insert column</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {allColumns
+                              .filter(c => c.key !== column?.key && c.key !== "select" && c.key !== "actions")
+                              .map((col) => (
+                                <Badge
+                                  key={col.key}
+                                  variant="secondary"
+                                  className="cursor-pointer hover:bg-primary/20 text-xs"
+                                  onClick={() => {
+                                    setEditedColumn((prev) => ({
+                                      ...prev,
+                                      formula: prev.formula + `{${col.key}}`,
+                                    }));
+                                  }}
+                                >
+                                  {col.label || col.key}
+                                </Badge>
+                              ))}
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-muted/50 rounded-md text-xs space-y-1">
+                          <p><strong>Examples:</strong></p>
+                          <p><span className="text-muted-foreground">Full Name:</span> <code>{`{first_name} {last_name}`}</code></p>
+                          <p><span className="text-muted-foreground">Address:</span> <code>{`{street}, {city} {state} {postcode}`}</code></p>
+                          <p><span className="text-muted-foreground">Reference:</span> <code>{`INV-{id}-{year}`}</code></p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+
+                  {/* Linked Data Sub-Tab */}
+                  <TabsContent value="linked-data" className="mt-4 space-y-4">
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base">Cross-Table References</CardTitle>
+                        <CardDescription>
+                          Pull data from related tables using LOOKUP and ROLLUP
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
+                            <strong>LOOKUP:</strong> Get a value from a linked record<br />
+                            <strong>ROLLUP:</strong> Aggregate values from linked records (SUM, AVG, COUNT, MIN, MAX)
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Formula</Label>
+                          <Textarea
+                            value={editedColumn.formula}
+                            onChange={(e) =>
+                              setEditedColumn((prev) => ({ ...prev, formula: e.target.value }))
+                            }
+                            placeholder="e.g., LOOKUP({contact_id}, contacts, email)"
+                            rows={4}
+                            className="font-mono"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Lookup columns in this table</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {allColumns
+                              .filter(c => c.column_type === "lookup" || c.column_type === "multiple_lookups")
+                              .map((col) => (
+                                <Badge
+                                  key={col.key}
+                                  variant="outline"
+                                  className="cursor-pointer hover:bg-green-100 dark:hover:bg-green-900 text-green-700 dark:text-green-300 text-xs"
+                                  onClick={() => {
+                                    setEditedColumn((prev) => ({
+                                      ...prev,
+                                      formula: prev.formula + `LOOKUP({${col.key}}, table_name, column_name)`,
+                                    }));
+                                  }}
+                                >
+                                  🔗 {col.label || col.key}
+                                </Badge>
+                              ))}
+                            {allColumns.filter(c => c.column_type === "lookup" || c.column_type === "multiple_lookups").length === 0 && (
+                              <p className="text-xs text-muted-foreground">No lookup columns in this table</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-3 bg-muted/50 rounded-md text-xs space-y-2">
+                          <p><strong>LOOKUP Syntax:</strong></p>
+                          <p className="font-mono text-muted-foreground">LOOKUP({"{lookup_column}"}, target_table, field_to_get)</p>
+                          <p className="mt-2"><strong>ROLLUP Syntax:</strong></p>
+                          <p className="font-mono text-muted-foreground">ROLLUP({"{link_column}"}, linked_table, field, SUM)</p>
+                          <p className="mt-2"><strong>Examples:</strong></p>
+                          <p className="font-mono text-muted-foreground">LOOKUP({"{contact_id}"}, contacts, email)</p>
+                          <p className="font-mono text-muted-foreground">ROLLUP({"{job_id}"}, line_items, amount, SUM)</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
+
+                <Button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="w-full"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Formula
+                    </>
+                  )}
+                </Button>
+              </TabsContent>
+
+              {/* Choices Tab - for choice/dropdown columns */}
+              <TabsContent value="choices" className="m-0 space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <List className="h-4 w-4" />
+                      Dropdown Choices
+                    </CardTitle>
+                    <CardDescription>
+                      Define the available options for this dropdown field.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Add New Choice</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={newChoice}
+                          onChange={(e) => setNewChoice(e.target.value)}
+                          placeholder="Enter a choice value"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && newChoice.trim()) {
+                              e.preventDefault();
+                              if (!editedColumn.choices.includes(newChoice.trim())) {
+                                setEditedColumn((prev) => ({
+                                  ...prev,
+                                  choices: [...prev.choices, newChoice.trim()],
+                                }));
+                              }
+                              setNewChoice("");
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          onClick={() => {
+                            if (newChoice.trim() && !editedColumn.choices.includes(newChoice.trim())) {
+                              setEditedColumn((prev) => ({
+                                ...prev,
+                                choices: [...prev.choices, newChoice.trim()],
+                              }));
+                              setNewChoice("");
+                            }
+                          }}
+                          disabled={!newChoice.trim()}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Current Choices ({editedColumn.choices.length})</Label>
+                      <div className="border rounded-lg divide-y max-h-[300px] overflow-y-auto">
+                        {editedColumn.choices.length === 0 ? (
+                          <div className="p-4 text-center text-muted-foreground text-sm">
+                            No choices defined yet. Add choices above.
+                          </div>
+                        ) : (
+                          editedColumn.choices.map((choice, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                              <span className="text-sm">{choice}</span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditedColumn((prev) => ({
+                                    ...prev,
+                                    choices: prev.choices.filter((_, i) => i !== index),
+                                  }));
+                                }}
+                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="w-full"
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Choices
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Lookup Tab - for lookup/relationship columns */}
+              <TabsContent value="lookup" className="m-0 space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Link2 className="h-4 w-4" />
+                      Lookup Configuration
+                    </CardTitle>
+                    <CardDescription>
+                      Configure the relationship to another table.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>Note:</strong> Lookup columns link to records in another table.
+                        The display column determines what value is shown.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Target Table</Label>
+                      <Select
+                        value={editedColumn.lookup_table_id?.toString() || ""}
+                        onValueChange={(value) =>
+                          setEditedColumn((prev) => ({
+                            ...prev,
+                            lookup_table_id: value ? parseInt(value) : null,
+                            lookup_display_column: "", // Reset display column when table changes
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder={loadingTables ? "Loading tables..." : "Select a table"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableTables.map((table) => (
+                            <SelectItem key={table.id} value={table.id.toString()}>
+                              <span className="flex items-center gap-2">
+                                <span className="font-medium">{table.name}</span>
+                                <span className="text-xs text-muted-foreground">#{table.id}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        The table this column links to
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Display Column</Label>
+                      <Select
+                        value={editedColumn.lookup_display_column || ""}
+                        onValueChange={(value) =>
+                          setEditedColumn((prev) => ({
+                            ...prev,
+                            lookup_display_column: value,
+                          }))
+                        }
+                        disabled={!editedColumn.lookup_table_id || loadingTargetColumns}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              !editedColumn.lookup_table_id
+                                ? "Select a target table first"
+                                : loadingTargetColumns
+                                  ? "Loading columns..."
+                                  : "Select display column"
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {targetTableColumns.map((col) => (
+                            <SelectItem key={col.column_name} value={col.column_name}>
+                              <span className="flex items-center gap-2">
+                                <span>{col.name || col.column_name}</span>
+                                <span className="text-xs text-muted-foreground font-mono">[{col.column_name}]</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        The column from the target table to display (e.g., name, title)
+                      </p>
+                    </div>
+
+                    {editedColumn.lookup_table_id && (
+                      <div className="p-3 bg-muted/50 rounded-md border">
+                        <div className="text-sm">
+                          <strong>Selected:</strong>{" "}
+                          {availableTables.find(t => t.id === editedColumn.lookup_table_id)?.name || "Unknown"}
+                          {editedColumn.lookup_display_column && (
+                            <span className="ml-2 text-muted-foreground">
+                              → showing <code className="bg-muted px-1 rounded">{editedColumn.lookup_display_column}</code>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="w-full"
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Save Lookup Config
                         </>
                       )}
                     </Button>

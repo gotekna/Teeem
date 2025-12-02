@@ -1,5 +1,6 @@
 // URL Utility Functions
-// All URLs in TEEEM use format: /{tableId}/{slug}_GOD_LOVES_YOU_?tab={tab}
+// All URLs in TEEEM use format: /{slug}_GOD_LOVES_YOU_?tab={tab}
+// Note: tableId has been removed from URLs - we use slug-based routing now
 
 import { getTableIds, getTableSlug, initTableIds } from '@/hooks/useTableIds';
 
@@ -61,25 +62,47 @@ export function slugify(text: string, maxLength = 50): string {
 }
 
 /**
- * Build a table URL with the format: /{tableId}/{slug}_GOD_LOVES_YOU_?tab={tab}
- * @param tableId - The table ID (e.g., 204 for Jobs)
+ * Build a table URL with the format: /{slug}_GOD_LOVES_YOU_?tab={tab}
  * @param slug - The slug (e.g., "jobs" or "job-123-smith-st")
  * @param tab - Optional tab name
  */
-export function buildTableUrl(tableId: number, slug: string, tab?: string): string {
+export function buildTableUrl(slug: string, tab?: string): string {
+  const baseSlug = slugify(slug);
+  const base = `/${baseSlug}${URL_SUFFIX}`;
+  return tab ? `${base}?tab=${tab}` : base;
+}
+
+/**
+ * @deprecated Use buildTableUrl(slug, tab) instead - tableId removed from URLs
+ */
+export function buildTableUrlLegacy(tableId: number, slug: string, tab?: string): string {
   const baseSlug = slugify(slug);
   const base = `/${tableId}/${baseSlug}${URL_SUFFIX}`;
   return tab ? `${base}?tab=${tab}` : base;
 }
 
 /**
- * Build a table item URL: /{tableId}/{itemSlug}_GOD_LOVES_YOU_?tab={tab}
- * @param tableId - The table ID
+ * Build a table item URL: /{tableSlug}/{itemId}_GOD_LOVES_YOU_?tab={tab}
+ * @param tableSlug - The table slug (e.g., "jobs", "contacts")
  * @param itemId - The item ID or slug
  * @param itemName - Optional item name for readable URL
  * @param tab - Optional tab name
  */
 export function buildItemUrl(
+  tableSlug: string,
+  itemId: number | string,
+  itemName?: string,
+  tab?: string
+): string {
+  // For item URLs, we use /{tableSlug}/{itemId}_GOD_LOVES_YOU_
+  const base = `/${slugify(tableSlug)}/${itemId}${URL_SUFFIX}`;
+  return tab ? `${base}?tab=${tab}` : base;
+}
+
+/**
+ * @deprecated Use buildItemUrl(tableSlug, itemId, itemName, tab) instead
+ */
+export function buildItemUrlLegacy(
   tableId: number,
   itemId: number | string,
   itemName?: string,
@@ -91,7 +114,7 @@ export function buildItemUrl(
   } else {
     slug = `item-${itemId}`;
   }
-  return buildTableUrl(tableId, slug, tab);
+  return buildTableUrlLegacy(tableId, slug, tab);
 }
 
 /**
@@ -136,63 +159,64 @@ export function isNumericId(value: string): boolean {
 
 /**
  * URL builder helpers for common routes
- * Format: /{tableId}/{slug}_GOD_LOVES_YOU_?tab={tab}
+ * Format: /{slug}_GOD_LOVES_YOU_?tab={tab}
  */
 export const urls = {
   // === TABLE LIST PAGES ===
 
-  jobs: (tab?: string) => buildTableUrl(TABLE_IDS.JOBS, "jobs", tab),
-  contacts: (tab?: string) => buildTableUrl(TABLE_IDS.CONTACTS, "contacts", tab),
-  pricebook: (tab?: string) => buildTableUrl(TABLE_IDS.PRICEBOOK, "pricebook", tab),
-  companies: (tab?: string) => buildTableUrl(TABLE_IDS.COMPANIES, "companies", tab),
-  goldStandard: (tab?: string) => buildTableUrl(TABLE_IDS.GOLD_STANDARD, "gold-standard", tab),
-  features: (tab?: string) => buildTableUrl(TABLE_IDS.FEATURES_TRACKING, "features", tab),
+  jobs: (tab?: string) => buildTableUrl("jobs", tab),
+  contacts: (tab?: string) => buildTableUrl("contacts", tab),
+  pricebook: (tab?: string) => buildTableUrl("pricebook", tab),
+  companies: (tab?: string) => buildTableUrl("companies", tab),
+  goldStandard: (tab?: string) => buildTableUrl("gold-standard", tab),
+  features: (tab?: string) => buildTableUrl("features", tab),
 
   // === ITEM DETAIL PAGES ===
 
   job: (idOrTitle: number | string, title?: string, tab?: string) => {
     if (typeof idOrTitle === "number") {
-      return buildItemUrl(TABLE_IDS.JOBS, idOrTitle, title, tab);
+      return buildItemUrl("jobs", idOrTitle, title, tab);
     }
     // If string, it might be a title - slugify it
     const slug = slugify(String(idOrTitle)
       .replace(/\s+(qld|nsw|vic|sa|wa|tas|nt|act)$/i, ""));
-    return buildTableUrl(TABLE_IDS.JOBS, slug, tab);
+    return buildTableUrl(slug, tab);
   },
 
   contact: (idOrName: number | string, name?: string, tab?: string) => {
     if (typeof idOrName === "number") {
-      return buildItemUrl(TABLE_IDS.CONTACTS, idOrName, name, tab);
+      return buildItemUrl("contacts", idOrName, name, tab);
     }
     const slug = slugify(String(idOrName));
-    return buildTableUrl(TABLE_IDS.CONTACTS, slug, tab);
+    return buildTableUrl(slug, tab);
   },
 
   pricebookItem: (idOrCode: number | string, code?: string, tab?: string) => {
     if (typeof idOrCode === "number") {
-      return buildItemUrl(TABLE_IDS.PRICEBOOK, idOrCode, code, tab);
+      return buildItemUrl("pricebook", idOrCode, code, tab);
     }
     const slug = slugify(String(idOrCode));
-    return buildTableUrl(TABLE_IDS.PRICEBOOK, slug, tab);
+    return buildTableUrl(slug, tab);
   },
 
   company: (idOrName: number | string, name?: string, tab?: string) => {
     if (typeof idOrName === "number") {
-      return buildItemUrl(TABLE_IDS.COMPANIES, idOrName, name, tab);
+      return buildItemUrl("companies", idOrName, name, tab);
     }
     const slug = slugify(String(idOrName));
-    return buildTableUrl(TABLE_IDS.COMPANIES, slug, tab);
+    return buildTableUrl(slug, tab);
   },
 
   // === GENERIC TABLE URL ===
 
   table: (tableId: number, slug?: string, tab?: string) => {
     const tableName = TABLE_SLUGS[tableId] || `table-${tableId}`;
-    return buildTableUrl(tableId, slug || tableName, tab);
+    return buildTableUrl(slug || tableName, tab);
   },
 
   tableItem: (tableId: number, itemId: number | string, itemName?: string, tab?: string) => {
-    return buildItemUrl(tableId, itemId, itemName, tab);
+    const tableName = TABLE_SLUGS[tableId] || `table-${tableId}`;
+    return buildItemUrl(tableName, itemId, itemName, tab);
   },
 };
 
