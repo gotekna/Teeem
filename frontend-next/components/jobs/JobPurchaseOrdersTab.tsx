@@ -81,7 +81,8 @@ interface PurchaseOrder {
   required_date?: string;
   supplier?: {
     id: number;
-    name: string;
+    full_name?: string;
+    display_name?: string;
   };
   schedule_task?: {
     id: number;
@@ -246,10 +247,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   };
 
   const filteredPOs = purchaseOrders.filter((po) => {
+    const supplierName = po.supplier?.display_name || po.supplier?.full_name || "";
     const matchesSearch =
       !searchQuery ||
       po.purchase_order_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      po.supplier?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       po.description?.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = !statusFilter || po.status === statusFilter;
@@ -400,11 +402,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            router.push(`/suppliers/${po.supplier!.id}`);
+                            router.push(`/contacts/${po.supplier!.id}`);
                           }}
                           className="text-primary hover:underline"
                         >
-                          {po.supplier.name}
+                          {po.supplier.display_name || po.supplier.full_name}
                         </button>
                       ) : (
                         "-"

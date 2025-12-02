@@ -69,8 +69,11 @@ class PurchaseOrder < ApplicationRecord
 
   # Instance methods
   def calculate_totals
-    self.sub_total = line_items.sum { |item| item.quantity * item.unit_price }
-    self.tax = line_items.sum(&:tax_amount)
+    self.sub_total = line_items.reject(&:marked_for_destruction?).sum { |item|
+      (item.quantity || 0) * (item.unit_price || 0)
+    }
+    # Calculate tax as 10% of subtotal (line item tax_amount may not be calculated yet during nested saves)
+    self.tax = (sub_total * 0.10).round(2)
     self.total = sub_total + tax
 
     # Calculate amount still to be invoiced
