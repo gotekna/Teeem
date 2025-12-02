@@ -381,7 +381,16 @@ module Api
         if @foundation.table_type == 'system'
           record.attributes.each do |key, value|
             next if ['id', 'created_at', 'updated_at'].include?(key)
-            json[key] = value
+            # Use send to go through model accessors (which may have safe decryption wrappers)
+            begin
+              json[key] = record.send(key)
+            rescue ActiveRecord::Encryption::Errors::Decryption => e
+              Rails.logger.warn "Decryption failed for #{record.class.name}##{record.id}.#{key}: #{e.message}"
+              json[key] = nil
+            rescue => e
+              Rails.logger.warn "Error reading #{record.class.name}##{record.id}.#{key}: #{e.message}"
+              json[key] = value
+            end
           end
           return json
         end
