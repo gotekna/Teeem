@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking]
+      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge]
 
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
@@ -339,6 +339,86 @@ module Api
             variance_percentage: variance_percentage.round(2)
           }
         }
+      end
+
+      # POST /api/v1/jobs/:id/merge
+      # Merges secondary jobs into the primary job (this job)
+      # Transfers all related records and then deletes the secondary jobs
+      def merge
+        secondary_job_ids = params[:secondary_job_ids]
+
+        if secondary_job_ids.blank?
+          render json: { success: false, error: 'No secondary jobs provided' }, status: :unprocessable_entity
+          return
+        end
+
+        secondary_jobs = Job.where(id: secondary_job_ids)
+
+        if secondary_jobs.count != secondary_job_ids.length
+          render json: { success: false, error: 'Some secondary jobs not found' }, status: :not_found
+          return
+        end
+
+        merged_count = 0
+
+        ActiveRecord::Base.transaction do
+          secondary_jobs.each do |secondary_job|
+            # Transfer all related records to the primary job
+            # Job Contacts
+            secondary_job.job_contacts.update_all(job_id: @job.id)
+
+            # Purchase Orders
+            secondary_job.purchase_orders.update_all(job_id: @job.id) if secondary_job.respond_to?(:purchase_orders)
+
+            # Quotes
+            secondary_job.quotes.update_all(job_id: @job.id) if secondary_job.respond_to?(:quotes)
+
+            # Tasks
+            secondary_job.tasks.update_all(job_id: @job.id) if secondary_job.respond_to?(:tasks)
+
+            # Chat Messages
+            secondary_job.chat_messages.update_all(job_id: @job.id) if secondary_job.respond_to?(:chat_messages)
+
+            # Emails
+            secondary_job.emails.update_all(job_id: @job.id) if secondary_job.respond_to?(:emails)
+
+            # Documents
+            secondary_job.documents.update_all(job_id: @job.id) if secondary_job.respond_to?(:documents)
+
+            # Notes
+            secondary_job.notes.update_all(job_id: @job.id) if secondary_job.respond_to?(:notes)
+
+            # Attachments
+            secondary_job.attachments.update_all(attachable_id: @job.id) if secondary_job.respond_to?(:attachments)
+
+            # Job Documentation Tabs
+            secondary_job.job_documentation_tabs.update_all(job_id: @job.id) if secondary_job.respond_to?(:job_documentation_tabs)
+
+            # Fill in any blank fields on primary job from secondary job
+            Job.column_names.each do |col|
+              next if %w[id created_at updated_at].include?(col)
+              if @job.send(col).blank? && secondary_job.send(col).present?
+                @job.send("#{col}=", secondary_job.send(col))
+              end
+            end
+
+            # Delete the secondary job
+            secondary_job.destroy!
+            merged_count += 1
+          end
+
+          @job.save!
+        end
+
+        render json: {
+          success: true,
+          message: "Successfully merged #{merged_count} job(s) into #{@job.title || "Job ##{@job.id}"}",
+          primary_job: @job
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
       private
