@@ -44,6 +44,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { RefreshCw, Link2, Unlink } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 
@@ -1669,6 +1670,450 @@ function ActivityTab() {
   );
 }
 
+// Xero Connection Card for BANK tab
+interface XeroConnectionStatus {
+  connected: boolean;
+  connection_status?: string;
+  xero_tenant_name?: string;
+  xero_tenant_id?: string;
+  last_sync_at?: string;
+  last_sync_error?: string;
+  token_expires_at?: string;
+  days_since_sync?: number;
+}
+
+function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: { companyId: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
+  const [status, setStatus] = React.useState<XeroConnectionStatus | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [connecting, setConnecting] = React.useState(false);
+  const [disconnecting, setDisconnecting] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
+
+  React.useEffect(() => {
+    loadStatus();
+  }, [companyId]);
+
+  const loadStatus = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean } & XeroConnectionStatus>(
+        `/api/v1/companies/${companyId}/xero/status`
+      );
+      setStatus(response);
+    } catch (error) {
+      console.error("Failed to load Xero status:", error);
+      setStatus({ connected: false });
+      onConnectionChange?.(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Notify parent when status changes
+  React.useEffect(() => {
+    if (status !== null) {
+      onConnectionChange?.(status.connected);
+    }
+  }, [status?.connected]);
+
+  const handleConnect = async () => {
+    try {
+      setConnecting(true);
+      const response = await api.get<{ success: boolean; authorization_url: string }>(
+        `/api/v1/companies/${companyId}/xero/authorize`
+      );
+      if (response.success && response.authorization_url) {
+        // Open Xero OAuth in new window
+        window.open(response.authorization_url, "_blank", "width=600,height=700");
+        // Start polling for connection status
+        const pollInterval = setInterval(async () => {
+          const statusCheck = await api.get<{ success: boolean } & XeroConnectionStatus>(
+            `/api/v1/companies/${companyId}/xero/status`
+          );
+          if (statusCheck.connected) {
+            clearInterval(pollInterval);
+            setStatus(statusCheck);
+            setConnecting(false);
+          }
+        }, 3000);
+        // Stop polling after 5 minutes
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setConnecting(false);
+        }, 300000);
+      }
+    } catch (error) {
+      console.error("Failed to start Xero connection:", error);
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm("Are you sure you want to disconnect from Xero? This will remove the connection for this company.")) {
+      return;
+    }
+    try {
+      setDisconnecting(true);
+      await api.post(`/api/v1/companies/${companyId}/xero/disconnect`);
+      setStatus({ connected: false });
+    } catch (error) {
+      console.error("Failed to disconnect from Xero:", error);
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  const handleSync = async () => {
+    try {
+      setSyncing(true);
+      await api.post(`/api/v1/companies/${companyId}/xero/sync`);
+      await loadStatus();
+      onSyncComplete?.();
+    } catch (error) {
+      console.error("Failed to sync with Xero:", error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="mb-4">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm text-muted-foreground">Loading Xero status...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mb-4">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className={cn(
+              "w-10 h-10 rounded-lg flex items-center justify-center",
+              status?.connected ? "bg-blue-100 dark:bg-blue-900/30" : "bg-muted"
+            )}>
+              <svg viewBox="0 0 24 24" className={cn("h-6 w-6", status?.connected ? "text-blue-600" : "text-muted-foreground")}>
+                <path fill="currentColor" d="M12.076 2.018C5.956 2.018 1.001 6.974 1.001 13.093c0 6.12 4.955 11.075 11.075 11.075 6.119 0 11.075-4.955 11.075-11.075 0-6.12-4.956-11.075-11.075-11.075zm0 19.875c-4.863 0-8.8-3.937-8.8-8.8s3.937-8.8 8.8-8.8 8.8 3.937 8.8 8.8-3.937 8.8-8.8 8.8z"/>
+                <path fill="currentColor" d="M15.951 10.343l-3.875 2.75-3.875-2.75c-.325-.231-.778-.156-1.009.169-.231.325-.156.778.169 1.009l4.5 3.193c.131.094.281.14.432.14s.3-.047.431-.14l4.5-3.193c.325-.231.4-.684.169-1.009-.231-.325-.684-.4-1.009-.169h-.433z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-medium">
+                Xero Integration
+                {status?.connected && status.xero_tenant_name && (
+                  <span className="ml-2 text-sm font-normal text-muted-foreground">
+                    ({status.xero_tenant_name})
+                  </span>
+                )}
+              </h3>
+              <div className="flex items-center gap-3 text-sm">
+                {status?.connected ? (
+                  <>
+                    <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Connected
+                    </span>
+                    {status.last_sync_at && (
+                      <span className="text-muted-foreground">
+                        Last sync: {format(new Date(status.last_sync_at), "d MMM yyyy, h:mm a")}
+                      </span>
+                    )}
+                    {status.days_since_sync !== undefined && status.days_since_sync !== null && status.days_since_sync > 7 && (
+                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        {status.days_since_sync} days since last sync
+                      </Badge>
+                    )}
+                  </>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <XCircle className="h-3.5 w-3.5" />
+                    Not connected
+                  </span>
+                )}
+                {status?.last_sync_error && (
+                  <Badge variant="destructive" className="text-xs">
+                    Error: {status.last_sync_error}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {status?.connected ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSync}
+                  disabled={syncing}
+                >
+                  {syncing ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Sync Now
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDisconnect}
+                  disabled={disconnecting}
+                  className="text-destructive hover:text-destructive"
+                >
+                  {disconnecting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Unlink className="h-4 w-4 mr-2" />
+                  )}
+                  Disconnect
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={handleConnect}
+                disabled={connecting}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {connecting ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Link2 className="h-4 w-4 mr-2" />
+                )}
+                Connect to Xero
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Bank Transactions Card for BANK tab
+interface BankTransaction {
+  id: number;
+  transaction_date: string;
+  transaction_type: string;
+  amount: number;
+  signed_amount: number;
+  description: string;
+  contact_name: string;
+  reference: string;
+  status: string;
+  is_reconciled: boolean;
+  bank_account_name: string;
+}
+
+interface TransactionSummary {
+  total_transactions: number;
+  total_credits: number;
+  total_debits: number;
+  net_change: number;
+  reconciled_count: number;
+  unreconciled_count: number;
+  date_range: { from: string; to: string };
+}
+
+function BankTransactionsCard({ companyId, isConnected }: { companyId: string; isConnected: boolean }) {
+  const [transactions, setTransactions] = React.useState<BankTransaction[]>([]);
+  const [summary, setSummary] = React.useState<TransactionSummary | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
+  const [dateRange, setDateRange] = React.useState<{ from: string; to: string }>({
+    from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0]
+  });
+
+  React.useEffect(() => {
+    if (isConnected) {
+      loadTransactions();
+    }
+  }, [companyId, isConnected, dateRange]);
+
+  const loadTransactions = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{
+        success: boolean;
+        transactions: BankTransaction[];
+        summary: TransactionSummary;
+      }>(`/api/v1/companies/${companyId}/xero/transactions?from_date=${dateRange.from}&to_date=${dateRange.to}`);
+
+      if (response.success) {
+        setTransactions(response.transactions);
+        setSummary(response.summary);
+      }
+    } catch (error) {
+      console.error("Failed to load transactions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSyncTransactions = async () => {
+    try {
+      setSyncing(true);
+      await api.post(`/api/v1/companies/${companyId}/xero/sync_transactions`, {
+        from_date: dateRange.from,
+        to_date: dateRange.to
+      });
+      await loadTransactions();
+    } catch (error) {
+      console.error("Failed to sync transactions:", error);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  if (!isConnected) {
+    return null;
+  }
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD' }).format(amount);
+  };
+
+  return (
+    <Card className="mb-4">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-medium">Bank Transactions</CardTitle>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                type="date"
+                value={dateRange.from}
+                onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                className="px-2 py-1 border rounded text-sm"
+              />
+              <span className="text-muted-foreground">to</span>
+              <input
+                type="date"
+                value={dateRange.to}
+                onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                className="px-2 py-1 border rounded text-sm"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncTransactions}
+              disabled={syncing}
+            >
+              {syncing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Sync from Xero
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-4 gap-4 mb-4">
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="text-xs text-muted-foreground">Total In</div>
+              <div className="text-lg font-semibold text-green-600">{formatCurrency(summary.total_credits)}</div>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="text-xs text-muted-foreground">Total Out</div>
+              <div className="text-lg font-semibold text-red-600">{formatCurrency(summary.total_debits)}</div>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="text-xs text-muted-foreground">Net Change</div>
+              <div className={cn("text-lg font-semibold", summary.net_change >= 0 ? "text-green-600" : "text-red-600")}>
+                {formatCurrency(summary.net_change)}
+              </div>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="text-xs text-muted-foreground">Transactions</div>
+              <div className="text-lg font-semibold">{summary.total_transactions}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Transactions Table */}
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No transactions found for this period.</p>
+            <p className="text-sm mt-1">Click "Sync from Xero" to import transactions.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-2 font-medium">Date</th>
+                  <th className="text-left py-2 px-2 font-medium">Description</th>
+                  <th className="text-left py-2 px-2 font-medium">Contact</th>
+                  <th className="text-left py-2 px-2 font-medium">Account</th>
+                  <th className="text-right py-2 px-2 font-medium">Amount</th>
+                  <th className="text-center py-2 px-2 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.slice(0, 20).map((tx) => (
+                  <tr key={tx.id} className="border-b hover:bg-muted/50">
+                    <td className="py-2 px-2 whitespace-nowrap">
+                      {format(new Date(tx.transaction_date), "d MMM yyyy")}
+                    </td>
+                    <td className="py-2 px-2 max-w-[200px] truncate" title={tx.description}>
+                      {tx.description || tx.reference || "-"}
+                    </td>
+                    <td className="py-2 px-2 max-w-[150px] truncate" title={tx.contact_name}>
+                      {tx.contact_name || "-"}
+                    </td>
+                    <td className="py-2 px-2 max-w-[150px] truncate" title={tx.bank_account_name}>
+                      {tx.bank_account_name || "-"}
+                    </td>
+                    <td className={cn(
+                      "py-2 px-2 text-right font-mono whitespace-nowrap",
+                      tx.transaction_type === "RECEIVE" ? "text-green-600" : "text-red-600"
+                    )}>
+                      {tx.transaction_type === "RECEIVE" ? "+" : "-"}{formatCurrency(tx.amount)}
+                    </td>
+                    <td className="py-2 px-2 text-center">
+                      {tx.is_reconciled ? (
+                        <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                          Reconciled
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs">
+                          Pending
+                        </Badge>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {transactions.length > 20 && (
+              <div className="text-center py-2 text-sm text-muted-foreground">
+                Showing 20 of {transactions.length} transactions
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -1679,6 +2124,7 @@ export default function CompanyDetailPage() {
   const [company, setCompany] = React.useState<Company | null>(null);
   const [activeTab, setActiveTab] = React.useState("overview");
   const [overviewSubTab, setOverviewSubTab] = React.useState("info");
+  const [xeroConnected, setXeroConnected] = React.useState(false);
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -1879,11 +2325,26 @@ export default function CompanyDetailPage() {
 
           {/* Document Category Tabs */}
           {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && (
-            <CompanyDocumentsTab
-              companyId={companyId}
-              company={company}
-              category={DOCUMENT_TABS.find(t => t.id === activeTab)?.name}
-            />
+            <>
+              {/* Show Xero connection and transactions on BANK tab */}
+              {activeTab === "bank" && (
+                <>
+                  <XeroConnectionCard
+                    companyId={companyId}
+                    onConnectionChange={setXeroConnected}
+                  />
+                  <BankTransactionsCard
+                    companyId={companyId}
+                    isConnected={xeroConnected}
+                  />
+                </>
+              )}
+              <CompanyDocumentsTab
+                companyId={companyId}
+                company={company}
+                category={DOCUMENT_TABS.find(t => t.id === activeTab)?.name}
+              />
+            </>
           )}
 
           {activeTab === "documents" && (

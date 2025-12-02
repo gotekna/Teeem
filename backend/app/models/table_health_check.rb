@@ -146,6 +146,9 @@ class TableHealthCheck < ApplicationRecord
       fetch_documents_missing_date
     when %r{/api/v1/company_documents/missing_fy}
       fetch_documents_missing_fy
+    # Consolidation health checks
+    when %r{/api/v1/consolidation/mismatches}
+      fetch_intercompany_mismatches
     else
       # For unknown endpoints, return empty result
       Rails.logger.warn "[TableHealthCheck] Unknown endpoint: #{api_endpoint}"
@@ -537,6 +540,46 @@ class TableHealthCheck < ApplicationRecord
           company_id: d.company_id
         }
       }
+    }
+  end
+
+  # ============================================================================
+  # Consolidation Health Checks
+  # ============================================================================
+
+  # Intercompany Balance Mismatches
+  def fetch_intercompany_mismatches
+    as_of_date = Date.today
+    all_mismatches = []
+
+    CompanyGroup.active.includes(:companies).each do |group|
+      next if group.companies.count < 2
+
+      begin
+        service = ConsolidationReconciliationService.new(group, as_of_date: as_of_date)
+        relationships = service.intercompany_relationships
+
+        mismatched = relationships.reject { |r| r[:matched] }
+        mismatched.each do |m|
+          all_mismatches << {
+            id: "#{group.id}-#{m[:company_a][:id]}-#{m[:company_b][:id]}-#{m[:balance_type]}",
+            display: "#{m[:company_a][:name]} ↔ #{m[:company_b][:name]}: #{m[:balance_type]} discrepancy $#{m[:discrepancy].abs.round(2)}",
+            group_id: group.id,
+            group_name: group.name,
+            company_a_id: m[:company_a][:id],
+            company_b_id: m[:company_b][:id],
+            discrepancy: m[:discrepancy]
+          }
+        end
+      rescue StandardError => e
+        Rails.logger.warn "[HealthCheck] Failed to check group #{group.id}: #{e.message}"
+      end
+    end
+
+    {
+      count: all_mismatches.count,
+      items: all_mismatches.first(10),
+      total_discrepancy: all_mismatches.sum { |m| m[:discrepancy].abs }.round(2)
     }
   end
 end

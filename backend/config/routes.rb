@@ -283,6 +283,9 @@ Rails.application.routes.draw do
         collection do
           post :bulk_delete
         end
+        member do
+          post :merge
+        end
       end
 
       # Column Types - Single Source of Truth from Gold Standard Reference Table
@@ -1123,6 +1126,19 @@ Rails.application.routes.draw do
             post :create_from_template
           end
         end
+
+        # Per-Company Xero Integration
+        get 'xero/status', to: 'company_xero#status'
+        get 'xero/authorize', to: 'company_xero#authorize'
+        get 'xero/callback', to: 'company_xero#callback'
+        post 'xero/disconnect', to: 'company_xero#disconnect'
+        post 'xero/sync', to: 'company_xero#sync'
+        get 'xero/tenants', to: 'company_xero#tenants'
+        # Bank sync endpoints
+        get 'xero/bank_accounts', to: 'company_xero#bank_accounts'
+        post 'xero/link_bank_account', to: 'company_xero#link_bank_account'
+        post 'xero/sync_transactions', to: 'company_xero#sync_transactions'
+        get 'xero/transactions', to: 'company_xero#transactions'
       end
 
       # Company Groups
@@ -1130,6 +1146,21 @@ Rails.application.routes.draw do
         member do
           get :companies
           get :structure
+        end
+      end
+
+      # Consolidation / Intercompany Reconciliation
+      resources :consolidation, only: [:index] do
+        collection do
+          get :mismatches
+          get 'company/:company_id', to: 'consolidation#company_summary', as: :company_summary
+        end
+      end
+      resources :consolidation, param: :company_group_id, only: [:show] do
+        member do
+          post :reconcile
+          get :relationships
+          get :reports
         end
       end
 

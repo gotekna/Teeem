@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_02_122036) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -201,9 +201,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
     t.string "status", default: "active"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "xero_account_id"
     t.index ["company_id", "status"], name: "index_bank_accounts_on_company_id_and_status"
     t.index ["company_id"], name: "index_bank_accounts_on_company_id"
     t.index ["status"], name: "index_bank_accounts_on_status"
+    t.index ["xero_account_id"], name: "index_bank_accounts_on_xero_account_id"
+  end
+
+  create_table "bank_transactions", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "bank_account_id"
+    t.string "xero_transaction_id", null: false
+    t.string "transaction_type"
+    t.date "transaction_date", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "reference"
+    t.text "description"
+    t.string "contact_name"
+    t.string "xero_contact_id"
+    t.string "status"
+    t.string "line_amount_types"
+    t.boolean "is_reconciled", default: false
+    t.string "currency_code", default: "AUD"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_account_id", "transaction_date"], name: "idx_on_bank_account_id_transaction_date_4b5f834392"
+    t.index ["bank_account_id"], name: "index_bank_transactions_on_bank_account_id"
+    t.index ["company_id", "transaction_date"], name: "index_bank_transactions_on_company_id_and_transaction_date"
+    t.index ["company_id"], name: "index_bank_transactions_on_company_id"
+    t.index ["status"], name: "index_bank_transactions_on_status"
+    t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
 
   create_table "bug_hunter_test_runs", force: :cascade do |t|
@@ -603,18 +631,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
 
   create_table "company_xero_connections", force: :cascade do |t|
     t.bigint "company_id", null: false
-    t.string "tenant_id", null: false
-    t.string "tenant_name"
-    t.text "access_token"
-    t.text "refresh_token"
+    t.string "xero_tenant_id", null: false
+    t.string "xero_tenant_name"
+    t.text "encrypted_access_token"
+    t.text "encrypted_refresh_token"
     t.datetime "token_expires_at"
     t.datetime "last_sync_at"
-    t.boolean "connected", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "connection_status", default: "disconnected"
+    t.text "last_sync_error"
     t.index ["company_id"], name: "index_company_xero_connections_on_company_id", unique: true
-    t.index ["connected"], name: "index_company_xero_connections_on_connected"
-    t.index ["tenant_id"], name: "index_company_xero_connections_on_tenant_id"
+    t.index ["connection_status"], name: "index_company_xero_connections_on_connection_status"
+    t.index ["xero_tenant_id"], name: "index_company_xero_connections_on_xero_tenant_id"
   end
 
   create_table "contact_activities", force: :cascade do |t|
@@ -1510,6 +1539,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["company_id"], name: "index_insurance_policies_on_company_id"
+  end
+
+  create_table "intercompany_balances", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "related_company_id", null: false
+    t.string "balance_type", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "currency", default: "AUD"
+    t.string "source", null: false
+    t.string "source_reference"
+    t.date "as_of_date", null: false
+    t.text "description"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["balance_type"], name: "index_intercompany_balances_on_balance_type"
+    t.index ["company_id", "as_of_date"], name: "index_intercompany_balances_on_company_id_and_as_of_date"
+    t.index ["company_id", "related_company_id", "balance_type", "as_of_date"], name: "idx_intercompany_balances_unique", unique: true
+    t.index ["company_id"], name: "index_intercompany_balances_on_company_id"
+    t.index ["related_company_id", "as_of_date"], name: "idx_on_related_company_id_as_of_date_a4e1451467"
+    t.index ["related_company_id"], name: "index_intercompany_balances_on_related_company_id"
+    t.index ["source"], name: "index_intercompany_balances_on_source"
   end
 
   create_table "job_activities", force: :cascade do |t|
@@ -2418,6 +2469,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
     t.index ["job_id", "date"], name: "index_rain_logs_on_job_id_and_date", unique: true
     t.index ["job_id"], name: "index_rain_logs_on_job_id"
     t.index ["source"], name: "index_rain_logs_on_source"
+  end
+
+  create_table "reconciliation_reports", force: :cascade do |t|
+    t.bigint "company_group_id"
+    t.date "as_of_date", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_pairs_checked", default: 0
+    t.integer "matched_pairs", default: 0
+    t.integer "mismatched_pairs", default: 0
+    t.decimal "total_discrepancy", precision: 15, scale: 2, default: "0.0"
+    t.jsonb "summary", default: {}
+    t.jsonb "discrepancies", default: []
+    t.text "error_message"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_group_id", "as_of_date"], name: "idx_on_company_group_id_as_of_date_12c13ba60d"
+    t.index ["company_group_id"], name: "index_reconciliation_reports_on_company_group_id"
+    t.index ["status"], name: "index_reconciliation_reports_on_status"
   end
 
   create_table "role_permissions", force: :cascade do |t|
@@ -3789,6 +3860,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
   add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "companies"
   add_foreign_key "bank_accounts", "companies"
+  add_foreign_key "bank_transactions", "bank_accounts"
+  add_foreign_key "bank_transactions", "companies"
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
@@ -3855,6 +3928,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
   add_foreign_key "insurance_policies", "companies"
+  add_foreign_key "intercompany_balances", "companies"
+  add_foreign_key "intercompany_balances", "companies", column: "related_company_id"
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
   add_foreign_key "job_claims", "contacts"
@@ -3939,6 +4014,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_103409) do
   add_foreign_key "quote_responses", "quote_requests"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
+  add_foreign_key "reconciliation_reports", "company_groups"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "schedule_task_checklist_items", "schedule_tasks"
   add_foreign_key "schedule_tasks", "jobs"

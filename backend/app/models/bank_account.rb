@@ -1,6 +1,7 @@
 class BankAccount < ApplicationRecord
   # Associations
   belongs_to :company
+  has_many :bank_transactions, dependent: :nullify
 
   # Validations
   validates :institution_name, presence: true
@@ -37,6 +38,18 @@ class BankAccount < ApplicationRecord
 
   def active?
     status == 'active'
+  end
+
+  def linked_to_xero?
+    xero_account_id.present?
+  end
+
+  def link_to_xero!(xero_account_id)
+    update!(xero_account_id: xero_account_id)
+  end
+
+  def unlink_from_xero!
+    update!(xero_account_id: nil)
   end
 
   private

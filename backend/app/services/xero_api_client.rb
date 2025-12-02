@@ -32,6 +32,17 @@ class XeroApiClient
     )
   end
 
+  # Generate OAuth authorization URL for a specific company
+  # Includes company_id in state parameter for callback verification
+  def authorization_url_for_company(company_id)
+    client = oauth_client
+    client.auth_code.authorize_url(
+      redirect_uri: @redirect_uri,
+      scope: 'offline_access accounting.transactions accounting.contacts accounting.settings',
+      state: "company_#{company_id}"
+    )
+  end
+
   # Exchange authorization code for access token
   def exchange_code_for_token(code)
     begin
@@ -71,6 +82,52 @@ class XeroApiClient
       raise AuthenticationError, "Failed to exchange code: #{e.message}"
     rescue StandardError => e
       Rails.logger.error("Xero token exchange error: #{e.message}")
+      raise ApiError, "Token exchange failed: #{e.message}"
+    end
+  end
+
+  # Exchange authorization code for access token for a specific company
+  # Stores tokens in CompanyXeroConnection instead of XeroCredential
+  def exchange_code_for_company_token(code, company)
+    begin
+      client = oauth_client
+      token = client.auth_code.get_token(code, redirect_uri: @redirect_uri)
+
+      # Get tenant information
+      tenant_info = get_tenant_info(token.token)
+
+      if tenant_info.empty?
+        raise ApiError, 'No Xero organization connected'
+      end
+
+      # Use the first organization (or let user select later)
+      tenant = tenant_info.first
+
+      # Find or create the company's Xero connection
+      connection = company.company_xero_connection || company.build_company_xero_connection
+
+      # Update connection with OAuth tokens
+      connection.connect!(
+        access_token: token.token,
+        refresh_token: token.refresh_token,
+        expires_at: Time.current + token.expires_in.seconds,
+        tenant_id: tenant['tenantId'],
+        tenant_name: tenant['tenantName']
+      )
+
+      Rails.logger.info("Xero OAuth successful for company #{company.id}: #{tenant['tenantName']} (#{tenant['tenantId']})")
+
+      {
+        success: true,
+        tenant_name: tenant['tenantName'],
+        tenant_id: tenant['tenantId'],
+        expires_at: connection.token_expires_at
+      }
+    rescue OAuth2::Error => e
+      Rails.logger.error("Xero OAuth error for company #{company.id}: #{e.message}")
+      raise AuthenticationError, "Failed to exchange code: #{e.message}"
+    rescue StandardError => e
+      Rails.logger.error("Xero token exchange error for company #{company.id}: #{e.message}")
       raise ApiError, "Token exchange failed: #{e.message}"
     end
   end
@@ -124,6 +181,69 @@ class XeroApiClient
     rescue OAuth2::Error => e
       Rails.logger.error("Xero token refresh error: #{e.message}")
       raise AuthenticationError, "Failed to refresh token: #{e.message}"
+    end
+  end
+
+  # Refresh the access token for a CompanyXeroConnection
+  def refresh_access_token_for_connection(connection)
+    return { success: false, error: 'No connection provided' } unless connection
+
+    begin
+      # Try to access encrypted fields to check if decryption works
+      access_token = connection.access_token
+      refresh_token_value = connection.refresh_token
+    rescue ActiveRecord::Encryption::Errors::Decryption => e
+      Rails.logger.error("Xero connection decryption failed for company #{connection.company_id}: #{e.message}")
+      return { success: false, error: 'Credentials corrupted. Please reconnect to Xero.' }
+    end
+
+    return { success: false, error: 'No refresh token available' } if refresh_token_value.blank?
+
+    begin
+      client = oauth_client
+      old_token = OAuth2::AccessToken.new(
+        client,
+        access_token,
+        refresh_token: refresh_token_value
+      )
+
+      new_token = old_token.refresh!
+
+      Rails.logger.info("Xero token refreshed successfully for company #{connection.company_id}")
+
+      {
+        success: true,
+        access_token: new_token.token,
+        refresh_token: new_token.refresh_token,
+        expires_at: Time.current + new_token.expires_in.seconds
+      }
+    rescue OAuth2::Error => e
+      Rails.logger.error("Xero token refresh error for company #{connection.company_id}: #{e.message}")
+      { success: false, error: "Failed to refresh token: #{e.message}" }
+    end
+  end
+
+  # Get available tenants for a CompanyXeroConnection
+  def get_tenants_for_connection(connection)
+    return [] unless connection&.access_token.present?
+
+    # Refresh if needed
+    if connection.needs_refresh?
+      result = refresh_access_token_for_connection(connection)
+      unless result[:success]
+        raise AuthenticationError, result[:error]
+      end
+      connection.reload
+    end
+
+    tenant_info = get_tenant_info(connection.access_token)
+
+    tenant_info.map do |tenant|
+      {
+        tenant_id: tenant['tenantId'],
+        tenant_name: tenant['tenantName'],
+        tenant_type: tenant['tenantType']
+      }
     end
   end
 
@@ -360,11 +480,20 @@ class XeroApiClient
     # Support specifying a specific tenant_id
     tenant_id = options[:tenant_id]
 
-    credential = if tenant_id.present?
-      XeroCredential.find_by(tenant_id: tenant_id) || XeroCredential.current
-    else
-      XeroCredential.current
+    # First try to find a CompanyXeroConnection for this tenant_id (per-company connections)
+    # Then fall back to XeroCredential (global job/invoice connections)
+    credential = nil
+
+    if tenant_id.present?
+      # Try CompanyXeroConnection first (for corporate entity Xero integrations)
+      credential = CompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
+
+      # Fall back to XeroCredential (for job/invoice Xero integrations)
+      credential ||= XeroCredential.find_by(tenant_id: tenant_id)
     end
+
+    # Default to current global credential if no tenant specified
+    credential ||= XeroCredential.current
 
     unless credential
       raise AuthenticationError, 'Not authenticated with Xero'
@@ -381,18 +510,27 @@ class XeroApiClient
       raise AuthenticationError, 'Xero credentials are corrupted. Please reconnect to Xero.'
     end
 
-    # Refresh token if expired
-    refresh_access_token_for(credential) if credential.expired?
+    # Refresh token if expired - handle both credential types
+    if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
+      if credential.is_a?(CompanyXeroConnection)
+        credential.refresh_tokens!
+      else
+        refresh_access_token_for(credential)
+      end
+    end
 
     # Reload credential to get updated token
     credential.reload
+
+    # Get tenant_id - CompanyXeroConnection uses xero_tenant_id, XeroCredential uses tenant_id
+    request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
 
     url = "#{BASE_URL}/#{endpoint}"
 
     begin
       headers = {
         'Authorization' => "Bearer #{credential.access_token}",
-        'Xero-tenant-id' => credential.tenant_id,
+        'Xero-tenant-id' => request_tenant_id,
         'Content-Type' => 'application/json',
         'Accept' => 'application/json'
       }

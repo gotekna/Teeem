@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Loader2,
   CheckCircle2,
+  ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -387,6 +388,7 @@ export default function CorporateDashboardPage() {
             <QuickAction label="Xero Integration" icon={ExternalLink} href="/xero" />
             <QuickAction label="ASIC Logins" icon={Key} href="/corporate/asic-logins" />
             <QuickAction label="Document Types" icon={FolderOpen} href="/corporate/document-types" />
+            <QuickAction label="Consolidation" icon={ArrowLeftRight} href="/corporate/consolidation" />
           </div>
         </CardContent>
       </Card>
