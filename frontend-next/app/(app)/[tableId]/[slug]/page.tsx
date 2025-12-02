@@ -2,22 +2,15 @@
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
-import { TeeemTableView, SchemaTab, ConnectionsTab } from "@/components/table";
+import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
 import type { TableRow } from "@/components/table/types";
-import { TABLE_SLUGS, urls } from "@/lib/url-utils";
+import { TABLE_IDS, TABLE_SLUGS, urls } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationData } from "@/hooks/useFoundationData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-// Table IDs for navigation support
-const TABLE_IDS = {
-  JOBS: 204,
-  CONTACTS: 214,
-  PRICEBOOK: 205,
-};
 
 function PageSkeleton() {
   return (
@@ -147,7 +140,7 @@ function TablePageContent() {
         console.log('Navigating to /jobs/' + row.id);
         router.push(`/jobs/${row.id}`);
         break;
-      case 205: // Contacts - use /contacts/[id] route
+      case 214: // Contacts - use /contacts/[id] route
         router.push(`/contacts/${row.id}`);
         break;
       case 353: // Companies - use /companies/[id] route
@@ -254,6 +247,15 @@ function TablePageContent() {
         </div>
       )}
 
+      {/* Create Record Dialog */}
+      <CreateRecordDialog
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
+        foundationId={tableId}
+        tableName={tableName}
+        columns={columns}
+        onSuccess={refresh}
+      />
     </div>
   );
 }

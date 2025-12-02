@@ -7,8 +7,8 @@ const URL_SUFFIX = "_GOD_LOVES_YOU_";
 export const TABLE_IDS = {
   GOLD_STANDARD: 1,
   JOBS: 204,
-  CONTACTS: 205,
-  PRICEBOOK: 206,
+  PRICEBOOK: 205,
+  CONTACTS: 214,
   COMPANIES: 353,
   FEATURES_TRACKING: 375,
 } as const;
@@ -17,8 +17,8 @@ export const TABLE_IDS = {
 export const TABLE_SLUGS: Record<number, string> = {
   1: "gold-standard",
   204: "jobs",
-  205: "contacts",
-  206: "pricebook",
+  205: "pricebook",
+  214: "contacts",
   353: "companies",
   375: "features",
 };
@@ -27,8 +27,8 @@ export const TABLE_SLUGS: Record<number, string> = {
 export const TABLE_ROUTES: Record<number, string> = {
   1: "admin/system",
   204: "jobs",
-  205: "contacts",
-  206: "pricebook",
+  205: "pricebook",
+  214: "contacts",
   353: "corporate",
   375: "dashboard",
 };
