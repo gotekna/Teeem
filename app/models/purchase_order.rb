@@ -1,7 +1,7 @@
 class PurchaseOrder < ApplicationRecord
   # Associations
   belongs_to :job, counter_cache: true
-  belongs_to :supplier, class_name: 'Contact', optional: true, counter_cache: true
+  belongs_to :supplier, class_name: 'Contact', optional: true
   belongs_to :contact, class_name: 'Contact', foreign_key: :supplier_id, optional: true
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
