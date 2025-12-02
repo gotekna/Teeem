@@ -162,6 +162,9 @@ class DocumentVerificationService
     # Build document types section from database
     document_types_section = build_document_types_section
 
+    # Build learning examples from past corrections
+    learning_section = build_learning_section
+
     <<~PROMPT
       Analyze this document and suggest the best filename following TEEEM naming conventions.
 
@@ -176,6 +179,7 @@ class DocumentVerificationService
 
       ## Document Types and Naming Formats:
       #{document_types_section}
+      #{learning_section}
       #{text_section}
 
       ## Respond ONLY with valid JSON in this exact format:
@@ -197,6 +201,23 @@ class DocumentVerificationService
       - current_name_valid should be true if the current filename already follows TEEEM conventions well
       - If the current name is already good, set current_name_valid to true and suggested_name can match the current
     PROMPT
+  end
+
+  def build_learning_section
+    return "" unless @company&.code.present?
+
+    # Get learning context from feedback
+    learning_context = DocumentVerificationFeedback.build_learning_context(@company.code, limit: 5)
+
+    return "" if learning_context.blank?
+
+    <<~LEARNING
+
+      ## Learning from Past Corrections:
+      The following are examples where AI suggestions were corrected by users for this company.
+      Use these to understand naming preferences and patterns:
+      #{learning_context}
+    LEARNING
   end
 
   def build_document_types_section

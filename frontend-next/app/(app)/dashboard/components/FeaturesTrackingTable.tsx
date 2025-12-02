@@ -55,6 +55,7 @@ interface ExtendedColumn extends TableColumn {
   lookup_display_field?: string;
 }
 
+// Column types must match Foundation ID 375 (feature_trackers)
 const COLUMNS: ExtendedColumn[] = [
   {
     key: "feature_chapter",
@@ -81,7 +82,7 @@ const COLUMNS: ExtendedColumn[] = [
   {
     key: "detail_point_1",
     label: "Detail 1",
-    column_type: "single_line_text",
+    column_type: "multiple_lines_text",
     resizable: true,
     sortable: false,
     filterable: false,
@@ -90,7 +91,7 @@ const COLUMNS: ExtendedColumn[] = [
   {
     key: "detail_point_2",
     label: "Detail 2",
-    column_type: "single_line_text",
+    column_type: "multiple_lines_text",
     resizable: true,
     sortable: false,
     filterable: false,
@@ -99,7 +100,7 @@ const COLUMNS: ExtendedColumn[] = [
   {
     key: "detail_point_3",
     label: "Detail 3",
-    column_type: "single_line_text",
+    column_type: "multiple_lines_text",
     resizable: true,
     sortable: false,
     filterable: false,

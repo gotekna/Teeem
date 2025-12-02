@@ -1255,6 +1255,7 @@ Rails.application.routes.draw do
           post :ai_verify
           post :apply_ai_suggestion
           post :relocate
+          post :feedback
         end
       end
 

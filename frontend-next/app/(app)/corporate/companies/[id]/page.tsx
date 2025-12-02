@@ -47,6 +47,7 @@ import { format } from "date-fns";
 import { RefreshCw, Link2, Unlink } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 
 // Document category tabs
 const DOCUMENT_TABS = [
@@ -1433,16 +1434,27 @@ interface CompanyDocument extends TableRow {
   created_at?: string;
   file_url?: string;
   user_validated_at?: string;
-  ai_verification_status?: string;
+  // AI verification fields
+  ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error";
+  ai_suggested_name?: string;
+  ai_suggested_folder?: string;
+  ai_suggested_type?: string;
+  ai_suggested_fy?: string;
+  ai_confidence_score?: number;
+  ai_analysis_notes?: string;
+  ai_error_message?: string;
+  user_validated_by_id?: number;
+  company_id?: number;
 }
 
 // Build column definitions for documents table
+// Column types must match Foundation ID 357 (company_documents)
 const buildDocumentColumns = (): TableColumn[] => [
   { key: "id", label: "ID", column_type: "whole_number", resizable: true, sortable: true, filterable: true, filterType: "text", width: 60 },
-  { key: "document_type", label: "Type", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
-  { key: "financial_years", label: "FY", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 80 },
-  { key: "folder", label: "Folder", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
-  { key: "source", label: "Source", column_type: "single_line_text", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
+  { key: "document_type", label: "Type", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
+  { key: "financial_years", label: "FY", column_type: "structured_data", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 80 },
+  { key: "folder", label: "Folder", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
+  { key: "source", label: "Source", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
   { key: "file_size", label: "Size", column_type: "whole_number", resizable: true, sortable: true, filterable: false, width: 100 },
   { key: "document_date", label: "Doc Date", column_type: "date", resizable: true, sortable: true, filterable: true, filterType: "date", width: 120 },
   { key: "created_at", label: "Uploaded", column_type: "date_and_time", resizable: true, sortable: true, filterable: false, width: 150 },
@@ -1461,6 +1473,10 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
   const [loading, setLoading] = React.useState(true);
   const [sharepointConnected, setShaepointConnected] = React.useState(false);
   const [columns] = React.useState(buildDocumentColumns());
+
+  // Document preview modal state
+  const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
 
   React.useEffect(() => {
     loadDocuments();
@@ -1506,9 +1522,9 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
   };
 
   const handleRowClick = (doc: CompanyDocument) => {
-    if (doc.file_url) {
-      window.open(doc.file_url, "_blank");
-    }
+    // Open document preview modal instead of opening file directly
+    setSelectedDocument(doc);
+    setIsPreviewOpen(true);
   };
 
   const handleDelete = async (doc: CompanyDocument) => {
@@ -1642,22 +1658,36 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
 
   // Now a real foundation table (ID 357) with company scoping via filter
   return (
-    <TeeemTableView
-      foundationId={`company-documents-${category || "all"}`}
-      foundationIdNumeric={357}
-      tableName={`${category ? category.toUpperCase() : "All"} Documents (${documents.length})`}
-      entries={documents}
-      columns={columns}
-      onDelete={handleDelete}
-      onBulkDelete={handleBulkDelete}
-      onRowDoubleClick={handleRowClick}
-      enableImport={false}
-      enableExport={true}
-      enableSchemaEditor={false}
-      showDataHealth={true}
-      customActions={customActions}
-      customCellRenderer={customCellRenderer}
-    />
+    <>
+      <TeeemTableView
+        foundationId={`company-documents-${category || "all"}`}
+        foundationIdNumeric={357}
+        tableName={`${category ? category.toUpperCase() : "All"} Documents (${documents.length})`}
+        entries={documents}
+        columns={columns}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        onRowDoubleClick={handleRowClick}
+        enableImport={false}
+        enableExport={true}
+        enableSchemaEditor={false}
+        showDataHealth={true}
+        customActions={customActions}
+        customCellRenderer={customCellRenderer}
+      />
+
+      {/* Document Preview Modal with AI Verification */}
+      <DocumentPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => {
+          setIsPreviewOpen(false);
+          setSelectedDocument(null);
+        }}
+        document={selectedDocument}
+        company={company}
+        onDocumentUpdate={loadDocuments}
+      />
+    </>
   );
 }
 

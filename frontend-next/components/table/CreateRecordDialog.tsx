@@ -54,6 +54,20 @@ interface CreateRecordDialogProps {
 // Columns to exclude from the form (system-managed or UI-only)
 const EXCLUDED_COLUMNS = ["id", "created_at", "updated_at", "actions", "select"];
 
+// Column types that are system-generated/computed (user cannot manually enter)
+const SYSTEM_GENERATED_TYPES = [
+  "computed",
+  "formula",
+  "auto_number",
+  "created_time",
+  "modified_time",
+  "created_by",
+  "modified_by",
+  "rollup",
+  "count",
+  "lookup", // Lookups are derived from relationships
+];
+
 // Sortable field item for drag and drop
 interface SortableFieldItemProps {
   id: string;
@@ -153,11 +167,13 @@ export function CreateRecordDialog({
     })
   );
 
-  // Filter columns (exclude system/UI-only columns)
+  // Filter columns (exclude system/UI-only columns and system-generated types)
   const filteredColumns = useMemo(() => {
     return columns
       .filter((col) => !EXCLUDED_COLUMNS.includes(col.key))
       .filter((col) => !col.system)
+      .filter((col) => col.editable !== false)
+      .filter((col) => !SYSTEM_GENERATED_TYPES.includes(col.column_type || ""))
       .filter((col) => col.label);
   }, [columns]);
 
@@ -197,15 +213,29 @@ export function CreateRecordDialog({
     });
   };
 
-  // Toggle field visibility
+  // Toggle field visibility and auto-reorder so visible fields are at the top
   const toggleFieldVisibility = (columnKey: string) => {
     const newVisible = new Set(visibleFields);
-    if (newVisible.has(columnKey)) {
+    const wasVisible = newVisible.has(columnKey);
+
+    if (wasVisible) {
       newVisible.delete(columnKey);
     } else {
       newVisible.add(columnKey);
     }
     setVisibleFields(newVisible);
+
+    // Reorder: visible fields first (sorted by current order), then hidden fields
+    const sortedCols = getSortedColumns();
+    const visibleCols = sortedCols.filter(c => newVisible.has(c.key));
+    const hiddenCols = sortedCols.filter(c => !newVisible.has(c.key));
+    const reordered = [...visibleCols, ...hiddenCols];
+
+    const newOrder: Record<string, number> = {};
+    reordered.forEach((col, index) => {
+      newOrder[col.key] = index + 1;
+    });
+    setFieldOrder(newOrder);
   };
 
   // Update field order
@@ -213,12 +243,12 @@ export function CreateRecordDialog({
     setFieldOrder((prev) => ({ ...prev, [columnKey]: order }));
   };
 
-  // Show all fields
+  // Show all fields (keeps current order since all are visible)
   const showAllFields = () => {
     setVisibleFields(new Set(filteredColumns.map((col) => col.key)));
   };
 
-  // Hide all fields
+  // Hide all fields (keeps current order)
   const hideAllFields = () => {
     setVisibleFields(new Set());
   };

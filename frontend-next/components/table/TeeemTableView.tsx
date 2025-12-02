@@ -139,6 +139,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { format, parseISO } from "date-fns";
+import dynamic from "next/dynamic";
+
+// Dynamic import to avoid SSR issues with TipTap
+const InlineRichTextEditor = dynamic(
+  () => import("@/components/common/RichTextEditor").then(mod => mod.InlineRichTextEditor),
+  { ssr: false, loading: () => <div className="h-[60px] bg-muted/50 animate-pulse rounded" /> }
+);
 
 import {
   type TableColumn,
@@ -158,6 +165,38 @@ import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumn
 import { DataHealthWidget } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { MergeModal } from "./MergeModal";
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+// Column types that are system-generated/computed (user cannot manually enter)
+const SYSTEM_GENERATED_TYPES = [
+  "computed",
+  "formula",
+  "auto_number",
+  "created_time",
+  "modified_time",
+  "created_by",
+  "modified_by",
+  "rollup",
+  "count",
+];
+
+// Check if a column is system-generated (non-editable, auto-computed)
+const isSystemGeneratedColumn = (column: TableColumn): boolean => {
+  const NON_EDITABLE_COLUMNS = ['id', 'created_at', 'updated_at'];
+  return (
+    column.editable === false ||
+    column.system === true ||
+    NON_EDITABLE_COLUMNS.includes(column.key) ||
+    NON_EDITABLE_COLUMNS.includes(column.key?.toLowerCase()) ||
+    SYSTEM_GENERATED_TYPES.includes(column.column_type || "")
+  );
+};
+
+// Background color for system-generated columns
+const SYSTEM_COLUMN_BG = '#fee2e2'; // red-100
 
 // ============================================================================
 // SUBCOMPONENTS
@@ -753,6 +792,19 @@ export default function TeeemTableView({
   const { user } = useAuth();
   const { toast } = useToast();
 
+  // ============================================================================
+  // AUTO-ENABLE FEATURES WHEN foundationIdNumeric IS SET
+  // Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md
+  // ============================================================================
+  // When a table has foundationIdNumeric, it should automatically get:
+  // - Import/Export in menu
+  // - Schema Editor (Create/Edit/Delete columns)
+  // - Filters button visible
+  const shouldAutoEnable = !!foundationIdNumeric;
+  const effectiveEnableImport = enableImport || shouldAutoEnable;
+  const effectiveEnableExport = enableExport || shouldAutoEnable;
+  const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
+
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => {
     if (!columns) return DEFAULT_COLUMNS;
@@ -894,7 +946,7 @@ export default function TeeemTableView({
   // Export modal state
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportScope, setExportScope] = useState<"visible" | "all">("visible");
-  const [exportFormat, setExportFormat] = useState<"csv">("csv");
+  const [exportFormat, setExportFormat] = useState<"csv" | "excel" | "pdf">("csv");
 
   // Filter modal state
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -2427,6 +2479,145 @@ export default function TeeemTableView({
     });
   }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast]);
 
+  // Export handler - exports to Excel
+  const handleExportExcel = useCallback(async () => {
+    const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
+
+    // Dynamic import xlsx to avoid SSR issues
+    const XLSX = await import('xlsx');
+
+    // Build data array with headers
+    const headers = columnsToExport.map((col) => col.label || col.key);
+    const data = filteredAndSortedEntries.map((entry) => {
+      return columnsToExport.map((col) => {
+        const value = entry[col.key];
+        // Handle objects (like nested relations)
+        if (typeof value === "object" && value !== null) {
+          if ("name" in value) return (value as { name: string }).name;
+          if ("label" in value) return (value as { label: string }).label;
+          return JSON.stringify(value);
+        }
+        return value;
+      });
+    });
+
+    // Create worksheet with headers
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+
+    // Auto-size columns
+    const colWidths = headers.map((h, i) => {
+      const maxLen = Math.max(
+        String(h).length,
+        ...data.map(row => String(row[i] || '').length)
+      );
+      return { wch: Math.min(maxLen + 2, 50) };
+    });
+    ws['!cols'] = colWidths;
+
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, tableName.slice(0, 31)); // Sheet name max 31 chars
+
+    // Generate and download
+    const timestamp = new Date().toISOString().split("T")[0];
+    const scopeLabel = exportScope === "visible" ? "visible" : "all";
+    XLSX.writeFile(wb, `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.xlsx`);
+
+    // Close modal and show toast
+    setShowExportModal(false);
+    toast({
+      title: "Export Complete",
+      description: `Exported ${filteredAndSortedEntries.length} rows to Excel`,
+    });
+  }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast]);
+
+  // Export handler - exports to PDF
+  const handleExportPDF = useCallback(async () => {
+    const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
+
+    // Dynamic imports to avoid SSR issues
+    const { default: jsPDF } = await import('jspdf');
+    const { default: autoTable } = await import('jspdf-autotable');
+
+    // Create PDF document
+    const doc = new jsPDF({
+      orientation: columnsToExport.length > 6 ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    // Add title
+    doc.setFontSize(16);
+    doc.text(tableName, 14, 15);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Exported: ${new Date().toLocaleString()}`, 14, 22);
+    doc.text(`Rows: ${filteredAndSortedEntries.length} | Columns: ${columnsToExport.length}`, 14, 27);
+
+    // Build table data
+    const headers = columnsToExport.map((col) => col.label || col.key);
+    const data = filteredAndSortedEntries.map((entry) => {
+      return columnsToExport.map((col) => {
+        const value = entry[col.key];
+        // Handle objects (like nested relations)
+        if (typeof value === "object" && value !== null) {
+          if ("name" in value) return (value as { name: string }).name;
+          if ("label" in value) return (value as { label: string }).label;
+          return JSON.stringify(value);
+        }
+        // Truncate long values for PDF readability
+        const strVal = String(value ?? '');
+        return strVal.length > 50 ? strVal.slice(0, 47) + '...' : strVal;
+      });
+    });
+
+    // Add table using autoTable
+    autoTable(doc, {
+      head: [headers],
+      body: data,
+      startY: 32,
+      styles: {
+        fontSize: 8,
+        cellPadding: 2,
+      },
+      headStyles: {
+        fillColor: [59, 130, 246], // Blue header
+        textColor: 255,
+        fontStyle: 'bold',
+      },
+      alternateRowStyles: {
+        fillColor: [245, 247, 250],
+      },
+      margin: { top: 32 },
+    });
+
+    // Generate and download
+    const timestamp = new Date().toISOString().split("T")[0];
+    const scopeLabel = exportScope === "visible" ? "visible" : "all";
+    doc.save(`${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.pdf`);
+
+    // Close modal and show toast
+    setShowExportModal(false);
+    toast({
+      title: "Export Complete",
+      description: `Exported ${filteredAndSortedEntries.length} rows to PDF`,
+    });
+  }, [exportScope, visibleDataColumns, allDataColumns, filteredAndSortedEntries, tableName, toast]);
+
+  // Master export handler that routes to the correct format
+  const handleExport = useCallback(() => {
+    switch (exportFormat) {
+      case 'excel':
+        handleExportExcel();
+        break;
+      case 'pdf':
+        handleExportPDF();
+        break;
+      default:
+        handleExportCSV();
+    }
+  }, [exportFormat, handleExportCSV, handleExportExcel, handleExportPDF]);
+
   // ============================================================================
   // CELL RENDERING
   // ============================================================================
@@ -2915,6 +3106,37 @@ export default function TeeemTableView({
           );
         }
 
+        // Multiple lines text - Rich text editor with formatting
+        if (columnType === 'multiple_lines_text' || columnType === 'long_text') {
+          return (
+            <div className="min-w-[250px]">
+              <InlineRichTextEditor
+                value={String(editingCellValue ?? "")}
+                onChange={(val) => setEditingCellValue(val)}
+                onBlur={() => saveCellEdit()}
+                placeholder="Enter text..."
+              />
+              <div className="flex justify-end gap-1 mt-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs"
+                  onClick={cancelCellEdit}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-6 text-xs"
+                  onClick={saveCellEdit}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+          );
+        }
+
         // Text/Number/Date - Input field with Enter to save, Escape to cancel
         return (
           <Input
@@ -3146,6 +3368,53 @@ export default function TeeemTableView({
         );
       }
 
+      // Handle multiple_lines_text - render HTML content
+      if (column.column_type === "multiple_lines_text" || column.column_type === "long_text") {
+        const htmlValue = String(value);
+        // Check if it contains HTML tags
+        const hasHtml = /<[^>]+>/.test(htmlValue);
+        if (hasHtml) {
+          // Strip HTML for preview, show full in tooltip
+          const textContent = htmlValue.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          const preview = textContent.length > 80 ? textContent.slice(0, 80) + '...' : textContent;
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="truncate block max-w-[200px] cursor-pointer">
+                    {preview || <span className="text-muted-foreground">-</span>}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-md">
+                  <div
+                    className="prose prose-sm dark:prose-invert max-h-[300px] overflow-auto"
+                    dangerouslySetInnerHTML={{ __html: htmlValue }}
+                  />
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        }
+        // Plain text - show with line breaks preserved
+        if (htmlValue.length > 80) {
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="truncate block max-w-[200px]">
+                    {htmlValue.slice(0, 80)}...
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-md">
+                  <p className="whitespace-pre-wrap">{htmlValue}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        }
+        return <span className="whitespace-pre-wrap">{htmlValue}</span>;
+      }
+
       // Default: render as string (truncated if too long)
       const strValue = String(value);
       if (strValue.length > 100) {
@@ -3251,6 +3520,7 @@ export default function TeeemTableView({
           {visibleColumnsInOrder.map((column, colIndex) => {
             const stickyStyles = getStickyColumnStyles(column.key, true);
             const isSticky = isStickyColumn(column.key);
+            const isSystemGen = isSystemGeneratedColumn(column);
 
             return (
               <TableHead
@@ -3266,12 +3536,16 @@ export default function TeeemTableView({
                     textAlign: 'center',
                     verticalAlign: 'middle',
                   }),
+                  ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                    backgroundColor: SYSTEM_COLUMN_BG,
+                  }),
                 }}
                 className={cn(
                   "relative",
                   column.key === "select" && "!border-r-0 !p-0 !h-full",
                   column.key === "actions" && "!border-l-0"
                 )}
+                title={isSystemGen ? "System-generated column (read-only)" : undefined}
               >
                 {column.key === "select" ? (
                   <Checkbox
@@ -3428,6 +3702,7 @@ export default function TeeemTableView({
                     >
                       {visibleColumnsInOrder.map((column, colIndex) => {
                         const stickyStyles = getStickyColumnStyles(column.key, false);
+                        const isSystemGen = isSystemGeneratedColumn(column);
                         return (
                           <TableCell
                             key={`${column.key}-${colIndex}`}
@@ -3435,6 +3710,9 @@ export default function TeeemTableView({
                               width: columnWidths[column.key],
                               minWidth: columnWidths[column.key],
                               ...stickyStyles,
+                              ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                                backgroundColor: SYSTEM_COLUMN_BG,
+                              })
                             }}
                             className={cn(
                               column.key === "select" && "!border-r-0 !p-0 !h-full",
@@ -3517,6 +3795,7 @@ export default function TeeemTableView({
       >
         {visibleColumnsInOrder.map((column, colIndex) => {
           const stickyStyles = getStickyColumnStyles(column.key, false);
+          const isSystemGen = isSystemGeneratedColumn(column);
           return (
             <TableCell
               key={`${column.key}-${colIndex}`}
@@ -3527,6 +3806,9 @@ export default function TeeemTableView({
                 ...(column.key === "select" && {
                   textAlign: 'center',
                   verticalAlign: 'middle',
+                }),
+                ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                  backgroundColor: SYSTEM_COLUMN_BG,
                 }),
               }}
               className={cn(
@@ -3607,7 +3889,9 @@ export default function TeeemTableView({
                 onClick={() => onRowClick?.(row)}
                 onDoubleClick={() => onRowDoubleClick?.(row)}
               >
-                {visibleColumnsInOrder.map((column, colIndex) => (
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isSystemGen = isSystemGeneratedColumn(column);
+                  return (
                   <TableCell
                     key={`${column.key}-${colIndex}`}
                     style={{
@@ -3626,6 +3910,9 @@ export default function TeeemTableView({
                         zIndex: 10,
                         background: 'hsl(40, 11%, 95%)',
                         boxShadow: '-1px 0 0 #d4d4d4',
+                      }),
+                      ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                        backgroundColor: SYSTEM_COLUMN_BG,
                       })
                     }}
                     className={cn(
@@ -3637,7 +3924,8 @@ export default function TeeemTableView({
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
-                ))}
+                  );
+                })}
               </TableRow>
             );
           });
@@ -3813,7 +4101,9 @@ export default function TeeemTableView({
                   !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                 }
               >
-                {visibleColumnsInOrder.map((column, colIndex) => (
+                {visibleColumnsInOrder.map((column, colIndex) => {
+                  const isSystemGen = isSystemGeneratedColumn(column);
+                  return (
                   <TableCell
                     key={`${column.key}-${colIndex}`}
                     style={{
@@ -3834,6 +4124,9 @@ export default function TeeemTableView({
                         zIndex: 10,
                         background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
                         boxShadow: '-1px 0 0 #d4d4d4', // Left border
+                      }),
+                      ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                        backgroundColor: SYSTEM_COLUMN_BG,
                       })
                     }}
                     className={cn(
@@ -3843,7 +4136,8 @@ export default function TeeemTableView({
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
-                ))}
+                );
+                })}
               </TableRow>
             ))
           )}
@@ -3920,8 +4214,13 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Filters button - only show if no custom actions provided (custom actions may have their own filter) */}
-          {!customActions && (
+          {/* Custom actions */}
+          {customActions}
+
+          {/* Filters button - auto-enabled when foundationIdNumeric is set */}
+          {/* Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md */}
+          {/* Don't show if customActions is provided (page handles its own filter button) */}
+          {shouldAutoEnable && !customActions && (
             <Button
               variant="outline"
               size="sm"
@@ -3938,9 +4237,6 @@ export default function TeeemTableView({
             </Button>
           )}
 
-          {/* Custom actions */}
-          {customActions}
-
           {/* More actions menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -3954,8 +4250,8 @@ export default function TeeemTableView({
                 Columns
               </DropdownMenuItem>
 
-              {/* Schema Section */}
-              {enableSchemaEditor && (
+              {/* Schema Section - auto-enabled when foundationIdNumeric is set */}
+              {effectiveEnableSchemaEditor && (
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
@@ -3983,18 +4279,18 @@ export default function TeeemTableView({
                 </>
               )}
 
-              {/* Data Section */}
+              {/* Data Section - auto-enabled when foundationIdNumeric is set */}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
                 DATA
               </DropdownMenuLabel>
-              {enableImport && (
+              {effectiveEnableImport && (
                 <DropdownMenuItem onClick={onImport}>
                   <Download className="h-4 w-4 mr-2" />
                   Import
                 </DropdownMenuItem>
               )}
-              {enableExport && (
+              {effectiveEnableExport && (
                 <DropdownMenuItem onClick={() => setShowExportModal(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   Export
@@ -4871,15 +5167,82 @@ export default function TeeemTableView({
         <DialogContent className="max-w-md p-8">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Export to CSV
+              <Download className="h-5 w-5" />
+              Export Data
             </DialogTitle>
             <DialogDescription>
-              Export {filteredAndSortedEntries.length} rows to a CSV file
+              Export {filteredAndSortedEntries.length} rows to a file
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Format Selection */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Export Format</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <label
+                  className={cn(
+                    "flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition-colors",
+                    exportFormat === "csv"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="csv"
+                    checked={exportFormat === "csv"}
+                    onChange={() => setExportFormat("csv")}
+                    className="sr-only"
+                  />
+                  <FileSpreadsheet className="h-6 w-6 text-green-600" />
+                  <span className="text-sm font-medium">CSV</span>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition-colors",
+                    exportFormat === "excel"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="excel"
+                    checked={exportFormat === "excel"}
+                    onChange={() => setExportFormat("excel")}
+                    className="sr-only"
+                  />
+                  <Table2 className="h-6 w-6 text-emerald-600" />
+                  <span className="text-sm font-medium">Excel</span>
+                </label>
+
+                <label
+                  className={cn(
+                    "flex flex-col items-center gap-1 p-3 rounded-lg border cursor-pointer transition-colors",
+                    exportFormat === "pdf"
+                      ? "border-primary bg-primary/5"
+                      : "border-muted hover:border-muted-foreground/50"
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="exportFormat"
+                    value="pdf"
+                    checked={exportFormat === "pdf"}
+                    onChange={() => setExportFormat("pdf")}
+                    className="sr-only"
+                  />
+                  <FileSpreadsheet className="h-6 w-6 text-red-600" />
+                  <span className="text-sm font-medium">PDF</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Column Selection */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Columns to Export</Label>
               <div className="grid gap-2">
@@ -4950,7 +5313,7 @@ export default function TeeemTableView({
                 </div>
                 <div className="flex justify-between">
                   <span>Format:</span>
-                  <span className="font-mono">CSV</span>
+                  <span className="font-mono uppercase">{exportFormat}</span>
                 </div>
               </div>
             </div>
@@ -4960,9 +5323,9 @@ export default function TeeemTableView({
             <Button variant="outline" onClick={() => setShowExportModal(false)}>
               Cancel
             </Button>
-            <Button onClick={handleExportCSV}>
-              <Upload className="h-4 w-4 mr-2" />
-              Export CSV
+            <Button onClick={handleExport}>
+              <Download className="h-4 w-4 mr-2" />
+              Export {exportFormat.toUpperCase()}
             </Button>
           </DialogFooter>
         </DialogContent>

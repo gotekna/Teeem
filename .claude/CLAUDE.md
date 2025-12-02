@@ -348,48 +348,44 @@ docs: Update [Bible|Teacher|Lexicon] from database export
 
 ---
 
-## 🎯 Column Types Single Source of Truth
+## 🎯 Gold Standard Table MD is Single Source of Truth
 
-**Trinity T19.001-T19.021 = Single Source of Truth for Column Types**
+**TEEEM_DOCS/GOLD_STANDARD_TABLE.md is THE SINGLE SOURCE OF TRUTH for all table and column behavior.**
 
-See Bible Rule #19.37 for full details.
+See Bible Rule #19.002.
 
 **The Hierarchy:**
 ```
-Trinity T19.001-T19.021 (SSoT - RULES)
+TEEEM_DOCS/GOLD_STANDARD_TABLE.md (SSoT - THE SPEC)
     │
-    │ Defines: SQL type, validation rules, examples, usage
+    │ Defines: All 31 column types, validation rules, SQL types, TeeemTableView features
     │
-    ├──► columns table (Table ID 1) - IMPLEMENTATION
-    │    Must match Trinity rules
-    │
-    ├──► gold_standard_items - PROOF
-    │    Sample data demonstrating each type
-    │
-    └──► Frontend COLUMN_TYPES - CACHE/FALLBACK ONLY
-         Reads from API, never edited directly
+    ├──► Backend code must match this
+    ├──► Frontend code must match this
+    ├──► API must return this
+    └──► Gold Standard Table (ID: 1) demonstrates this
 ```
 
-**Maintenance Process:**
-1. Edit Trinity T19.xxx first (via Documentation page UI)
-2. Update columns table to match Trinity rules
-3. Run `gold-standard-sst` agent to verify sync
-4. Fix any drift reported by agent
+**Troubleshooting Workflow:**
+1. Problem with a table? → Read GOLD_STANDARD_TABLE.md
+2. Something wrong? → Fix the MD first (it's the spec)
+3. Update code to match the MD
 
-**API Access:**
-- `GET /api/v1/column_types` - reads from Gold Standard table
-- `GET /api/v1/trinity?category=teacher&chapter_number=19` - reads Trinity entries
-- `GET /api/v1/gold_table_sync` - checks sync status
+**Code Locations (must match the MD):**
+- `backend/app/models/column.rb` → COLUMN_SQL_TYPE_MAP
+- `backend/app/controllers/api/v1/column_types_controller.rb`
+- `frontend-next/components/table/TeeemTableView.tsx`
+- `frontend-next/lib/column-types.ts`
 
 **NEVER:**
-- ❌ Hardcode column types in frontend/backend code
-- ❌ Edit `frontend/src/constants/columnTypes.js` as source (cache only)
-- ❌ Skip Trinity when adding new column types
+- ❌ Have code that contradicts GOLD_STANDARD_TABLE.md
+- ❌ Add column types without updating the MD first
+- ❌ Fix table bugs without checking the MD first
 
 **ALWAYS:**
-- ✅ Edit Trinity first (T19.xxx entries)
-- ✅ Run agent to verify sync
-- ✅ Frontend reads via API with cache expiry
+- ✅ Read GOLD_STANDARD_TABLE.md first when debugging tables
+- ✅ Update the MD before updating code
+- ✅ Test changes in Gold Standard Table (ID: 1) first
 
 ---
 

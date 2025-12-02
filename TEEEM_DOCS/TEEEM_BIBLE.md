@@ -2061,124 +2061,27 @@ MUST create ActiveRecord model at runtime:
 • Reuse database_table_name across tables
 ---
 
-## RULE #19.002: Column Type System
+## RULE #19.002: Gold Standard Table MD is Single Source of Truth
 
 RULE:
-MUST: MUST map column types correctly:
-MUST use TableBuilder for physical schema changes:
----
+MUST: **TEEEM_DOCS/GOLD_STANDARD_TABLE.md is the SINGLE SOURCE OF TRUTH for all table and column behavior.**
 
-## RULE #19.003: Formula Evaluation System
+All column types, validation rules, SQL types, TeeemTableView features, and table standards are defined in that ONE file.
 
-RULE:
-MUST: MUST support curly brace references:
-MUST evaluate formulas safely:
-MUST flag columns with cross-table refs:
----
+When something is wrong with tables:
+1. Read GOLD_STANDARD_TABLE.md
+2. Fix the MD if needed (it's the spec)
+3. Update code to match the MD
 
-## RULE #19.004: Lookup Column Pattern
+Code locations that MUST match the Gold Standard Table MD:
+• `backend/app/models/column.rb` → COLUMN_SQL_TYPE_MAP
+• `backend/app/controllers/api/v1/column_types_controller.rb`
+• `frontend-next/components/table/TeeemTableView.tsx`
+• `frontend-next/lib/column-types.ts`
 
-RULE:
-MUST: MUST create associations dynamically:
-MUST batch-load related records:
-MUST return id + display value:
----
-
-## RULE #19.005: Record CRUD with Formula Calculation
-
-RULE:
-MUST: MUST calculate formulas on save:
-MUST transform computed values on read:
----
-
-## RULE #19.006: Table Deletion Safety
-
-RULE:
-MUST: MUST validate before deletion:
-MUST drop database table:
----
-
-## RULE #19.007: Column Validation Rules
-
-RULE:
-MUST: MUST enforce validation rules:
-MUST validate record data before save:
----
-
-## RULE #19.008: Foreign Key Constraints
-
-RULE:
-MUST: MUST add foreign keys for lookups:
-NEVER use on_delete: :cascade for lookup columns (data loss risk)
----
-
-## RULE #19.009: ColumnTypeValidator is Single Source of Truth for Validation
-
-RULE:
-MUST: • ALL column type validation rules defined ONCE in `ColumnTypeValidator` service
-• Backend validation via `AutoColumnValidation` concern included in `ApplicationRecord`
-• Frontend validation via `validateCell()` function in `TeeemTableView`
-• Rules in backend and frontend MUST match exactly (keep in sync)
-• Add new column types to BOTH `ColumnTypeValidator.validate()` AND `TeeemTableView.validateCell()`
-• Use `ColumnTypeValidator.format_value()` for consistent formatting (phone, ABN, BSB, etc.)
-• Cache column types per table (5-minute TTL) to avoid repeated DB queries
-• Clear cache when column definitions change (`ColumnTypeValidator.clear_cache`)
-NEVER: • Duplicate validation logic in individual models
-• Hardcode validation in controllers or views
-• Create custom validators for standard column types
-• Skip validation by bypassing `ApplicationRecord`
----
-
-## RULE #19.010: Column Type Validation Rules Reference
-
-RULE:
-MUST: • `email` - Valid email format (RFC compliant)
-• `phone`/`mobile` - Digits, spaces, dashes, parentheses, plus sign; minimum 8 digits
-• `url` - Valid HTTP or HTTPS URL
-• `whole_number` - Integer, 0 or greater
-• `number`/`currency` - Decimal number, 0 or greater
-• `percentage` - Number between 0 and 100
-• `gps_coordinates` - Format: `latitude,longitude` (e.g., `-33.8688,151.2093`)
-• `color_picker` - Hex color format `#RRGGBB`
-• `abn` - Australian Business Number, exactly 11 digits
-• `acn` - Australian Company Number, exactly 9 digits
-• `bsb` - Bank State Branch, exactly 6 digits
-• `bank_account` - 6-10 digits
-• `postcode` - Australian postcode, exactly 4 digits
-• `tfn` - Tax File Number, 8-9 digits
-• Reject invalid values with clear error messages
-• Format values automatically before save (phone → `0XXX XXX XXX`, ABN → `XX XXX XXX XXX`)
-NEVER: • Invent new validation formats without adding to ColumnTypeValidator
-• Allow invalid data to save to database
-• Show cryptic error messages to users
----
-
-## RULE #19.011: All Models MUST Use AutoColumnValidation
-
-RULE:
-MUST: • `ApplicationRecord` includes `AutoColumnValidation` concern
-• All models inherit from `ApplicationRecord` (automatic validation)
-• `before_validation` callback runs `ColumnTypeValidator.validate_record()`
-• `before_save` callback runs `ColumnTypeValidator.format_record()`
-• Validation errors added to model's `errors` collection
-• Invalid records fail to save with descriptive error messages
-NEVER: • Override `ApplicationRecord` to skip validation
-• Create models that don't inherit from `ApplicationRecord`
-• Disable callbacks to bypass validation
-• Catch and swallow validation errors silently
----
-
-## RULE #19.012: Gold Standard Table is Reference Implementation
-
-RULE:
-MUST: • Use Gold Standard Table (Foundation ID: 1) as template for ALL new tables
-• Copy patterns from `GoldStandardTab.tsx` when creating new table pages
-• Demonstrate every supported column type in Gold Standard
-• Test new features in Gold Standard before rolling out to other tables
-• Keep Gold Standard up-to-date with latest TeeemTableView features
-NEVER: • Implement table features that don't work in Gold Standard first
-• Use different patterns in other tables than Gold Standard demonstrates
-• Skip Gold Standard when debugging table issues (test there first)
+NEVER: • Have code that contradicts GOLD_STANDARD_TABLE.md
+• Add column types without updating the MD first
+• Fix table bugs without checking the MD first
 ---
 
 # Chapter 20: UI/UX Standards & Patterns

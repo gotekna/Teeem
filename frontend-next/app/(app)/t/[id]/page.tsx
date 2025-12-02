@@ -21,6 +21,18 @@ const TABLE_ROUTES: Record<number, { name: string; apiEndpoint: string; itemRout
   214: { name: "Contacts", apiEndpoint: "/api/v1/contacts", itemRoute: "/contacts" },
 };
 
+// System-generated column types that users cannot edit
+const SYSTEM_GENERATED_TYPES = [
+  'computed', 'formula', 'auto_number', 'created_time', 'modified_time',
+  'created_by', 'modified_by', 'rollup', 'count'
+];
+
+// Check if a column is system-generated
+const isSystemColumn = (columnName: string, columnType: string): boolean => {
+  return ['id', 'created_at', 'updated_at'].includes(columnName) ||
+         SYSTEM_GENERATED_TYPES.includes(columnType);
+};
+
 interface FoundationData {
   id: number;
   name: string;
@@ -80,15 +92,20 @@ export default function TablePage() {
 
       const tableColumns: TableColumn[] = [
         { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
-        ...sortedCols.map((col) => ({
-          key: col.column_name,
-          label: col.name || col.column_name,
-          column_type: col.column_type,
-          resizable: true,
-          sortable: true,
-          filterable: true,
-          width: 150,
-        })),
+        ...sortedCols.map((col) => {
+          const isSysCol = isSystemColumn(col.column_name, col.column_type);
+          return {
+            key: col.column_name,
+            label: col.name || col.column_name,
+            column_type: col.column_type,
+            resizable: true,
+            sortable: true,
+            filterable: true,
+            width: col.column_name === 'id' ? 60 : 150,
+            editable: !isSysCol,
+            system: isSysCol,
+          };
+        }),
         { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 },
       ];
       setColumns(tableColumns);

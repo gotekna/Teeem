@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_02_122036) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_02_220046) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1014,6 +1014,31 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_122036) do
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name"], name: "index_document_types_on_name", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
+  end
+
+  create_table "document_verification_feedbacks", force: :cascade do |t|
+    t.bigint "company_document_id", null: false
+    t.bigint "user_id", null: false
+    t.string "ai_suggested_name"
+    t.string "ai_suggested_folder"
+    t.string "ai_suggested_type"
+    t.string "ai_suggested_fy"
+    t.integer "ai_confidence"
+    t.string "user_final_name"
+    t.string "user_final_folder"
+    t.string "user_final_type"
+    t.string "user_final_fy"
+    t.string "action", null: false
+    t.text "rejection_reason"
+    t.text "document_text_snippet"
+    t.string "company_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_document_verification_feedbacks_on_action"
+    t.index ["company_code", "action"], name: "idx_on_company_code_action_af023a5fcb"
+    t.index ["company_code"], name: "index_document_verification_feedbacks_on_company_code"
+    t.index ["company_document_id"], name: "index_document_verification_feedbacks_on_company_document_id"
+    t.index ["user_id"], name: "index_document_verification_feedbacks_on_user_id"
   end
 
   create_table "documentation_categories", force: :cascade do |t|
@@ -3905,6 +3930,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_122036) do
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "companies"
   add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "document_verification_feedbacks", "company_documents"
+  add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "email_job_proposals", "email_warehouse"
   add_foreign_key "email_job_proposals", "jobs"
   add_foreign_key "email_job_proposals", "users", column: "approved_by_user_id"

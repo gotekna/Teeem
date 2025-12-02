@@ -67,6 +67,18 @@ export default function JobsPage() {
   const JOBS_TABLE_ID = 204;
   const tableConfig = getTableUIConfig(JOBS_TABLE_ID);
 
+  // System-generated column types that users cannot edit
+  const SYSTEM_GENERATED_TYPES = [
+    'computed', 'formula', 'auto_number', 'created_time', 'modified_time',
+    'created_by', 'modified_by', 'rollup', 'count'
+  ];
+
+  // Check if a column is system-generated
+  const isSystemColumn = (columnName: string, columnType?: string): boolean => {
+    return ['id', 'created_at', 'updated_at'].includes(columnName) ||
+           SYSTEM_GENERATED_TYPES.includes(columnType || '');
+  };
+
   useEffect(() => {
     loadJobs();
     loadJobMetadata();
@@ -138,16 +150,17 @@ export default function JobsPage() {
       const enrichedColumns = columns.map(col => {
         // Get the column identifier - API columns may use 'key' or 'column_name'
         const colKey = col.key || (col as unknown as { column_name?: string }).column_name || '';
+        const isSysCol = isSystemColumn(colKey, col.column_type);
 
         // Add choices for job_type and job_type_id columns
         if (colKey === 'job_type' || colKey === 'job_type_id') {
-          return { ...col, choices: jobTypes.map(t => t.name), column_type: 'choice' };
+          return { ...col, choices: jobTypes.map(t => t.name), column_type: 'choice', editable: !isSysCol, system: isSysCol };
         }
         // Add choices for job_status and job_status_id columns
         if (colKey === 'job_status' || colKey === 'job_status_id') {
-          return { ...col, choices: jobStatuses.map(s => s.name), column_type: 'choice' };
+          return { ...col, choices: jobStatuses.map(s => s.name), column_type: 'choice', editable: !isSysCol, system: isSysCol };
         }
-        return col;
+        return { ...col, editable: !isSysCol, system: isSysCol };
       });
       return [
         { key: "select", label: "", width: 40, sortable: false, filterable: false },
@@ -160,6 +173,7 @@ export default function JobsPage() {
     // Note: Include both job_type/job_status AND job_type_id/job_status_id for backward compatibility with saved views
     return [
       { key: "select", label: "", width: 40, sortable: false, filterable: false },
+      { key: "id", label: "ID", width: 60, sortable: true, filterable: true, column_type: "whole_number", editable: false, system: true },
       { key: "ted_number", label: "TED #", width: 100, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "title", label: "Job Title", width: 250, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobTypes.map(t => t.name) },

@@ -161,30 +161,49 @@ class Api::V1::ColumnTypesController < ApplicationController
   end
 
   # Categorize column types
+  # MUST MATCH: TEEEM_DOCS/GOLD_STANDARD_TABLE.md
   def categorize_column_type(type)
     categories = {
+      # Text (6)
       'single_line_text' => 'Text',
       'multiple_lines_text' => 'Text',
       'email' => 'Text',
       'phone' => 'Text',
       'mobile' => 'Text',
       'url' => 'Text',
+      # Numbers (4)
       'number' => 'Numbers',
       'whole_number' => 'Numbers',
       'currency' => 'Numbers',
       'percentage' => 'Numbers',
+      # Date & Time (2)
       'date' => 'Date & Time',
       'date_and_time' => 'Date & Time',
+      # Special (4)
       'gps_coordinates' => 'Special',
       'color_picker' => 'Special',
       'file_upload' => 'Special',
       'action_buttons' => 'Special',
+      # Selection (2)
       'boolean' => 'Selection',
       'choice' => 'Selection',
+      # Relationships (3)
       'lookup' => 'Relationships',
       'multiple_lookups' => 'Relationships',
       'user' => 'Relationships',
-      'computed' => 'Computed'
+      # Computed (1)
+      'computed' => 'Computed',
+      # Advanced (3)
+      'structured_data' => 'Advanced',
+      'array_of_items' => 'Advanced',
+      'searchable_text' => 'Advanced',
+      # Australian (6)
+      'abn' => 'Australian',
+      'acn' => 'Australian',
+      'bsb' => 'Australian',
+      'bank_account' => 'Australian',
+      'postcode' => 'Australian',
+      'tfn' => 'Australian'
     }
     categories[type] || 'Other'
   end
@@ -198,34 +217,54 @@ class Api::V1::ColumnTypesController < ApplicationController
   # Get validation rules for a column type
   # First tries to get from database column.description field
   # Falls back to hardcoded rules if not set
+  # MUST MATCH: TEEEM_DOCS/GOLD_STANDARD_TABLE.md
   def get_validation_rules(column)
     # Use database description if available (updated by teeem:update_validation_rules rake task)
     return column.description if column.description.present?
 
-    # Fallback to hardcoded defaults (only used if database not populated)
+    # Fallback to hardcoded defaults - ALL 31 TYPES
+    # Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md
     fallback_rules = {
-      'single_line_text' => 'Optional text field, max 255 characters, alphanumeric',
-      'multiple_lines_text' => 'Long text field, unlimited length, supports line breaks',
-      'email' => 'Valid email address format (user@domain.com)',
-      'phone' => 'Phone number format, various formats accepted',
-      'mobile' => 'Mobile phone number format: 04XX XXX XXX',
-      'url' => 'Valid URL starting with http:// or https://',
-      'number' => 'Decimal number with up to 2 decimal places',
-      'whole_number' => 'Integer only, no decimal places',
-      'currency' => 'Currency amount with 2 decimal places',
-      'percentage' => 'Percentage value (0-100) with decimals',
-      'date' => 'Date format: DD/MM/YYYY',
-      'date_and_time' => 'Date and time format: DD/MM/YYYY HH:MM',
-      'gps_coordinates' => 'GPS format: latitude, longitude',
-      'color_picker' => 'Hex color code: #RRGGBB',
+      # Text (6)
+      'single_line_text' => 'Optional, max 255 characters',
+      'multiple_lines_text' => 'Supports line breaks, unlimited length',
+      'email' => 'Must contain @, valid email format',
+      'phone' => 'Format: (03) 9123 4567 or 1300 numbers',
+      'mobile' => 'Format: 04XX XXX XXX, starts with 04',
+      'url' => 'Valid URL, starts with http:// or https://',
+      # Numbers (4)
+      'number' => 'Decimal numbers, up to 2 decimal places',
+      'whole_number' => 'Integers only, no decimals',
+      'currency' => 'Positive, 2 decimals, displays with $',
+      'percentage' => '0-100, displays with % symbol',
+      # Date & Time (2)
+      'date' => 'Stored: YYYY-MM-DD, Display: DD/MM/YYYY',
+      'date_and_time' => 'Full timestamp with time',
+      # Special (4)
+      'gps_coordinates' => 'Latitude, Longitude format',
+      'color_picker' => 'Hex color format #RRGGBB',
       'file_upload' => 'File path or URL to uploaded file',
-      'action_buttons' => 'Optional field, stores action configuration as JSON string',
-      'boolean' => 'True/False, Yes/No, 1/0',
-      'choice' => 'Single selection from predefined list',
-      'lookup' => 'Reference to another table record',
-      'multiple_lookups' => 'Multiple references to another table',
-      'user' => 'Reference to a user in the system',
-      'computed' => 'Formula-based calculated value'
+      'action_buttons' => 'JSON config for row actions',
+      # Selection (2)
+      'boolean' => 'True or False only',
+      'choice' => 'Must be one of predefined options',
+      # Relationships (3)
+      'lookup' => 'Must reference valid value from linked table',
+      'multiple_lookups' => 'Array of IDs stored as JSON',
+      'user' => 'Must reference valid user ID',
+      # Computed (1)
+      'computed' => 'Read-only, calculated from formula',
+      # Advanced (3)
+      'structured_data' => 'Valid JSON object, supports nesting',
+      'array_of_items' => 'Array of text values',
+      'searchable_text' => 'Read-only, auto-generated for search',
+      # Australian (6)
+      'abn' => '11 digits, format: XX XXX XXX XXX',
+      'acn' => '9 digits, format: XXX XXX XXX',
+      'bsb' => '6 digits, format: XXX-XXX',
+      'bank_account' => 'Up to 9 digits',
+      'postcode' => 'Exactly 4 digits',
+      'tfn' => '9 digits, format: XXX XXX XXX'
     }
 
     fallback_rules[column.column_type] || 'No validation rules defined'
