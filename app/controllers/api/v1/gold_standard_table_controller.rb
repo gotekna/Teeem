@@ -1,5 +1,5 @@
 class Api::V1::GoldStandardTableController < ApplicationController
-  before_action :set_item, only: [:update, :destroy]
+  before_action :set_item, only: [:update, :destroy, :merge]
   # sync_with_columns uses the default authorize_request from ApplicationController
 
   def index
@@ -13,6 +13,25 @@ class Api::V1::GoldStandardTableController < ApplicationController
 
     # Start with base query
     query = GoldStandardTable.all
+
+    # Apply search if provided
+    if params[:search].present?
+      search_term = "%#{params[:search].downcase}%"
+      if params[:search_all] == 'true'
+        # Search across all text columns
+        text_columns = GoldStandardTable.column_names.select do |col|
+          GoldStandardTable.columns_hash[col].type.in?([:string, :text])
+        end
+        conditions = text_columns.map { |col| "LOWER(CAST(#{col} AS TEXT)) LIKE ?" }.join(' OR ')
+        query = query.where(conditions, *text_columns.map { search_term })
+      else
+        # Search only primary text columns
+        query = query.where(
+          "LOWER(CAST(single_line_text AS TEXT)) LIKE ? OR LOWER(CAST(multiple_lines_text AS TEXT)) LIKE ? OR CAST(id AS TEXT) LIKE ?",
+          search_term, search_term, search_term
+        )
+      end
+    end
 
     # Apply filters if provided
     if params[:filters].present?
@@ -28,8 +47,11 @@ class Api::V1::GoldStandardTableController < ApplicationController
     # Fetch paginated items
     items = query.limit(per_page).offset(offset)
 
-    # Set caching headers (5 minutes cache) - disable if filters present
-    expires_in 5.minutes, public: true unless params[:filters].present?
+    # Disable caching for admin table - needs to reflect changes immediately
+    # expires_in 5.minutes, public: true unless params[:filters].present?
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
 
     render json: {
       success: true,
@@ -85,6 +107,45 @@ class Api::V1::GoldStandardTableController < ApplicationController
   rescue => e
     Rails.logger.error "Error bulk deleting gold standard items: #{e.class} - #{e.message}"
     render json: { error: e.message }, status: :internal_server_error
+  end
+
+  # POST /api/v1/gold_standard_table/:id/merge
+  def merge
+    secondary_ids = params[:secondary_ids]
+
+    return render json: { success: false, error: 'No secondary IDs provided' }, status: :bad_request if secondary_ids.blank?
+
+    secondary_items = GoldStandardTable.where(id: secondary_ids)
+
+    ActiveRecord::Base.transaction do
+      # Merge data from secondary items into primary
+      # For each field, use primary value if present, otherwise use first non-nil secondary value
+      secondary_items.each do |secondary|
+        @item.attributes.each_key do |attr|
+          next if %w[id created_at updated_at].include?(attr)
+          next if @item[attr].present?
+
+          if secondary[attr].present?
+            @item[attr] = secondary[attr]
+          end
+        end
+      end
+
+      @item.save!
+
+      # Delete secondary items
+      deleted_count = secondary_items.delete_all
+
+      render json: {
+        success: true,
+        primary_item: @item,
+        merged_count: deleted_count,
+        message: "Successfully merged #{deleted_count} item(s) into item ##{@item.id}"
+      }
+    end
+  rescue => e
+    Rails.logger.error "Error merging gold standard items: #{e.class} - #{e.message}"
+    render json: { success: false, error: e.message }, status: :internal_server_error
   end
 
   # Public endpoint to sync column types with the columns table
@@ -194,7 +255,15 @@ class Api::V1::GoldStandardTableController < ApplicationController
       # Other fields
       :user,
       :computed,
-      :action_buttons
+      :action_buttons,
+
+      # Australian identifier fields
+      :abn,
+      :acn,
+      :bsb,
+      :bank_account,
+      :postcode,
+      :tfn
     )
   end
 end

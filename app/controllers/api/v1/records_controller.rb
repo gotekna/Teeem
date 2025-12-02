@@ -253,6 +253,41 @@ module Api
         render json: { error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/foundations/:foundation_id/records/:id/merge
+      # Merge multiple records into one primary record
+      # Params:
+      #   - secondary_ids: Array of record IDs to merge into the primary
+      def merge
+        model = @foundation.dynamic_model
+        primary = model.find(params[:id])
+        secondary_ids = params[:secondary_ids]
+
+        if secondary_ids.blank?
+          return render json: { error: 'No secondary record IDs provided' }, status: :unprocessable_entity
+        end
+
+        secondaries = model.where(id: secondary_ids)
+
+        if secondaries.empty?
+          return render json: { error: 'No valid secondary records found' }, status: :unprocessable_entity
+        end
+
+        service = GenericMergeService.new(primary, secondaries, model)
+        result = service.merge!
+
+        render json: {
+          success: true,
+          record: record_to_json(result),
+          merged_count: service.merged_count,
+          message: "Successfully merged #{service.merged_count} record(s) into primary record"
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: 'Primary record not found' }, status: :not_found
+      rescue => e
+        Rails.logger.error "Merge failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+        render json: { error: "Merge failed: #{e.message}" }, status: :unprocessable_entity
+      end
+
       # POST /api/v1/foundations/:foundation_id/records/bulk_delete
       def bulk_delete
         model = @foundation.dynamic_model
