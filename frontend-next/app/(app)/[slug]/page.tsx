@@ -182,13 +182,6 @@ function TablePageContent() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {foundation?.table_type === 'system' && (
-            <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded">
-              System
-            </span>
-          )}
-        </p>
       </div>
 
       {/* Tabs (if configured) */}
@@ -261,6 +254,7 @@ function TablePageContent() {
             position: index,
           }))}
         onViewsChange={refresh}
+        rows={records}
       />
     </div>
   );

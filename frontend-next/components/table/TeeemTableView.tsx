@@ -68,6 +68,8 @@ import {
   Paperclip,
   CalendarIcon,
   GitMerge,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -630,6 +632,7 @@ export default function TeeemTableView({
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   showFilterButton = false,
+  onLoadViewReady,
   onServerSearch,
   serverSearchLoading = false,
   onViewApiParamsChange,
@@ -645,7 +648,20 @@ export default function TeeemTableView({
   const { toast } = useToast();
 
   // Use custom columns if provided, otherwise use defaults
-  const COLUMNS = useMemo(() => columns || DEFAULT_COLUMNS, [columns]);
+  const COLUMNS = useMemo(() => {
+    if (!columns) return DEFAULT_COLUMNS;
+    // Ensure select and actions columns are included
+    const hasSelect = columns.some(c => c.key === 'select');
+    const hasActions = columns.some(c => c.key === 'actions');
+    const result = [...columns];
+    if (!hasSelect) {
+      result.unshift({ key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 });
+    }
+    if (!hasActions) {
+      result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 });
+    }
+    return result;
+  }, [columns]);
 
   // Initialize default column state
   const DEFAULT_COLUMN_WIDTHS = useMemo(
@@ -678,6 +694,33 @@ export default function TeeemTableView({
   const [columnWidths, setColumnWidths] = useState<ColumnWidthsState>(DEFAULT_COLUMN_WIDTHS);
   const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_COLUMN_ORDER);
   const [visibleColumns, setVisibleColumns] = useState<VisibleColumnsState>(getDefaultVisibleColumns);
+
+  // Sync column order and visibility when COLUMNS changes (e.g., select/actions added)
+  useEffect(() => {
+    setColumnOrder((prev) => {
+      const newKeys = COLUMNS.map(c => c.key);
+      // Add any missing keys (like select) to the beginning or end
+      const missingKeys = newKeys.filter(k => !prev.includes(k));
+      if (missingKeys.length === 0) return prev;
+      // Put select at start, actions at end, others in order
+      const selectKey = missingKeys.find(k => k === 'select');
+      const actionsKey = missingKeys.find(k => k === 'actions');
+      const otherKeys = missingKeys.filter(k => k !== 'select' && k !== 'actions');
+      let result = [...prev];
+      if (selectKey) result = [selectKey, ...result];
+      if (otherKeys.length > 0) result = [...result, ...otherKeys];
+      if (actionsKey) result = [...result, actionsKey];
+      return result;
+    });
+    setVisibleColumns((prev) => {
+      const newKeys = COLUMNS.map(c => c.key);
+      const updates: VisibleColumnsState = { ...prev };
+      newKeys.forEach(k => {
+        if (!(k in updates)) updates[k] = true;
+      });
+      return updates;
+    });
+  }, [COLUMNS]);
   const [selectedRows, setSelectedRows] = useState<Set<number | string>>(new Set());
   const [cascadeFilters, setCascadeFilters] = useState<CascadeFilter[]>([]);
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
@@ -692,8 +735,11 @@ export default function TeeemTableView({
     initialGroupByColumn ? [initialGroupByColumn] : []
   );
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
   const [editingRowId, setEditingRowId] = useState<number | string | null>(null);
   const [editingData, setEditingData] = useState<Record<string, unknown>>({});
+  const [lookupOptions, setLookupOptions] = useState<Record<string, Array<{ id: number; display: string }>>>({});
+  const [lookupLoading, setLookupLoading] = useState<Record<string, boolean>>({});
 
   // Filter panel state
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -882,11 +928,64 @@ export default function TeeemTableView({
     });
   }, []);
 
+  // Collect all group keys for expand/collapse all
+  const getAllGroupKeys = useCallback((
+    groups: Record<string, { rows: unknown[]; subgroups?: Record<string, unknown> }>,
+    parentKey: string = ""
+  ): string[] => {
+    const keys: string[] = [];
+    for (const [groupKey, group] of Object.entries(groups)) {
+      const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
+      keys.push(fullKey);
+      if (group.subgroups && typeof group.subgroups === 'object') {
+        keys.push(...getAllGroupKeys(group.subgroups as typeof groups, fullKey));
+      }
+    }
+    return keys;
+  }, []);
+
+  // Fetch lookup options for a column
+  const fetchLookupOptions = useCallback(async (column: TableColumn) => {
+    const targetTableId = column.lookup_config?.target_table_id;
+    if (!targetTableId || lookupOptions[column.key]) return;
+
+    setLookupLoading(prev => ({ ...prev, [column.key]: true }));
+    try {
+      const response = await api.get(`/api/v1/foundations/${targetTableId}/records`) as {
+        data?: { records?: Record<string, unknown>[] } | Record<string, unknown>[]
+      };
+      const data = response.data;
+      const records: Record<string, unknown>[] = Array.isArray(data)
+        ? data
+        : (data as { records?: Record<string, unknown>[] })?.records || [];
+      const displayColumn = column.lookup_config?.display_column || 'name';
+
+      const options = records.map((record) => ({
+        id: record.id as number,
+        display: String(record[displayColumn] || record.name || record.title || record.id),
+      }));
+
+      setLookupOptions(prev => ({ ...prev, [column.key]: options }));
+    } catch (error) {
+      console.error('Failed to fetch lookup options:', error);
+      setLookupOptions(prev => ({ ...prev, [column.key]: [] }));
+    } finally {
+      setLookupLoading(prev => ({ ...prev, [column.key]: false }));
+    }
+  }, [lookupOptions]);
+
   // Inline editing handlers
   const startEditing = useCallback((row: TableRowType) => {
     setEditingRowId(row.id);
     setEditingData({ ...row });
-  }, []);
+
+    // Pre-fetch lookup options for lookup columns
+    COLUMNS.forEach(col => {
+      if ((col.column_type === 'lookup' || col.column_type === 'relation') && col.lookup_config?.target_table_id) {
+        fetchLookupOptions(col);
+      }
+    });
+  }, [COLUMNS, fetchLookupOptions]);
 
   const cancelEditing = useCallback(() => {
     setEditingRowId(null);
@@ -1234,6 +1333,13 @@ export default function TeeemTableView({
     [onViewApiParamsChange, searchParams, router]
   );
 
+  // Expose loadViewState to parent via callback
+  useEffect(() => {
+    if (onLoadViewReady) {
+      onLoadViewReady(loadViewState);
+    }
+  }, [onLoadViewReady, loadViewState]);
+
   // Save current state as new view
   const saveNewView = useCallback(async () => {
     if (!newViewName.trim() || !foundationIdNumeric) return;
@@ -1408,7 +1514,7 @@ export default function TeeemTableView({
     // Apply sorting
     if (sortColumns.length > 0) {
       result.sort((a, b) => {
-        for (const { column, dir } of sortColumns) {
+        for (const { column, dir, customOrder } of sortColumns) {
           const aVal = a[column];
           const bVal = b[column];
 
@@ -1416,15 +1522,36 @@ export default function TeeemTableView({
           if (aVal == null) return dir === "asc" ? 1 : -1;
           if (bVal == null) return dir === "asc" ? -1 : 1;
 
+          // Get display values (handle lookup objects)
+          const getDisplayVal = (val: unknown): string => {
+            if (typeof val === 'object' && val !== null) {
+              const obj = val as { display?: string; name?: string; id?: number };
+              return obj.display || obj.name || String(obj.id || '');
+            }
+            return String(val);
+          };
+
+          const aDisplay = getDisplayVal(aVal);
+          const bDisplay = getDisplayVal(bVal);
+
           let comparison = 0;
-          if (typeof aVal === "number" && typeof bVal === "number") {
+
+          if (dir === "custom" && customOrder && customOrder.length > 0) {
+            // Custom sort order - use position in customOrder array
+            const aIndex = customOrder.indexOf(aDisplay);
+            const bIndex = customOrder.indexOf(bDisplay);
+            // Items not in custom order go to the end
+            const aPos = aIndex === -1 ? customOrder.length : aIndex;
+            const bPos = bIndex === -1 ? customOrder.length : bIndex;
+            comparison = aPos - bPos;
+          } else if (typeof aVal === "number" && typeof bVal === "number") {
             comparison = aVal - bVal;
           } else {
-            comparison = String(aVal).localeCompare(String(bVal));
+            comparison = aDisplay.localeCompare(bDisplay);
           }
 
           if (comparison !== 0) {
-            return dir === "asc" ? comparison : -comparison;
+            return dir === "desc" ? -comparison : comparison;
           }
         }
         return 0;
@@ -1499,12 +1626,49 @@ export default function TeeemTableView({
     return buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
   }, [filteredAndSortedEntries, groupByColumns, getDisplayValue]);
 
+  // Expand/collapse all group handlers (must be after groupedEntries)
+  const expandAllGroups = useCallback(() => {
+    setCollapsedGroups(new Set());
+  }, []);
+
+  const collapseAllGroups = useCallback(() => {
+    if (groupedEntries) {
+      const allKeys = getAllGroupKeys(groupedEntries);
+      setCollapsedGroups(new Set(allKeys));
+    }
+  }, [groupedEntries, getAllGroupKeys]);
+
+  // Auto-expand all groups when searching/filtering
+  useEffect(() => {
+    if (search.trim() && groupedEntries) {
+      // Expand all groups when there's a search term
+      setCollapsedGroups(new Set());
+    }
+  }, [search, groupedEntries]);
+
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
-    return columnOrder
+    // Start with columns from columnOrder that are visible
+    const orderedVisible = columnOrder
       .filter((key) => visibleColumns[key] === true)
       .map((key) => COLUMNS.find((c) => c.key === key))
       .filter((col): col is TableColumn => col !== undefined);
+
+    // Ensure select is always first if it exists in COLUMNS
+    const selectCol = COLUMNS.find(c => c.key === 'select');
+    const hasSelectInOrder = orderedVisible.some(c => c.key === 'select');
+    if (selectCol && !hasSelectInOrder) {
+      orderedVisible.unshift(selectCol);
+    }
+
+    // Ensure actions is always last if it exists in COLUMNS
+    const actionsCol = COLUMNS.find(c => c.key === 'actions');
+    const hasActionsInOrder = orderedVisible.some(c => c.key === 'actions');
+    if (actionsCol && !hasActionsInOrder) {
+      orderedVisible.push(actionsCol);
+    }
+
+    return orderedVisible;
   }, [columnOrder, visibleColumns, COLUMNS]);
 
   // Calculate total table width based on column widths
@@ -1599,10 +1763,13 @@ export default function TeeemTableView({
       switch (column.key) {
         case "select":
           return (
-            <Checkbox
-              checked={selectedRows.has(entry.id)}
-              onCheckedChange={() => toggleRowSelection(entry.id)}
-            />
+            <div className="flex items-center justify-center h-full w-full">
+              <Checkbox
+                checked={selectedRows.has(entry.id)}
+                onCheckedChange={() => toggleRowSelection(entry.id)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
           );
 
         case "actions":
@@ -1821,21 +1988,42 @@ export default function TeeemTableView({
           );
         }
 
-        // Lookup - Would need to fetch from related table
+        // Lookup - Dropdown with options from related table
         if (columnType === 'lookup' || columnType === 'relation') {
-          // TODO: Fetch options from lookup_config.target_table_id
+          const options = lookupOptions[column.key] || [];
+          const isLoading = lookupLoading[column.key];
+
+          // Get current value - could be an object with id or just an id
+          const currentValue = editingData[column.key];
+          const currentId = typeof currentValue === 'object' && currentValue !== null
+            ? (currentValue as { id?: number }).id
+            : currentValue;
+
           return (
-            <Input
-              className="h-7 text-sm"
-              placeholder="Lookup..."
-              value={String(editingData[column.key] ?? "")}
-              onChange={(e) =>
+            <Select
+              value={currentId ? String(currentId) : ""}
+              onValueChange={(val) => {
+                const selectedOption = options.find(o => String(o.id) === val);
                 setEditingData((prev) => ({
                   ...prev,
-                  [column.key]: e.target.value,
-                }))
-              }
-            />
+                  [column.key]: selectedOption ? { id: selectedOption.id, display: selectedOption.display } : null,
+                }));
+              }}
+            >
+              <SelectTrigger className="h-7 text-sm">
+                <SelectValue placeholder={isLoading ? "Loading..." : "Select..."} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">
+                  <span className="text-muted-foreground">None</span>
+                </SelectItem>
+                {options.map((option) => (
+                  <SelectItem key={option.id} value={String(option.id)}>
+                    {option.display}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           );
         }
 
@@ -2168,7 +2356,7 @@ export default function TeeemTableView({
             }}
             className={cn(
               "relative",
-              column.key === "select" && "!border-r-0 !p-0",
+              column.key === "select" && "!border-r-0 !p-0 !h-full",
               column.key === "actions" && "!border-l-0"
             )}
           >
@@ -2205,36 +2393,274 @@ export default function TeeemTableView({
     </TableHeader>
   );
 
-  // Render nested group recursively
-  const renderNestedGroup = (
+  // Render table footer with calculated totals for numeric columns
+  const renderTableFooter = (rows: TableRowType[] = filteredAndSortedEntries) => {
+    // Check if any visible columns are numeric
+    const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
+    const hasNumericColumns = visibleColumnsInOrder.some(
+      col => col.column_type && numericTypes.includes(col.column_type)
+    );
+
+    if (!hasNumericColumns || rows.length === 0) return null;
+
+    return (
+      <tfoot className="bg-muted/50 border-t-2 font-medium">
+        <tr>
+          {visibleColumnsInOrder.map((column, colIndex) => {
+            const isNumeric = column.column_type && numericTypes.includes(column.column_type);
+            let total: number | null = null;
+
+            if (isNumeric) {
+              total = rows.reduce((sum, row) => {
+                const val = row[column.key];
+                const num = typeof val === 'number' ? val : parseFloat(String(val || 0));
+                return sum + (isNaN(num) ? 0 : num);
+              }, 0);
+            }
+
+            return (
+              <td
+                key={`footer-${column.key}-${colIndex}`}
+                className="px-3 py-2 text-sm"
+                style={{
+                  width: columnWidths[column.key] || column.width,
+                  ...(column.key === "select" && {
+                    position: 'sticky',
+                    left: 0,
+                    background: 'hsl(40, 11%, 89%)',
+                    boxShadow: '1px 0 0 #d4d4d4',
+                  }),
+                  ...(column.key === "actions" && {
+                    position: 'sticky',
+                    right: 0,
+                    background: 'hsl(40, 11%, 89%)',
+                    boxShadow: '-1px 0 0 #d4d4d4',
+                  })
+                }}
+              >
+                {column.key === "select" ? (
+                  <span className="text-xs text-muted-foreground">Total</span>
+                ) : isNumeric && total !== null ? (
+                  <span>
+                    {column.column_type === 'currency'
+                      ? `$${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : column.column_type === 'percentage'
+                      ? `${total.toFixed(1)}%`
+                      : total.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                    }
+                  </span>
+                ) : null}
+              </td>
+            );
+          })}
+        </tr>
+      </tfoot>
+    );
+  };
+
+  // Render group navigation with nested data tables (Panel mode)
+  const renderGroupNavigation = (
     groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
     depth: number = 0,
     parentKey: string = ""
-  ): React.ReactNode => {
+  ): React.ReactNode[] => {
     const currentColKey = groupByColumns[depth];
     const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
-    const isLastLevel = depth === groupByColumns.length - 1;
+    const result: React.ReactNode[] = [];
 
-    return Object.entries(groups).map(([groupKey, group]) => {
+    Object.entries(groups).forEach(([groupKey, group]) => {
+      const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
+      const isCollapsed = collapsedGroups.has(fullKey);
+      const rowCount = group.rows.length;
+      const hasSubgroups = group.subgroups && Object.keys(group.subgroups).length > 0;
+
+      // Group header
+      result.push(
+        <div
+          key={`nav-${fullKey}`}
+          className="cursor-pointer hover:bg-muted/50 py-2 px-4 border rounded-md bg-muted/30 mb-2"
+          style={{ paddingLeft: `${16 + depth * 24}px` }}
+          onClick={() => toggleGroupCollapse(fullKey)}
+        >
+          <div className="flex items-center gap-2">
+            {isCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            <span className="font-medium text-sm">
+              {currentColLabel}: {groupKey}
+            </span>
+            <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
+          </div>
+        </div>
+      );
+
+      // If not collapsed, render content
+      if (!isCollapsed) {
+        if (hasSubgroups) {
+          // Render subgroups recursively
+          result.push(...renderGroupNavigation(group.subgroups as typeof groups, depth + 1, fullKey));
+        } else {
+          // Render data table for this group's rows
+          result.push(
+            <div key={`data-${fullKey}`} className="mb-4" style={{ marginLeft: `${(depth + 1) * 24}px`, marginRight: '16px' }}>
+              <Table className="w-full border rounded" style={{ tableLayout: 'fixed' }}>
+                {renderTableHeader()}
+                <TableBody>
+                  {group.rows.map((row, rowIndex) => (
+                    <TableRow
+                      key={`${fullKey}-row-${row.id}-${rowIndex}`}
+                      className={cn(
+                        selectedRows.has(row.id) && "bg-muted/50",
+                        "hover:bg-muted/30 cursor-pointer"
+                      )}
+                      onClick={() => onRowClick?.(row)}
+                      onDoubleClick={() => onRowDoubleClick?.(row)}
+                    >
+                      {visibleColumnsInOrder.map((column, colIndex) => (
+                        <TableCell
+                          key={`${column.key}-${colIndex}`}
+                          style={{
+                            width: columnWidths[column.key],
+                            minWidth: columnWidths[column.key],
+                          }}
+                        >
+                          {renderCellValue(row, column)}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          );
+        }
+      }
+    });
+
+    return result;
+  };
+
+  // Get the rows that should be visible based on currently expanded groups
+  const getVisibleRows = useCallback((): TableRowType[] => {
+    if (!groupedEntries) return [];
+
+    const visibleRows: TableRowType[] = [];
+
+    const collectRows = (
+      groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
+      parentKey: string = ""
+    ) => {
+      Object.entries(groups).forEach(([groupKey, group]) => {
+        const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
+        const isCollapsed = collapsedGroups.has(fullKey);
+
+        if (!isCollapsed) {
+          if (group.subgroups && Object.keys(group.subgroups).length > 0) {
+            collectRows(group.subgroups as typeof groups, fullKey);
+          } else {
+            visibleRows.push(...group.rows);
+          }
+        }
+      });
+    };
+
+    collectRows(groupedEntries);
+    return visibleRows;
+  }, [groupedEntries, collapsedGroups]);
+
+  // Render data rows for the table body
+  const renderDataRows = () => {
+    const rows = getVisibleRows();
+
+    if (rows.length === 0) {
+      return (
+        <TableRow>
+          <TableCell
+            colSpan={visibleColumnsInOrder.length}
+            className="h-24 text-center text-muted-foreground"
+          >
+            Expand a group above to see data
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return rows.map((row, rowIndex) => (
+      <TableRow
+        key={`row-${row.id}-${rowIndex}`}
+        className={cn(
+          selectedRows.has(row.id) && "bg-muted/50",
+          "hover:bg-muted/30 cursor-pointer"
+        )}
+        onClick={() => onRowClick?.(row)}
+        onDoubleClick={() => onRowDoubleClick?.(row)}
+      >
+        {visibleColumnsInOrder.map((column, colIndex) => (
+          <TableCell
+            key={`${column.key}-${colIndex}`}
+            style={{
+              width: columnWidths[column.key],
+              minWidth: columnWidths[column.key],
+              ...(column.key === "select" && {
+                position: 'sticky',
+                left: 0,
+                zIndex: 10,
+                background: 'hsl(40, 11%, 95%)',
+                boxShadow: '1px 0 0 #d4d4d4',
+                textAlign: 'center',
+                verticalAlign: 'middle',
+              }),
+              ...(column.key === "actions" && {
+                position: 'sticky',
+                right: 0,
+                zIndex: 10,
+                background: 'hsl(40, 11%, 95%)',
+                boxShadow: '-1px 0 0 #d4d4d4',
+              })
+            }}
+            className={cn(
+              column.key === "select" && "!border-r-0 !p-0 !h-full",
+              column.key === "actions" && "!border-l-0"
+            )}
+          >
+            {renderCellValue(row, column)}
+          </TableCell>
+        ))}
+      </TableRow>
+    ));
+  };
+
+  // Render inline group rows (old style - groups mixed with data in table body)
+  const renderInlineGroupRows = (
+    groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
+    depth: number = 0,
+    parentKey: string = ""
+  ): React.ReactNode[] => {
+    const currentColKey = groupByColumns[depth];
+    const currentColLabel = COLUMNS.find((c) => c.key === currentColKey)?.label || currentColKey;
+    const result: React.ReactNode[] = [];
+
+    Object.entries(groups).forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
       const rowCount = group.rows.length;
 
-      return (
-        <div
-          key={fullKey}
+      // Add group header row
+      result.push(
+        <TableRow
+          key={`group-${fullKey}`}
           className={cn(
-            "border rounded-lg overflow-hidden",
-            depth > 0 && "ml-6 mt-2"
+            "cursor-pointer hover:bg-muted/50",
+            depth === 0 ? "bg-muted/30" : "bg-muted/20"
           )}
-          style={depth === 0 ? { width: `${totalTableWidth}px` } : undefined}
+          onClick={() => toggleGroupCollapse(fullKey)}
         >
-          <button
-            onClick={() => toggleGroupCollapse(fullKey)}
-            className={cn(
-              "w-full flex items-center justify-between p-3 hover:bg-muted transition-colors",
-              depth === 0 ? "bg-muted/50" : "bg-muted/30"
-            )}
+          <TableCell
+            colSpan={visibleColumnsInOrder.length}
+            className="py-2"
+            style={{ paddingLeft: `${16 + depth * 24}px` }}
           >
             <div className="flex items-center gap-2">
               {isCollapsed ? (
@@ -2242,83 +2668,191 @@ export default function TeeemTableView({
               ) : (
                 <ChevronDown className="h-4 w-4" />
               )}
-              <span className="font-medium">
+              <span className="font-medium text-sm">
                 {currentColLabel}: {groupKey}
               </span>
-              <Badge variant="secondary">{rowCount} rows</Badge>
+              <Badge variant="secondary" className="text-xs">{rowCount} rows</Badge>
             </div>
-          </button>
-
-          {!isCollapsed && (
-            <div className="p-2">
-              {/* If there are subgroups, render them recursively */}
-              {group.subgroups && Object.keys(group.subgroups).length > 0 ? (
-                <div className="space-y-2">
-                  {renderNestedGroup(group.subgroups as typeof groups, depth + 1, fullKey)}
-                </div>
-              ) : (
-                /* Otherwise render the table with rows */
-                <Table className="w-full" style={{ tableLayout: 'fixed' }}>
-                  {renderTableHeader()}
-                  <TableBody>
-                    {group.rows.map((row, rowIndex) => (
-                      <TableRow
-                        key={`${row.id}-${rowIndex}`}
-                        className={cn(
-                          selectedRows.has(row.id) && "bg-muted/50",
-                          "hover:bg-muted/30 cursor-pointer"
-                        )}
-                        onClick={() => onRowClick?.(row)}
-                        onDoubleClick={() => onRowDoubleClick?.(row)}
-                      >
-                        {visibleColumnsInOrder.map((column, colIndex) => (
-                          <TableCell
-                            key={`${column.key}-${colIndex}`}
-                            style={{
-                              width: columnWidths[column.key],
-                              minWidth: columnWidths[column.key],
-                              ...(column.key === "select" && {
-                                position: 'sticky',
-                                left: 0,
-                                zIndex: 10,
-                                background: 'hsl(40, 11%, 95%)',
-                                boxShadow: '1px 0 0 #d4d4d4',
-                              }),
-                              ...(column.key === "actions" && {
-                                position: 'sticky',
-                                right: 0,
-                                zIndex: 10,
-                                background: 'hsl(40, 11%, 95%)',
-                                boxShadow: '-1px 0 0 #d4d4d4',
-                              })
-                            }}
-                            className={cn(
-                              column.key === "select" && "!border-r-0 !p-0",
-                              column.key === "actions" && "!border-l-0"
-                            )}
-                          >
-                            {renderCellValue(row, column)}
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
-          )}
-        </div>
+          </TableCell>
+        </TableRow>
       );
+
+      // If not collapsed, add content
+      if (!isCollapsed) {
+        if (group.subgroups && Object.keys(group.subgroups).length > 0) {
+          // Render subgroups recursively
+          result.push(...renderInlineGroupRows(group.subgroups as typeof groups, depth + 1, fullKey));
+        } else {
+          // Render actual data rows
+          group.rows.forEach((row, rowIndex) => {
+            result.push(
+              <TableRow
+                key={`${fullKey}-row-${row.id}-${rowIndex}`}
+                className={cn(
+                  selectedRows.has(row.id) && "bg-muted/50",
+                  "hover:bg-muted/30 cursor-pointer"
+                )}
+                onClick={() => onRowClick?.(row)}
+                onDoubleClick={() => onRowDoubleClick?.(row)}
+              >
+                {visibleColumnsInOrder.map((column, colIndex) => (
+                  <TableCell
+                    key={`${column.key}-${colIndex}`}
+                    style={{
+                      width: columnWidths[column.key],
+                      minWidth: columnWidths[column.key],
+                      ...(column.key === "select" && {
+                        position: 'sticky',
+                        left: 0,
+                        zIndex: 10,
+                        background: 'hsl(40, 11%, 95%)',
+                        boxShadow: '1px 0 0 #d4d4d4',
+                      }),
+                      ...(column.key === "actions" && {
+                        position: 'sticky',
+                        right: 0,
+                        zIndex: 10,
+                        background: 'hsl(40, 11%, 95%)',
+                        boxShadow: '-1px 0 0 #d4d4d4',
+                      })
+                    }}
+                    className={cn(
+                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                      column.key === "actions" && "!border-l-0"
+                    )}
+                  >
+                    {renderCellValue(row, column)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            );
+          });
+        }
+      }
     });
+
+    return result;
   };
 
-  // Render grouped table
+  // Render grouped table with choice of inline or panel mode
   const renderGroupedTable = () => {
     if (!groupedEntries) return null;
 
+    const allKeys = getAllGroupKeys(groupedEntries);
+    const allCollapsed = allKeys.length > 0 && allKeys.every(k => collapsedGroups.has(k));
+    const allExpanded = collapsedGroups.size === 0;
+    const visibleRows = getVisibleRows();
+
     return (
-      <div className="space-y-2" style={{ width: `${totalTableWidth}px` }}>
-        {renderNestedGroup(groupedEntries)}
+      <div style={{ width: `${totalTableWidth}px` }}>
+        {/* View mode toggle + Expand/Collapse buttons */}
+        <div className="flex items-center gap-2 mb-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center">
+                <Checkbox
+                  checked={
+                    selectedRows.size === filteredAndSortedEntries.length &&
+                    filteredAndSortedEntries.length > 0
+                  }
+                  onCheckedChange={toggleSelectAll}
+                />
+                <ChevronDown className="h-3 w-3 ml-1 text-muted-foreground" />
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => setSelectedRows(new Set(filteredAndSortedEntries.map(r => r.id)))}>
+                Select All ({filteredAndSortedEntries.length})
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  const visible = visibleRows;
+                  setSelectedRows(new Set(visible.map(r => r.id)));
+                }}
+                disabled={visibleRows.length === 0}
+              >
+                Select Expanded ({visibleRows.length})
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setSelectedRows(new Set())}>
+                Clear Selection
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span className="text-sm font-medium text-muted-foreground">View:</span>
+          <div className="flex rounded-md border overflow-hidden">
+            <Button
+              variant={groupViewMode === "inline" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setGroupViewMode("inline")}
+              className="h-7 px-3 text-xs rounded-none border-r"
+            >
+              Inline
+            </Button>
+            <Button
+              variant={groupViewMode === "panel" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setGroupViewMode("panel")}
+              className="h-7 px-3 text-xs rounded-none"
+            >
+              Panel
+            </Button>
+          </div>
+          <div className="h-4 w-px bg-border mx-2" />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={expandAllGroups}
+            disabled={allExpanded}
+            className="h-7 px-2 text-xs"
+          >
+            <ChevronsUpDown className="h-3 w-3 mr-1" />
+            Expand All
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={collapseAllGroups}
+            disabled={allCollapsed}
+            className="h-7 px-2 text-xs"
+          >
+            <ChevronsDownUp className="h-3 w-3 mr-1" />
+            Collapse All
+          </Button>
+          {selectedRows.size > 0 && (
+            <>
+              <div className="h-4 w-px bg-border mx-2" />
+              <span className="text-sm font-medium">{selectedRows.size} selected</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedRows(new Set())}
+                className="h-7 px-2 text-xs"
+              >
+                Clear
+              </Button>
+            </>
+          )}
+          <span className="text-xs text-muted-foreground ml-auto">
+            {visibleRows.length} rows visible
+          </span>
+        </div>
+
+        {groupViewMode === "inline" ? (
+          /* Inline mode (default) - groups as rows in table body */
+          <Table className="w-full" style={{ tableLayout: 'fixed' }}>
+            {renderTableHeader()}
+            <TableBody>
+              {renderInlineGroupRows(groupedEntries)}
+            </TableBody>
+            {renderTableFooter()}
+          </Table>
+        ) : (
+          /* Panel mode - Groups with nested data tables inside each expanded group */
+          <div className="space-y-0">
+            {renderGroupNavigation(groupedEntries)}
+          </div>
+        )}
       </div>
     );
   };
@@ -2388,7 +2922,7 @@ export default function TeeemTableView({
                       })
                     }}
                     className={cn(
-                      column.key === "select" && "!border-r-0 !p-0",
+                      column.key === "select" && "!border-r-0 !p-0 !h-full",
                       column.key === "actions" && "!border-l-0"
                     )}
                   >
@@ -2399,6 +2933,7 @@ export default function TeeemTableView({
             ))
           )}
         </TableBody>
+        {renderTableFooter()}
       </Table>
   );
 
@@ -2609,16 +3144,21 @@ export default function TeeemTableView({
       {/* Bulk actions */}
       {selectedRows.size > 0 && (
         <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-          <span className="text-sm font-medium">
-            {selectedRows.size} row{selectedRows.size !== 1 ? "s" : ""} selected
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSelectedRows(new Set())}
-          >
-            Clear selection
-          </Button>
+          {/* Only show selection count/clear when NOT in grouped view (grouped view has it inline) */}
+          {!groupByColumn && (
+            <>
+              <span className="text-sm font-medium">
+                {selectedRows.size} row{selectedRows.size !== 1 ? "s" : ""} selected
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedRows(new Set())}
+              >
+                Clear selection
+              </Button>
+            </>
+          )}
           {/* Bulk Edit button - for editing multiple rows */}
           {onBulkEdit && !viewOnly && (
             <Button

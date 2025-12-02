@@ -305,6 +305,7 @@ export default function JobsPage() {
             position: index,
           }))}
         onViewsChange={() => loadJobs()}
+        rows={tableRows}
       />
     </div>
   );

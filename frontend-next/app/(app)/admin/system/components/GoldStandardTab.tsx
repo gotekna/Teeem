@@ -1040,6 +1040,7 @@ function GoldStandardDataTab() {
         foundationId={1}
         columns={rawColumns}
         onViewsChange={loadData}
+        rows={entries}
       />
     </div>
   );

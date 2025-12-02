@@ -39,7 +39,8 @@ export interface TableRow {
 // Sort configuration
 export interface SortColumn {
   column: string;
-  dir: "asc" | "desc";
+  dir: "asc" | "desc" | "custom";
+  customOrder?: string[]; // Custom order of values for lookup columns
 }
 
 // Filter configuration for cascade filters
@@ -130,6 +131,7 @@ export interface TeeemTableViewProps {
   hideUpdateViewButton?: boolean;
   initialGroupByColumn?: string | null;
   showFilterButton?: boolean; // Show a "Filters" button in the toolbar
+  onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
 
   // Server-side operations
   onServerSearch?: (term: string, searchAllColumns: boolean) => void;

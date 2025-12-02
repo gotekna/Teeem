@@ -64,6 +64,7 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Filter,
   ArrowUpDown,
   Columns3,
@@ -93,7 +94,8 @@ interface FilterGroup {
 
 interface SortColumn {
   column: string;
-  dir: "asc" | "desc";
+  dir: "asc" | "desc" | "custom";
+  customOrder?: string[]; // Custom order of values for lookup columns
 }
 
 interface SavedView {
@@ -127,6 +129,8 @@ interface GlobalViewsManagerProps {
   foundationId: number;
   columns: Column[];
   onViewsChange?: () => void;
+  onApplyView?: (view: SavedView) => void; // Apply view to the table
+  rows?: Record<string, unknown>[]; // For custom sort order values
 }
 
 // Sortable View Item
@@ -136,12 +140,14 @@ function SortableViewItem({
   onSelect,
   onEdit,
   onDelete,
+  onApply,
 }: {
   view: SavedView;
   isActive: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onApply?: () => void;
 }) {
   const {
     attributes,
@@ -199,6 +205,20 @@ function SortableViewItem({
       </div>
 
       <div className="flex items-center gap-1">
+        {onApply && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-primary hover:text-primary"
+            onClick={(e) => {
+              e.stopPropagation();
+              onApply();
+            }}
+            title="Apply this view"
+          >
+            <Eye className="h-3 w-3" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -305,14 +325,18 @@ function SortableSortByItem({
   columns,
   onChangeColumn,
   onChangeDir,
+  onChangeCustomOrder,
   onRemove,
+  allRows,
 }: {
   id: string;
   sort: SortColumn;
   columns: Column[];
   onChangeColumn: (col: string) => void;
-  onChangeDir: (dir: "asc" | "desc") => void;
+  onChangeDir: (dir: "asc" | "desc" | "custom") => void;
+  onChangeCustomOrder?: (order: string[]) => void;
   onRemove: () => void;
+  allRows?: Record<string, unknown>[];
 }) {
   const {
     attributes,
@@ -328,51 +352,121 @@ function SortableSortByItem({
     transition,
   };
 
+  // Get unique values for the selected column (for custom sort)
+  const uniqueValues = React.useMemo(() => {
+    if (!allRows || !sort.column) return [];
+    const values = new Set<string>();
+    allRows.forEach(row => {
+      const val = row[sort.column];
+      if (val !== null && val !== undefined) {
+        // Handle object values (lookup columns)
+        if (typeof val === 'object') {
+          const objVal = val as { display?: string; name?: string; id?: number };
+          const displayVal = objVal.display || objVal.name || String(objVal.id || '');
+          if (displayVal) values.add(displayVal);
+        } else {
+          values.add(String(val));
+        }
+      }
+    });
+    return Array.from(values).sort();
+  }, [allRows, sort.column]);
+
+  // Initialize custom order with unique values if not set
+  const currentOrder = sort.customOrder || uniqueValues;
+
+  const handleCustomOrderChange = (fromIndex: number, toIndex: number) => {
+    if (!onChangeCustomOrder) return;
+    const newOrder = [...currentOrder];
+    const [moved] = newOrder.splice(fromIndex, 1);
+    newOrder.splice(toIndex, 0, moved);
+    onChangeCustomOrder(newOrder);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-2",
+        "space-y-2",
         isDragging && "opacity-50"
       )}
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      <div className="flex items-center gap-2">
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing touch-none"
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <Select value={sort.column} onValueChange={onChangeColumn}>
+          <SelectTrigger className="flex-1 h-8">
+            <SelectValue placeholder="Column..." />
+          </SelectTrigger>
+          <SelectContent>
+            {columns.map(c => (
+              <SelectItem key={c.column_name} value={c.column_name}>
+                {c.name || c.column_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc" | "custom")}>
+          <SelectTrigger className="w-[110px] h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="asc">A → Z</SelectItem>
+            <SelectItem value="desc">Z → A</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          onClick={onRemove}
+        >
+          <X className="h-3 w-3" />
+        </Button>
       </div>
-      <Select value={sort.column} onValueChange={onChangeColumn}>
-        <SelectTrigger className="flex-1 h-8">
-          <SelectValue placeholder="Column..." />
-        </SelectTrigger>
-        <SelectContent>
-          {columns.map(c => (
-            <SelectItem key={c.column_name} value={c.column_name}>
-              {c.name || c.column_name}
-            </SelectItem>
+
+      {/* Custom order editor */}
+      {sort.dir === "custom" && uniqueValues.length > 0 && (
+        <div className="ml-6 p-2 bg-muted/50 rounded border space-y-1">
+          <p className="text-xs text-muted-foreground mb-2">Drag to reorder:</p>
+          {currentOrder.map((value, index) => (
+            <div
+              key={value}
+              className="flex items-center gap-2 p-1.5 bg-background rounded border text-sm"
+            >
+              <span className="text-muted-foreground w-4 text-center">{index + 1}</span>
+              <span className="flex-1">{value}</span>
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={index === 0}
+                  onClick={() => handleCustomOrderChange(index, index - 1)}
+                >
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={index === currentOrder.length - 1}
+                  onClick={() => handleCustomOrderChange(index, index + 1)}
+                >
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
           ))}
-        </SelectContent>
-      </Select>
-      <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc")}>
-        <SelectTrigger className="w-[100px] h-8">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="asc">A → Z</SelectItem>
-          <SelectItem value="desc">Z → A</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-        onClick={onRemove}
-      >
-        <X className="h-3 w-3" />
-      </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -451,6 +545,8 @@ export function GlobalViewsManager({
   foundationId,
   columns,
   onViewsChange,
+  onApplyView,
+  rows,
 }: GlobalViewsManagerProps) {
   const { toast } = useToast();
 
@@ -621,16 +717,19 @@ export function GlobalViewsManager({
 
       let response: { success: boolean; error?: string } | null;
 
+      // Wrap data in foundation_view for Rails strong params
+      const wrappedData = { foundation_view: viewData };
+
       if (typeof editingView.id === "string" && editingView.id.startsWith("new_")) {
         // Create new view
         if (editIsGlobal) {
-          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views/save_global", viewData);
+          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views/save_global", wrappedData);
         } else {
-          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views", viewData);
+          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views", wrappedData);
         }
       } else {
         // Update existing view
-        response = await api.patch<{ success: boolean; error?: string }>(`/api/v1/foundation_views/${editingView.id}`, viewData);
+        response = await api.patch<{ success: boolean; error?: string }>(`/api/v1/foundation_views/${editingView.id}`, wrappedData);
       }
 
       if (response?.success) {
@@ -849,6 +948,10 @@ export function GlobalViewsManager({
                               setViewToDelete(view);
                               setShowDeleteConfirm(true);
                             }}
+                            onApply={onApplyView ? () => {
+                              onApplyView(view);
+                              onOpenChange(false); // Close the manager after applying
+                            } : undefined}
                           />
                         ))}
                       </div>
@@ -1145,7 +1248,9 @@ export function GlobalViewsManager({
                                           columns={filteredColumns}
                                           onChangeColumn={(col) => updateSortColumn(index, { column: col })}
                                           onChangeDir={(dir) => updateSortColumn(index, { dir })}
+                                          onChangeCustomOrder={(order) => updateSortColumn(index, { customOrder: order })}
                                           onRemove={() => removeSortColumn(index)}
+                                          allRows={rows}
                                         />
                                       ))}
                                     </div>
