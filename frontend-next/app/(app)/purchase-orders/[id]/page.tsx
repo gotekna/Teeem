@@ -717,10 +717,11 @@ export default function PurchaseOrderDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40%]">Description</TableHead>
-                  <TableHead className="text-right w-[15%]">Qty</TableHead>
-                  <TableHead className="text-right w-[20%]">Unit Price</TableHead>
-                  <TableHead className="text-right w-[20%]">Total</TableHead>
+                  <TableHead className="w-[15%]">Item ID</TableHead>
+                  <TableHead className="w-[35%]">Description</TableHead>
+                  <TableHead className="text-right w-[10%]">Qty</TableHead>
+                  <TableHead className="text-right w-[18%]">Unit Price</TableHead>
+                  <TableHead className="text-right w-[17%]">Total</TableHead>
                   {canEdit && <TableHead className="w-[5%]"></TableHead>}
                 </TableRow>
               </TableHeader>
@@ -729,6 +730,9 @@ export default function PurchaseOrderDetailPage() {
                   lineItems.map((item, index) =>
                     !item._destroy ? (
                       <TableRow key={item.id || `new-${index}`}>
+                        <TableCell className="text-muted-foreground">
+                          {item.pricebook_item?.item_code || "-"}
+                        </TableCell>
                         <TableCell>
                           {canEdit ? (
                             <Input
@@ -741,7 +745,7 @@ export default function PurchaseOrderDetailPage() {
                               <p className="font-medium">{item.description}</p>
                               {item.pricebook_item && (
                                 <p className="text-sm text-muted-foreground">
-                                  {item.pricebook_item.item_code} - {item.pricebook_item.item_name}
+                                  {item.pricebook_item.item_name}
                                 </p>
                               )}
                             </div>
@@ -794,7 +798,7 @@ export default function PurchaseOrderDetailPage() {
                   )
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={canEdit ? 5 : 4} className="text-center py-8">
+                    <TableCell colSpan={canEdit ? 6 : 5} className="text-center py-8">
                       <p className="text-sm text-muted-foreground">
                         No line items added to this purchase order
                       </p>
