@@ -163,6 +163,9 @@ function SortableViewItem({
     transition,
   };
 
+  // Check if this is an unsaved new view
+  const isUnsaved = typeof view.id === "string" && view.id.startsWith("new_");
+
   return (
     <div
       ref={setNodeRef}
@@ -173,7 +176,8 @@ function SortableViewItem({
         isActive
           ? "bg-primary/10 border-primary"
           : "bg-background border-border hover:border-primary/50",
-        isDragging && "opacity-50 shadow-lg"
+        isDragging && "opacity-50 shadow-lg",
+        isUnsaved && "border-dashed border-orange-400 bg-orange-50 dark:bg-orange-950/20"
       )}
     >
       <div
@@ -193,6 +197,11 @@ function SortableViewItem({
             <User className="h-3 w-3 text-muted-foreground" />
           )}
           <span className="text-sm font-medium truncate">{view.name}</span>
+          {isUnsaved && (
+            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 border-orange-400">
+              unsaved
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-1 mt-0.5">
           <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
@@ -205,7 +214,7 @@ function SortableViewItem({
       </div>
 
       <div className="flex items-center gap-1">
-        {onApply && (
+        {onApply && !isUnsaved && (
           <Button
             variant="ghost"
             size="icon"
@@ -593,11 +602,14 @@ export function GlobalViewsManager({
   }, [open, foundationId]);
 
   const loadViews = async (selectViewByName?: string) => {
+    console.log('[GlobalViewsManager] loadViews called, selectViewByName:', selectViewByName);
     try {
       setLoading(true);
       const response = await api.get<{ success: boolean; views: SavedView[] }>(
         `/api/v1/foundation_views?foundation_id=${foundationId}`
       );
+
+      console.log('[GlobalViewsManager] loadViews response:', response);
 
       if (response.success && response.views) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -613,11 +625,14 @@ export function GlobalViewsManager({
           groupByColumns: v.group_by_columns || [],
         })) as SavedView[];
 
+        console.log('[GlobalViewsManager] Loaded', mappedViews.length, 'views:', mappedViews.map(v => ({ id: v.id, name: v.name })));
         setViews(mappedViews);
 
         // If a view name was specified (for newly created views), select it
         if (selectViewByName) {
+          console.log('[GlobalViewsManager] Looking for view by name:', selectViewByName);
           const newView = mappedViews.find(v => v.name === selectViewByName);
+          console.log('[GlobalViewsManager] Found view:', newView ? { id: newView.id, name: newView.name } : 'NOT FOUND');
           if (newView) {
             setActiveViewId(newView.id);
             loadViewIntoEditor(newView);
@@ -627,12 +642,13 @@ export function GlobalViewsManager({
 
         // Auto-select first view if none selected
         if (!activeViewId && mappedViews.length > 0) {
+          console.log('[GlobalViewsManager] Auto-selecting first view');
           setActiveViewId(mappedViews[0].id);
           loadViewIntoEditor(mappedViews[0]);
         }
       }
     } catch (error) {
-      console.error("Failed to load views:", error);
+      console.error("[GlobalViewsManager] Failed to load views:", error);
       toast({
         title: "Error",
         description: "Failed to load saved views",
@@ -695,6 +711,10 @@ export function GlobalViewsManager({
       autoFitColumns: baseView?.autoFitColumns ?? true,
     };
 
+    console.log('[GlobalViewsManager] Creating new view:', newView.id, newView.name);
+
+    // Add new view to the list so it appears in the sidebar
+    setViews(prev => [...prev, newView]);
     setActiveViewId(newView.id);
     loadViewIntoEditor(newView);
     setShowCreateDialog(false);
@@ -702,6 +722,11 @@ export function GlobalViewsManager({
 
   const handleSaveView = async () => {
     if (!editingView) return;
+
+    console.log('[GlobalViewsManager] handleSaveView called');
+    console.log('[GlobalViewsManager] editingView.id:', editingView.id);
+    console.log('[GlobalViewsManager] editName:', editName);
+    console.log('[GlobalViewsManager] editIsGlobal:', editIsGlobal);
 
     setSaving(true);
     try {
@@ -731,18 +756,21 @@ export function GlobalViewsManager({
       const wrappedData = { foundation_view: viewData };
 
       const isNewView = typeof editingView.id === "string" && editingView.id.startsWith("new_");
+      console.log('[GlobalViewsManager] isNewView:', isNewView);
 
       if (isNewView) {
         // Create new view
-        if (editIsGlobal) {
-          response = await api.post<{ success: boolean; error?: string; view?: { id: number } }>("/api/v1/foundation_views/save_global", wrappedData);
-        } else {
-          response = await api.post<{ success: boolean; error?: string; view?: { id: number } }>("/api/v1/foundation_views", wrappedData);
-        }
+        const endpoint = editIsGlobal ? "/api/v1/foundation_views/save_global" : "/api/v1/foundation_views";
+        console.log('[GlobalViewsManager] Creating new view via POST to:', endpoint);
+        response = await api.post<{ success: boolean; error?: string; view?: { id: number } }>(endpoint, wrappedData);
       } else {
         // Update existing view
-        response = await api.patch<{ success: boolean; error?: string; view?: { id: number } }>(`/api/v1/foundation_views/${editingView.id}`, wrappedData);
+        const endpoint = `/api/v1/foundation_views/${editingView.id}`;
+        console.log('[GlobalViewsManager] Updating existing view via PATCH to:', endpoint);
+        response = await api.patch<{ success: boolean; error?: string; view?: { id: number } }>(endpoint, wrappedData);
       }
+
+      console.log('[GlobalViewsManager] API response:', response);
 
       if (response?.success) {
         toast({
@@ -751,13 +779,14 @@ export function GlobalViewsManager({
         });
 
         // Reload views list - if this was a new view, pass the name so we can select it
+        console.log('[GlobalViewsManager] Reloading views, selectByName:', isNewView ? editName : 'none');
         await loadViews(isNewView ? editName : undefined);
         onViewsChange?.();
       } else {
         throw new Error(response?.error || "Failed to save view");
       }
     } catch (error) {
-      console.error("Failed to save view:", error);
+      console.error("[GlobalViewsManager] Failed to save view:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to save view",
