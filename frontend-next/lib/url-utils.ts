@@ -1,27 +1,43 @@
 // URL Utility Functions
 // All URLs in TEEEM use format: /{tableId}/{slug}_GOD_LOVES_YOU_?tab={tab}
 
+import { getTableIds, getTableSlug, initTableIds } from '@/hooks/useTableIds';
+
 const URL_SUFFIX = "_GOD_LOVES_YOU_";
 
-// Table ID mappings - Single Source of Truth
+// Initialize table IDs from API on module load
+// This runs once when the module is first imported
+if (typeof window !== 'undefined') {
+  initTableIds();
+}
+
+/**
+ * Table ID mappings - fetched from API with fallback defaults
+ *
+ * IMPORTANT: These values come from the database via /api/v1/foundations/table_ids
+ * Do NOT hardcode table IDs - they are auto-incrementing and may differ between environments
+ *
+ * Use getTableIds() for dynamic access, or TABLE_IDS for static references
+ * (TABLE_IDS uses cached values that are populated on app load)
+ */
 export const TABLE_IDS = {
-  GOLD_STANDARD: 1,
-  JOBS: 204,
-  PRICEBOOK: 205,
-  CONTACTS: 214,
-  COMPANIES: 353,
-  FEATURES_TRACKING: 375,
+  get GOLD_STANDARD() { return getTableIds().GOLD_STANDARD; },
+  get JOBS() { return getTableIds().JOBS; },
+  get PRICEBOOK() { return getTableIds().PRICEBOOK; },
+  get CONTACTS() { return getTableIds().CONTACTS; },
+  get COMPANIES() { return getTableIds().COMPANIES; },
+  get FEATURES_TRACKING() { return getTableIds().FEATURES_TRACKING; },
 } as const;
 
-// Table names for URL slugs
-export const TABLE_SLUGS: Record<number, string> = {
-  1: "gold-standard",
-  204: "jobs",
-  205: "pricebook",
-  214: "contacts",
-  353: "companies",
-  375: "features",
-};
+// Table names for URL slugs - dynamically resolved
+export const TABLE_SLUGS: Record<number, string> = new Proxy({} as Record<number, string>, {
+  get(_, prop) {
+    if (typeof prop === 'string' && !isNaN(Number(prop))) {
+      return getTableSlug(Number(prop));
+    }
+    return undefined;
+  },
+});
 
 // Legacy route mappings (for backwards compatibility)
 export const TABLE_ROUTES: Record<number, string> = {

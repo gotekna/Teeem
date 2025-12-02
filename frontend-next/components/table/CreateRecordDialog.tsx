@@ -3,6 +3,23 @@
 import * as React from "react";
 import { useState, useMemo } from "react";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -15,8 +32,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Plus, Settings, Eye, EyeOff, GripVertical } from "lucide-react";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type { TableColumn } from "./types";
 
 interface CreateRecordDialogProps {
@@ -31,6 +54,81 @@ interface CreateRecordDialogProps {
 // Columns to exclude from the form (system-managed or UI-only)
 const EXCLUDED_COLUMNS = ["id", "created_at", "updated_at", "actions", "select"];
 
+// Sortable field item for drag and drop
+interface SortableFieldItemProps {
+  id: string;
+  col: TableColumn;
+  isVisible: boolean;
+  order: number;
+  onToggleVisibility: (columnKey: string) => void;
+  onUpdateOrder: (columnKey: string, order: number) => void;
+}
+
+function SortableFieldItem({
+  id,
+  col,
+  isVisible,
+  order,
+  onToggleVisibility,
+  onUpdateOrder,
+}: SortableFieldItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 px-2 py-1.5 text-xs rounded border transition-colors",
+        isVisible
+          ? "bg-primary/10 border-primary/30 text-foreground"
+          : "bg-background border-border text-muted-foreground",
+        isDragging && "opacity-50"
+      )}
+    >
+      <button
+        type="button"
+        className="cursor-grab active:cursor-grabbing touch-none"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3 w-3 text-muted-foreground" />
+      </button>
+      <Input
+        type="number"
+        value={order}
+        onChange={(e) => onUpdateOrder(col.key, parseInt(e.target.value) || 0)}
+        className="w-10 h-5 text-xs p-1 text-center"
+        min={0}
+      />
+      <span className="flex-1 truncate">{col.label || col.key}</span>
+      <button
+        type="button"
+        onClick={() => onToggleVisibility(col.key)}
+        className="p-0.5 hover:bg-muted rounded"
+      >
+        {isVisible ? (
+          <Eye className="h-3 w-3 text-primary" />
+        ) : (
+          <EyeOff className="h-3 w-3 text-muted-foreground" />
+        )}
+      </button>
+    </div>
+  );
+}
+
 export function CreateRecordDialog({
   open,
   onOpenChange,
@@ -43,28 +141,106 @@ export function CreateRecordDialog({
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [showMoreFields, setShowMoreFields] = useState(false);
+  const [showFieldConfig, setShowFieldConfig] = useState(false);
+  const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
+  const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
 
-  // Filter and sort columns
-  const { visibleColumns, hiddenColumns } = useMemo(() => {
-    const filtered = columns
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Filter columns (exclude system/UI-only columns)
+  const filteredColumns = useMemo(() => {
+    return columns
       .filter((col) => !EXCLUDED_COLUMNS.includes(col.key))
-      .filter((col) => !col.system) // Exclude system columns
-      .filter((col) => col.label); // Exclude columns without labels (UI-only columns)
-
-    // Show first 8 columns by default, rest are hidden
-    const visible = filtered.slice(0, 8);
-    const hidden = filtered.slice(8);
-
-    return { visibleColumns: visible, hiddenColumns: hidden };
+      .filter((col) => !col.system)
+      .filter((col) => col.label);
   }, [columns]);
+
+  // Initialize visible fields and order on first render or when columns change
+  React.useEffect(() => {
+    if (filteredColumns.length > 0 && visibleFields.size === 0) {
+      // Show first 8 fields by default
+      const initialVisible = new Set(
+        filteredColumns.slice(0, 8).map((col) => col.key)
+      );
+      setVisibleFields(initialVisible);
+
+      // Set initial order
+      const initialOrder: Record<string, number> = {};
+      filteredColumns.forEach((col, index) => {
+        initialOrder[col.key] = index + 1;
+      });
+      setFieldOrder(initialOrder);
+    }
+  }, [filteredColumns, visibleFields.size]);
 
   // Reset form when dialog opens
   React.useEffect(() => {
     if (open) {
       setFormData({});
       setShowMoreFields(false);
+      setShowFieldConfig(false);
     }
   }, [open]);
+
+  // Get sorted columns based on field order
+  const getSortedColumns = () => {
+    return [...filteredColumns].sort((a, b) => {
+      const orderA = fieldOrder[a.key] || 0;
+      const orderB = fieldOrder[b.key] || 0;
+      return orderA - orderB;
+    });
+  };
+
+  // Toggle field visibility
+  const toggleFieldVisibility = (columnKey: string) => {
+    const newVisible = new Set(visibleFields);
+    if (newVisible.has(columnKey)) {
+      newVisible.delete(columnKey);
+    } else {
+      newVisible.add(columnKey);
+    }
+    setVisibleFields(newVisible);
+  };
+
+  // Update field order
+  const updateFieldOrder = (columnKey: string, order: number) => {
+    setFieldOrder((prev) => ({ ...prev, [columnKey]: order }));
+  };
+
+  // Show all fields
+  const showAllFields = () => {
+    setVisibleFields(new Set(filteredColumns.map((col) => col.key)));
+  };
+
+  // Hide all fields
+  const hideAllFields = () => {
+    setVisibleFields(new Set());
+  };
+
+  // Handle drag end for reordering
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const sortedCols = getSortedColumns();
+      const oldIndex = sortedCols.findIndex((c) => c.key === active.id);
+      const newIndex = sortedCols.findIndex((c) => c.key === over.id);
+      const reordered = arrayMove(sortedCols, oldIndex, newIndex);
+
+      // Update field order
+      const newOrder: Record<string, number> = {};
+      reordered.forEach((col, index) => {
+        newOrder[col.key] = index + 1;
+      });
+      setFieldOrder(newOrder);
+    }
+  };
 
   // Render form field based on column type
   const renderFormField = (col: TableColumn) => {
@@ -100,7 +276,7 @@ export function CreateRecordDialog({
                 setFormData({ ...formData, [col.key]: e.target.value })
               }
               rows={3}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
         );
@@ -165,7 +341,6 @@ export function CreateRecordDialog({
               onChange={(e) =>
                 setFormData({ ...formData, [col.key]: e.target.value })
               }
-              placeholder="email@example.com"
             />
           </div>
         );
@@ -181,24 +356,6 @@ export function CreateRecordDialog({
               onChange={(e) =>
                 setFormData({ ...formData, [col.key]: e.target.value })
               }
-              placeholder="https://"
-            />
-          </div>
-        );
-
-      case "phone":
-      case "mobile":
-        return (
-          <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
-            <Input
-              id={col.key}
-              type="tel"
-              value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
-              placeholder="+61 400 000 000"
             />
           </div>
         );
@@ -229,72 +386,6 @@ export function CreateRecordDialog({
           </div>
         );
 
-      // Australian types
-      case "abn":
-        return (
-          <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
-            <Input
-              id={col.key}
-              value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
-              placeholder="XX XXX XXX XXX"
-              maxLength={14}
-            />
-          </div>
-        );
-
-      case "acn":
-        return (
-          <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
-            <Input
-              id={col.key}
-              value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
-              placeholder="XXX XXX XXX"
-              maxLength={11}
-            />
-          </div>
-        );
-
-      case "bsb":
-        return (
-          <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
-            <Input
-              id={col.key}
-              value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
-              placeholder="XXX-XXX"
-              maxLength={7}
-            />
-          </div>
-        );
-
-      case "postcode":
-        return (
-          <div className="space-y-2">
-            <Label htmlFor={col.key}>{label}</Label>
-            <Input
-              id={col.key}
-              value={String(value || "")}
-              onChange={(e) =>
-                setFormData({ ...formData, [col.key]: e.target.value })
-              }
-              placeholder="4000"
-              maxLength={4}
-            />
-          </div>
-        );
-
-      // Default text input
       default:
         return (
           <div className="space-y-2">
@@ -315,7 +406,6 @@ export function CreateRecordDialog({
   const handleCreate = async () => {
     setSaving(true);
     try {
-      // Build the payload - use foundation's database_table_name for the key
       const payload = {
         record: formData,
       };
@@ -342,45 +432,109 @@ export function CreateRecordDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Add New Record</DialogTitle>
-          <DialogDescription>
-            Create a new record in {tableName}.
-          </DialogDescription>
+    <Dialog open={open} onOpenChange={(openState) => {
+      onOpenChange(openState);
+      if (!openState) {
+        setShowMoreFields(false);
+        setShowFieldConfig(false);
+      }
+    }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
+        <DialogHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>Add New Item</DialogTitle>
+              <DialogDescription>
+                Create a new record in {tableName}.
+              </DialogDescription>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowFieldConfig(!showFieldConfig)}
+              className="text-muted-foreground"
+            >
+              <Settings className="h-4 w-4 mr-1" />
+              Fields
+            </Button>
+          </div>
         </DialogHeader>
+
+        {/* Field Configuration Panel */}
+        {showFieldConfig && (
+          <div className="border rounded-md p-4 mb-4 bg-muted/30">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium">Drag to reorder, or type order number</span>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={showAllFields} className="text-xs h-7">
+                  Show All
+                </Button>
+                <Button variant="ghost" size="sm" onClick={hideAllFields} className="text-xs h-7">
+                  Hide All
+                </Button>
+              </div>
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={getSortedColumns().map(c => c.key)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-1">
+                  {getSortedColumns().map((col) => (
+                    <SortableFieldItem
+                      key={col.key}
+                      id={col.key}
+                      col={col}
+                      isVisible={visibleFields.has(col.key)}
+                      order={fieldOrder[col.key] || 0}
+                      onToggleVisibility={toggleFieldVisibility}
+                      onUpdateOrder={updateFieldOrder}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
+        )}
 
         {/* Visible Fields */}
         <div className="grid grid-cols-2 gap-4 py-4">
-          {visibleColumns.map((col) => (
-            <div key={col.key}>{renderFormField(col)}</div>
+          {getSortedColumns()
+            .filter((col) => visibleFields.has(col.key))
+            .map((col) => (
+            <div key={col.key}>
+              {renderFormField(col)}
+            </div>
           ))}
         </div>
 
-        {/* Hidden Fields Toggle */}
-        {hiddenColumns.length > 0 && (
-          <div className="border-t pt-4">
-            <Button
-              variant="ghost"
-              onClick={() => setShowMoreFields(!showMoreFields)}
-              className="w-full justify-between"
-            >
-              <span>Show Hidden Fields ({hiddenColumns.length})</span>
-              {showMoreFields ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </Button>
-
-            {showMoreFields && (
-              <div className="grid grid-cols-2 gap-4 pt-4">
-                {hiddenColumns.map((col) => (
-                  <div key={col.key}>{renderFormField(col)}</div>
+        {/* Hidden Fields - Collapsible */}
+        {getSortedColumns().filter((col) => !visibleFields.has(col.key)).length > 0 && (
+          <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
+            <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
+              {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.key)).length})
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
+                {getSortedColumns()
+                  .filter((col) => !visibleFields.has(col.key))
+                  .map((col) => (
+                  <div key={col.key}>
+                    {renderFormField(col)}
+                  </div>
                 ))}
               </div>
-            )}
+            </CollapsibleContent>
+          </Collapsible>
+        )}
+
+        {visibleFields.size === 0 && !showMoreFields && (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No fields visible. Click &quot;Fields&quot; to configure which fields to show.</p>
           </div>
         )}
 

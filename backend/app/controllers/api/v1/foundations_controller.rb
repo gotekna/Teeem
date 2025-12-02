@@ -1,6 +1,7 @@
 module Api
   module V1
     class FoundationsController < ApplicationController
+      skip_before_action :authorize_request, only: [:table_ids]
       before_action :set_foundation, only: [:show, :update, :destroy, :health, :schema]
 
       # GET /api/v1/foundations
@@ -173,6 +174,51 @@ module Api
           foundation_id: @foundation.id,
           table_name: @foundation.name,
           columns: columns
+        }
+      end
+
+      # GET /api/v1/foundations/table_ids
+      # Returns a mapping of slug -> id for key tables
+      # Used by frontend to avoid hardcoding table IDs
+      def table_ids
+        # Key tables that the frontend needs to know about
+        # Map frontend key -> database slug
+        key_mapping = {
+          'gold-standard' => 'gold-standard-reference',
+          'jobs' => 'jobs',
+          'pricebook' => 'pricebook',
+          'contacts' => 'contacts',
+          'companies' => 'company',
+          'features-tracking' => 'feature-tracker'
+        }
+
+        db_slugs = key_mapping.values
+        foundations = Foundation.where(slug: db_slugs).pluck(:slug, :id, :name)
+
+        # Build mappings using frontend keys
+        slug_to_id = {}
+        by_id = {}
+
+        foundations.each do |db_slug, id, name|
+          # Find the frontend key for this db_slug
+          frontend_key = key_mapping.key(db_slug)
+          slug_to_id[frontend_key] = id
+          by_id[id] = { slug: frontend_key, name: name }
+        end
+
+        render json: {
+          success: true,
+          table_ids: slug_to_id,
+          tables_by_id: by_id,
+          # Convenience: uppercase key format matching frontend constants
+          TABLE_IDS: {
+            GOLD_STANDARD: slug_to_id['gold-standard'],
+            JOBS: slug_to_id['jobs'],
+            PRICEBOOK: slug_to_id['pricebook'],
+            CONTACTS: slug_to_id['contacts'],
+            COMPANIES: slug_to_id['companies'],
+            FEATURES_TRACKING: slug_to_id['features-tracking']
+          }.compact
         }
       end
 
