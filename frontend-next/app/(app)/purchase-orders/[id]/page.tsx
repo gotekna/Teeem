@@ -81,7 +81,7 @@ interface LineItem {
 
 interface Contact {
   id: number;
-  name: string;
+  name?: string;
   full_name?: string;
   display_name?: string;
   contact_person?: string;
