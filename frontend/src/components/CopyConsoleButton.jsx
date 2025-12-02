@@ -540,22 +540,35 @@ ${html}
       let html = clone.outerHTML
       html = simplifyHTMLUltraLight(html)
 
-      // Capture screenshot
-      const html2canvas = (await import('html2canvas')).default
-      const canvas = await html2canvas(document.body, {
-        logging: false,
-        useCORS: true,
-        scale: 0.3,
-        width: window.innerWidth,
-        height: window.innerHeight,
-        windowWidth: window.innerWidth,
-        windowHeight: window.innerHeight
-      })
+      // Capture screenshot (with fallback if it fails)
+      let pngDataUrl = null
+      let sizeKB = '0'
+      let canvasWidth = 0
+      let canvasHeight = 0
 
-      const pngDataUrl = canvas.toDataURL('image/png')
-      const pngResponse = await fetch(pngDataUrl)
-      const pngBlob = await pngResponse.blob()
-      const sizeKB = (pngBlob.size / 1024).toFixed(0)
+      try {
+        const html2canvas = (await import('html2canvas')).default
+        const canvas = await html2canvas(document.body, {
+          logging: false,
+          useCORS: true,
+          scale: 0.2, // 20% scale - smaller file size
+          width: window.innerWidth,
+          height: window.innerHeight,
+          windowWidth: window.innerWidth,
+          windowHeight: window.innerHeight
+        })
+
+        // Use JPEG with 40% quality for much smaller file size
+        pngDataUrl = canvas.toDataURL('image/jpeg', 0.4)
+        const response = await fetch(pngDataUrl)
+        const blob = await response.blob()
+        sizeKB = (blob.size / 1024).toFixed(0)
+        canvasWidth = canvas.width
+        canvasHeight = canvas.height
+      } catch (screenshotErr) {
+        console.warn('Screenshot capture failed, continuing without it:', screenshotErr)
+        pngDataUrl = '[Screenshot failed to capture]'
+      }
 
       // Format all console logs
       const formattedLogs = logs.map(log => {
@@ -679,7 +692,7 @@ ${html}
 📊 QUICK SUMMARY:
 ${doesMatch ? '✅ Console Clean - No errors or warnings' : '🚨 ERRORS FOUND - Check console section below!'}
 🌐 Network: ${networkData.length} requests (${failedRequests.length} failed, ${slowRequests.length} slow)
-📸 Screenshot: ${sizeKB}KB (${canvas.width}x${canvas.height}px)
+📸 Screenshot: ${sizeKB}KB (${canvasWidth}x${canvasHeight}px)
 👤 User: ${userRole} (ID: ${userId})
 🌍 Browser: ${browserInfo.browser} ${browserInfo.version} on ${browserInfo.platform}
 📍 URL: ${window.location.href}
@@ -695,7 +708,7 @@ You can view it by:
 2. Copying the data URL to your browser address bar
 3. Saving as .html file and opening in browser
 
-Screenshot Details: ${sizeKB}KB (${canvas.width}x${canvas.height}px)
+Screenshot Details: ${sizeKB}KB (${canvasWidth}x${canvasHeight}px)
 
 ${screenshotDataUrl}
 
@@ -813,6 +826,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
   if (!isVisible) {
     return (
       <button
+        type="button"
         onClick={() => setIsVisible(true)}
         className="fixed bottom-1 right-1 bg-gray-800 text-white p-1 rounded-full shadow-lg hover:bg-gray-700 transition-all z-[9999]"
         title="Show Console Tools"
@@ -838,6 +852,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
         {/* Center - Actions (always visible) */}
         <div className="flex items-center gap-1 flex-1 justify-center">
           <button
+            type="button"
             onClick={handleCopy}
             disabled={logCount === 0}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
@@ -867,6 +882,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleGetContext}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === 'context'
@@ -894,6 +910,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleClear}
             className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-500 text-white hover:bg-red-600 transition-all"
           >
@@ -904,6 +921,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleCopyScreen}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === 'screenshot'
@@ -922,6 +940,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleGetScreenCode}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === 'code'
@@ -944,6 +963,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleHardRefresh}
             className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-500 text-white hover:bg-green-600 transition-all"
           >
@@ -954,6 +974,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleGetCompleteContext}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === 'complete'
@@ -980,6 +1001,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleGetFullContext}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === 'fullcontext'
@@ -1008,6 +1030,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
           </button>
 
           <button
+            type="button"
             onClick={handleGetCompleteValidation}
             className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium transition-all ${
               copiedButton === 'validation'
@@ -1036,6 +1059,7 @@ ${errors.length > 0 || failedRequests.length > 0 ?
 
         {/* Right side - Close */}
         <button
+          type="button"
           onClick={() => setIsVisible(false)}
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5 transition-colors"
           title="Hide console tools"

@@ -74,6 +74,7 @@ export interface SavedView {
   groupByColumns?: string[];
   showFilters?: boolean;
   autoFitColumns?: boolean;
+  showTotals?: boolean;
   display_order?: number;
   isDefault?: boolean;
   is_global?: boolean;

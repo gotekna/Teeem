@@ -196,6 +196,9 @@ function GoldStandardDataTab() {
     name: string;
     column_type: string;
     position?: number;
+    lookup_foundation_id?: number;
+    lookup_display_column?: string;
+    available_choices?: string[];
   }>>([]);
   const [loading, setLoading] = React.useState(true);
   const [showAddDialog, setShowAddDialog] = React.useState(false);
@@ -1038,7 +1041,10 @@ function GoldStandardDataTab() {
         open={showViewsManager}
         onOpenChange={setShowViewsManager}
         foundationId={1}
-        columns={rawColumns}
+        columns={rawColumns.map(col => ({
+          ...col,
+          available_choices: col.available_choices || (col as unknown as { choices?: string[] }).choices,
+        }))}
         onViewsChange={loadData}
         rows={entries}
       />

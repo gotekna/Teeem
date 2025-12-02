@@ -42,6 +42,16 @@ interface JobsResponse {
   views?: SavedView[];
 }
 
+interface JobStatus {
+  id: number;
+  name: string;
+}
+
+interface JobType {
+  id: number;
+  name: string;
+}
+
 export default function JobsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -50,6 +60,8 @@ export default function JobsPage() {
   const [views, setViews] = useState<SavedView[]>([]);
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
   const [showViewsManager, setShowViewsManager] = useState(false);
+  const [jobStatuses, setJobStatuses] = useState<JobStatus[]>([]);
+  const [jobTypes, setJobTypes] = useState<JobType[]>([]);
 
   // Jobs table is foundation ID 204
   const JOBS_TABLE_ID = 204;
@@ -57,7 +69,27 @@ export default function JobsPage() {
 
   useEffect(() => {
     loadJobs();
+    loadJobMetadata();
   }, []);
+
+  const loadJobMetadata = async () => {
+    try {
+      // Load job statuses and job types for filter dropdowns
+      const [statusesRes, typesRes] = await Promise.all([
+        api.get<{ success: boolean; job_statuses: JobStatus[] }>("/api/v1/job_statuses"),
+        api.get<{ success: boolean; job_types: JobType[] }>("/api/v1/job_types"),
+      ]);
+
+      if (statusesRes.success && statusesRes.job_statuses) {
+        setJobStatuses(statusesRes.job_statuses);
+      }
+      if (typesRes.success && typesRes.job_types) {
+        setJobTypes(typesRes.job_types);
+      }
+    } catch (error) {
+      console.error("Failed to load job metadata:", error);
+    }
+  };
 
   const loadJobs = async (searchTerm?: string, searchAllColumns?: boolean) => {
     try {
@@ -97,22 +129,41 @@ export default function JobsPage() {
 
   // Define columns for the jobs table
   const tableColumns: TableColumn[] = useMemo(() => {
-    // If columns came from API, use those
+    console.log('[Jobs] tableColumns useMemo - columns from API:', columns.length, 'jobStatuses:', jobStatuses.length, 'jobTypes:', jobTypes.length);
+
+    // If columns came from API, use those but enrich with choices data
     if (columns.length > 0) {
+      const enrichedColumns = columns.map(col => {
+        // Get the column identifier - API columns may use 'key' or 'column_name'
+        const colKey = col.key || (col as unknown as { column_name?: string }).column_name || '';
+
+        // Add choices for job_type and job_type_id columns
+        if (colKey === 'job_type' || colKey === 'job_type_id') {
+          return { ...col, choices: jobTypes.map(t => t.name), column_type: 'choice' };
+        }
+        // Add choices for job_status and job_status_id columns
+        if (colKey === 'job_status' || colKey === 'job_status_id') {
+          return { ...col, choices: jobStatuses.map(s => s.name), column_type: 'choice' };
+        }
+        return col;
+      });
       return [
         { key: "select", label: "", width: 40, sortable: false, filterable: false },
-        ...columns,
+        ...enrichedColumns,
         { key: "actions", label: "Actions", width: 100, sortable: false, filterable: false },
       ];
     }
 
-    // Default columns
+    // Default columns - include choices from loaded metadata
+    // Note: Include both job_type/job_status AND job_type_id/job_status_id for backward compatibility with saved views
     return [
       { key: "select", label: "", width: 40, sortable: false, filterable: false },
       { key: "ted_number", label: "TED #", width: 100, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "title", label: "Job Title", width: 250, sortable: true, filterable: true, column_type: "single_line_text" },
-      { key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
-      { key: "job_status", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
+      { key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobTypes.map(t => t.name) },
+      { key: "job_type_id", label: "Job Type", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobTypes.map(t => t.name), hidden: true },
+      { key: "job_status", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobStatuses.map(s => s.name) },
+      { key: "job_status_id", label: "Job Status", width: 120, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice", choices: jobStatuses.map(s => s.name), hidden: true },
       { key: "stage", label: "Stage", width: 100, sortable: true, filterable: true, filterType: "dropdown", column_type: "choice" },
       { key: "location", label: "Location", width: 200, sortable: true, filterable: true, column_type: "single_line_text" },
       { key: "site_supervisor_name", label: "Supervisor", width: 150, sortable: true, filterable: true, column_type: "single_line_text" },
@@ -120,7 +171,7 @@ export default function JobsPage() {
       { key: "start_date", label: "Start Date", width: 120, sortable: true, filterable: true, column_type: "date" },
       { key: "actions", label: "Actions", width: 100, sortable: false, filterable: false },
     ];
-  }, [columns]);
+  }, [columns, jobStatuses, jobTypes]);
 
   // Convert jobs to table rows - flatten nested objects for display
   const tableRows: TableRow[] = useMemo(() => {
@@ -211,7 +262,7 @@ export default function JobsPage() {
   return (
     <div className="flex flex-col h-full gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Jobs</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -228,7 +279,7 @@ export default function JobsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold font-mono">{stats.total}</div>
@@ -295,15 +346,26 @@ export default function JobsPage() {
         open={showViewsManager}
         onOpenChange={setShowViewsManager}
         foundationId={JOBS_TABLE_ID}
-        columns={tableColumns
-          .filter(col => col.key !== 'select' && col.key !== 'actions')
-          .map((col, index) => ({
-            id: col.id || index,
-            column_name: col.key,
-            name: col.label,
-            column_type: col.column_type || 'single_line_text',
-            position: index,
-          }))}
+        columns={(() => {
+          const cols = tableColumns
+            .filter(col => col.key !== 'select' && col.key !== 'actions')
+            .map((col, index) => ({
+              id: col.id || index,
+              column_name: col.key,
+              name: col.label,
+              column_type: col.column_type || 'single_line_text',
+              position: index,
+              lookup_foundation_id: col.lookup_config?.target_table_id,
+              lookup_display_column: col.lookup_config?.display_column,
+              available_choices: col.choices,
+            }));
+          console.log('[Jobs] Columns passed to GlobalViewsManager:', cols.map(c => ({
+            column_name: c.column_name,
+            column_type: c.column_type,
+            available_choices: c.available_choices
+          })));
+          return cols;
+        })()}
         onViewsChange={() => loadJobs()}
         rows={tableRows}
       />

@@ -672,7 +672,7 @@ const CascadeFilterItem = memo(function CascadeFilterItem({
 // Default columns for generic tables
 const DEFAULT_COLUMNS: TableColumn[] = [
   { key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 },
-  { key: "id", label: "ID", resizable: true, sortable: true, filterable: true, width: 80 },
+  { key: "id", label: "ID", resizable: true, sortable: true, filterable: true, width: 50 },
   { key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 100 },
 ];
 
@@ -768,7 +768,7 @@ export default function TeeemTableView({
   const DEFAULT_COLUMN_WIDTHS = useMemo(
     () =>
       COLUMNS.reduce((acc, col) => {
-        acc[col.key] = col.width || 150;
+        acc[col.key] = col.width || 50;
         return acc;
       }, {} as ColumnWidthsState),
     [COLUMNS]
@@ -837,6 +837,8 @@ export default function TeeemTableView({
   );
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
+  const [showTotals, setShowTotals] = useState(true); // Show column totals in footer
+  const [autoFitColumns, setAutoFitColumns] = useState(false); // Auto-fit column widths to content
   const [editingRowId, setEditingRowId] = useState<number | string | null>(null);
   const [editingData, setEditingData] = useState<Record<string, unknown>>({});
   const [lookupOptions, setLookupOptions] = useState<Record<string, Array<{ id: number; display: string }>>>({});
@@ -1419,7 +1421,10 @@ export default function TeeemTableView({
       if (view.columnOrder) {
         setColumnOrder(view.columnOrder);
       }
-      if (view.columnWidths) {
+      // Only load saved column widths if auto-fit is NOT enabled
+      const viewAutoFit = view.autoFitColumns === true ||
+        (view.columns && (view.columns as { autoFitColumns?: boolean }).autoFitColumns === true);
+      if (view.columnWidths && !viewAutoFit) {
         setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
       }
       if (view.sortColumns) {
@@ -1431,6 +1436,18 @@ export default function TeeemTableView({
       } else if (view.groupByColumn) {
         setGroupByColumn(view.groupByColumn);
         setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
+      }
+      // Handle showTotals - check both direct property and columns object
+      if (typeof view.showTotals === 'boolean') {
+        setShowTotals(view.showTotals);
+      } else if (view.columns && typeof (view.columns as { showTotals?: boolean }).showTotals === 'boolean') {
+        setShowTotals((view.columns as { showTotals: boolean }).showTotals);
+      }
+      // Handle autoFitColumns - check both direct property and columns object
+      if (typeof view.autoFitColumns === 'boolean') {
+        setAutoFitColumns(view.autoFitColumns);
+      } else if (view.columns && typeof (view.columns as { autoFitColumns?: boolean }).autoFitColumns === 'boolean') {
+        setAutoFitColumns((view.columns as { autoFitColumns: boolean }).autoFitColumns);
       }
       // Hide filter editor when loading a saved view (user can click Filters button to show)
       setShowFilters(false);
@@ -1535,8 +1552,19 @@ export default function TeeemTableView({
   // Evaluate a single filter against an entry
   const evaluateFilter = useCallback(
     (entry: TableRowType, filter: CascadeFilter): boolean => {
-      const value = entry[filter.column];
+      const rawValue = entry[filter.column];
       const filterValue = filter.value;
+
+      // Extract display value from lookup objects (e.g., { id: 1, name: "House" } -> "House")
+      const getDisplayValue = (val: unknown): unknown => {
+        if (typeof val === 'object' && val !== null) {
+          const obj = val as { display?: string; name?: string; id?: number };
+          return obj.display || obj.name || obj.id;
+        }
+        return val;
+      };
+
+      const value = getDisplayValue(rawValue);
 
       switch (filter.operator) {
         case "=":
@@ -1793,7 +1821,7 @@ export default function TeeemTableView({
   // Calculate total table width based on column widths
   const totalTableWidth = useMemo(() => {
     return visibleColumnsInOrder.reduce((sum, col) => {
-      return sum + (columnWidths[col.key] || col.width || 150);
+      return sum + (columnWidths[col.key] || col.width || 50);
     }, 0);
   }, [visibleColumnsInOrder, columnWidths]);
 
@@ -1802,10 +1830,131 @@ export default function TeeemTableView({
     return COLUMNS.filter((c) => c.key !== "select" && c.key !== "actions");
   }, [COLUMNS]);
 
+  // Calculate optimal column widths based on content
+  const calculateAutoFitWidths = useCallback(() => {
+    const newWidths: ColumnWidthsState = {};
+    const CHAR_WIDTH = 9; // Approximate width per character (monospace)
+    const HEADER_PADDING = 32; // Extra padding for header (sort icons, etc)
+    const CELL_PADDING = 24; // Padding for cell content
+    const MIN_WIDTH = 36;
+    const MAX_WIDTH = 400;
+
+    visibleColumnsInOrder.forEach(col => {
+      // Skip select and actions columns - they have fixed widths
+      if (col.key === 'select') {
+        newWidths[col.key] = 40;
+        return;
+      }
+      if (col.key === 'actions') {
+        newWidths[col.key] = 100;
+        return;
+      }
+
+      // Calculate header width (needs more padding for sort icons)
+      const headerText = col.label || col.key;
+      let maxWidth = headerText.length * CHAR_WIDTH + HEADER_PADDING;
+
+      // Calculate content widths from first 100 rows (for performance)
+      const sampleRows = filteredAndSortedEntries.slice(0, 100);
+      sampleRows.forEach(row => {
+        const value = row[col.key];
+        let displayText = '';
+
+        if (value === null || value === undefined) {
+          displayText = '';
+        } else if (typeof value === 'object') {
+          // Handle lookup objects
+          const obj = value as { display?: string; name?: string };
+          displayText = obj.display || obj.name || String(value);
+        } else {
+          displayText = String(value);
+        }
+
+        // Format currency/percentage for width calculation
+        if (col.column_type === 'currency' && typeof value === 'number') {
+          displayText = `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+        } else if (col.column_type === 'percentage' && typeof value === 'number') {
+          displayText = `${value.toFixed(1)}%`;
+        }
+
+        const contentWidth = displayText.length * CHAR_WIDTH + CELL_PADDING;
+        maxWidth = Math.max(maxWidth, contentWidth);
+      });
+
+      // Clamp to min/max
+      newWidths[col.key] = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, maxWidth));
+    });
+
+    return newWidths;
+  }, [visibleColumnsInOrder, filteredAndSortedEntries]);
+
+  // Apply auto-fit widths when enabled
+  useEffect(() => {
+    console.log('[TeeemTableView] Auto-fit effect running, autoFitColumns:', autoFitColumns, 'entries:', filteredAndSortedEntries.length);
+    if (autoFitColumns && filteredAndSortedEntries.length > 0) {
+      const autoWidths = calculateAutoFitWidths();
+      console.log('[TeeemTableView] Auto-fit widths calculated:', autoWidths);
+      // Replace widths entirely when auto-fit is on (not merge)
+      setColumnWidths(autoWidths);
+    }
+  }, [autoFitColumns, calculateAutoFitWidths, visibleColumnsInOrder]);
+
   // Get visible data columns (excluding select and actions)
   const visibleDataColumns = useMemo(() => {
     return visibleColumnsInOrder.filter((c) => c.key !== "select" && c.key !== "actions");
   }, [visibleColumnsInOrder]);
+
+  // Calculate column totals for numeric columns
+  const columnTotals = useMemo(() => {
+    const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
+    const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long']; // Never show totals for these
+    const totals: Record<string, { value: number; type: string; label: string; isAverage: boolean }> = {};
+
+    visibleDataColumns.forEach(col => {
+      if (col.column_type && numericTypes.includes(col.column_type) && !skipColumns.includes(col.key)) {
+        let count = 0;
+        const sum = filteredAndSortedEntries.reduce((acc, row) => {
+          const val = row[col.key];
+          const num = typeof val === 'number' ? val : parseFloat(String(val || 0));
+          if (!isNaN(num)) {
+            count++;
+            return acc + num;
+          }
+          return acc;
+        }, 0);
+
+        // Percentages show average, others show sum
+        const isAverage = col.column_type === 'percentage';
+        const value = isAverage && count > 0 ? sum / count : sum;
+
+        totals[col.key] = {
+          value,
+          type: col.column_type,
+          label: col.label || col.key,
+          isAverage,
+        };
+      }
+    });
+
+    return totals;
+  }, [visibleDataColumns, filteredAndSortedEntries]);
+
+  // Format total value based on column type
+  const formatTotal = (key: string): string | null => {
+    const total = columnTotals[key];
+    if (!total) return null;
+
+    switch (total.type) {
+      case 'currency':
+        return `$${total.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      case 'percentage':
+        return `${total.value.toFixed(1)}% avg`;
+      case 'whole_number':
+        return total.value.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      default:
+        return total.value.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+  };
 
   // Export handler - exports to CSV
   const handleExportCSV = useCallback(() => {
@@ -3001,13 +3150,15 @@ export default function TeeemTableView({
   };
 
   // Render flat table
-  const renderFlatTable = () => (
+  const renderFlatTable = () => {
+    console.log('[TeeemTableView] renderFlatTable columnWidths:', columnWidths);
+    return (
     <Table className="w-full" style={{ tableLayout: 'fixed', width: `${totalTableWidth}px` }}>
         <colgroup>
           {visibleColumnsInOrder.map((column) => (
             <col
               key={column.key}
-              style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
+              style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 50) }}
             />
           ))}
         </colgroup>
@@ -3079,6 +3230,7 @@ export default function TeeemTableView({
         {renderTableFooter()}
       </Table>
   );
+  };
 
   // Get active view name
   const activeView = savedViews.find((v) => v.id === activeViewId);
@@ -3115,33 +3267,36 @@ export default function TeeemTableView({
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          {/* Saved Views */}
+          {/* Saved Views - show as many as fit, rest in dropdown */}
           {savedViews.length > 0 && (
-            <div className="flex items-center gap-1">
-              {savedViews.slice(0, 5).map((view) => (
-                <TooltipProvider key={view.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={activeViewId === view.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => loadViewState(view)}
-                        className={cn(
-                          view.is_global && "border-blue-300 dark:border-blue-700"
-                        )}
-                      >
-                        {view.is_global && (
-                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
-                        )}
-                        {view.name}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {view.is_global ? "Global view (visible to all users)" : "Personal view"}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              ))}
+            <div className="flex items-center gap-1 flex-1 min-w-0">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                {savedViews.map((view) => (
+                  <TooltipProvider key={view.id}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={activeViewId === view.id ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => loadViewState(view)}
+                          className={cn(
+                            "shrink-0 whitespace-nowrap",
+                            view.is_global && "border-blue-300 dark:border-blue-700"
+                          )}
+                        >
+                          {view.is_global && (
+                            <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                          )}
+                          {view.name}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {view.is_global ? "Global view" : "Personal view"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ))}
+              </div>
             </div>
           )}
 
@@ -3391,17 +3546,25 @@ export default function TeeemTableView({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          Showing {filteredAndSortedEntries.length} of {entries.length} records
-        </span>
-        <div className="flex items-center gap-4">
-          {activeView && (
-            <span>
-              View: <strong>{activeView.name}</strong>
-            </span>
+      <div className="flex items-center justify-between text-sm text-muted-foreground shrink-0 pt-2 border-t">
+        <div className="flex items-center gap-3">
+          {/* Column totals */}
+          {showTotals && Object.keys(columnTotals).length > 0 && (
+            <div className="flex items-center gap-3 text-xs font-medium">
+              <span className="text-muted-foreground">Totals:</span>
+              {Object.entries(columnTotals).map(([key, data]) => (
+                <span key={key} className="bg-muted px-2 py-0.5 rounded">
+                  {data.label}: <span className="font-mono">{formatTotal(key)}</span>
+                </span>
+              ))}
+            </div>
           )}
+        </div>
+        <div className="flex items-center gap-4">
           {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
+          <span>
+            Showing {filteredAndSortedEntries.length} of {entries.length} records
+          </span>
         </div>
       </div>
 
@@ -3860,11 +4023,11 @@ export default function TeeemTableView({
                       <TableCell>
                         <Input
                           type="number"
-                          value={columnWidths[col.key] || col.width || 150}
+                          value={columnWidths[col.key] || col.width || 50}
                           onChange={(e) =>
                             setColumnWidths((prev) => ({
                               ...prev,
-                              [col.key]: parseInt(e.target.value) || 150,
+                              [col.key]: parseInt(e.target.value) || 50,
                             }))
                           }
                           className="w-16 h-8 text-sm"

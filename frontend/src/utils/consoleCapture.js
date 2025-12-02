@@ -113,7 +113,7 @@ class ConsoleCapture {
     const formatted = this.getFormattedLogs()
 
     if (formatted.length === 0) {
-      return 'No console logs captured yet'
+      return Promise.resolve('No console logs captured yet')
     }
 
     const header = `=== Console Logs Captured ===\nTotal Entries: ${this.logs.length}\nCaptured at: ${new Date().toLocaleString()}\n\n`

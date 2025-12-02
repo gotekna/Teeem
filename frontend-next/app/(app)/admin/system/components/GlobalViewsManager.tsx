@@ -112,6 +112,7 @@ interface SavedView {
   groupByColumn?: string | null;
   groupByColumns?: string[];
   autoFitColumns?: boolean;
+  showTotals?: boolean;
   display_order?: number;
 }
 
@@ -121,6 +122,9 @@ interface Column {
   name: string;
   column_type: string;
   position?: number;
+  lookup_foundation_id?: number;
+  lookup_display_column?: string;
+  available_choices?: { id: number; value: string }[] | string[];
 }
 
 interface GlobalViewsManagerProps {
@@ -582,11 +586,16 @@ export function GlobalViewsManager({
   const [editVisibleColumns, setEditVisibleColumns] = React.useState<Record<string, boolean>>({});
   const [editColumnOrder, setEditColumnOrder] = React.useState<string[]>([]);
   const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(true);
+  const [editShowTotals, setEditShowTotals] = React.useState(true);
 
   // Collapse state
   const [filtersExpanded, setFiltersExpanded] = React.useState(true);
   const [sortExpanded, setSortExpanded] = React.useState(true);
   const [groupByExpanded, setGroupByExpanded] = React.useState(true);
+
+  // Lookup options cache for filter dropdowns
+  const [lookupOptionsCache, setLookupOptionsCache] = React.useState<Record<string, { id: number; display: string }[]>>({});
+  const [lookupLoadingColumns, setLookupLoadingColumns] = React.useState<Set<string>>(new Set());
 
   // DnD sensors
   const sensors = useSensors(
@@ -621,6 +630,7 @@ export function GlobalViewsManager({
           visibleColumns: v.columns?.visible || {},
           columnOrder: v.columns?.order || [],
           autoFitColumns: v.columns?.autoFitColumns === true,
+          showTotals: v.columns?.showTotals !== false, // Default to true
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
           groupByColumns: v.group_by_columns || [],
         })) as SavedView[];
@@ -678,6 +688,7 @@ export function GlobalViewsManager({
 
     setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
     setEditAutoFitColumns(view.autoFitColumns || false);
+    setEditShowTotals(view.showTotals !== false); // Default to true
   };
 
   const handleSelectView = (view: SavedView) => {
@@ -709,6 +720,7 @@ export function GlobalViewsManager({
       sortColumns: baseView?.sortColumns || [],
       groupByColumns: baseView?.groupByColumns || [],
       autoFitColumns: baseView?.autoFitColumns ?? true,
+      showTotals: baseView?.showTotals ?? true,
     };
 
     console.log('[GlobalViewsManager] Creating new view:', newView.id, newView.name);
@@ -744,6 +756,7 @@ export function GlobalViewsManager({
           visible: editVisibleColumns,
           order: editColumnOrder,
           autoFitColumns: editAutoFitColumns,
+          showTotals: editShowTotals,
         },
         sort_order: editSortColumns,
         group_by_columns: editGroupByColumns,
@@ -889,6 +902,271 @@ export function GlobalViewsManager({
   const removeFilterGroup = (groupId: string) => {
     setEditFilterGroups(editFilterGroups.filter(g => g.id !== groupId));
     setEditFilters(editFilters.filter(f => f.groupId !== groupId));
+  };
+
+  // Known lookup column mappings (column_name -> foundation_id and custom endpoint)
+  // This is used when columns don't have lookup_foundation_id set, or need a custom API endpoint
+  const KNOWN_LOOKUP_MAPPINGS: Record<string, { foundationId: number; displayColumn: string; apiEndpoint?: string; responseKey?: string }> = {
+    job_type_id: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
+    job_type: { foundationId: 344, displayColumn: 'name', apiEndpoint: '/api/v1/job_types', responseKey: 'job_types' },
+    job_status_id: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
+    job_status: { foundationId: 345, displayColumn: 'name', apiEndpoint: '/api/v1/job_statuses', responseKey: 'job_statuses' },
+    design_id: { foundationId: 368, displayColumn: 'name' },
+    contact_id: { foundationId: 214, displayColumn: 'full_name' },
+  };
+
+  // Fetch lookup options for a column
+  const fetchLookupOptions = async (column: Column) => {
+    if (!column.lookup_foundation_id) return;
+
+    const cacheKey = `${column.lookup_foundation_id}`;
+
+    // Check if already cached
+    if (lookupOptionsCache[cacheKey]) return;
+
+    // Check if already loading
+    if (lookupLoadingColumns.has(cacheKey)) return;
+
+    setLookupLoadingColumns(prev => new Set([...prev, cacheKey]));
+
+    try {
+      // Check if there's a known mapping with a custom endpoint
+      const knownMapping = Object.values(KNOWN_LOOKUP_MAPPINGS).find(
+        m => m.foundationId === column.lookup_foundation_id
+      );
+
+      console.log('[GlobalViewsManager] fetchLookupOptions:', {
+        column_name: column.column_name,
+        lookup_foundation_id: column.lookup_foundation_id,
+        knownMapping: knownMapping,
+        hasApiEndpoint: !!knownMapping?.apiEndpoint,
+      });
+
+      let options: { id: number; display: string }[] = [];
+
+      if (knownMapping?.apiEndpoint) {
+        // Use the custom API endpoint
+        console.log('[GlobalViewsManager] Using custom endpoint:', knownMapping.apiEndpoint);
+        const response = await api.get<Record<string, { id: number; name?: string; [key: string]: unknown }[]>>(
+          knownMapping.apiEndpoint
+        );
+
+        const entries = knownMapping.responseKey ? response[knownMapping.responseKey] : [];
+        if (entries && Array.isArray(entries)) {
+          const displayCol = column.lookup_display_column || knownMapping.displayColumn || 'name';
+          options = entries.map(entry => ({
+            id: entry.id,
+            display: String(entry[displayCol] || entry.name || entry.id),
+          }));
+        }
+      } else {
+        // Use the generic foundations endpoint
+        const response = await api.get<{ entries?: { id: number; [key: string]: unknown }[] }>(
+          `/api/v1/foundations/${column.lookup_foundation_id}/entries`
+        );
+
+        if (response.entries) {
+          const displayCol = column.lookup_display_column || 'name';
+          options = response.entries.map(entry => ({
+            id: entry.id,
+            display: String(entry[displayCol] || entry.name || entry.id),
+          }));
+        }
+      }
+
+      setLookupOptionsCache(prev => ({
+        ...prev,
+        [cacheKey]: options,
+      }));
+    } catch (error) {
+      console.error('[GlobalViewsManager] Failed to fetch lookup options:', error);
+    } finally {
+      setLookupLoadingColumns(prev => {
+        const next = new Set(prev);
+        next.delete(cacheKey);
+        return next;
+      });
+    }
+  };
+
+  // Render the filter value input based on column type
+  const renderFilterValueInput = (filter: CascadeFilter, column: Column | undefined) => {
+    // For _id columns, try to find the base column (e.g., job_type_id -> job_type)
+    let resolvedColumn = column;
+    if (!column && filter.column.endsWith('_id')) {
+      const baseColumnName = filter.column.replace(/_id$/, '');
+      resolvedColumn = columns.find(c => c.column_name === baseColumnName);
+    }
+
+    // Use resolved column for the rest of the function
+    column = resolvedColumn;
+
+    // Get known lookup mapping if available
+    const knownMapping = KNOWN_LOOKUP_MAPPINGS[filter.column];
+
+    // Debug: Log full details for job_status_id or job_type_id
+    if (filter.column.includes('job_status') || filter.column.includes('job_type')) {
+      console.log('[GlobalViewsManager] FILTER DEBUG:', {
+        filterColumn: filter.column,
+        columnFound: !!column,
+        column_type: column?.column_type,
+        available_choices: column?.available_choices,
+        choices_length: column?.available_choices?.length,
+        knownMapping: knownMapping,
+        all_columns: columns.map(c => c.column_name),
+      });
+    }
+
+    if (!column) {
+      // Even without a column, check if we have a known mapping
+      if (knownMapping) {
+        const cacheKey = `${knownMapping.foundationId}`;
+        const options = lookupOptionsCache[cacheKey] || [];
+        const isLoading = lookupLoadingColumns.has(cacheKey);
+
+        // Trigger fetch if not cached
+        if (!lookupOptionsCache[cacheKey] && !isLoading) {
+          // Create a fake column with the known mapping to fetch options
+          fetchLookupOptions({
+            id: 0,
+            column_name: filter.column,
+            name: filter.column,
+            column_type: 'lookup',
+            lookup_foundation_id: knownMapping.foundationId,
+            lookup_display_column: knownMapping.displayColumn,
+          });
+        }
+
+        return (
+          <Select
+            value={String(filter.value || "")}
+            onValueChange={(v) => updateFilter(filter.id, { value: v })}
+          >
+            <SelectTrigger className="w-[100px] h-8">
+              {isLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <SelectValue placeholder="Select..." />
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt.id} value={opt.display}>
+                  {opt.display}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
+
+      return (
+        <Input
+          value={String(filter.value || "")}
+          onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
+          placeholder="Value..."
+          className="w-[100px] h-8"
+        />
+      );
+    }
+
+    const isLookupColumn = column.column_type === 'lookup' || column.column_type === 'relation';
+    const isChoiceColumn = column.column_type === 'choice';
+    const isBooleanColumn = column.column_type === 'boolean';
+
+    // Boolean dropdown
+    if (isBooleanColumn) {
+      return (
+        <Select
+          value={filter.value === true ? "true" : filter.value === false ? "false" : ""}
+          onValueChange={(v) => updateFilter(filter.id, { value: v === "true" })}
+        >
+          <SelectTrigger className="w-[80px] h-8">
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">Yes</SelectItem>
+            <SelectItem value="false">No</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    // Choice dropdown
+    if (isChoiceColumn && column.available_choices && column.available_choices.length > 0) {
+      const choices = column.available_choices;
+      return (
+        <Select
+          value={String(filter.value || "")}
+          onValueChange={(v) => updateFilter(filter.id, { value: v })}
+        >
+          <SelectTrigger className="w-[100px] h-8">
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {choices.map((choice, idx) => {
+              const value = typeof choice === 'string' ? choice : choice.value;
+              return (
+                <SelectItem key={idx} value={value}>
+                  {value}
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    // Lookup dropdown - check for lookup_foundation_id or known mapping
+    const effectiveLookupFoundationId = column.lookup_foundation_id || knownMapping?.foundationId;
+    const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
+
+    if (isLookupColumn && effectiveLookupFoundationId) {
+      const cacheKey = `${effectiveLookupFoundationId}`;
+      const options = lookupOptionsCache[cacheKey] || [];
+      const isLoading = lookupLoadingColumns.has(cacheKey);
+
+      // Trigger fetch if not cached
+      if (!lookupOptionsCache[cacheKey] && !isLoading) {
+        fetchLookupOptions({
+          ...column,
+          lookup_foundation_id: effectiveLookupFoundationId,
+          lookup_display_column: effectiveDisplayColumn,
+        });
+      }
+
+      return (
+        <Select
+          value={String(filter.value || "")}
+          onValueChange={(v) => updateFilter(filter.id, { value: v })}
+        >
+          <SelectTrigger className="w-[100px] h-8">
+            {isLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <SelectValue placeholder="Select..." />
+            )}
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((opt) => (
+              <SelectItem key={opt.id} value={opt.display}>
+                {opt.display}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    // Default text input
+    return (
+      <Input
+        value={String(filter.value || "")}
+        onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
+        placeholder="Value..."
+        className="w-[100px] h-8"
+      />
+    );
   };
 
   // Sort management
@@ -1218,14 +1496,9 @@ export function GlobalViewsManager({
                                                   </SelectContent>
                                                 </Select>
 
-                                                {/* Value Input */}
+                                                {/* Value Input - renders dropdown for lookup/choice/boolean columns */}
                                                 {filter.operator !== "empty" && filter.operator !== "notEmpty" && (
-                                                  <Input
-                                                    value={String(filter.value || "")}
-                                                    onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
-                                                    placeholder="Value..."
-                                                    className="w-[80px] h-8"
-                                                  />
+                                                  renderFilterValueInput(filter, columns.find(c => c.column_name === filter.column))
                                                 )}
 
                                                 {/* Delete Button */}
@@ -1390,13 +1663,23 @@ export function GlobalViewsManager({
                             <Eye className="h-4 w-4" />
                             Columns
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
-                            <Switch
-                              id="auto-fit"
-                              checked={editAutoFitColumns}
-                              onCheckedChange={setEditAutoFitColumns}
-                            />
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="show-totals" className="text-xs text-muted-foreground">Totals</Label>
+                              <Switch
+                                id="show-totals"
+                                checked={editShowTotals}
+                                onCheckedChange={setEditShowTotals}
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
+                              <Switch
+                                id="auto-fit"
+                                checked={editAutoFitColumns}
+                                onCheckedChange={setEditAutoFitColumns}
+                              />
+                            </div>
                           </div>
                         </div>
                         <ScrollArea className="flex-1 -mx-4 px-4">
