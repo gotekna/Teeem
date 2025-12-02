@@ -163,6 +163,12 @@ export default function JobsPage() {
     router.push(`/jobs/${slug}`);
   };
 
+  const handleRowDoubleClick = (row: TableRow) => {
+    // Navigate to full job page on double-click
+    const slug = row.title ? slugifyJobTitle(String(row.title)) : String(row.id);
+    router.push(`/jobs/${slug}`);
+  };
+
   const handleEdit = (row: TableRow) => {
     // Use numeric ID - the detail page will redirect to slug URL after loading
     router.push(`/jobs/${row.id}?edit=true`);
