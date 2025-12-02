@@ -592,7 +592,7 @@ export function GlobalViewsManager({
     }
   }, [open, foundationId]);
 
-  const loadViews = async () => {
+  const loadViews = async (selectViewByName?: string) => {
     try {
       setLoading(true);
       const response = await api.get<{ success: boolean; views: SavedView[] }>(
@@ -614,6 +614,16 @@ export function GlobalViewsManager({
         })) as SavedView[];
 
         setViews(mappedViews);
+
+        // If a view name was specified (for newly created views), select it
+        if (selectViewByName) {
+          const newView = mappedViews.find(v => v.name === selectViewByName);
+          if (newView) {
+            setActiveViewId(newView.id);
+            loadViewIntoEditor(newView);
+            return;
+          }
+        }
 
         // Auto-select first view if none selected
         if (!activeViewId && mappedViews.length > 0) {
@@ -715,21 +725,23 @@ export function GlobalViewsManager({
         group_by_column: editGroupByColumns[0] || null,
       };
 
-      let response: { success: boolean; error?: string } | null;
+      let response: { success: boolean; error?: string; view?: { id: number } } | null;
 
       // Wrap data in foundation_view for Rails strong params
       const wrappedData = { foundation_view: viewData };
 
-      if (typeof editingView.id === "string" && editingView.id.startsWith("new_")) {
+      const isNewView = typeof editingView.id === "string" && editingView.id.startsWith("new_");
+
+      if (isNewView) {
         // Create new view
         if (editIsGlobal) {
-          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views/save_global", wrappedData);
+          response = await api.post<{ success: boolean; error?: string; view?: { id: number } }>("/api/v1/foundation_views/save_global", wrappedData);
         } else {
-          response = await api.post<{ success: boolean; error?: string }>("/api/v1/foundation_views", wrappedData);
+          response = await api.post<{ success: boolean; error?: string; view?: { id: number } }>("/api/v1/foundation_views", wrappedData);
         }
       } else {
         // Update existing view
-        response = await api.patch<{ success: boolean; error?: string }>(`/api/v1/foundation_views/${editingView.id}`, wrappedData);
+        response = await api.patch<{ success: boolean; error?: string; view?: { id: number } }>(`/api/v1/foundation_views/${editingView.id}`, wrappedData);
       }
 
       if (response?.success) {
@@ -737,7 +749,9 @@ export function GlobalViewsManager({
           title: "Success",
           description: editIsGlobal ? "Global view saved for all users" : "View saved successfully",
         });
-        await loadViews();
+
+        // Reload views list - if this was a new view, pass the name so we can select it
+        await loadViews(isNewView ? editName : undefined);
         onViewsChange?.();
       } else {
         throw new Error(response?.error || "Failed to save view");

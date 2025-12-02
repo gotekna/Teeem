@@ -492,19 +492,127 @@ const CascadeFilterItem = memo(function CascadeFilterItem({
   columns,
   onUpdate,
   onRemove,
+  lookupOptions,
+  lookupLoading,
+  onFetchLookupOptions,
 }: {
   filter: CascadeFilter;
   columns: TableColumn[];
   onUpdate: (id: string | number, updates: Partial<CascadeFilter>) => void;
   onRemove: (id: string | number) => void;
+  lookupOptions?: Record<string, Array<{ id: number; display: string }>>;
+  lookupLoading?: Record<string, boolean>;
+  onFetchLookupOptions?: (column: TableColumn) => void;
 }) {
   const column = columns.find((c) => c.key === filter.column);
+
+  // Fetch lookup options when column changes to a lookup type
+  useEffect(() => {
+    if (column && (column.column_type === 'lookup' || column.column_type === 'relation') &&
+        column.lookup_config?.target_table_id && onFetchLookupOptions) {
+      onFetchLookupOptions(column);
+    }
+  }, [column, onFetchLookupOptions]);
+
+  // Determine if this column should show a dropdown for values
+  const isLookupColumn = column?.column_type === 'lookup' || column?.column_type === 'relation';
+  const isChoiceColumn = column?.column_type === 'choice';
+  const isBooleanColumn = column?.column_type === 'boolean';
+  const options = lookupOptions?.[filter.column] || [];
+  const isLoading = lookupLoading?.[filter.column] || false;
+
+  // Render value input based on column type
+  const renderValueInput = () => {
+    if (["is_empty", "is_not_empty"].includes(filter.operator)) {
+      return null;
+    }
+
+    // Boolean column - show Yes/No dropdown
+    if (isBooleanColumn) {
+      return (
+        <Select
+          value={filter.value === true || filter.value === 'true' ? 'true' : filter.value === false || filter.value === 'false' ? 'false' : ''}
+          onValueChange={(value) => onUpdate(filter.id, { value: value === 'true' })}
+        >
+          <SelectTrigger className="flex-1 h-8">
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="true">Yes</SelectItem>
+            <SelectItem value="false">No</SelectItem>
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    // Choice column - show choices dropdown
+    if (isChoiceColumn && column?.choices && column.choices.length > 0) {
+      return (
+        <Select
+          value={String(filter.value || '')}
+          onValueChange={(value) => onUpdate(filter.id, { value })}
+        >
+          <SelectTrigger className="flex-1 h-8">
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {column.choices.map((choice) => (
+              <SelectItem key={choice} value={choice}>
+                {choice}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      );
+    }
+
+    // Lookup column - show lookup values dropdown
+    if (isLookupColumn && column?.lookup_config?.target_table_id) {
+      if (isLoading) {
+        return (
+          <div className="flex-1 h-8 flex items-center px-3 text-sm text-muted-foreground bg-muted rounded-md">
+            Loading...
+          </div>
+        );
+      }
+
+      if (options.length > 0) {
+        return (
+          <Select
+            value={String(filter.value || '')}
+            onValueChange={(value) => onUpdate(filter.id, { value })}
+          >
+            <SelectTrigger className="flex-1 h-8">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((opt) => (
+                <SelectItem key={opt.id} value={String(opt.id)}>
+                  {opt.display}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      }
+    }
+
+    // Default text input
+    return (
+      <Input
+        className="flex-1 h-8"
+        value={String(filter.value || "")}
+        onChange={(e) => onUpdate(filter.id, { value: e.target.value })}
+        placeholder="Value..."
+      />
+    );
+  };
 
   return (
     <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
       <Select
         value={filter.column}
-        onValueChange={(value) => onUpdate(filter.id, { column: value })}
+        onValueChange={(value) => onUpdate(filter.id, { column: value, value: '' })}
       >
         <SelectTrigger className="w-[140px] h-8">
           <SelectValue placeholder="Column" />
@@ -547,14 +655,7 @@ const CascadeFilterItem = memo(function CascadeFilterItem({
         </SelectContent>
       </Select>
 
-      {!["is_empty", "is_not_empty"].includes(filter.operator) && (
-        <Input
-          className="flex-1 h-8"
-          value={String(filter.value || "")}
-          onChange={(e) => onUpdate(filter.id, { value: e.target.value })}
-          placeholder="Value..."
-        />
-      )}
+      {renderValueInput()}
 
       <Button
         variant="ghost"
@@ -951,14 +1052,26 @@ export default function TeeemTableView({
 
     setLookupLoading(prev => ({ ...prev, [column.key]: true }));
     try {
-      const response = await api.get(`/api/v1/foundations/${targetTableId}/records`) as {
-        data?: { records?: Record<string, unknown>[] } | Record<string, unknown>[]
-      };
-      const data = response.data;
-      const records: Record<string, unknown>[] = Array.isArray(data)
-        ? data
-        : (data as { records?: Record<string, unknown>[] })?.records || [];
+      const response = await api.get(`/api/v1/foundations/${targetTableId}/records`);
+      // Handle various response structures
+      let records: Record<string, unknown>[] = [];
+      if (Array.isArray(response)) {
+        records = response;
+      } else if (response && typeof response === 'object') {
+        const resp = response as { records?: Record<string, unknown>[]; data?: Record<string, unknown>[] | { records?: Record<string, unknown>[] } };
+        if (Array.isArray(resp.records)) {
+          records = resp.records;
+        } else if (resp.data) {
+          if (Array.isArray(resp.data)) {
+            records = resp.data;
+          } else if (Array.isArray((resp.data as { records?: Record<string, unknown>[] }).records)) {
+            records = (resp.data as { records: Record<string, unknown>[] }).records;
+          }
+        }
+      }
+
       const displayColumn = column.lookup_config?.display_column || 'name';
+      console.log('[fetchLookupOptions] targetTableId:', targetTableId, 'records:', records.length, 'displayColumn:', displayColumn);
 
       const options = records.map((record) => ({
         id: record.id as number,
@@ -980,9 +1093,15 @@ export default function TeeemTableView({
     setEditingData({ ...row });
 
     // Pre-fetch lookup options for lookup columns
+    console.log('[startEditing] Checking columns for lookup options...');
     COLUMNS.forEach(col => {
-      if ((col.column_type === 'lookup' || col.column_type === 'relation') && col.lookup_config?.target_table_id) {
-        fetchLookupOptions(col);
+      if (col.column_type === 'lookup' || col.column_type === 'relation') {
+        console.log('[startEditing] Found lookup column:', col.key, 'lookup_config:', col.lookup_config);
+        if (col.lookup_config?.target_table_id) {
+          fetchLookupOptions(col);
+        } else {
+          console.warn('[startEditing] Lookup column missing lookup_config.target_table_id:', col.key);
+        }
       }
     });
   }, [COLUMNS, fetchLookupOptions]);
@@ -1792,12 +1911,26 @@ export default function TeeemTableView({
                   <Eye className="h-4 w-4" />
                 </Button>
               )}
-              {/* Single edit button: inline edit if onRowUpdate available, otherwise modal edit via onEdit */}
+              {/* Edit button: inline edit if single row, bulk edit modal if multiple selected */}
               {!viewOnly && (onRowUpdate || onEdit) && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => onRowUpdate ? startEditing(entry) : onEdit?.(entry)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // If multiple rows selected, open bulk edit dialog
+                    if (selectedRows.size > 1) {
+                      onEdit?.(entry);
+                    } else {
+                      // Single row or no selection: inline edit if available
+                      if (onRowUpdate) {
+                        startEditing(entry);
+                      } else {
+                        onEdit?.(entry);
+                      }
+                    }
+                  }}
+                  onDoubleClick={(e) => e.stopPropagation()}
                 >
                   <Pencil className="h-4 w-4" />
                 </Button>
@@ -1992,6 +2125,7 @@ export default function TeeemTableView({
         if (columnType === 'lookup' || columnType === 'relation') {
           const options = lookupOptions[column.key] || [];
           const isLoading = lookupLoading[column.key];
+          console.log('[Lookup Edit] column:', column.key, 'options:', options.length, 'lookup_config:', column.lookup_config, 'isLoading:', isLoading);
 
           // Get current value - could be an object with id or just an id
           const currentValue = editingData[column.key];
@@ -2001,8 +2135,15 @@ export default function TeeemTableView({
 
           return (
             <Select
-              value={currentId ? String(currentId) : ""}
+              value={currentId ? String(currentId) : "__none__"}
               onValueChange={(val) => {
+                if (val === "__none__") {
+                  setEditingData((prev) => ({
+                    ...prev,
+                    [column.key]: null,
+                  }));
+                  return;
+                }
                 const selectedOption = options.find(o => String(o.id) === val);
                 setEditingData((prev) => ({
                   ...prev,
@@ -2014,8 +2155,8 @@ export default function TeeemTableView({
                 <SelectValue placeholder={isLoading ? "Loading..." : "Select..."} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">
-                  <span className="text-muted-foreground">None</span>
+                <SelectItem value="__none__">
+                  <span className="text-muted-foreground italic">No Record</span>
                 </SelectItem>
                 {options.map((option) => (
                   <SelectItem key={option.id} value={String(option.id)}>
@@ -2407,7 +2548,9 @@ export default function TeeemTableView({
       <tfoot className="bg-muted/50 border-t-2 font-medium">
         <tr>
           {visibleColumnsInOrder.map((column, colIndex) => {
-            const isNumeric = column.column_type && numericTypes.includes(column.column_type);
+            // Skip id column and other non-summable columns
+            const skipColumns = ['id', 'select', 'actions'];
+            const isNumeric = column.column_type && numericTypes.includes(column.column_type) && !skipColumns.includes(column.key);
             let total: number | null = null;
 
             if (isNumeric) {
@@ -3243,7 +3386,7 @@ export default function TeeemTableView({
       )}
 
       {/* Table - scrollable container */}
-      <div className="flex-1 min-h-0 w-full overflow-auto">
+      <div className="flex-1 min-h-0 w-full overflow-auto relative">
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>
 
@@ -3905,6 +4048,9 @@ export default function TeeemTableView({
                       columns={COLUMNS}
                       onUpdate={updateFilter}
                       onRemove={removeFilter}
+                      lookupOptions={lookupOptions}
+                      lookupLoading={lookupLoading}
+                      onFetchLookupOptions={fetchLookupOptions}
                     />
                   </div>
                 ))}

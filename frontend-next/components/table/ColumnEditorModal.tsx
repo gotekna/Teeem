@@ -127,6 +127,8 @@ export function ColumnEditorModal({
   const [loadingTables, setLoadingTables] = useState(false);
   const [targetTableColumns, setTargetTableColumns] = useState<Array<{ column_name: string; name: string }>>([]);
   const [loadingTargetColumns, setLoadingTargetColumns] = useState(false);
+  const [targetTableRecords, setTargetTableRecords] = useState<Array<{ id: number; display: string }>>([]);
+  const [loadingTargetRecords, setLoadingTargetRecords] = useState(false);
 
   // System-generated columns
   const isSystemGenerated = column
@@ -155,17 +157,31 @@ export function ColumnEditorModal({
   // Load columns from target table when lookup_table_id changes
   useEffect(() => {
     const loadTargetColumns = async () => {
+      // Clear existing columns immediately when table ID changes
+      setTargetTableColumns([]);
+
       if (!editedColumn.lookup_table_id) {
-        setTargetTableColumns([]);
         return;
       }
+
+      const tableIdToLoad = editedColumn.lookup_table_id;
+      const tableName = availableTables.find(t => t.id === tableIdToLoad)?.name || 'Unknown';
       setLoadingTargetColumns(true);
+      console.log('[ColumnEditorModal] Loading columns for target table:', tableIdToLoad, '(' + tableName + ')');
+
       try {
         const response = await api.get<{ success: boolean; foundation: { columns: Array<{ column_name: string; name: string }> } }>(
-          `/api/v1/foundations/${editedColumn.lookup_table_id}`
+          `/api/v1/foundations/${tableIdToLoad}`
         );
+        console.log('[ColumnEditorModal] Response for table', tableIdToLoad, ':', response);
+
+        // Check if the table ID is still the same (avoid race condition)
         if (response?.foundation?.columns) {
+          console.log('[ColumnEditorModal] Setting columns for table', tableIdToLoad, ':', response.foundation.columns);
           setTargetTableColumns(response.foundation.columns);
+        } else {
+          console.warn('[ColumnEditorModal] No columns in response for table', tableIdToLoad);
+          setTargetTableColumns([]);
         }
       } catch (error) {
         console.error("Failed to load target table columns:", error);
@@ -175,11 +191,56 @@ export function ColumnEditorModal({
       }
     };
     loadTargetColumns();
+    // Only depend on lookup_table_id - availableTables is just for logging
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editedColumn.lookup_table_id]);
+
+  // Load records from target table when lookup_table_id changes
+  useEffect(() => {
+    const loadTargetRecords = async () => {
+      setTargetTableRecords([]);
+
+      if (!editedColumn.lookup_table_id) {
+        return;
+      }
+
+      const tableIdToLoad = editedColumn.lookup_table_id;
+      setLoadingTargetRecords(true);
+      console.log('[ColumnEditorModal] Loading records for target table:', tableIdToLoad);
+
+      try {
+        const response = await api.get<{ records: Array<Record<string, unknown>> }>(
+          `/api/v1/foundations/${tableIdToLoad}/records`
+        );
+        console.log('[ColumnEditorModal] Records response for table', tableIdToLoad, ':', response);
+
+        if (response?.records) {
+          // Get display column from current config, default to 'name'
+          const displayColumn = editedColumn.lookup_display_column || 'name';
+          const records = response.records.map((record) => ({
+            id: record.id as number,
+            display: String(record[displayColumn] || record.name || record.title || record.id),
+          }));
+          console.log('[ColumnEditorModal] Setting records for table', tableIdToLoad, ':', records);
+          setTargetTableRecords(records);
+        }
+      } catch (error) {
+        console.error("Failed to load target table records:", error);
+        setTargetTableRecords([]);
+      } finally {
+        setLoadingTargetRecords(false);
+      }
+    };
+    loadTargetRecords();
+  }, [editedColumn.lookup_table_id, editedColumn.lookup_display_column]);
 
   // Sync state when column changes
   useEffect(() => {
     if (column) {
+      console.log('[ColumnEditorModal] Column changed:', column.key, 'lookup_config:', column.lookup_config);
+      const newLookupTableId = column.lookup_config?.target_table_id || null;
+      console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
+
       setEditedColumn({
         name: column.label || "",
         column_name: column.key || "",
@@ -189,7 +250,7 @@ export function ColumnEditorModal({
         column_group: (column as any).column_group || "",
         formula: (column as any).formula || "",
         choices: column.choices || [],
-        lookup_table_id: column.lookup_config?.target_table_id || null,
+        lookup_table_id: newLookupTableId,
         lookup_display_column: column.lookup_config?.display_column || "",
       });
       setNewColumnType(column.column_type || "text");
@@ -1033,46 +1094,67 @@ export function ColumnEditorModal({
                             lookup_display_column: value,
                           }))
                         }
-                        disabled={!editedColumn.lookup_table_id || loadingTargetColumns}
+                        disabled={!editedColumn.lookup_table_id || loadingTargetRecords}
                       >
                         <SelectTrigger>
                           <SelectValue
                             placeholder={
                               !editedColumn.lookup_table_id
                                 ? "Select a target table first"
-                                : loadingTargetColumns
-                                  ? "Loading columns..."
-                                  : "Select display column"
+                                : loadingTargetRecords
+                                  ? "Loading values..."
+                                  : "Select display value"
                             }
                           />
                         </SelectTrigger>
                         <SelectContent>
-                          {targetTableColumns.map((col) => (
-                            <SelectItem key={col.column_name} value={col.column_name}>
-                              <span className="flex items-center gap-2">
-                                <span>{col.name || col.column_name}</span>
-                                <span className="text-xs text-muted-foreground font-mono">[{col.column_name}]</span>
-                              </span>
+                          {targetTableRecords.map((record) => (
+                            <SelectItem key={record.id} value={record.display}>
+                              {record.display}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        The column from the target table to display (e.g., name, title)
+                        The value that will be shown when this lookup is displayed
                       </p>
                     </div>
 
                     {editedColumn.lookup_table_id && (
                       <div className="p-3 bg-muted/50 rounded-md border">
                         <div className="text-sm">
-                          <strong>Selected:</strong>{" "}
+                          <strong>Target Table:</strong>{" "}
                           {availableTables.find(t => t.id === editedColumn.lookup_table_id)?.name || "Unknown"}
                           {editedColumn.lookup_display_column && (
                             <span className="ml-2 text-muted-foreground">
-                              → showing <code className="bg-muted px-1 rounded">{editedColumn.lookup_display_column}</code>
+                              → Display: <code className="bg-muted px-1 rounded">{editedColumn.lookup_display_column}</code>
                             </span>
                           )}
                         </div>
+                      </div>
+                    )}
+
+                    {/* All available values from target table */}
+                    {editedColumn.lookup_table_id && targetTableRecords.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>All Available Values ({targetTableRecords.length})</Label>
+                        <div className="border rounded-lg max-h-[200px] overflow-y-auto">
+                          <div className="divide-y">
+                            {targetTableRecords.slice(0, 50).map((record) => (
+                              <div key={record.id} className="px-3 py-2 text-sm hover:bg-muted/50">
+                                {record.display}
+                              </div>
+                            ))}
+                            {targetTableRecords.length > 50 && (
+                              <div className="px-3 py-2 text-xs text-muted-foreground">
+                                ... and {targetTableRecords.length - 50} more
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          These are the values users can select from when editing this column
+                        </p>
                       </div>
                     )}
 

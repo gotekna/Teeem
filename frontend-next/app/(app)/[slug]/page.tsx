@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useCallback } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
+import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 import { TABLE_IDS, urls, stripUrlSuffix } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
@@ -108,6 +109,21 @@ function TablePageContent() {
     }
   }, [tab, uiConfig.defaultTab, uiConfig.tabs]);
 
+  // Handle inline row update - must be before early returns (hooks rule)
+  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    if (!tableId) return;
+    try {
+      await api.patch(`/api/v1/foundations/${tableId}/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      // Refresh data after update
+      refresh();
+    } catch (error) {
+      console.error("[TablePage] Failed to update row:", error);
+      throw error;
+    }
+  }, [tableId, refresh]);
+
   if (isLoading) {
     return <PageSkeleton />;
   }
@@ -173,6 +189,7 @@ function TablePageContent() {
     onRefresh: refresh,
     onRowDoubleClick: handleRowDoubleClick,
     onRowClick: handleRowClick,
+    onRowUpdate: !uiConfig.viewOnly ? handleRowUpdate : undefined,
     leftActions: leftActions,
     customActions: customActions,
   };

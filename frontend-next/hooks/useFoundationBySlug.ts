@@ -117,6 +117,11 @@ export function useFoundationBySlug(
       // Skip system columns
       if (SYSTEM_COLUMNS.includes(col.column_name)) return;
 
+      // Log lookup columns for debugging
+      if (col.lookup_foundation_id) {
+        console.log('[useFoundationBySlug] Column', col.column_name, 'has lookup_foundation_id:', col.lookup_foundation_id, 'display_column:', col.lookup_display_column);
+      }
+
       tableColumns.push({
         id: col.id,
         foundation_id: col.foundation_id || foundation.id,
