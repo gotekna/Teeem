@@ -1885,9 +1885,12 @@ export default function TeeemTableView({
                   editingRowId === row.id && "bg-blue-50 dark:bg-blue-950/20",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
-                onClick={() =>
-                  editingRowId !== row.id && onRowClick?.(row)
-                }
+                onClick={(e) => {
+                  console.log('Row clicked', row.id, 'target:', e.target, 'onRowClick:', !!onRowClick);
+                  if (editingRowId !== row.id && onRowClick) {
+                    onRowClick(row);
+                  }
+                }}
                 onDoubleClick={() =>
                   editingRowId !== row.id && onRowDoubleClick?.(row)
                 }

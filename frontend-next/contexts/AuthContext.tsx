@@ -70,6 +70,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return;
     }
 
+    // If we already have a user (from login/signup), don't re-check
+    if (user) {
+      setLoading(false);
+      return;
+    }
+
     if (token) {
       // Verify token and get user info
       checkAuth();

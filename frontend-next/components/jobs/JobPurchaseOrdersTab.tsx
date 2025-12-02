@@ -59,16 +59,17 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-interface Supplier {
+interface Contact {
   id: number;
-  name: string;
+  full_name: string;
+  display_name?: string;
 }
 
-interface ScheduleTask {
+interface TaskTemplate {
   id: number;
-  title: string;
-  supplier_category?: string;
-  purchase_order_id?: number;
+  name: string;
+  category?: string;
+  default_duration_days?: number;
 }
 
 interface PurchaseOrder {
@@ -128,17 +129,17 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [scheduleTasks, setScheduleTasks] = useState<ScheduleTask[]>([]);
-  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
-  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [selectedTask, setSelectedTask] = useState<ScheduleTask | null>(null);
-  const [supplierOpen, setSupplierOpen] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<TaskTemplate | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
 
   // Delete confirmation
@@ -153,7 +154,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     try {
       setLoading(true);
       const response = await api.get<{ purchase_orders: PurchaseOrder[] }>(
-        `/api/v1/jobs/${jobId}/purchase_orders`
+        `/api/v1/purchase_orders?job_id=${jobId}`
       );
       setPurchaseOrders(response?.purchase_orders || []);
     } catch (err) {
@@ -163,32 +164,29 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  const loadSuppliers = async () => {
-    if (suppliers.length > 0) return;
+  const loadContacts = async () => {
+    if (contacts.length > 0) return;
     try {
-      setLoadingSuppliers(true);
-      const response = await api.get<{ suppliers: Supplier[] }>("/api/v1/suppliers");
-      setSuppliers(response?.suppliers || []);
+      setLoadingContacts(true);
+      const response = await api.get<{ contacts: Contact[] }>("/api/v1/contacts?type=suppliers");
+      setContacts(response?.contacts || []);
     } catch (err) {
-      console.error("Failed to load suppliers:", err);
+      console.error("Failed to load contacts:", err);
     } finally {
-      setLoadingSuppliers(false);
+      setLoadingContacts(false);
     }
   };
 
-  const loadScheduleTasks = async () => {
+  const loadTaskTemplates = async () => {
+    if (taskTemplates.length > 0) return;
     try {
       setLoadingTasks(true);
-      const response = await api.get<{ schedule_tasks: ScheduleTask[] }>(
-        `/api/v1/jobs/${jobId}/schedule_tasks`
+      const response = await api.get<{ task_templates: TaskTemplate[] }>(
+        `/api/v1/task_templates`
       );
-      // Filter to only unmatched tasks
-      const filtered = (response?.schedule_tasks || []).filter(
-        (task) => !task.purchase_order_id
-      );
-      setScheduleTasks(filtered);
+      setTaskTemplates(response?.task_templates || []);
     } catch (err) {
-      console.error("Failed to load schedule tasks:", err);
+      console.error("Failed to load task templates:", err);
     } finally {
       setLoadingTasks(false);
     }
@@ -196,30 +194,30 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
   const handleOpenCreateModal = async () => {
     setError(null);
-    setSelectedSupplier(null);
-    setSelectedTask(null);
+    setSelectedContact(null);
+    setSelectedTemplate(null);
     setShowCreateModal(true);
-    await Promise.all([loadSuppliers(), loadScheduleTasks()]);
+    await Promise.all([loadContacts(), loadTaskTemplates()]);
   };
 
   const handleCreate = async () => {
-    if (!selectedSupplier) {
-      setError("Please select a supplier");
+    if (!selectedContact) {
+      setError("Please select a contact");
       return;
     }
-    if (!selectedTask) {
-      setError("Please select a schedule task");
+    if (!selectedTemplate) {
+      setError("Please select a task template");
       return;
     }
 
     try {
       setSaving(true);
       setError(null);
-      await api.post(`/api/v1/jobs/${jobId}/purchase_orders`, {
+      await api.post(`/api/v1/purchase_orders`, {
         purchase_order: {
-          construction_id: jobId,
-          supplier_id: selectedSupplier.id,
-          schedule_task_id: selectedTask.id,
+          job_id: jobId,
+          supplier_id: selectedContact.id,
+          task_template_id: selectedTemplate.id,
           status: "draft",
         },
       });
@@ -499,22 +497,22 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
           )}
 
           <div className="space-y-4 py-4">
-            {/* Supplier Select */}
+            {/* Supplier (Contact) Select */}
             <div className="space-y-2">
               <Label>Supplier</Label>
-              <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
+              <Popover open={contactOpen} onOpenChange={setContactOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     role="combobox"
-                    aria-expanded={supplierOpen}
+                    aria-expanded={contactOpen}
                     className="w-full justify-between"
-                    disabled={loadingSuppliers}
+                    disabled={loadingContacts}
                   >
-                    {loadingSuppliers ? (
+                    {loadingContacts ? (
                       <span className="text-muted-foreground">Loading suppliers...</span>
-                    ) : selectedSupplier ? (
-                      selectedSupplier.name
+                    ) : selectedContact ? (
+                      selectedContact.display_name || selectedContact.full_name
                     ) : (
                       <span className="text-muted-foreground">Select supplier...</span>
                     )}
@@ -527,22 +525,22 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                     <CommandList>
                       <CommandEmpty>No supplier found.</CommandEmpty>
                       <CommandGroup>
-                        {suppliers.map((supplier) => (
+                        {contacts.map((contact) => (
                           <CommandItem
-                            key={supplier.id}
-                            value={supplier.name}
+                            key={contact.id}
+                            value={contact.display_name || contact.full_name}
                             onSelect={() => {
-                              setSelectedSupplier(supplier);
-                              setSupplierOpen(false);
+                              setSelectedContact(contact);
+                              setContactOpen(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 "mr-2 h-4 w-4",
-                                selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0"
+                                selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            {supplier.name}
+                            {contact.display_name || contact.full_name}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -552,9 +550,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               </Popover>
             </div>
 
-            {/* Schedule Task Select */}
+            {/* Task Template Select */}
             <div className="space-y-2">
-              <Label>Schedule Task</Label>
+              <Label>Task Template</Label>
               <Popover open={taskOpen} onOpenChange={setTaskOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -565,52 +563,52 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                     disabled={loadingTasks}
                   >
                     {loadingTasks ? (
-                      <span className="text-muted-foreground">Loading tasks...</span>
-                    ) : selectedTask ? (
+                      <span className="text-muted-foreground">Loading templates...</span>
+                    ) : selectedTemplate ? (
                       <div className="flex flex-col items-start">
-                        <span>{selectedTask.title}</span>
-                        {selectedTask.supplier_category && (
+                        <span>{selectedTemplate.name}</span>
+                        {selectedTemplate.category && (
                           <span className="text-xs text-muted-foreground">
-                            {selectedTask.supplier_category}
+                            {selectedTemplate.category}
                           </span>
                         )}
                       </div>
                     ) : (
-                      <span className="text-muted-foreground">Select schedule task...</span>
+                      <span className="text-muted-foreground">Select task template...</span>
                     )}
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[400px] p-0">
                   <Command>
-                    <CommandInput placeholder="Search tasks..." />
+                    <CommandInput placeholder="Search templates..." />
                     <CommandList>
                       <CommandEmpty>
-                        {scheduleTasks.length === 0
-                          ? "No unmatched tasks available"
-                          : "No task found."}
+                        {taskTemplates.length === 0
+                          ? "No task templates available"
+                          : "No template found."}
                       </CommandEmpty>
                       <CommandGroup>
-                        {scheduleTasks.map((task) => (
+                        {taskTemplates.map((template) => (
                           <CommandItem
-                            key={task.id}
-                            value={task.title}
+                            key={template.id}
+                            value={template.name}
                             onSelect={() => {
-                              setSelectedTask(task);
+                              setSelectedTemplate(template);
                               setTaskOpen(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 "mr-2 h-4 w-4",
-                                selectedTask?.id === task.id ? "opacity-100" : "opacity-0"
+                                selectedTemplate?.id === template.id ? "opacity-100" : "opacity-0"
                               )}
                             />
                             <div className="flex flex-col">
-                              <span>{task.title}</span>
-                              {task.supplier_category && (
+                              <span>{template.name}</span>
+                              {template.category && (
                                 <span className="text-xs text-muted-foreground">
-                                  {task.supplier_category}
+                                  {template.category}
                                 </span>
                               )}
                             </div>

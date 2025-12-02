@@ -10,7 +10,7 @@ Rails.application.config.middleware.insert_before 0, Rack::Cors do
     # Allow all Vercel preview and production deployments, plus localhost
     origins(
       /https:\/\/teeem.*\.vercel\.app$/,  # All Vercel deployments (teeem.vercel.app, teeem-*.vercel.app, teeemrob.vercel.app, teeemsam.vercel.app, etc.)
-      /http:\/\/localhost:(5173|5174|5175|5176|5177|5178|5179|5180|5181|5182|5183|5184|5185|5186)$/  # Localhost ports 5173-5186
+      /http:\/\/localhost:(3001|5173|5174|5175|5176|5177|5178|5179|5180|5181|5182|5183|5184|5185|5186)$/  # Localhost ports 3001, 5173-5186
     )
 
     resource "*",

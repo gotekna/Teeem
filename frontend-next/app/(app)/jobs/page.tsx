@@ -153,13 +153,13 @@ export default function JobsPage() {
 
   // Handlers
   const handleView = (row: TableRow) => {
-    const slug = row.title ? slugifyJobTitle(String(row.title)) : String(row.id);
-    router.push(`/jobs/${slug}`);
+    // Use numeric ID - the detail page will redirect to slug URL after loading
+    router.push(`/jobs/${row.id}`);
   };
 
   const handleEdit = (row: TableRow) => {
-    const slug = row.title ? slugifyJobTitle(String(row.title)) : String(row.id);
-    router.push(`/jobs/${slug}?edit=true`);
+    // Use numeric ID - the detail page will redirect to slug URL after loading
+    router.push(`/jobs/${row.id}?edit=true`);
   };
 
   const handleDelete = async (row: TableRow) => {
