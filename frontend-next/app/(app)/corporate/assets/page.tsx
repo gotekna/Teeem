@@ -1,24 +1,90 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
-import { Package } from "lucide-react";
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Plus, Loader2 } from "lucide-react";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { useCorporateTable } from "@/hooks/use-corporate-table";
+import type { TableRow } from "@/components/table/types";
 
 export default function AssetsPage() {
+  const router = useRouter();
+
+  // Use the corporate table hook for assets
+  const {
+    columns,
+    foundationId,
+    entries: assets,
+    isLoading,
+    error,
+    refreshColumns,
+    refreshData,
+    handleEdit,
+    handleDelete,
+    handleBulkDelete,
+  } = useCorporateTable('assets');
+
+  // Wrap handlers to show confirmation for deletes
+  const handleDeleteWithConfirm = async (entry: TableRow) => {
+    if (!confirm(`Delete asset "${entry.name}"? This cannot be undone.`)) return;
+    await handleDelete(entry);
+  };
+
+  const handleBulkDeleteWithConfirm = async (entries: TableRow[]) => {
+    if (!confirm(`Delete ${entries.length} assets? This cannot be undone.`)) return;
+    await handleBulkDelete(entries);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <p className="text-destructive">{error}</p>
+        <Button onClick={refreshData}>Retry</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      {/* Header */}
       <div className="border-b pb-4">
         <h1 className="text-2xl font-bold tracking-tight font-serif">Assets</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Manage company assets and equipment
+          Manage company assets, equipment, and vehicles
         </p>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-16">
-          <Package className="h-12 w-12 text-muted-foreground mb-4" />
-          <p className="text-muted-foreground">Assets management coming soon</p>
-        </CardContent>
-      </Card>
+      {/* Assets Table */}
+      <TeeemTableView
+        foundationId="assets"
+        foundationIdNumeric={foundationId || 0}
+        tableName="Assets"
+        entries={assets}
+        columns={columns}
+        onEdit={handleEdit}
+        onDelete={handleDeleteWithConfirm}
+        onBulkDelete={handleBulkDeleteWithConfirm}
+        onRowDoubleClick={(asset) => router.push(`/corporate/assets/${asset.id}`)}
+        enableExport={true}
+        enableSchemaEditor={false} // Assets don't have a Foundation for schema editing
+        hideUpdateViewButton={true}
+        onColumnUpdate={refreshColumns}
+        leftActions={
+          <Button onClick={() => router.push("/corporate/assets/new")}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Asset
+          </Button>
+        }
+      />
     </div>
   );
 }

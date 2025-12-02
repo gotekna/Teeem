@@ -1,0 +1,195 @@
+/**
+ * Corporate Module - Column Utilities
+ *
+ * Single source of truth for column conversion logic used across all corporate pages.
+ * Extracted from corporate/page.tsx to prevent code duplication.
+ */
+
+import type { TableColumn } from "@/components/table/types";
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface ApiColumn {
+  id: number;
+  foundation_id?: number;
+  column_name: string;
+  name: string;
+  column_type: string;
+  description?: string;
+  available_choices?: string[];
+  lookup_foundation_id?: number;
+  lookup_display_column?: string;
+  header_align?: string;
+  data_align?: string;
+}
+
+export interface ColumnTypeDefault {
+  width: number;
+  filterable?: boolean;
+  filterType?: string;
+  sortable?: boolean;
+  showSum?: boolean;
+  sumType?: string;
+}
+
+export type WidthOverrides = Record<string, number>;
+
+// =============================================================================
+// Constants
+// =============================================================================
+
+/**
+ * Default width and behavior mappings for column types.
+ * These define the baseline display properties for each column type.
+ */
+export const COLUMN_TYPE_DEFAULTS: Record<string, ColumnTypeDefault> = {
+  'single_line_text': { width: 150, filterable: true, filterType: 'text' },
+  'email': { width: 200, filterable: true, filterType: 'text' },
+  'phone': { width: 150, filterable: true, filterType: 'text' },
+  'mobile': { width: 150, filterable: true, filterType: 'text' },
+  'url': { width: 180, sortable: false, filterable: false },
+  'date': { width: 140, filterable: true, filterType: 'text' },
+  'date_and_time': { width: 180, filterable: true, filterType: 'text' },
+  'lookup': { width: 150, filterable: true, filterType: 'dropdown' },
+  'boolean': { width: 100, filterable: true, filterType: 'boolean' },
+  'percentage': { width: 120, filterable: true, filterType: 'text' },
+  'choice': { width: 140, filterable: true, filterType: 'dropdown' },
+  'currency': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'currency' },
+  'number': { width: 100, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'whole_number': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
+  'multiple_lines_text': { width: 300, sortable: false, filterable: true, filterType: 'text' },
+  'computed': { width: 140, filterable: false, showSum: true, sumType: 'number' },
+  'formula': { width: 140, filterable: false },
+  'auto_number': { width: 80, filterable: true, filterType: 'text' },
+  'created_time': { width: 160, filterable: true, filterType: 'date' },
+  'modified_time': { width: 160, filterable: true, filterType: 'date' },
+  'created_by': { width: 120, filterable: true, filterType: 'dropdown' },
+  'modified_by': { width: 120, filterable: true, filterType: 'dropdown' },
+  'rollup': { width: 120, filterable: false },
+  'count': { width: 80, filterable: false },
+  'gps_coordinates': { width: 280, sortable: false, filterable: false },
+  'color_picker': { width: 120, sortable: false, filterable: false },
+  'file_upload': { width: 200, sortable: false, filterable: false },
+  'action_buttons': { width: 180, sortable: false, filterable: false },
+  'multiple_lookups': { width: 200, sortable: false, filterable: false },
+  'user': { width: 120, filterable: true, filterType: 'dropdown' },
+};
+
+/**
+ * System columns that should be hidden by default.
+ * These are internal columns not meant for user display.
+ */
+const SYSTEM_COLUMNS = [
+  'sys_type_id', 'deleted', 'drive_id', 'folder_id',
+  'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
+  'tedmodel$type', 'pricebook$type'
+];
+
+/**
+ * ID columns that SHOULD be visible (exceptions to the _id hiding rule).
+ */
+const VISIBLE_ID_COLUMNS = [
+  'product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id', 'company_id'
+];
+
+/**
+ * System-generated column types that users cannot edit.
+ */
+export const SYSTEM_GENERATED_TYPES = [
+  'computed', 'formula', 'auto_number', 'created_time', 'modified_time',
+  'created_by', 'modified_by', 'rollup', 'count'
+];
+
+// =============================================================================
+// Functions
+// =============================================================================
+
+/**
+ * Check if a column is a system column that should be hidden.
+ *
+ * @param columnName - The name of the column to check
+ * @returns true if the column should be hidden
+ */
+export function isSystemOrHiddenColumn(columnName: string): boolean {
+  // Check explicit system columns
+  if (SYSTEM_COLUMNS.includes(columnName)) return true;
+
+  // Hide $type suffix columns (used for polymorphic associations)
+  if (columnName.endsWith('$type')) return true;
+
+  // Hide _id columns except for specific allowed ones
+  if (columnName.endsWith('_id') && !VISIBLE_ID_COLUMNS.includes(columnName)) return true;
+
+  return false;
+}
+
+/**
+ * Convert API column format to TeeemTableView column format.
+ *
+ * @param apiColumns - Array of columns from the API
+ * @param foundationId - The foundation ID for this table
+ * @param widthOverrides - Optional custom width overrides per column name
+ * @returns Array of TableColumn objects ready for TeeemTableView
+ */
+export function convertColumnsToTEEEMFormat(
+  apiColumns: ApiColumn[],
+  foundationId: number,
+  widthOverrides: WidthOverrides = {}
+): TableColumn[] {
+  // Start with select column for bulk actions
+  const columns: TableColumn[] = [
+    {
+      key: 'select',
+      label: '',
+      resizable: false,
+      sortable: false,
+      filterable: false,
+      width: 32,
+      tooltip: 'Select rows for bulk actions'
+    }
+  ];
+
+  apiColumns.forEach(col => {
+    // Skip system/hidden columns
+    if (isSystemOrHiddenColumn(col.column_name)) return;
+
+    const defaults = COLUMN_TYPE_DEFAULTS[col.column_type] || { width: 150 };
+
+    // Apply width: custom override > column-specific default > type default
+    let width = widthOverrides[col.column_name] ?? defaults.width;
+
+    // Apply common column name overrides if no custom override provided
+    if (!widthOverrides[col.column_name]) {
+      if (col.column_name === 'id') width = 60;
+      if (col.column_name === 'name') width = 250;
+      if (col.column_name === 'code') width = 80;
+    }
+
+    // Check if this is a system-generated column (read-only)
+    const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(col.column_name) ||
+                           SYSTEM_GENERATED_TYPES.includes(col.column_type);
+
+    columns.push({
+      id: col.id,
+      foundation_id: col.foundation_id || foundationId,
+      key: col.column_name,
+      label: col.name,
+      column_type: col.column_type,
+      resizable: true,
+      sortable: defaults.sortable !== false,
+      filterable: defaults.filterable || false,
+      filterType: defaults.filterType as "text" | "dropdown" | "number" | "date" | "boolean" | undefined,
+      width: width,
+      showSum: defaults.showSum,
+      sumType: defaults.sumType as "currency" | "number" | "percentage" | undefined,
+      tooltip: col.description || `${col.column_type} column`,
+      choices: col.available_choices,
+      editable: !isSystemColumn,
+      system: isSystemColumn,
+    });
+  });
+
+  return columns;
+}

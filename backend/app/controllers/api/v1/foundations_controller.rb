@@ -189,7 +189,15 @@ module Api
           'pricebook' => 'pricebook',
           'contacts' => 'contacts',
           'companies' => 'company',
-          'features-tracking' => 'feature-tracker'
+          'features-tracking' => 'feature-tracker',
+          # Corporate module tables
+          'company-activity' => 'company-activity',
+          'company-compliance-item' => 'company-compliance-item',
+          'company-director' => 'company-director',
+          'company-document' => 'company-document',
+          'company-setting' => 'company-setting',
+          'company-xero-account' => 'company-xero-account',
+          'company-xero-connection' => 'company-xero-connection'
         }
 
         db_slugs = key_mapping.values
@@ -217,7 +225,15 @@ module Api
             PRICEBOOK: slug_to_id['pricebook'],
             CONTACTS: slug_to_id['contacts'],
             COMPANIES: slug_to_id['companies'],
-            FEATURES_TRACKING: slug_to_id['features-tracking']
+            FEATURES_TRACKING: slug_to_id['features-tracking'],
+            # Corporate module
+            COMPANY_ACTIVITY: slug_to_id['company-activity'],
+            COMPANY_COMPLIANCE_ITEM: slug_to_id['company-compliance-item'],
+            COMPANY_DIRECTOR: slug_to_id['company-director'],
+            COMPANY_DOCUMENT: slug_to_id['company-document'],
+            COMPANY_SETTING: slug_to_id['company-setting'],
+            COMPANY_XERO_ACCOUNT: slug_to_id['company-xero-account'],
+            COMPANY_XERO_CONNECTION: slug_to_id['company-xero-connection']
           }.compact
         }
       end

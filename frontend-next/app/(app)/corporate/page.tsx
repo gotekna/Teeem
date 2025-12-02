@@ -27,98 +27,18 @@ import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 
-// Table ID for Companies (from foundations table)
-const COMPANIES_TABLE_ID = 353;
+// Import from centralized utilities
+import {
+  convertColumnsToTEEEMFormat,
+  type ApiColumn,
+} from "@/lib/corporate/column-utils";
+import {
+  CORPORATE_TABLE_IDS,
+  COLUMN_WIDTH_OVERRIDES,
+} from "@/lib/corporate/config";
 
-// Default width mappings for column types
-const COLUMN_TYPE_DEFAULTS: Record<string, { width: number; filterable?: boolean; filterType?: string; sortable?: boolean; showSum?: boolean; sumType?: string }> = {
-  'single_line_text': { width: 150, filterable: true, filterType: 'text' },
-  'email': { width: 200, filterable: true, filterType: 'text' },
-  'phone': { width: 150, filterable: true, filterType: 'text' },
-  'mobile': { width: 150, filterable: true, filterType: 'text' },
-  'url': { width: 180, sortable: false, filterable: false },
-  'date': { width: 140, filterable: true, filterType: 'text' },
-  'date_and_time': { width: 180, filterable: true, filterType: 'text' },
-  'lookup': { width: 150, filterable: true, filterType: 'dropdown' },
-  'boolean': { width: 100, filterable: true, filterType: 'boolean' },
-  'percentage': { width: 120, filterable: true, filterType: 'text' },
-  'choice': { width: 140, filterable: true, filterType: 'dropdown' },
-  'currency': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'currency' },
-  'number': { width: 100, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
-  'whole_number': { width: 120, filterable: true, filterType: 'text', showSum: true, sumType: 'number' },
-  'multiple_lines_text': { width: 300, sortable: false, filterable: true, filterType: 'text' },
-  'computed': { width: 140, filterable: false, showSum: true, sumType: 'number' },
-};
-
-// Check if a column is a system column that's typically hidden
-function isSystemOrHiddenColumn(columnName: string): boolean {
-  const systemColumns = [
-    'sys_type_id', 'deleted', 'drive_id', 'folder_id',
-    'parent_id', 'parent$type', 'range$type', 'colour_spec$type',
-    'tedmodel$type', 'pricebook$type'
-  ];
-
-  if (systemColumns.includes(columnName)) return true;
-  if (columnName.endsWith('$type')) return true;
-  if (columnName.endsWith('_id') && !['product_id', 'contact_id', 'job_id', 'job_type_id', 'job_status_id'].includes(columnName)) return true;
-
-  return false;
-}
-
-interface ApiColumn {
-  id: number;
-  foundation_id?: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  description?: string;
-  available_choices?: string[];
-  lookup_foundation_id?: number;
-  lookup_display_column?: string;
-  header_align?: string;
-  data_align?: string;
-}
-
-// Convert API column format to TeeemTableView column format
-function convertColumnsToTEEEMFormat(apiColumns: ApiColumn[], foundationId: number): TableColumn[] {
-  const columns: TableColumn[] = [
-    { key: 'select', label: '', resizable: false, sortable: false, filterable: false, width: 32, tooltip: 'Select rows for bulk actions' }
-  ];
-
-  apiColumns.forEach(col => {
-    if (isSystemOrHiddenColumn(col.column_name)) return;
-
-    const defaults = COLUMN_TYPE_DEFAULTS[col.column_type] || { width: 150 };
-
-    let width = defaults.width;
-    if (col.column_name === 'id') width = 60;
-    if (col.column_name === 'name') width = 250;
-    if (col.column_name === 'code') width = 80;
-    if (col.column_name === 'company_group') width = 120;
-    if (col.column_name === 'status') width = 120;
-    if (col.column_name === 'formatted_acn') width = 130;
-    if (col.column_name === 'formatted_abn') width = 150;
-
-    columns.push({
-      id: col.id,
-      foundation_id: col.foundation_id || foundationId,
-      key: col.column_name,
-      label: col.name,
-      column_type: col.column_type,
-      resizable: true,
-      sortable: defaults.sortable !== false,
-      filterable: defaults.filterable || false,
-      filterType: defaults.filterType as "text" | "dropdown" | "number" | "date" | "boolean" | undefined,
-      width: width,
-      showSum: defaults.showSum,
-      sumType: defaults.sumType as "currency" | "number" | "percentage" | undefined,
-      tooltip: col.description || `${col.column_type} column`,
-      choices: col.available_choices,
-    });
-  });
-
-  return columns;
-}
+// Use centralized table ID
+const COMPANIES_TABLE_ID = CORPORATE_TABLE_IDS.COMPANIES;
 
 interface DashboardStats {
   totalCompanies: number;
@@ -296,7 +216,12 @@ export default function CorporateDashboardPage() {
     try {
       const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(`/api/v1/foundations/${COMPANIES_TABLE_ID}`);
       const dbColumns = response?.foundation?.columns || [];
-      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, COMPANIES_TABLE_ID);
+      // Use centralized width overrides from config
+      const teeemColumns = convertColumnsToTEEEMFormat(
+        dbColumns,
+        COMPANIES_TABLE_ID,
+        COLUMN_WIDTH_OVERRIDES.companies
+      );
       setColumns(teeemColumns);
     } catch (err) {
       console.error("Failed to fetch columns:", err);
@@ -445,7 +370,7 @@ export default function CorporateDashboardPage() {
         enableSchemaEditor={true}
         hideUpdateViewButton={true}
         onColumnUpdate={fetchColumns}
-        customActions={
+        leftActions={
           <Button onClick={() => router.push("/corporate/companies/new")}>
             <Plus className="h-4 w-4 mr-2" />
             Add Company
