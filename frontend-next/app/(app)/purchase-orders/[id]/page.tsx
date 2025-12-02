@@ -58,6 +58,7 @@ import {
   Plus,
   Trash2,
   AlertCircle,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,7 @@ interface LineItem {
   tax_amount?: number;
   notes?: string;
   _destroy?: boolean;
+  pricebook_item_id?: number;
   pricebook_item?: {
     id: number;
     item_code: string;
@@ -77,6 +79,14 @@ interface LineItem {
     current_price: number;
     unit_of_measure?: string;
   };
+}
+
+interface PricebookItem {
+  id: number;
+  item_code: string;
+  item_name: string;
+  current_price: number;
+  unit_of_measure?: string;
 }
 
 interface Contact {
@@ -210,6 +220,11 @@ export default function PurchaseOrderDetailPage() {
   const [loadingTasks, setLoadingTasks] = React.useState(false);
   const [taskOpen, setTaskOpen] = React.useState(false);
 
+  // Pricebook items for code lookup
+  const [pricebookItems, setPricebookItems] = React.useState<PricebookItem[]>([]);
+  const [loadingPricebook, setLoadingPricebook] = React.useState(false);
+  const [pricebookOpenIndex, setPricebookOpenIndex] = React.useState<number | null>(null);
+
   const loadPurchaseOrder = React.useCallback(async () => {
     try {
       const data = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${poId}`);
@@ -262,15 +277,80 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
+  const loadPricebookItems = async (supplierId?: number) => {
+    // Only load if we have a supplier selected
+    const supplierToUse = supplierId ?? formData.supplier_id;
+    if (!supplierToUse) {
+      setPricebookItems([]);
+      return;
+    }
+    try {
+      setLoadingPricebook(true);
+      const response = await api.get<{ items: PricebookItem[] }>(`/api/v1/pricebook?per_page=500&supplier_id=${supplierToUse}`);
+      setPricebookItems(response?.items || []);
+    } catch (err) {
+      console.error("Failed to load pricebook items:", err);
+    } finally {
+      setLoadingPricebook(false);
+    }
+  };
+
+  const selectPricebookItem = (index: number, item: PricebookItem) => {
+    setLineItems((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        pricebook_item_id: item.id,
+        pricebook_item: item,
+        description: item.item_name,
+        unit_price: item.current_price,
+      };
+      return updated;
+    });
+    setHasChanges(true);
+    setPricebookOpenIndex(null);
+  };
+
+  const clearPricebookItem = (index: number) => {
+    setLineItems((prev) => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        pricebook_item_id: undefined,
+        pricebook_item: undefined,
+        description: "",
+      };
+      return updated;
+    });
+    setHasChanges(true);
+  };
+
   React.useEffect(() => {
     if (poId) {
       loadPurchaseOrder();
     }
   }, [poId, loadPurchaseOrder]);
 
+  // Warn user before leaving with unsaved changes
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasChanges]);
+
   const updateFormField = (field: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setHasChanges(true);
+    // Clear pricebook cache when supplier changes so it reloads with new supplier's items
+    if (field === "supplier_id") {
+      setPricebookItems([]);
+    }
   };
 
   const updateLineItem = (index: number, field: string, value: unknown) => {
@@ -309,7 +389,7 @@ export default function PurchaseOrderDetailPage() {
   const calculateTotals = () => {
     const visibleItems = lineItems.filter((item) => !item._destroy);
     const subTotal = visibleItems.reduce(
-      (sum, item) => sum + item.quantity * item.unit_price,
+      (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_price) || 0),
       0
     );
     const tax = subTotal * 0.1; // 10% GST
@@ -327,6 +407,7 @@ export default function PurchaseOrderDetailPage() {
           ...formData,
           line_items_attributes: lineItems.map((item) => ({
             id: item.id,
+            pricebook_item_id: item.pricebook_item_id || item.pricebook_item?.id,
             description: item.description,
             quantity: item.quantity,
             unit_price: item.unit_price,
@@ -417,13 +498,23 @@ export default function PurchaseOrderDetailPage() {
   const { subTotal, tax, total } = calculateTotals();
   const selectedSupplier = contacts.find((c) => c.id === formData.supplier_id) || po.supplier;
 
+  const handleBack = () => {
+    if (hasChanges) {
+      if (window.confirm("You have unsaved changes. Are you sure you want to leave?")) {
+        router.back();
+      }
+    } else {
+      router.back();
+    }
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="space-y-6 pb-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <Button variant="ghost" size="icon" onClick={handleBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
@@ -706,80 +797,149 @@ export default function PurchaseOrderDetailPage() {
               <FileText className="h-4 w-4" />
               Line Items
             </CardTitle>
-            {canEdit && (
-              <Button size="sm" onClick={addLineItem}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Item
-              </Button>
-            )}
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[40%]">Description</TableHead>
-                  <TableHead className="text-right w-[15%]">Qty</TableHead>
-                  <TableHead className="text-right w-[20%]">Unit Price</TableHead>
-                  <TableHead className="text-right w-[20%]">Total</TableHead>
+                  <TableHead className="w-[18%]">Code</TableHead>
+                  <TableHead className="w-[32%]">Description</TableHead>
+                  <TableHead className="text-right w-[10%]">Qty</TableHead>
+                  <TableHead className="text-right w-[18%]">Unit Price</TableHead>
+                  <TableHead className="text-right w-[17%]">Total</TableHead>
                   {canEdit && <TableHead className="w-[5%]"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lineItems.filter((item) => !item._destroy).length > 0 ? (
-                  lineItems.map((item, index) =>
-                    !item._destroy ? (
-                      <TableRow key={item.id || `new-${index}`}>
+                {lineItems.map((item, index) => {
+                  if (item._destroy) return null;
+                  const hasData = item.description.trim() !== "" || item.pricebook_item_id || item.unit_price > 0;
+                  return (
+                    <TableRow key={item.id || `new-${index}`}>
+                      <TableCell>
+                        {canEdit ? (
+                          <div className="flex items-center gap-1">
+                            <Popover
+                              open={pricebookOpenIndex === index}
+                              onOpenChange={(open) => {
+                                setPricebookOpenIndex(open ? index : null);
+                                if (open && formData.supplier_id) loadPricebookItems();
+                              }}
+                            >
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  role="combobox"
+                                  className="flex-1 justify-between h-8 text-xs"
+                                  disabled={loadingPricebook || !formData.supplier_id}
+                                  title={!formData.supplier_id ? "Select a supplier first" : undefined}
+                                >
+                                  {item.pricebook_item?.item_code || (!formData.supplier_id ? "Select supplier first" : "Select...")}
+                                  <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[350px] p-0">
+                                <Command>
+                                  <CommandInput placeholder="Search by code or name..." />
+                                  <CommandList>
+                                    <CommandEmpty>
+                                      {pricebookItems.length === 0 && !loadingPricebook
+                                        ? `No items with prices from ${selectedSupplier?.display_name || selectedSupplier?.full_name || "this supplier"}`
+                                        : "No item found."}
+                                    </CommandEmpty>
+                                    <CommandGroup>
+                                      {pricebookItems.map((pbItem) => (
+                                        <CommandItem
+                                          key={pbItem.id}
+                                          value={`${pbItem.item_code} ${pbItem.item_name}`}
+                                          onSelect={() => selectPricebookItem(index, pbItem)}
+                                        >
+                                          <Check
+                                            className={cn(
+                                              "mr-2 h-4 w-4",
+                                              item.pricebook_item?.id === pbItem.id ? "opacity-100" : "opacity-0"
+                                            )}
+                                          />
+                                          <div className="flex flex-col">
+                                            <span className="font-medium">{pbItem.item_code}</span>
+                                            <span className="text-xs text-muted-foreground truncate">{pbItem.item_name}</span>
+                                          </div>
+                                          <span className="ml-auto text-xs">{formatCurrency(pbItem.current_price)}</span>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            {item.pricebook_item && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                onClick={() => clearPricebookItem(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">{item.pricebook_item?.item_code || "-"}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {canEdit ? (
+                          <Input
+                            value={item.description}
+                            onChange={(e) => updateLineItem(index, "description", e.target.value)}
+                            placeholder="Item description"
+                          />
+                        ) : (
+                          <div>
+                            <p className="font-medium">{item.description}</p>
+                            {item.pricebook_item && (
+                              <p className="text-sm text-muted-foreground">
+                                {item.pricebook_item.item_name}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canEdit ? (
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateLineItem(index, "quantity", parseFloat(e.target.value) || 0)}
+                            className="text-right"
+                            min="0"
+                            step="0.01"
+                          />
+                        ) : (
+                          item.quantity
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canEdit ? (
+                          <Input
+                            type="number"
+                            value={item.unit_price}
+                            onChange={(e) => updateLineItem(index, "unit_price", parseFloat(e.target.value) || 0)}
+                            className="text-right"
+                            min="0"
+                            step="0.01"
+                          />
+                        ) : (
+                          formatCurrency(item.unit_price)
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency((Number(item.quantity) || 0) * (Number(item.unit_price) || 0))}
+                      </TableCell>
+                      {canEdit && (
                         <TableCell>
-                          {canEdit ? (
-                            <Input
-                              value={item.description}
-                              onChange={(e) => updateLineItem(index, "description", e.target.value)}
-                              placeholder="Item description"
-                            />
-                          ) : (
-                            <div>
-                              <p className="font-medium">{item.description}</p>
-                              {item.pricebook_item && (
-                                <p className="text-sm text-muted-foreground">
-                                  {item.pricebook_item.item_code} - {item.pricebook_item.item_name}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canEdit ? (
-                            <Input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => updateLineItem(index, "quantity", parseFloat(e.target.value) || 0)}
-                              className="text-right"
-                              min="0"
-                              step="0.01"
-                            />
-                          ) : (
-                            item.quantity
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canEdit ? (
-                            <Input
-                              type="number"
-                              value={item.unit_price}
-                              onChange={(e) => updateLineItem(index, "unit_price", parseFloat(e.target.value) || 0)}
-                              className="text-right"
-                              min="0"
-                              step="0.01"
-                            />
-                          ) : (
-                            formatCurrency(item.unit_price)
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(item.quantity * item.unit_price)}
-                        </TableCell>
-                        {canEdit && (
-                          <TableCell>
+                          {hasData && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -787,23 +947,135 @@ export default function PurchaseOrderDetailPage() {
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ) : null
-                  )
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={canEdit ? 5 : 4} className="text-center py-8">
-                      <p className="text-sm text-muted-foreground">
-                        No line items added to this purchase order
-                      </p>
-                      {canEdit && (
-                        <Button variant="outline" size="sm" className="mt-2" onClick={addLineItem}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add First Item
-                        </Button>
+                          )}
+                        </TableCell>
                       )}
+                    </TableRow>
+                  );
+                })}
+                {/* Always show an empty row ready for new item when editing */}
+                {canEdit && (
+                  <TableRow>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Popover
+                          open={pricebookOpenIndex === lineItems.length}
+                          onOpenChange={(open) => {
+                            setPricebookOpenIndex(open ? lineItems.length : null);
+                            if (open && formData.supplier_id) loadPricebookItems();
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              role="combobox"
+                              className="flex-1 justify-between h-8 text-xs"
+                              disabled={loadingPricebook || !formData.supplier_id}
+                              title={!formData.supplier_id ? "Select a supplier first" : undefined}
+                            >
+                              {!formData.supplier_id ? "Select supplier first" : "Select..."}
+                              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[350px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search by code or name..." />
+                              <CommandList>
+                                <CommandEmpty>
+                                  {pricebookItems.length === 0 && !loadingPricebook
+                                    ? `No items with prices from ${selectedSupplier?.display_name || selectedSupplier?.full_name || "this supplier"}`
+                                    : "No item found."}
+                                </CommandEmpty>
+                                <CommandGroup>
+                                  {pricebookItems.map((pbItem) => (
+                                    <CommandItem
+                                      key={pbItem.id}
+                                      value={`${pbItem.item_code} ${pbItem.item_name}`}
+                                      onSelect={() => {
+                                        // Add new line item with this pricebook item
+                                        setLineItems((prev) => [
+                                          ...prev,
+                                          {
+                                            description: pbItem.item_name,
+                                            quantity: 1,
+                                            unit_price: pbItem.current_price,
+                                            pricebook_item_id: pbItem.id,
+                                            pricebook_item: pbItem,
+                                          },
+                                        ]);
+                                        setHasChanges(true);
+                                        setPricebookOpenIndex(null);
+                                      }}
+                                    >
+                                      <Check className="mr-2 h-4 w-4 opacity-0" />
+                                      <div className="flex flex-col">
+                                        <span className="font-medium">{pbItem.item_code}</span>
+                                        <span className="text-xs text-muted-foreground truncate">{pbItem.item_name}</span>
+                                      </div>
+                                      <span className="ml-auto text-xs">{formatCurrency(pbItem.current_price)}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="Item description"
+                        onBlur={(e) => {
+                          if (e.target.value.trim()) {
+                            setLineItems((prev) => [
+                              ...prev,
+                              { description: e.target.value, quantity: 1, unit_price: 0 },
+                            ]);
+                            setHasChanges(true);
+                            e.target.value = "";
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const target = e.target as HTMLInputElement;
+                            if (target.value.trim()) {
+                              setLineItems((prev) => [
+                                ...prev,
+                                { description: target.value, quantity: 1, unit_price: 0 },
+                              ]);
+                              setHasChanges(true);
+                              target.value = "";
+                            }
+                          }
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Input
+                        type="number"
+                        defaultValue={1}
+                        className="text-right"
+                        min="0"
+                        step="0.01"
+                        disabled
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Input
+                        type="number"
+                        defaultValue={0}
+                        className="text-right"
+                        min="0"
+                        step="0.01"
+                        disabled
+                      />
+                    </TableCell>
+                    <TableCell className="text-right font-medium text-muted-foreground">
+                      {formatCurrency(0)}
+                    </TableCell>
+                    <TableCell>
+                      {/* Empty cell - no delete for empty row */}
                     </TableCell>
                   </TableRow>
                 )}

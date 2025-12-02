@@ -39,11 +39,17 @@ import { api } from "@/lib/api";
 
 interface PurchaseOrder {
   id: number;
-  po_number: string;
-  supplier_name: string;
-  job_title: string;
-  job_id: number;
-  total_amount: number;
+  purchase_order_number: string;
+  supplier?: {
+    id: number;
+    full_name?: string;
+    display_name?: string;
+  };
+  job?: {
+    id: number;
+    title: string;
+  };
+  total: number;
   status: string;
   created_at: string;
   sent_at?: string;
@@ -124,11 +130,13 @@ export default function PurchaseOrdersPage() {
 
   const filteredPOs = React.useMemo(() => {
     return purchaseOrders.filter((po) => {
+      const supplierName = po.supplier?.display_name || po.supplier?.full_name || "";
+      const jobTitle = po.job?.title || "";
       const matchesSearch =
         !searchQuery ||
-        po.po_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        po.supplier_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        po.job_title.toLowerCase().includes(searchQuery.toLowerCase());
+        po.purchase_order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        jobTitle.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesStatus = !statusFilter || po.status.toLowerCase() === statusFilter.toLowerCase();
 
@@ -265,17 +273,17 @@ export default function PurchaseOrdersPage() {
                 <TableRow
                   key={po.id}
                   className="cursor-pointer"
-                  onClick={() => router.push(`/jobs/${po.job_id}?tab=purchase-orders`)}
+                  onClick={() => router.push(`/jobs/${po.job?.id}?tab=purchase-orders`)}
                 >
-                  <TableCell className="font-medium">{po.po_number}</TableCell>
+                  <TableCell className="font-medium">{po.purchase_order_number}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Building2 className="h-4 w-4 text-muted-foreground" />
-                      {po.supplier_name}
+                      {po.supplier?.display_name || po.supplier?.full_name || "-"}
                     </div>
                   </TableCell>
-                  <TableCell>{po.job_title}</TableCell>
-                  <TableCell>{formatCurrency(po.total_amount)}</TableCell>
+                  <TableCell>{po.job?.title || "-"}</TableCell>
+                  <TableCell>{formatCurrency(po.total || 0)}</TableCell>
                   <TableCell>{getStatusBadge(po.status)}</TableCell>
                   <TableCell className="text-muted-foreground">
                     {new Date(po.created_at).toLocaleDateString("en-AU")}
