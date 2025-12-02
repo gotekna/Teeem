@@ -38,6 +38,21 @@ class ApplicationController < ActionController::API
     end
   end
 
+  # Try to set current_user from token if present, but don't require it
+  # Used for endpoints that work for both authenticated and unauthenticated users
+  def set_current_user_if_token_present
+    header = request.headers['Authorization']
+    header = header.split(' ').last if header
+    return unless header
+
+    begin
+      decoded = JsonWebToken.decode(header)
+      @current_user = User.find(decoded[:user_id]) if decoded
+    rescue ActiveRecord::RecordNotFound, JWT::DecodeError
+      # Silently ignore auth failures - this is optional auth
+    end
+  end
+
   # Update user's last_seen_at timestamp (throttled to once per minute to reduce DB writes)
   def update_last_seen
     return unless @current_user
