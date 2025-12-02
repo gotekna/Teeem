@@ -9,7 +9,8 @@ import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationData } from "@/hooks/useFoundationData";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Table IDs for navigation support
 const TABLE_IDS = {
@@ -55,6 +56,7 @@ function TablePageContent() {
   const tab = searchParams.get("tab");
 
   const [activeTab, setActiveTab] = useState(tab || "data");
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // Handle row double-click - navigate to full page for supported tables
   const handleRowDoubleClick = (row: TableRow) => {
@@ -128,6 +130,14 @@ function TablePageContent() {
     return <ErrorDisplay error={error} tableId={tableId} />;
   }
 
+  // Handle add new record
+  const handleAddNew = () => {
+    // For now, just log - we'll need to implement a create modal
+    console.log("[TablePage] Add new record for table:", tableId);
+    setShowAddModal(true);
+    // TODO: Open create modal or navigate to create page
+  };
+
   // Handle row click - navigate to detail page
   const handleRowClick = (row: { id: number | string; [key: string]: unknown }) => {
     console.log('handleRowClick called with row:', row, 'tableId:', tableId);
@@ -150,6 +160,18 @@ function TablePageContent() {
     }
   };
 
+  // Left actions - Add New button
+  const leftActions = !uiConfig.viewOnly ? (
+    <Button onClick={handleAddNew} className="gap-2">
+      <Plus className="h-4 w-4" />
+      Add Record
+    </Button>
+  ) : null;
+
+  // Note: Filter functionality is built into TeeemTableView's three-dot menu
+  // No need for a separate filter button - it's available via "Filter by this column" in column headers
+  // and the cascade filter system in the menu
+
   // Common table props
   const tableProps = {
     entries: records,
@@ -166,6 +188,7 @@ function TablePageContent() {
     onRefresh: refresh,
     onRowDoubleClick: handleRowDoubleClick,
     onRowClick: handleRowClick,
+    leftActions: leftActions,
   };
 
   return (
