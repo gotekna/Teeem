@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy, :download, :validate, :ai_verify, :apply_ai_suggestion, :relocate]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback]
 
       # GET /api/v1/company_documents
       def index
@@ -209,6 +209,56 @@ module Api
             methods: [:formatted_document_type, :file_size_mb]
           )
         }
+      end
+
+      # POST /api/v1/company_documents/:id/feedback
+      # Records user feedback on AI suggestion for re-learning
+      def feedback
+        feedback_params = params.require(:feedback).permit(
+          :action, :final_name, :final_folder, :final_type, :final_fy, :reason
+        )
+
+        # Validate action type
+        unless %w[accepted rejected modified].include?(feedback_params[:action])
+          return render json: {
+            success: false,
+            error: "Invalid action. Must be 'accepted', 'rejected', or 'modified'."
+          }, status: :unprocessable_entity
+        end
+
+        # Create feedback record
+        feedback = DocumentVerificationFeedback.create!(
+          company_document: @document,
+          user: current_user,
+          # What AI suggested
+          ai_suggested_name: @document.ai_suggested_name,
+          ai_suggested_folder: @document.ai_suggested_folder,
+          ai_suggested_type: @document.ai_suggested_type,
+          ai_suggested_fy: @document.ai_suggested_fy,
+          ai_confidence: @document.ai_confidence_score,
+          # What user chose
+          user_final_name: feedback_params[:final_name] || @document.title,
+          user_final_folder: feedback_params[:final_folder] || @document.folder,
+          user_final_type: feedback_params[:final_type] || @document.document_type,
+          user_final_fy: feedback_params[:final_fy],
+          # Feedback metadata
+          action: feedback_params[:action],
+          rejection_reason: feedback_params[:reason],
+          # Context for learning
+          document_text_snippet: @document.extracted_text&.first(500),
+          company_code: @document.company&.code
+        )
+
+        render json: {
+          success: true,
+          message: 'Feedback recorded for AI learning',
+          feedback_id: feedback.id
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: {
+          success: false,
+          error: e.message
+        }, status: :unprocessable_entity
       end
 
       # POST /api/v1/company_documents/:id/relocate
