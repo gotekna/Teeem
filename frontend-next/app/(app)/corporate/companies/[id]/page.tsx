@@ -1639,9 +1639,11 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     );
   }
 
+  // Now a real foundation table (ID 357) with company scoping via filter
   return (
     <TeeemTableView
       foundationId={`company-documents-${category || "all"}`}
+      foundationIdNumeric={357}
       tableName={`${category ? category.toUpperCase() : "All"} Documents (${documents.length})`}
       entries={documents}
       columns={columns}
@@ -1651,7 +1653,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
       enableImport={false}
       enableExport={true}
       enableSchemaEditor={false}
-      hideUpdateViewButton={true}
+      showDataHealth={true}
       customActions={customActions}
       customCellRenderer={customCellRenderer}
     />

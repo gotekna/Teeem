@@ -453,7 +453,8 @@ module Api
                 lookup_display_column: col.lookup_display_column,
                 is_multiple: col.is_multiple,
                 header_align: col.header_align,
-                data_align: col.data_align
+                data_align: col.data_align,
+                available_choices: col.available_choices
               }
 
               # Add relationship information

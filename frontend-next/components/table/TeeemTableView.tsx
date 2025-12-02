@@ -764,6 +764,10 @@ export default function TeeemTableView({
     return result;
   }, [columns]);
 
+  // Sticky columns configuration - columns that stay fixed on horizontal scroll
+  // Order matters: select first (leftmost), then id, then name
+  const STICKY_COLUMNS = useMemo(() => ['select', 'id', 'name'], []);
+
   // Initialize default column state
   const DEFAULT_COLUMN_WIDTHS = useMemo(
     () =>
@@ -884,6 +888,32 @@ export default function TeeemTableView({
 
   // Filter modal state
   const [showFilterModal, setShowFilterModal] = useState(false);
+
+  // ============================================================================
+  // DEVELOPER WARNINGS
+  // ============================================================================
+
+  // Warn developers when foundationIdNumeric is missing but features require it
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && !foundationIdNumeric) {
+      const warnings: string[] = [];
+
+      if (enableSchemaEditor) {
+        warnings.push('enableSchemaEditor is true but foundationIdNumeric is missing - column operations will not work');
+      }
+      if (preloadedViews === null && !viewOnly) {
+        warnings.push('No preloadedViews and no foundationIdNumeric - saved views feature is disabled');
+      }
+
+      if (warnings.length > 0) {
+        console.warn(
+          `[TeeemTableView] "${tableName}" (foundationId="${foundationId}"):\n` +
+          warnings.map(w => `  - ${w}`).join('\n') +
+          '\n  To fix: Pass foundationIdNumeric={tableId} prop'
+        );
+      }
+    }
+  }, [foundationIdNumeric, enableSchemaEditor, preloadedViews, viewOnly, tableName, foundationId]);
 
   // ============================================================================
   // HANDLERS
@@ -2886,70 +2916,118 @@ export default function TeeemTableView({
   // RENDER FUNCTIONS
   // ============================================================================
 
+  // Helper function to compute sticky column styles
+  // Returns position:sticky and left offset based on cumulative widths of previous sticky columns
+  const getStickyColumnStyles = useCallback((columnKey: string, isHeader: boolean = false): React.CSSProperties => {
+    const stickyIndex = STICKY_COLUMNS.indexOf(columnKey);
+
+    // Actions column - sticky to right
+    if (columnKey === 'actions') {
+      return {
+        position: 'sticky',
+        right: 0,
+        zIndex: isHeader ? 30 : 10,
+        background: isHeader ? 'hsl(40, 11%, 89%)' : 'hsl(40, 11%, 95%)',
+        boxShadow: '-1px 0 0 #d4d4d4',
+      };
+    }
+
+    // Not a sticky column
+    if (stickyIndex === -1) {
+      return {};
+    }
+
+    // Calculate left position based on cumulative widths of previous sticky columns
+    let leftPosition = 0;
+    for (let i = 0; i < stickyIndex; i++) {
+      const prevColumnKey = STICKY_COLUMNS[i];
+      // Check if previous sticky column is actually visible
+      if (visibleColumnsInOrder.some(c => c.key === prevColumnKey)) {
+        leftPosition += columnWidths[prevColumnKey] || (prevColumnKey === 'select' ? 40 : 100);
+      }
+    }
+
+    // Determine if this is the last visible sticky column (for shadow effect)
+    const visibleStickyColumns = STICKY_COLUMNS.filter(key =>
+      visibleColumnsInOrder.some(c => c.key === key)
+    );
+    const isLastSticky = visibleStickyColumns[visibleStickyColumns.length - 1] === columnKey;
+
+    return {
+      position: 'sticky',
+      left: leftPosition,
+      zIndex: isHeader ? 30 : 10,
+      background: isHeader ? 'hsl(40, 11%, 89%)' : 'hsl(40, 11%, 95%)',
+      boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
+    };
+  }, [STICKY_COLUMNS, visibleColumnsInOrder, columnWidths]);
+
   // Render table header
-  const renderTableHeader = () => (
-    <TableHeader>
-      <TableRow>
-        {visibleColumnsInOrder.map((column, colIndex) => (
-          <TableHead
-            key={`${column.key}-${colIndex}`}
-            style={{
-              width: columnWidths[column.key] || column.width,
-              minWidth: columnWidths[column.key] || column.width || 50,
-              position: 'sticky',
-              top: 0,
-              zIndex: column.key === "select" || column.key === "actions" ? 30 : 20,
-              ...(column.key === "select" && {
-                left: 0,
-                background: 'hsl(40, 11%, 89%)', // Match header muted color
-                boxShadow: '1px 0 0 #d4d4d4, 0 1px 0 #d4d4d4', // Right and bottom border
-                textAlign: 'center',
-                verticalAlign: 'middle'
-              }),
-              ...(column.key === "actions" && {
-                right: 0,
-                background: 'hsl(40, 11%, 89%)', // Match header muted color
-                boxShadow: '-1px 0 0 #d4d4d4, 0 1px 0 #d4d4d4', // Left and bottom border
-              })
-            }}
-            className={cn(
-              "relative",
-              column.key === "select" && "!border-r-0 !p-0 !h-full",
-              column.key === "actions" && "!border-l-0"
-            )}
-          >
-            {column.key === "select" ? (
-              <Checkbox
-                checked={
-                  selectedRows.size === filteredAndSortedEntries.length &&
-                  filteredAndSortedEntries.length > 0
-                }
-                onCheckedChange={toggleSelectAll}
-              />
-            ) : column.key === "actions" ? (
-              <span className="truncate">{column.label}</span>
-            ) : (
-              <ResizableColumnHeader
-                column={column}
-                width={columnWidths[column.key]}
-                onResize={handleColumnResize}
-                onSort={handleSort}
-                onHide={hideColumn}
-                onGroupBy={handleGroupByColumn}
-                onAddFilter={addFilterForColumn}
-                onEdit={handleOpenColumnEdit}
-                sortInfo={sortColumns.find((s) => s.column === column.key)}
-                isGroupedBy={groupByColumn === column.key}
-                isEditMode={columnEditMode}
+  const renderTableHeader = () => {
+    const isStickyColumn = (key: string) => STICKY_COLUMNS.includes(key) || key === 'actions';
+
+    return (
+      <TableHeader>
+        <TableRow>
+          {visibleColumnsInOrder.map((column, colIndex) => {
+            const stickyStyles = getStickyColumnStyles(column.key, true);
+            const isSticky = isStickyColumn(column.key);
+
+            return (
+              <TableHead
+                key={`${column.key}-${colIndex}`}
+                style={{
+                  width: columnWidths[column.key] || column.width,
+                  minWidth: columnWidths[column.key] || column.width || 50,
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: isSticky ? 30 : 20,
+                  ...stickyStyles,
+                  ...(column.key === "select" && {
+                    textAlign: 'center',
+                    verticalAlign: 'middle',
+                  }),
+                }}
+                className={cn(
+                  "relative",
+                  column.key === "select" && "!border-r-0 !p-0 !h-full",
+                  column.key === "actions" && "!border-l-0"
+                )}
               >
-                <span className="truncate">{column.label}</span>
-              </ResizableColumnHeader>
-            )}
-          </TableHead>
-        ))}
-      </TableRow>
-    </TableHeader>
-  );
+                {column.key === "select" ? (
+                  <Checkbox
+                    checked={
+                      selectedRows.size === filteredAndSortedEntries.length &&
+                      filteredAndSortedEntries.length > 0
+                    }
+                    onCheckedChange={toggleSelectAll}
+                  />
+                ) : column.key === "actions" ? (
+                  <span className="truncate">{column.label}</span>
+                ) : (
+                  <ResizableColumnHeader
+                    column={column}
+                    width={columnWidths[column.key]}
+                    onResize={handleColumnResize}
+                    onSort={handleSort}
+                    onHide={hideColumn}
+                    onGroupBy={handleGroupByColumn}
+                    onAddFilter={addFilterForColumn}
+                    onEdit={handleOpenColumnEdit}
+                    sortInfo={sortColumns.find((s) => s.column === column.key)}
+                    isGroupedBy={groupByColumn === column.key}
+                    isEditMode={columnEditMode}
+                  >
+                    <span className="truncate">{column.label}</span>
+                  </ResizableColumnHeader>
+                )}
+              </TableHead>
+            );
+          })}
+        </TableRow>
+      </TableHeader>
+    );
+  };
 
   // Render table footer with calculated totals for numeric columns
   const renderTableFooter = (rows: TableRowType[] = filteredAndSortedEntries) => {
@@ -2978,24 +3056,15 @@ export default function TeeemTableView({
               }, 0);
             }
 
+            const stickyStyles = getStickyColumnStyles(column.key, true);
+
             return (
               <td
                 key={`footer-${column.key}-${colIndex}`}
                 className="px-3 py-2 text-sm"
                 style={{
                   width: columnWidths[column.key] || column.width,
-                  ...(column.key === "select" && {
-                    position: 'sticky',
-                    left: 0,
-                    background: 'hsl(40, 11%, 89%)',
-                    boxShadow: '1px 0 0 #d4d4d4',
-                  }),
-                  ...(column.key === "actions" && {
-                    position: 'sticky',
-                    right: 0,
-                    background: 'hsl(40, 11%, 89%)',
-                    boxShadow: '-1px 0 0 #d4d4d4',
-                  })
+                  ...stickyStyles,
                 }}
               >
                 {column.key === "select" ? (
@@ -3078,19 +3147,27 @@ export default function TeeemTableView({
                       onClick={() => onRowClick?.(row)}
                       onDoubleClick={() => onRowDoubleClick?.(row)}
                     >
-                      {visibleColumnsInOrder.map((column, colIndex) => (
-                        <TableCell
-                          key={`${column.key}-${colIndex}`}
-                          style={{
-                            width: columnWidths[column.key],
-                            minWidth: columnWidths[column.key],
-                          }}
-                          onClick={(e) => handleCellClick(e, row, column)}
-                          onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
-                        >
-                          {renderCellValue(row, column)}
-                        </TableCell>
-                      ))}
+                      {visibleColumnsInOrder.map((column, colIndex) => {
+                        const stickyStyles = getStickyColumnStyles(column.key, false);
+                        return (
+                          <TableCell
+                            key={`${column.key}-${colIndex}`}
+                            style={{
+                              width: columnWidths[column.key],
+                              minWidth: columnWidths[column.key],
+                              ...stickyStyles,
+                            }}
+                            className={cn(
+                              column.key === "select" && "!border-r-0 !p-0 !h-full",
+                              column.key === "actions" && "!border-l-0"
+                            )}
+                            onClick={(e) => handleCellClick(e, row, column)}
+                            onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
+                          >
+                            {renderCellValue(row, column)}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                   ))}
                 </TableBody>
@@ -3159,39 +3236,31 @@ export default function TeeemTableView({
         onClick={() => onRowClick?.(row)}
         onDoubleClick={() => onRowDoubleClick?.(row)}
       >
-        {visibleColumnsInOrder.map((column, colIndex) => (
-          <TableCell
-            key={`${column.key}-${colIndex}`}
-            style={{
-              width: columnWidths[column.key],
-              minWidth: columnWidths[column.key],
-              ...(column.key === "select" && {
-                position: 'sticky',
-                left: 0,
-                zIndex: 10,
-                background: 'hsl(40, 11%, 95%)',
-                boxShadow: '1px 0 0 #d4d4d4',
-                textAlign: 'center',
-                verticalAlign: 'middle',
-              }),
-              ...(column.key === "actions" && {
-                position: 'sticky',
-                right: 0,
-                zIndex: 10,
-                background: 'hsl(40, 11%, 95%)',
-                boxShadow: '-1px 0 0 #d4d4d4',
-              })
-            }}
-            className={cn(
-              column.key === "select" && "!border-r-0 !p-0 !h-full",
-              column.key === "actions" && "!border-l-0"
-            )}
-            onClick={(e) => handleCellClick(e, row, column)}
-            onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
-          >
-            {renderCellValue(row, column)}
-          </TableCell>
-        ))}
+        {visibleColumnsInOrder.map((column, colIndex) => {
+          const stickyStyles = getStickyColumnStyles(column.key, false);
+          return (
+            <TableCell
+              key={`${column.key}-${colIndex}`}
+              style={{
+                width: columnWidths[column.key],
+                minWidth: columnWidths[column.key],
+                ...stickyStyles,
+                ...(column.key === "select" && {
+                  textAlign: 'center',
+                  verticalAlign: 'middle',
+                }),
+              }}
+              className={cn(
+                column.key === "select" && "!border-r-0 !p-0 !h-full",
+                column.key === "actions" && "!border-l-0"
+              )}
+              onClick={(e) => handleCellClick(e, row, column)}
+              onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
+            >
+              {renderCellValue(row, column)}
+            </TableCell>
+          );
+        })}
       </TableRow>
     ));
   };

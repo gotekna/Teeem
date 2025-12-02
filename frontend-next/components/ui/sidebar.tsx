@@ -81,7 +81,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Contacts", href: urls.contacts(), icon: Users, tableId: TABLE_IDS.CONTACTS },
   { name: "Price Book", href: urls.pricebook(), icon: Package, tableId: TABLE_IDS.PRICEBOOK },
   { name: "Documents", href: "/documents", icon: FolderOpen },
-  { name: "Corporate", href: urls.companies(), icon: Building2, tableId: TABLE_IDS.COMPANIES },
+  { name: "Corporate", href: "/corporate", icon: Building2, tableId: TABLE_IDS.COMPANIES },
   { name: "Portal", href: "/portal", icon: ExternalLink },
   { name: "Admin", href: "/admin", icon: Wrench },
 ];

@@ -282,8 +282,19 @@ export function ColumnEditorModal({
     setSaving(true);
     try {
       const columnId = column.id;
+      console.log('[ColumnEditorModal] handleSave column:', {
+        column_key: column.key,
+        column_id: column.id,
+        foundationId,
+      });
       if (!columnId) {
-        throw new Error("Column ID not found");
+        toast({
+          title: "Error",
+          description: "Cannot save: Column ID not found. This column may not exist in the database yet.",
+          variant: "destructive",
+        });
+        setSaving(false);
+        return;
       }
 
       await api.patch(`/api/v1/foundations/${foundationId}/columns/${columnId}`, {
@@ -292,9 +303,11 @@ export function ColumnEditorModal({
           column_group: editedColumn.column_group || null,
           header_align: editedColumn.header_align,
           data_align: editedColumn.data_align,
+          available_choices: editedColumn.choices.length > 0 ? editedColumn.choices : null,
         },
       });
 
+      console.log('[ColumnEditorModal] Saved column with choices:', editedColumn.choices);
       toast({ title: "Success", description: "Column updated successfully" });
       onUpdate();
       onClose();

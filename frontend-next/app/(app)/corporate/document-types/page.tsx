@@ -292,9 +292,10 @@ export default function DocumentTypesPage() {
         </Card>
       )}
 
-      {/* Table */}
+      {/* Table - Now a real foundation table with ID 455 */}
       <TeeemTableView
         foundationId="document-types"
+        foundationIdNumeric={455}
         tableName={`Document Types (${documentTypes.length})`}
         entries={documentTypes}
         columns={columns}
@@ -302,8 +303,7 @@ export default function DocumentTypesPage() {
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         enableExport={true}
-        enableSchemaEditor={false}
-        hideUpdateViewButton={true}
+        enableSchemaEditor={true}
         customCellRenderer={customCellRenderer}
         customActions={
           <Button onClick={() => setShowAddForm(true)}>

@@ -176,7 +176,7 @@ function SortableViewItem({
       style={style}
       onClick={onSelect}
       className={cn(
-        "flex items-center gap-2 p-2 rounded border cursor-pointer transition-all",
+        "flex items-center gap-1.5 p-2 rounded border cursor-pointer transition-all",
         isActive
           ? "bg-primary/10 border-primary"
           : "bg-background border-border hover:border-primary/50",
@@ -187,22 +187,22 @@ function SortableViewItem({
       <div
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
+        className="cursor-grab active:cursor-grabbing touch-none shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-1.5">
           {view.is_global ? (
-            <Globe className="h-3 w-3 text-blue-500" />
+            <Globe className="h-3 w-3 text-blue-500 shrink-0" />
           ) : (
-            <User className="h-3 w-3 text-muted-foreground" />
+            <User className="h-3 w-3 text-muted-foreground shrink-0" />
           )}
           <span className="text-sm font-medium truncate">{view.name}</span>
           {isUnsaved && (
-            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 border-orange-400">
+            <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-orange-600 border-orange-400 shrink-0">
               unsaved
             </Badge>
           )}
@@ -217,7 +217,7 @@ function SortableViewItem({
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center shrink-0">
         {onApply && !isUnsaved && (
           <Button
             variant="ghost"
@@ -268,13 +268,27 @@ function SortableColumnItem({
   isVisible,
   onToggleVisibility,
   index,
+  totalVisible,
+  onReorder,
+  showWidthInput,
+  width,
+  onWidthChange,
 }: {
   id: string;
   column: Column;
   isVisible: boolean;
   onToggleVisibility: () => void;
   index?: number;
+  totalVisible?: number;
+  onReorder?: (newIndex: number) => void;
+  showWidthInput?: boolean;
+  width?: number;
+  onWidthChange?: (width: number) => void;
 }) {
+  const [isEditingPosition, setIsEditingPosition] = React.useState(false);
+  const [positionValue, setPositionValue] = React.useState(String(index || 1));
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
   const {
     attributes,
     listeners,
@@ -290,6 +304,39 @@ function SortableColumnItem({
   };
 
   const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(column.column_name);
+
+  // Focus input when editing starts
+  React.useEffect(() => {
+    if (isEditingPosition && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingPosition]);
+
+  const handlePositionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onReorder && index !== undefined) {
+      setPositionValue(String(index));
+      setIsEditingPosition(true);
+    }
+  };
+
+  const handlePositionSubmit = () => {
+    const newPos = parseInt(positionValue, 10);
+    if (!isNaN(newPos) && newPos >= 1 && newPos <= (totalVisible || 999) && onReorder) {
+      onReorder(newPos);
+    }
+    setIsEditingPosition(false);
+  };
+
+  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handlePositionSubmit();
+    } else if (e.key === 'Escape') {
+      setIsEditingPosition(false);
+      setPositionValue(String(index || 1));
+    }
+  };
 
   return (
     <div
@@ -310,9 +357,25 @@ function SortableColumnItem({
         <GripVertical className="h-3 w-3 text-muted-foreground" />
       </div>
       {index !== undefined && (
-        <span className="flex items-center justify-center w-4 h-4 text-[9px] font-medium bg-muted rounded">
-          {index}
-        </span>
+        isEditingPosition ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={positionValue}
+            onChange={(e) => setPositionValue(e.target.value)}
+            onBlur={handlePositionSubmit}
+            onKeyDown={handlePositionKeyDown}
+            className="w-6 h-5 text-[10px] font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        ) : (
+          <button
+            onClick={handlePositionClick}
+            className="flex items-center justify-center w-5 h-5 text-[9px] font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
+            title="Click to change position"
+          >
+            {index}
+          </button>
+        )
       )}
       <button
         onClick={onToggleVisibility}
@@ -327,6 +390,19 @@ function SortableColumnItem({
           {column.name || column.column_name}
         </span>
       </button>
+      {showWidthInput && isVisible && (
+        <input
+          type="number"
+          value={width || ""}
+          onChange={(e) => onWidthChange?.(parseInt(e.target.value, 10) || 0)}
+          placeholder="150"
+          className="w-14 h-5 text-[10px] text-center bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+          title="Column width in pixels"
+          onClick={(e) => e.stopPropagation()}
+          min={40}
+          max={500}
+        />
+      )}
     </div>
   );
 }
@@ -574,6 +650,8 @@ export function GlobalViewsManager({
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [newViewName, setNewViewName] = React.useState("New View");
   const [newViewBaseId, setNewViewBaseId] = React.useState<string>("blank");
+  const [newViewIsGlobal, setNewViewIsGlobal] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
 
   // Edit state
   const [editName, setEditName] = React.useState("");
@@ -585,6 +663,7 @@ export function GlobalViewsManager({
   const [editGroupByColumns, setEditGroupByColumns] = React.useState<string[]>([]);
   const [editVisibleColumns, setEditVisibleColumns] = React.useState<Record<string, boolean>>({});
   const [editColumnOrder, setEditColumnOrder] = React.useState<string[]>([]);
+  const [editColumnWidths, setEditColumnWidths] = React.useState<Record<string, number>>({});
   const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(true);
   const [editShowTotals, setEditShowTotals] = React.useState(true);
 
@@ -629,6 +708,7 @@ export function GlobalViewsManager({
           interGroupLogic: v.filters?.interGroupLogic || "OR",
           visibleColumns: v.columns?.visible || {},
           columnOrder: v.columns?.order || [],
+          columnWidths: v.columns?.widths || {},
           autoFitColumns: v.columns?.autoFitColumns === true,
           showTotals: v.columns?.showTotals !== false, // Default to true
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
@@ -687,18 +767,28 @@ export function GlobalViewsManager({
     setEditVisibleColumns(visibleColumnsToSet!);
 
     setEditColumnOrder(view.columnOrder || columns.map(c => c.column_name));
+    setEditColumnWidths(view.columnWidths || {});
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditShowTotals(view.showTotals !== false); // Default to true
   };
 
   const handleSelectView = (view: SavedView) => {
     setActiveViewId(view.id);
+    // Just select, don't edit - load into editor but keep editing disabled
     loadViewIntoEditor(view);
+    setIsEditing(false);
+  };
+
+  const handleEditView = (view: SavedView) => {
+    setActiveViewId(view.id);
+    loadViewIntoEditor(view);
+    setIsEditing(true);
   };
 
   const handleCreateNew = () => {
     setNewViewName("New View");
     setNewViewBaseId("blank");
+    setNewViewIsGlobal(false);
     setShowCreateDialog(true);
   };
 
@@ -711,12 +801,13 @@ export function GlobalViewsManager({
     const newView: SavedView = {
       id: `new_${Date.now()}`,
       name: newViewName || "New View",
-      is_global: false,
+      is_global: newViewIsGlobal,
       filters: baseView?.filters || [],
       filterGroups: baseView?.filterGroups || [{ id: "default", logic: "AND" }],
       interGroupLogic: baseView?.interGroupLogic || "OR",
       visibleColumns: baseView?.visibleColumns || Object.fromEntries(columns.map(c => [c.column_name, true])),
       columnOrder: baseView?.columnOrder || columns.map(c => c.column_name),
+      columnWidths: baseView?.columnWidths || {},
       sortColumns: baseView?.sortColumns || [],
       groupByColumns: baseView?.groupByColumns || [],
       autoFitColumns: baseView?.autoFitColumns ?? true,
@@ -729,6 +820,7 @@ export function GlobalViewsManager({
     setViews(prev => [...prev, newView]);
     setActiveViewId(newView.id);
     loadViewIntoEditor(newView);
+    setIsEditing(true); // Enable editing for new views
     setShowCreateDialog(false);
   };
 
@@ -755,6 +847,7 @@ export function GlobalViewsManager({
         columns: {
           visible: editVisibleColumns,
           order: editColumnOrder,
+          widths: editColumnWidths,
           autoFitColumns: editAutoFitColumns,
           showTotals: editShowTotals,
         },
@@ -974,6 +1067,12 @@ export function GlobalViewsManager({
         }
       }
 
+      console.log('[GlobalViewsManager] fetchLookupOptions result:', {
+        cacheKey,
+        optionsCount: options.length,
+        options: options.slice(0, 5), // First 5 options for debugging
+      });
+
       setLookupOptionsCache(prev => ({
         ...prev,
         [cacheKey]: options,
@@ -1070,9 +1169,20 @@ export function GlobalViewsManager({
       );
     }
 
-    const isLookupColumn = column.column_type === 'lookup' || column.column_type === 'relation';
-    const isChoiceColumn = column.column_type === 'choice';
-    const isBooleanColumn = column.column_type === 'boolean';
+    const columnType = column.column_type?.toLowerCase() || '';
+    const isLookupColumn = columnType === 'lookup' || columnType === 'relation' || columnType === 'multiple_lookups';
+    const isChoiceColumn = columnType === 'choice';
+    const isBooleanColumn = columnType === 'boolean';
+
+    // Debug logging for all filter columns
+    console.log('[GlobalViewsManager] Filter column:', {
+      column_name: column.column_name,
+      column_type: column.column_type,
+      isLookupColumn,
+      isChoiceColumn,
+      available_choices: column.available_choices,
+      lookup_foundation_id: column.lookup_foundation_id,
+    });
 
     // Boolean dropdown
     if (isBooleanColumn) {
@@ -1092,70 +1202,111 @@ export function GlobalViewsManager({
       );
     }
 
-    // Choice dropdown
-    if (isChoiceColumn && column.available_choices && column.available_choices.length > 0) {
-      const choices = column.available_choices;
-      return (
-        <Select
-          value={String(filter.value || "")}
-          onValueChange={(v) => updateFilter(filter.id, { value: v })}
-        >
-          <SelectTrigger className="w-[100px] h-8">
-            <SelectValue placeholder="Select..." />
-          </SelectTrigger>
-          <SelectContent>
-            {choices.map((choice, idx) => {
-              const value = typeof choice === 'string' ? choice : choice.value;
-              return (
-                <SelectItem key={idx} value={value}>
-                  {value}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-      );
+    // Choice dropdown - also handle available_choices on any column type
+    const hasAvailableChoices = column.available_choices && column.available_choices.length > 0;
+
+    console.log('[GlobalViewsManager] Choice check:', {
+      column_name: column.column_name,
+      isChoiceColumn,
+      hasAvailableChoices,
+      available_choices: column.available_choices,
+    });
+
+    if (isChoiceColumn || hasAvailableChoices) {
+      const choices = column.available_choices || [];
+      if (choices.length > 0) {
+        return (
+          <Select
+            value={String(filter.value || "")}
+            onValueChange={(v) => updateFilter(filter.id, { value: v })}
+          >
+            <SelectTrigger className="w-[120px] h-8">
+              <SelectValue placeholder="Select..." />
+            </SelectTrigger>
+            <SelectContent>
+              {choices.map((choice, idx) => {
+                const value = typeof choice === 'string' ? choice : (choice.value || String(choice.id));
+                const display = typeof choice === 'string' ? choice : (choice.value || String(choice.id));
+                return (
+                  <SelectItem key={idx} value={value}>
+                    {display}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        );
+      } else if (isChoiceColumn) {
+        // Choice column with no choices defined - show text input with hint
+        return (
+          <Input
+            value={String(filter.value || "")}
+            onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
+            placeholder="No choices defined"
+            className="w-[120px] h-8"
+            title="This choice column has no options defined yet"
+          />
+        );
+      }
     }
 
     // Lookup dropdown - check for lookup_foundation_id or known mapping
     const effectiveLookupFoundationId = column.lookup_foundation_id || knownMapping?.foundationId;
     const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
 
-    if (isLookupColumn && effectiveLookupFoundationId) {
-      const cacheKey = `${effectiveLookupFoundationId}`;
-      const options = lookupOptionsCache[cacheKey] || [];
-      const isLoading = lookupLoadingColumns.has(cacheKey);
+    if (isLookupColumn) {
+      if (effectiveLookupFoundationId) {
+        const cacheKey = `${effectiveLookupFoundationId}`;
+        const options = lookupOptionsCache[cacheKey] || [];
+        const isLoading = lookupLoadingColumns.has(cacheKey);
 
-      // Trigger fetch if not cached
-      if (!lookupOptionsCache[cacheKey] && !isLoading) {
-        fetchLookupOptions({
-          ...column,
-          lookup_foundation_id: effectiveLookupFoundationId,
-          lookup_display_column: effectiveDisplayColumn,
-        });
+        // Trigger fetch if not cached
+        if (!lookupOptionsCache[cacheKey] && !isLoading) {
+          fetchLookupOptions({
+            ...column,
+            lookup_foundation_id: effectiveLookupFoundationId,
+            lookup_display_column: effectiveDisplayColumn,
+          });
+        }
+
+        return (
+          <Select
+            value={String(filter.value || "")}
+            onValueChange={(v) => updateFilter(filter.id, { value: v })}
+          >
+            <SelectTrigger className="w-[120px] h-8">
+              {isLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <SelectValue placeholder="Select..." />
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              {options.length === 0 && !isLoading && (
+                <SelectItem value="__no_options__" disabled>
+                  No options available
+                </SelectItem>
+              )}
+              {options.map((opt) => (
+                <SelectItem key={opt.id} value={opt.display}>
+                  {opt.display}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
+      } else {
+        // Lookup without foundation_id - show text input with hint
+        return (
+          <Input
+            value={String(filter.value || "")}
+            onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
+            placeholder="Type value..."
+            className="w-[120px] h-8"
+            title="Lookup table not configured - enter value manually"
+          />
+        );
       }
-
-      return (
-        <Select
-          value={String(filter.value || "")}
-          onValueChange={(v) => updateFilter(filter.id, { value: v })}
-        >
-          <SelectTrigger className="w-[100px] h-8">
-            {isLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <SelectValue placeholder="Select..." />
-            )}
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((opt) => (
-              <SelectItem key={opt.id} value={opt.display}>
-                {opt.display}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      );
     }
 
     // Default text input
@@ -1164,7 +1315,7 @@ export function GlobalViewsManager({
         value={String(filter.value || "")}
         onChange={(e) => updateFilter(filter.id, { value: e.target.value })}
         placeholder="Value..."
-        className="w-[100px] h-8"
+        className="w-[120px] h-8"
       />
     );
   };
@@ -1216,7 +1367,101 @@ export function GlobalViewsManager({
     });
   };
 
+  // Get visible columns in order for reordering
+  const getVisibleColumnsInOrder = () => {
+    return getSortedColumns().filter(col => editVisibleColumns[col.column_name] === true);
+  };
+
+  // Reorder a column to a new position (1-based index)
+  const reorderColumnToPosition = (columnName: string, newPosition: number) => {
+    const visibleCols = getVisibleColumnsInOrder();
+    const currentIndex = visibleCols.findIndex(c => c.column_name === columnName);
+    if (currentIndex === -1) return;
+
+    // Convert to 0-based index
+    const targetIndex = Math.max(0, Math.min(newPosition - 1, visibleCols.length - 1));
+    if (currentIndex === targetIndex) return;
+
+    // Create new order array for visible columns
+    const newVisibleOrder = visibleCols.map(c => c.column_name);
+    const [moved] = newVisibleOrder.splice(currentIndex, 1);
+    newVisibleOrder.splice(targetIndex, 0, moved);
+
+    // Now rebuild the full column order, preserving hidden columns in their relative positions
+    const hiddenCols = getSortedColumns()
+      .filter(col => editVisibleColumns[col.column_name] !== true)
+      .map(c => c.column_name);
+
+    // Put visible columns first, then hidden columns
+    setEditColumnOrder([...newVisibleOrder, ...hiddenCols]);
+  };
+
   const filteredColumns = columns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
+
+  // Get default width for a column based on its type
+  const getDefaultColumnWidth = (col: Column): number => {
+    const type = col.column_type?.toLowerCase() || 'text';
+    switch (type) {
+      case 'id':
+        return 60;
+      case 'boolean':
+        return 80;
+      case 'date':
+        return 100;
+      case 'date_time':
+      case 'datetime':
+        return 150;
+      case 'currency':
+      case 'percentage':
+      case 'number':
+      case 'decimal':
+      case 'whole_number':
+        return 100;
+      case 'phone':
+      case 'mobile':
+        return 120;
+      case 'email':
+      case 'url':
+        return 200;
+      case 'choice':
+      case 'lookup':
+      case 'relation':
+        return 150;
+      case 'multiple_lookups':
+        return 200;
+      case 'text':
+      case 'single_line_text':
+        return 150;
+      case 'multiple_lines_text':
+      case 'textarea':
+        return 250;
+      case 'color_picker':
+        return 100;
+      case 'file_upload':
+        return 150;
+      case 'gps_coordinates':
+        return 180;
+      case 'user':
+        return 150;
+      default:
+        return 150;
+    }
+  };
+
+  // Handle auto-fit toggle - populate default widths when turning off
+  const handleAutoFitChange = (enabled: boolean) => {
+    setEditAutoFitColumns(enabled);
+    if (!enabled && Object.keys(editColumnWidths).length === 0) {
+      // Populate default widths for all visible columns
+      const defaultWidths: Record<string, number> = {};
+      columns.forEach(col => {
+        if (editVisibleColumns[col.column_name]) {
+          defaultWidths[col.column_name] = getDefaultColumnWidth(col);
+        }
+      });
+      setEditColumnWidths(defaultWidths);
+    }
+  };
 
   return (
     <>
@@ -1264,7 +1509,7 @@ export function GlobalViewsManager({
                             view={view}
                             isActive={activeViewId === view.id}
                             onSelect={() => handleSelectView(view)}
-                            onEdit={() => handleSelectView(view)}
+                            onEdit={() => handleEditView(view)}
                             onDelete={() => {
                               setViewToDelete(view);
                               setShowDeleteConfirm(true);
@@ -1292,51 +1537,68 @@ export function GlobalViewsManager({
                 {editingView ? (
                   <>
                     {/* Editor Header */}
-                    <div className="p-4 border-b bg-muted/30">
+                    <div className={cn("p-4 border-b", isEditing ? "bg-muted/30" : "bg-muted/10")}>
                       <div className="flex items-center gap-3">
                         <Input
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
                           className="max-w-[200px] font-medium"
                           placeholder="View name..."
+                          disabled={!isEditing}
                         />
                         <div className="flex items-center gap-2">
                           <Switch
                             id="global-switch"
                             checked={editIsGlobal}
                             onCheckedChange={setEditIsGlobal}
+                            disabled={!isEditing}
                           />
-                          <Label htmlFor="global-switch" className="text-sm flex items-center gap-1">
+                          <Label htmlFor="global-switch" className={cn("text-sm flex items-center gap-1", !isEditing && "text-muted-foreground")}>
                             {editIsGlobal ? <Globe className="h-3 w-3 text-blue-500" /> : <User className="h-3 w-3" />}
                             {editIsGlobal ? "Global" : "Personal"}
                           </Label>
                         </div>
                         <div className="ml-auto flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={() => loadViewIntoEditor(editingView)}>
-                            Reset
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={handleSaveView} disabled={saving}>
-                            {saving ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Save className="h-4 w-4 mr-2" />
-                            )}
-                            Save
-                          </Button>
-                          <Button size="sm" onClick={async () => { await handleSaveView(); onOpenChange(false); }} disabled={saving}>
-                            {saving ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <Check className="h-4 w-4 mr-2" />
-                            )}
-                            Save & Close
-                          </Button>
+                          {!isEditing ? (
+                            <Button size="sm" onClick={() => setIsEditing(true)}>
+                              <Pencil className="h-4 w-4 mr-2" />
+                              Edit View
+                            </Button>
+                          ) : (
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => { loadViewIntoEditor(editingView); setIsEditing(false); }}>
+                                Cancel
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={handleSaveView} disabled={saving}>
+                                {saving ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Save className="h-4 w-4 mr-2" />
+                                )}
+                                Save
+                              </Button>
+                              <Button size="sm" onClick={async () => { await handleSaveView(); setIsEditing(false); }} disabled={saving}>
+                                {saving ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Check className="h-4 w-4 mr-2" />
+                                )}
+                                Save & Close
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {/* Editor Content - Two Column Layout */}
-                    <div className="flex-1 flex overflow-hidden">
+                    <div className={cn("flex-1 flex overflow-hidden relative", !isEditing && "opacity-50 pointer-events-none")}>
+                      {/* Disabled overlay hint */}
+                      {!isEditing && (
+                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/30">
+                          <p className="text-muted-foreground text-sm">Click &quot;Edit View&quot; to make changes</p>
+                        </div>
+                      )}
                       {/* Left Side - Settings (Scrollable, fixed width) */}
                       <ScrollArea className="w-[400px] shrink-0 p-4 border-r">
                         <div className="space-y-4">
@@ -1677,7 +1939,7 @@ export function GlobalViewsManager({
                               <Switch
                                 id="auto-fit"
                                 checked={editAutoFitColumns}
-                                onCheckedChange={setEditAutoFitColumns}
+                                onCheckedChange={handleAutoFitChange}
                               />
                             </div>
                           </div>
@@ -1707,9 +1969,9 @@ export function GlobalViewsManager({
                                   </Button>
                                 </div>
                                 <div className="grid grid-cols-3 gap-1">
-                                  {getSortedColumns()
-                                    .filter(col => editVisibleColumns[col.column_name] === true)
-                                    .map((col, index) => (
+                                  {(() => {
+                                    const visibleCols = getVisibleColumnsInOrder();
+                                    return visibleCols.map((col, index) => (
                                       <SortableColumnItem
                                         key={col.column_name}
                                         id={col.column_name}
@@ -1717,8 +1979,14 @@ export function GlobalViewsManager({
                                         isVisible={true}
                                         onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
                                         index={index + 1}
+                                        totalVisible={visibleCols.length}
+                                        onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
+                                        showWidthInput={!editAutoFitColumns}
+                                        width={editColumnWidths[col.column_name]}
+                                        onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
                                       />
-                                    ))}
+                                    ));
+                                  })()}
                                 </div>
                               </div>
 
@@ -1778,27 +2046,28 @@ export function GlobalViewsManager({
 
       {/* Create View Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New View</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="sm:max-w-[450px] p-8">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-xl">Create New View</DialogTitle>
+            <DialogDescription className="pt-1">
               Choose a name and optionally start from an existing view.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
+          <div className="space-y-6 py-4">
+            <div className="space-y-3">
               <Label htmlFor="view-name">View Name</Label>
               <Input
                 id="view-name"
                 value={newViewName}
                 onChange={(e) => setNewViewName(e.target.value)}
                 placeholder="Enter view name..."
+                className="h-11"
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label htmlFor="base-view">Start From</Label>
               <Select value={newViewBaseId} onValueChange={setNewViewBaseId}>
-                <SelectTrigger id="base-view">
+                <SelectTrigger id="base-view" className="h-11">
                   <SelectValue placeholder="Select a starting view..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -1823,8 +2092,30 @@ export function GlobalViewsManager({
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+              <div className="space-y-1">
+                <Label htmlFor="new-view-global" className="text-sm font-medium flex items-center gap-2">
+                  {newViewIsGlobal ? (
+                    <Globe className="h-4 w-4 text-blue-500" />
+                  ) : (
+                    <User className="h-4 w-4 text-muted-foreground" />
+                  )}
+                  {newViewIsGlobal ? "Global View" : "Personal View"}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {newViewIsGlobal
+                    ? "Visible to all users"
+                    : "Only visible to you"}
+                </p>
+              </div>
+              <Switch
+                id="new-view-global"
+                checked={newViewIsGlobal}
+                onCheckedChange={setNewViewIsGlobal}
+              />
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="pt-2 gap-3">
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
               Cancel
             </Button>

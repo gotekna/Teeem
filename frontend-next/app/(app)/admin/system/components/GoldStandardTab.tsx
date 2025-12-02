@@ -441,6 +441,9 @@ function GoldStandardDataTab() {
             key: col.column_name,
             label: col.name || col.column_name,
             column_type: col.column_type,
+            id: col.id, // Include column ID for editing
+            foundation_id: foundationData.foundation.id,
+            choices: col.available_choices,
             resizable: true,
             sortable: true,
             filterable: true,

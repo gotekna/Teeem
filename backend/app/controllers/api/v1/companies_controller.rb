@@ -293,7 +293,7 @@ module Api
                 id: sh.id,
                 shareholder_type: sh.shareholder_type,
                 shareholder_id: sh.shareholder_id,
-                shareholder_name: sh.shareholder&.name,
+                shareholder_name: sh.shareholder_name,
                 number_of_shares: sh.number_of_shares,
                 percentage: sh.percentage_of_total,
                 share_class: sh.share_class,
