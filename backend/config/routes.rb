@@ -129,6 +129,8 @@ Rails.application.routes.draw do
           get :xero_tracking_options
           # AI job analysis
           post :analyze, to: 'job_estimator#analyze'
+          # Merge jobs
+          post :merge
         end
 
         # Job contacts (nested under jobs)

@@ -841,6 +841,9 @@ export default function TeeemTableView({
   const [autoFitColumns, setAutoFitColumns] = useState(false); // Auto-fit column widths to content
   const [editingRowId, setEditingRowId] = useState<number | string | null>(null);
   const [editingData, setEditingData] = useState<Record<string, unknown>>({});
+  // Cell-level inline editing state (for single-click dropdown, double-click text)
+  const [editingCell, setEditingCell] = useState<{ rowId: number | string; columnKey: string } | null>(null);
+  const [editingCellValue, setEditingCellValue] = useState<unknown>(null);
   const [lookupOptions, setLookupOptions] = useState<Record<string, Array<{ id: number; display: string }>>>({});
   const [lookupLoading, setLookupLoading] = useState<Record<string, boolean>>({});
 
@@ -1159,6 +1162,113 @@ export default function TeeemTableView({
     }
   }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, onRowUpdate, onRefresh]);
 
+  // Fetch lookup options when bulk update column changes to a lookup column
+  useEffect(() => {
+    if (!bulkUpdateColumn) return;
+
+    const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
+    if (!selectedCol) return;
+
+    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.lookup_config;
+    if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
+      console.log('[BulkUpdate] Fetching lookup options for:', bulkUpdateColumn);
+      fetchLookupOptions(selectedCol);
+    }
+  }, [bulkUpdateColumn, COLUMNS, lookupOptions, lookupLoading, fetchLookupOptions]);
+
+  // ============================================================================
+  // CELL-LEVEL INLINE EDITING
+  // ============================================================================
+
+  // Check if a column type should use single-click (dropdown-style) editing
+  const isDropdownColumn = useCallback((column: TableColumn): boolean => {
+    const colType = column.column_type || '';
+    const hasChoices = column.choices && column.choices.length > 0;
+    const isLookup = colType === 'lookup' || colType === 'relation' || !!column.lookup_config;
+    const isChoice = colType === 'choice' || colType === 'single_select' || colType === 'multi_select';
+    const isBoolean = colType === 'boolean';
+    return hasChoices || isLookup || isChoice || isBoolean;
+  }, []);
+
+  // Start editing a specific cell
+  const startCellEdit = useCallback((rowId: number | string, column: TableColumn) => {
+    if (!onRowUpdate) return;
+
+    // System columns that are NEVER editable
+    const NON_EDITABLE_COLUMNS = ['id', 'created_at', 'updated_at', 'select', 'actions'];
+    const isComputed = column.column_type === 'computed' || column.column_type === 'formula';
+    const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
+    const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
+
+    if (!isColumnEditable) return;
+
+    const row = entries.find(e => e.id === rowId);
+    if (!row) return;
+
+    setEditingCell({ rowId, columnKey: column.key });
+    setEditingCellValue(row[column.key]);
+
+    // Pre-fetch lookup options if needed
+    if (column.column_type === 'lookup' || column.column_type === 'relation') {
+      if (column.lookup_config?.target_table_id) {
+        fetchLookupOptions(column);
+      }
+    }
+  }, [entries, onRowUpdate, fetchLookupOptions]);
+
+  // Save cell edit
+  const saveCellEdit = useCallback(async () => {
+    if (!editingCell || !onRowUpdate) return;
+
+    const row = entries.find(e => e.id === editingCell.rowId);
+    if (!row) return;
+
+    // Only save if value changed
+    if (row[editingCell.columnKey] !== editingCellValue) {
+      try {
+        await onRowUpdate(editingCell.rowId, editingCell.columnKey, editingCellValue);
+      } catch (error) {
+        console.error("Failed to save cell:", error);
+      }
+    }
+
+    setEditingCell(null);
+    setEditingCellValue(null);
+  }, [editingCell, editingCellValue, entries, onRowUpdate]);
+
+  // Cancel cell edit
+  const cancelCellEdit = useCallback(() => {
+    setEditingCell(null);
+    setEditingCellValue(null);
+  }, []);
+
+  // Handle cell click - single click for dropdowns
+  const handleCellClick = useCallback((e: React.MouseEvent, row: TableRowType, column: TableColumn) => {
+    // Don't interfere with row selection checkbox or actions
+    if (column.key === 'select' || column.key === 'actions') return;
+
+    // If already editing this cell, let the editor handle clicks
+    if (editingCell?.rowId === row.id && editingCell?.columnKey === column.key) return;
+
+    // For dropdown columns, start editing on single click
+    if (isDropdownColumn(column) && onRowUpdate) {
+      e.stopPropagation(); // Prevent row selection
+      startCellEdit(row.id, column);
+    }
+  }, [editingCell, isDropdownColumn, onRowUpdate, startCellEdit]);
+
+  // Handle cell double-click - for text columns
+  const handleCellDoubleClick = useCallback((e: React.MouseEvent, row: TableRowType, column: TableColumn) => {
+    // Don't interfere with row selection checkbox or actions
+    if (column.key === 'select' || column.key === 'actions') return;
+
+    // For non-dropdown columns, start editing on double click
+    if (!isDropdownColumn(column) && onRowUpdate) {
+      e.stopPropagation(); // Prevent row navigation
+      startCellEdit(row.id, column);
+    }
+  }, [isDropdownColumn, onRowUpdate, startCellEdit]);
+
   // ============================================================================
   // SCHEMA HANDLERS
   // ============================================================================
@@ -1325,6 +1435,8 @@ export default function TeeemTableView({
             visibleColumns: v.columns?.visible || v.visibleColumns || {},
             columnOrder: v.columns?.order || v.columnOrder || [],
             columnWidths: v.columns?.widths || v.columnWidths || {},
+            autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
+            showTotals: v.columns?.showTotals !== false && v.showTotals !== false, // Default to true
             // Map filters format
             filters: v.filters?.cascadeFilters || v.filters || [],
             filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
@@ -1333,6 +1445,8 @@ export default function TeeemTableView({
             sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
             groupByColumns: v.group_by_columns || v.groupByColumns || [],
           })) as SavedView[];
+
+          console.log('[TeeemTableView] Mapped views with autoFitColumns:', mappedViews.map(v => ({ id: v.id, name: v.name, autoFitColumns: v.autoFitColumns, showTotals: v.showTotals })));
 
           // Filter out __default_setup__ views (internal use only) and sort by display_order
           const filteredViews = mappedViews
@@ -1422,8 +1536,10 @@ export default function TeeemTableView({
         setColumnOrder(view.columnOrder);
       }
       // Only load saved column widths if auto-fit is NOT enabled
+      // Check both direct property and columns object (API format varies)
+      const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
       const viewAutoFit = view.autoFitColumns === true ||
-        (view.columns && (view.columns as { autoFitColumns?: boolean }).autoFitColumns === true);
+        (viewAny.columns && viewAny.columns.autoFitColumns === true);
       if (view.columnWidths && !viewAutoFit) {
         setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
       }
@@ -1440,14 +1556,17 @@ export default function TeeemTableView({
       // Handle showTotals - check both direct property and columns object
       if (typeof view.showTotals === 'boolean') {
         setShowTotals(view.showTotals);
-      } else if (view.columns && typeof (view.columns as { showTotals?: boolean }).showTotals === 'boolean') {
-        setShowTotals((view.columns as { showTotals: boolean }).showTotals);
+      } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
+        setShowTotals(viewAny.columns.showTotals);
       }
       // Handle autoFitColumns - check both direct property and columns object
+      console.log('[TeeemTableView] loadViewState autoFitColumns check:', { viewAutoFitColumns: view.autoFitColumns, columnsAutoFitColumns: viewAny.columns?.autoFitColumns });
       if (typeof view.autoFitColumns === 'boolean') {
+        console.log('[TeeemTableView] Setting autoFitColumns from view.autoFitColumns:', view.autoFitColumns);
         setAutoFitColumns(view.autoFitColumns);
-      } else if (view.columns && typeof (view.columns as { autoFitColumns?: boolean }).autoFitColumns === 'boolean') {
-        setAutoFitColumns((view.columns as { autoFitColumns: boolean }).autoFitColumns);
+      } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
+        console.log('[TeeemTableView] Setting autoFitColumns from view.columns.autoFitColumns:', viewAny.columns.autoFitColumns);
+        setAutoFitColumns(viewAny.columns.autoFitColumns);
       }
       // Hide filter editor when loading a saved view (user can click Filters button to show)
       setShowFilters(false);
@@ -1830,14 +1949,28 @@ export default function TeeemTableView({
     return COLUMNS.filter((c) => c.key !== "select" && c.key !== "actions");
   }, [COLUMNS]);
 
-  // Calculate optimal column widths based on content
+  // Calculate optimal column widths based on content using actual text measurement
   const calculateAutoFitWidths = useCallback(() => {
     const newWidths: ColumnWidthsState = {};
-    const CHAR_WIDTH = 9; // Approximate width per character (monospace)
-    const HEADER_PADDING = 32; // Extra padding for header (sort icons, etc)
-    const CELL_PADDING = 24; // Padding for cell content
-    const MIN_WIDTH = 36;
-    const MAX_WIDTH = 400;
+    const HEADER_PADDING = 28; // Sort icon + some breathing room
+    const CELL_PADDING = 24; // px-3 on each side = 24px total
+    const MIN_WIDTH = 40;
+    const MAX_WIDTH = 500;
+
+    // Create a hidden canvas for measuring text width
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      // Fallback to character-based estimation if canvas not available
+      visibleColumnsInOrder.forEach(col => {
+        newWidths[col.key] = col.width || 150;
+      });
+      return newWidths;
+    }
+
+    // Set fonts matching our table styles
+    const headerFont = '600 14px ui-sans-serif, system-ui, sans-serif'; // semibold header
+    const cellFont = '14px ui-sans-serif, system-ui, sans-serif'; // normal cell
 
     visibleColumnsInOrder.forEach(col => {
       // Skip select and actions columns - they have fixed widths
@@ -1846,22 +1979,24 @@ export default function TeeemTableView({
         return;
       }
       if (col.key === 'actions') {
-        newWidths[col.key] = 100;
+        newWidths[col.key] = 60;
         return;
       }
 
-      // Calculate header width (needs more padding for sort icons)
+      // Measure header width
+      ctx.font = headerFont;
       const headerText = col.label || col.key;
-      let maxWidth = headerText.length * CHAR_WIDTH + HEADER_PADDING;
+      let maxWidth = ctx.measureText(headerText).width + HEADER_PADDING;
 
-      // Calculate content widths from first 100 rows (for performance)
+      // Measure content widths from first 100 rows (for performance)
+      ctx.font = cellFont;
       const sampleRows = filteredAndSortedEntries.slice(0, 100);
       sampleRows.forEach(row => {
         const value = row[col.key];
         let displayText = '';
 
         if (value === null || value === undefined) {
-          displayText = '';
+          displayText = '-';
         } else if (typeof value === 'object') {
           // Handle lookup objects
           const obj = value as { display?: string; name?: string };
@@ -1877,12 +2012,12 @@ export default function TeeemTableView({
           displayText = `${value.toFixed(1)}%`;
         }
 
-        const contentWidth = displayText.length * CHAR_WIDTH + CELL_PADDING;
+        const contentWidth = ctx.measureText(displayText).width + CELL_PADDING;
         maxWidth = Math.max(maxWidth, contentWidth);
       });
 
       // Clamp to min/max
-      newWidths[col.key] = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, maxWidth));
+      newWidths[col.key] = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.ceil(maxWidth)));
     });
 
     return newWidths;
@@ -1907,7 +2042,7 @@ export default function TeeemTableView({
   // Calculate column totals for numeric columns
   const columnTotals = useMemo(() => {
     const numericTypes = ['number', 'whole_number', 'currency', 'percentage', 'computed'];
-    const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long']; // Never show totals for these
+    const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id']; // Never show totals for these
     const totals: Record<string, { value: number; type: string; label: string; isAverage: boolean }> = {};
 
     visibleDataColumns.forEach(col => {
@@ -2365,6 +2500,133 @@ export default function TeeemTableView({
         }
       }
 
+      // CELL-LEVEL INLINE EDITING (single-click dropdown, double-click text)
+      const isCellEditing = editingCell?.rowId === entry.id && editingCell?.columnKey === column.key;
+      if (isCellEditing && isColumnEditable) {
+        const columnType = column.column_type || 'single_line_text';
+
+        // Boolean - Switch toggle (auto-saves on change)
+        if (columnType === 'boolean') {
+          const boolValue = editingCellValue === true || editingCellValue === 'true' || editingCellValue === 1;
+          return (
+            <div className="flex items-center justify-center">
+              <Switch
+                checked={boolValue}
+                onCheckedChange={(checked) => {
+                  setEditingCellValue(checked);
+                  // Auto-save boolean changes
+                  if (onRowUpdate) {
+                    onRowUpdate(entry.id, column.key, checked);
+                  }
+                  setEditingCell(null);
+                  setEditingCellValue(null);
+                }}
+              />
+            </div>
+          );
+        }
+
+        // Choice - Dropdown with predefined options (auto-saves on selection)
+        if (columnType === 'choice' || columnType === 'single_select' || columnType === 'multi_select' || (column.choices && column.choices.length > 0)) {
+          const choices = column.choices || [];
+          return (
+            <Select
+              value={String(editingCellValue ?? "")}
+              onValueChange={(val) => {
+                setEditingCellValue(val);
+                // Auto-save choice changes
+                if (onRowUpdate) {
+                  onRowUpdate(entry.id, column.key, val);
+                }
+                setEditingCell(null);
+                setEditingCellValue(null);
+              }}
+              open={true}
+              onOpenChange={(open) => {
+                if (!open) cancelCellEdit();
+              }}
+            >
+              <SelectTrigger className="h-7 text-sm">
+                <SelectValue placeholder="Select..." />
+              </SelectTrigger>
+              <SelectContent>
+                {choices.map((choice) => (
+                  <SelectItem key={choice} value={choice}>
+                    {choice}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        }
+
+        // Lookup - Dropdown with options from related table (auto-saves on selection)
+        if (columnType === 'lookup' || columnType === 'relation' || column.lookup_config) {
+          const options = lookupOptions[column.key] || [];
+          const isLoading = lookupLoading[column.key];
+          const currentValue = editingCellValue;
+          const currentId = typeof currentValue === 'object' && currentValue !== null
+            ? (currentValue as { id?: number }).id
+            : currentValue;
+
+          return (
+            <Select
+              value={currentId ? String(currentId) : "__none__"}
+              onValueChange={(val) => {
+                if (val === "__none__") {
+                  if (onRowUpdate) onRowUpdate(entry.id, column.key, null);
+                } else {
+                  const selectedOption = options.find(o => String(o.id) === val);
+                  if (onRowUpdate) onRowUpdate(entry.id, column.key, selectedOption?.id || val);
+                }
+                setEditingCell(null);
+                setEditingCellValue(null);
+              }}
+              open={true}
+              onOpenChange={(open) => {
+                if (!open) cancelCellEdit();
+              }}
+            >
+              <SelectTrigger className="h-7 text-sm">
+                {isLoading ? (
+                  <span className="text-muted-foreground">Loading...</span>
+                ) : (
+                  <SelectValue placeholder="Select..." />
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">
+                  <span className="text-muted-foreground">None</span>
+                </SelectItem>
+                {options.map((option) => (
+                  <SelectItem key={option.id} value={String(option.id)}>
+                    {option.display}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        }
+
+        // Text/Number/Date - Input field with Enter to save, Escape to cancel
+        return (
+          <Input
+            autoFocus
+            className="h-7 text-sm"
+            value={String(editingCellValue ?? "")}
+            onChange={(e) => setEditingCellValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                saveCellEdit();
+              } else if (e.key === 'Escape') {
+                cancelCellEdit();
+              }
+            }}
+            onBlur={() => saveCellEdit()}
+          />
+        );
+      }
+
       // Handle null/undefined
       if (value == null || value === "") {
         return <span className="text-muted-foreground">-</span>;
@@ -2601,6 +2863,8 @@ export default function TeeemTableView({
       customCellRenderer,
       editingRowId,
       editingData,
+      editingCell,
+      editingCellValue,
       selectedRows,
       toggleRowSelection,
       onView,
@@ -2611,6 +2875,10 @@ export default function TeeemTableView({
       startEditing,
       saveEditing,
       cancelEditing,
+      saveCellEdit,
+      cancelCellEdit,
+      lookupOptions,
+      lookupLoading,
     ]
   );
 
@@ -2698,7 +2966,7 @@ export default function TeeemTableView({
         <tr>
           {visibleColumnsInOrder.map((column, colIndex) => {
             // Skip id column and other non-summable columns
-            const skipColumns = ['id', 'select', 'actions'];
+            const skipColumns = ['id', 'select', 'actions', 'latitude', 'longitude', 'lat', 'lng', 'long', 'design_id', 'user_id'];
             const isNumeric = column.column_type && numericTypes.includes(column.column_type) && !skipColumns.includes(column.key);
             let total: number | null = null;
 
@@ -2817,6 +3085,8 @@ export default function TeeemTableView({
                             width: columnWidths[column.key],
                             minWidth: columnWidths[column.key],
                           }}
+                          onClick={(e) => handleCellClick(e, row, column)}
+                          onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
                         >
                           {renderCellValue(row, column)}
                         </TableCell>
@@ -2916,6 +3186,8 @@ export default function TeeemTableView({
               column.key === "select" && "!border-r-0 !p-0 !h-full",
               column.key === "actions" && "!border-l-0"
             )}
+            onClick={(e) => handleCellClick(e, row, column)}
+            onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
           >
             {renderCellValue(row, column)}
           </TableCell>
@@ -3012,6 +3284,8 @@ export default function TeeemTableView({
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
                       column.key === "actions" && "!border-l-0"
                     )}
+                    onClick={(e) => handleCellClick(e, row, column)}
+                    onDoubleClick={(e) => handleCellDoubleClick(e, row, column)}
                   >
                     {renderCellValue(row, column)}
                   </TableCell>
@@ -3570,30 +3844,34 @@ export default function TeeemTableView({
 
       {/* Bulk Update Modal */}
       <Dialog open={showBulkUpdateModal} onOpenChange={setShowBulkUpdateModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md p-6">
           <DialogHeader>
             <DialogTitle>Bulk Update</DialogTitle>
             <DialogDescription>
-              Update {selectedRows.size} selected row(s)
+              Update {selectedRows.size} selected row{selectedRows.size !== 1 ? "s" : ""}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-6 py-4">
             <div className="space-y-2">
               <Label>Column to update</Label>
               <Select
                 value={bulkUpdateColumn}
-                onValueChange={setBulkUpdateColumn}
+                onValueChange={(val) => {
+                  setBulkUpdateColumn(val);
+                  setBulkUpdateValue(""); // Reset value when column changes
+                }}
               >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select column" />
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select column..." />
                 </SelectTrigger>
                 <SelectContent>
                   {COLUMNS.filter(
                     (c) =>
                       c.key !== "select" &&
                       c.key !== "actions" &&
-                      c.key !== "id"
+                      c.key !== "id" &&
+                      c.editable !== false
                   ).map((col) => (
                     <SelectItem key={col.key} value={col.key}>
                       {col.label}
@@ -3603,31 +3881,127 @@ export default function TeeemTableView({
               </Select>
             </div>
 
-            <div className="space-y-2">
-              <Label>New value</Label>
-              <Input
-                value={bulkUpdateValue}
-                onChange={(e) => setBulkUpdateValue(e.target.value)}
-                placeholder="Enter new value..."
-              />
-            </div>
+            {bulkUpdateColumn && (
+              <div className="space-y-2">
+                <Label>New value</Label>
+                {(() => {
+                  const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
+                  const hasChoices = selectedCol?.choices && selectedCol.choices.length > 0;
+                  const isLookup = selectedCol?.column_type === 'lookup' || selectedCol?.lookup_config;
+                  const isChoice = selectedCol?.column_type === 'choice' || selectedCol?.column_type === 'single_select';
+
+                  console.log('[BulkUpdate] Column:', bulkUpdateColumn, 'hasChoices:', hasChoices, 'isLookup:', isLookup, 'choices:', selectedCol?.choices, 'column_type:', selectedCol?.column_type, 'lookupOptions:', lookupOptions[bulkUpdateColumn]);
+
+                  // For lookup columns, use the lookupOptions if available
+                  if (isLookup) {
+                    const options = lookupOptions[bulkUpdateColumn] || [];
+                    const isLoading = lookupLoading[bulkUpdateColumn];
+
+                    return (
+                      <Select
+                        value={bulkUpdateValue}
+                        onValueChange={setBulkUpdateValue}
+                      >
+                        <SelectTrigger className="w-full">
+                          {isLoading ? (
+                            <span className="text-muted-foreground">Loading...</span>
+                          ) : (
+                            <SelectValue placeholder="Select value..." />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {options.length === 0 && !isLoading && (
+                            <SelectItem value="__no_options__" disabled>
+                              No options available
+                            </SelectItem>
+                          )}
+                          {options.map((option) => (
+                            <SelectItem key={option.id} value={String(option.id)}>
+                              {option.display}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  }
+
+                  if (hasChoices || isChoice) {
+                    // Dropdown for choice columns with predefined options
+                    const options = selectedCol?.choices || [];
+                    console.log('[BulkUpdate] Rendering choice dropdown with options:', options);
+                    return (
+                      <Select
+                        value={bulkUpdateValue}
+                        onValueChange={setBulkUpdateValue}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select value..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {options.length === 0 && (
+                            <SelectItem value="__no_options__" disabled>
+                              No options available
+                            </SelectItem>
+                          )}
+                          {options.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    );
+                  } else if (selectedCol?.column_type === 'boolean') {
+                    // Dropdown for boolean
+                    return (
+                      <Select
+                        value={bulkUpdateValue}
+                        onValueChange={setBulkUpdateValue}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select value..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="true">Yes</SelectItem>
+                          <SelectItem value="false">No</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    );
+                  } else {
+                    // Text input for other columns
+                    return (
+                      <Input
+                        value={bulkUpdateValue}
+                        onChange={(e) => setBulkUpdateValue(e.target.value)}
+                        placeholder="Enter new value..."
+                        className="w-full"
+                      />
+                    );
+                  }
+                })()}
+              </div>
+            )}
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               variant="outline"
-              onClick={() => setShowBulkUpdateModal(false)}
+              onClick={() => {
+                setShowBulkUpdateModal(false);
+                setBulkUpdateColumn("");
+                setBulkUpdateValue("");
+              }}
             >
               Cancel
             </Button>
             <Button
               onClick={handleBulkUpdate}
-              disabled={!bulkUpdateColumn || bulkUpdateSaving}
+              disabled={!bulkUpdateColumn || !bulkUpdateValue || bulkUpdateSaving}
             >
               {bulkUpdateSaving ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-1" />
               ) : null}
-              Update {selectedRows.size} rows
+              Update {selectedRows.size} row{selectedRows.size !== 1 ? "s" : ""}
             </Button>
           </DialogFooter>
         </DialogContent>

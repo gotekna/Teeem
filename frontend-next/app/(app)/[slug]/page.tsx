@@ -10,9 +10,20 @@ import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Plus, Filter } from "lucide-react";
+import { AlertCircle, Plus, Filter, GitMerge } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Loader } from "@/components/ui/loader";
 
 function PageSkeleton() {
   return (
@@ -55,6 +66,12 @@ function TablePageContent() {
   const [activeTab, setActiveTab] = useState(tab || "data");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showViewsManager, setShowViewsManager] = useState(false);
+
+  // Merge modal state
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeRecordIds, setMergeRecordIds] = useState<(number | string)[]>([]);
+  const [primaryRecordId, setPrimaryRecordId] = useState<number | string | null>(null);
+  const [merging, setMerging] = useState(false);
 
   // Load foundation data by slug
   const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug(cleanSlug);
@@ -157,6 +174,58 @@ function TablePageContent() {
     }
   };
 
+  // Handle bulk delete
+  const handleBulkDelete = async (ids: (number | string)[]) => {
+    if (!confirm(`Are you sure you want to delete ${ids.length} record(s)?`)) return;
+
+    try {
+      await Promise.all(ids.map((id) =>
+        api.delete(`/api/v1/foundations/${tableId}/records/${id}`)
+      ));
+      refresh();
+    } catch (error) {
+      console.error("[TablePage] Failed to delete records:", error);
+      alert("Failed to delete some records");
+    }
+  };
+
+  // Handle bulk merge - open modal
+  const handleBulkMerge = (ids: (number | string)[]) => {
+    setMergeRecordIds(ids);
+    setPrimaryRecordId(ids[0]);
+    setShowMergeModal(true);
+  };
+
+  // Confirm merge
+  const handleMergeConfirm = async () => {
+    if (!primaryRecordId || !tableId) return;
+
+    setMerging(true);
+    try {
+      const secondaryIds = mergeRecordIds.filter(id => id !== primaryRecordId);
+
+      // Use the generic merge endpoint for foundations
+      await api.post(`/api/v1/foundations/${tableId}/records/${primaryRecordId}/merge`, {
+        secondary_record_ids: secondaryIds,
+      });
+
+      refresh();
+      setShowMergeModal(false);
+      setMergeRecordIds([]);
+      setPrimaryRecordId(null);
+    } catch (error) {
+      console.error("[TablePage] Failed to merge records:", error);
+      alert("Failed to merge records. Please try again.");
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  // Get records for merge modal display
+  const mergeRecords = mergeRecordIds
+    .map(id => records.find(r => r.id === id))
+    .filter(Boolean) as TableRow[];
+
   // Left actions - Add New button
   const leftActions = !uiConfig.viewOnly ? (
     <Button onClick={handleAddNew} className="gap-2">
@@ -190,6 +259,8 @@ function TablePageContent() {
     onRowDoubleClick: handleRowDoubleClick,
     onRowClick: handleRowClick,
     onRowUpdate: !uiConfig.viewOnly ? handleRowUpdate : undefined,
+    onBulkDelete: !uiConfig.viewOnly ? handleBulkDelete : undefined,
+    onBulkMerge: !uiConfig.viewOnly ? handleBulkMerge : undefined,
     leftActions: leftActions,
     customActions: customActions,
   };
@@ -273,6 +344,100 @@ function TablePageContent() {
         onViewsChange={refresh}
         rows={records}
       />
+
+      {/* Merge Records Modal */}
+      <Dialog open={showMergeModal} onOpenChange={setShowMergeModal}>
+        <DialogContent className="sm:max-w-lg p-6">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="flex items-center gap-2">
+              <GitMerge className="h-5 w-5" />
+              Merge Records
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Select the primary record. All data from the other records will be merged into it,
+              and the other records will be deleted.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <Label className="text-sm font-medium mb-4 block">
+              Select Primary Record ({mergeRecords.length} records selected)
+            </Label>
+            <RadioGroup
+              value={String(primaryRecordId)}
+              onValueChange={(value) => setPrimaryRecordId(Number(value))}
+              className="space-y-4"
+            >
+              {mergeRecords.map((record) => {
+                // Find a display field (name, title, or first non-id text field)
+                const displayField = columns.find(c =>
+                  ['name', 'title', 'display_name', 'full_name'].includes(c.key)
+                )?.key || columns.find(c =>
+                  c.key !== 'id' && c.column_type === 'single_line_text'
+                )?.key || 'id';
+
+                const displayValue = record[displayField] || `Record #${record.id}`;
+
+                return (
+                  <div
+                    key={record.id}
+                    className={`flex items-center space-x-4 p-4 rounded-lg border ${
+                      primaryRecordId === record.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-muted/50"
+                    }`}
+                  >
+                    <RadioGroupItem value={String(record.id)} id={`record-${record.id}`} />
+                    <Label
+                      htmlFor={`record-${record.id}`}
+                      className="flex-1 cursor-pointer"
+                    >
+                      <div className="font-medium">{String(displayValue)}</div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        ID: {record.id}
+                      </div>
+                    </Label>
+                  </div>
+                );
+              })}
+            </RadioGroup>
+
+            {mergeRecords.length > 1 && primaryRecordId && (
+              <div className="mt-5 p-4 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Warning:</strong> {mergeRecords.length - 1} record(s) will be deleted after merge.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowMergeModal(false)}
+              disabled={merging}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleMergeConfirm}
+              disabled={!primaryRecordId || merging}
+            >
+              {merging ? (
+                <>
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  Merging...
+                </>
+              ) : (
+                <>
+                  <GitMerge className="h-4 w-4 mr-2" />
+                  Merge Records
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

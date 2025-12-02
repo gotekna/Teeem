@@ -53,6 +53,9 @@ export default function CopyConsoleButton() {
 
   const handleClear = () => {
     consoleCapture.clear()
+    // Force immediate state update
+    setLogCount(0)
+    setErrorCount(0)
     console.clear()
     console.log('✨ Console cleared - fresh start for debugging!')
   }
