@@ -1677,16 +1677,17 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
       />
 
       {/* Document Preview Modal with AI Verification */}
-      <DocumentPreviewModal
-        isOpen={isPreviewOpen}
-        onClose={() => {
-          setIsPreviewOpen(false);
-          setSelectedDocument(null);
-        }}
-        document={selectedDocument}
-        company={company}
-        onDocumentUpdate={loadDocuments}
-      />
+      {selectedDocument && (
+        <DocumentPreviewModal
+          open={isPreviewOpen}
+          onOpenChange={(open) => {
+            setIsPreviewOpen(open);
+            if (!open) setSelectedDocument(null);
+          }}
+          document={selectedDocument}
+          onDocumentUpdate={loadDocuments}
+        />
+      )}
     </>
   );
 }

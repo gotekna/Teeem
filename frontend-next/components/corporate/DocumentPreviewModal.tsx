@@ -62,31 +62,48 @@ const generateFYOptions = () => {
 
 const FY_OPTIONS = generateFYOptions();
 
+// Helper to parse financial years from various formats
+const parseFinancialYears = (fy: number[] | string | undefined): number[] => {
+  if (!fy) return [];
+  if (Array.isArray(fy)) return fy;
+  if (typeof fy === "string") {
+    // Parse comma-separated string like "2023, 2024" or "FY23, FY24"
+    return fy.split(",").map(s => {
+      const cleaned = s.trim().replace(/^FY/i, "");
+      const num = parseInt(cleaned, 10);
+      // Handle 2-digit years (e.g., 23 -> 2023)
+      if (num < 100) return 2000 + num;
+      return num;
+    }).filter(n => !isNaN(n));
+  }
+  return [];
+};
+
 interface Company {
   id: number;
   name: string;
 }
 
 interface CompanyDocument {
-  id: number;
-  title: string;
+  id: number | string;
+  title?: string;
   display_title?: string;
   file_name?: string;
   file_url?: string;
   file_size?: number;
   folder?: string;
-  financial_years?: number[];
+  financial_years?: number[] | string;
   source?: string;
   company_id?: number;
   company?: Company;
   onedrive_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
-  ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error";
+  ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error" | string;
   ai_suggested_name?: string;
   ai_suggested_folder?: string;
   ai_suggested_type?: string;
-  ai_suggested_fy?: number[];
+  ai_suggested_fy?: number[] | string;
   ai_confidence_score?: number;
   ai_analysis_notes?: string;
 }
@@ -120,7 +137,7 @@ export default function DocumentPreviewModal({
   );
   const [editedFolder, setEditedFolder] = React.useState(initialDocument?.folder || "");
   const [editedFinancialYears, setEditedFinancialYears] = React.useState<number[]>(
-    initialDocument?.financial_years || []
+    parseFinancialYears(initialDocument?.financial_years)
   );
   const [saving, setSaving] = React.useState(false);
 
@@ -134,7 +151,7 @@ export default function DocumentPreviewModal({
     setEditedTitle(initialDocument?.title || "");
     setEditedCompanyId(String(initialDocument?.company_id || initialDocument?.company?.id || ""));
     setEditedFolder(initialDocument?.folder || "");
-    setEditedFinancialYears(initialDocument?.financial_years || []);
+    setEditedFinancialYears(parseFinancialYears(initialDocument?.financial_years));
   }, [initialDocument]);
 
   // Determine file type for preview
@@ -211,7 +228,7 @@ export default function DocumentPreviewModal({
       const response = await api.post<{ success: boolean }>(
         `/api/v1/company_documents/${document.id}/ai_verify`
       );
-      if (response.success) {
+      if (response?.success) {
         // Update document status to processing
         setDocument((prev) => ({ ...prev, ai_verification_status: "processing" }));
       }
@@ -228,7 +245,7 @@ export default function DocumentPreviewModal({
     setEditedTitle(document.title || "");
     setEditedCompanyId(String(document.company_id || document.company?.id || ""));
     setEditedFolder(document.folder || "");
-    setEditedFinancialYears(document.financial_years || []);
+    setEditedFinancialYears(parseFinancialYears(document.financial_years));
     setIsEditing(true);
   };
 
@@ -255,7 +272,7 @@ export default function DocumentPreviewModal({
         }
       );
 
-      if (response.success) {
+      if (response?.success) {
         // Record feedback if there was an AI suggestion (user modified it)
         if (document.ai_suggested_name) {
           try {
@@ -273,7 +290,9 @@ export default function DocumentPreviewModal({
           }
         }
 
-        setDocument(response.document);
+        if (response.document) {
+          setDocument(response.document);
+        }
         setIsEditing(false);
 
         // Refresh parent list
@@ -297,7 +316,7 @@ export default function DocumentPreviewModal({
       const response = await api.post<{ success: boolean; document: CompanyDocument }>(
         `/api/v1/company_documents/${document.id}/apply_ai_suggestion`
       );
-      if (response.success) {
+      if (response?.success && response.document) {
         setDocument(response.document);
         setValidated(true);
 

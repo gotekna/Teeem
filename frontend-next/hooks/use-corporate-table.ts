@@ -285,8 +285,6 @@ function getSingularKey(entityType: CorporateEntityType): string {
       return 'asset';
     case 'directors':
       return 'contact';
-    default:
-      return entityType.replace(/s$/, '');
   }
 }
 

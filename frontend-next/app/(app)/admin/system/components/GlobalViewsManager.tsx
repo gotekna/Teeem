@@ -243,19 +243,17 @@ function SortableViewItem({
         >
           <Pencil className="h-3 w-3" />
         </Button>
-        {view.name !== "Setup" && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-destructive hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
-        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-destructive hover:text-destructive"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
       </div>
     </div>
   );
@@ -1479,10 +1477,20 @@ export function GlobalViewsManager({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="flex flex-col p-0" side="right-full">
           <SheetHeader className="px-6 pt-6 pb-4 border-b">
-            <SheetTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Global Views Manager
-            </SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Global Views Manager
+              </SheetTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onOpenChange(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
             <SheetDescription>
               Create and manage saved views for the Gold Standard table. Global views are shared with all users.
             </SheetDescription>
@@ -1514,7 +1522,7 @@ export function GlobalViewsManager({
                       strategy={verticalListSortingStrategy}
                     >
                       <div className="space-y-2">
-                        {views.filter(v => v.name !== "__default_setup__").map(view => (
+                        {views.map(view => (
                           <SortableViewItem
                             key={view.id}
                             view={view}
@@ -2088,7 +2096,7 @@ export function GlobalViewsManager({
                       Blank View
                     </span>
                   </SelectItem>
-                  {views.filter(v => v.name !== "__default_setup__").map(view => (
+                  {views.map(view => (
                     <SelectItem key={view.id} value={String(view.id)}>
                       <span className="flex items-center gap-2">
                         {view.is_global ? (

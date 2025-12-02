@@ -113,7 +113,9 @@ export default function NewAssetPage() {
       });
 
       // Navigate to the new asset
-      router.push(`/corporate/assets/${response.asset.id}`);
+      if (response?.asset?.id) {
+        router.push(`/corporate/assets/${response.asset.id}`);
+      }
     } catch (err) {
       console.error("Failed to create asset:", err);
       setError("Failed to create asset. Please try again.");

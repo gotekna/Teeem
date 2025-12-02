@@ -31,9 +31,11 @@ export default function AssetsPage() {
     await handleDelete(entry);
   };
 
-  const handleBulkDeleteWithConfirm = async (entries: TableRow[]) => {
-    if (!confirm(`Delete ${entries.length} assets? This cannot be undone.`)) return;
-    await handleBulkDelete(entries);
+  const handleBulkDeleteWithConfirm = async (ids: (string | number)[]) => {
+    if (!confirm(`Delete ${ids.length} assets? This cannot be undone.`)) return;
+    // Convert IDs to entries for the hook's handleBulkDelete
+    const entriesToDelete = assets.filter(a => ids.includes(a.id));
+    await handleBulkDelete(entriesToDelete);
   };
 
   if (isLoading) {

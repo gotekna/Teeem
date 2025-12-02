@@ -1778,9 +1778,8 @@ export default function TeeemTableView({
 
           console.log('[TeeemTableView] Mapped views with autoFitColumns:', mappedViews.map(v => ({ id: v.id, name: v.name, autoFitColumns: v.autoFitColumns, showTotals: v.showTotals })));
 
-          // Filter out __default_setup__ views (internal use only) and sort by display_order
+          // Sort views by display_order
           const filteredViews = mappedViews
-            .filter((v) => v.name !== '__default_setup__')
             .sort((a, b) => {
               // Global views first
               if (a.is_global && !b.is_global) return -1;
