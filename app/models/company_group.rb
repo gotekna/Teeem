@@ -2,6 +2,7 @@ class CompanyGroup < ApplicationRecord
   # Associations
   has_many :companies, dependent: :nullify
   has_many :xero_chart_of_accounts, dependent: :destroy
+  has_many :reconciliation_reports, dependent: :destroy
 
   # Validations
   validates :name, presence: true, uniqueness: true

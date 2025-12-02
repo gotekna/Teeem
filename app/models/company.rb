@@ -16,6 +16,7 @@ class Company < ApplicationRecord
 
   has_many :bank_accounts, dependent: :destroy
   has_many :active_bank_accounts, -> { where(status: 'active') }, class_name: 'BankAccount'
+  has_many :bank_transactions, dependent: :destroy
 
   has_many :assets, dependent: :destroy
   has_many :active_assets, -> { where(status: 'active') }, class_name: 'Asset'
@@ -35,6 +36,10 @@ class Company < ApplicationRecord
   has_many :company_minutes, dependent: :destroy
   has_many :loans_as_lender, class_name: 'CompanyLoan', foreign_key: 'lender_company_id', dependent: :destroy
   has_many :loans_as_borrower, class_name: 'CompanyLoan', foreign_key: 'borrower_company_id', dependent: :destroy
+
+  # Intercompany balances for consolidated financials
+  has_many :intercompany_balances, dependent: :destroy
+  has_many :intercompany_balances_as_related, class_name: 'IntercompanyBalance', foreign_key: 'related_company_id', dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true

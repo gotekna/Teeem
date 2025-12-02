@@ -3,13 +3,13 @@ class CompanyXeroConnection < ApplicationRecord
   belongs_to :company
   has_many :company_xero_accounts, dependent: :destroy
 
-  # Encrypted attributes
+  # Encrypted attributes - Rails 7+ attribute encryption
   encrypts :encrypted_access_token
   encrypts :encrypted_refresh_token
 
   # Validations
   validates :xero_tenant_id, presence: true, uniqueness: true
-  validates :connection_status, inclusion: { in: %w[connected disconnected error] }
+  validates :connection_status, inclusion: { in: %w[connected disconnected error pending] }
 
   # Scopes
   scope :connected, -> { where(connection_status: 'connected') }
@@ -18,7 +18,7 @@ class CompanyXeroConnection < ApplicationRecord
   scope :needs_sync, -> { where('last_sync_at IS NULL OR last_sync_at < ?', 7.days.ago) }
 
   # Callbacks
-  after_create :create_connection_activity
+  after_create :create_connection_activity, if: :connected?
 
   # Instance methods
   def connected?
@@ -30,11 +30,15 @@ class CompanyXeroConnection < ApplicationRecord
   end
 
   def needs_refresh?
+    connected? && token_expired?
+  end
+
+  def expired?
     token_expired?
   end
 
+  # Virtual accessors for tokens (stored in encrypted columns)
   def access_token
-    # Decrypt and return access token
     encrypted_access_token
   end
 
@@ -43,12 +47,26 @@ class CompanyXeroConnection < ApplicationRecord
   end
 
   def refresh_token
-    # Decrypt and return refresh token
     encrypted_refresh_token
   end
 
   def refresh_token=(value)
     self.encrypted_refresh_token = value
+  end
+
+  # Mark as connected with tokens
+  def connect!(access_token:, refresh_token:, expires_at:, tenant_id: nil, tenant_name: nil)
+    update!(
+      encrypted_access_token: access_token,
+      encrypted_refresh_token: refresh_token,
+      token_expires_at: expires_at,
+      xero_tenant_id: tenant_id || xero_tenant_id,
+      xero_tenant_name: tenant_name || xero_tenant_name,
+      connection_status: 'connected',
+      last_sync_error: nil
+    )
+
+    create_connection_activity
   end
 
   def mark_disconnected!(error_message = nil)
@@ -86,9 +104,35 @@ class CompanyXeroConnection < ApplicationRecord
     ((Time.current - last_sync_at) / 1.day).to_i
   end
 
+  # Refresh tokens using XeroApiClient
+  def refresh_tokens!
+    return false unless refresh_token.present?
+
+    client = XeroApiClient.new
+    result = client.refresh_access_token_for_connection(self)
+
+    if result[:success]
+      update!(
+        encrypted_access_token: result[:access_token],
+        encrypted_refresh_token: result[:refresh_token],
+        token_expires_at: result[:expires_at],
+        connection_status: 'connected'
+      )
+      true
+    else
+      mark_error!(result[:error])
+      false
+    end
+  rescue StandardError => e
+    mark_error!(e.message)
+    false
+  end
+
   private
 
   def create_connection_activity
+    return unless company.present?
+
     company.company_activities.create!(
       activity_type: 'xero_connected',
       description: "Xero organization connected: #{xero_tenant_name}",
@@ -96,5 +140,7 @@ class CompanyXeroConnection < ApplicationRecord
       performed_by: Current.user || User.first,
       occurred_at: Time.current
     )
+  rescue StandardError => e
+    Rails.logger.error("Failed to create xero connection activity: #{e.message}")
   end
 end
