@@ -150,6 +150,7 @@ class XeroApiClient
   end
 
   # Check connection status
+  # Will attempt to refresh expired tokens automatically
   def connection_status
     credential = XeroCredential.current
 
@@ -173,6 +174,23 @@ class XeroApiClient
         connected: false,
         message: 'Xero credentials are corrupted. Please reconnect to Xero.'
       }
+    end
+
+    # If token is expired but we have a refresh token, try to refresh
+    if credential.expired? && credential.refresh_token.present?
+      begin
+        Rails.logger.info "[Xero Status] Token expired, attempting refresh..."
+        refresh_access_token_for(credential)
+        credential.reload
+        Rails.logger.info "[Xero Status] Token refreshed successfully"
+      rescue StandardError => e
+        Rails.logger.error "[Xero Status] Token refresh failed: #{e.message}"
+        return {
+          connected: false,
+          message: 'Session expired. Please reconnect to Xero.',
+          error: 'Token refresh failed'
+        }
+      end
     end
 
     {

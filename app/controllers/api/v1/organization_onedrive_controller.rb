@@ -9,10 +9,36 @@ module Api
 
       # GET /api/v1/organization_onedrive/status
       # Check if organization has OneDrive connected
+      # Will attempt to refresh expired tokens automatically
       def status
         credential = OrganizationOneDriveCredential.active_credential
 
-        if credential&.valid_credential?
+        unless credential
+          return render json: {
+            connected: false,
+            message: 'Not connected'
+          }
+        end
+
+        # If token is expired but we have a refresh token, try to refresh
+        if credential.token_expired? && credential.refresh_token.present?
+          begin
+            Rails.logger.info "[OneDrive Status] Token expired, attempting refresh..."
+            client = MicrosoftGraphClient.new(credential)
+            client.refresh_token!
+            credential.reload
+            Rails.logger.info "[OneDrive Status] Token refreshed successfully"
+          rescue StandardError => e
+            Rails.logger.error "[OneDrive Status] Token refresh failed: #{e.message}"
+            return render json: {
+              connected: false,
+              message: 'Session expired. Please reconnect to OneDrive.',
+              error: 'Token refresh failed'
+            }
+          end
+        end
+
+        if credential.valid_credential?
           render json: {
             connected: true,
             drive_id: credential.drive_id,
@@ -22,12 +48,13 @@ module Api
             root_folder_web_url: credential.metadata&.dig('root_folder_web_url'),
             connected_at: credential.created_at,
             connected_by: credential.connected_by&.as_json(only: [:id, :email]),
-            metadata: credential.metadata
+            metadata: credential.metadata,
+            token_expires_at: credential.token_expires_at
           }
         else
           render json: {
             connected: false,
-            message: credential ? 'Credential expired or invalid' : 'Not connected'
+            message: 'Credential expired or invalid'
           }
         end
       end
