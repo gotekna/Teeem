@@ -42,7 +42,6 @@ import {
   Database,
   FileText,
   GitCompare,
-  GitMerge,
   Plus,
   Pencil,
   Settings,
@@ -63,7 +62,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -214,12 +212,6 @@ function GoldStandardDataTab() {
   const [visibleFields, setVisibleFields] = React.useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = React.useState<Record<string, number>>({});
   const [showViewsManager, setShowViewsManager] = React.useState(false);
-
-  // Merge modal state
-  const [showMergeModal, setShowMergeModal] = React.useState(false);
-  const [mergeIds, setMergeIds] = React.useState<(number | string)[]>([]);
-  const [primaryMergeId, setPrimaryMergeId] = React.useState<number | string | null>(null);
-  const [merging, setMerging] = React.useState(false);
 
   // Server search state
   const [serverSearchLoading, setServerSearchLoading] = React.useState(false);
@@ -702,59 +694,6 @@ function GoldStandardDataTab() {
     }
   };
 
-  const handleBulkMerge = (ids: (number | string)[]) => {
-    if (ids.length < 2) {
-      toast({
-        title: "Error",
-        description: "Select at least 2 items to merge",
-        variant: "destructive",
-      });
-      return;
-    }
-    // Open merge modal with selected IDs
-    setMergeIds(ids);
-    setPrimaryMergeId(ids[0]); // Default to first selected
-    setShowMergeModal(true);
-  };
-
-  const handleMergeConfirm = async () => {
-    if (!primaryMergeId) return;
-
-    setMerging(true);
-    try {
-      // Get the secondary IDs (all except primary)
-      const secondaryIds = mergeIds.filter(id => id !== primaryMergeId);
-
-      // Call the merge API
-      await api.post(`/api/v1/gold_standard_table/${primaryMergeId}/merge`, {
-        secondary_ids: secondaryIds,
-      });
-
-      // Refresh data
-      await loadData();
-
-      // Close modal
-      setShowMergeModal(false);
-      setMergeIds([]);
-      setPrimaryMergeId(null);
-      toast({ title: "Success", description: "Items merged successfully" });
-    } catch (error) {
-      console.error("Failed to merge items:", error);
-      toast({
-        title: "Error",
-        description: "Failed to merge items. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setMerging(false);
-    }
-  };
-
-  // Get items for merge modal
-  const mergeItems = React.useMemo(() => {
-    return mergeIds.map(id => entries.find(e => e.id === id)).filter(Boolean) as TableRowType[];
-  }, [mergeIds, entries]);
-
   // Render form field based on column type
   const renderFormField = (col: typeof rawColumns[0]) => {
     const value = formData[col.column_name];
@@ -917,7 +856,6 @@ function GoldStandardDataTab() {
         onEdit={handleOpenEditDialog}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
-        onBulkMerge={handleBulkMerge}
         onRowDoubleClick={handleRowDoubleClick}
         onRowUpdate={handleRowUpdate}
         onServerSearch={handleServerSearch}
@@ -1210,90 +1148,6 @@ function GoldStandardDataTab() {
         onViewsChange={loadData}
         rows={entries}
       />
-
-      {/* Merge Items Modal */}
-      <Dialog open={showMergeModal} onOpenChange={setShowMergeModal}>
-        <DialogContent className="sm:max-w-lg p-6">
-          <DialogHeader className="pb-4">
-            <DialogTitle className="flex items-center gap-2">
-              <GitMerge className="h-5 w-5" />
-              Merge Items
-            </DialogTitle>
-            <DialogDescription>
-              Select the primary item. All data from the other items will be merged into it,
-              and the other items will be deleted.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-2">
-            <Label className="text-sm font-medium mb-3 block">
-              Select Primary Item ({mergeItems.length} items selected)
-            </Label>
-            <RadioGroup
-              value={String(primaryMergeId)}
-              onValueChange={(value) => setPrimaryMergeId(Number(value))}
-              className="space-y-3"
-            >
-              {mergeItems.map((item) => (
-                <div
-                  key={item.id}
-                  className={`flex items-center space-x-3 p-3 rounded-lg border ${
-                    primaryMergeId === item.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  <RadioGroupItem value={String(item.id)} id={`item-${item.id}`} />
-                  <Label
-                    htmlFor={`item-${item.id}`}
-                    className="flex-1 cursor-pointer"
-                  >
-                    <div className="font-medium">Item #{item.id}</div>
-                    <div className="text-sm text-muted-foreground flex gap-4 mt-1">
-                      {'single_line_text' in item && item.single_line_text ? <span>{String(item.single_line_text)}</span> : null}
-                    </div>
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-
-            {mergeItems.length > 1 && primaryMergeId && (
-              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  <strong>Warning:</strong> {mergeItems.length - 1} item(s) will be deleted after merge.
-                  Their data will be merged into the primary item.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="pt-4">
-            <Button
-              variant="outline"
-              onClick={() => setShowMergeModal(false)}
-              disabled={merging}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleMergeConfirm}
-              disabled={!primaryMergeId || merging}
-            >
-              {merging ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Merging...
-                </>
-              ) : (
-                <>
-                  <GitMerge className="h-4 w-4 mr-2" />
-                  Merge Items
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* View Item Dialog (Read-only) */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>

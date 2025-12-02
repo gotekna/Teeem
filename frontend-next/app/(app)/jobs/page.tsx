@@ -12,18 +12,8 @@ import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { Loader } from "@/components/ui/loader";
-import { Plus, Filter, GitMerge } from "lucide-react";
+import { Plus, Filter } from "lucide-react";
 import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 
 interface Job {
   id: number;
@@ -72,12 +62,6 @@ export default function JobsPage() {
   const [showViewsManager, setShowViewsManager] = useState(false);
   const [jobStatuses, setJobStatuses] = useState<JobStatus[]>([]);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
-
-  // Merge modal state
-  const [showMergeModal, setShowMergeModal] = useState(false);
-  const [mergeJobIds, setMergeJobIds] = useState<(number | string)[]>([]);
-  const [primaryJobId, setPrimaryJobId] = useState<number | string | null>(null);
-  const [merging, setMerging] = useState(false);
 
   // Jobs table is foundation ID 204
   const JOBS_TABLE_ID = 204;
@@ -265,46 +249,6 @@ export default function JobsPage() {
     }
   };
 
-  const handleBulkMerge = (ids: (number | string)[]) => {
-    // Open merge modal with selected job IDs
-    setMergeJobIds(ids);
-    setPrimaryJobId(ids[0]); // Default to first selected
-    setShowMergeModal(true);
-  };
-
-  const handleMergeConfirm = async () => {
-    if (!primaryJobId) return;
-
-    setMerging(true);
-    try {
-      // Get the secondary job IDs (all except primary)
-      const secondaryIds = mergeJobIds.filter(id => id !== primaryJobId);
-
-      // Call the merge API
-      await api.post(`/api/v1/jobs/${primaryJobId}/merge`, {
-        secondary_job_ids: secondaryIds,
-      });
-
-      // Refresh jobs list
-      await loadJobs();
-
-      // Close modal
-      setShowMergeModal(false);
-      setMergeJobIds([]);
-      setPrimaryJobId(null);
-    } catch (error) {
-      console.error("Failed to merge jobs:", error);
-      alert("Failed to merge jobs. Please try again.");
-    } finally {
-      setMerging(false);
-    }
-  };
-
-  // Get job details for merge modal
-  const mergeJobs = useMemo(() => {
-    return mergeJobIds.map(id => jobs.find(j => j.id === id)).filter(Boolean) as Job[];
-  }, [mergeJobIds, jobs]);
-
   const handleRowUpdate = async (rowId: number | string, field: string, value: unknown) => {
     try {
       await api.patch(`/api/v1/jobs/${rowId}`, { job: { [field]: value } });
@@ -395,7 +339,6 @@ export default function JobsPage() {
           onEdit={handleEdit}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
-          onBulkMerge={handleBulkMerge}
           onRowDoubleClick={handleRowDoubleClick}
           onRowUpdate={handleRowUpdate}
           onServerSearch={handleServerSearch}
@@ -442,92 +385,6 @@ export default function JobsPage() {
         onViewsChange={() => loadJobs()}
         rows={tableRows}
       />
-
-      {/* Merge Jobs Modal */}
-      <Dialog open={showMergeModal} onOpenChange={setShowMergeModal}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <GitMerge className="h-5 w-5" />
-              Merge Jobs
-            </DialogTitle>
-            <DialogDescription>
-              Select the primary job. All data from the other jobs will be merged into it,
-              and the other jobs will be deleted.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            <Label className="text-sm font-medium mb-3 block">
-              Select Primary Job ({mergeJobs.length} jobs selected)
-            </Label>
-            <RadioGroup
-              value={String(primaryJobId)}
-              onValueChange={(value) => setPrimaryJobId(Number(value))}
-              className="space-y-3"
-            >
-              {mergeJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className={`flex items-center space-x-3 p-3 rounded-lg border ${
-                    primaryJobId === job.id
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:bg-muted/50"
-                  }`}
-                >
-                  <RadioGroupItem value={String(job.id)} id={`job-${job.id}`} />
-                  <Label
-                    htmlFor={`job-${job.id}`}
-                    className="flex-1 cursor-pointer"
-                  >
-                    <div className="font-medium">{job.title || `Job #${job.id}`}</div>
-                    <div className="text-sm text-muted-foreground flex gap-4 mt-1">
-                      {job.ted_number && <span>TED: {job.ted_number}</span>}
-                      {job.job_type && <span>{String(job.job_type)}</span>}
-                      {job.job_status && <span>{String(job.job_status)}</span>}
-                    </div>
-                  </Label>
-                </div>
-              ))}
-            </RadioGroup>
-
-            {mergeJobs.length > 1 && primaryJobId && (
-              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
-                <p className="text-sm text-amber-800 dark:text-amber-200">
-                  <strong>Warning:</strong> {mergeJobs.length - 1} job(s) will be deleted after merge.
-                  Their linked records (quotes, tasks, etc.) will be transferred to the primary job.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowMergeModal(false)}
-              disabled={merging}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleMergeConfirm}
-              disabled={!primaryJobId || merging}
-            >
-              {merging ? (
-                <>
-                  <Loader className="h-4 w-4 mr-2 animate-spin" />
-                  Merging...
-                </>
-              ) : (
-                <>
-                  <GitMerge className="h-4 w-4 mr-2" />
-                  Merge Jobs
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
