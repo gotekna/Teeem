@@ -392,6 +392,31 @@ module Api
               json[key] = value
             end
           end
+
+          # Expand _id columns to include display value for lookup columns
+          # e.g., job_type_id => { id: 1, display: "Residential" }
+          record.attributes.keys.select { |k| k.to_s.end_with?('_id') && k != 'id' }.each do |id_column|
+            association_name = id_column.to_s.sub(/_id$/, '')
+            if record.respond_to?(association_name)
+              begin
+                related = record.send(association_name)
+                if related
+                  # Find display column - prefer name, then title, then first string column
+                  display_value = if related.respond_to?(:name)
+                    related.name
+                  elsif related.respond_to?(:title)
+                    related.title
+                  else
+                    related.id.to_s
+                  end
+                  json[id_column] = { id: json[id_column], display: display_value }
+                end
+              rescue => e
+                Rails.logger.warn "Error expanding #{association_name}: #{e.message}"
+              end
+            end
+          end
+
           return json
         end
 
