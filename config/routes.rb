@@ -991,6 +991,9 @@ Rails.application.routes.draw do
       resources :tables, controller: 'foundations', only: [:index, :show, :create, :update, :destroy]
 
       resources :foundations do
+        collection do
+          get :table_ids  # GET /api/v1/foundations/table_ids - Key table ID mappings for frontend
+        end
         member do
           get :health  # GET /api/v1/foundations/:id/health - Health checks for this table
           get :schema  # GET /api/v1/foundations/:id/schema - Column schema for this table
