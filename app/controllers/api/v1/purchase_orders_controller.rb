@@ -54,7 +54,7 @@ module Api
         render json: {
           purchase_orders: @purchase_orders.as_json(
             include: {
-              supplier: { only: [:id, :name] },
+              supplier: { only: [:id, :full_name], methods: [:display_name] },
               job: {
                 only: [:id, :title],
                 methods: [:site_supervisor_info]
@@ -82,7 +82,7 @@ module Api
         render json: {
           **@purchase_order.as_json(
             include: {
-              supplier: { only: [:id, :name, :contact_person, :email, :phone, :address] },
+              supplier: { only: [:id, :full_name, :email, :phone, :address], methods: [:display_name] },
               job: {
                 only: [:id, :title],
                 methods: [:site_supervisor_info]
@@ -110,9 +110,17 @@ module Api
       # POST /api/v1/purchase_orders
       def create
         schedule_task_id = params[:purchase_order][:schedule_task_id]
-        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id))
+        task_template_id = params[:purchase_order][:task_template_id]
+        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id, :task_template_id))
 
         ActiveRecord::Base.transaction do
+          # If task_template_id provided, use it to populate description
+          if task_template_id.present?
+            task_template = TaskTemplate.find(task_template_id)
+            @purchase_order.description ||= task_template.name
+            @purchase_order.ted_task ||= task_template.category
+          end
+
           if @purchase_order.save
             # Link schedule task to this PO if provided
             if schedule_task_id.present?
@@ -125,8 +133,8 @@ module Api
             render json: { errors: @purchase_order.errors.full_messages }, status: :unprocessable_entity
           end
         end
-      rescue ActiveRecord::RecordNotFound
-        render json: { errors: ['Schedule task not found'] }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { errors: ["#{e.model || 'Record'} not found"] }, status: :unprocessable_entity
       rescue => e
         render json: { errors: [e.message] }, status: :unprocessable_entity
       end
