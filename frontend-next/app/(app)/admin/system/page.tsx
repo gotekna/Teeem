@@ -45,7 +45,6 @@ import { SecurityTab } from "./components/SecurityTab";
 import { PermissionsTab } from "./components/PermissionsTab";
 import { CorporateTab } from "./components/CorporateTab";
 import { HolidaysTab } from "./components/HolidaysTab";
-import { ConnectionsTab } from "./components/ConnectionsTab";
 import { XeroTab } from "./components/XeroTab";
 import { ContactRolesTab } from "./components/ContactRolesTab";
 import { WorkflowsTab } from "./components/WorkflowsTab";
@@ -103,7 +102,6 @@ const COMPANY_TABS = [
   { id: "permissions", label: "Permissions" },
   { id: "corporate", label: "Corporate" },
   { id: "holidays", label: "Holidays" },
-  { id: "connections", label: "Connections" },
   { id: "xero", label: "Xero" },
   { id: "contact-roles", label: "Contact Roles" },
   { id: "workflows", label: "Workflows" },
@@ -388,9 +386,6 @@ function CompanySettingsTab() {
           </TabsContent>
           <TabsContent value="holidays">
             <HolidaysTab />
-          </TabsContent>
-          <TabsContent value="connections">
-            <ConnectionsTab />
           </TabsContent>
           <TabsContent value="xero">
             <XeroTab />
