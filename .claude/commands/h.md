@@ -57,16 +57,15 @@ wait
 rm -f latest.dump
 
 # Step 5: Restart local servers
-# Kill existing backend (Rails) server
+# Kill existing frontend (Next.js on port 3000) and backend (Rails on port 3001)
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
-# Kill existing frontend (Vite) server
-lsof -ti:5173 | xargs kill -9 2>/dev/null || true
+lsof -ti:3001 | xargs kill -9 2>/dev/null || true
 
-# Start backend server
-cd /Users/robertharder/GitHub/teeem/backend && bin/rails server &
+# Start backend server on port 3001
+cd /Users/robertharder/GitHub/teeem/backend && bin/rails server -p 3001 &
 
-# Start frontend server
-cd /Users/robertharder/GitHub/teeem/frontend && npm run dev &
+# Start frontend server (Next.js)
+cd /Users/robertharder/GitHub/teeem/frontend-next && npm run dev &
 
 echo "✅ Database synced and servers restarted"
 ```
@@ -80,4 +79,4 @@ echo "✅ Database synced and servers restarted"
 | 3a | local file | teeem_development | `pg_restore` |
 | 3b | Heroku backup URL | teeem-rob-dev | `pg:restore` |
 | 4 | - | - | Clean up dump file |
-| 5 | - | localhost:3000 + 5173 | Restart Rails + Vite |
+| 5 | - | localhost:3000 + 3001 | Restart Next.js + Rails |

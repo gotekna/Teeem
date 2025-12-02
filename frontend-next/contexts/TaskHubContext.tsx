@@ -120,8 +120,8 @@ const defaultFilters: TaskFilters = {
   showOverdueOnly: false,
 };
 
-// Mock data for development testing
-const USE_MOCK_DATA = process.env.NODE_ENV === 'development';
+// Mock data for development testing - DISABLED to avoid confusion with real data
+const USE_MOCK_DATA = false;
 
 const generateMockTasks = (currentUserId?: number): SmTask[] => {
   const today = new Date();

@@ -26,6 +26,7 @@ import React, {
   useRef,
   useCallback,
   memo,
+  startTransition,
 } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -1823,7 +1824,7 @@ export default function TeeemTableView({
     loadSavedViews();
   }, [foundationIdNumeric, preloadedViews]);
 
-  // Load view state helper
+  // Load view state helper - uses startTransition for non-urgent updates to avoid blocking UI
   const loadViewState = useCallback(
     (view: SavedView) => {
       // Helper to ensure filters have unique ids
@@ -1833,78 +1834,79 @@ export default function TeeemTableView({
           id: f.id || `filter_${Date.now()}_${idx}`,
         }));
 
-      // Handle filters - may be array (legacy) or object with cascadeFilters (current)
-      if (view.filters) {
-        if (Array.isArray(view.filters)) {
-          setCascadeFilters(ensureFilterIds(view.filters));
-        } else if (typeof view.filters === 'object' && view.filters !== null) {
-          // New format: filters is an object containing cascadeFilters
-          const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
-          if (Array.isArray(filtersObj.cascadeFilters)) {
-            setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
-          }
-          if (Array.isArray(filtersObj.filterGroups)) {
-            setFilterGroups(filtersObj.filterGroups);
-          }
-          if (filtersObj.interGroupLogic) {
-            setInterGroupLogic(filtersObj.interGroupLogic);
+      // Wrap all state updates in startTransition to mark them as non-urgent
+      // This allows React to interrupt the update if user interacts again
+      startTransition(() => {
+        // Handle filters - may be array (legacy) or object with cascadeFilters (current)
+        if (view.filters) {
+          if (Array.isArray(view.filters)) {
+            setCascadeFilters(ensureFilterIds(view.filters));
+          } else if (typeof view.filters === 'object' && view.filters !== null) {
+            // New format: filters is an object containing cascadeFilters
+            const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
+            if (Array.isArray(filtersObj.cascadeFilters)) {
+              setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
+            }
+            if (Array.isArray(filtersObj.filterGroups)) {
+              setFilterGroups(filtersObj.filterGroups);
+            }
+            if (filtersObj.interGroupLogic) {
+              setInterGroupLogic(filtersObj.interGroupLogic);
+            }
           }
         }
-      }
-      // Legacy support for separate filterGroups field
-      if (view.filterGroups) {
-        setFilterGroups(view.filterGroups);
-      }
-      if (view.interGroupLogic) {
-        setInterGroupLogic(view.interGroupLogic);
-      }
-      if (view.visibleColumns) {
-        console.log('[TeeemTableView] loadViewState setting visibleColumns:', view.visibleColumns);
-        setVisibleColumns(view.visibleColumns);
-      }
-      if (view.columnOrder) {
-        console.log('[TeeemTableView] loadViewState setting columnOrder:', view.columnOrder);
-        setColumnOrder(view.columnOrder);
-      }
-      // Only load saved column widths if auto-fit is NOT enabled
-      // Check both direct property and columns object (API format varies)
-      const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
-      const viewAutoFit = view.autoFitColumns === true ||
-        (viewAny.columns && viewAny.columns.autoFitColumns === true);
-      if (view.columnWidths && !viewAutoFit) {
-        setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
-      }
-      if (view.sortColumns) {
-        setSortColumns(view.sortColumns);
-      }
-      if (view.groupByColumns) {
-        setGroupByColumns(view.groupByColumns);
-        setGroupByColumn(view.groupByColumns[0] || null);
-      } else if (view.groupByColumn) {
-        setGroupByColumn(view.groupByColumn);
-        setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
-      }
-      // Handle showTotals - check both direct property and columns object
-      if (typeof view.showTotals === 'boolean') {
-        setShowTotals(view.showTotals);
-      } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
-        setShowTotals(viewAny.columns.showTotals);
-      }
-      // Handle autoFitColumns - check both direct property and columns object
-      console.log('[TeeemTableView] loadViewState autoFitColumns check:', { viewAutoFitColumns: view.autoFitColumns, columnsAutoFitColumns: viewAny.columns?.autoFitColumns });
-      if (typeof view.autoFitColumns === 'boolean') {
-        console.log('[TeeemTableView] Setting autoFitColumns from view.autoFitColumns:', view.autoFitColumns);
-        setAutoFitColumns(view.autoFitColumns);
-      } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
-        console.log('[TeeemTableView] Setting autoFitColumns from view.columns.autoFitColumns:', viewAny.columns.autoFitColumns);
-        setAutoFitColumns(viewAny.columns.autoFitColumns);
-      }
-      // Hide filter editor when loading a saved view (user can click Filters button to show)
-      setShowFilters(false);
-      if (view.id) {
-        setActiveViewId(view.id);
+        // Legacy support for separate filterGroups field
+        if (view.filterGroups) {
+          setFilterGroups(view.filterGroups);
+        }
+        if (view.interGroupLogic) {
+          setInterGroupLogic(view.interGroupLogic);
+        }
+        if (view.visibleColumns) {
+          setVisibleColumns(view.visibleColumns);
+        }
+        if (view.columnOrder) {
+          setColumnOrder(view.columnOrder);
+        }
+        // Only load saved column widths if auto-fit is NOT enabled
+        // Check both direct property and columns object (API format varies)
+        const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
+        const viewAutoFit = view.autoFitColumns === true ||
+          (viewAny.columns && viewAny.columns.autoFitColumns === true);
+        if (view.columnWidths && !viewAutoFit) {
+          setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
+        }
+        if (view.sortColumns) {
+          setSortColumns(view.sortColumns);
+        }
+        if (view.groupByColumns) {
+          setGroupByColumns(view.groupByColumns);
+          setGroupByColumn(view.groupByColumns[0] || null);
+        } else if (view.groupByColumn) {
+          setGroupByColumn(view.groupByColumn);
+          setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
+        }
+        // Handle showTotals - check both direct property and columns object
+        if (typeof view.showTotals === 'boolean') {
+          setShowTotals(view.showTotals);
+        } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
+          setShowTotals(viewAny.columns.showTotals);
+        }
+        // Handle autoFitColumns - check both direct property and columns object
+        if (typeof view.autoFitColumns === 'boolean') {
+          setAutoFitColumns(view.autoFitColumns);
+        } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
+          setAutoFitColumns(viewAny.columns.autoFitColumns);
+        }
+        // Hide filter editor when loading a saved view (user can click Filters button to show)
+        setShowFilters(false);
+        if (view.id) {
+          setActiveViewId(view.id);
+        }
+      });
 
-        // Update URL with view parameter for persistence
+      // URL update is kept outside startTransition as it's a side effect
+      if (view.id) {
         const currentParams = new URLSearchParams(searchParams.toString());
         currentParams.set('view', String(view.id));
         const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
@@ -1999,22 +2001,22 @@ export default function TeeemTableView({
   // FILTERING & SORTING
   // ============================================================================
 
+  // Extract display value from lookup objects (e.g., { id: 1, name: "House" } -> "House")
+  // Memoized outside evaluateFilter for performance
+  const getFilterDisplayValue = useCallback((val: unknown): unknown => {
+    if (typeof val === 'object' && val !== null) {
+      const obj = val as { display?: string; name?: string; id?: number };
+      return obj.display || obj.name || obj.id;
+    }
+    return val;
+  }, []);
+
   // Evaluate a single filter against an entry
   const evaluateFilter = useCallback(
     (entry: TableRowType, filter: CascadeFilter): boolean => {
       const rawValue = entry[filter.column];
       const filterValue = filter.value;
-
-      // Extract display value from lookup objects (e.g., { id: 1, name: "House" } -> "House")
-      const getDisplayValue = (val: unknown): unknown => {
-        if (typeof val === 'object' && val !== null) {
-          const obj = val as { display?: string; name?: string; id?: number };
-          return obj.display || obj.name || obj.id;
-        }
-        return val;
-      };
-
-      const value = getDisplayValue(rawValue);
+      const value = getFilterDisplayValue(rawValue);
 
       switch (filter.operator) {
         case "=":
@@ -2053,7 +2055,7 @@ export default function TeeemTableView({
           return true;
       }
     },
-    []
+    [getFilterDisplayValue]
   );
 
   // Filter and sort entries
@@ -2075,23 +2077,25 @@ export default function TeeemTableView({
 
     // Apply cascade filters
     if (safeFilters.length > 0) {
+      // Pre-compute filter groups ONCE outside the row loop (performance optimization)
+      const filtersByGroup = safeFilters.reduce((acc, filter) => {
+        const groupId = filter.groupId || "default";
+        if (!acc[groupId]) acc[groupId] = [];
+        acc[groupId].push(filter);
+        return acc;
+      }, {} as Record<string, CascadeFilter[]>);
+
+      // Pre-compute group logic map for O(1) lookup
+      const groupLogicMap = new Map(filterGroups.map(g => [g.id, g.logic]));
+      const groupEntries = Object.entries(filtersByGroup);
+
       result = result.filter((entry) => {
-        // Group filters by groupId
-        const filtersByGroup = safeFilters.reduce((acc, filter) => {
-          const groupId = filter.groupId || "default";
-          if (!acc[groupId]) acc[groupId] = [];
-          acc[groupId].push(filter);
-          return acc;
-        }, {} as Record<string, CascadeFilter[]>);
-
         // Evaluate each group
-        const groupResults = Object.entries(filtersByGroup).map(
+        const groupResults = groupEntries.map(
           ([groupId, filters]) => {
-            const group = filterGroups.find((g) => g.id === groupId) || {
-              logic: "AND",
-            };
+            const logic = groupLogicMap.get(groupId) || "AND";
 
-            if (group.logic === "AND") {
+            if (logic === "AND") {
               return filters.every((filter) => evaluateFilter(entry, filter));
             } else {
               return filters.some((filter) => evaluateFilter(entry, filter));

@@ -1744,6 +1744,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_220046) do
     t.decimal "profit_percentage", precision: 10, scale: 2
     t.string "stage"
     t.string "ted_number"
+    t.string "certifier_job_no"
     t.date "start_date"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1752,6 +1753,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_220046) do
     t.string "site_supervisor_email"
     t.string "site_supervisor_phone", default: "0407 150 081"
     t.bigint "design_id"
+    t.string "design_name"
     t.datetime "onedrive_folders_created_at"
     t.string "onedrive_folder_creation_status", default: "not_requested"
     t.decimal "latitude", precision: 10, scale: 6
@@ -1764,6 +1766,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_220046) do
     t.string "xero_tracking_option_name"
     t.index ["created_at"], name: "index_jobs_on_created_at"
     t.index ["design_id"], name: "index_jobs_on_design_id"
+    t.index ["design_name"], name: "index_jobs_on_design_name"
     t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
