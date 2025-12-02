@@ -1,6 +1,7 @@
 module Api
   module V1
     class JobStatusController < ApplicationController
+      skip_before_action :authorize_request, only: [:index]
       before_action :set_job_status, only: [:show, :update, :destroy]
 
       # GET /api/v1/job_statuses
