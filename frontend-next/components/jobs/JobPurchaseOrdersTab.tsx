@@ -108,8 +108,8 @@ function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
     currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 
@@ -258,7 +258,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   });
 
   // Stats
-  const totalValue = purchaseOrders.reduce((sum, po) => sum + (po.total || 0), 0);
+  const totalValue = purchaseOrders.reduce((sum, po) => sum + (Number(po.total) || 0), 0);
   const draftCount = purchaseOrders.filter((po) => po.status === "draft").length;
   const pendingCount = purchaseOrders.filter((po) => po.status === "pending").length;
 
@@ -420,7 +420,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {formatCurrency(po.total || 0)}
+                      {formatCurrency(Number(po.total) || 0)}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
