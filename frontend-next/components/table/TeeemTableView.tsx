@@ -157,6 +157,7 @@ import {
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumnTypeValidationRules, COLUMN_TYPES } from "@/lib/column-types";
 import { DataHealthWidget } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
+import { MergeModal } from "./MergeModal";
 
 // ============================================================================
 // SUBCOMPONENTS
@@ -707,6 +708,9 @@ export default function TeeemTableView({
   onBulkDelete,
   onBulkEdit,
   onBulkMerge,
+  enableMerge,
+  mergeDisplayColumn = "name",
+  mergeSecondaryColumns = [],
   onView,
   onRowDoubleClick,
   onRowClick,
@@ -740,6 +744,7 @@ export default function TeeemTableView({
   loadingMore = false,
   showDataHealth = false,
   onDataHealthIssueClick,
+  initialShowTotals = true,
   stats,
   category,
 }: TeeemTableViewProps) {
@@ -841,15 +846,20 @@ export default function TeeemTableView({
   );
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
-  const [showTotals, setShowTotals] = useState(true); // Show column totals in footer
+  const [showTotals, setShowTotals] = useState(initialShowTotals); // Show column totals in footer
   const [autoFitColumns, setAutoFitColumns] = useState(false); // Auto-fit column widths to content
-  const [editingRowId, setEditingRowId] = useState<number | string | null>(null);
-  const [editingData, setEditingData] = useState<Record<string, unknown>>({});
+  const [editingRowIds, setEditingRowIds] = useState<Set<number | string>>(new Set()); // Multi-row editing
+  const [editingData, setEditingData] = useState<Record<string | number, Record<string, unknown>>>({}); // keyed by row id
+  const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({}); // {rowId: {columnKey: errorMessage}}
   // Cell-level inline editing state (for single-click dropdown, double-click text)
   const [editingCell, setEditingCell] = useState<{ rowId: number | string; columnKey: string } | null>(null);
   const [editingCellValue, setEditingCellValue] = useState<unknown>(null);
   const [lookupOptions, setLookupOptions] = useState<Record<string, Array<{ id: number; display: string }>>>({});
   const [lookupLoading, setLookupLoading] = useState<Record<string, boolean>>({});
+
+  // Merge modal state (shared across all tables)
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSelectedIds, setMergeSelectedIds] = useState<(string | number)[]>([]);
 
   // Filter panel state
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
@@ -1051,6 +1061,30 @@ export default function TeeemTableView({
     }
   }, [selectedRows.size]);
 
+  // Merge handler - opens the shared merge modal
+  const handleMergeClick = useCallback((ids: (number | string)[]) => {
+    // If onBulkMerge is provided, use that (backward compatibility)
+    if (onBulkMerge) {
+      onBulkMerge(ids);
+      return;
+    }
+    // Otherwise, use built-in merge modal if enabled
+    if (enableMerge !== false && foundationIdNumeric) {
+      setMergeSelectedIds(ids);
+      setShowMergeModal(true);
+    }
+  }, [onBulkMerge, enableMerge, foundationIdNumeric]);
+
+  // Called when merge completes successfully
+  const handleMergeComplete = useCallback(() => {
+    setMergeSelectedIds([]);
+    setSelectedRows(new Set());
+    // Refresh data
+    if (onRefresh) {
+      onRefresh();
+    }
+  }, [onRefresh]);
+
   // Group handlers
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev) => {
@@ -1122,10 +1156,10 @@ export default function TeeemTableView({
     }
   }, [lookupOptions]);
 
-  // Inline editing handlers
+  // Inline editing handlers - supports single or multiple rows
   const startEditing = useCallback((row: TableRowType) => {
-    setEditingRowId(row.id);
-    setEditingData({ ...row });
+    setEditingRowIds(new Set([row.id]));
+    setEditingData({ [row.id]: { ...row } });
 
     // Pre-fetch lookup options for lookup columns
     console.log('[startEditing] Checking columns for lookup options...');
@@ -1141,31 +1175,242 @@ export default function TeeemTableView({
     });
   }, [COLUMNS, fetchLookupOptions]);
 
+  // Start editing multiple rows at once
+  const startMultiEditing = useCallback((rowIds: (number | string)[]) => {
+    const newEditingData: Record<string | number, Record<string, unknown>> = {};
+    rowIds.forEach(id => {
+      const row = entries.find(e => e.id === id);
+      if (row) {
+        newEditingData[id] = { ...row };
+      }
+    });
+    setEditingRowIds(new Set(rowIds));
+    setEditingData(newEditingData);
+
+    // Pre-fetch lookup options for lookup columns
+    COLUMNS.forEach(col => {
+      if (col.column_type === 'lookup' || col.column_type === 'relation') {
+        if (col.lookup_config?.target_table_id) {
+          fetchLookupOptions(col);
+        }
+      }
+    });
+  }, [COLUMNS, entries, fetchLookupOptions]);
+
   const cancelEditing = useCallback(() => {
-    setEditingRowId(null);
+    setEditingRowIds(new Set());
     setEditingData({});
+    setValidationErrors({});
   }, []);
 
+  // Validate a single cell value based on column type
+  const validateCell = useCallback((columnKey: string, value: unknown, columnType?: string): string | null => {
+    // Skip validation for empty values (they're optional)
+    if (value === null || value === undefined || value === '') return null;
+
+    const strValue = String(value);
+
+    switch (columnType) {
+      case 'email':
+        // Basic email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(strValue)) {
+          return 'Invalid email address';
+        }
+        break;
+
+      case 'phone':
+      case 'mobile':
+        // Phone validation - allow digits, spaces, dashes, parentheses, plus
+        // Must have at least 8 digits for Australian numbers
+        const phoneRegex = /^[\d\s\-\(\)\+]+$/;
+        if (strValue && !phoneRegex.test(strValue)) {
+          return 'Invalid phone number';
+        }
+        // Count actual digits
+        const digitCount = strValue.replace(/\D/g, '').length;
+        if (digitCount > 0 && digitCount < 8) {
+          return 'Phone must have at least 8 digits';
+        }
+        break;
+
+      case 'url':
+        // Basic URL validation
+        try {
+          new URL(strValue);
+        } catch {
+          return 'Invalid URL';
+        }
+        break;
+
+      case 'number':
+      case 'currency':
+        if (strValue && isNaN(Number(strValue))) {
+          return 'Must be a number';
+        }
+        if (Number(strValue) < 0) {
+          return 'Must be 0 or greater';
+        }
+        break;
+
+      case 'percentage':
+        if (strValue && isNaN(Number(strValue))) {
+          return 'Must be a number';
+        }
+        const pctVal = Number(strValue);
+        if (pctVal < 0 || pctVal > 100) {
+          return 'Must be between 0 and 100';
+        }
+        break;
+
+      case 'whole_number':
+        if (strValue && isNaN(Number(strValue))) {
+          return 'Must be a number';
+        }
+        if (!Number.isInteger(Number(strValue))) {
+          return 'Must be a whole number';
+        }
+        if (Number(strValue) < 0) {
+          return 'Must be 0 or greater';
+        }
+        break;
+
+      case 'gps_coordinates':
+        // Format: latitude,longitude (e.g., -33.8688,151.2093)
+        if (strValue && !/^-?\d+\.?\d*,-?\d+\.?\d*$/.test(strValue)) {
+          return 'Must be format: latitude,longitude';
+        }
+        break;
+
+      case 'color_picker':
+        // Hex color format: #XXXXXX
+        if (strValue && !/^#[0-9A-Fa-f]{6}$/.test(strValue)) {
+          return 'Must be hex color (e.g., #FF0000)';
+        }
+        break;
+
+      case 'bank_account':
+        // Australian bank account - 6 to 10 digits
+        const bankClean = strValue.replace(/[\s\-]/g, '');
+        if (bankClean && !/^\d{6,10}$/.test(bankClean)) {
+          return 'Account must be 6-10 digits';
+        }
+        break;
+
+      case 'abn':
+        // Australian Business Number - 11 digits
+        const abnClean = strValue.replace(/\s/g, '');
+        if (abnClean && (!/^\d{11}$/.test(abnClean))) {
+          return 'ABN must be 11 digits';
+        }
+        break;
+
+      case 'acn':
+        // Australian Company Number - 9 digits
+        const acnClean = strValue.replace(/\s/g, '');
+        if (acnClean && (!/^\d{9}$/.test(acnClean))) {
+          return 'ACN must be 9 digits';
+        }
+        break;
+
+      case 'bsb':
+        // BSB - 6 digits (often formatted as XXX-XXX)
+        const bsbClean = strValue.replace(/[\s\-]/g, '');
+        if (bsbClean && (!/^\d{6}$/.test(bsbClean))) {
+          return 'BSB must be 6 digits';
+        }
+        break;
+
+      case 'postcode':
+        // Australian postcode - 4 digits
+        if (strValue && (!/^\d{4}$/.test(strValue))) {
+          return 'Postcode must be 4 digits';
+        }
+        break;
+
+      case 'tfn':
+        // Tax File Number - 8 or 9 digits
+        const tfnClean = strValue.replace(/\s/g, '');
+        if (tfnClean && (!/^\d{8,9}$/.test(tfnClean))) {
+          return 'TFN must be 8-9 digits';
+        }
+        break;
+    }
+
+    return null;
+  }, []);
+
+  // Validate a cell and update validation errors state
+  const handleCellBlur = useCallback((rowId: number | string, columnKey: string, value: unknown, columnType?: string) => {
+    const error = validateCell(columnKey, value, columnType);
+
+    setValidationErrors(prev => {
+      const rowErrors: Record<string, string> = prev[rowId] ? { ...prev[rowId] } : {};
+
+      if (error) {
+        rowErrors[columnKey] = error;
+      } else {
+        delete rowErrors[columnKey];
+      }
+
+      // If no errors for this row, remove the row entry
+      if (Object.keys(rowErrors).length === 0) {
+        const { [rowId]: _, ...rest } = prev;
+        return rest;
+      }
+
+      return { ...prev, [rowId]: rowErrors };
+    });
+  }, [validateCell]);
+
   const saveEditing = useCallback(async () => {
-    if (!editingRowId || !onRowUpdate) return;
+    if (editingRowIds.size === 0 || !onRowUpdate) return;
+
+    // Check for validation errors before saving
+    const errorCount = Object.values(validationErrors).reduce(
+      (count, rowErrors) => count + Object.keys(rowErrors).length,
+      0
+    );
+    if (errorCount > 0) {
+      toast({
+        title: "Cannot save",
+        description: `Please fix ${errorCount} validation error${errorCount !== 1 ? "s" : ""} first`,
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
-      // Call onRowUpdate for each changed field
-      const originalRow = entries.find((e) => e.id === editingRowId);
-      if (!originalRow) return;
+      // Save each edited row
+      for (const rowId of editingRowIds) {
+        const originalRow = entries.find((e) => e.id === rowId);
+        const rowData = editingData[rowId];
+        if (!originalRow || !rowData) continue;
 
-      for (const [key, value] of Object.entries(editingData)) {
-        if (originalRow[key] !== value) {
-          await onRowUpdate(editingRowId, key, value);
+        for (const [key, value] of Object.entries(rowData)) {
+          if (originalRow[key] !== value) {
+            await onRowUpdate(rowId, key, value);
+          }
         }
       }
 
-      setEditingRowId(null);
+      setEditingRowIds(new Set());
       setEditingData({});
+      setValidationErrors({});
+      toast({
+        title: "Saved",
+        description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
+      });
     } catch (error) {
       console.error("Failed to save:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      toast({
+        title: "Save failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
     }
-  }, [editingRowId, editingData, entries, onRowUpdate]);
+  }, [editingRowIds, editingData, entries, onRowUpdate, toast, validationErrors]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
@@ -1459,7 +1704,9 @@ export default function TeeemTableView({
         if (data.success && data.views) {
           // Map API format to frontend format and filter/sort
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mappedViews = (data.views as any[]).map((v) => ({
+          const mappedViews = (data.views as any[]).map((v) => {
+            console.log('[TeeemTableView] View raw data:', { id: v.id, name: v.name, columns: v.columns, visibleColumns: v.visibleColumns });
+            return {
             ...v,
             // Map columns.visible to visibleColumns (API format -> frontend format)
             visibleColumns: v.columns?.visible || v.visibleColumns || {},
@@ -1474,7 +1721,8 @@ export default function TeeemTableView({
             // Map sort and group
             sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
             groupByColumns: v.group_by_columns || v.groupByColumns || [],
-          })) as SavedView[];
+          };
+          }) as SavedView[];
 
           console.log('[TeeemTableView] Mapped views with autoFitColumns:', mappedViews.map(v => ({ id: v.id, name: v.name, autoFitColumns: v.autoFitColumns, showTotals: v.showTotals })));
 
@@ -1560,9 +1808,11 @@ export default function TeeemTableView({
         setInterGroupLogic(view.interGroupLogic);
       }
       if (view.visibleColumns) {
+        console.log('[TeeemTableView] loadViewState setting visibleColumns:', view.visibleColumns);
         setVisibleColumns(view.visibleColumns);
       }
       if (view.columnOrder) {
+        console.log('[TeeemTableView] loadViewState setting columnOrder:', view.columnOrder);
         setColumnOrder(view.columnOrder);
       }
       // Only load saved column widths if auto-fit is NOT enabled
@@ -2190,7 +2440,8 @@ export default function TeeemTableView({
       }
 
       const value = entry[column.key];
-      const isEditing = editingRowId === entry.id;
+      const isEditing = editingRowIds.has(entry.id);
+      const rowEditingData = editingData[entry.id] || {};
 
       // Handle special column types
       switch (column.key) {
@@ -2219,17 +2470,18 @@ export default function TeeemTableView({
             );
           }
           return (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center justify-center gap-0">
               {onView && (
-                <Button variant="ghost" size="sm" onClick={() => onView(entry)}>
-                  <Eye className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onView(entry)}>
+                  <Eye className="h-3.5 w-3.5" />
                 </Button>
               )}
               {/* Edit button: inline edit if single row, bulk edit modal if multiple selected */}
               {!viewOnly && (onRowUpdate || onEdit) && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={(e) => {
                     e.stopPropagation();
                     // If multiple rows selected, open bulk edit dialog
@@ -2246,16 +2498,17 @@ export default function TeeemTableView({
                   }}
                   onDoubleClick={(e) => e.stopPropagation()}
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="h-3.5 w-3.5" />
                 </Button>
               )}
               {!viewOnly && onDelete && (
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  className="h-7 w-7"
                   onClick={() => onDelete(entry)}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               )}
             </div>
@@ -2274,7 +2527,7 @@ export default function TeeemTableView({
 
         // Boolean - Switch toggle
         if (columnType === 'boolean') {
-          const boolValue = editingData[column.key] === true || editingData[column.key] === 'true' || editingData[column.key] === 1;
+          const boolValue = rowEditingData[column.key] === true || rowEditingData[column.key] === 'true' || rowEditingData[column.key] === 1;
           return (
             <div className="flex items-center justify-center">
               <Switch
@@ -2282,7 +2535,7 @@ export default function TeeemTableView({
                 onCheckedChange={(checked) =>
                   setEditingData((prev) => ({
                     ...prev,
-                    [column.key]: checked,
+                    [entry.id]: { ...prev[entry.id], [column.key]: checked },
                   }))
                 }
               />
@@ -2295,11 +2548,11 @@ export default function TeeemTableView({
           const choices = column.choices || [];
           return (
             <Select
-              value={String(editingData[column.key] ?? "")}
+              value={String(rowEditingData[column.key] ?? "")}
               onValueChange={(val) =>
                 setEditingData((prev) => ({
                   ...prev,
-                  [column.key]: val,
+                  [entry.id]: { ...prev[entry.id], [column.key]: val },
                 }))
               }
             >
@@ -2324,11 +2577,11 @@ export default function TeeemTableView({
             <Input
               className="h-7 text-sm"
               placeholder="User..."
-              value={String(editingData[column.key] ?? "")}
+              value={String(rowEditingData[column.key] ?? "")}
               onChange={(e) =>
                 setEditingData((prev) => ({
                   ...prev,
-                  [column.key]: e.target.value,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
                 }))
               }
             />
@@ -2337,7 +2590,7 @@ export default function TeeemTableView({
 
         // Date - Date picker
         if (columnType === 'date') {
-          const dateValue = editingData[column.key];
+          const dateValue = rowEditingData[column.key];
           let parsedDate: Date | undefined;
           try {
             if (dateValue) {
@@ -2369,7 +2622,7 @@ export default function TeeemTableView({
                   onSelect={(date) =>
                     setEditingData((prev) => ({
                       ...prev,
-                      [column.key]: date ? format(date, "yyyy-MM-dd") : null,
+                      [entry.id]: { ...prev[entry.id], [column.key]: date ? format(date, "yyyy-MM-dd") : null },
                     }))
                   }
                 />
@@ -2380,7 +2633,7 @@ export default function TeeemTableView({
 
         // Date and Time - DateTime picker
         if (columnType === 'date_and_time' || columnType === 'datetime') {
-          const dateValue = editingData[column.key];
+          const dateValue = rowEditingData[column.key];
           let parsedDate: Date | undefined;
           try {
             if (dateValue) {
@@ -2398,7 +2651,7 @@ export default function TeeemTableView({
               onChange={(e) =>
                 setEditingData((prev) => ({
                   ...prev,
-                  [column.key]: e.target.value ? new Date(e.target.value).toISOString() : null,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value ? new Date(e.target.value).toISOString() : null },
                 }))
               }
             />
@@ -2412,11 +2665,11 @@ export default function TeeemTableView({
               <Input
                 className="h-7 text-sm flex-1"
                 placeholder="File URL..."
-                value={String(editingData[column.key] ?? "")}
+                value={String(rowEditingData[column.key] ?? "")}
                 onChange={(e) =>
                   setEditingData((prev) => ({
                     ...prev,
-                    [column.key]: e.target.value,
+                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
                   }))
                 }
               />
@@ -2442,7 +2695,7 @@ export default function TeeemTableView({
           console.log('[Lookup Edit] column:', column.key, 'options:', options.length, 'lookup_config:', column.lookup_config, 'isLoading:', isLoading);
 
           // Get current value - could be an object with id or just an id
-          const currentValue = editingData[column.key];
+          const currentValue = rowEditingData[column.key];
           const currentId = typeof currentValue === 'object' && currentValue !== null
             ? (currentValue as { id?: number }).id
             : currentValue;
@@ -2454,14 +2707,14 @@ export default function TeeemTableView({
                 if (val === "__none__") {
                   setEditingData((prev) => ({
                     ...prev,
-                    [column.key]: null,
+                    [entry.id]: { ...prev[entry.id], [column.key]: null },
                   }));
                   return;
                 }
                 const selectedOption = options.find(o => String(o.id) === val);
                 setEditingData((prev) => ({
                   ...prev,
-                  [column.key]: selectedOption ? { id: selectedOption.id, display: selectedOption.display } : null,
+                  [entry.id]: { ...prev[entry.id], [column.key]: selectedOption ? { id: selectedOption.id, display: selectedOption.display } : null },
                 }));
               }}
             >
@@ -2484,33 +2737,57 @@ export default function TeeemTableView({
 
         // Number types
         if (columnType === 'number' || columnType === 'integer' || columnType === 'decimal' || columnType === 'currency' || columnType === 'percentage') {
+          const hasError = validationErrors[entry.id]?.[column.key];
           return (
-            <Input
-              type="number"
-              className="h-7 text-sm"
-              value={String(editingData[column.key] ?? "")}
-              onChange={(e) =>
-                setEditingData((prev) => ({
-                  ...prev,
-                  [column.key]: e.target.value ? Number(e.target.value) : null,
-                }))
-              }
-            />
+            <div className="relative">
+              <Input
+                type="number"
+                className={cn(
+                  "h-7 text-sm",
+                  hasError && "border-red-500 focus:ring-red-500"
+                )}
+                value={String(rowEditingData[column.key] ?? "")}
+                onChange={(e) =>
+                  setEditingData((prev) => ({
+                    ...prev,
+                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value ? Number(e.target.value) : null },
+                  }))
+                }
+                onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
+              />
+              {hasError && (
+                <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 whitespace-nowrap">
+                  {hasError}
+                </span>
+              )}
+            </div>
           );
         }
 
-        // Default - Text input for single_line_text, long_text, etc.
+        // Default - Text input for single_line_text, long_text, email, phone, url, etc.
+        const hasError = validationErrors[entry.id]?.[column.key];
         return (
-          <Input
-            className="h-7 text-sm"
-            value={String(editingData[column.key] ?? "")}
-            onChange={(e) =>
-              setEditingData((prev) => ({
-                ...prev,
-                [column.key]: e.target.value,
-              }))
-            }
-          />
+          <div className="relative">
+            <Input
+              className={cn(
+                "h-7 text-sm",
+                hasError && "border-red-500 focus:ring-red-500"
+              )}
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
+                }))
+              }
+              onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
+            />
+            {hasError && (
+              <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 whitespace-nowrap">
+                {hasError}
+              </span>
+            )}
+          </div>
         );
       }
 
@@ -2891,7 +3168,7 @@ export default function TeeemTableView({
     },
     [
       customCellRenderer,
-      editingRowId,
+      editingRowIds,
       editingData,
       editingCell,
       editingCellValue,
@@ -2909,6 +3186,8 @@ export default function TeeemTableView({
       cancelCellEdit,
       lookupOptions,
       lookupLoading,
+      validationErrors,
+      handleCellBlur,
     ]
   );
 
@@ -3480,7 +3759,6 @@ export default function TeeemTableView({
             <TableBody>
               {renderInlineGroupRows(groupedEntries)}
             </TableBody>
-            {renderTableFooter()}
           </Table>
         ) : (
           /* Panel mode - Groups with nested data tables inside each expanded group */
@@ -3522,17 +3800,17 @@ export default function TeeemTableView({
                 key={`${row.id}-${rowIndex}`}
                 className={cn(
                   selectedRows.has(row.id) && "bg-muted/50",
-                  editingRowId === row.id && "bg-blue-50 dark:bg-blue-950/20",
+                  editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
                 onClick={(e) => {
                   console.log('Row clicked', row.id, 'target:', e.target, 'onRowClick:', !!onRowClick);
-                  if (editingRowId !== row.id && onRowClick) {
+                  if (!editingRowIds.has(row.id) && onRowClick) {
                     onRowClick(row);
                   }
                 }}
                 onDoubleClick={() =>
-                  editingRowId !== row.id && onRowDoubleClick?.(row)
+                  !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                 }
               >
                 {visibleColumnsInOrder.map((column, colIndex) => (
@@ -3570,7 +3848,6 @@ export default function TeeemTableView({
             ))
           )}
         </TableBody>
-        {renderTableFooter()}
       </Table>
   );
   };
@@ -3822,12 +4099,24 @@ export default function TeeemTableView({
               Bulk Update
             </Button>
           )}
-          {/* Merge button - combine rows into one */}
-          {onBulkMerge && !viewOnly && selectedRows.size >= 2 && (
+          {/* Inline Edit - edit all selected rows inline like a spreadsheet */}
+          {onRowUpdate && !viewOnly && (
             <Button
               variant="outline"
               size="sm"
-              onClick={() => onBulkMerge(Array.from(selectedRows))}
+              onClick={() => startMultiEditing(Array.from(selectedRows))}
+            >
+              <Pencil className="h-4 w-4 mr-1" />
+              Inline Edit
+            </Button>
+          )}
+          {/* Merge button - combine rows into one */}
+          {/* Shows when: onBulkMerge provided OR enableMerge with foundationIdNumeric */}
+          {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleMergeClick(Array.from(selectedRows))}
             >
               <GitMerge className="h-4 w-4 mr-1" />
               Merge
@@ -3846,6 +4135,57 @@ export default function TeeemTableView({
           )}
         </div>
       )}
+
+      {/* Multi-row editing toolbar */}
+      {editingRowIds.size > 0 && (() => {
+        const errorCount = Object.values(validationErrors).reduce(
+          (count, rowErrors) => count + Object.keys(rowErrors).length,
+          0
+        );
+        return (
+          <div className={cn(
+            "flex items-center gap-2 p-2 rounded-lg",
+            errorCount > 0
+              ? "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800"
+              : "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800"
+          )}>
+            <span className={cn(
+              "text-sm font-medium",
+              errorCount > 0 ? "text-red-700 dark:text-red-300" : "text-blue-700 dark:text-blue-300"
+            )}>
+              Editing {editingRowIds.size} row{editingRowIds.size !== 1 ? "s" : ""}
+              {errorCount > 0 && (
+                <span className="ml-2 text-red-600">
+                  ({errorCount} error{errorCount !== 1 ? "s" : ""})
+                </span>
+              )}
+            </span>
+            <div className="flex-1" />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cancelEditing}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={saveEditing}
+              className={cn(
+                errorCount > 0
+                  ? "bg-gray-400 hover:bg-gray-400 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700"
+              )}
+              disabled={errorCount > 0}
+            >
+              <Check className="h-4 w-4 mr-1" />
+              Save All
+            </Button>
+          </div>
+        );
+      })()}
 
       {/* Sort controls - indicators hidden but functionality preserved */}
       {false && sortColumns.length > 0 && (
@@ -3883,27 +4223,26 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Table - scrollable container */}
-      <div className="flex-1 min-h-0 w-full overflow-auto relative">
+      {/* Table - scrollable container with minimum height for ~10 rows */}
+      <div className="flex-1 min-h-[360px] w-full overflow-auto relative">
         {groupedEntries ? renderGroupedTable() : renderFlatTable()}
       </div>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between text-sm text-muted-foreground shrink-0 pt-2 border-t">
-        <div className="flex items-center gap-3">
+      {/* Footer - compact */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-1 border-t">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Column totals */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
-            <div className="flex items-center gap-3 text-xs font-medium">
-              <span className="text-muted-foreground">Totals:</span>
+            <>
               {Object.entries(columnTotals).map(([key, data]) => (
-                <span key={key} className="bg-muted px-2 py-0.5 rounded">
+                <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
                   {data.label}: <span className="font-mono">{formatTotal(key)}</span>
                 </span>
               ))}
-            </div>
+            </>
           )}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 text-[11px]">
           {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
           <span>
             Showing {filteredAndSortedEntries.length} of {entries.length} records
@@ -4707,6 +5046,21 @@ export default function TeeemTableView({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Shared Merge Modal - used by all tables when enableMerge is true */}
+      {foundationIdNumeric && enableMerge !== false && (
+        <MergeModal
+          open={showMergeModal}
+          onOpenChange={setShowMergeModal}
+          selectedIds={mergeSelectedIds}
+          foundationId={foundationIdNumeric}
+          records={entries}
+          displayColumn={mergeDisplayColumn}
+          secondaryColumns={mergeSecondaryColumns}
+          entityName={tableName?.replace(/s$/, '') || "Record"}
+          onMergeComplete={handleMergeComplete}
+        />
+      )}
     </div>
   );
 }

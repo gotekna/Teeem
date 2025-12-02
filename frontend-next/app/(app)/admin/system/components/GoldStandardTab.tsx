@@ -42,6 +42,7 @@ import {
   Database,
   FileText,
   GitCompare,
+  GitMerge,
   Plus,
   Pencil,
   Settings,
@@ -49,6 +50,7 @@ import {
   EyeOff,
   GripVertical,
   Filter,
+  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -61,11 +63,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { TableColumn, TableRow as TableRowType } from "@/components/table/types";
+import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
 import { GlobalViewsManager } from "./GlobalViewsManager";
 import {
   Collapsible,
@@ -211,6 +214,22 @@ function GoldStandardDataTab() {
   const [visibleFields, setVisibleFields] = React.useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = React.useState<Record<string, number>>({});
   const [showViewsManager, setShowViewsManager] = React.useState(false);
+
+  // Merge modal state
+  const [showMergeModal, setShowMergeModal] = React.useState(false);
+  const [mergeIds, setMergeIds] = React.useState<(number | string)[]>([]);
+  const [primaryMergeId, setPrimaryMergeId] = React.useState<number | string | null>(null);
+  const [merging, setMerging] = React.useState(false);
+
+  // Server search state
+  const [serverSearchLoading, setServerSearchLoading] = React.useState(false);
+
+  // Preloaded views state
+  const [preloadedViews, setPreloadedViews] = React.useState<SavedView[] | null>(null);
+
+  // View item dialog state
+  const [showViewDialog, setShowViewDialog] = React.useState(false);
+  const [viewingEntry, setViewingEntry] = React.useState<TableRowType | null>(null);
 
   // Initialize visible fields and order when columns load
   React.useEffect(() => {
@@ -413,6 +432,7 @@ function GoldStandardDataTab() {
             name: string;
             column_type: string;
             position?: number;
+            available_choices?: string[];
           }>;
         };
       }>("/api/v1/foundations/1");
@@ -459,6 +479,21 @@ function GoldStandardDataTab() {
       if (itemsData?.items) {
         setEntries(itemsData.items);
       }
+
+      // Load views for this foundation
+      try {
+        const viewsData = await api.get<{
+          success: boolean;
+          views: SavedView[];
+        }>("/api/v1/foundation_views?foundation_id=1");
+
+        if (viewsData?.views) {
+          setPreloadedViews(viewsData.views);
+        }
+      } catch (viewError) {
+        console.warn("Failed to load views:", viewError);
+        // Don't fail the whole load if views fail
+      }
     } catch (error) {
       console.error("Failed to load gold standard data:", error);
       toast({
@@ -496,10 +531,51 @@ function GoldStandardDataTab() {
     }
   };
 
+  // View handler - opens read-only view dialog
+  const handleView = (entry: TableRowType) => {
+    setViewingEntry(entry);
+    setShowViewDialog(true);
+  };
+
+  // Double-click handler - opens edit dialog (same as edit)
+  const handleRowDoubleClick = (entry: TableRowType) => {
+    handleOpenEditDialog(entry);
+  };
+
+  // Server-side search handler
+  const handleServerSearch = async (term: string, searchAllColumns: boolean) => {
+    if (!term.trim()) {
+      // If empty search, reload all data
+      await loadData();
+      return;
+    }
+
+    setServerSearchLoading(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        items: TableRowType[];
+      }>(`/api/v1/gold_standard_table?search=${encodeURIComponent(term)}&search_all=${searchAllColumns}`);
+
+      if (response?.items) {
+        setEntries(response.items);
+      }
+    } catch (error) {
+      console.error("Server search failed:", error);
+      toast({
+        title: "Error",
+        description: "Search failed",
+        variant: "destructive",
+      });
+    } finally {
+      setServerSearchLoading(false);
+    }
+  };
+
   const handleRowUpdate = async (id: number | string, column: string, value: unknown) => {
     try {
       await api.patch(`/api/v1/gold_standard_table/${id}`, {
-        gold_standard_item: { [column]: value },
+        gold_standard_table: { [column]: value },
       });
       setEntries((prev) =>
         prev.map((e) => (e.id === id ? { ...e, [column]: value } : e))
@@ -544,7 +620,7 @@ function GoldStandardDataTab() {
       if (editingEntry) {
         // Update existing
         await api.patch(`/api/v1/gold_standard_table/${editingEntry.id}`, {
-          gold_standard_item: formData,
+          gold_standard_table: formData,
         });
         setEntries((prev) =>
           prev.map((e) => (e.id === editingEntry.id ? { ...e, ...formData } : e))
@@ -554,7 +630,7 @@ function GoldStandardDataTab() {
       } else {
         // Create new
         const response = await api.post<{ success: boolean; item: TableRowType }>("/api/v1/gold_standard_table", {
-          gold_standard_item: formData,
+          gold_standard_table: formData,
         });
         if (response?.success && response.item) {
           setEntries((prev) => [...prev, response.item]);
@@ -586,7 +662,7 @@ function GoldStandardDataTab() {
 
     try {
       const response = await api.post<{ success: boolean; item: TableRowType }>("/api/v1/gold_standard_table", {
-        gold_standard_item: duplicateData,
+        gold_standard_table: duplicateData,
       });
       if (response?.success && response.item) {
         setEntries((prev) => [...prev, response.item]);
@@ -603,6 +679,81 @@ function GoldStandardDataTab() {
       });
     }
   };
+
+  const handleBulkDelete = async (ids: (number | string)[]) => {
+    console.log("[GoldStandardTab] handleBulkDelete called with ids:", ids);
+    if (!confirm(`Are you sure you want to delete ${ids.length} item(s)?`)) {
+      console.log("[GoldStandardTab] Delete cancelled by user");
+      return;
+    }
+    try {
+      console.log("[GoldStandardTab] Calling bulk_delete API...");
+      const response = await api.post("/api/v1/gold_standard_table/bulk_delete", { ids });
+      console.log("[GoldStandardTab] Bulk delete response:", response);
+      setEntries((prev) => prev.filter((e) => !ids.includes(e.id)));
+      toast({ title: "Success", description: `${ids.length} item(s) deleted successfully` });
+    } catch (error) {
+      console.error("Failed to bulk delete:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete items",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBulkMerge = (ids: (number | string)[]) => {
+    if (ids.length < 2) {
+      toast({
+        title: "Error",
+        description: "Select at least 2 items to merge",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Open merge modal with selected IDs
+    setMergeIds(ids);
+    setPrimaryMergeId(ids[0]); // Default to first selected
+    setShowMergeModal(true);
+  };
+
+  const handleMergeConfirm = async () => {
+    if (!primaryMergeId) return;
+
+    setMerging(true);
+    try {
+      // Get the secondary IDs (all except primary)
+      const secondaryIds = mergeIds.filter(id => id !== primaryMergeId);
+
+      // Call the merge API
+      await api.post(`/api/v1/gold_standard_table/${primaryMergeId}/merge`, {
+        secondary_ids: secondaryIds,
+      });
+
+      // Refresh data
+      await loadData();
+
+      // Close modal
+      setShowMergeModal(false);
+      setMergeIds([]);
+      setPrimaryMergeId(null);
+      toast({ title: "Success", description: "Items merged successfully" });
+    } catch (error) {
+      console.error("Failed to merge items:", error);
+      toast({
+        title: "Error",
+        description: "Failed to merge items. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setMerging(false);
+    }
+  };
+
+  // Get items for merge modal
+  const mergeItems = React.useMemo(() => {
+    return mergeIds.map(id => entries.find(e => e.id === id)).filter(Boolean) as TableRowType[];
+  }, [mergeIds, entries]);
 
   // Render form field based on column type
   const renderFormField = (col: typeof rawColumns[0]) => {
@@ -762,13 +913,21 @@ function GoldStandardDataTab() {
         foundationId="gold-standard"
         foundationIdNumeric={1}
         tableName="Gold Standard"
+        onView={handleView}
         onEdit={handleOpenEditDialog}
         onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        onBulkMerge={handleBulkMerge}
+        onRowDoubleClick={handleRowDoubleClick}
         onRowUpdate={handleRowUpdate}
+        onServerSearch={handleServerSearch}
+        serverSearchLoading={serverSearchLoading}
         onRefresh={loadData}
+        preloadedViews={preloadedViews}
         enableImport={true}
         enableExport={true}
         enableSchemaEditor={true}
+        initialShowTotals={false}
         leftActions={
           <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
             <Plus className="h-4 w-4 mr-2" />
@@ -1051,6 +1210,148 @@ function GoldStandardDataTab() {
         onViewsChange={loadData}
         rows={entries}
       />
+
+      {/* Merge Items Modal */}
+      <Dialog open={showMergeModal} onOpenChange={setShowMergeModal}>
+        <DialogContent className="sm:max-w-lg p-6">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="flex items-center gap-2">
+              <GitMerge className="h-5 w-5" />
+              Merge Items
+            </DialogTitle>
+            <DialogDescription>
+              Select the primary item. All data from the other items will be merged into it,
+              and the other items will be deleted.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2">
+            <Label className="text-sm font-medium mb-3 block">
+              Select Primary Item ({mergeItems.length} items selected)
+            </Label>
+            <RadioGroup
+              value={String(primaryMergeId)}
+              onValueChange={(value) => setPrimaryMergeId(Number(value))}
+              className="space-y-3"
+            >
+              {mergeItems.map((item) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center space-x-3 p-3 rounded-lg border ${
+                    primaryMergeId === item.id
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <RadioGroupItem value={String(item.id)} id={`item-${item.id}`} />
+                  <Label
+                    htmlFor={`item-${item.id}`}
+                    className="flex-1 cursor-pointer"
+                  >
+                    <div className="font-medium">Item #{item.id}</div>
+                    <div className="text-sm text-muted-foreground flex gap-4 mt-1">
+                      {'single_line_text' in item && item.single_line_text ? <span>{String(item.single_line_text)}</span> : null}
+                    </div>
+                  </Label>
+                </div>
+              ))}
+            </RadioGroup>
+
+            {mergeItems.length > 1 && primaryMergeId && (
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950 rounded-lg border border-amber-200 dark:border-amber-800">
+                <p className="text-sm text-amber-800 dark:text-amber-200">
+                  <strong>Warning:</strong> {mergeItems.length - 1} item(s) will be deleted after merge.
+                  Their data will be merged into the primary item.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowMergeModal(false)}
+              disabled={merging}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleMergeConfirm}
+              disabled={!primaryMergeId || merging}
+            >
+              {merging ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Merging...
+                </>
+              ) : (
+                <>
+                  <GitMerge className="h-4 w-4 mr-2" />
+                  Merge Items
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Item Dialog (Read-only) */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5" />
+              View Item #{viewingEntry?.id}
+            </DialogTitle>
+            <DialogDescription>
+              Read-only view of this record
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            {viewingEntry && rawColumns.map((col) => {
+              const value = viewingEntry[col.column_name];
+              if (value === null || value === undefined || value === '') return null;
+
+              return (
+                <div key={col.column_name} className="grid grid-cols-3 gap-4 items-start">
+                  <Label className="text-sm font-medium text-muted-foreground">
+                    {col.name || col.column_name}
+                  </Label>
+                  <div className="col-span-2 text-sm">
+                    {col.column_type === 'boolean' ? (
+                      <Badge variant={value ? "default" : "secondary"}>
+                        {value ? "Yes" : "No"}
+                      </Badge>
+                    ) : col.column_type === 'date' || col.column_type === 'date_and_time' ? (
+                      new Date(String(value)).toLocaleString()
+                    ) : col.column_type === 'currency' ? (
+                      `$${Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                    ) : col.column_type === 'percentage' ? (
+                      `${Number(value)}%`
+                    ) : (
+                      String(value)
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowViewDialog(false)}>
+              Close
+            </Button>
+            <Button onClick={() => {
+              setShowViewDialog(false);
+              if (viewingEntry) handleOpenEditDialog(viewingEntry);
+            }}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -185,8 +185,7 @@ export function DataHealthWidget({
     <div className="bg-background border rounded-lg overflow-hidden">
       {/* Header */}
       <Collapsible open={expanded} onOpenChange={setExpanded}>
-        <CollapsibleTrigger asChild>
-          <div className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors">
+        <CollapsibleTrigger showIcon={false} className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors">
             <div className="flex items-center gap-3">
               <div
                 className={cn(
@@ -244,7 +243,6 @@ export function DataHealthWidget({
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               )}
             </div>
-          </div>
         </CollapsibleTrigger>
 
         {/* Expanded Details */}

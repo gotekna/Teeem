@@ -1343,14 +1343,25 @@ export function GlobalViewsManager({
 
   // Column visibility
   const toggleColumnVisibility = (columnName: string) => {
+    const newVisible = !editVisibleColumns[columnName];
     setEditVisibleColumns({
       ...editVisibleColumns,
-      [columnName]: !editVisibleColumns[columnName],
+      [columnName]: newVisible,
     });
+    // If making visible and not in order, add to order
+    if (newVisible && !editColumnOrder.includes(columnName)) {
+      setEditColumnOrder([...editColumnOrder, columnName]);
+    }
   };
 
   const showAllColumns = () => {
     setEditVisibleColumns(Object.fromEntries(columns.map(c => [c.column_name, true])));
+    // Ensure all columns are in the order array
+    const allColumnNames = columns.map(c => c.column_name);
+    const missingFromOrder = allColumnNames.filter(name => !editColumnOrder.includes(name));
+    if (missingFromOrder.length > 0) {
+      setEditColumnOrder([...editColumnOrder, ...missingFromOrder]);
+    }
   };
 
   const hideAllColumns = () => {

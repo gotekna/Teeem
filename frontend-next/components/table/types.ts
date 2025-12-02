@@ -98,6 +98,9 @@ export interface TeeemTableViewProps {
   onBulkDelete?: (ids: (number | string)[]) => void;
   onBulkEdit?: (ids: (number | string)[]) => void;
   onBulkMerge?: (ids: (number | string)[]) => void;
+  enableMerge?: boolean; // Enable built-in merge functionality (default: true when foundationIdNumeric is set)
+  mergeDisplayColumn?: string; // Column to display in merge modal (default: 'name')
+  mergeSecondaryColumns?: string[]; // Additional columns to show in merge modal
   onView?: (row: TableRow) => void;
   onRowDoubleClick?: (row: TableRow) => void;
   onRowClick?: (row: TableRow) => void;
@@ -143,6 +146,9 @@ export interface TeeemTableViewProps {
   // Data Health widget
   showDataHealth?: boolean;
   onDataHealthIssueClick?: (item: unknown, check: unknown) => void;
+
+  // Display options
+  initialShowTotals?: boolean; // Initial value for showing totals row (default: true)
 
   // Legacy props
   stats?: Record<string, unknown>;

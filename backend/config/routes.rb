@@ -1023,6 +1023,9 @@ Rails.application.routes.draw do
 
         # Record management for dynamic foundations
         resources :records do
+          member do
+            post :merge
+          end
           collection do
             post :bulk_delete
             post :bulk_update
