@@ -34,7 +34,6 @@ import {
   ClipboardCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { slugifyJobTitle } from "@/lib/url-utils";
 import dynamic from "next/dynamic";
 import { JobActivityTab } from "@/components/jobs/JobActivityTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
@@ -155,38 +154,26 @@ export default function JobDetailPage() {
   const tabFromUrl = searchParams.get("tab") || "overview";
   const [activeTab, setActiveTab] = React.useState(tabFromUrl);
 
-  // Update URL when tab changes - use slug if job is loaded
-  // Don't show ?tab=overview for default tab (cleaner URLs)
+  // Update URL when tab changes - keep numeric ID in URL
   const handleTabChange = React.useCallback((newTab: string) => {
     setActiveTab(newTab);
-    // Use slug from job title if available, otherwise use current URL param
-    const urlSlug = job?.title ? slugifyJobTitle(job.title) : jobId;
-    // Only add ?tab= for non-default tabs
+    // Only add ?tab= for non-default tabs (cleaner URLs)
     const newUrl = newTab === "overview"
-      ? `/jobs/${urlSlug}`
-      : `/jobs/${urlSlug}?tab=${newTab}`;
+      ? `/jobs/${jobId}`
+      : `/jobs/${jobId}?tab=${newTab}`;
     router.replace(newUrl, { scroll: false });
-  }, [job, jobId, router]);
+  }, [jobId, router]);
 
   const loadJob = React.useCallback(async () => {
     try {
       const data = await api.get<Job>(`/api/v1/jobs/${jobId}`);
       setJob(data);
-
-      // If URL is using numeric ID, redirect to slug-based URL
-      if (data?.title && /^\d+$/.test(jobId)) {
-        const slug = slugifyJobTitle(data.title);
-        const tab = searchParams.get("tab");
-        // Only include ?tab= for non-default tabs (cleaner URLs)
-        const newUrl = (tab && tab !== "overview") ? `/jobs/${slug}?tab=${tab}` : `/jobs/${slug}`;
-        router.replace(newUrl, { scroll: false });
-      }
     } catch (error) {
       console.error("Failed to fetch job:", error);
     } finally {
       setLoading(false);
     }
-  }, [jobId, router, searchParams]);
+  }, [jobId]);
 
   React.useEffect(() => {
     if (jobId) {

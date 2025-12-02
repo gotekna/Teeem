@@ -593,6 +593,7 @@ export default function TeeemTableView({
   onBulkDelete,
   onView,
   onRowDoubleClick,
+  onRowClick,
   onRowUpdate,
   onColumnUpdate,
   onEditRelationships,
@@ -1829,6 +1830,7 @@ export default function TeeemTableView({
                           selectedRows.has(row.id) && "bg-muted/50",
                           "hover:bg-muted/30 cursor-pointer"
                         )}
+                        onClick={() => onRowClick?.(row)}
                         onDoubleClick={() => onRowDoubleClick?.(row)}
                       >
                         {visibleColumnsInOrder.map((column, colIndex) => (
@@ -1883,6 +1885,12 @@ export default function TeeemTableView({
                   editingRowId === row.id && "bg-blue-50 dark:bg-blue-950/20",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
+                onClick={(e) => {
+                  console.log('Row clicked', row.id, 'target:', e.target, 'onRowClick:', !!onRowClick);
+                  if (editingRowId !== row.id && onRowClick) {
+                    onRowClick(row);
+                  }
+                }}
                 onDoubleClick={() =>
                   editingRowId !== row.id && onRowDoubleClick?.(row)
                 }

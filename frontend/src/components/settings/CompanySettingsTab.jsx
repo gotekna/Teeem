@@ -503,8 +503,8 @@ export default function CompanySettingsTab() {
             <TabPanel>
               <div className="space-y-6">
                 <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-gray-500 dark:text-gray-400">Loading...</div></div>}>
-                  <OneDriveConnection />
                   <OutlookConnection />
+                  <OneDriveConnection />
                   <TwilioConfiguration />
                 </Suspense>
               </div>

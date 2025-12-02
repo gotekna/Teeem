@@ -128,6 +128,28 @@ function TablePageContent() {
     return <ErrorDisplay error={error} tableId={tableId} />;
   }
 
+  // Handle row click - navigate to detail page
+  const handleRowClick = (row: { id: number | string; [key: string]: unknown }) => {
+    console.log('handleRowClick called with row:', row, 'tableId:', tableId);
+    // Use dedicated detail pages for known tables
+    switch (tableId) {
+      case 204: // Jobs - use /jobs/[id] route
+        console.log('Navigating to /jobs/' + row.id);
+        router.push(`/jobs/${row.id}`);
+        break;
+      case 205: // Contacts - use /contacts/[id] route
+        router.push(`/contacts/${row.id}`);
+        break;
+      case 353: // Companies - use /companies/[id] route
+        router.push(`/companies/${row.id}`);
+        break;
+      default:
+        // For other tables, use generic item URL
+        const itemName = (row.title || row.name || row.job_title || '') as string;
+        router.push(urls.tableItem(tableId, row.id, itemName || undefined));
+    }
+  };
+
   // Common table props
   const tableProps = {
     entries: records,
@@ -143,6 +165,7 @@ function TablePageContent() {
     initialGroupByColumn: uiConfig.initialGroupByColumn,
     onRefresh: refresh,
     onRowDoubleClick: handleRowDoubleClick,
+    onRowClick: handleRowClick,
   };
 
   return (

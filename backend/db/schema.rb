@@ -464,14 +464,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
     t.string "ai_verification_status"
     t.string "ai_suggested_name"
     t.string "ai_suggested_folder"
-    t.decimal "ai_confidence_score"
-    t.datetime "user_validated_at"
-    t.bigint "user_validated_by_id"
-    t.string "display_title"
     t.string "ai_suggested_type"
     t.integer "ai_suggested_fy", default: [], array: true
+    t.decimal "ai_confidence_score"
     t.text "ai_analysis_notes"
+    t.datetime "user_validated_at"
+    t.bigint "user_validated_by_id"
     t.boolean "validation_required", default: false
+    t.string "display_title"
+    t.index ["ai_verification_status"], name: "index_company_documents_on_ai_verification_status"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
@@ -485,6 +486,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
     t.index ["source"], name: "index_company_documents_on_source"
     t.index ["storage_type"], name: "index_company_documents_on_storage_type"
+    t.index ["validation_required"], name: "index_company_documents_on_validation_required"
   end
 
   create_table "company_groups", force: :cascade do |t|
@@ -837,8 +839,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
     t.boolean "is_family_member", default: false
     t.boolean "is_potential_director", default: false
     t.bigint "company_group_id"
-    t.integer "xero_invoice_count", default: 0
-    t.boolean "xero_disconnect", default: false
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
@@ -1667,6 +1667,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
     t.decimal "live_profit", precision: 15, scale: 2
     t.decimal "profit_percentage", precision: 10, scale: 2
     t.string "stage"
+    t.string "status"
     t.string "ted_number"
     t.string "certifier_job_no"
     t.date "start_date"
@@ -1695,6 +1696,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
     t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
+    t.index ["status"], name: "index_jobs_on_status"
   end
 
   create_table "kudos_events", force: :cascade do |t|
@@ -3313,7 +3315,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
     t.string "email"
     t.text "access_token"
     t.text "refresh_token"
-    t.datetime "expires_at", precision: nil
+    t.datetime "expires_at"
     t.string "tenant_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -3810,6 +3812,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
   add_foreign_key "company_documents", "company_loans", column: "loan_id"
   add_foreign_key "company_documents", "contacts"
   add_foreign_key "company_documents", "document_types"
+  add_foreign_key "company_documents", "users", column: "user_validated_by_id"
   add_foreign_key "company_loans", "companies", column: "borrower_company_id"
   add_foreign_key "company_loans", "companies", column: "lender_company_id"
   add_foreign_key "company_minutes", "companies"
@@ -4020,7 +4023,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_020743) do
   add_foreign_key "task_updates", "project_tasks"
   add_foreign_key "task_updates", "users"
   add_foreign_key "user_microsoft_tokens", "users"
-  add_foreign_key "user_outlook_credentials", "users", name: "user_outlook_credentials_user_id_fkey"
+  add_foreign_key "user_outlook_credentials", "users"
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"
   add_foreign_key "users", "user_groups"

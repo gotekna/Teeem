@@ -22,7 +22,7 @@ export default function OutlookConnection() {
   }
 
   const handleDisconnect = async () => {
-    if (!confirm('Are you sure you want to disconnect Microsoft 365? This will disable email sync, OneDrive access, and SharePoint integration.')) {
+    if (!confirm('Are you sure you want to disconnect Office 365? This will disable email sync and SharePoint integration.')) {
       return
     }
 
@@ -55,7 +55,7 @@ export default function OutlookConnection() {
     <div className="bg-white dark:bg-gray-800 shadow sm:rounded-lg">
       <div className="px-4 py-5 sm:p-6">
         <h3 className="text-lg font-medium leading-6 text-gray-900 dark:text-white">
-          Microsoft Outlook / Office 365
+          Office 365
         </h3>
         <div className="mt-2 max-w-xl text-sm text-gray-500 dark:text-gray-400">
           <p>
@@ -87,13 +87,7 @@ export default function OutlookConnection() {
                           Outlook
                         </span>
                       )}
-                      {microsoftStatus.services.onedrive && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200">
-                          <CheckCircleIcon className="h-3 w-3 mr-1" />
-                          OneDrive
-                        </span>
-                      )}
-                      {microsoftStatus.services.sharepoint && (
+                      {(microsoftStatus.services.onedrive || microsoftStatus.services.sharepoint) && (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-200">
                           <CheckCircleIcon className="h-3 w-3 mr-1" />
                           SharePoint
@@ -186,11 +180,10 @@ export default function OutlookConnection() {
                     Not Connected
                   </h3>
                   <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    <p>Connect your Microsoft 365 account to enable:</p>
+                    <p>Connect your Office 365 account to enable:</p>
                     <ul className="mt-2 space-y-1 list-disc list-inside">
                       <li>Automatic email sync to jobs</li>
-                      <li>OneDrive file access</li>
-                      <li>SharePoint integration</li>
+                      <li>SharePoint file access</li>
                     </ul>
                   </div>
                   <div className="mt-4">

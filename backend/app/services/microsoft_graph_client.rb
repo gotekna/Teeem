@@ -236,8 +236,17 @@ class MicrosoftGraphClient
       )
     end
 
-    # Create root folder for all TEEEM jobs
-    root_folder = create_folder(folder_name, drive_id: @credential.drive_id)
+    # First, check if the folder already exists in the drive root
+    existing_folder = find_folder_in_drive_root(folder_name)
+
+    if existing_folder
+      Rails.logger.info "[SharePoint] Found existing '#{folder_name}' folder (ID: #{existing_folder['id']}), reusing it"
+      root_folder = existing_folder
+    else
+      Rails.logger.info "[SharePoint] Creating new '#{folder_name}' folder"
+      # Create root folder for all TEEEM jobs with "fail" conflict behavior to prevent duplicates
+      root_folder = create_folder_strict(folder_name, drive_id: @credential.drive_id)
+    end
 
     # Update credential with root folder info
     @credential.update!(
@@ -251,6 +260,32 @@ class MicrosoftGraphClient
     )
 
     root_folder
+  end
+
+  # Find a folder by exact name in the drive root
+  def find_folder_in_drive_root(folder_name)
+    results = get("/drives/#{@credential.drive_id}/root/children")
+    results['value']&.find { |item| item['name'] == folder_name && item['folder'] }
+  rescue APIError => e
+    Rails.logger.warn "[SharePoint] Error searching for folder '#{folder_name}' in drive root: #{e.message}"
+    nil
+  end
+
+  # Create a folder with "fail" conflict behavior (don't rename if exists)
+  def create_folder_strict(name, parent_id: nil, drive_id: nil)
+    path = if drive_id && !parent_id
+      "/drives/#{drive_id}/root/children"
+    elsif parent_id
+      "/drives/#{@credential.drive_id}/items/#{parent_id}/children"
+    else
+      "/drives/#{@credential.drive_id}/root/children"
+    end
+
+    post(path, {
+      name: name,
+      folder: {},
+      "@microsoft.graph.conflictBehavior": "fail"
+    })
   end
 
   # Create folder structure for a specific construction/job
