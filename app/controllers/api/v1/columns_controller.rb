@@ -602,7 +602,8 @@ module Api
           :lookup_display_column,
           :is_multiple,
           :header_align,
-          :data_align
+          :data_align,
+          available_choices: []
         )
       end
 

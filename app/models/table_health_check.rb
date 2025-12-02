@@ -131,6 +131,21 @@ class TableHealthCheck < ApplicationRecord
       fetch_documents_needs_ai_verification
     when %r{/api/v1/company_documents/needs_user_validation}
       fetch_documents_needs_user_validation
+    # Document Compliance health checks (tab-based)
+    when %r{/api/v1/company_documents/ato_missing_bas}
+      fetch_ato_missing_bas
+    when %r{/api/v1/company_documents/ato_missing_tax_return}
+      fetch_ato_missing_tax_return
+    when %r{/api/v1/company_documents/bank_missing_statements}
+      fetch_bank_missing_statements
+    when %r{/api/v1/company_documents/asic_missing_annual}
+      fetch_asic_missing_annual
+    when %r{/api/v1/company_documents/financials_missing_annual}
+      fetch_financials_missing_annual
+    when %r{/api/v1/company_documents/missing_date}
+      fetch_documents_missing_date
+    when %r{/api/v1/company_documents/missing_fy}
+      fetch_documents_missing_fy
     else
       # For unknown endpoints, return empty result
       Rails.logger.warn "[TableHealthCheck] Unknown endpoint: #{api_endpoint}"
@@ -331,6 +346,194 @@ class TableHealthCheck < ApplicationRecord
         {
           id: d.id,
           display: "#{d.company&.name || 'Unknown'} - #{d.file_name || d.title || 'Unnamed'}",
+          company_id: d.company_id
+        }
+      }
+    }
+  end
+
+  # ============================================================================
+  # Document Compliance Health Checks (Tab-Based)
+  # ============================================================================
+
+  # Australian Financial Year runs July 1 to June 30
+  # Current FY: if today is after July 1, FY is current year, else previous year
+  def current_financial_year
+    today = Date.current
+    today.month >= 7 ? today.year : today.year - 1
+  end
+
+  def current_quarter
+    # BAS quarters: Jul-Sep (Q1), Oct-Dec (Q2), Jan-Mar (Q3), Apr-Jun (Q4)
+    month = Date.current.month
+    case month
+    when 7..9 then 1
+    when 10..12 then 2
+    when 1..3 then 3
+    when 4..6 then 4
+    end
+  end
+
+  # ATO: Missing Quarterly BAS
+  def fetch_ato_missing_bas
+    fy = current_financial_year
+    # Get all active companies
+    companies = Company.where(active: [true, nil])
+
+    # Find companies that have BAS documents for recent quarters
+    companies_with_bas = CompanyDocument
+      .where(folder: 'ATO')
+      .where("LOWER(document_type) LIKE '%bas%' OR LOWER(title) LIKE '%bas%'")
+      .where("? = ANY(financial_years) OR year = ?", fy, fy)
+      .pluck(:company_id)
+      .uniq
+
+    # Companies missing BAS
+    missing = companies.where.not(id: companies_with_bas)
+
+    {
+      count: missing.count,
+      items: missing.limit(10).map { |c|
+        {
+          id: c.id,
+          display: "#{c.code || c.id} - #{c.name}",
+          company_id: c.id
+        }
+      }
+    }
+  end
+
+  # ATO: Missing Annual Tax Return
+  def fetch_ato_missing_tax_return
+    fy = current_financial_year - 1  # Check for last completed FY
+    companies = Company.where(active: [true, nil])
+
+    companies_with_tax = CompanyDocument
+      .where(folder: 'ATO')
+      .where("LOWER(document_type) LIKE '%tax%return%' OR LOWER(title) LIKE '%ctr%' OR LOWER(title) LIKE '%tax return%'")
+      .where("? = ANY(financial_years) OR year = ?", fy, fy)
+      .pluck(:company_id)
+      .uniq
+
+    missing = companies.where.not(id: companies_with_tax)
+
+    {
+      count: missing.count,
+      items: missing.limit(10).map { |c|
+        {
+          id: c.id,
+          display: "#{c.code || c.id} - #{c.name} (FY#{fy})",
+          company_id: c.id
+        }
+      }
+    }
+  end
+
+  # BANK: Missing Monthly Bank Statements
+  def fetch_bank_missing_statements
+    # Check last 3 months
+    recent_months = (0..2).map { |i| Date.current.beginning_of_month - i.months }
+    companies = Company.where(active: [true, nil])
+
+    # Find companies with bank statements for recent months
+    companies_with_statements = CompanyDocument
+      .where(folder: 'BANK')
+      .where("LOWER(document_type) LIKE '%statement%' OR LOWER(title) LIKE '%statement%'")
+      .where("document_date >= ?", 3.months.ago)
+      .pluck(:company_id)
+      .uniq
+
+    missing = companies.where.not(id: companies_with_statements)
+
+    {
+      count: missing.count,
+      items: missing.limit(10).map { |c|
+        {
+          id: c.id,
+          display: "#{c.code || c.id} - #{c.name}",
+          company_id: c.id
+        }
+      }
+    }
+  end
+
+  # ASIC: Missing Annual Statement
+  def fetch_asic_missing_annual
+    current_year = Date.current.year
+    companies = Company.where(active: [true, nil])
+
+    companies_with_asic = CompanyDocument
+      .where(folder: 'ASIC')
+      .where("LOWER(document_type) LIKE '%annual%' OR LOWER(title) LIKE '%annual%statement%'")
+      .where("EXTRACT(year FROM document_date) = ? OR year = ?", current_year, current_year)
+      .pluck(:company_id)
+      .uniq
+
+    missing = companies.where.not(id: companies_with_asic)
+
+    {
+      count: missing.count,
+      items: missing.limit(10).map { |c|
+        {
+          id: c.id,
+          display: "#{c.code || c.id} - #{c.name} (#{current_year})",
+          company_id: c.id
+        }
+      }
+    }
+  end
+
+  # FINANCIALS: Missing Annual Financial Statements
+  def fetch_financials_missing_annual
+    fy = current_financial_year - 1  # Check for last completed FY
+    companies = Company.where(active: [true, nil])
+
+    companies_with_financials = CompanyDocument
+      .where(folder: 'FINANCIALS')
+      .where("LOWER(document_type) LIKE '%financial%' OR LOWER(title) LIKE '%financial%'")
+      .where("? = ANY(financial_years) OR year = ?", fy, fy)
+      .pluck(:company_id)
+      .uniq
+
+    missing = companies.where.not(id: companies_with_financials)
+
+    {
+      count: missing.count,
+      items: missing.limit(10).map { |c|
+        {
+          id: c.id,
+          display: "#{c.code || c.id} - #{c.name} (FY#{fy})",
+          company_id: c.id
+        }
+      }
+    }
+  end
+
+  # General: Documents Missing Date
+  def fetch_documents_missing_date
+    docs = CompanyDocument.where(document_date: nil)
+    {
+      count: docs.count,
+      items: docs.includes(:company).limit(10).map { |d|
+        {
+          id: d.id,
+          display: "#{d.company&.name || 'Unknown'} - #{d.title || 'Unnamed'}",
+          company_id: d.company_id
+        }
+      }
+    }
+  end
+
+  # General: Documents Missing Financial Year
+  def fetch_documents_missing_fy
+    # Documents without financial_years array populated
+    docs = CompanyDocument.where("financial_years IS NULL OR financial_years = '{}'")
+    {
+      count: docs.count,
+      items: docs.includes(:company).limit(10).map { |d|
+        {
+          id: d.id,
+          display: "#{d.company&.name || 'Unknown'} - #{d.title || 'Unnamed'}",
           company_id: d.company_id
         }
       }
