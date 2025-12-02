@@ -193,33 +193,21 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <Bell className="h-4 w-4" />
           </button>
 
-          {/* Office 365 Connection Status */}
+          {/* Integrations Status */}
           <Link
-            href="/settings/integrations/microsoft"
+            href="/settings?tab=integrations"
             className={cn(
-              "p-1.5 rounded-md transition-colors",
-              office365Connected
+              "p-1.5 rounded-md transition-colors flex items-center gap-0.5",
+              office365Connected && xeroConnected
                 ? "text-green-500 hover:text-green-600"
-                : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
+                : office365Connected || xeroConnected
+                  ? "text-yellow-500 hover:text-yellow-600"
+                  : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
             )}
-            title={office365Connected ? "Office 365 Connected - Click to manage" : "Office 365 Not Connected - Click to connect"}
+            title={`Integrations: Office 365 ${office365Connected ? "✓" : "✗"}, Xero ${xeroConnected ? "✓" : "✗"}`}
           >
-            <span className="sr-only">Office 365 Status</span>
+            <span className="sr-only">Integrations</span>
             <Microsoft365Icon className="h-4 w-4" />
-          </Link>
-
-          {/* Xero Connection Status */}
-          <Link
-            href="/settings/integrations/xero"
-            className={cn(
-              "p-1.5 rounded-md transition-colors",
-              xeroConnected
-                ? "text-blue-500 hover:text-blue-600"
-                : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
-            )}
-            title={xeroConnected ? "Xero Connected - Click to manage" : "Xero Not Connected - Click to connect"}
-          >
-            <span className="sr-only">Xero Status</span>
             <XeroIcon className="h-4 w-4" />
           </Link>
 
