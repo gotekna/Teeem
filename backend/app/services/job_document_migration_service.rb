@@ -249,15 +249,34 @@ class JobDocumentMigrationService
   # Check if a folder name matches a specific job
   def folder_matches_job?(folder_name, job)
     normalized = normalize_folder_name(folder_name)
+    job_title_normalized = normalize_folder_name(job.title)
 
     # Check various match conditions
-    return true if job.title.downcase == normalized.downcase
-    return true if job.title.downcase.include?(normalized.downcase)
-    return true if normalized.downcase.include?(job.title.split(',').first.downcase)
+    return true if job_title_normalized.downcase == normalized.downcase
+    return true if job_title_normalized.downcase.include?(normalized.downcase)
+    return true if normalized.downcase.include?(job_title_normalized.downcase)
+
+    # Extract key address from folder (remove leading number like "94 - ")
+    folder_address = normalized.sub(/^\d+\s*[-_]\s*/, '').strip
+    job_address = job_title_normalized.sub(/\s*(qld|nsw|vic|sa|wa|tas|nt|act)\s*$/i, '').strip
+
+    # Check if addresses match (ignoring state suffix and case)
+    return true if folder_address.downcase == job_address.downcase
+    return true if folder_address.downcase.gsub(/[,\s]+/, ' ').strip == job_address.downcase.gsub(/[,\s]+/, ' ').strip
+
+    # Check for significant overlap (street name + number match)
+    folder_words = folder_address.downcase.split(/[\s,]+/).reject { |w| w.length < 3 }
+    job_words = job_address.downcase.split(/[\s,]+/).reject { |w| w.length < 3 }
+    common_words = folder_words & job_words
+    return true if common_words.length >= 2
 
     # Check address components
     address_parts = extract_address_parts(folder_name)
     if address_parts[:lot] && job.title.downcase.include?(address_parts[:lot].downcase)
+      return true
+    end
+
+    if address_parts[:street] && job.title.downcase.include?(address_parts[:street].downcase)
       return true
     end
 
