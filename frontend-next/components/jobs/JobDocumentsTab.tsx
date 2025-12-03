@@ -678,19 +678,28 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
               Create the folder structure in SharePoint for {jobTitle || "this job"}.
             </p>
-            <Button className="mt-6" onClick={handleCreateFolders} disabled={creatingFolders}>
-              {creatingFolders ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating Folders...
-                </>
-              ) : (
-                <>
-                  <Folder className="h-4 w-4 mr-2" />
-                  Create Folder Structure
-                </>
-              )}
-            </Button>
+            <div className="mt-6 flex gap-3 justify-center">
+              <Button onClick={handleCreateFolders} disabled={creatingFolders}>
+                {creatingFolders ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating Folders...
+                  </>
+                ) : (
+                  <>
+                    <Folder className="h-4 w-4 mr-2" />
+                    Create Folder Structure
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" onClick={openImportModal}>
+                <FolderInput className="h-4 w-4 mr-2" />
+                Import from Legacy
+              </Button>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Or import existing documents from the legacy SharePoint folder
+            </p>
           </CardContent>
         </Card>
       );
