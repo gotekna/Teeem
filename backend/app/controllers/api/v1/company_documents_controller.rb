@@ -503,6 +503,57 @@ module Api
         end
       end
 
+      # GET /api/v1/company_documents/duplicates
+      # List all duplicate documents (same title within same company)
+      def duplicates
+        result = DocumentDuplicateService.find_duplicates(company_id: params[:company_id])
+        render json: { success: true, duplicates: result }
+      end
+
+      # POST /api/v1/company_documents/analyze_duplicates
+      # Use AI to analyze a set of duplicate documents and recommend action
+      def analyze_duplicates
+        document_ids = params[:document_ids]
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+        end
+
+        result = DocumentDuplicateService.analyze_duplicates(document_ids)
+        if result[:error]
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        else
+          render json: { success: true, analysis: result }
+        end
+      end
+
+      # POST /api/v1/company_documents/resolve_duplicates
+      # Execute a duplicate resolution action (keep_newest, keep_oldest, merge, rename, delete_all)
+      def resolve_duplicates
+        action = params[:action_type]
+        document_ids = params[:document_ids]
+
+        unless action.present?
+          return render json: { success: false, error: 'action_type required' }, status: :bad_request
+        end
+
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+        end
+
+        options = {
+          document_id: params[:document_id],
+          new_name: params[:new_name],
+          keep_id: params[:keep_id]
+        }.compact
+
+        result = DocumentDuplicateService.execute_action(action, document_ids, options)
+        if result[:error]
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        else
+          render json: { success: true, result: result }
+        end
+      end
+
       private
 
       def set_document
