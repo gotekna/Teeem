@@ -245,11 +245,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/settings/integrations/microsoft"
             className={cn(
               "p-1.5 rounded-md transition-colors",
-              office365Connected
-                ? "text-green-500 hover:text-green-600"
-                : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
+              getStatusColors(office365Status)
             )}
-            title={`Office 365: ${office365Connected ? "Connected" : "Not Connected"}`}
+            title={office365Tooltip}
           >
             <span className="sr-only">Office 365</span>
             <Microsoft365Icon className="h-4 w-4" />
@@ -260,11 +258,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             href="/settings/integrations/xero"
             className={cn(
               "p-1.5 rounded-md transition-colors",
-              xeroConnected
-                ? "text-green-500 hover:text-green-600"
-                : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
+              getStatusColors(xeroStatus)
             )}
-            title={`Xero: ${xeroConnected ? "Connected" : "Not Connected"}`}
+            title={xeroTooltip}
           >
             <span className="sr-only">Xero</span>
             <XeroIcon className="h-4 w-4" />
