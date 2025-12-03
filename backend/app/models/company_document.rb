@@ -171,64 +171,25 @@ class CompanyDocument < ApplicationRecord
   end
 
   # Extract financial years from title
-  # Patterns supported:
-  # - FY21, FY2021 -> 2021
-  # - 2021 Tax Return -> 2021
-  # - Date ranges like "1/6/2021 - 15/7/2021" -> [2021, 2022] (crosses FY boundary)
+  # ONLY extracts if title explicitly contains "FY" pattern
+  # If title uses dates or date ranges without FY, financial_years is cleared
   def extract_financial_years_from_title
     return if title.blank?
 
+    # Only populate financial_years if title explicitly contains "FY" pattern
+    # Documents with date ranges (e.g., "BAS Statement 01-07-2023 to 30-06-2024") should NOT have FY
+    unless title.match?(/FY\d{2,4}/i)
+      self.financial_years = []
+      return
+    end
+
     years = Set.new
 
-    # Pattern 1: FY followed by 2 or 4 digits (e.g., FY21, FY2021)
+    # Extract FY followed by 2 or 4 digits (e.g., FY21, FY2021)
     title.scan(/FY(\d{2,4})/i).each do |match|
       year_str = match[0]
       year = year_str.length == 2 ? "20#{year_str}".to_i : year_str.to_i
       years.add(year) if year >= 2000 && year <= 2100
-    end
-
-    # Pattern 2: Standalone 4-digit years (e.g., 2021, 2022)
-    # Only if FY wasn't found - avoid double-counting
-    if years.empty?
-      title.scan(/\b(20\d{2})\b/).each do |match|
-        years.add(match[0].to_i)
-      end
-    end
-
-    # Pattern 3: Date ranges (e.g., "1/6/2021 - 15/7/2021" or "01-Jun-2021 to 15-Jul-2021")
-    # Extract dates and calculate which financial years they span
-    date_pattern = /(\d{1,2})[\/\-](\d{1,2}|\w{3})[\/\-](\d{2,4})/
-    dates = title.scan(date_pattern)
-    if dates.length >= 2
-      # Parse start and end dates to determine FY span
-      dates.each do |match|
-        day, month, year_str = match
-        year = year_str.length == 2 ? "20#{year_str}".to_i : year_str.to_i
-
-        # Parse month (handle both numeric and text)
-        month_num = case month.downcase
-                    when 'jan', '01', '1' then 1
-                    when 'feb', '02', '2' then 2
-                    when 'mar', '03', '3' then 3
-                    when 'apr', '04', '4' then 4
-                    when 'may', '05', '5' then 5
-                    when 'jun', '06', '6' then 6
-                    when 'jul', '07', '7' then 7
-                    when 'aug', '08', '8' then 8
-                    when 'sep', '09', '9' then 9
-                    when 'oct', '10' then 10
-                    when 'nov', '11' then 11
-                    when 'dec', '12' then 12
-                    else month.to_i
-                    end
-
-        # Australian FY: July 1 - June 30
-        # FY2021 = July 1 2020 to June 30 2021
-        # So dates in Jan-Jun belong to the FY of that year
-        # Dates in Jul-Dec belong to the FY of next year
-        fy = month_num >= 7 ? year + 1 : year
-        years.add(fy) if fy >= 2000 && fy <= 2100
-      end
     end
 
     self.financial_years = years.to_a.sort
