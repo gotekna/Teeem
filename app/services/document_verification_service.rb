@@ -203,6 +203,16 @@ class DocumentVerificationService
       - Financial year: FY21, FY22, FY23, FY24 etc.
       - Folders: ADVICE, ASIC, ASSETS, ATO, BANK, COMPANY, DIVIDENDS, FINANCIALS, GENERAL, INSURANCE, LOANS, MINUTES, REGISTRY, TRUST
 
+      ## Signed/Unsigned Tax Returns:
+      For CTR (Company Tax Return) and TTR (Trust Tax Return):
+      - {Signed} in naming format means: use "S " for SIGNED or "US " for UNSIGNED (note the space after)
+      - DRAFT/UNSIGNED tax returns: Use "US CTR" or "US TTR"
+      - SIGNED/FINAL tax returns: Use "S CTR" or "S TTR"
+      - Look for words like "DRAFT", "UNSIGNED", "SIGNED", "FINAL" in the document
+      - If the document says "(DRAFT)" or "DRAFT", it is UNSIGNED → use "US"
+      - Example: "TD US CTR FY24.pdf" = Tekna Drafting Unsigned Company Tax Return for FY24
+      - Example: "TD S CTR FY24.pdf" = Tekna Drafting Signed Company Tax Return for FY24
+
       ## Document Types and Naming Formats:
       #{document_types_section}
       #{learning_section}
@@ -286,8 +296,8 @@ class DocumentVerificationService
     else
       # Fallback to hardcoded values if no document types in database
       <<~TYPES
-        - CTR = Company Tax Return - Format: {CompanyCode} CTR FY{YY}
-        - TTR = Trust Tax Return - Format: {CompanyCode} TTR FY{YY}
+        - CTR = Company Tax Return - Format: {CompanyCode} {Signed}CTR FY{YY} (use US or S prefix for unsigned/signed)
+        - TTR = Trust Tax Return - Format: {CompanyCode} {Signed}TTR FY{YY} (use US or S prefix for unsigned/signed)
         - BAS = Business Activity Statement - Format: {CompanyCode} BAS {Period} {Year}
         - PPSR = PPSR Registration - Format: {CompanyCode} {LoanID} PPSR {AssetCode} {Date}
         - SD = Security Deed - Format: {CompanyCode} {LoanID} Security Deed {AssetCode} {Date}
