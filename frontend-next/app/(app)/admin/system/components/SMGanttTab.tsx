@@ -91,15 +91,16 @@ export function SMGanttTab() {
 
   const loadConfig = async () => {
     try {
-      const data = await api.get<GanttConfig>("/api/v1/gantt_config");
-      setConfig(data);
-    } catch (error) {
-      console.error("Failed to load config:", error);
-      // Use localStorage fallback
+      // Try localStorage first as primary storage (API endpoint may not exist yet)
       const saved = localStorage.getItem("ganttConfig");
       if (saved) {
         setConfig(JSON.parse(saved));
       }
+      // Optionally try API if it exists in the future
+      // const data = await api.get<GanttConfig>("/api/v1/gantt_config");
+      // setConfig(data);
+    } catch (error) {
+      console.debug("Using default gantt config");
     } finally {
       setLoading(false);
     }

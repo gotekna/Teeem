@@ -41,12 +41,62 @@ import {
   Mail,
 } from "lucide-react";
 
+// Email proposal type for pipeline display
+export interface EmailProposal {
+  id: number;
+  status: "pending" | "approved" | "rejected" | "error";
+  created_at: string;
+  error_message?: string;
+  rejection_reason?: string;
+  job_id?: number;
+  email?: {
+    from_email: string;
+    subject: string;
+    has_attachments: boolean;
+    attachment_count?: number;
+    pdf_count?: number;
+  };
+  extracted_data?: {
+    job_title?: string;
+    property_address?: string;
+    job_type?: string;
+    urgency?: string;
+    contract_value?: number;
+    confidence_score?: number;
+    missing_info?: string[];
+    description?: string;
+    scope_of_work?: string;
+    customer?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      company?: string;
+      contact_exists?: boolean;
+    };
+    referral_contact?: {
+      name?: string;
+      email?: string;
+      contact_exists?: boolean;
+    };
+    external_sales?: Array<{
+      name: string;
+      email: string;
+      contact_exists?: boolean;
+    }>;
+    internal_sales?: {
+      user_name: string;
+      user_email: string;
+    };
+  };
+}
+
 export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "leads";
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [emailProposals, setEmailProposals] = useState<EmailProposal[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"pipeline" | "table">("pipeline");
@@ -65,10 +115,26 @@ export default function LeadsPage() {
     }
   };
 
+  const loadEmailProposals = async () => {
+    try {
+      const response = await api.get<{ proposals: EmailProposal[] }>(
+        "/api/v1/email_job_proposals?status="
+      );
+      const proposals = response.proposals || [];
+      setEmailProposals(proposals);
+      // Update pending count for the tab badge
+      const pendingCount = proposals.filter(p => p.status === "pending").length;
+      setPendingProposalCount(pendingCount);
+    } catch (error) {
+      console.error("Failed to load email proposals:", error);
+      setEmailProposals([]);
+    }
+  };
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await loadLeads();
+      await Promise.all([loadLeads(), loadEmailProposals()]);
       setLoading(false);
     };
     load();
@@ -289,8 +355,11 @@ export default function LeadsPage() {
           {viewMode === "pipeline" ? (
             <LeadPipeline
               leads={filteredLeads}
+              emailProposals={emailProposals.filter(p => p.status === "pending")}
               onLeadClick={handleLeadClick}
               onStatusChange={handleStatusChange}
+              onProposalsChange={loadEmailProposals}
+              onLeadsChange={loadLeads}
             />
           ) : (
             <Card>

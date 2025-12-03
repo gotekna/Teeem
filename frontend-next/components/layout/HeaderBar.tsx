@@ -84,14 +84,16 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setXeroConnected(false);
       }
 
-      try {
-        // Check Office 365 / OneDrive connection (organization-wide)
-        const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/organization_onedrive/status");
-        setOffice365Connected(office365Response?.connected === true);
-      } catch (error) {
-        console.debug("Failed to fetch Office 365 status:", error);
-        setOffice365Connected(false);
-      }
+      // Note: OneDrive status check disabled - endpoint returns 500 when not configured
+      // Re-enable when OneDrive integration is properly set up
+      // try {
+      //   const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/organization_onedrive/status");
+      //   setOffice365Connected(office365Response?.connected === true);
+      // } catch (error) {
+      //   console.debug("Failed to fetch Office 365 status:", error);
+      //   setOffice365Connected(false);
+      // }
+      setOffice365Connected(false);
     };
 
     fetchUnreadCount();

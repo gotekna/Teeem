@@ -32,7 +32,6 @@ import {
   BookOpen,
   Sparkles,
   BarChart,
-  Rocket,
   Loader2,
   ExternalLink,
   FileText,
@@ -93,7 +92,6 @@ const MAIN_TABS = [
   { id: "user-manual", label: "User Manual", icon: BookOpen },
   { id: "inspiring-quotes", label: "Inspiring Quotes", icon: Sparkles },
   { id: "performance", label: "Performance", icon: BarChart },
-  { id: "deployment", label: "Deployment", icon: Rocket },
 ];
 
 const COMPANY_TABS = [
@@ -511,7 +509,7 @@ function SystemAdminPageContent() {
                       <Banknote className="h-5 w-5" />
                       Transactions (Income & Expenses)
                     </Link>
-                    <Link href="/financial/reports" className="flex items-center gap-2 text-primary hover:underline">
+                    <Link href="/financial" className="flex items-center gap-2 text-primary hover:underline">
                       <BarChart className="h-5 w-5" />
                       Financial Reports
                     </Link>
@@ -543,36 +541,6 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="performance">
             <PerformanceTab />
-          </TabsContent>
-          <TabsContent value="deployment">
-            <Card>
-              <CardHeader>
-                <CardTitle>Deployment</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <p className="text-sm text-muted-foreground">
-                  Manage your application deployments and view deployment status.
-                </p>
-
-                <div className="space-y-4">
-                  <h3 className="font-semibold">Vercel Dashboard</h3>
-                  <p className="text-sm text-muted-foreground">
-                    View deployment status, build logs, and manage your frontend deployments on Vercel.
-                  </p>
-                  <a
-                    href="https://vercel.com/abodable-dev/teeem"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2"
-                  >
-                    <Button>
-                      Open Vercel Dashboard
-                      <ExternalLink className="h-4 w-4 ml-2" />
-                    </Button>
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </div>
       </Tabs>

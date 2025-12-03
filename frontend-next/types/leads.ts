@@ -80,7 +80,7 @@ export const LEAD_STATUS_CONFIG: Record<
   { label: string; color: string; bgColor: string }
 > = {
   new: {
-    label: "New",
+    label: "Priced Up",
     color: "text-gray-700 dark:text-gray-300",
     bgColor: "bg-gray-100 dark:bg-gray-800",
   },

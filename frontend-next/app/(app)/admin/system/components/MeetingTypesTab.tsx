@@ -84,8 +84,10 @@ export function MeetingTypesTab() {
 
   const loadMeetingTypes = async () => {
     try {
-      const data = await api.get<MeetingType[]>("/api/v1/meeting_types");
-      setMeetingTypes(data);
+      const data = await api.get<MeetingType[] | { meeting_types: MeetingType[] }>("/api/v1/meeting_types");
+      // Handle both direct array and { meeting_types: [...] } response formats
+      const typesArray = Array.isArray(data) ? data : (data?.meeting_types || []);
+      setMeetingTypes(typesArray);
     } catch (error) {
       console.error("Failed to load meeting types:", error);
       // Mock data

@@ -110,8 +110,10 @@ function UsersManagementTab() {
 
   const loadRoles = async () => {
     try {
-      const data = await api.get<Role[]>("/api/v1/permissions/roles");
-      setRoles(data);
+      const data = await api.get<Role[] | { roles: Role[] }>("/api/v1/permissions/roles");
+      // Handle both direct array and { roles: [...] } response formats
+      const rolesArray = Array.isArray(data) ? data : (data?.roles || []);
+      setRoles(rolesArray);
     } catch (error) {
       console.error("Failed to load roles:", error);
     }
@@ -298,8 +300,10 @@ function RolesManagementTab() {
 
   const loadRoles = async () => {
     try {
-      const data = await api.get<Role[]>("/api/v1/permissions/roles");
-      setRoles(data);
+      const data = await api.get<Role[] | { roles: Role[] }>("/api/v1/permissions/roles");
+      // Handle both direct array and { roles: [...] } response formats
+      const rolesArray = Array.isArray(data) ? data : (data?.roles || []);
+      setRoles(rolesArray);
     } catch (error) {
       console.error("Failed to load roles:", error);
       toast({ title: "Error", description: "Failed to load roles", variant: "destructive" });
