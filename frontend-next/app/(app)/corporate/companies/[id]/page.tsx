@@ -1819,34 +1819,67 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
   const [bulkAiProcessing, setBulkAiProcessing] = React.useState(false);
   const [bulkAiProgress, setBulkAiProgress] = React.useState<{ current: number; total: number } | null>(null);
 
-  // Bulk AI verification handler
+  // Helper to poll document status until verification completes
+  const waitForVerification = async (docId: number | string, maxWaitMs = 120000): Promise<CompanyDocument | null> => {
+    const startTime = Date.now();
+    const pollInterval = 2000; // 2 seconds
+
+    while (Date.now() - startTime < maxWaitMs) {
+      try {
+        const response = await api.get<{ document: CompanyDocument }>(
+          `/api/v1/company_documents/${docId}`
+        );
+
+        if (response?.document) {
+          const status = response.document.ai_verification_status;
+          // Done when not processing
+          if (status !== "processing") {
+            return response.document;
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to poll document ${docId}:`, err);
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    console.warn(`Verification timeout for document ${docId}`);
+    return null;
+  };
+
+  // Bulk AI verification handler - uses async mode to avoid Heroku timeouts
   const handleBulkAiVerify = async (ids: (number | string)[], clearSelection: () => void) => {
     setBulkAiProcessing(true);
     setBulkAiProgress({ current: 0, total: ids.length });
 
     try {
-      // Process documents one by one (or use a bulk endpoint if available)
+      // Process documents one by one using async mode
       for (let i = 0; i < ids.length; i++) {
         const docId = ids[i];
         setBulkAiProgress({ current: i + 1, total: ids.length });
 
         try {
-          // Call AI verify endpoint
-          const response = await api.post<{
-            success: boolean;
-            document: CompanyDocument;
-            auto_applied?: boolean;
-          }>(`/api/v1/company_documents/${docId}/ai_verify`, {
-            auto_apply_threshold: 90 // Auto-apply if 90%+ confidence
-          });
+          // Trigger async AI verification (no auto_apply_threshold = async mode)
+          // The DocumentVerificationService already auto-applies at 90%+ confidence
+          await api.post<{ success: boolean }>(`/api/v1/company_documents/${docId}/ai_verify`);
 
-          // Update the document in our local state
-          if (response?.success && response.document) {
+          // Update local state to show processing
+          setDocuments(prev => prev.map(d =>
+            d.id === docId ? { ...d, ai_verification_status: "processing" as const } : d
+          ));
+
+          // Wait for verification to complete
+          const updatedDoc = await waitForVerification(docId);
+
+          // Update local state with result
+          if (updatedDoc) {
             setDocuments(prev => prev.map(d =>
               d.id === docId ? {
                 ...d,
-                ...response.document,
-                ai_confidence: response.document.ai_confidence_score || null,
+                ...updatedDoc,
+                ai_confidence: updatedDoc.ai_confidence_score || null,
               } : d
             ));
           }
