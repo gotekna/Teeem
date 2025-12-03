@@ -25,6 +25,7 @@ import {
   FileText,
   ExternalLink,
   CheckCircle2,
+  CheckCircle,
   Check,
   Sparkles,
   Loader2,
@@ -1486,6 +1487,14 @@ export default function DocumentPreviewModal({
                   />
                 </div>
 
+                {/* Table Title Preview - shows how it will appear in the table */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
+                  <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 line-clamp-2">
+                    {editedTitle ? editedTitle.replace(/\.pdf$/i, '').replace(/\.(doc|docx|xls|xlsx)$/i, '') : "-"}
+                  </div>
+                </div>
+
                 {/* Save button and action notes */}
                 {((editedTitle && editedTitle !== document.title) ||
                   (editedFolder && editedFolder !== document.folder) ||
@@ -1622,6 +1631,18 @@ export default function DocumentPreviewModal({
                       )}>
                         {document.ai_suggested_type || "-"}
                       </div>
+                      {/* Show naming format for AI suggested type */}
+                      {document.ai_suggested_type && (() => {
+                        const aiDocType = documentTypes.find(t =>
+                          t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
+                          t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+                        );
+                        return aiDocType?.naming_format ? (
+                          <p className="mt-0.5 text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded truncate">
+                            {aiDocType.naming_format}
+                          </p>
+                        ) : null;
+                      })()}
                     </div>
 
                     {/* Description/Period - only show if Edit panel shows it */}
@@ -1697,6 +1718,14 @@ export default function DocumentPreviewModal({
                           : ""
                       )}>
                         <span className="truncate">{document.ai_suggested_name || "-"}</span>
+                      </div>
+                    </div>
+
+                    {/* Table Title Preview - shows how AI suggestion will appear in the table */}
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
+                      <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 line-clamp-2">
+                        {document.ai_suggested_name ? document.ai_suggested_name.replace(/\.pdf$/i, '').replace(/\.(doc|docx|xls|xlsx)$/i, '') : "-"}
                       </div>
                     </div>
 

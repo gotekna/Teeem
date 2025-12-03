@@ -1482,7 +1482,7 @@ const DOCUMENT_TYPE_OPTIONS = [
 const buildDocumentColumns = (): TableColumn[] => [
   { key: "id", label: "ID", column_type: "whole_number", resizable: true, sortable: true, filterable: true, filterType: "text", width: 60 },
   { key: "title", label: "Title", column_type: "string", resizable: true, sortable: true, filterable: true, filterType: "text", width: 300 },
-  { key: "validated", label: "✓", column_type: "boolean", resizable: false, sortable: true, filterable: true, filterType: "dropdown", width: 50 },
+  { key: "validated", label: "Validated", column_type: "boolean", resizable: false, sortable: true, filterable: true, filterType: "dropdown", width: 80 },
   { key: "ai_confidence", label: "AI", column_type: "whole_number", resizable: false, sortable: true, filterable: true, filterType: "dropdown", width: 50 },
   { key: "document_type", label: "Type", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
   { key: "financial_years", label: "FY", column_type: "structured_data", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 80 },
@@ -1771,6 +1771,35 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
               ))}
             </SelectContent>
           </Select>
+        );
+      case "financial_years":
+        // Show FY badges that can be used for filtering
+        // Parse the financial_years - it could be an array, string, or comma-separated
+        const fyValue = doc.financial_years;
+        let fyArray: number[] = [];
+        if (Array.isArray(fyValue)) {
+          fyArray = fyValue.map(y => typeof y === 'number' ? y : parseInt(String(y), 10)).filter(y => !isNaN(y));
+        } else if (typeof fyValue === 'string' && fyValue) {
+          fyArray = fyValue.split(',').map(s => parseInt(s.trim(), 10)).filter(y => !isNaN(y));
+        }
+
+        if (fyArray.length === 0) {
+          return <span className="text-muted-foreground text-xs">-</span>;
+        }
+
+        return (
+          <div className="flex flex-wrap gap-0.5">
+            {fyArray.map(year => (
+              <Badge
+                key={year}
+                variant="outline"
+                className="text-[10px] px-1 py-0 font-mono bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 cursor-pointer hover:bg-blue-100"
+                title={`Filter by FY${year.toString().slice(-2)}`}
+              >
+                FY{year.toString().slice(-2)}
+              </Badge>
+            ))}
+          </div>
         );
       default:
         return null;
