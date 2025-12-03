@@ -1336,7 +1336,7 @@ export default function DocumentPreviewModal({
                       <Input
                         value={editedDescription}
                         onChange={(e) => setEditedDescription(e.target.value)}
-                        className="mt-0.5 h-7 text-xs"
+                        className="mt-0.5 h-9 text-sm"
                         placeholder={needsDescriptionAndDate ? "e.g., Notice of Assessment..." : "e.g., Q1, Draft..."}
                       />
                     )}
@@ -1374,7 +1374,7 @@ export default function DocumentPreviewModal({
                       type="date"
                       value={editedRefDate}
                       onChange={(e) => setEditedRefDate(e.target.value)}
-                      className="mt-0.5 h-7 text-xs"
+                      className="mt-0.5 h-9 text-sm"
                     />
                   </div>
                 )}
@@ -1385,7 +1385,7 @@ export default function DocumentPreviewModal({
                   <Input
                     value={editedTitle}
                     onChange={(e) => setEditedTitle(e.target.value)}
-                    className="mt-0.5 h-7 font-mono text-xs bg-muted/50"
+                    className="mt-0.5 h-10 font-mono text-sm bg-muted/50"
                     placeholder="Auto-generated..."
                   />
                 </div>
@@ -1422,7 +1422,7 @@ export default function DocumentPreviewModal({
                       <Input
                         value={actionNotes}
                         onChange={(e) => setActionNotes(e.target.value)}
-                        className="mt-0.5 h-7 text-xs"
+                        className="mt-0.5 h-9 text-sm"
                         placeholder="e.g., Renamed per client request..."
                       />
                     </div>
