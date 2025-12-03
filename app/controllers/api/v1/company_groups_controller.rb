@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyGroupsController < ApplicationController
-      before_action :set_company_group, only: [:show, :update, :destroy, :companies, :structure]
+      before_action :set_company_group, only: [:show, :update, :destroy, :companies, :structure, :contacts]
 
       # GET /api/v1/company_groups
       def index
@@ -104,6 +104,13 @@ module Api
         # Exclude those trusts from top level (they'll appear under their trustee)
         top_level = all_top_level.where.not(id: trusts_with_trustees)
 
+        # SSoT: Get people in this group via memberships
+        people = @company_group.contact_memberships
+          .people
+          .active
+          .includes(:contact)
+          .map { |m| serialize_person_membership(m) }
+
         render json: {
           success: true,
           data: {
@@ -112,13 +119,34 @@ module Api
               name: @company_group.name
             },
             companies: top_level.map { |c| build_hierarchy_tree(c, @company_group) },
+            people: people,
             stats: {
               total_companies: @company_group.companies.count,
               top_level_count: top_level.count,
               trustees_count: @company_group.companies.where(is_trustee: true).count,
-              trusts_count: @company_group.companies.where(entity_type: 'Trust').count
+              trusts_count: @company_group.companies.where(entity_type: 'Trust').count,
+              people_count: people.count
             }
           }
+        }
+      end
+
+      # GET /api/v1/company_groups/:id/contacts
+      def contacts
+        memberships = @company_group.contact_memberships
+          .includes(:contact, :company)
+
+        if params[:type].present?
+          memberships = memberships.where(membership_type: params[:type])
+        end
+
+        if params[:active].present?
+          memberships = params[:active] == 'true' ? memberships.active : memberships.where(is_active: false)
+        end
+
+        render json: {
+          success: true,
+          data: memberships.map { |m| serialize_membership(m) }
         }
       end
 
@@ -169,8 +197,75 @@ module Api
           acn: company.acn,
           abn: company.abn,
           status: company.status,
-          code: company.code
+          code: company.code,
+          contact_id: company.contact_id  # SSoT link
         }
+      end
+
+      # SSoT: Serialize a person membership for the structure endpoint
+      def serialize_person_membership(membership)
+        contact = membership.contact
+        {
+          id: membership.id,
+          contact_id: contact.id,
+          name: contact.display_name,
+          email: contact.email,
+          membership_type: membership.membership_type,
+          is_active: membership.is_active,
+          roles: get_person_roles(contact, membership.company_group_id)
+        }
+      end
+
+      # SSoT: Serialize full membership data
+      def serialize_membership(membership)
+        contact = membership.contact
+        {
+          id: membership.id,
+          contact_id: contact.id,
+          contact_name: contact.display_name,
+          contact_email: contact.email,
+          contact_entity_type: contact.entity_type,
+          company_group_id: membership.company_group_id,
+          membership_type: membership.membership_type,
+          company_id: membership.company_id,
+          company_name: membership.company&.name,
+          can_view_confidential: membership.can_view_confidential,
+          can_edit: membership.can_edit,
+          is_active: membership.is_active,
+          created_at: membership.created_at,
+          updated_at: membership.updated_at
+        }
+      end
+
+      # SSoT: Get all roles a person has in a company group
+      def get_person_roles(contact, company_group_id)
+        roles = []
+
+        # Get directorship roles
+        contact.company_directorships.includes(:company).each do |dir|
+          next unless dir.company&.company_group_id == company_group_id
+          roles << {
+            type: 'director',
+            company_id: dir.company_id,
+            company_name: dir.company.name,
+            position: dir.position,
+            is_current: dir.is_current
+          }
+        end
+
+        # Get shareholder roles
+        contact.company_shareholdings.includes(:company).each do |sh|
+          next unless sh.company&.company_group_id == company_group_id
+          roles << {
+            type: 'shareholder',
+            company_id: sh.company_id,
+            company_name: sh.company.name,
+            shares: sh.number_of_shares,
+            percentage: sh.percentage_of_total
+          }
+        end
+
+        roles
       end
 
       def build_hierarchy_tree(company, company_group = nil)

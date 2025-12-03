@@ -16,6 +16,9 @@ class PurchaseOrder < ApplicationRecord
   has_many :subcontractor_invoices, dependent: :destroy
   has_many :pay_now_requests, dependent: :destroy
 
+  # Documents attached to this PO (via polymorphic documentable)
+  has_many :company_documents, as: :documentable, dependent: :nullify
+
   # Nested attributes
   accepts_nested_attributes_for :line_items, allow_destroy: true
 

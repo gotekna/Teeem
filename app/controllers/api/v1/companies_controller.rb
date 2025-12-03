@@ -4,7 +4,7 @@ module Api
       before_action :set_company, only: [:show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
-                                         :investments]
+                                         :investments, :trust_roles]
 
       # GET /api/v1/companies
       def index
@@ -334,6 +334,57 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/:id/trust_roles
+      # Returns trustee, beneficiaries, and appointor for a trust entity
+      # Works for both Trust entities AND Corporate Trustee entities
+      def trust_roles
+        # Determine if this is a Trust/Superfund or a Corporate Trustee
+        is_trust = @company.entity_type.in?(['Trust', 'Superfund'])
+        is_trustee_company = @company.is_trustee && @company.trust_name.present?
+
+        if !is_trust && !is_trustee_company
+          return render json: {
+            success: false,
+            error: 'This company is not a trust or corporate trustee'
+          }, status: :unprocessable_entity
+        end
+
+        # For a Trust entity, find the corporate trustee
+        # For a Corporate Trustee, find the trust it manages
+        if is_trust
+          trust = @company
+          corporate_trustee = Company.find_by(trust_name: @company.name, is_trustee: true)
+        else
+          corporate_trustee = @company
+          trust = Company.find_by(name: @company.trust_name)
+        end
+
+        # Get trust roles from ContactCompanyGroupMemberships
+        trust_group_id = trust&.company_group_id || @company.company_group_id
+        memberships = ContactCompanyGroupMembership
+          .where(company_group_id: trust_group_id, membership_type: ['beneficiary', 'appointor', 'trustee'])
+          .includes(:contact)
+
+        beneficiaries = memberships.select { |m| m.membership_type == 'beneficiary' }
+        appointors = memberships.select { |m| m.membership_type == 'appointor' }
+
+        # Also check ContactRelationships for trust roles
+        contact_relationships = ContactRelationship
+          .trust_roles
+          .includes(:contact, :related_contact)
+
+        render json: {
+          success: true,
+          data: {
+            trust: trust ? serialize_trust_brief(trust) : nil,
+            corporate_trustee: corporate_trustee ? serialize_company_brief(corporate_trustee) : nil,
+            beneficiaries: beneficiaries.map { |m| serialize_membership_contact(m) },
+            appointors: appointors.map { |m| serialize_membership_contact(m) },
+            contact_relationships: contact_relationships.map { |cr| serialize_contact_relationship(cr) }
+          }
+        }
+      end
+
       # POST /api/v1/companies/import
       def import
         # Handle Excel import (to be implemented with CompanyImportService)
@@ -461,6 +512,45 @@ module Api
           acn: company.acn,
           is_trustee: company.is_trustee,
           trust_name: company.trust_name
+        }
+      end
+
+      def serialize_trust_brief(company)
+        {
+          id: company.id,
+          name: company.name,
+          entity_type: company.entity_type,
+          status: company.status,
+          company_group_id: company.company_group_id,
+          date_incorporated: company.date_incorporated
+        }
+      end
+
+      def serialize_membership_contact(membership)
+        {
+          membership_id: membership.id,
+          contact_id: membership.contact_id,
+          contact_name: membership.contact&.full_name,
+          contact_email: membership.contact&.email,
+          contact_entity_type: membership.contact&.entity_type,
+          membership_type: membership.membership_type,
+          can_view_confidential: membership.can_view_confidential,
+          is_active: membership.is_active
+        }
+      end
+
+      def serialize_contact_relationship(relationship)
+        {
+          id: relationship.id,
+          contact_id: relationship.contact_id,
+          contact_name: relationship.contact&.full_name,
+          related_contact_id: relationship.related_contact_id,
+          related_contact_name: relationship.related_contact&.full_name,
+          relationship_type: relationship.relationship_type,
+          ownership_percentage: relationship.ownership_percentage,
+          start_date: relationship.start_date,
+          end_date: relationship.end_date,
+          is_current: relationship.is_current
         }
       end
     end

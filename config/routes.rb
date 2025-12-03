@@ -316,6 +316,7 @@ Rails.application.routes.draw do
         member do
           get :categories
           get :internal_messages
+          get :company_group_memberships
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices
@@ -1091,6 +1092,7 @@ Rails.application.routes.draw do
           get :hierarchy
           get :shareholders
           get :investments
+          get :trust_roles  # SSoT: Trustee, Beneficiaries, Appointor for Trust/Superfund entities
         end
 
         # Bank Accounts (nested under companies)
@@ -1153,6 +1155,7 @@ Rails.application.routes.draw do
         member do
           get :companies
           get :structure
+          get :contacts  # SSoT: Get all contacts/memberships in this group
         end
       end
 

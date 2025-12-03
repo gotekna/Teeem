@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -1324,6 +1324,22 @@ module Api
         }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/:id/company_group_memberships
+      # Returns all company group memberships for this contact
+      def company_group_memberships
+        memberships = @contact.company_group_memberships.includes(:company_group, :company)
+
+        render json: {
+          success: true,
+          data: memberships.map { |m| serialize_membership(m) }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to load memberships: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # GET /api/v1/contacts/possible_duplicates
       # Find contacts that might be duplicates based on name matching
       def possible_duplicates
@@ -1418,6 +1434,21 @@ module Api
       def normalize_name(name)
         return nil if name.blank?
         name.to_s.downcase.gsub(/\s+/, ' ').strip
+      end
+
+      def serialize_membership(membership)
+        {
+          id: membership.id,
+          contact_id: membership.contact_id,
+          company_group_id: membership.company_group_id,
+          company_group_name: membership.company_group&.name,
+          membership_type: membership.membership_type,
+          company_id: membership.company_id,
+          company_name: membership.company&.name,
+          can_view_confidential: membership.can_view_confidential,
+          can_edit: membership.can_edit,
+          is_active: membership.is_active
+        }
       end
 
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)

@@ -62,6 +62,17 @@ class Job < ApplicationRecord
   # Scopes
   scope :active, -> { joins(:job_status).where(job_statuses: { name: 'Active Job' }) }
 
+  # Archival scopes (Sprint 8: Scale Preparation)
+  scope :archived, -> { where.not(archived_at: nil) }
+  scope :not_archived, -> { where(archived_at: nil) }
+  scope :archivable, -> {
+    # Jobs that are completed/cancelled and haven't been modified in 90+ days
+    joins(:job_status)
+      .where(job_status: { name: ['Completed', 'Cancelled', 'Archived'] })
+      .where('jobs.updated_at < ?', 90.days.ago)
+      .where(archived_at: nil)
+  }
+
   # Methods
   def create_project!(project_manager:, name: nil)
     create_project(
@@ -162,6 +173,47 @@ class Job < ApplicationRecord
   # Check if job was imported from Xero (has tracking option linked)
   def imported_from_xero?
     xero_tracking_option_id.present?
+  end
+
+  # ============================================
+  # Archival Methods (Sprint 8: Scale Preparation)
+  # ============================================
+
+  def archived?
+    archived_at.present?
+  end
+
+  def archive!(reason: nil, user: nil)
+    return false if archived?
+
+    update!(
+      archived_at: Time.current,
+      archive_reason: reason,
+      archived_by_id: user&.id
+    )
+    true
+  end
+
+  def unarchive!
+    return false unless archived?
+
+    update!(
+      archived_at: nil,
+      archive_reason: nil,
+      archived_by_id: nil
+    )
+    true
+  end
+
+  # Check if job can be archived (has no recent activity)
+  def can_archive?
+    return false if archived?
+
+    # Must be in a terminal status
+    return false unless job_status&.name.in?(['Completed', 'Cancelled', 'Archived'])
+
+    # Must have no recent activity (90 days)
+    updated_at < 90.days.ago
   end
 
   private
