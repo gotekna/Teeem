@@ -1159,6 +1159,7 @@ export default function DocumentPreviewModal({
       <DialogContent
         className="!max-w-[100vw] !w-[100vw] !max-h-[100vh] !h-[100vh] !rounded-none overflow-hidden p-0 flex flex-col"
         aria-describedby={undefined}
+        hideClose
       >
         {/* Header - compact */}
         <DialogHeader className="px-4 py-2 border-b flex-shrink-0">
