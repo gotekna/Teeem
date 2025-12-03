@@ -264,7 +264,7 @@ module Api
       # POST /api/v1/company_documents/:id/relocate
       # Moves/renames document in OneDrive and updates metadata
       def relocate
-        relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, financial_years: [])
+        relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, :document_type, :ref_date, :filed_date, financial_years: [])
 
         service = DocumentRelocateService.new(@document)
         result = service.relocate!(
@@ -274,10 +274,13 @@ module Api
         )
 
         if result[:success]
-          # Update financial years if provided (not handled by relocate service)
-          if relocate_params[:financial_years].present?
-            @document.update!(financial_years: relocate_params[:financial_years])
-          end
+          # Update additional fields not handled by relocate service
+          updates = {}
+          updates[:financial_years] = relocate_params[:financial_years] if relocate_params[:financial_years].present?
+          updates[:document_type] = relocate_params[:document_type] if relocate_params[:document_type].present?
+          updates[:ref_date] = relocate_params[:ref_date] if relocate_params[:ref_date].present?
+          updates[:filed_date] = relocate_params[:filed_date] if relocate_params[:filed_date].present?
+          @document.update!(updates) if updates.any?
 
           @document.reload
 
@@ -315,6 +318,7 @@ module Api
           :company_id, :contact_id, :asset_id, :document_type_id, :title, :document_name,
           :document_type, :description, :file_url, :year, :period, :folder,
           :storage_type, :source, :file_name, :file_size, :mime_type,
+          :ref_date, :filed_date,
           financial_years: []
         )
       end
