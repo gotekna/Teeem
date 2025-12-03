@@ -167,7 +167,7 @@ class DocumentSplitService
       file_size: file_size,
       financial_years: split_config[:financial_years] || @document.financial_years,
       ref_date: split_config[:ref_date],
-      ai_verification_status: 'pending', # Ready for AI verification
+      ai_verification_status: 'verified', # Auto-verified since user defined the split
       ai_analysis_notes: "Split from #{@document.title}"
     )
   end
