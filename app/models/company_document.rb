@@ -20,6 +20,19 @@ class CompanyDocument < ApplicationRecord
   # AI verification statuses
   AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
 
+  # Legacy hardcoded document types for backward compatibility
+  LEGACY_DOCUMENT_TYPES = %w[constitution minutes loan_agreement security_deed setup share_certificate
+                             tax_return financial_statement insurance_policy asic share_registry trust_deed
+                             financial tax insurance contract certificate other].freeze
+
+  # Returns all allowed document types (from database + legacy hardcoded)
+  def self.allowed_document_types
+    # Get document type names from database
+    db_types = DocumentType.pluck(:name) rescue []
+    # Combine with legacy types
+    (LEGACY_DOCUMENT_TYPES + db_types).uniq
+  end
+
   # Document type abbreviations for display title generation
   # These are expanded to human-readable names when showing documents
   DOCUMENT_TYPE_ABBREVIATIONS = {
@@ -34,10 +47,9 @@ class CompanyDocument < ApplicationRecord
 
   # Validations
   validates :title, presence: true
+  # Allow document_type from the DocumentType table or legacy hardcoded values
   validates :document_type, inclusion: {
-    in: %w[constitution minutes loan_agreement security_deed setup share_certificate
-           tax_return financial_statement insurance_policy asic share_registry trust_deed
-           financial tax insurance contract certificate other]
+    in: ->(doc) { doc.class.allowed_document_types }
   }, allow_blank: true
   validates :storage_type, inclusion: { in: STORAGE_TYPES }, allow_blank: true
 
