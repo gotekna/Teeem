@@ -64,28 +64,39 @@ const SheetContent = React.forwardRef<
   (
     { side = "right", stack = false, className, children, title, ...props },
     ref,
-  ) => (
-    <SheetPortal>
-      <SheetOverlay />
-      <SheetPrimitive.Content
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        ref={ref}
-        className={cn("md:p-4", sheetVariants({ side }))}
-        aria-describedby={props["aria-describedby"] || undefined}
-        {...props}
-      >
-        <div
-          className={cn(
-            "border w-full h-full bg-[#FAFAF9] dark:bg-[#0C0C0C] p-6 relative overflow-hidden",
-            className,
-          )}
+  ) => {
+    const contentRef = React.useRef<HTMLDivElement>(null);
+
+    return (
+      <SheetPortal>
+        <SheetOverlay />
+        <SheetPrimitive.Content
+          onOpenAutoFocus={(e) => {
+            // Focus the content container instead of preventing focus entirely
+            // This avoids the aria-hidden warning while maintaining accessibility
+            e.preventDefault();
+            contentRef.current?.focus();
+          }}
+          ref={ref}
+          className={cn("md:p-4", sheetVariants({ side }))}
+          aria-describedby={props["aria-describedby"] || undefined}
+          {...props}
         >
-          <SheetTitle className="sr-only">{title}</SheetTitle>
-          {children}
-        </div>
-      </SheetPrimitive.Content>
-    </SheetPortal>
-  ),
+          <div
+            ref={contentRef}
+            tabIndex={-1}
+            className={cn(
+              "border w-full h-full bg-[#FAFAF9] dark:bg-[#0C0C0C] p-6 relative overflow-hidden outline-none",
+              className,
+            )}
+          >
+            <SheetTitle className="sr-only">{title}</SheetTitle>
+            {children}
+          </div>
+        </SheetPrimitive.Content>
+      </SheetPortal>
+    );
+  },
 );
 SheetContent.displayName = SheetPrimitive.Content.displayName;
 

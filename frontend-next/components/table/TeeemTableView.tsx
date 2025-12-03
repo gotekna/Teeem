@@ -166,6 +166,7 @@ import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumn
 import { DataHealthWidget } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { MergeModal } from "./MergeModal";
+import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -743,6 +744,7 @@ export default function TeeemTableView({
   foundationId = "default",
   foundationIdNumeric = null,
   tableName = "Table",
+  onAddRow,
   onEdit,
   onDelete,
   onBulkDelete,
@@ -951,6 +953,9 @@ export default function TeeemTableView({
 
   // Filter modal state
   const [showFilterModal, setShowFilterModal] = useState(false);
+
+  // Global Views Manager state (auto-enabled when foundationIdNumeric is set)
+  const [showGlobalViewsManager, setShowGlobalViewsManager] = useState(false);
 
   // ============================================================================
   // DEVELOPER WARNINGS
@@ -2929,6 +2934,292 @@ export default function TeeemTableView({
           );
         }
 
+        // Color picker - color input
+        if (columnType === 'color_picker') {
+          return (
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                className="h-7 w-10 p-0 border rounded cursor-pointer"
+                value={String(rowEditingData[column.key] ?? "#000000")}
+                onChange={(e) =>
+                  setEditingData((prev) => ({
+                    ...prev,
+                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
+                  }))
+                }
+              />
+              <Input
+                className="h-7 text-sm font-mono w-20"
+                value={String(rowEditingData[column.key] ?? "")}
+                onChange={(e) =>
+                  setEditingData((prev) => ({
+                    ...prev,
+                    [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
+                  }))
+                }
+                placeholder="#000000"
+              />
+            </div>
+          );
+        }
+
+        // GPS Coordinates - lat/lng input
+        if (columnType === 'gps_coordinates') {
+          return (
+            <Input
+              className="h-7 text-sm font-mono"
+              placeholder="-33.8688, 151.2093"
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
+                }))
+              }
+            />
+          );
+        }
+
+        // Multiple lookups - multi-select (simplified tag input)
+        if (columnType === 'multiple_lookups') {
+          const currentItems = Array.isArray(rowEditingData[column.key])
+            ? rowEditingData[column.key] as Array<{ id: number; display?: string }>
+            : [];
+          const options = lookupOptions[column.key] || [];
+
+          return (
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap gap-1 min-h-[28px] p-1 border rounded bg-background">
+                {currentItems.map((item, idx) => (
+                  <Badge key={idx} variant="secondary" className="text-xs flex items-center gap-1">
+                    {item.display || `#${item.id}`}
+                    <button
+                      type="button"
+                      className="hover:text-destructive"
+                      onClick={() => {
+                        const newItems = currentItems.filter((_, i) => i !== idx);
+                        setEditingData((prev) => ({
+                          ...prev,
+                          [entry.id]: { ...prev[entry.id], [column.key]: newItems },
+                        }));
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              <Select
+                value=""
+                onValueChange={(val) => {
+                  if (!val) return;
+                  const option = options.find(o => String(o.id) === val);
+                  if (option && !currentItems.some(i => i.id === option.id)) {
+                    setEditingData((prev) => ({
+                      ...prev,
+                      [entry.id]: {
+                        ...prev[entry.id],
+                        [column.key]: [...currentItems, { id: option.id, display: option.display }]
+                      },
+                    }));
+                  }
+                }}
+              >
+                <SelectTrigger className="h-7 text-sm">
+                  <SelectValue placeholder="Add..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {options
+                    .filter(o => !currentItems.some(i => i.id === o.id))
+                    .map((option) => (
+                      <SelectItem key={option.id} value={String(option.id)}>
+                        {option.display}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        }
+
+        // Structured data (JSON) - textarea for JSON editing
+        if (columnType === 'structured_data') {
+          const jsonValue = typeof rowEditingData[column.key] === 'string'
+            ? rowEditingData[column.key]
+            : JSON.stringify(rowEditingData[column.key] ?? {}, null, 2);
+          return (
+            <textarea
+              className="h-20 w-full text-xs font-mono p-2 border rounded resize-none"
+              value={String(jsonValue)}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value },
+                }))
+              }
+              placeholder='{"key": "value"}'
+            />
+          );
+        }
+
+        // Array of items - tag input (uses comma-separated input)
+        if (columnType === 'array_of_items') {
+          const currentItems = Array.isArray(rowEditingData[column.key])
+            ? rowEditingData[column.key] as string[]
+            : [];
+
+          return (
+            <div className="flex flex-col gap-1">
+              <div className="flex flex-wrap gap-1 min-h-[28px] p-1 border rounded bg-background">
+                {currentItems.map((item, idx) => (
+                  <Badge key={idx} variant="outline" className="text-xs flex items-center gap-1">
+                    {item}
+                    <button
+                      type="button"
+                      className="hover:text-destructive"
+                      onClick={() => {
+                        const newItems = currentItems.filter((_, i) => i !== idx);
+                        setEditingData((prev) => ({
+                          ...prev,
+                          [entry.id]: { ...prev[entry.id], [column.key]: newItems },
+                        }));
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+              <Input
+                className="h-7 text-sm"
+                placeholder="Type and press Enter to add..."
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const input = e.currentTarget;
+                    const value = input.value.trim();
+                    if (value) {
+                      setEditingData((prev) => ({
+                        ...prev,
+                        [entry.id]: {
+                          ...prev[entry.id],
+                          [column.key]: [...currentItems, value]
+                        },
+                      }));
+                      input.value = "";
+                    }
+                  }
+                }}
+              />
+            </div>
+          );
+        }
+
+        // Australian types - text inputs with format hints
+        if (columnType === 'abn') {
+          return (
+            <Input
+              className="h-7 text-sm font-mono"
+              placeholder="XX XXX XXX XXX"
+              maxLength={14}
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 11) },
+                }))
+              }
+            />
+          );
+        }
+
+        if (columnType === 'acn') {
+          return (
+            <Input
+              className="h-7 text-sm font-mono"
+              placeholder="XXX XXX XXX"
+              maxLength={11}
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 9) },
+                }))
+              }
+            />
+          );
+        }
+
+        if (columnType === 'bsb') {
+          return (
+            <Input
+              className="h-7 text-sm font-mono"
+              placeholder="XXX-XXX"
+              maxLength={7}
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 6) },
+                }))
+              }
+            />
+          );
+        }
+
+        if (columnType === 'bank_account') {
+          return (
+            <Input
+              className="h-7 text-sm font-mono"
+              placeholder="Account number"
+              maxLength={9}
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 9) },
+                }))
+              }
+            />
+          );
+        }
+
+        if (columnType === 'postcode') {
+          return (
+            <Input
+              className="h-7 text-sm font-mono"
+              placeholder="3000"
+              maxLength={4}
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 4) },
+                }))
+              }
+            />
+          );
+        }
+
+        if (columnType === 'tfn') {
+          return (
+            <Input
+              type="password"
+              className="h-7 text-sm font-mono"
+              placeholder="XXX XXX XXX"
+              maxLength={11}
+              value={String(rowEditingData[column.key] ?? "")}
+              onChange={(e) =>
+                setEditingData((prev) => ({
+                  ...prev,
+                  [entry.id]: { ...prev[entry.id], [column.key]: e.target.value.replace(/\D/g, '').slice(0, 9) },
+                }))
+              }
+            />
+          );
+        }
+
         // Number types
         if (columnType === 'number' || columnType === 'integer' || columnType === 'decimal' || columnType === 'currency' || columnType === 'percentage') {
           const hasError = validationErrors[entry.id]?.[column.key];
@@ -3416,6 +3707,135 @@ export default function TeeemTableView({
           );
         }
         return <span className="whitespace-pre-wrap">{htmlValue}</span>;
+      }
+
+      // Handle structured_data (JSON) - collapsible JSON viewer
+      if (column.column_type === "structured_data" && value) {
+        const jsonStr = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        const preview = jsonStr.length > 50 ? jsonStr.slice(0, 50) + '...' : jsonStr;
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded cursor-pointer">
+                  {'{...}'} {preview.slice(0, 20)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-lg">
+                <pre className="text-xs whitespace-pre-wrap max-h-[300px] overflow-auto">
+                  {jsonStr}
+                </pre>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+
+      // Handle array_of_items - show as tags
+      if (column.column_type === "array_of_items" && value) {
+        const items = Array.isArray(value) ? value : (typeof value === 'string' ? JSON.parse(value) : []);
+        if (items.length === 0) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {items.slice(0, 3).map((item: string, idx: number) => (
+              <Badge key={idx} variant="outline" className="text-xs">
+                {String(item)}
+              </Badge>
+            ))}
+            {items.length > 3 && (
+              <Badge variant="secondary" className="text-xs">
+                +{items.length - 3}
+              </Badge>
+            )}
+          </div>
+        );
+      }
+
+      // Handle searchable_text - read-only search terms display
+      if (column.column_type === "searchable_text" && value) {
+        return (
+          <span className="font-mono text-xs text-muted-foreground italic">
+            🔍 {String(value).slice(0, 30)}...
+          </span>
+        );
+      }
+
+      // Handle action_buttons - render configured buttons
+      if (column.column_type === "action_buttons" && value) {
+        try {
+          const config = typeof value === 'string' ? JSON.parse(value) : value;
+          const buttons = config.buttons || [];
+          return (
+            <div className="flex gap-1">
+              {buttons.slice(0, 3).map((btn: { label: string; action: string }, idx: number) => (
+                <Button key={idx} variant="outline" size="sm" className="h-6 text-xs px-2">
+                  {btn.label}
+                </Button>
+              ))}
+            </div>
+          );
+        } catch {
+          return <span className="text-muted-foreground">-</span>;
+        }
+      }
+
+      // Handle Australian types with formatted display
+      // ABN: XX XXX XXX XXX (11 digits)
+      if (column.column_type === "abn" && value) {
+        const digits = String(value).replace(/\D/g, '');
+        const formatted = digits.length === 11
+          ? `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,8)} ${digits.slice(8,11)}`
+          : String(value);
+        return <span className="font-mono">{formatted}</span>;
+      }
+
+      // ACN: XXX XXX XXX (9 digits)
+      if (column.column_type === "acn" && value) {
+        const digits = String(value).replace(/\D/g, '');
+        const formatted = digits.length === 9
+          ? `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`
+          : String(value);
+        return <span className="font-mono">{formatted}</span>;
+      }
+
+      // BSB: XXX-XXX (6 digits)
+      if (column.column_type === "bsb" && value) {
+        const digits = String(value).replace(/\D/g, '');
+        const formatted = digits.length === 6
+          ? `${digits.slice(0,3)}-${digits.slice(3,6)}`
+          : String(value);
+        return <span className="font-mono">{formatted}</span>;
+      }
+
+      // Bank Account: up to 9 digits
+      if (column.column_type === "bank_account" && value) {
+        return <span className="font-mono">{String(value)}</span>;
+      }
+
+      // Postcode: 4 digits
+      if (column.column_type === "postcode" && value) {
+        return <span className="font-mono">{String(value).padStart(4, '0').slice(0,4)}</span>;
+      }
+
+      // TFN: XXX XXX XXX (9 digits) - show masked for security
+      if (column.column_type === "tfn" && value) {
+        const digits = String(value).replace(/\D/g, '');
+        // Show masked: XXX XXX XXX -> *** *** XXX
+        const masked = digits.length === 9
+          ? `*** *** ${digits.slice(6,9)}`
+          : '*** *** ***';
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="font-mono text-muted-foreground cursor-help">{masked}</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>TFN hidden for security</span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
       }
 
       // Default: render as string (truncated if too long)
@@ -4170,8 +4590,19 @@ export default function TeeemTableView({
 
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        {/* Left section: leftActions + Search */}
+        {/* Left section: Add button + leftActions + Search */}
         <div className="flex items-center gap-2">
+          {/* Add Row button - auto-shown when onAddRow is provided */}
+          {onAddRow && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={onAddRow}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add
+            </Button>
+          )}
           {leftActions}
           <SearchInput
           onSearch={handleSearchFromInput}
@@ -4217,8 +4648,26 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Custom actions (e.g., Views button) */}
+          {/* Custom actions */}
           {customActions && <div className="shrink-0">{customActions}</div>}
+
+          {/* Filters button - auto-enabled when foundationIdNumeric is set */}
+          {/* Opens GlobalViewsManager for managing saved views, filters, sorting, columns */}
+          {foundationIdNumeric && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowGlobalViewsManager(true)}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filters
+              {safeFilters.length > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {safeFilters.length}
+                </Badge>
+              )}
+            </Button>
+          )}
 
           {/* More actions menu */}
           <DropdownMenu>
@@ -5405,6 +5854,31 @@ export default function TeeemTableView({
           secondaryColumns={mergeSecondaryColumns}
           entityName={tableName?.replace(/s$/, '') || "Record"}
           onMergeComplete={handleMergeComplete}
+        />
+      )}
+
+      {/* Global Views Manager - auto-enabled when foundationIdNumeric is set */}
+      {/* Per GOLD_STANDARD_TABLE.md: Tables with foundationIdNumeric get Filters button + GlobalViewsManager */}
+      {foundationIdNumeric && (
+        <GlobalViewsManager
+          open={showGlobalViewsManager}
+          onOpenChange={setShowGlobalViewsManager}
+          foundationId={foundationIdNumeric}
+          columns={COLUMNS
+            .filter(col => col.key !== 'select' && col.key !== 'actions')
+            .map((col, index) => ({
+              id: col.id || index,
+              column_name: col.key,
+              name: col.label,
+              column_type: col.column_type || 'single_line_text',
+              position: index,
+              lookup_foundation_id: col.lookup_config?.target_table_id,
+              lookup_display_column: col.lookup_config?.display_column,
+              available_choices: col.choices,
+            }))}
+          onViewsChange={onRefresh}
+          onApplyView={loadViewState as (view: unknown) => void}
+          rows={entries as Record<string, unknown>[]}
         />
       )}
     </div>

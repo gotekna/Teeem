@@ -726,8 +726,20 @@ export function GlobalViewsManager({
           if (newView) {
             setActiveViewId(newView.id);
             loadViewIntoEditor(newView);
+            setIsEditing(false); // Exit edit mode after save
             return;
           }
+        }
+
+        // If we have an active view, reload it from the fresh data
+        if (activeViewId) {
+          console.log('[GlobalViewsManager] Reloading active view:', activeViewId);
+          const currentView = mappedViews.find(v => v.id === activeViewId);
+          if (currentView) {
+            loadViewIntoEditor(currentView);
+            setIsEditing(false); // Exit edit mode after save
+          }
+          return;
         }
 
         // Auto-select first view if none selected
@@ -1473,12 +1485,14 @@ export function GlobalViewsManager({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="flex flex-col p-0" side="right-full">
+        <SheetContent className="flex flex-col p-0" side="right-full" title="Global Views Manager">
           <SheetHeader className="px-6 pt-6 pb-4 border-b">
             <div className="flex items-center justify-between">
-              <SheetTitle className="flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                Global Views Manager
+              <SheetTitle>
+                <span className="flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  Global Views Manager
+                </span>
               </SheetTitle>
               <Button
                 variant="ghost"
@@ -1938,38 +1952,36 @@ export function GlobalViewsManager({
 
                       {/* Right Side - Columns (Collapsible) */}
                       <Collapsible open={columnsExpanded} onOpenChange={setColumnsExpanded} className={cn("flex flex-col p-4 overflow-hidden border-l transition-all", columnsExpanded ? "flex-1 min-w-0" : "w-auto")}>
-                        <CollapsibleTrigger asChild>
-                          <div className="flex items-center justify-between mb-3 cursor-pointer hover:bg-muted/50 -mx-2 px-2 py-1 rounded">
-                            <div className="flex items-center gap-2 font-semibold text-sm">
-                              {columnsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              <Eye className="h-4 w-4" />
-                              Columns
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                {Object.values(editVisibleColumns).filter(Boolean).length}
-                              </Badge>
-                            </div>
-                            {columnsExpanded && (
-                              <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
-                                <div className="flex items-center gap-2">
-                                  <Label htmlFor="show-totals" className="text-xs text-muted-foreground">Totals</Label>
-                                  <Switch
-                                    id="show-totals"
-                                    checked={editShowTotals}
-                                    onCheckedChange={setEditShowTotals}
-                                  />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
-                                  <Switch
-                                    id="auto-fit"
-                                    checked={editAutoFitColumns}
-                                    onCheckedChange={handleAutoFitChange}
-                                  />
-                                </div>
+                        <div className="flex items-center justify-between mb-3 -mx-2 px-2 py-1">
+                          <CollapsibleTrigger showIcon={false} className="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded">
+                            {columnsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            <Eye className="h-4 w-4" />
+                            Columns
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {Object.values(editVisibleColumns).filter(Boolean).length}
+                            </Badge>
+                          </CollapsibleTrigger>
+                          {columnsExpanded && (
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <Label htmlFor="show-totals" className="text-xs text-muted-foreground">Totals</Label>
+                                <Switch
+                                  id="show-totals"
+                                  checked={editShowTotals}
+                                  onCheckedChange={setEditShowTotals}
+                                />
                               </div>
-                            )}
-                          </div>
-                        </CollapsibleTrigger>
+                              <div className="flex items-center gap-2">
+                                <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
+                                <Switch
+                                  id="auto-fit"
+                                  checked={editAutoFitColumns}
+                                  onCheckedChange={handleAutoFitChange}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                         <CollapsibleContent className="flex-1 overflow-hidden">
                           <ScrollArea className="h-full -mx-4 px-4">
                             <DndContext

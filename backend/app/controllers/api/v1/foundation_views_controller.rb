@@ -165,8 +165,10 @@ module Api
           }, status: :unauthorized
         end
 
-        foundation_id = params[:foundation_id]
-        view_name = params[:name] || 'Default View'
+        # Support both nested foundation_view params (from frontend) and direct params (backward compatibility)
+        view_data = params[:foundation_view] || params
+        foundation_id = view_data[:foundation_id]
+        view_name = view_data[:name] || 'Default View'
 
         unless foundation_id
           return render json: {
@@ -189,12 +191,12 @@ module Api
         view_params = {
           foundation_id: foundation_id,
           name: view_name,
-          view_type: params[:view_type] || 'custom',
-          filters: params[:filters] || {},
-          columns: params[:columns] || {},
-          sort_order: params[:sort_order] || [],
-          group_by_column: params[:group_by_column],
-          group_by_columns: params[:group_by_columns] || [],
+          view_type: view_data[:view_type] || 'custom',
+          filters: view_data[:filters] || {},
+          columns: view_data[:columns] || {},
+          sort_order: view_data[:sort_order] || [],
+          group_by_column: view_data[:group_by_column],
+          group_by_columns: view_data[:group_by_columns] || [],
           is_global: true,
           user_id: nil,  # Global views have no user
           is_default: false,  # Don't auto-set as default, let position determine that

@@ -194,6 +194,7 @@ interface DocumentTypeOption {
   id: number;
   name: string;
   abbreviation?: string;
+  naming_format?: string;
   folder?: string;
   tabs?: string[];
   primary_tab?: string;
@@ -295,6 +296,11 @@ export default function DocumentPreviewModal({
     fetchDocumentTypes();
   }, []);
 
+  // Get the full document type record from database (includes naming_format)
+  const getDocumentTypeRecord = React.useCallback((docTypeName: string) => {
+    return documentTypes.find(dt => dt.name === docTypeName);
+  }, [documentTypes]);
+
   // Get document types for a specific folder - uses database if available, fallback to hardcoded
   const getDocumentTypesForFolder = React.useCallback((folder: string | undefined) => {
     const normalizedFolder = (folder || "GENERAL").toUpperCase();
@@ -330,16 +336,212 @@ export default function DocumentPreviewModal({
     return types;
   }, [documentTypes]);
 
-  // Update state when initialDocument changes
+  // Auto-detect document type from filename by matching abbreviations
+  const detectDocumentTypeFromFilename = React.useCallback((filename: string, folder: string) => {
+    if (!filename) return null;
+
+    // Uppercase for matching
+    const filenameUpper = filename.toUpperCase();
+
+    // Get all possible types for this folder (from both database and hardcoded)
+    const folderTypes = getDocumentTypesForFolder(folder);
+
+    // Also include database types that might match
+    const allTypes = [
+      ...folderTypes,
+      ...documentTypes.map(dt => ({
+        value: dt.name,
+        label: dt.name,
+        abbrev: dt.abbreviation || dt.name.substring(0, 3).toUpperCase()
+      }))
+    ];
+
+    // Remove duplicates by value
+    const uniqueTypes = allTypes.filter((type, index, self) =>
+      index === self.findIndex(t => t.value === type.value)
+    );
+
+    // Common abbreviation mappings that might appear in filenames
+    // Maps document type values to possible abbreviations/patterns in filenames
+    const abbreviationMappings: Record<string, string[]> = {
+      // ATO types
+      "tax_return": ["CTR", "TAX RETURN", "COMPANY TAX RETURN"],
+      "trust_tax_return": ["TTR", "TRUST TAX RETURN"],
+      "bas": ["BAS"],
+      "ias": ["IAS"],
+      "tfn": ["TFN"],
+      "ato_correspondence": ["ATO CORR", "ATO LETTER"],
+      // Database ATO document types (by name)
+      "ATO Documents": ["ATO", "EOY", "END OF YEAR"],
+      "ATO Submission": ["SUBMISSION", "SUBMIT"],
+      // ASIC types
+      "annual_statement": ["AS", "ANNUAL STATEMENT"],
+      "company_extract": ["CE", "COMPANY EXTRACT"],
+      "form_484": ["484", "FORM 484"],
+      "form_492": ["492", "FORM 492"],
+      // Financial types
+      "financial_statement": ["FS", "FINANCIAL STATEMENT"],
+      "annual_report": ["AR", "ANNUAL REPORT"],
+      "management_accounts": ["MA", "MANAGEMENT ACCOUNTS"],
+      "trial_balance": ["TB", "TRIAL BALANCE"],
+      // Trust types
+      "trust_deed": ["TD", "TRUST DEED"],
+      "deed_variation": ["DOV", "DEED OF VARIATION"],
+      // Loan types
+      "loan_agreement": ["LA", "LOAN AGREEMENT"],
+      "security_deed": ["SD", "SECURITY DEED"],
+      // Other common
+      "minutes": ["MIN", "MINUTES"],
+      "resolution": ["RES", "RESOLUTION"],
+      "constitution": ["CON", "CONSTITUTION"],
+    };
+
+    // First, try to match database types by abbreviation in filename
+    for (const dt of documentTypes) {
+      if (dt.abbreviation) {
+        const regex = new RegExp(`\\b${dt.abbreviation}\\b`, "i");
+        if (regex.test(filenameUpper)) {
+          return dt.name;
+        }
+      }
+    }
+
+    // Then try hardcoded mappings (includes database type names as keys)
+    for (const [typeValue, abbrevs] of Object.entries(abbreviationMappings)) {
+      for (const abbrev of abbrevs) {
+        // Check if abbreviation appears as a word in the filename
+        const regex = new RegExp(`\\b${abbrev}\\b`, "i");
+        if (regex.test(filenameUpper)) {
+          // Check if this is a database type name directly
+          const dbType = documentTypes.find(dt => dt.name === typeValue);
+          if (dbType) {
+            return dbType.name;
+          }
+          // Otherwise find matching type in available folder options
+          const matchingType = uniqueTypes.find(t => t.value === typeValue);
+          if (matchingType) {
+            return matchingType.value;
+          }
+        }
+      }
+    }
+
+    // Finally, check each type's abbreviation directly
+    for (const type of uniqueTypes) {
+      if (type.abbrev && type.abbrev !== "?" && type.abbrev.length >= 2) {
+        const regex = new RegExp(`\\b${type.abbrev}\\b`, "i");
+        if (regex.test(filenameUpper)) {
+          return type.value;
+        }
+      }
+    }
+
+    return null;
+  }, [documentTypes, getDocumentTypesForFolder]);
+
+  // Auto-detect financial year(s) from filename
+  const detectFinancialYearsFromFilename = React.useCallback((filename: string): number[] => {
+    if (!filename) return [];
+
+    const fyPattern = /FY(\d{2,4})/gi;
+    const matches = filename.matchAll(fyPattern);
+    const years: number[] = [];
+
+    for (const match of matches) {
+      let year = parseInt(match[1], 10);
+      // Convert 2-digit to 4-digit year
+      if (year < 100) {
+        year = 2000 + year;
+      }
+      if (!years.includes(year)) {
+        years.push(year);
+      }
+    }
+
+    return years.sort((a, b) => b - a); // Sort descending
+  }, []);
+
+  // Check if the selected document type needs Description and Date fields
+  const needsDescriptionAndDate = React.useMemo(() => {
+    if (editedDocumentType === "other") return true;
+    const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
+    if (docTypeRecord?.naming_format) {
+      // Check if naming format contains {Description} or {Date}
+      return docTypeRecord.naming_format.includes("{Description}") ||
+             docTypeRecord.naming_format.includes("{Date}");
+    }
+    return false;
+  }, [editedDocumentType, getDocumentTypeRecord]);
+
+  // Check if document type uses FY (financial year)
+  const needsFinancialYear = React.useMemo(() => {
+    if (editedDocumentType === "other") return false;
+    const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
+    if (docTypeRecord?.naming_format) {
+      return docTypeRecord.naming_format.includes("FY{YY}") ||
+             docTypeRecord.naming_format.includes("{FY}");
+    }
+    // Default to true for hardcoded types
+    return true;
+  }, [editedDocumentType, getDocumentTypeRecord]);
+
+  // Check if document type naming format includes a Details/Asset placeholder
+  const needsDetails = React.useMemo(() => {
+    if (editedDocumentType === "other") return true; // Other always needs details
+    const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
+    if (docTypeRecord?.naming_format) {
+      // Check for common detail placeholders in naming format
+      return docTypeRecord.naming_format.includes("{Details}") ||
+             docTypeRecord.naming_format.includes("{Asset}") ||
+             docTypeRecord.naming_format.includes("{Period}") ||
+             docTypeRecord.naming_format.includes("{Quarter}");
+    }
+    // Default to false for database types without explicit details placeholder
+    return false;
+  }, [editedDocumentType, getDocumentTypeRecord]);
+
+  // Update state when initialDocument changes - also auto-detect from filename
   React.useEffect(() => {
     setDocument(initialDocument);
     setValidated(initialDocument?.user_validated_at != null);
     setEditedTitle(initialDocument?.title || "");
     setEditedCompanyId(String(initialDocument?.company_id || initialDocument?.company?.id || ""));
     setEditedFolder(initialDocument?.folder || "");
-    setEditedDocumentType(initialDocument?.document_type || "");
-    setEditedFinancialYears(parseFinancialYears(initialDocument?.financial_years));
-  }, [initialDocument]);
+
+    // Auto-detect document type from filename if not already set or if current type is unknown
+    const currentDocType = initialDocument?.document_type || "";
+    const filename = initialDocument?.file_name || initialDocument?.title || "";
+    const folder = initialDocument?.folder || "";
+
+    // Check if current doc type exists in available options
+    const folderTypes = getDocumentTypesForFolder(folder);
+    const currentTypeExists = folderTypes.some(t => t.value === currentDocType);
+
+    if (!currentDocType || !currentTypeExists) {
+      // Try to detect from filename
+      const detectedType = detectDocumentTypeFromFilename(filename, folder);
+      if (detectedType) {
+        setEditedDocumentType(detectedType);
+      } else {
+        setEditedDocumentType(currentDocType);
+      }
+    } else {
+      setEditedDocumentType(currentDocType);
+    }
+
+    // Auto-detect financial years from filename if not already set
+    const existingFYs = parseFinancialYears(initialDocument?.financial_years);
+    if (existingFYs.length === 0) {
+      const detectedFYs = detectFinancialYearsFromFilename(filename);
+      if (detectedFYs.length > 0) {
+        setEditedFinancialYears(detectedFYs);
+      } else {
+        setEditedFinancialYears([]);
+      }
+    } else {
+      setEditedFinancialYears(existingFYs);
+    }
+  }, [initialDocument, detectDocumentTypeFromFilename, detectFinancialYearsFromFilename, getDocumentTypesForFolder]);
 
   // Determine file type for preview
   const getFileType = (filename?: string) => {
@@ -404,25 +606,28 @@ export default function DocumentPreviewModal({
   // Auto-fill document name when selections change
   React.useEffect(() => {
     const companyCode = companies.find(c => String(c.id) === editedCompanyId)?.code || "";
+    const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
+    const docTypeAbbrev = docTypeRecord?.abbreviation ||
+      getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "";
 
-    // Handle "Other" document type with special format
-    if (editedDocumentType === "other") {
-      // Format: {CompanyCode} OTH {Description} REF {Date} Filed {Date}
-      if (companyCode && editedDescription) {
-        let newName = `${companyCode} OTH ${editedDescription}`;
+    // Check if this doc type uses Description + Date format (like ATO Documents)
+    const usesDescriptionDate = editedDocumentType === "other" ||
+      (docTypeRecord?.naming_format?.includes("{Description}") ||
+       docTypeRecord?.naming_format?.includes("{Date}"));
+
+    if (usesDescriptionDate) {
+      // Format: {CompanyCode} {Abbrev} {Description} {Date}
+      if (companyCode && docTypeAbbrev && editedDescription) {
+        let newName = `${companyCode} ${docTypeAbbrev} ${editedDescription}`;
         if (editedRefDate) {
-          newName += ` REF ${formatDateForFilename(editedRefDate)}`;
-        }
-        if (editedFiledDate) {
-          newName += ` Filed ${formatDateForFilename(editedFiledDate)}`;
+          newName += ` ${formatDateForFilename(editedRefDate)}`;
         }
         setEditedTitle(newName.trim());
       }
       return;
     }
 
-    // Standard document type format
-    const docTypeAbbrev = getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "";
+    // Standard document type format with FY
     const fyPart = editedFinancialYears.length > 0
       ? editedFinancialYears.map(y => `FY${y.toString().slice(-2)}`).join(" ")
       : "";
@@ -433,7 +638,7 @@ export default function DocumentPreviewModal({
       const newName = `${companyCode} ${docTypeAbbrev} ${fyPart}${descPart}`.trim();
       setEditedTitle(newName);
     }
-  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder]);
+  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord]);
 
   // Handle user validation
   const handleValidate = async () => {
@@ -1033,9 +1238,9 @@ export default function DocumentPreviewModal({
                 </div>
               </div>
 
-              {/* Fields shown when doc type is selected */}
-              {editedDocumentType && editedDocumentType !== "other" && (
-                <div className="grid grid-cols-2 gap-4">
+              {/* Financial Year fields - shown when doc type needs FY */}
+              {editedDocumentType && needsFinancialYear && (
+                <div className={needsDetails ? "grid grid-cols-2 gap-4" : ""}>
                   {/* Financial Year Selector */}
                   <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-start">
                     <span className="text-muted-foreground pt-2">Fin. Year:</span>
@@ -1074,24 +1279,26 @@ export default function DocumentPreviewModal({
                     </div>
                   </div>
 
-                  {/* Manual Description */}
-                  <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
-                    <span className="text-muted-foreground">Details:</span>
-                    <Input
-                      value={editedDescription}
-                      onChange={(e) => setEditedDescription(e.target.value)}
-                      placeholder="e.g., Q1, ANZ Loan, 123 Main St..."
-                      className="text-sm"
-                    />
-                  </div>
+                  {/* Manual Description/Details - only shown if naming format requires it */}
+                  {needsDetails && (
+                    <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
+                      <span className="text-muted-foreground">Details:</span>
+                      <Input
+                        value={editedDescription}
+                        onChange={(e) => setEditedDescription(e.target.value)}
+                        placeholder="e.g., Q1, ANZ Loan, 123 Main St..."
+                        className="text-sm"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* "Other" document type - special fields */}
-              {editedDocumentType === "other" && (
+              {/* Description and Date fields - shown when doc type needs them (e.g., ATO Documents, Other) */}
+              {editedDocumentType && needsDescriptionAndDate && (
                 <div className="space-y-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800">
                   <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
-                    Other Document - Please provide details:
+                    {getDocumentTypeRecord(editedDocumentType)?.name || "Other"} - Please provide details:
                   </p>
 
                   {/* Description (required) */}
@@ -1105,24 +1312,13 @@ export default function DocumentPreviewModal({
                     />
                   </div>
 
-                  {/* Reference Date */}
+                  {/* Document Date */}
                   <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
-                    <span className="text-muted-foreground">REF Date:</span>
+                    <span className="text-muted-foreground">Doc Date:</span>
                     <Input
                       type="date"
                       value={editedRefDate}
                       onChange={(e) => setEditedRefDate(e.target.value)}
-                      className="text-sm w-[180px]"
-                    />
-                  </div>
-
-                  {/* Filed Date */}
-                  <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
-                    <span className="text-muted-foreground">Filed Date:</span>
-                    <Input
-                      type="date"
-                      value={editedFiledDate}
-                      onChange={(e) => setEditedFiledDate(e.target.value)}
                       className="text-sm w-[180px]"
                     />
                   </div>
@@ -1134,8 +1330,8 @@ export default function DocumentPreviewModal({
                 {/* Human-readable display name - shows what fields are filled/missing */}
                 <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
                   <span className="text-muted-foreground">Display As:</span>
-                  {editedDocumentType === "other" ? (
-                    /* Other document type display */
+                  {needsDescriptionAndDate ? (
+                    /* Description + Date format display (ATO Documents, Other, etc.) */
                     <div className="flex flex-wrap gap-1 text-xs">
                       <span className={cn(
                         "px-2 py-0.5 rounded",
@@ -1146,7 +1342,9 @@ export default function DocumentPreviewModal({
                         {companies.find(c => String(c.id) === editedCompanyId)?.code || "Company?"}
                       </span>
                       <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                        Other
+                        {getDocumentTypeRecord(editedDocumentType)?.abbreviation ||
+                         getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev ||
+                         "OTH"}
                       </span>
                       <span className={cn(
                         "px-2 py-0.5 rounded",
@@ -1156,19 +1354,17 @@ export default function DocumentPreviewModal({
                       )}>
                         {editedDescription || "Description?"}
                       </span>
-                      {editedRefDate && (
-                        <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                          REF {formatDateForFilename(editedRefDate)}
-                        </span>
-                      )}
-                      {editedFiledDate && (
-                        <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                          Filed {formatDateForFilename(editedFiledDate)}
-                        </span>
-                      )}
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        editedRefDate
+                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      )}>
+                        {editedRefDate ? formatDateForFilename(editedRefDate) : "Date?"}
+                      </span>
                     </div>
                   ) : (
-                    /* Standard document type display */
+                    /* Standard document type display with FY */
                     <div className="flex flex-wrap gap-1 text-xs">
                       <span className={cn(
                         "px-2 py-0.5 rounded",

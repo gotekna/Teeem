@@ -12,8 +12,7 @@ import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { Loader } from "@/components/ui/loader";
-import { Plus, Filter, Settings } from "lucide-react";
-import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
+import { Plus } from "lucide-react";
 
 interface Job {
   id: number;
@@ -59,7 +58,6 @@ export default function JobsPage() {
   const [columns, setColumns] = useState<TableColumn[]>([]);
   const [views, setViews] = useState<SavedView[]>([]);
   const [serverSearchLoading, setServerSearchLoading] = useState(false);
-  const [showViewsManager, setShowViewsManager] = useState(false);
   const [jobStatuses, setJobStatuses] = useState<JobStatus[]>([]);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
 
@@ -387,43 +385,8 @@ export default function JobsPage() {
           enableSchemaEditor={tableConfig.enableSchemaEditor}
           preloadedViews={views}
           onRefresh={() => loadJobs()}
-          customActions={
-            <Button variant="default" size="sm" onClick={() => setShowViewsManager(true)}>
-              <Settings className="h-4 w-4 mr-2" />
-              Views
-            </Button>
-          }
         />
       </div>
-
-      {/* Global Views Manager */}
-      <GlobalViewsManager
-        open={showViewsManager}
-        onOpenChange={setShowViewsManager}
-        foundationId={JOBS_TABLE_ID}
-        columns={(() => {
-          const cols = tableColumns
-            .filter(col => col.key !== 'select' && col.key !== 'actions')
-            .map((col, index) => ({
-              id: col.id || index,
-              column_name: col.key,
-              name: col.label,
-              column_type: col.column_type || 'single_line_text',
-              position: index,
-              lookup_foundation_id: col.lookup_config?.target_table_id,
-              lookup_display_column: col.lookup_config?.display_column,
-              available_choices: col.choices,
-            }));
-          console.log('[Jobs] Columns passed to GlobalViewsManager:', cols.map(c => ({
-            column_name: c.column_name,
-            column_type: c.column_type,
-            available_choices: c.available_choices
-          })));
-          return cols;
-        })()}
-        onViewsChange={() => loadJobs()}
-        rows={tableRows}
-      />
     </div>
   );
 }

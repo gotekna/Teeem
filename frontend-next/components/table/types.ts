@@ -93,6 +93,7 @@ export interface TeeemTableViewProps {
   tableName?: string;
 
   // Event handlers
+  onAddRow?: () => void; // Called when Add button clicked (auto-shown when foundationIdNumeric set)
   onEdit?: (row: TableRow) => void;
   onDelete?: (row: TableRow) => void;
   onBulkDelete?: (ids: (number | string)[]) => void;

@@ -111,7 +111,7 @@ When a table has `foundationIdNumeric` set, it automatically gets:
 | **Import** | Enabled in menu |
 | **Export** | Enabled in menu |
 | **Schema Editor** | Create/Edit/Delete columns in menu |
-| **Filters Button** | Visible in toolbar |
+| **Filters Button** | Visible in toolbar (built-in, not customActions) |
 | **GlobalViewsManager** | Opens when Filters clicked |
 | **Table ID Display** | Shows in menu under TABLE INFO |
 | **System Column Highlighting** | Red background on id, created_at, updated_at |
@@ -132,13 +132,38 @@ leftActions  always    saved views    customActions    auto when   dropdown
 <TeeemTableView
   entries={data}
   columns={columns}
-  foundationIdNumeric={TABLE_ID}  // ← This enables everything
+  foundationIdNumeric={TABLE_ID}  // ← This enables Filters button + GlobalViewsManager automatically
   tableName="My Table"
+  onAddRow={handleAdd}            // ← Shows [+ Add] button in toolbar
   onView={handleView}
   onEdit={handleEdit}
   onDelete={handleDelete}
+  onRefresh={handleRefresh}       // ← Called when views change in GlobalViewsManager
 />
 ```
+
+### Implementation Details (for future reference)
+
+**DO NOT duplicate this in page components.** The Filters button and GlobalViewsManager are built into TeeemTableView:
+
+1. **Filters Button**: Rendered automatically in toolbar when `foundationIdNumeric` is set
+   - Location: `TeeemTableView.tsx` line ~4247
+   - Opens `showGlobalViewsManager` state
+
+2. **GlobalViewsManager**: Rendered at end of component when `foundationIdNumeric` is set
+   - Location: `TeeemTableView.tsx` line ~5448
+   - Receives columns transformed from COLUMNS array
+   - Calls `onRefresh` when views change
+   - Calls `loadViewState` when a view is applied
+
+**NEVER:**
+- Pass Filters button via `customActions` (it's built-in)
+- Import GlobalViewsManager in page components for table views
+- Duplicate the state/button/component pattern in individual pages
+
+**ALWAYS:**
+- Just set `foundationIdNumeric` and `onRefresh` props
+- The Filters button and GlobalViewsManager will appear automatically
 
 ---
 
