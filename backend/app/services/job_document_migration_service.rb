@@ -8,7 +8,7 @@
 #
 class JobDocumentMigrationService
   # Path to legacy job documents in SharePoint
-  SOURCE_FOLDER_PATH = 'Old House Data/00 Active - Soon to be moved out'
+  SOURCE_FOLDER_PATH = 'Old House Data'
 
   attr_reader :stats, :credential, :client
 
@@ -200,10 +200,10 @@ class JobDocumentMigrationService
     job = Job.find_by("LOWER(title) = ?", normalized.downcase)
     return job if job
 
-    # 2. Try match on job number if folder starts with a number
+    # 2. Try match on job ID if folder starts with a number
     if folder_name =~ /^(\d+)\s*[-_]/
-      job_number = $1
-      job = Job.find_by(job_number: job_number)
+      job_id = $1.to_i
+      job = Job.find_by(id: job_id)
       return job if job
     end
 
