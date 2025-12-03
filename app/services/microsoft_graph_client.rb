@@ -520,6 +520,14 @@ class MicrosoftGraphClient
     )
   end
 
+  # Rename a file in SharePoint/OneDrive
+  def rename_file(file_id, new_name)
+    patch(
+      "/drives/#{@credential.drive_id}/items/#{file_id}",
+      { name: new_name }
+    )
+  end
+
   # Upload file content to a folder (accepts raw content or file object)
   def upload_file_content(parent_folder_id, filename, content)
     response = HTTParty.put(
