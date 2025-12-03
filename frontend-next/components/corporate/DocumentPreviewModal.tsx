@@ -1631,7 +1631,7 @@ export default function DocumentPreviewModal({
                           {needsDescriptionAndDate ? "Description" : isBASDocument ? "Period" : "Details"}
                         </Label>
                         <div className={cn(
-                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                          "mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-muted/50 line-clamp-2",
                           document.ai_extracted_description
                             ? (editedDescription === document.ai_extracted_description
                               ? "border-green-500 bg-green-50 dark:bg-green-900/20"
