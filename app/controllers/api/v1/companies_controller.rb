@@ -444,7 +444,8 @@ module Api
           :shares_on_issue, :carry_forward_losses, :franking_balance, :amount_owing, :entity_type,
           :bank_name, :bank_bsb, :bank_account_number, :bank_account_name, :bank_start_date, :bank_end_date,
           :consolidation_parent_id, :company_group_id,
-          metadata: {}
+          metadata: {},
+          previous_names: []
         )
       end
 

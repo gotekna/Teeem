@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_03_050741) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_03_072320) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -389,6 +389,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_050741) do
     t.bigint "consolidation_parent_id"
     t.string "slug"
     t.string "bas_frequency", default: "quarterly"
+    t.text "previous_names", default: [], array: true
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
     t.index ["code"], name: "index_companies_on_code", unique: true
