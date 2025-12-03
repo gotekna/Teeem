@@ -14,9 +14,10 @@ interface EmailProposalCardProps {
   proposal: EmailProposal;
   onApproved?: (jobId: number) => void;
   onRejected?: () => void;
+  onPricedUp?: () => void;
 }
 
-export function EmailProposalCard({ proposal, onApproved, onRejected }: EmailProposalCardProps) {
+export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp }: EmailProposalCardProps) {
   const [processing, setProcessing] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [priceInput, setPriceInput] = useState<string>("");
@@ -51,6 +52,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected }: EmailPro
         if (response.job?.id) {
           onApproved?.(response.job.id);
         }
+        onPricedUp?.();
       }
     } catch (error) {
       console.error("Failed to approve proposal:", error);

@@ -132,7 +132,7 @@ export function useFoundationBySlug(
         {
           params: {
             search: query,
-            search_all: searchAll ? 'true' : undefined,
+            ...(searchAll && { search_all: 'true' }),
             per_page: 500 // Return up to 500 search results
           }
         }
