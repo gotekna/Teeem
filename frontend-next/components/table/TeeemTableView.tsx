@@ -6045,6 +6045,8 @@ export default function TeeemTableView({
             }))}
           onViewsChange={onRefresh}
           onApplyView={loadViewState as (view: unknown) => void}
+          onAutoFitChange={setAutoFitColumns}
+          onShowTotalsChange={setShowTotals}
           rows={entries as Record<string, unknown>[]}
         />
       )}

@@ -135,6 +135,8 @@ interface GlobalViewsManagerProps {
   columns: Column[];
   onViewsChange?: () => void;
   onApplyView?: (view: SavedView) => void; // Apply view to the table
+  onAutoFitChange?: (enabled: boolean) => void; // Immediately trigger auto-fit in table
+  onShowTotalsChange?: (enabled: boolean) => void; // Immediately toggle totals in table
   rows?: Record<string, unknown>[]; // For custom sort order values
 }
 
@@ -640,6 +642,8 @@ export function GlobalViewsManager({
   columns,
   onViewsChange,
   onApplyView,
+  onAutoFitChange,
+  onShowTotalsChange,
   rows,
 }: GlobalViewsManagerProps) {
   const { toast } = useToast();
@@ -1476,6 +1480,8 @@ export function GlobalViewsManager({
   // Handle auto-fit toggle - populate default widths when turning off
   const handleAutoFitChange = (enabled: boolean) => {
     setEditAutoFitColumns(enabled);
+    // Immediately trigger auto-fit in the table
+    onAutoFitChange?.(enabled);
     if (!enabled && Object.keys(editColumnWidths).length === 0) {
       // Populate default widths for all visible columns
       const defaultWidths: Record<string, number> = {};
@@ -1486,6 +1492,12 @@ export function GlobalViewsManager({
       });
       setEditColumnWidths(defaultWidths);
     }
+  };
+
+  // Handle show totals toggle - immediately update table
+  const handleShowTotalsChange = (enabled: boolean) => {
+    setEditShowTotals(enabled);
+    onShowTotalsChange?.(enabled);
   };
 
   return (
@@ -1974,7 +1986,7 @@ export function GlobalViewsManager({
                                 <Switch
                                   id="show-totals"
                                   checked={editShowTotals}
-                                  onCheckedChange={setEditShowTotals}
+                                  onCheckedChange={handleShowTotalsChange}
                                 />
                               </div>
                               <div className="flex items-center gap-2">
