@@ -42,10 +42,15 @@ class Job < ApplicationRecord
 
   # Validations
   validates :title, presence: true
-  validates :site_supervisor_name, presence: true, unless: :imported_from_xero?
+  validates :site_supervisor_name, presence: true, unless: -> { imported_from_xero? || enquiry_status? }
   # TODO: Re-enable once jobs have contacts assigned
   # validate :must_have_at_least_one_contact, on: :update
   validate :stage_must_be_valid_for_type_and_status
+
+  # Check if job is in Enquiry status (relaxed validations for leads/proposals)
+  def enquiry_status?
+    job_status&.name == 'Enquiry'
+  end
 
   # Callbacks
   after_create :create_documentation_tabs_from_categories

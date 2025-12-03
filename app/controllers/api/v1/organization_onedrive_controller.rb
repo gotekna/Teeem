@@ -782,7 +782,8 @@ module Api
           found_folders = []
 
           folder_names.each do |folder_name|
-            target_folder = job_folders.find { |f| f['name'].downcase == folder_name.downcase }
+            next if folder_name.blank?
+            target_folder = job_folders.find { |f| f['name']&.downcase == folder_name.downcase }
 
             if target_folder
               found_folders << { name: target_folder['name'], id: target_folder['id'], web_url: target_folder['webUrl'] }
