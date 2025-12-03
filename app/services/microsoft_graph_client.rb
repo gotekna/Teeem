@@ -386,24 +386,72 @@ class MicrosoftGraphClient
   end
 
   # Search for job folder by construction
+  # Supports both exact match and fuzzy matching for legacy folder naming schemes
   def find_job_folder(construction)
     job_code = construction.id.to_s.rjust(3, '0')
     expected_name = "#{job_code} - #{construction.title}"
 
-    # First try direct folder listing (more reliable than search for SharePoint)
-    if @credential.root_folder_id.present?
+    # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
+    normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, '').strip
+
+    # Determine where to search - use root_folder_id if set, otherwise find "TEEEM Jobs" folder
+    search_folder_id = @credential.root_folder_id
+
+    # If no root folder set, try to find "TEEEM Jobs" folder in the drive root
+    if search_folder_id.blank?
       begin
-        results = get("/drives/#{@credential.drive_id}/items/#{@credential.root_folder_id}/children")
-        folder = results['value']&.find { |item| item['name'] == expected_name && item['folder'] }
-        return folder if folder
+        root_results = get("/drives/#{@credential.drive_id}/root/children")
+        teeem_jobs_folder = root_results['value']&.find { |item| item['folder'] && item['name'] == 'TEEEM Jobs' }
+        search_folder_id = teeem_jobs_folder['id'] if teeem_jobs_folder
+        Rails.logger.info "[find_job_folder] Found TEEEM Jobs folder: #{search_folder_id}" if teeem_jobs_folder
       rescue APIError => e
-        Rails.logger.warn "Direct folder listing failed: #{e.message}"
+        Rails.logger.warn "[find_job_folder] Could not find TEEEM Jobs folder: #{e.message}"
       end
     end
 
-    # Fallback to search
-    results = search(expected_name, @credential.root_folder_id)
-    results['value']&.find { |item| item['name'] == expected_name && item['folder'] }
+    # First try direct folder listing (more reliable than search for SharePoint)
+    folders = []
+    if search_folder_id.present?
+      begin
+        results = get("/drives/#{@credential.drive_id}/items/#{search_folder_id}/children")
+        folders = results['value']&.select { |item| item['folder'] } || []
+        Rails.logger.info "[find_job_folder] Found #{folders.length} folders in search location"
+
+        # Try exact match first
+        folder = folders.find { |item| item['name'] == expected_name }
+        return folder if folder
+
+        # Try fuzzy match: folder contains the job title (with or without "Lot" prefix)
+        folder = folders.find do |item|
+          name = item['name'].to_s.downcase
+          # Match if folder name contains the normalized title
+          name.include?(normalized_title) ||
+            # Or match if folder contains address-like portions of the title
+            (normalized_title.length > 10 && name.include?(normalized_title.split(' ').first(3).join(' ')))
+        end
+        if folder
+          Rails.logger.info "[find_job_folder] Fuzzy matched folder: #{folder['name']}"
+          return folder
+        end
+      rescue APIError => e
+        Rails.logger.warn "[find_job_folder] Direct folder listing failed: #{e.message}"
+      end
+    end
+
+    # Fallback to search with broader terms
+    search_terms = [expected_name, construction.title, normalized_title].uniq
+    search_terms.each do |term|
+      next if term.blank?
+      begin
+        results = search(term, search_folder_id)
+        folder = results['value']&.find { |item| item['folder'] && item['name'].to_s.downcase.include?(normalized_title) }
+        return folder if folder
+      rescue StandardError => e
+        Rails.logger.warn "[find_job_folder] Search for '#{term}' failed: #{e.message}"
+      end
+    end
+
+    nil
   end
 
   # Search for folder by name in drive root
