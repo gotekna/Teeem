@@ -923,17 +923,33 @@ export default function DocumentPreviewModal({
     setIsEditing(false);
   };
 
+  // Sanitize filename for OneDrive - remove characters not allowed by Microsoft
+  // Invalid characters: " * : < > ? / \ |
+  const sanitizeFilename = (filename: string): string => {
+    if (!filename) return '';
+    // Remove invalid characters
+    let sanitized = filename.replace(/["*:<>?/\\|]/g, '');
+    // Replace multiple spaces with single space
+    sanitized = sanitized.replace(/\s+/g, ' ');
+    // Remove leading/trailing spaces and periods
+    sanitized = sanitized.trim().replace(/^\.+|\.+$/g, '');
+    return sanitized || 'Untitled';
+  };
+
   // Save all changes - uses relocate endpoint to move file in OneDrive
   const handleSave = async () => {
     try {
       setSaving(true);
+
+      // Sanitize the title before sending to prevent OneDrive API errors
+      const sanitizedTitle = sanitizeFilename(editedTitle);
 
       // Use relocate endpoint which moves/renames in OneDrive
       const response = await api.post<{ success: boolean; document: CompanyDocument }>(
         `/api/v1/company_documents/${document.id}/relocate`,
         {
           relocate: {
-            title: editedTitle.trim(),
+            title: sanitizedTitle,
             company_id: editedCompanyId || null,
             folder: editedFolder || null,
             document_type: editedDocumentType || null,
@@ -952,7 +968,7 @@ export default function DocumentPreviewModal({
             await api.post(`/api/v1/company_documents/${document.id}/feedback`, {
               feedback: {
                 action: "modified",
-                final_name: editedTitle.trim(),
+                final_name: sanitizedTitle,
                 final_folder: editedFolder,
                 final_fy: editedFinancialYears.join(","),
               },
