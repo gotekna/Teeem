@@ -164,7 +164,6 @@ class DocumentSplitService
       document_type: split_config[:document_type],
       source: 'split',
       onedrive_file_id: onedrive_file_id,
-      onedrive_web_url: nil, # Will be populated on next sync
       file_size: file_size,
       financial_years: split_config[:financial_years] || @document.financial_years,
       ref_date: split_config[:ref_date],
