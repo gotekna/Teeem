@@ -1251,6 +1251,7 @@ Rails.application.routes.draw do
       resources :company_documents do
         member do
           get :download
+          get :preview
           post :validate
           post :ai_verify
           post :apply_ai_suggestion
