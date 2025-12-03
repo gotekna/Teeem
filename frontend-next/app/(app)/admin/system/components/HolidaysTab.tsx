@@ -98,8 +98,10 @@ export function HolidaysTab() {
       if (selectedRegion !== "all") {
         params.append("region", selectedRegion);
       }
-      const data = await api.get<Holiday[]>(`/api/v1/public_holidays?${params}`);
-      setHolidays(data);
+      const data = await api.get<Holiday[] | { public_holidays: Holiday[] }>(`/api/v1/public_holidays?${params}`);
+      // Handle both direct array and { public_holidays: [...] } response formats
+      const holidaysArray = Array.isArray(data) ? data : (data?.public_holidays || []);
+      setHolidays(holidaysArray);
     } catch (error) {
       console.error("Failed to load holidays:", error);
       // Mock data for development

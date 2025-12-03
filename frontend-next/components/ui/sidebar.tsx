@@ -57,31 +57,30 @@ import {
 } from "./popover";
 import { Badge } from "./badge";
 import { api } from "@/lib/api";
-import { urls, TABLE_IDS } from "@/lib/url-utils";
+import { urls } from "@/lib/url-utils";
 
 interface NavigationItem {
   name: string;
   href: string;
   icon: typeof Home;
   badgeKey?: string;
-  tableId?: number;
 }
 
 const navigationItems: NavigationItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Leads", href: "/leads", icon: Target, badgeKey: "pendingProposals" },
-  { name: "Jobs", href: urls.jobs(), icon: Briefcase, tableId: TABLE_IDS.JOBS },
-  { name: "Tasks", href: "/tasks", icon: ListTodo },
+  { name: "Jobs", href: urls.jobs(), icon: Briefcase },
+  { name: "Tasks", href: urls.tasks(), icon: ListTodo },
   { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
   { name: "Xero", href: "/xero", icon: Layers },
   { name: "Purchase Orders", href: "/purchase-orders", icon: FileText },
   { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
-  { name: "Contacts", href: urls.contacts(), icon: Users, tableId: TABLE_IDS.CONTACTS },
-  { name: "Price Book", href: urls.pricebook(), icon: Package, tableId: TABLE_IDS.PRICEBOOK },
+  { name: "Contacts", href: urls.contacts(), icon: Users },
+  { name: "Price Book", href: urls.pricebook(), icon: Package },
   { name: "Documents", href: "/documents", icon: FolderOpen },
-  { name: "Corporate", href: "/corporate", icon: Building2, tableId: TABLE_IDS.COMPANIES },
+  { name: "Corporate", href: "/corporate", icon: Building2 },
   { name: "Portal", href: "/portal", icon: ExternalLink },
   { name: "Admin", href: "/admin", icon: Wrench },
 ];

@@ -71,8 +71,10 @@ export function ScheduleMasterTab() {
 
   const loadTemplates = async () => {
     try {
-      const data = await api.get<ScheduleTemplate[]>("/api/v1/schedule_templates");
-      setTemplates(data);
+      const data = await api.get<ScheduleTemplate[] | { schedule_templates: ScheduleTemplate[] }>("/api/v1/schedule_templates");
+      // Handle both direct array and { schedule_templates: [...] } response formats
+      const templatesArray = Array.isArray(data) ? data : (data?.schedule_templates || []);
+      setTemplates(templatesArray);
     } catch (error) {
       console.error("Failed to load templates:", error);
       // Mock data for development
@@ -256,10 +258,10 @@ export function ScheduleMasterTab() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary">
-                      {template.tasks.length} tasks
+                      {(template.tasks || []).length} tasks
                     </Badge>
                     <Badge variant="outline">
-                      {getTotalDuration(template.tasks)} days
+                      {getTotalDuration(template.tasks || [])} days
                     </Badge>
                     <Button
                       variant="ghost"
@@ -300,7 +302,7 @@ export function ScheduleMasterTab() {
               {expandedTemplate === template.id && (
                 <CardContent>
                   <div className="border rounded-lg divide-y">
-                    {template.tasks
+                    {(template.tasks || [])
                       .sort((a, b) => a.position - b.position)
                       .map((task, index) => (
                         <div

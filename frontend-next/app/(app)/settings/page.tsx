@@ -49,16 +49,6 @@ import {
   setStoredPersona,
 } from "@/lib/personas";
 
-interface Organization {
-  id: number;
-  name: string;
-  abn?: string;
-  address?: string;
-  phone?: string;
-  email?: string;
-  logo_url?: string;
-}
-
 interface UserSettings {
   email_notifications: boolean;
   sms_notifications: boolean;
@@ -98,7 +88,6 @@ function SettingsPageContent() {
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [organization, setOrganization] = React.useState<Organization | null>(null);
   const [persona, setPersona] = React.useState<Persona>('manager');
   const [settings, setSettings] = React.useState<UserSettings>({
     email_notifications: true,
@@ -141,16 +130,8 @@ function SettingsPageContent() {
 
   React.useEffect(() => {
     const fetchSettings = async () => {
-      try {
-        const [orgData, settingsData] = await Promise.all([
-          api.get<Organization>("/api/v1/organization"),
-          api.get<UserSettings>("/api/v1/user/settings"),
-        ]);
-        setOrganization(orgData);
-        if (settingsData) setSettings(settingsData);
-      } catch (error) {
-        console.error("Failed to fetch settings:", error);
-      }
+      // Note: Organization settings moved to System Admin (/admin/system)
+      // User settings API endpoint not yet implemented - using defaults
 
       // Load mock training data
       setTrainingModules([
@@ -273,10 +254,6 @@ function SettingsPageContent() {
           <TabsTrigger value="profile" className="gap-2">
             <User className="h-4 w-4" />
             Profile
-          </TabsTrigger>
-          <TabsTrigger value="organization" className="gap-2">
-            <Building2 className="h-4 w-4" />
-            Organization
           </TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
@@ -408,69 +385,6 @@ function SettingsPageContent() {
                   {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Save Changes
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Organization Tab */}
-        <TabsContent value="organization">
-          <Card>
-            <CardHeader>
-              <CardTitle>Organization Details</CardTitle>
-              <CardDescription>Manage your company information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="h-20 w-20 bg-muted rounded-lg flex items-center justify-center">
-                  {organization?.logo_url ? (
-                    <img
-                      src={organization.logo_url}
-                      alt={organization.name}
-                      className="h-full w-full object-contain"
-                    />
-                  ) : (
-                    <Building2 className="h-8 w-8 text-muted-foreground" />
-                  )}
-                </div>
-                <div>
-                  <Button variant="outline" size="sm">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Logo
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Recommended: 200x200px PNG
-                  </p>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Company Name</Label>
-                  <Input defaultValue={organization?.name || ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label>ABN</Label>
-                  <Input defaultValue={organization?.abn || ""} placeholder="XX XXX XXX XXX" />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Address</Label>
-                  <Input defaultValue={organization?.address || ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input defaultValue={organization?.phone || ""} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input defaultValue={organization?.email || ""} type="email" />
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Button>Save Changes</Button>
               </div>
             </CardContent>
           </Card>

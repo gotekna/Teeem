@@ -30,8 +30,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # Determine redirect URI based on environment
     redirect_uri = microsoft_redirect_uri
 
-    # Encode user_id in state parameter so we know who to associate on callback
-    state_data = { user_id: current_user.id, nonce: SecureRandom.hex(8) }
+    # Encode user_id and frontend_url in state parameter so we know who to associate on callback
+    # and where to redirect back to
+    frontend_url = request.referer.present? ? URI.parse(request.referer).tap { |u| u.path = ''; u.query = nil }.to_s : ENV['FRONTEND_URL']
+    state_data = { user_id: current_user.id, nonce: SecureRandom.hex(8), frontend_url: frontend_url }
     state = Base64.urlsafe_encode64(state_data.to_json)
 
     # Build auth URL params
@@ -54,7 +56,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     auth_url = "https://login.microsoftonline.com/#{tenant}/oauth2/v2.0/authorize?" + URI.encode_www_form(auth_params)
 
-    render json: { auth_url: auth_url }
+    render json: { url: auth_url, auth_url: auth_url }
   end
 
   # GET /api/v1/microsoft/callback
@@ -74,30 +76,32 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       return render_popup_close_page(success: false, error: 'No authorization code received')
     end
 
-    # Decode state to get user_id
+    # Decode state to get user_id and frontend_url
     user_id = nil
+    frontend_url = nil
     if state.present?
       begin
         state_data = JSON.parse(Base64.urlsafe_decode64(state))
         user_id = state_data['user_id']
+        frontend_url = state_data['frontend_url']
       rescue => e
         Rails.logger.error "Failed to decode OAuth state: #{e.message}"
       end
     end
 
     unless user_id
-      return render_popup_close_page(success: false, error: 'Invalid OAuth state - please try again')
+      return render_popup_close_page(success: false, error: 'Invalid OAuth state - please try again', frontend_url: frontend_url)
     end
 
     user = User.find_by(id: user_id)
     unless user
-      return render_popup_close_page(success: false, error: 'User not found - please try again')
+      return render_popup_close_page(success: false, error: 'User not found - please try again', frontend_url: frontend_url)
     end
 
     # Exchange code for tokens
     tokens = exchange_code_for_tokens(code)
     unless tokens
-      return render_popup_close_page(success: false, error: 'Failed to exchange code for tokens')
+      return render_popup_close_page(success: false, error: 'Failed to exchange code for tokens', frontend_url: frontend_url)
     end
 
     # Get user info from Microsoft Graph
@@ -112,7 +116,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     update_legacy_outlook_credential(user, tokens, microsoft_email)
 
     Rails.logger.info "Microsoft connected successfully for user #{user.id} (#{microsoft_email})"
-    render_popup_close_page(success: true, email: microsoft_email)
+    render_popup_close_page(success: true, email: microsoft_email, frontend_url: frontend_url)
   rescue => e
     Rails.logger.error "Error in Microsoft callback: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
     render_popup_close_page(success: false, error: e.message)
@@ -122,7 +126,18 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   # Check current user's Microsoft connection status
   def status
     microsoft_token = current_user.microsoft_token
-    outlook_credential = current_user.outlook_credential
+
+    # Load outlook credential with error handling for decryption errors
+    # (tokens are encrypted and may fail to decrypt if encrypted with different keys)
+    outlook_credential = begin
+      cred = current_user.outlook_credential
+      # Try to access an encrypted field to verify decryption works
+      cred&.access_token if cred
+      cred
+    rescue ActiveRecord::Encryption::Errors::Decryption => e
+      Rails.logger.warn "[Microsoft Status] Decryption error loading outlook credential: #{e.message}"
+      nil
+    end
 
     # Use new unified token if available, otherwise fall back to legacy
     if microsoft_token&.status == 'connected'
@@ -319,9 +334,14 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     )
   end
 
-  def render_popup_close_page(success:, email: nil, error: nil)
-    # Get the frontend URL from environment or derive from request
-    frontend_url = ENV['FRONTEND_URL'] || 'https://teeemrob.vercel.app'
+  def render_popup_close_page(success:, email: nil, error: nil, frontend_url: nil)
+    # Use provided frontend_url from state, or fall back to referer/env
+    frontend_url ||= get_frontend_url_from_referer
+
+    # Build the redirect URL with status params
+    redirect_path = "/settings/integrations/microsoft"
+    query_params = success ? "?connected=true&email=#{CGI.escape(email || '')}" : "?error=#{CGI.escape(error || 'Unknown error')}"
+    redirect_url = "#{frontend_url}#{redirect_path}#{query_params}"
 
     html = <<~HTML
       <!DOCTYPE html>
@@ -361,10 +381,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
           <h1>#{success ? 'Microsoft Connected!' : 'Connection Failed'}</h1>
           <p>#{success ? "Connected as #{email}" : error}</p>
           #{success ? services_html : ''}
-          <p style="margin-top: 16px; font-size: 14px; color: #9ca3af;">This window will close automatically...</p>
+          <p style="margin-top: 16px; font-size: 14px; color: #9ca3af;">Redirecting back to settings...</p>
         </div>
         <script>
-          // Notify parent window of success/failure
+          // If this was opened as a popup, notify parent and close
           if (window.opener) {
             window.opener.postMessage({
               type: 'microsoft-oauth-callback',
@@ -372,13 +392,34 @@ class Api::V1::MicrosoftAuthController < ApplicationController
               email: #{email.to_json},
               error: #{error.to_json}
             }, '#{frontend_url}');
+            setTimeout(function() { window.close(); }, 2000);
+          } else {
+            // Not a popup - redirect back to the settings page
+            setTimeout(function() {
+              window.location.href = '#{redirect_url}';
+            }, 1500);
           }
-          setTimeout(function() { window.close(); }, 2500);
         </script>
       </body>
       </html>
     HTML
     render html: html.html_safe
+  end
+
+  def get_frontend_url_from_referer
+    # Try to get from referer header (where user came from)
+    referer = request.referer
+    if referer.present?
+      begin
+        uri = URI.parse(referer)
+        return "#{uri.scheme}://#{uri.host}#{uri.port && ![80, 443].include?(uri.port) ? ":#{uri.port}" : ''}"
+      rescue URI::InvalidURIError
+        # Fall through to defaults
+      end
+    end
+
+    # Fall back to environment variable
+    ENV['FRONTEND_URL'] || 'https://teeemrob.vercel.app'
   end
 
   def services_html

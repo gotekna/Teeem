@@ -1,21 +1,27 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Lead, LeadStatus, LEAD_STATUS_CONFIG } from "@/types/leads";
 import { LeadCard } from "./lead-card";
+import { EmailProposalCard } from "./email-proposal-card";
 import { cn } from "@/lib/utils";
+import { EmailProposal } from "@/app/(app)/leads/page";
 
 interface LeadPipelineProps {
   leads: Lead[];
+  emailProposals?: EmailProposal[];
   onLeadClick: (lead: Lead) => void;
   onStatusChange: (leadId: number, newStatus: LeadStatus) => void;
+  onProposalsChange?: () => void;
+  onLeadsChange?: () => void;
 }
 
 const PIPELINE_COLUMNS: LeadStatus[] = [
-  "new",
+  "proposal",
+  "new", // "Priced Up" - displayed after proposals
   "contacted",
   "qualified",
-  "proposal",
   "contract_sent",
   "won",
   "lost",
@@ -23,9 +29,13 @@ const PIPELINE_COLUMNS: LeadStatus[] = [
 
 export function LeadPipeline({
   leads,
+  emailProposals = [],
   onLeadClick,
   onStatusChange,
+  onProposalsChange,
+  onLeadsChange,
 }: LeadPipelineProps) {
+  const router = useRouter();
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<LeadStatus | null>(null);
 
@@ -78,6 +88,18 @@ export function LeadPipeline({
     setDragOverColumn(null);
   };
 
+  // Handler for when a proposal is approved and navigates to job
+  const handleProposalApproved = (jobId: number) => {
+    onProposalsChange?.();
+    router.push(`/jobs/${jobId}`);
+  };
+
+  // Handler for when a proposal is priced up (converted to lead)
+  const handleProposalPricedUp = () => {
+    onProposalsChange?.();
+    onLeadsChange?.();
+  };
+
   return (
     <div className="flex gap-4 overflow-x-auto pb-4 min-h-[600px]">
       {PIPELINE_COLUMNS.map((status) => {
@@ -85,6 +107,10 @@ export function LeadPipeline({
         const columnLeads = getLeadsByStatus(status);
         const totalValue = getTotalValue(status);
         const isDropTarget = dragOverColumn === status;
+        // Show email proposals in the "proposal" column
+        const showEmailProposals = status === "proposal";
+        const proposalCount = showEmailProposals ? emailProposals.length : 0;
+        const totalCount = columnLeads.length + proposalCount;
 
         return (
           <div
@@ -123,7 +149,7 @@ export function LeadPipeline({
                     {statusConfig.label}
                   </span>
                   <span className="text-xs bg-background px-1.5 py-0.5 rounded-full font-mono">
-                    {columnLeads.length}
+                    {totalCount}
                   </span>
                 </div>
                 <span className="text-xs font-medium text-muted-foreground">
@@ -139,6 +165,18 @@ export function LeadPipeline({
                 isDropTarget && "bg-primary/10 ring-2 ring-primary ring-inset"
               )}
             >
+              {/* Email Proposals (only in proposal column) */}
+              {showEmailProposals && emailProposals.map((proposal) => (
+                <EmailProposalCard
+                  key={`proposal-${proposal.id}`}
+                  proposal={proposal}
+                  onApproved={handleProposalApproved}
+                  onRejected={onProposalsChange}
+                  onPricedUp={handleProposalPricedUp}
+                />
+              ))}
+
+              {/* Regular Leads */}
               {columnLeads.map((lead) => (
                 <div
                   key={lead.id}
@@ -154,7 +192,7 @@ export function LeadPipeline({
                 </div>
               ))}
 
-              {columnLeads.length === 0 && (
+              {totalCount === 0 && (
                 <div className="flex items-center justify-center h-24 text-xs text-muted-foreground">
                   No leads
                 </div>

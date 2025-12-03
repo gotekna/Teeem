@@ -10,10 +10,42 @@ module Api
       # GET /api/v1/organization_onedrive/status
       # Check if organization has OneDrive connected
       # Will attempt to refresh expired tokens automatically
+      # Falls back to user's Microsoft token if org credential not set up
       def status
-        credential = OrganizationOneDriveCredential.active_credential
+        # Wrap credential loading in rescue - tokens are encrypted and may fail to decrypt
+        # if encrypted with different keys across environments
+        credential = begin
+          cred = OrganizationOneDriveCredential.active_credential
+          # Try to access an encrypted field to verify decryption works
+          cred&.access_token if cred
+          cred
+        rescue ActiveRecord::Encryption::Errors::Decryption => e
+          Rails.logger.warn "[OneDrive Status] Decryption error loading org credential: #{e.message}"
+          nil
+        end
 
+        # If no org credential, check if user has Microsoft token with OneDrive access
         unless credential
+          # Try to use user's Microsoft token as fallback
+          # UserMicrosoftToken doesn't have encryption, so this should be safe
+          begin
+            microsoft_token = current_user&.microsoft_token
+            if microsoft_token&.status == 'connected' && microsoft_token&.access_token.present?
+              # User has a connected Microsoft account - use it as the OneDrive connection
+              return render json: {
+                connected: true,
+                source: 'user_microsoft_token',
+                drive_name: 'Personal OneDrive',
+                connected_at: microsoft_token.created_at,
+                connected_by: current_user&.as_json(only: [:id, :email]),
+                token_expires_at: microsoft_token.token_expires_at,
+                message: 'Using your Microsoft 365 connection for OneDrive access'
+              }
+            end
+          rescue StandardError => e
+            Rails.logger.warn "[OneDrive Status] Error accessing Microsoft token: #{e.message}"
+          end
+
           return render json: {
             connected: false,
             message: 'Not connected'
@@ -41,6 +73,7 @@ module Api
         if credential.valid_credential?
           render json: {
             connected: true,
+            source: 'organization_credential',
             drive_id: credential.drive_id,
             drive_name: credential.drive_name,
             root_folder_id: credential.root_folder_id,
@@ -1302,6 +1335,27 @@ module Api
       end
 
       private
+
+      # Get the best available credential for OneDrive operations
+      # Prioritizes organization credential, falls back to user's Microsoft token
+      def get_onedrive_credential
+        # First try organization-wide credential
+        credential = OrganizationOneDriveCredential.active_credential
+        return credential if credential&.valid_credential?
+
+        # Fall back to user's Microsoft token
+        microsoft_token = current_user&.microsoft_token
+        if microsoft_token&.status == 'connected' && microsoft_token&.access_token.present?
+          return microsoft_token
+        end
+
+        nil
+      end
+
+      # Check if we have a valid OneDrive connection (org or user)
+      def onedrive_connected?
+        get_onedrive_credential.present?
+      end
 
       # Map foundation_id to model class
       def get_model_for_foundation(foundation_id)
