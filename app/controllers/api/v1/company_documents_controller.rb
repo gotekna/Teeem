@@ -293,18 +293,52 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        # Mark as processing immediately for UI feedback
-        @document.update!(ai_verification_status: 'processing')
+        # Check for auto_apply_threshold - if present, run synchronously
+        auto_apply_threshold = params[:auto_apply_threshold].to_i if params[:auto_apply_threshold].present?
 
-        # Queue background job
-        DocumentVerificationJob.perform_later(@document.id)
+        if auto_apply_threshold && auto_apply_threshold > 0
+          # Run synchronously for bulk operations
+          @document.update!(ai_verification_status: 'processing')
+          result = DocumentVerificationService.new(@document).verify!
 
-        render json: {
-          success: true,
-          message: 'AI verification started',
-          document_id: @document.id,
-          status: 'processing'
-        }
+          auto_applied = false
+          if result[:success] && result[:analysis][:confidence].to_i >= auto_apply_threshold
+            # Auto-apply the suggestion if confidence meets threshold
+            @document.update!(
+              title: @document.ai_suggested_name,
+              folder: @document.ai_suggested_folder,
+              document_type: @document.ai_suggested_type,
+              ai_verification_status: 'verified',
+              user_validated_at: Time.current,
+              user_validated_by: current_user
+            )
+            auto_applied = true
+          end
+
+          @document.reload
+          render json: {
+            success: result[:success],
+            auto_applied: auto_applied,
+            document: @document.as_json(
+              include: {
+                company: { only: [:id, :name, :code] },
+                user: { only: [:id, :name, :email] }
+              },
+              methods: [:formatted_document_type, :file_size_mb]
+            )
+          }
+        else
+          # Async mode - queue background job (existing behavior)
+          @document.update!(ai_verification_status: 'processing')
+          DocumentVerificationJob.perform_later(@document.id)
+
+          render json: {
+            success: true,
+            message: 'AI verification started',
+            document_id: @document.id,
+            status: 'processing'
+          }
+        end
       end
 
       # POST /api/v1/company_documents/:id/apply_ai_suggestion
