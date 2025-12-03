@@ -185,6 +185,13 @@ module Api
             error: 'Failed to get preview from OneDrive',
             fallback_url: @document.file_url
           }, status: :unprocessable_entity
+        rescue ActiveRecord::Encryption::Errors::Decryption => e
+          Rails.logger.error "OneDrive credential decryption error: #{e.message}"
+          render json: {
+            success: false,
+            error: 'OneDrive credentials not available in this environment',
+            fallback_url: @document.file_url
+          }, status: :service_unavailable
         end
       end
 
