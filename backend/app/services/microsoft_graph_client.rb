@@ -530,8 +530,10 @@ class MicrosoftGraphClient
 
   # Upload file content to a folder (accepts raw content or file object)
   def upload_file_content(parent_folder_id, filename, content)
+    # URL-encode the filename to handle spaces and special characters
+    encoded_filename = URI.encode_www_form_component(filename)
     response = HTTParty.put(
-      "#{GRAPH_API_BASE}/drives/#{@credential.drive_id}/items/#{parent_folder_id}:/#{filename}:/content",
+      "#{GRAPH_API_BASE}/drives/#{@credential.drive_id}/items/#{parent_folder_id}:/#{encoded_filename}:/content",
       body: content,
       headers: auth_headers.merge({ 'Content-Type' => 'application/octet-stream' })
     )
