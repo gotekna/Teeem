@@ -251,6 +251,16 @@ interface CompanyDocument {
   ai_suggested_fy?: number[] | string;
   ai_confidence_score?: number;
   ai_analysis_notes?: string;
+  ai_extracted_description?: string;
+  ai_extracted_date?: string;
+  ai_source_page?: number;
+  ai_source_quote?: string;
+  ai_contains_multiple_documents?: boolean;
+  ai_split_recommendation?: Array<{
+    pages: string;
+    type: string;
+    suggested_name: string;
+  }>;
 }
 
 interface DocumentPreviewModalProps {
@@ -731,6 +741,34 @@ export default function DocumentPreviewModal({
             if (response.document.ai_verification_status !== "processing") {
               if (pollingRef.current) clearInterval(pollingRef.current);
               setAiVerifying(false);
+
+              // Auto-fill ALL fields from AI when results arrive
+              const doc = response.document;
+
+              // Auto-select company (document already has company_id)
+              if (doc.company_id && !editedCompanyId) {
+                setEditedCompanyId(String(doc.company_id));
+              }
+              // Auto-select folder from AI suggestion
+              if (doc.ai_suggested_folder) {
+                setEditedFolder(doc.ai_suggested_folder);
+              }
+              // Auto-select document type from AI suggestion
+              if (doc.ai_suggested_type) {
+                setEditedDocumentType(doc.ai_suggested_type);
+              }
+              // Auto-fill description from AI extraction
+              if (doc.ai_extracted_description) {
+                setEditedDescription(doc.ai_extracted_description);
+              }
+              // Auto-select financial years from AI suggestion
+              if (doc.ai_suggested_fy) {
+                setEditedFinancialYears(parseFinancialYears(doc.ai_suggested_fy));
+              }
+              // Auto-fill date from AI extraction
+              if (doc.ai_extracted_date) {
+                setEditedRefDate(doc.ai_extracted_date);
+              }
             }
           }
         } catch (error) {
@@ -744,7 +782,7 @@ export default function DocumentPreviewModal({
         clearInterval(pollingRef.current);
       }
     };
-  }, [document?.id, document?.ai_verification_status]);
+  }, [document?.id, document?.ai_verification_status, editedCompanyId, editedDescription, editedRefDate, editedDocumentType, editedFolder, editedFinancialYears]);
 
   // Focus title input when editing starts
   React.useEffect(() => {
@@ -1497,7 +1535,7 @@ export default function DocumentPreviewModal({
                       <div className={cn(
                         "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
                         document.ai_suggested_name && document.ai_suggested_type
-                          ? (editedDocumentType === document.ai_suggested_type
+                          ? (editedDocumentType.toLowerCase().replace(/[_\s]/g, '') === document.ai_suggested_type.toLowerCase().replace(/[_\s]/g, '')
                             ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                             : "border-red-500 bg-red-50 dark:bg-red-900/20")
                           : ""
@@ -1512,8 +1550,15 @@ export default function DocumentPreviewModal({
                         <Label className="text-[10px] text-muted-foreground">
                           {needsDescriptionAndDate ? "Description" : isBASDocument ? "Period" : "Details"}
                         </Label>
-                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
-                          -
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                          document.ai_extracted_description
+                            ? (editedDescription === document.ai_extracted_description
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-purple-500 bg-purple-50 dark:bg-purple-900/20")
+                            : ""
+                        )}>
+                          {document.ai_extracted_description || "-"}
                         </div>
                       </div>
                     )}
@@ -1543,8 +1588,15 @@ export default function DocumentPreviewModal({
                         <Label className="text-[10px] text-muted-foreground">
                           {isAmended ? "Amended Date" : "Date"}
                         </Label>
-                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
-                          -
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                          document.ai_extracted_date
+                            ? (editedRefDate === document.ai_extracted_date
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-purple-500 bg-purple-50 dark:bg-purple-900/20")
+                            : ""
+                        )}>
+                          {document.ai_extracted_date || "-"}
                         </div>
                       </div>
                     )}
@@ -1594,13 +1646,66 @@ export default function DocumentPreviewModal({
                       </div>
                     ) : null}
 
+                    {/* Split Recommendation - shown when multiple docs detected */}
+                    {document.ai_contains_multiple_documents && document.ai_split_recommendation && (
+                      <div className="pt-2 border-t">
+                        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-md px-2 py-1.5 border border-orange-300 dark:border-orange-700">
+                          <p className="text-[10px] text-orange-700 dark:text-orange-300 font-semibold flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" />
+                            Multiple Documents Detected - Recommend Split
+                          </p>
+                          <div className="mt-1 space-y-1">
+                            {document.ai_split_recommendation.map((rec, idx) => (
+                              <div key={idx} className="text-[10px] bg-white dark:bg-gray-800 rounded px-1.5 py-1 border">
+                                <p className="font-medium text-orange-800 dark:text-orange-200">
+                                  Pages {rec.pages}: {rec.type}
+                                </p>
+                                <p className="text-muted-foreground font-mono truncate">
+                                  → {rec.suggested_name}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-2 h-6 text-[10px] text-orange-600 border-orange-300 hover:bg-orange-100"
+                            onClick={() => setIsEditingPdf(true)}
+                          >
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Open PDF Editor to Split
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* AI Reasoning - at bottom */}
-                    {document.ai_analysis_notes && (
-                      <div className="pt-1">
-                        <Label className="text-[10px] text-muted-foreground">AI Reasoning</Label>
-                        <p className="mt-0.5 text-[10px] text-muted-foreground italic bg-muted/50 rounded-md px-1.5 py-1 line-clamp-2">
-                          {document.ai_analysis_notes}
-                        </p>
+                    {(document.ai_analysis_notes || document.ai_source_page || document.ai_source_quote) && (
+                      <div className="pt-1 space-y-1">
+                        {/* Source info - page and quote */}
+                        {(document.ai_source_page || document.ai_source_quote) && (
+                          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-md px-1.5 py-1 border border-blue-200 dark:border-blue-800">
+                            {document.ai_source_page && (
+                              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
+                                📄 Page {document.ai_source_page}
+                              </p>
+                            )}
+                            {document.ai_source_quote && (
+                              <p className="text-[10px] text-blue-700 dark:text-blue-300 italic mt-0.5 line-clamp-2">
+                                "{document.ai_source_quote}"
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {/* AI reasoning notes */}
+                        {document.ai_analysis_notes && (
+                          <div>
+                            <Label className="text-[10px] text-muted-foreground">AI Reasoning</Label>
+                            <p className="mt-0.5 text-[10px] text-muted-foreground italic bg-muted/50 rounded-md px-1.5 py-1 max-h-24 overflow-y-auto">
+                              {document.ai_analysis_notes}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
