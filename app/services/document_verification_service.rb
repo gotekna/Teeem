@@ -410,6 +410,38 @@ class DocumentVerificationService
       - "TD TTR FY24 US.pdf" = Unsigned Trust Tax Return
       - "TD TTR FY24 S.pdf" = Signed Trust Tax Return
 
+      ## Draft/Signed Loan Documents - CRITICAL:
+      For Loan Agreements and Security Deeds, you MUST detect draft vs signed status:
+      - LAD = Loan Agreement - Draft (has DRAFT watermark, not signed, or unsigned copy)
+      - LAS = Loan Agreement - Signed (has signatures, is the executed/final version)
+      - SDD = Security Deed - Draft (has DRAFT watermark, not signed, or unsigned copy)
+      - SDS = Security Deed - Signed (has signatures, is the executed/final version)
+
+      Detection rules:
+      - If document has "DRAFT" watermark or "DRAFT" in header → use Draft variant (LAD, SDD)
+      - If document has signatures or says "EXECUTED"/"SIGNED"/"FINAL" → use Signed variant (LAS, SDS)
+      - If document shows signature blocks that are BLANK/UNSIGNED → use Draft variant (LAD, SDD)
+      - DEFAULT to Draft variant if status cannot be determined (safer to treat as draft)
+
+      IMPORTANT: When a Signed version (LAS, SDS) exists, the Draft version (LAD, SDD) should be deleted.
+      Flag duplicate draft/signed pairs in your notes if you detect them.
+
+      Loan Direction - CRITICAL:
+      - "Loan from" = Company is BORROWING money (lender is external party)
+      - "Loan to" = Company is LENDING money (borrower is external party)
+      Determine direction from the document content - who is the borrower vs lender.
+
+      Format for Loan Agreements: {CompanyCode} {LoanID} {LAD|LAS} {from|to} {OtherPartyCode} {AssetDescription} {Date}.pdf
+      Format for Security Deeds: {CompanyCode} {LoanID} {SDD|SDS} {AssetDescription} {Date}.pdf
+
+      Examples:
+      - "TD L001 LAD from ANZ 123 Smith St 15-06-2024.pdf" = Draft Loan Agreement (TD borrowing from ANZ)
+      - "TD L001 LAS from ANZ 123 Smith St 15-06-2024.pdf" = Signed Loan Agreement (TD borrowing from ANZ)
+      - "TD L001 LAD to NEV 123 Smith St 15-06-2024.pdf" = Draft Loan Agreement (TD lending to NEV)
+      - "TD L001 LAS to NEV 123 Smith St 15-06-2024.pdf" = Signed Loan Agreement (TD lending to NEV)
+      - "TD L001 SDD 123 Smith St 15-06-2024.pdf" = Draft Security Deed
+      - "TD L001 SDS 123 Smith St 15-06-2024.pdf" = Signed Security Deed
+
       ## ATO Documents - IMPORTANT DISTINCTION:
       There are different types of ATO documents:
 
