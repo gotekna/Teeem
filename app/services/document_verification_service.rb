@@ -59,10 +59,16 @@ class DocumentVerificationService
       ai_split_recommendation: analysis[:split_recommendation]
     )
 
-    # 6. Auto-apply if confidence >= 90% and not a multi-document PDF
+    # 6. Auto-apply at 74%+ confidence (skip if multi-document PDF)
     auto_applied = false
-    if analysis[:confidence].to_i >= 90 && !analysis[:contains_multiple_documents]
-      auto_applied = auto_apply_suggestion!(analysis)
+
+    unless analysis[:contains_multiple_documents]
+      confidence = analysis[:confidence].to_i
+
+      # At 74%+: Full auto-apply (rename file, set all fields, mark verified)
+      if confidence >= 74
+        auto_applied = auto_apply_suggestion!(analysis)
+      end
     end
 
     { success: true, analysis: analysis, auto_applied: auto_applied }
@@ -88,7 +94,7 @@ class DocumentVerificationService
 
   private
 
-  # Auto-apply AI suggestion when confidence is high
+  # Auto-apply AI suggestion when confidence is 74%+
   # - Renames file in SharePoint
   # - Updates document record with suggested values
   # - Marks as verified
