@@ -1,6 +1,7 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
+      skip_before_action :authorize_request, only: [:content]
       before_action :set_document, only: [:show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback]
 
       # GET /api/v1/company_documents
