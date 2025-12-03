@@ -31,6 +31,7 @@ import {
   AlertTriangle,
   Pencil,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
@@ -1618,7 +1619,7 @@ export default function DocumentPreviewModal({
 
                     {/* Action buttons - matching Edit panel button position */}
                     {document.ai_suggested_name ? (
-                      <div className="pt-2 border-t flex items-center gap-1">
+                      <div className="pt-2 border-t flex items-center gap-2">
                         <Button
                           onClick={handleApplySuggestion}
                           disabled={applyingSuggestion}
@@ -1631,17 +1632,34 @@ export default function DocumentPreviewModal({
                             <><Sparkles className="h-3 w-3 mr-1" />Apply AI</>
                           )}
                         </Button>
+                        <Button
+                          onClick={handleAiVerify}
+                          disabled={aiVerifying}
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
+                        >
+                          {aiVerifying ? (
+                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing</>
+                          ) : (
+                            <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
+                          )}
+                        </Button>
                       </div>
                     ) : canAiVerify ? (
                       <div className="pt-2 border-t">
                         <Button
                           onClick={handleAiVerify}
+                          disabled={aiVerifying}
                           variant="outline"
                           size="sm"
                           className="w-full h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
                         >
-                          <Sparkles className="h-3 w-3 mr-1" />
-                          Run AI Analysis
+                          {aiVerifying ? (
+                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Analyzing...</>
+                          ) : (
+                            <><Sparkles className="h-3 w-3 mr-1" />Run AI Analysis</>
+                          )}
                         </Button>
                       </div>
                     ) : null}
