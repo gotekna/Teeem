@@ -668,28 +668,69 @@ export default function DocumentPreviewModal({
     );
   }, [editedDocumentType]);
 
-  // Check if this is a tax return document type (needs signed/unsigned toggle)
+  // Check if this document type needs signed/unsigned toggle (based on naming format)
   const needsSignedToggle = React.useMemo(() => {
-    const taxReturnTypes = [
-      "tax_return", "trust_tax_return",
-      "CTR - Company Tax Return", "TTR - Trust Tax Return",
-      "Company Tax Return", "Trust Tax Return"
-    ];
-    return taxReturnTypes.some(t =>
-      editedDocumentType.toLowerCase() === t.toLowerCase() ||
-      editedDocumentType.toLowerCase().includes("ctr") ||
-      editedDocumentType.toLowerCase().includes("ttr") ||
-      editedDocumentType.toLowerCase().includes("company tax return") ||
-      editedDocumentType.toLowerCase().includes("trust tax return")
-    );
-  }, [editedDocumentType]);
+    const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
+    if (docTypeRecord?.naming_format) {
+      // Check if naming format includes {Signed} placeholder
+      return docTypeRecord.naming_format.includes("{Signed}");
+    }
+    return false;
+  }, [editedDocumentType, getDocumentTypeRecord]);
 
-  // Reset signed status when document type changes to non-tax-return
+  // Set default signed status when document type changes
   React.useEffect(() => {
-    if (!needsSignedToggle) {
+    if (needsSignedToggle && !signedStatus) {
+      // Default to unsigned when toggle becomes needed
+      setSignedStatus('unsigned');
+    } else if (!needsSignedToggle) {
       setSignedStatus(null);
     }
-  }, [needsSignedToggle]);
+  }, [needsSignedToggle, signedStatus]);
+
+  // Check if AI suggested type needs Description field
+  const aiNeedsDescription = React.useMemo(() => {
+    if (!document.ai_suggested_type) return false;
+
+    // Find the document type record for AI suggested type
+    const aiDocType = documentTypes.find(t =>
+      t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
+      t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+    );
+
+    if (aiDocType?.naming_format) {
+      return aiDocType.naming_format.includes("{Description}") ||
+             aiDocType.naming_format.includes("{Details}") ||
+             aiDocType.naming_format.includes("{Period}") ||
+             aiDocType.naming_format.includes("{Asset}");
+    }
+
+    // For hardcoded types, CTR/TTR don't need description
+    const noDescriptionTypes = ["ctr", "ttr", "company tax return", "trust tax return"];
+    const suggestedLower = document.ai_suggested_type.toLowerCase();
+    if (noDescriptionTypes.some(t => suggestedLower.includes(t))) {
+      return false;
+    }
+
+    return true; // Default to showing for unknown types
+  }, [document.ai_suggested_type, documentTypes]);
+
+  // Check if AI suggested type needs FY field
+  const aiNeedsFinancialYear = React.useMemo(() => {
+    if (!document.ai_suggested_type) return true; // Default to showing FY
+
+    const aiDocType = documentTypes.find(t =>
+      t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
+      t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+    );
+
+    if (aiDocType?.naming_format) {
+      return aiDocType.naming_format.includes("FY{YY}") ||
+             aiDocType.naming_format.includes("{FY}");
+    }
+
+    return true; // Default to showing FY
+  }, [document.ai_suggested_type, documentTypes]);
 
   // Get the selected company's BAS frequency
   const selectedCompanyBasFrequency = React.useMemo(() => {
@@ -847,20 +888,25 @@ export default function DocumentPreviewModal({
     const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
     const baseAbbrev = docTypeRecord?.abbreviation ||
       getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "";
-    // Add signed/unsigned prefix if applicable (S CTR or US CTR)
+    // Signed/unsigned prefix for {Signed} placeholder (S or US, empty if not selected)
     const signedPrefix = signedStatus === 'signed' ? 'S ' : signedStatus === 'unsigned' ? 'US ' : '';
-    const docTypeAbbrev = signedPrefix + baseAbbrev;
     const namingFormat = docTypeRecord?.naming_format;
     const amendedSuffix = getAmendedSuffix();
 
     // If we have a naming format from the database, use it as template
-    if (namingFormat && companyCode && docTypeAbbrev) {
+    if (namingFormat && companyCode && baseAbbrev) {
       let newName = namingFormat;
 
       // Replace placeholders in the exact order they appear in the format
       newName = newName.replace("{CompanyCode}", companyCode);
-      newName = newName.replace("{Abbreviation}", docTypeAbbrev);
-      newName = newName.replace("{Type}", docTypeAbbrev);
+      // Handle {Signed} placeholder - only add prefix if selected, remove placeholder if not
+      if (signedStatus) {
+        newName = newName.replace("{Signed}", signedPrefix);
+      } else {
+        newName = newName.replace("{Signed}", "");
+      }
+      newName = newName.replace("{Abbreviation}", baseAbbrev);
+      newName = newName.replace("{Type}", baseAbbrev);
 
       // Handle Period/Details/Description/Quarter placeholders
       if (editedDescription) {
@@ -913,11 +959,13 @@ export default function DocumentPreviewModal({
 
     // Fallback for hardcoded types or "other" - use generic format
     const usesDescriptionDate = editedDocumentType === "other";
+    // For fallback, include signed prefix in abbrev
+    const fallbackAbbrev = signedPrefix + baseAbbrev;
 
     if (usesDescriptionDate) {
       // Format: {CompanyCode} {Abbrev} {Description} {Date}
-      if (companyCode && docTypeAbbrev && editedDescription) {
-        let newName = `${companyCode} ${docTypeAbbrev} ${editedDescription}`;
+      if (companyCode && fallbackAbbrev && editedDescription) {
+        let newName = `${companyCode} ${fallbackAbbrev} ${editedDescription}`;
         if (editedRefDate && !isAmended) {
           newName += ` ${formatDateForFilename(editedRefDate)}`;
         }
@@ -934,8 +982,8 @@ export default function DocumentPreviewModal({
     const descPart = editedDescription ? ` ${editedDescription}` : "";
 
     // Only auto-fill if we have the required fields
-    if (companyCode && docTypeAbbrev && fyPart) {
-      const newName = `${companyCode} ${docTypeAbbrev} ${fyPart}${descPart}${amendedSuffix}`.trim();
+    if (companyCode && fallbackAbbrev && fyPart) {
+      const newName = `${companyCode} ${fallbackAbbrev} ${fyPart}${descPart}${amendedSuffix}`.trim();
       setEditedTitle(newName);
     }
   }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix, signedStatus]);
@@ -1299,14 +1347,14 @@ export default function DocumentPreviewModal({
                   <div className="flex items-center justify-between">
                     <Label className="text-[10px] text-muted-foreground">Document Type</Label>
                     <div className="flex items-center gap-2">
-                      {/* Signed/Unsigned toggle - only for CTR/TTR */}
+                      {/* Signed/Unsigned toggle - required for CTR/TTR, must pick one */}
                       {needsSignedToggle && (
                         <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
                           <Button
                             type="button"
                             size="sm"
                             variant={signedStatus === 'unsigned' ? "default" : "ghost"}
-                            onClick={() => setSignedStatus(signedStatus === 'unsigned' ? null : 'unsigned')}
+                            onClick={() => setSignedStatus('unsigned')}
                             className={cn(
                               "h-4 px-1.5 text-[9px]",
                               signedStatus === 'unsigned' && "bg-orange-500 hover:bg-orange-600"
@@ -1318,7 +1366,7 @@ export default function DocumentPreviewModal({
                             type="button"
                             size="sm"
                             variant={signedStatus === 'signed' ? "default" : "ghost"}
-                            onClick={() => setSignedStatus(signedStatus === 'signed' ? null : 'signed')}
+                            onClick={() => setSignedStatus('signed')}
                             className={cn(
                               "h-4 px-1.5 text-[9px]",
                               signedStatus === 'signed' && "bg-green-500 hover:bg-green-600"
@@ -1487,11 +1535,21 @@ export default function DocumentPreviewModal({
                   />
                 </div>
 
-                {/* Table Title Preview - shows how it will appear in the table */}
+                {/* Table Title Preview - shows full document type name + Signed/Unsigned + FY + Amended */}
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
                   <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 line-clamp-2">
-                    {editedTitle ? editedTitle.replace(/\.pdf$/i, '').replace(/\.(doc|docx|xls|xlsx)$/i, '') : "-"}
+                    {(() => {
+                      const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
+                      const fullTypeName = docTypeRecord?.name || editedDocumentType || "";
+                      const signedPart = signedStatus === 'signed' ? 'Signed' : signedStatus === 'unsigned' ? 'Unsigned' : '';
+                      const fyPart = editedFinancialYears.length > 0
+                        ? editedFinancialYears.map(y => `FY${y}`).join(" ")
+                        : "";
+                      const amendedPart = isAmended ? 'Amended' : '';
+                      const parts = [fullTypeName, signedPart, fyPart, amendedPart].filter(Boolean);
+                      return parts.length > 0 ? parts.join(" ") : "-";
+                    })()}
                   </div>
                 </div>
 
@@ -1602,23 +1660,57 @@ export default function DocumentPreviewModal({
                       <div className="flex items-center justify-between">
                         <Label className="text-[10px] text-muted-foreground">Document Type</Label>
                         <div className="flex items-center gap-2">
-                          {/* Show Signed/Unsigned indicator if AI detected it in suggested name */}
-                          {document.ai_suggested_name && (document.ai_suggested_name.includes(" S ") || document.ai_suggested_name.includes(" US ")) && (
-                            <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
-                              {document.ai_suggested_name.includes(" US ") ? (
-                                <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-orange-500 text-white">US</Badge>
-                              ) : document.ai_suggested_name.includes(" S ") ? (
-                                <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-green-500 text-white">S</Badge>
-                              ) : null}
-                            </div>
-                          )}
-                          {/* Show Amended indicator if AI detected it */}
-                          {document.ai_suggested_name && document.ai_suggested_name.toLowerCase().includes("amended") && (
-                            <div className="flex items-center gap-1">
-                              <CheckCircle className="h-3 w-3 text-purple-500" />
-                              <span className="text-[10px] text-purple-600">Amended</span>
-                            </div>
-                          )}
+                          {/* Show Signed/Unsigned toggle if AI suggested type needs it - same style as Edit */}
+                          {(() => {
+                            const aiDocType = documentTypes.find(t =>
+                              t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
+                              t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+                            );
+                            const aiNeedsSigned = aiDocType?.naming_format?.includes("{Signed}");
+                            if (aiNeedsSigned) {
+                              // Detect from suggested name which one AI picked
+                              const isUnsigned = document.ai_suggested_name?.includes(" US ") || document.ai_suggested_name?.match(/\bUS\s/);
+                              const isSigned = document.ai_suggested_name?.includes(" S ") && !isUnsigned;
+                              return (
+                                <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={isUnsigned ? "default" : "ghost"}
+                                    disabled
+                                    className={cn(
+                                      "h-4 px-1.5 text-[9px]",
+                                      isUnsigned && "bg-orange-500 hover:bg-orange-600"
+                                    )}
+                                  >
+                                    US
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={isSigned ? "default" : "ghost"}
+                                    disabled
+                                    className={cn(
+                                      "h-4 px-1.5 text-[9px]",
+                                      isSigned && "bg-green-500 hover:bg-green-600"
+                                    )}
+                                  >
+                                    S
+                                  </Button>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          {/* Show Amended checkbox indicator - same style as Edit */}
+                          <div className="flex items-center gap-1">
+                            <Checkbox
+                              checked={document.ai_suggested_name?.toLowerCase().includes("amended") || false}
+                              disabled
+                              className="h-3 w-3"
+                            />
+                            <span className="text-[10px] text-muted-foreground">Amended</span>
+                          </div>
                         </div>
                       </div>
                       <div className={cn(
@@ -1645,12 +1737,10 @@ export default function DocumentPreviewModal({
                       })()}
                     </div>
 
-                    {/* Description/Period - only show if Edit panel shows it */}
-                    {(needsDescriptionAndDate || needsDetails || isBASDocument) && (
+                    {/* Description/Period - only show if AI suggested type needs it */}
+                    {aiNeedsDescription && (
                       <div>
-                        <Label className="text-[10px] text-muted-foreground">
-                          {needsDescriptionAndDate ? "Description" : isBASDocument ? "Period" : "Details"}
-                        </Label>
+                        <Label className="text-[10px] text-muted-foreground">Description</Label>
                         <div className={cn(
                           "mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-muted/50 line-clamp-2",
                           document.ai_extracted_description
@@ -1664,8 +1754,8 @@ export default function DocumentPreviewModal({
                       </div>
                     )}
 
-                    {/* Financial Year - only show if Edit panel shows it */}
-                    {needsFinancialYear && (
+                    {/* Financial Year - only show if AI suggested type needs it */}
+                    {aiNeedsFinancialYear && (
                       <div>
                         <Label className="text-[10px] text-muted-foreground">Financial Year</Label>
                         <div className={cn(
@@ -1721,11 +1811,28 @@ export default function DocumentPreviewModal({
                       </div>
                     </div>
 
-                    {/* Table Title Preview - shows how AI suggestion will appear in the table */}
+                    {/* Table Title Preview - shows full document type name + Signed/Unsigned + FY + Amended */}
                     <div>
                       <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
                       <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 line-clamp-2">
-                        {document.ai_suggested_name ? document.ai_suggested_name.replace(/\.pdf$/i, '').replace(/\.(doc|docx|xls|xlsx)$/i, '') : "-"}
+                        {(() => {
+                          const aiDocType = documentTypes.find(t =>
+                            t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
+                            t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+                          );
+                          const fullTypeName = aiDocType?.name || document.ai_suggested_type || "";
+                          // Detect signed/unsigned from AI suggested name
+                          const isUnsigned = document.ai_suggested_name?.includes(" US ") || document.ai_suggested_name?.match(/\bUS\s/);
+                          const isSigned = document.ai_suggested_name?.includes(" S ") && !isUnsigned;
+                          const signedPart = isSigned ? 'Signed' : isUnsigned ? 'Unsigned' : '';
+                          const fyArray = parseFinancialYears(document.ai_suggested_fy);
+                          const fyPart = fyArray.length > 0
+                            ? fyArray.map(y => `FY${y}`).join(" ")
+                            : "";
+                          const amendedPart = document.ai_suggested_name?.toLowerCase().includes("amended") ? 'Amended' : '';
+                          const parts = [fullTypeName, signedPart, fyPart, amendedPart].filter(Boolean);
+                          return parts.length > 0 ? parts.join(" ") : "-";
+                        })()}
                       </div>
                     </div>
 
