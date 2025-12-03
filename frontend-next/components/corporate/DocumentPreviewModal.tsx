@@ -1588,11 +1588,29 @@ export default function DocumentPreviewModal({
                       </div>
                     </div>
 
-                    {/* Document Type - with space for Amended alignment */}
+                    {/* Document Type - with Signed/Unsigned and Amended indicators */}
                     <div>
                       <div className="flex items-center justify-between">
                         <Label className="text-[10px] text-muted-foreground">Document Type</Label>
-                        <div className="h-3" />
+                        <div className="flex items-center gap-2">
+                          {/* Show Signed/Unsigned indicator if AI detected it in suggested name */}
+                          {document.ai_suggested_name && (document.ai_suggested_name.includes(" S ") || document.ai_suggested_name.includes(" US ")) && (
+                            <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
+                              {document.ai_suggested_name.includes(" US ") ? (
+                                <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-orange-500 text-white">US</Badge>
+                              ) : document.ai_suggested_name.includes(" S ") ? (
+                                <Badge variant="secondary" className="h-4 px-1.5 text-[9px] bg-green-500 text-white">S</Badge>
+                              ) : null}
+                            </div>
+                          )}
+                          {/* Show Amended indicator if AI detected it */}
+                          {document.ai_suggested_name && document.ai_suggested_name.toLowerCase().includes("amended") && (
+                            <div className="flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3 text-purple-500" />
+                              <span className="text-[10px] text-purple-600">Amended</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className={cn(
                         "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
