@@ -133,11 +133,12 @@ class DocumentVerificationService
       user_validated_at: Time.current
     }
 
-    # Only set financial_years for non-date-range documents
-    unless is_date_range_doc
+    # Only set financial_years if the filename explicitly contains "FY"
+    suggested_name = analysis[:suggested_name] || ""
+    if suggested_name.match?(/FY\d{2}/i) && !is_date_range_doc
       update_attrs[:financial_years] = analysis[:suggested_fy].presence || @document.financial_years
     else
-      # Clear financial_years for date-range documents
+      # No FY in filename = clear financial_years
       update_attrs[:financial_years] = nil
     end
 
@@ -440,7 +441,7 @@ class DocumentVerificationService
         "suggested_name": "TD ATO Activity Statement 24-06-2024.pdf",
         "suggested_folder": "ATO",
         "suggested_type": "ATO Documents",
-        "suggested_fy": [2024],
+        "suggested_fy": null,
         "confidence": 85,
         "notes": "Brief explanation of why this name was suggested",
         "current_name_valid": true,
@@ -456,7 +457,7 @@ class DocumentVerificationService
       - suggested_name should follow the TEEEM convention strictly using the naming format for the document type
       - suggested_folder should be one of the valid folders listed above
       - suggested_type MUST be the EXACT document type name from the list above (e.g., "ATO Documents", "BAS - Business Activity Statement", etc.)
-      - suggested_fy should be an array of financial years (e.g., [2024] or [2023, 2024] for multi-year docs)
+      - suggested_fy: ONLY populate if the suggested_name explicitly contains "FY" (e.g., "FY24"). If the filename uses date ranges or specific dates instead of FY notation, set to null. Example: "TD BAS Statement 01-07-2023 to 30-06-2024.pdf" → null (no FY in name), "TD CTR FY24 US.pdf" → [2024]
       - IMPORTANT: For FY assignment, if the document date is between July 1-30 (within 30 days after FY end), assign to the PREVIOUS FY. Example: document dated 15-07-2025 should be FY25 (not FY26) because it's a report/summary for the FY just ended.
       - confidence should be 0-100 based on how certain you are
       - current_name_valid should be true if the current filename already follows TEEEM conventions well
@@ -570,8 +571,15 @@ class DocumentVerificationService
       "mismatch"
     end
 
+    # Only populate FY if the suggested name explicitly contains "FY"
+    suggested_name = json["suggested_name"] || ""
+    raw_suggested_fy = if suggested_name.match?(/FY\d{2}/i)
+      json["suggested_fy"] || []
+    else
+      [] # No FY in filename = no FY in column
+    end
+
     # Apply smart FY adjustment for July-dated documents
-    raw_suggested_fy = json["suggested_fy"] || []
     extracted_date = json["extracted_date"]
     adjusted_fy = adjust_fy_for_july_dates(raw_suggested_fy, extracted_date)
 
