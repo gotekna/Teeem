@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 export interface TableIdMappings {
   GOLD_STANDARD: number;
   JOBS: number;
+  TASKS: number;
   PRICEBOOK: number;
   CONTACTS: number;
   COMPANIES: number;
@@ -41,6 +42,7 @@ let fetchPromise: Promise<void> | null = null;
 const DEFAULT_TABLE_IDS: TableIdMappings = {
   GOLD_STANDARD: 1,
   JOBS: 204,
+  TASKS: 218,
   PRICEBOOK: 205,
   CONTACTS: 214,
   COMPANIES: 353,
@@ -67,6 +69,7 @@ async function fetchTableIds(): Promise<void> {
       cachedTableIds = {
         GOLD_STANDARD: data.TABLE_IDS.GOLD_STANDARD ?? DEFAULT_TABLE_IDS.GOLD_STANDARD,
         JOBS: data.TABLE_IDS.JOBS ?? DEFAULT_TABLE_IDS.JOBS,
+        TASKS: data.TABLE_IDS.TASKS ?? DEFAULT_TABLE_IDS.TASKS,
         PRICEBOOK: data.TABLE_IDS.PRICEBOOK ?? DEFAULT_TABLE_IDS.PRICEBOOK,
         CONTACTS: data.TABLE_IDS.CONTACTS ?? DEFAULT_TABLE_IDS.CONTACTS,
         COMPANIES: data.TABLE_IDS.COMPANIES ?? DEFAULT_TABLE_IDS.COMPANIES,
@@ -125,6 +128,7 @@ export function useTableIds(): {
     const fallbackSlugs: Record<number, string> = {
       1: 'gold-standard',
       204: 'jobs',
+      218: 'tasks',
       205: 'pricebook',
       214: 'contacts',
       353: 'companies',
@@ -154,6 +158,7 @@ export function getTableSlug(tableId: number): string {
   const fallbackSlugs: Record<number, string> = {
     1: 'gold-standard',
     204: 'jobs',
+    218: 'tasks',
     205: 'pricebook',
     214: 'contacts',
     353: 'companies',

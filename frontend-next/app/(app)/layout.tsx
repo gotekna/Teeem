@@ -60,8 +60,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      <main className="sidebar-content-area pt-12 h-full overflow-hidden transition-all duration-300 ease-in-out">
-        <div className="h-full p-6 flex flex-col overflow-hidden">{children}</div>
+      <main className="sidebar-content-area pt-12 h-full overflow-auto transition-all duration-300 ease-in-out">
+        <div className="min-h-full p-6 flex flex-col">{children}</div>
       </main>
 
       {/* Floating Help Button (for pages without header visible on mobile) */}

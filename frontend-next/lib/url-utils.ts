@@ -24,6 +24,7 @@ if (typeof window !== 'undefined') {
 export const TABLE_IDS = {
   get GOLD_STANDARD() { return getTableIds().GOLD_STANDARD; },
   get JOBS() { return getTableIds().JOBS; },
+  get TASKS() { return getTableIds().TASKS; },
   get PRICEBOOK() { return getTableIds().PRICEBOOK; },
   get CONTACTS() { return getTableIds().CONTACTS; },
   get COMPANIES() { return getTableIds().COMPANIES; },
@@ -63,11 +64,12 @@ export function slugify(text: string, maxLength = 50): string {
 
 /**
  * Build a table URL with the format: /{slug}_GOD_LOVES_YOU_?tab={tab}
- * @param slug - The slug (e.g., "jobs" or "job-123-smith-st")
+ * @param slug - The database_table_name (e.g., "jobs", "sm_tasks", "gold_standard_items")
  * @param tab - Optional tab name
  */
 export function buildTableUrl(slug: string, tab?: string): string {
-  const baseSlug = slugify(slug);
+  // Use the slug directly - it should already be a database_table_name (lowercase with underscores)
+  const baseSlug = slug.toLowerCase();
   const base = `/${baseSlug}${URL_SUFFIX}`;
   return tab ? `${base}?tab=${tab}` : base;
 }
@@ -163,13 +165,15 @@ export function isNumericId(value: string): boolean {
  */
 export const urls = {
   // === TABLE LIST PAGES ===
+  // All slugs use database_table_name format (underscores, lowercase)
 
   jobs: (tab?: string) => buildTableUrl("jobs", tab),
+  tasks: (tab?: string) => buildTableUrl("tasks", tab),
   contacts: (tab?: string) => buildTableUrl("contacts", tab),
   pricebook: (tab?: string) => buildTableUrl("pricebook", tab),
   companies: (tab?: string) => buildTableUrl("companies", tab),
-  goldStandard: (tab?: string) => buildTableUrl("gold-standard", tab),
-  features: (tab?: string) => buildTableUrl("features", tab),
+  goldStandard: (tab?: string) => buildTableUrl("gold_standard_items", tab),
+  features: (tab?: string) => buildTableUrl("features_tracking", tab),
 
   // === ITEM DETAIL PAGES ===
 

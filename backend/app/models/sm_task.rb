@@ -6,6 +6,8 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.1
 #
 class SmTask < ApplicationRecord
+  self.table_name = 'tasks'
+
   # Status enum
   enum :status, {
     not_started: 'not_started',

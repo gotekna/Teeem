@@ -4,10 +4,7 @@ class Foundation < ApplicationRecord
   RESERVED_NAMES = %w[user users table tables column columns record records foundation foundations].freeze
 
   validates :name, presence: true
-  validates :database_table_name, presence: true
-  # Note: database_table_name doesn't need to be unique - multiple Gold Standard tables
-  # can point to the same underlying database table with different filters
-  # (e.g., Trinity Bible/Teacher/Lexicon all use 'trinity' table, Suppliers uses 'contacts')
+  validates :database_table_name, presence: true, uniqueness: true
   validates :slug, presence: true, uniqueness: true
   validate :name_not_reserved
 
@@ -103,19 +100,9 @@ class Foundation < ApplicationRecord
   end
 
   def generate_slug
-    # Generate a URL-friendly slug from the name field
-    # e.g., "Price History" => "price-history"
-    base_slug = name.parameterize
-    slug_candidate = base_slug
-    counter = 1
-
-    # Ensure uniqueness
-    while Foundation.where(slug: slug_candidate).where.not(id: id).exists?
-      slug_candidate = "#{base_slug}-#{counter}"
-      counter += 1
-    end
-
-    self.slug = slug_candidate
+    # Use database_table_name as the slug (already URL-safe with underscores)
+    # This ensures clean URLs like /tables/42/purchase_orders instead of /tables/42/Purchase%20Orders
+    self.slug = database_table_name
   end
 
   def add_lookup_associations(foundation_columns)
