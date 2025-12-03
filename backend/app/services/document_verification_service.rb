@@ -366,7 +366,14 @@ class DocumentVerificationService
     <<~PROMPT
       Analyze this document and suggest the best filename following TEEEM naming conventions.
 
-      IMPORTANT: Check if this PDF contains MULTIPLE DIFFERENT documents (e.g., a BAS statement on pages 1-2 and a Company Tax Return on page 3). If so, recommend splitting.
+      IMPORTANT - MULTI-DOCUMENT DETECTION:
+      Check if this PDF contains MULTIPLE DIFFERENT documents that should be separate files. Examples:
+      - A BAS statement on pages 1-2 and a Company Tax Return on page 3
+      - A BAS Statement AND an Income Tax Statement combined in one PDF
+      - Any file where the name contains "and" between two document types (e.g., "BAS and Income Tax Statement")
+
+      If the filename or content shows TWO OR MORE distinct document types, set contains_multiple_documents: true and provide split_recommendation.
+      Each document type should be its own file - NEVER combine different document types into one suggested name.
 
       ## Document Context:
       #{document_context}
@@ -439,6 +446,7 @@ class DocumentVerificationService
       - suggested_folder should be one of the valid folders listed above
       - suggested_type MUST be the EXACT document type name from the list above (e.g., "ATO Documents", "BAS - Business Activity Statement", etc.)
       - suggested_fy should be an array of financial years (e.g., [2024] or [2023, 2024] for multi-year docs)
+      - IMPORTANT: For FY assignment, if the document date is between July 1-30 (within 30 days after FY end), assign to the PREVIOUS FY. Example: document dated 15-07-2025 should be FY25 (not FY26) because it's a report/summary for the FY just ended.
       - confidence should be 0-100 based on how certain you are
       - current_name_valid should be true if the current filename already follows TEEEM conventions well
       - extracted_description: A brief description of the document content
@@ -551,16 +559,21 @@ class DocumentVerificationService
       "mismatch"
     end
 
+    # Apply smart FY adjustment for July-dated documents
+    raw_suggested_fy = json["suggested_fy"] || []
+    extracted_date = json["extracted_date"]
+    adjusted_fy = adjust_fy_for_july_dates(raw_suggested_fy, extracted_date)
+
     {
       status: status,
       suggested_name: json["suggested_name"],
       suggested_folder: json["suggested_folder"],
       suggested_type: suggested_type,
-      suggested_fy: json["suggested_fy"] || [],
+      suggested_fy: adjusted_fy,
       confidence: json["confidence"].to_i,
       notes: json["notes"],
       extracted_description: json["extracted_description"],
-      extracted_date: json["extracted_date"],
+      extracted_date: extracted_date,
       source_page: json["source_page"],
       source_quote: json["source_quote"],
       contains_multiple_documents: json["contains_multiple_documents"] || false,
@@ -575,5 +588,48 @@ class DocumentVerificationService
       notes: "Failed to parse AI response: #{e.message}",
       confidence: 0
     }
+  end
+
+  # Apply smart FY detection: if document is dated within 30 days after June 30,
+  # it likely belongs to the previous FY (e.g., a summary printed on July 15, 2025 is for FY25)
+  def adjust_fy_for_july_dates(suggested_fy, extracted_date)
+    return suggested_fy if suggested_fy.blank? || extracted_date.blank?
+
+    # Parse the extracted date (format: DD-MM-YYYY)
+    begin
+      date = Date.strptime(extracted_date, '%d-%m-%Y')
+    rescue ArgumentError
+      # Try other common formats
+      begin
+        date = Date.parse(extracted_date)
+      rescue ArgumentError
+        return suggested_fy
+      end
+    end
+
+    # Check if date is in July (month 7) and within first 30 days
+    if date.month == 7 && date.day <= 30
+      # This document is likely a summary/report for the FY just ended
+      # Adjust each FY in the array
+      adjusted_fy = suggested_fy.map do |fy|
+        fy_year = fy.to_i
+        # The FY ending in July 2025 is FY25, not FY26
+        # If Claude suggested FY26 for a July 2025 doc, adjust to FY25
+        if fy_year == date.year + 1
+          # Claude assigned next FY (FY26 for July 2025), adjust to current FY (FY25)
+          fy_year - 1
+        else
+          fy_year
+        end
+      end.uniq
+
+      if adjusted_fy != suggested_fy
+        Rails.logger.info("Adjusted FY from #{suggested_fy} to #{adjusted_fy} (document dated #{extracted_date} is within 30 days of FY end)")
+      end
+
+      adjusted_fy
+    else
+      suggested_fy
+    end
   end
 end
