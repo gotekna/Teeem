@@ -117,7 +117,7 @@ export default function MicrosoftIntegrationPage() {
               </div>
               <div>
                 <CardTitle>Microsoft 365</CardTitle>
-                <CardDescription>Outlook, OneDrive, Calendar</CardDescription>
+                <CardDescription>Outlook, SharePoint, Calendar</CardDescription>
               </div>
             </div>
             {status?.connected ? (
@@ -172,7 +172,7 @@ export default function MicrosoftIntegrationPage() {
                   <div className="flex items-center gap-3 p-3 border rounded-lg">
                     <FolderOpen className="h-5 w-5 text-blue-500" />
                     <div className="flex-1">
-                      <p className="font-medium">OneDrive</p>
+                      <p className="font-medium">SharePoint</p>
                       <p className="text-xs text-muted-foreground">File storage</p>
                     </div>
                     {status.services.onedrive ? (
@@ -197,6 +197,20 @@ export default function MicrosoftIntegrationPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  onClick={() => window.open("https://outlook.office.com/mail/", "_blank")}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Open Outlook
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => window.open("https://tekaboringmachines.sharepoint.com", "_blank")}
+                >
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  Open SharePoint
+                </Button>
                 <Button variant="outline" onClick={handleConnect} disabled={connecting}>
                   <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
                   Reconnect
@@ -221,7 +235,7 @@ export default function MicrosoftIntegrationPage() {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertTitle>Not Connected</AlertTitle>
                 <AlertDescription>
-                  Connect your Microsoft 365 account to sync emails, store documents in OneDrive,
+                  Connect your Microsoft 365 account to sync emails, store documents in SharePoint,
                   and sync calendar events.
                 </AlertDescription>
               </Alert>
@@ -274,7 +288,7 @@ export default function MicrosoftIntegrationPage() {
               <div className="p-2 bg-blue-100 rounded-lg">
                 <FolderOpen className="h-5 w-5 text-blue-600" />
               </div>
-              <CardTitle className="text-base">OneDrive Storage</CardTitle>
+              <CardTitle className="text-base">SharePoint Storage</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
