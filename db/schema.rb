@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_03_002943) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_03_013023) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -977,6 +977,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_002943) do
     t.index ["declaration_date"], name: "index_dividends_on_declaration_date"
     t.index ["dividend_type"], name: "index_dividends_on_dividend_type"
     t.index ["status"], name: "index_dividends_on_status"
+  end
+
+  create_table "document_activities", force: :cascade do |t|
+    t.bigint "company_document_id", null: false
+    t.bigint "user_id"
+    t.string "action", null: false
+    t.jsonb "old_values", default: {}
+    t.jsonb "new_values", default: {}
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_document_activities_on_action"
+    t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
+    t.index ["created_at"], name: "index_document_activities_on_created_at"
+    t.index ["user_id"], name: "index_document_activities_on_user_id"
   end
 
   create_table "document_tasks", force: :cascade do |t|
@@ -3934,6 +3949,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_002943) do
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "companies"
+  add_foreign_key "document_activities", "company_documents"
+  add_foreign_key "document_activities", "users"
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_verification_feedbacks", "company_documents"
   add_foreign_key "document_verification_feedbacks", "users"

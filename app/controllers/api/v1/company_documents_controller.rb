@@ -266,6 +266,15 @@ module Api
       def relocate
         relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, :document_type, :ref_date, :filed_date, financial_years: [])
 
+        # Capture old values for activity log
+        old_values = {
+          title: @document.title,
+          company_id: @document.company_id,
+          folder: @document.folder,
+          document_type: @document.document_type,
+          financial_years: @document.financial_years
+        }
+
         service = DocumentRelocateService.new(@document)
         result = service.relocate!(
           new_company_id: relocate_params[:company_id],
@@ -283,6 +292,34 @@ module Api
           @document.update!(updates) if updates.any?
 
           @document.reload
+
+          # Log activity - determine action type based on what changed
+          new_values = {
+            title: @document.title,
+            company_id: @document.company_id,
+            folder: @document.folder,
+            document_type: @document.document_type,
+            financial_years: @document.financial_years
+          }
+
+          # Determine action type
+          action = if old_values[:company_id] != new_values[:company_id] || old_values[:folder] != new_values[:folder]
+                     "moved"
+                   elsif old_values[:title] != new_values[:title]
+                     "renamed"
+                   else
+                     "updated"
+                   end
+
+          # Create activity log entry
+          DocumentActivity.log(
+            document: @document,
+            user: current_user,
+            action: action,
+            old_values: old_values,
+            new_values: new_values,
+            notes: result[:actions]&.join(", ")
+          )
 
           render json: {
             success: true,

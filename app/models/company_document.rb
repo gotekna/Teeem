@@ -8,6 +8,9 @@ class CompanyDocument < ApplicationRecord
   belongs_to :document_type_record, class_name: 'DocumentType', foreign_key: 'document_type_id', optional: true
   belongs_to :user_validated_by, class_name: 'User', optional: true
 
+  # Activity log for tracking changes
+  has_many :document_activities, dependent: :destroy
+
   # Active Storage for file upload
   has_one_attached :file
 
