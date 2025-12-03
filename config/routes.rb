@@ -1249,6 +1249,11 @@ Rails.application.routes.draw do
 
       # Company Documents
       resources :company_documents do
+        collection do
+          get :duplicates
+          post :analyze_duplicates
+          post :resolve_duplicates
+        end
         member do
           get :download
           get :preview
