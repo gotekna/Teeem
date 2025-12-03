@@ -116,6 +116,9 @@ Rails.application.routes.draw do
 
       # Jobs management
       resources :jobs do
+        collection do
+          get :pipeline  # GET /api/v1/jobs/pipeline - Enquiry jobs grouped by stage
+        end
         member do
           get :saved_messages
           get :emails
@@ -123,6 +126,7 @@ Rails.application.routes.draw do
           get :documentation_tabs
           get :activities
           get :budget_tracking
+          patch :stage, action: :update_stage  # PATCH /api/v1/jobs/:id/stage - Update job stage
           # Xero bill import
           post :import_xero_bills
           post :link_xero_tracking
