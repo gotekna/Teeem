@@ -300,6 +300,7 @@ export default function DocumentPreviewModal({
   const [editedRefDate, setEditedRefDate] = React.useState("");
   const [editedFiledDate, setEditedFiledDate] = React.useState("");
   const [isAmended, setIsAmended] = React.useState(false);
+  const [signedStatus, setSignedStatus] = React.useState<'signed' | 'unsigned' | null>(null);
   const [actionNotes, setActionNotes] = React.useState("");
   const [amendedNumber, setAmendedNumber] = React.useState<number | null>(null);
   const [existingAmendedDocs, setExistingAmendedDocs] = React.useState<CompanyDocument[]>([]);
@@ -666,6 +667,29 @@ export default function DocumentPreviewModal({
     );
   }, [editedDocumentType]);
 
+  // Check if this is a tax return document type (needs signed/unsigned toggle)
+  const needsSignedToggle = React.useMemo(() => {
+    const taxReturnTypes = [
+      "tax_return", "trust_tax_return",
+      "CTR - Company Tax Return", "TTR - Trust Tax Return",
+      "Company Tax Return", "Trust Tax Return"
+    ];
+    return taxReturnTypes.some(t =>
+      editedDocumentType.toLowerCase() === t.toLowerCase() ||
+      editedDocumentType.toLowerCase().includes("ctr") ||
+      editedDocumentType.toLowerCase().includes("ttr") ||
+      editedDocumentType.toLowerCase().includes("company tax return") ||
+      editedDocumentType.toLowerCase().includes("trust tax return")
+    );
+  }, [editedDocumentType]);
+
+  // Reset signed status when document type changes to non-tax-return
+  React.useEffect(() => {
+    if (!needsSignedToggle) {
+      setSignedStatus(null);
+    }
+  }, [needsSignedToggle]);
+
   // Get the selected company's BAS frequency
   const selectedCompanyBasFrequency = React.useMemo(() => {
     const company = companies.find(c => String(c.id) === editedCompanyId);
@@ -820,8 +844,11 @@ export default function DocumentPreviewModal({
   React.useEffect(() => {
     const companyCode = companies.find(c => String(c.id) === editedCompanyId)?.code || "";
     const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
-    const docTypeAbbrev = docTypeRecord?.abbreviation ||
+    const baseAbbrev = docTypeRecord?.abbreviation ||
       getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "";
+    // Add signed/unsigned prefix if applicable (S CTR or US CTR)
+    const signedPrefix = signedStatus === 'signed' ? 'S ' : signedStatus === 'unsigned' ? 'US ' : '';
+    const docTypeAbbrev = signedPrefix + baseAbbrev;
     const namingFormat = docTypeRecord?.naming_format;
     const amendedSuffix = getAmendedSuffix();
 
@@ -910,7 +937,7 @@ export default function DocumentPreviewModal({
       const newName = `${companyCode} ${docTypeAbbrev} ${fyPart}${descPart}${amendedSuffix}`.trim();
       setEditedTitle(newName);
     }
-  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix]);
+  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix, signedStatus]);
 
   // Handle user validation
   const handleValidate = async () => {
@@ -1268,28 +1295,60 @@ export default function DocumentPreviewModal({
                   </div>
                 </div>
 
-                {/* Document Type + Amended checkbox */}
+                {/* Document Type + Signed/Unsigned + Amended */}
                 <div>
                   <div className="flex items-center justify-between">
                     <Label className="text-[10px] text-muted-foreground">Document Type</Label>
-                    <div className="flex items-center gap-1">
-                      <Checkbox
-                        id="amended"
-                        checked={isAmended}
-                        onCheckedChange={(checked) => setIsAmended(checked === true)}
-                        className="h-3 w-3"
-                      />
-                      <label
-                        htmlFor="amended"
-                        className="text-[10px] text-muted-foreground cursor-pointer select-none"
-                      >
-                        Amended
-                        {isAmended && amendedNumber !== null && amendedNumber > 1 && (
-                          <Badge variant="secondary" className="ml-1 text-[10px] px-1">
-                            #{amendedNumber}
-                          </Badge>
-                        )}
-                      </label>
+                    <div className="flex items-center gap-2">
+                      {/* Signed/Unsigned toggle - only for CTR/TTR */}
+                      {needsSignedToggle && (
+                        <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={signedStatus === 'unsigned' ? "default" : "ghost"}
+                            onClick={() => setSignedStatus(signedStatus === 'unsigned' ? null : 'unsigned')}
+                            className={cn(
+                              "h-4 px-1.5 text-[9px]",
+                              signedStatus === 'unsigned' && "bg-orange-500 hover:bg-orange-600"
+                            )}
+                          >
+                            US
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={signedStatus === 'signed' ? "default" : "ghost"}
+                            onClick={() => setSignedStatus(signedStatus === 'signed' ? null : 'signed')}
+                            className={cn(
+                              "h-4 px-1.5 text-[9px]",
+                              signedStatus === 'signed' && "bg-green-500 hover:bg-green-600"
+                            )}
+                          >
+                            S
+                          </Button>
+                        </div>
+                      )}
+                      {/* Amended checkbox */}
+                      <div className="flex items-center gap-1">
+                        <Checkbox
+                          id="amended"
+                          checked={isAmended}
+                          onCheckedChange={(checked) => setIsAmended(checked === true)}
+                          className="h-3 w-3"
+                        />
+                        <label
+                          htmlFor="amended"
+                          className="text-[10px] text-muted-foreground cursor-pointer select-none"
+                        >
+                          Amended
+                          {isAmended && amendedNumber !== null && amendedNumber > 1 && (
+                            <Badge variant="secondary" className="ml-1 text-[10px] px-1">
+                              #{amendedNumber}
+                            </Badge>
+                          )}
+                        </label>
+                      </div>
                     </div>
                   </div>
                   <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
