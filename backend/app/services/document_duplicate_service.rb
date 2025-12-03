@@ -71,9 +71,140 @@ class DocumentDuplicateService
       merge_documents(document_ids, options[:keep_id])
     when :delete_all
       delete_documents(document_ids)
+    when :no_action
+      { success: true, message: "No action needed - documents are legitimately different" }
     else
       { error: "Unknown action: #{action}" }
     end
+  end
+
+  # Confidence thresholds for different actions
+  # Destructive actions (delete, merge) need higher confidence
+  # Non-destructive actions (rename) can proceed with lower confidence
+  CONFIDENCE_THRESHOLDS = {
+    destructive: 89,  # delete_all, merge, keep_newest, keep_oldest, keep_verified
+    rename: 74        # rename only
+  }.freeze
+
+  DESTRUCTIVE_ACTIONS = [:delete_all, :merge, :keep_newest, :keep_oldest, :keep_verified].freeze
+
+  # Automatically resolve all duplicates using AI
+  # Options:
+  #   - company_id: Filter to specific company
+  #   - dry_run: If true, only analyze without executing (default: false)
+  def self.auto_resolve_all(company_id: nil, dry_run: false)
+    duplicates = find_duplicates(company_id: company_id)
+    results = []
+
+    duplicates.each do |dup_set|
+      document_ids = dup_set[:documents].map { |d| d[:id] }
+
+      Rails.logger.info "[AutoResolve] Analyzing: #{dup_set[:title]} (#{dup_set[:count]} copies)"
+
+      begin
+        # Get AI recommendation
+        analysis = analyze_duplicates(document_ids)
+
+        if analysis[:error]
+          results << {
+            title: dup_set[:title],
+            company: dup_set[:company_name],
+            status: :error,
+            error: analysis[:error]
+          }
+          next
+        end
+
+        recommendation = analysis[:recommendation]&.to_sym
+        confidence = analysis[:confidence] || 0
+
+        result_entry = {
+          title: dup_set[:title],
+          company: dup_set[:company_name],
+          document_ids: document_ids,
+          recommendation: recommendation,
+          confidence: confidence,
+          reasoning: analysis[:reasoning],
+          is_true_duplicate: analysis[:is_true_duplicate]
+        }
+
+        # Skip if no action needed
+        if recommendation == :no_action
+          result_entry[:status] = :skipped
+          result_entry[:message] = "Not true duplicates - different content"
+          results << result_entry
+          next
+        end
+
+        # Determine required confidence based on action type
+        required_confidence = if DESTRUCTIVE_ACTIONS.include?(recommendation)
+          CONFIDENCE_THRESHOLDS[:destructive]
+        else
+          CONFIDENCE_THRESHOLDS[:rename]
+        end
+
+        # Skip if confidence too low for this action type
+        if confidence < required_confidence
+          result_entry[:status] = :skipped
+          result_entry[:message] = "Confidence too low for #{recommendation} (#{confidence}% < #{required_confidence}% required)"
+          results << result_entry
+          next
+        end
+
+        # Execute unless dry run
+        if dry_run
+          result_entry[:status] = :dry_run
+          result_entry[:would_execute] = recommendation
+          result_entry[:required_confidence] = required_confidence
+          result_entry[:documents_to_delete] = analysis[:documents_to_delete]
+          result_entry[:documents_to_keep] = analysis[:documents_to_keep]
+        else
+          # Build options for execution
+          options = {}
+          if recommendation == :rename && analysis[:rename_suggestions].present?
+            suggestion = analysis[:rename_suggestions].first
+            options[:document_id] = suggestion[:document_id]
+            options[:new_name] = suggestion[:new_name]
+          elsif recommendation == :merge
+            options[:keep_id] = analysis[:documents_to_keep]&.first
+          end
+
+          execution_result = execute_action(recommendation, document_ids, options)
+
+          if execution_result[:error]
+            result_entry[:status] = :error
+            result_entry[:error] = execution_result[:error]
+          else
+            result_entry[:status] = :resolved
+            result_entry[:action_taken] = recommendation
+            result_entry[:result] = execution_result
+          end
+        end
+
+        results << result_entry
+
+      rescue StandardError => e
+        Rails.logger.error "[AutoResolve] Error processing #{dup_set[:title]}: #{e.message}"
+        results << {
+          title: dup_set[:title],
+          company: dup_set[:company_name],
+          status: :error,
+          error: e.message
+        }
+      end
+    end
+
+    # Summary
+    summary = {
+      total_duplicate_sets: duplicates.count,
+      resolved: results.count { |r| r[:status] == :resolved },
+      skipped: results.count { |r| r[:status] == :skipped },
+      errors: results.count { |r| r[:status] == :error },
+      dry_run: results.count { |r| r[:status] == :dry_run },
+      thresholds: CONFIDENCE_THRESHOLDS
+    }
+
+    { summary: summary, results: results }
   end
 
   private
@@ -222,34 +353,39 @@ class DocumentDuplicateService
     { error: "Failed to parse AI response: #{e.message}" }
   end
 
+  # Prefix for marking documents for deletion (safety net)
+  DELETE_PREFIX = "DELETE - ".freeze
+
   # Action implementations
+  # Note: "delete" actions actually rename with DELETE prefix for safety
+  # Users can review and permanently delete later
   def self.keep_newest(document_ids)
     docs = CompanyDocument.where(id: document_ids).order(created_at: :desc)
     keep = docs.first
-    delete = docs.offset(1)
+    to_mark = docs.offset(1)
 
-    delete_from_sharepoint_and_db(delete.pluck(:id))
+    marked = mark_for_deletion(to_mark.pluck(:id))
 
     {
       success: true,
       kept: keep.id,
-      deleted: delete.pluck(:id),
-      message: "Kept newest document (ID: #{keep.id}), deleted #{delete.count} duplicates"
+      marked_for_deletion: marked,
+      message: "Kept newest document (ID: #{keep.id}), marked #{to_mark.count} duplicates for deletion"
     }
   end
 
   def self.keep_oldest(document_ids)
     docs = CompanyDocument.where(id: document_ids).order(created_at: :asc)
     keep = docs.first
-    delete = docs.offset(1)
+    to_mark = docs.offset(1)
 
-    delete_from_sharepoint_and_db(delete.pluck(:id))
+    marked = mark_for_deletion(to_mark.pluck(:id))
 
     {
       success: true,
       kept: keep.id,
-      deleted: delete.pluck(:id),
-      message: "Kept oldest document (ID: #{keep.id}), deleted #{delete.count} duplicates"
+      marked_for_deletion: marked,
+      message: "Kept oldest document (ID: #{keep.id}), marked #{to_mark.count} duplicates for deletion"
     }
   end
 
@@ -261,14 +397,14 @@ class DocumentDuplicateService
       return { error: "No verified document found among duplicates" }
     end
 
-    delete = docs.where.not(id: verified.id)
-    delete_from_sharepoint_and_db(delete.pluck(:id))
+    to_mark = docs.where.not(id: verified.id)
+    marked = mark_for_deletion(to_mark.pluck(:id))
 
     {
       success: true,
       kept: verified.id,
-      deleted: delete.pluck(:id),
-      message: "Kept verified document (ID: #{verified.id}), deleted #{delete.count} duplicates"
+      marked_for_deletion: marked,
+      message: "Kept verified document (ID: #{verified.id}), marked #{to_mark.count} duplicates for deletion"
     }
   end
 
@@ -299,32 +435,149 @@ class DocumentDuplicateService
     { error: "Rename failed: #{e.message}" }
   end
 
+  # Merge multiple PDFs into one combined PDF
   def self.merge_documents(document_ids, keep_id)
-    docs = CompanyDocument.where(id: document_ids)
-    keep = docs.find(keep_id)
-    delete = docs.where.not(id: keep_id)
+    docs = CompanyDocument.where(id: document_ids).includes(:company)
+    return { error: "No documents found" } if docs.empty?
 
-    delete_from_sharepoint_and_db(delete.pluck(:id))
+    # Determine which doc to keep (use provided keep_id or newest)
+    keep_doc = keep_id.present? ? docs.find_by(id: keep_id) : docs.order(created_at: :desc).first
+    return { error: "Keep document not found" } unless keep_doc
 
-    {
-      success: true,
-      kept: keep.id,
-      deleted: delete.pluck(:id),
-      message: "Merged documents, kept ID: #{keep.id}"
-    }
+    other_docs = docs.where.not(id: keep_doc.id)
+    return { error: "Need at least 2 documents to merge" } if other_docs.empty?
+
+    # Only merge PDFs
+    unless docs.all? { |d| d.title&.downcase&.end_with?('.pdf') }
+      return { error: "Can only merge PDF documents" }
+    end
+
+    begin
+      credential = OrganizationOneDriveCredential.active_credential
+      return { error: "No active OneDrive credential" } unless credential
+
+      client = MicrosoftGraphClient.new(credential)
+
+      # Download all PDFs
+      pdf_contents = docs.order(:created_at).map do |doc|
+        {
+          id: doc.id,
+          title: doc.title,
+          content: client.download_file(doc.onedrive_file_id)
+        }
+      end
+
+      # Merge PDFs using HexaPDF
+      merged_pdf = HexaPDF::Document.new
+
+      pdf_contents.each do |pdf_data|
+        source_pdf = HexaPDF::Document.new(io: StringIO.new(pdf_data[:content]))
+        source_pdf.pages.each do |page|
+          merged_pdf.pages.add(merged_pdf.import(page))
+        end
+      end
+
+      # Write merged PDF to string
+      output = StringIO.new
+      merged_pdf.write(output)
+      merged_content = output.string
+
+      # Upload merged PDF (replace the keep document)
+      file_info = client.get_item(keep_doc.onedrive_file_id)
+      parent_folder_id = file_info.dig('parentReference', 'id')
+
+      # Delete original keep file first
+      client.delete_file(keep_doc.onedrive_file_id) rescue nil
+
+      # Upload merged file with same name
+      result = client.upload_file_content(parent_folder_id, keep_doc.title, merged_content)
+
+      # Update keep document record
+      keep_doc.update!(
+        onedrive_file_id: result[:id],
+        file_size: merged_content.bytesize,
+        ai_verification_status: 'pending', # Re-verify merged doc
+        ai_analysis_notes: "Merged from #{docs.count} documents: #{docs.pluck(:id).join(', ')}"
+      )
+
+      # Delete other documents from SharePoint and database
+      other_docs.each do |doc|
+        begin
+          client.delete_file(doc.onedrive_file_id) if doc.onedrive_file_id.present?
+        rescue StandardError => e
+          Rails.logger.warn("Could not delete SharePoint file #{doc.onedrive_file_id}: #{e.message}")
+        end
+        doc.destroy
+      end
+
+      {
+        success: true,
+        kept: keep_doc.id,
+        deleted: other_docs.pluck(:id),
+        merged_page_count: merged_pdf.pages.count,
+        new_file_size: merged_content.bytesize,
+        message: "Merged #{docs.count} documents into #{keep_doc.title} (#{merged_pdf.pages.count} pages)"
+      }
+
+    rescue StandardError => e
+      Rails.logger.error("PDF merge failed: #{e.message}")
+      Rails.logger.error(e.backtrace.first(10).join("\n"))
+      { error: "Merge failed: #{e.message}" }
+    end
   end
 
   def self.delete_documents(document_ids)
-    delete_from_sharepoint_and_db(document_ids)
+    # Safety net: mark for deletion instead of actually deleting
+    marked = mark_for_deletion(document_ids)
 
     {
       success: true,
-      deleted: document_ids,
-      message: "Deleted #{document_ids.count} documents"
+      marked_for_deletion: marked,
+      message: "Marked #{document_ids.count} documents for deletion (prefixed with '#{DELETE_PREFIX}')"
     }
   end
 
-  def self.delete_from_sharepoint_and_db(document_ids)
+  # Mark documents for deletion by renaming with DELETE prefix
+  # This is a safety net - users can review before permanently deleting
+  def self.mark_for_deletion(document_ids)
+    results = []
+
+    CompanyDocument.where(id: document_ids).find_each do |doc|
+      # Skip if already marked for deletion
+      if doc.title.start_with?(DELETE_PREFIX)
+        results << { id: doc.id, title: doc.title, status: :already_marked }
+        next
+      end
+
+      new_name = "#{DELETE_PREFIX}#{doc.title}"
+
+      begin
+        # Rename in SharePoint
+        if doc.onedrive_file_id.present?
+          credential = OrganizationOneDriveCredential.active_credential
+          if credential
+            client = MicrosoftGraphClient.new(credential)
+            client.rename_file(doc.onedrive_file_id, new_name)
+          end
+        end
+
+        # Update database
+        old_name = doc.title
+        doc.update!(title: new_name)
+        Rails.logger.info("Marked for deletion: #{old_name} -> #{new_name}")
+
+        results << { id: doc.id, old_name: old_name, new_name: new_name, status: :marked }
+      rescue StandardError => e
+        Rails.logger.warn("Could not mark document #{doc.id} for deletion: #{e.message}")
+        results << { id: doc.id, title: doc.title, status: :error, error: e.message }
+      end
+    end
+
+    results
+  end
+
+  # Actually delete documents (for when user confirms deletion of marked files)
+  def self.permanently_delete(document_ids)
     CompanyDocument.where(id: document_ids).find_each do |doc|
       # Delete from SharePoint
       if doc.onedrive_file_id.present?
@@ -333,7 +586,7 @@ class DocumentDuplicateService
           if credential
             client = MicrosoftGraphClient.new(credential)
             client.delete_file(doc.onedrive_file_id)
-            Rails.logger.info("Deleted SharePoint file: #{doc.onedrive_file_id}")
+            Rails.logger.info("Permanently deleted SharePoint file: #{doc.onedrive_file_id}")
           end
         rescue StandardError => e
           Rails.logger.warn("Could not delete SharePoint file #{doc.onedrive_file_id}: #{e.message}")
@@ -344,5 +597,52 @@ class DocumentDuplicateService
       # Delete from database
       doc.destroy
     end
+
+    {
+      success: true,
+      deleted: document_ids,
+      message: "Permanently deleted #{document_ids.count} documents"
+    }
+  end
+
+  # Find all documents marked for deletion
+  def self.find_marked_for_deletion(company_id: nil)
+    scope = CompanyDocument.where("title LIKE ?", "#{DELETE_PREFIX}%")
+    scope = scope.where(company_id: company_id) if company_id.present?
+    scope.includes(:company).map { |d| document_summary(d) }
+  end
+
+  # Restore a document marked for deletion (remove DELETE prefix)
+  def self.restore_document(document_id)
+    doc = CompanyDocument.find(document_id)
+
+    unless doc.title.start_with?(DELETE_PREFIX)
+      return { error: "Document is not marked for deletion" }
+    end
+
+    new_name = doc.title.sub(DELETE_PREFIX, '')
+
+    # Rename in SharePoint
+    if doc.onedrive_file_id.present?
+      credential = OrganizationOneDriveCredential.active_credential
+      if credential
+        client = MicrosoftGraphClient.new(credential)
+        client.rename_file(doc.onedrive_file_id, new_name)
+      end
+    end
+
+    # Update database
+    old_name = doc.title
+    doc.update!(title: new_name)
+
+    {
+      success: true,
+      document_id: doc.id,
+      old_name: old_name,
+      new_name: new_name,
+      message: "Restored document: #{new_name}"
+    }
+  rescue StandardError => e
+    { error: "Restore failed: #{e.message}" }
   end
 end

@@ -576,6 +576,9 @@ class MicrosoftGraphClient
     delete("/drives/#{@credential.drive_id}/items/#{item_id}")
   end
 
+  # Alias for delete_item (for consistency with file operations)
+  alias_method :delete_file, :delete_item
+
   # Search for files
   def search(query, folder_id = nil)
     path = if folder_id

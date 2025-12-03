@@ -1254,9 +1254,12 @@ Rails.application.routes.draw do
       # Company Documents
       resources :company_documents do
         collection do
-          get :duplicates  # Find duplicate documents
-          post :analyze_duplicates  # AI analyze duplicate documents
-          post :resolve_duplicates  # Execute action to resolve duplicates
+          get :duplicates
+          post :analyze_duplicates
+          post :resolve_duplicates
+          post :auto_resolve_duplicates
+          get :marked_for_deletion
+          post :permanently_delete
         end
         member do
           get :download
@@ -1267,8 +1270,9 @@ Rails.application.routes.draw do
           post :apply_ai_suggestion
           post :relocate
           post :feedback
-          post :upload_edited  # Upload edited PDF back to SharePoint
-          post :split  # Split document into multiple files
+          post :upload_edited
+          post :split
+          post :restore
         end
       end
 
