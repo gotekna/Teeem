@@ -164,7 +164,13 @@ class DocumentVerificationService
     # Build context about the document
     context_parts = []
     context_parts << "Current filename: #{@document.title}"
-    context_parts << "Company: #{@company&.name} (code: #{@company&.code})" if @company
+    if @company
+      context_parts << "Company: #{@company.name} (code: #{@company.code})"
+      # Include previous names if any - helps match documents from before company name changes
+      if @company.previous_names.present? && @company.previous_names.any?
+        context_parts << "Previous company names: #{@company.previous_names.join(', ')}"
+      end
+    end
     context_parts << "Current folder: #{@document.folder}" if @document.folder.present?
     context_parts << "Source: #{@document.source}" if @document.source.present?
 
