@@ -44,6 +44,7 @@ class UserMicrosoftToken < ApplicationRecord
       refresh_token: tokens[:refresh_token],
       token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,
       scopes: tokens[:scope],
+      email: tokens[:email],
       status: 'connected',
       sync_error: nil
     )
