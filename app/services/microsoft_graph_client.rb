@@ -506,6 +506,34 @@ class MicrosoftGraphClient
     get("/drives/#{@credential.drive_id}/items/#{file_id}")
   end
 
+  # Alias for get_file
+  def get_item(item_id)
+    get_file(item_id)
+  end
+
+  # Update file content (replace existing file)
+  def update_file_content(file_id, content)
+    put(
+      "/drives/#{@credential.drive_id}/items/#{file_id}/content",
+      content,
+      { 'Content-Type' => 'application/octet-stream' }
+    )
+  end
+
+  # Upload file content to a folder (accepts raw content or file object)
+  def upload_file_content(parent_folder_id, filename, content)
+    response = HTTParty.put(
+      "#{GRAPH_API_BASE}/drives/#{@credential.drive_id}/items/#{parent_folder_id}:/#{filename}:/content",
+      body: content,
+      headers: auth_headers.merge({ 'Content-Type' => 'application/octet-stream' })
+    )
+
+    raise APIError, "Upload failed: #{response.code} - #{response.body}" unless response.success?
+
+    result = JSON.parse(response.body) rescue {}
+    { id: result['id'], name: result['name'], web_url: result['webUrl'] }
+  end
+
   # Get embeddable preview URL for a file (works for OneDrive and SharePoint)
   # Returns a URL that can be embedded in an iframe without requiring authentication
   def get_preview_url(file_id)
@@ -575,6 +603,25 @@ class MicrosoftGraphClient
       body: body,
       headers: headers,
       timeout: 30
+    )
+
+    handle_response(response)
+  end
+
+  def put(path, body, custom_headers = {})
+    headers = auth_headers.merge(custom_headers)
+
+    # Set content type if body is a hash (JSON)
+    if body.is_a?(Hash)
+      headers['Content-Type'] = 'application/json'
+      body = body.to_json
+    end
+
+    response = HTTParty.put(
+      "#{GRAPH_API_BASE}#{path}",
+      body: body,
+      headers: headers,
+      timeout: 60
     )
 
     handle_response(response)
