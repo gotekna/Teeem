@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, MapPin, DollarSign, CheckCircle, XCircle, Sparkles, ArrowRight } from "lucide-react";
+import { Mail, MapPin, DollarSign, CheckCircle, XCircle, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { ProposalApprovalDialog } from "./proposal-approval-dialog";
 import { EmailProposal } from "@/app/(app)/leads/page";
@@ -14,10 +14,9 @@ interface EmailProposalCardProps {
   proposal: EmailProposal;
   onApproved?: (jobId: number) => void;
   onRejected?: () => void;
-  onPricedUp?: (leadId: number) => void;
 }
 
-export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp }: EmailProposalCardProps) {
+export function EmailProposalCard({ proposal, onApproved, onRejected }: EmailProposalCardProps) {
   const [processing, setProcessing] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [priceInput, setPriceInput] = useState<string>("");
@@ -79,49 +78,6 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
     }
   };
 
-  const handlePriceUp = async () => {
-    const price = parseFloat(priceInput.replace(/[^0-9.]/g, ""));
-    if (!price || price <= 0) {
-      alert("Please enter a valid price");
-      return;
-    }
-
-    try {
-      setProcessing(true);
-      // Create a lead from the proposal with "new" status (Priced Up)
-      const response = await api.post<{ lead: { id: number } }>("/api/v1/leads", {
-        title: data.job_title || email.subject || "Email Proposal",
-        status: "new", // This maps to "Priced Up"
-        client_name: customer.name || "Unknown",
-        client_email: customer.email || email.from_email || "",
-        client_phone: customer.phone || "",
-        site_address: data.property_address || "",
-        site_suburb: "",
-        site_state: "QLD",
-        site_postcode: "",
-        project_type: "other",
-        estimated_value: price,
-        notes: `Created from email proposal #${proposal.id}\n\nOriginal email from: ${email.from_email}\nSubject: ${email.subject}`,
-        source: "other",
-      });
-
-      // Mark the proposal as processed (rejected with reason)
-      await api.post(`/api/v1/email_job_proposals/${proposal.id}/reject`, {
-        rejection_reason: `Converted to lead with price $${price.toLocaleString()}`,
-      });
-
-      if (response?.lead?.id) {
-        onPricedUp?.(response.lead.id);
-      }
-      onRejected?.(); // Refresh the proposals list
-    } catch (error) {
-      console.error("Failed to price up proposal:", error);
-      alert("Failed to create lead from proposal");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
   const confidenceScore = data.confidence_score || 0;
   const confidencePercent = Math.round(confidenceScore * 100);
   const confidenceColor = confidencePercent >= 80
@@ -174,28 +130,17 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
             </div>
           )}
 
-          {/* Price input and Price Up button */}
-          <div className="flex gap-1 pt-1">
-            <div className="relative flex-1">
-              <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Enter price"
-                value={priceInput}
-                onChange={(e) => setPriceInput(e.target.value)}
-                className="h-7 text-xs pl-6 pr-2"
-                disabled={processing}
-              />
-            </div>
-            <Button
-              size="sm"
-              className="h-7 text-xs bg-gray-600 hover:bg-gray-700"
-              onClick={handlePriceUp}
-              disabled={processing || !priceInput}
-            >
-              <ArrowRight className="h-3 w-3 mr-1" />
-              Price Up
-            </Button>
+          {/* Price input (optional override) */}
+          <div className="relative">
+            <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Enter price (optional)"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              className="h-7 text-xs pl-6 pr-2"
+              disabled={processing}
+            />
           </div>
 
           {/* Action buttons */}
@@ -231,6 +176,7 @@ export function EmailProposalCard({ proposal, onApproved, onRejected, onPricedUp
           onOpenChange={setShowApprovalDialog}
           onApprove={handleApproveWithEdits}
           processing={processing}
+          priceOverride={priceInput}
         />
       )}
     </>

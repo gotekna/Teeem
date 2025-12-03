@@ -89,6 +89,7 @@ interface ProposalApprovalDialogProps {
   onOpenChange: (open: boolean) => void;
   onApprove: (proposalId: number, userEdits: Record<string, unknown>) => void;
   processing: boolean;
+  priceOverride?: string;
 }
 
 export function ProposalApprovalDialog({
@@ -97,6 +98,7 @@ export function ProposalApprovalDialog({
   onOpenChange,
   onApprove,
   processing,
+  priceOverride,
 }: ProposalApprovalDialogProps) {
   const data = proposal.extracted_data || {};
   const email = proposal.email || {};
@@ -114,7 +116,9 @@ export function ProposalApprovalDialog({
   const [jobAddress, setJobAddress] = useState(data.property_address || data.job_title || "");
   const [jobType, setJobType] = useState<number | null>(null);
   const [jobStatus, setJobStatus] = useState<number | null>(null);
-  const [jobEstimate, setJobEstimate] = useState<string>(data.contract_value?.toString() || "");
+  const [jobEstimate, setJobEstimate] = useState<string>(
+    priceOverride || data.contract_value?.toString() || ""
+  );
   const [notes, setNotes] = useState("");
 
   // Dropdown options

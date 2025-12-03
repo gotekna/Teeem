@@ -1,7 +1,96 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge]
+      before_action :set_job, only: [:show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage]
+
+      # GET /api/v1/jobs/pipeline
+      # Returns jobs with Enquiry status grouped by stage for the pipeline view
+      def pipeline
+        enquiry_status = JobStatus.find_by(name: 'Enquiry')
+
+        # Get all enquiry stages
+        enquiry_stages = JobStage.where(job_status_id: enquiry_status&.id).order(:position)
+
+        # Get all jobs with Enquiry status
+        jobs = Job.includes(:job_type, :job_status, :job_stage, :job_contacts => :contact)
+                  .where(job_status_id: enquiry_status&.id)
+                  .order(created_at: :desc)
+
+        # Group jobs by stage
+        jobs_by_stage = {}
+        enquiry_stages.each do |stage|
+          stage_jobs = jobs.select { |j| j.job_stage_id == stage.id }
+          jobs_by_stage[stage.name.downcase.gsub(' ', '_')] = stage_jobs.map { |job| pipeline_job_to_json(job) }
+        end
+
+        # Add jobs without a stage to "proposal" (first stage)
+        no_stage_jobs = jobs.select { |j| j.job_stage_id.nil? }
+        jobs_by_stage['proposal'] ||= []
+        jobs_by_stage['proposal'] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage['proposal']
+
+        # Initialize empty won/lost arrays (only Enquiry jobs are shown in pipeline)
+        jobs_by_stage['won'] = []
+        jobs_by_stage['lost'] = []
+
+        # For stats, we can still count won/lost from other statuses
+        won_statuses = JobStatus.where(name: ['Pre Contract', 'Contract', 'Pre Start', 'Active Job', 'Handover', 'Archived'])
+        won_jobs = Job.where(job_status_id: won_statuses.pluck(:id))
+                      .where('created_at > ?', 30.days.ago)
+
+        lost_statuses = JobStatus.where("name LIKE ?", "%Lost%")
+        lost_jobs = Job.where(job_status_id: lost_statuses.pluck(:id))
+                       .where('created_at > ?', 30.days.ago)
+
+        # Calculate stats
+        total_pipeline_value = jobs.sum { |j| j.contract_value || 0 }
+        won_value = won_jobs.sum(:contract_value) || 0
+
+        render json: {
+          success: true,
+          jobs_by_stage: jobs_by_stage,
+          stages: enquiry_stages.map { |s| { id: s.id, name: s.name, position: s.position } },
+          meta: {
+            total_count: jobs.count,
+            total_pipeline_value: total_pipeline_value,
+            won_count: won_jobs.count,
+            won_value: won_value,
+            lost_count: lost_jobs.count
+          }
+        }
+      end
+
+      # PATCH /api/v1/jobs/:id/stage
+      # Update job stage (for drag-and-drop in pipeline)
+      def update_stage
+        stage_name = params[:stage]
+
+        if stage_name == 'won'
+          # Move to Pre Contract status
+          pre_contract = JobStatus.find_by(name: 'Pre Contract')
+          if @job.update(job_status_id: pre_contract&.id, job_stage_id: nil)
+            render json: { success: true, job: pipeline_job_to_json(@job) }
+          else
+            render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
+          end
+        else
+          # Find the stage by name
+          enquiry_status = JobStatus.find_by(name: 'Enquiry')
+          stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: stage_name.titleize.gsub('_', ' '))
+
+          unless stage
+            return render json: { success: false, error: "Invalid stage: #{stage_name}" }, status: :unprocessable_entity
+          end
+
+          # Ensure job is in Enquiry status
+          @job.job_status_id = enquiry_status.id unless @job.job_status_id == enquiry_status&.id
+
+          if @job.update(job_stage_id: stage.id)
+            render json: { success: true, job: pipeline_job_to_json(@job) }
+          else
+            render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
+          end
+        end
+      end
 
       # GET /api/v1/jobs
       # GET /api/v1/jobs?status=Active
@@ -63,6 +152,12 @@ module Api
       def show
         # Include contacts with their relationships in the response
         job_json = @job.as_json
+
+        # Include job_type, job_status, and job_stage associations
+        job_json[:job_type] = @job.job_type&.as_json(only: [:id, :name, :icon])
+        job_json[:job_status] = @job.job_status&.as_json(only: [:id, :name, :color])
+        job_json[:job_stage] = @job.job_stage&.as_json(only: [:id, :name])
+
         job_json[:contacts] = @job.job_contacts
                                                      .includes(contact: :outgoing_relationships)
                                                      .where.not(contact_id: nil)
@@ -480,6 +575,28 @@ module Api
           related_id: activity.related_id,
           related_url: activity.related_url,
           metadata: activity.metadata
+        }
+      end
+
+      # Serialize job for pipeline view (lightweight version)
+      def pipeline_job_to_json(job)
+        # Get primary client contact
+        client_contact = job.job_contacts.find { |jc| jc.role == 'client' }&.contact
+
+        {
+          id: job.id,
+          title: job.title,
+          location: job.location,
+          contract_value: job.contract_value || 0,
+          job_type: job.job_type&.name,
+          job_status: job.job_status&.name,
+          job_stage: job.job_stage&.name,
+          job_stage_id: job.job_stage_id,
+          client_name: client_contact&.full_name,
+          client_email: client_contact&.email,
+          client_company: client_contact&.company_name_or_trust,
+          created_at: job.created_at,
+          updated_at: job.updated_at
         }
       end
 

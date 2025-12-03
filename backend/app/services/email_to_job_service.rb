@@ -71,6 +71,13 @@ class EmailToJobService
 
   # Approve proposal and create actual job
   def approve_proposal(proposal, user_edits: {})
+    # If job was already created (e.g., via Price Up), just link and approve
+    if user_edits['skip_job_creation'] && user_edits['linked_job_id'].present?
+      job = Job.find(user_edits['linked_job_id'])
+      proposal.update!(status: 'approved', job_id: job.id)
+      return job
+    end
+
     # Merge user edits with AI-extracted data
     job_data = proposal.extracted_data.deep_merge(user_edits)
 
@@ -91,7 +98,16 @@ class EmailToJobService
     job_type_id = map_job_type(job_data['job_type']) || user_edits['job_type_id']
 
     # Default to "Enquiry" status for new jobs from email
-    job_status_id = user_edits['job_status_id'] || JobStatus.find_by(name: 'Enquiry')&.id
+    enquiry_status = JobStatus.find_by(name: 'Enquiry')
+    job_status_id = user_edits['job_status_id'] || enquiry_status&.id
+
+    # Set the stage based on user edit or default to "Proposal" for email proposals
+    job_stage_id = user_edits['job_stage_id']
+    if job_stage_id.nil? && job_status_id == enquiry_status&.id
+      # Default to "Proposal" stage for email-created jobs
+      proposal_stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: 'Proposal')
+      job_stage_id = proposal_stage&.id
+    end
 
     # Get property address and geocode it
     property_address = user_edits['property_address'] || job_data['property_address']
@@ -126,6 +142,7 @@ class EmailToJobService
       title: user_edits['job_title'] || job_data['job_title'] || "Job from #{@email.from_email}",
       job_type_id: job_type_id,
       job_status_id: job_status_id,
+      job_stage_id: job_stage_id,
       site_supervisor_name: @user.name,
       site_supervisor_email: @user.email,
       site_supervisor_phone: @user.mobile_phone,

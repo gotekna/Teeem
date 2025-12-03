@@ -3,7 +3,23 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
-import type { Foundation, UseFoundationDataReturn } from './useFoundationData';
+import type { Foundation } from './useFoundationData';
+
+/**
+ * Extended return type with server-side search support
+ */
+export interface UseFoundationBySlugReturn {
+  foundation: Foundation | null;
+  columns: TableColumn[];
+  records: TableRow[];
+  isLoading: boolean;
+  error: Error | null;
+  refresh: () => Promise<void>;
+  // Server-side search
+  serverSearch: (query: string, searchAll?: boolean) => Promise<void>;
+  isSearching: boolean;
+  clearSearch: () => void;
+}
 
 /**
  * API column format (what the backend returns)
@@ -54,12 +70,14 @@ export function useFoundationBySlug(
     perPage?: number;
     autoLoad?: boolean;
   } = {}
-): UseFoundationDataReturn {
+): UseFoundationBySlugReturn {
   const { perPage = 500, autoLoad = true } = options;
 
   const [foundation, setFoundation] = useState<Foundation | null>(null);
   const [records, setRecords] = useState<TableRow[]>([]);
+  const [originalRecords, setOriginalRecords] = useState<TableRow[]>([]); // Store original records for clearing search
   const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   const loadData = useCallback(async () => {
@@ -86,7 +104,9 @@ export function useFoundationBySlug(
         { params: { per_page: perPage } }
       );
 
-      setRecords(recordsData.records || []);
+      const loadedRecords = recordsData.records || [];
+      setRecords(loadedRecords);
+      setOriginalRecords(loadedRecords); // Store for clearing search
     } catch (err) {
       console.error('Failed to load foundation data by slug:', err);
       setError(err instanceof Error ? err : new Error('Failed to load data'));
@@ -94,6 +114,42 @@ export function useFoundationBySlug(
       setIsLoading(false);
     }
   }, [slug, perPage]);
+
+  // Server-side search function
+  const serverSearch = useCallback(async (query: string, searchAll = false) => {
+    if (!foundation) return;
+
+    // If query is empty, restore original records
+    if (!query.trim()) {
+      setRecords(originalRecords);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const recordsData = await api.get<RecordsResponse>(
+        `/api/v1/foundations/${foundation.id}/records`,
+        {
+          params: {
+            search: query,
+            search_all: searchAll ? 'true' : undefined,
+            per_page: 500 // Return up to 500 search results
+          }
+        }
+      );
+      setRecords(recordsData.records || []);
+    } catch (err) {
+      console.error('Server search failed:', err);
+      // Keep current records on error
+    } finally {
+      setIsSearching(false);
+    }
+  }, [foundation, originalRecords]);
+
+  // Clear search and restore original records
+  const clearSearch = useCallback(() => {
+    setRecords(originalRecords);
+  }, [originalRecords]);
 
   // Load data on mount and when slug changes
   useEffect(() => {
@@ -150,6 +206,9 @@ export function useFoundationBySlug(
     isLoading,
     error,
     refresh: loadData,
+    serverSearch,
+    isSearching,
+    clearSearch,
   };
 }
 

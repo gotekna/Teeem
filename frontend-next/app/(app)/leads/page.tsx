@@ -7,14 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
-import { LeadPipeline } from "@/components/leads/lead-pipeline";
-import { LeadForm } from "@/components/leads/lead-form";
+import { JobPipeline } from "@/components/leads/job-pipeline";
 import { EmailProposalsTab } from "@/components/leads/email-proposals-tab";
 import {
-  Lead,
-  LeadStatus,
+  PipelineJob,
+  PipelineStage,
 } from "@/types/leads";
 import { api } from "@/lib/api";
 import {
@@ -24,13 +21,7 @@ import {
   CheckCircle,
   Mail,
   DollarSign,
-  LayoutGrid,
-  List,
 } from "lucide-react";
-import type { TableRow } from "@/components/table/types";
-
-// Foundation ID for Leads table
-const LEADS_FOUNDATION_ID = 455;
 
 // Email proposal type for pipeline display
 export interface EmailProposal {
@@ -81,20 +72,45 @@ export interface EmailProposal {
   };
 }
 
+// Pipeline API response type
+interface PipelineResponse {
+  success: boolean;
+  jobs_by_stage: Record<string, PipelineJob[]>;
+  stages: Array<{ id: number; name: string; position: number }>;
+  meta: {
+    total_count: number;
+    total_pipeline_value: number;
+    won_count: number;
+    won_value: number;
+    lost_count: number;
+  };
+}
+
 export default function LeadsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "leads";
 
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(LEADS_FOUNDATION_ID);
-
+  const [jobsByStage, setJobsByStage] = useState<Record<string, PipelineJob[]>>({});
+  const [pipelineMeta, setPipelineMeta] = useState<PipelineResponse["meta"] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [emailProposals, setEmailProposals] = useState<EmailProposal[]>([]);
-  const [viewMode, setViewMode] = useState<"pipeline" | "table">("pipeline");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [pendingProposalCount, setPendingProposalCount] = useState(0);
+
+  const loadPipeline = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await api.get<PipelineResponse>("/api/v1/jobs/pipeline");
+      setJobsByStage(response.jobs_by_stage || {});
+      setPipelineMeta(response.meta || null);
+    } catch (error) {
+      console.error("Failed to load pipeline:", error);
+      setJobsByStage({});
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const loadEmailProposals = async () => {
     try {
@@ -112,55 +128,27 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
+    loadPipeline();
     loadEmailProposals();
-  }, []);
+  }, [loadPipeline]);
 
-  const handleCreateLead = async (data: Partial<Lead>) => {
+  const handleStageChange = async (jobId: number, newStage: PipelineStage) => {
     try {
-      await api.post("/api/v1/leads", data);
-      refresh();
+      await api.patch(`/api/v1/jobs/${jobId}/stage`, { stage: newStage });
+      loadPipeline();
     } catch (error) {
-      console.error("Failed to create lead:", error);
+      console.error("Failed to update stage:", error);
     }
   };
 
-  const handleUpdateLead = async (data: Partial<Lead>) => {
-    if (!editingLead) return;
-    try {
-      await api.patch(`/api/v1/leads/${editingLead.id}`, data);
-      refresh();
-    } catch (error) {
-      console.error("Failed to update lead:", error);
-    }
-    setEditingLead(null);
+  const handleJobClick = (job: PipelineJob) => {
+    router.push(`/jobs/${job.id}`);
   };
 
-  const handleStatusChange = async (leadId: number, newStatus: LeadStatus) => {
-    try {
-      await api.patch(`/api/v1/leads/${leadId}/status`, { status: newStatus });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update status:", error);
-    }
+  const handleNewEnquiry = () => {
+    // Navigate to new job form with Enquiry status pre-selected
+    router.push("/jobs/new?status=Enquiry");
   };
-
-  // Handle row click - navigate to lead detail
-  const handleRowClick = useCallback((row: TableRow) => {
-    router.push(`/leads/${row.id}`);
-  }, [router]);
-
-  // Handle inline row update
-  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
-    try {
-      await api.patch(`/api/v1/foundations/${LEADS_FOUNDATION_ID}/records/${rowId}`, {
-        record: { [field]: value }
-      });
-      refresh();
-    } catch (error) {
-      console.error("Failed to update lead:", error);
-      throw error;
-    }
-  }, [refresh]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-AU", {
@@ -171,15 +159,10 @@ export default function LeadsPage() {
     }).format(value);
   };
 
-  // Stats from records
-  const totalValue = records.reduce((sum, l) => sum + (Number(l.estimated_value) || 0), 0);
-  const activeLeads = records.filter(
-    (l) => !["won", "lost"].includes(l.status as string)
-  ).length;
-  const wonLeads = records.filter((l) => l.status === "won").length;
-  const pipelineValue = records
-    .filter((l) => !["won", "lost"].includes(l.status as string))
-    .reduce((sum, l) => sum + (Number(l.estimated_value) || 0), 0);
+  // Calculate active count (all jobs in pipeline except won/lost)
+  const activeCount = Object.entries(jobsByStage)
+    .filter(([stage]) => !["won", "lost"].includes(stage))
+    .reduce((sum, [, jobs]) => sum + jobs.length, 0);
 
   if (isLoading) {
     return (
@@ -189,14 +172,6 @@ export default function LeadsPage() {
     );
   }
 
-  // Left actions - New Lead button
-  const leftActions = (
-    <Button onClick={() => setFormOpen(true)}>
-      <Plus className="h-4 w-4 mr-2" />
-      New Lead
-    </Button>
-  );
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -204,13 +179,12 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Leads & Proposals</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your sales pipeline and convert leads to jobs
-            <span className="ml-2 text-xs font-mono">Table #455</span>
+            Manage your sales pipeline and convert enquiries to jobs
           </p>
         </div>
-        <Button onClick={() => setFormOpen(true)}>
+        <Button onClick={handleNewEnquiry}>
           <Plus className="h-4 w-4 mr-2" />
-          New Lead
+          New Enquiry
         </Button>
       </div>
 
@@ -219,7 +193,7 @@ export default function LeadsPage() {
         <TabsList>
           <TabsTrigger value="leads">
             <TrendingUp className="h-4 w-4 mr-2" />
-            Leads
+            Pipeline
           </TabsTrigger>
           <TabsTrigger value="email-proposals" className="relative">
             <Mail className="h-4 w-4 mr-2" />
@@ -232,7 +206,7 @@ export default function LeadsPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Leads Tab */}
+        {/* Pipeline Tab */}
         <TabsContent value="leads" className="mt-6 space-y-6">
           {/* Stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -243,7 +217,7 @@ export default function LeadsPage() {
                   <span className="text-xs text-muted-foreground">Total Pipeline</span>
                 </div>
                 <div className="text-2xl font-bold font-mono mt-1">
-                  {formatCurrency(pipelineValue)}
+                  {formatCurrency(pipelineMeta?.total_pipeline_value || 0)}
                 </div>
               </CardContent>
             </Card>
@@ -251,10 +225,10 @@ export default function LeadsPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-blue-500" />
-                  <span className="text-xs text-muted-foreground">Active Leads</span>
+                  <span className="text-xs text-muted-foreground">Active Enquiries</span>
                 </div>
                 <div className="text-2xl font-bold font-mono text-blue-600 mt-1">
-                  {activeLeads}
+                  {activeCount}
                 </div>
               </CardContent>
             </Card>
@@ -265,7 +239,7 @@ export default function LeadsPage() {
                   <span className="text-xs text-muted-foreground">Won</span>
                 </div>
                 <div className="text-2xl font-bold font-mono text-green-600 mt-1">
-                  {wonLeads}
+                  {pipelineMeta?.won_count || 0}
                 </div>
               </CardContent>
             </Card>
@@ -273,59 +247,24 @@ export default function LeadsPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Total Value</span>
+                  <span className="text-xs text-muted-foreground">Won Value</span>
                 </div>
                 <div className="text-2xl font-bold font-mono mt-1">
-                  {formatCurrency(totalValue)}
+                  {formatCurrency(pipelineMeta?.won_value || 0)}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* View Toggle */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === "pipeline" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("pipeline")}
-            >
-              <LayoutGrid className="h-4 w-4 mr-1" />
-              Pipeline
-            </Button>
-            <Button
-              variant={viewMode === "table" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("table")}
-            >
-              <List className="h-4 w-4 mr-1" />
-              Table
-            </Button>
-          </div>
-
-          {/* Content */}
-          {viewMode === "pipeline" ? (
-            <LeadPipeline
-              leads={records as unknown as Lead[]}
-              emailProposals={emailProposals.filter(p => p.status === "pending")}
-              onLeadClick={(lead) => router.push(`/leads/${lead.id}`)}
-              onStatusChange={handleStatusChange}
-              onProposalsChange={loadEmailProposals}
-              onLeadsChange={refresh}
-            />
-          ) : (
-            <TeeemTableView
-              entries={records}
-              columns={columns}
-              foundationId={String(LEADS_FOUNDATION_ID)}
-              foundationIdNumeric={LEADS_FOUNDATION_ID}
-              tableName={foundation?.name || "Leads"}
-              enableExport={true}
-              onRefresh={refresh}
-              onRowClick={handleRowClick}
-              onRowUpdate={handleRowUpdate}
-              leftActions={leftActions}
-            />
-          )}
+          {/* Pipeline View */}
+          <JobPipeline
+            jobsByStage={jobsByStage}
+            emailProposals={emailProposals.filter(p => p.status === "pending")}
+            onJobClick={handleJobClick}
+            onStageChange={handleStageChange}
+            onProposalsChange={loadEmailProposals}
+            onJobsChange={loadPipeline}
+          />
         </TabsContent>
 
         {/* Email Proposals Tab */}
@@ -333,17 +272,6 @@ export default function LeadsPage() {
           <EmailProposalsTab onPendingCountChange={setPendingProposalCount} />
         </TabsContent>
       </Tabs>
-
-      {/* Lead Form Modal */}
-      <LeadForm
-        open={formOpen || !!editingLead}
-        onOpenChange={(open) => {
-          setFormOpen(open);
-          if (!open) setEditingLead(null);
-        }}
-        lead={editingLead}
-        onSubmit={editingLead ? handleUpdateLead : handleCreateLead}
-      />
     </div>
   );
 }

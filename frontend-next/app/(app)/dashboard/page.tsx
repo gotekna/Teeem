@@ -78,7 +78,7 @@ export default function DashboardPage() {
       icon: FileText,
       description: "Awaiting approval",
       trend: "3 due today",
-      href: "/purchase-orders",
+      href: "/purchase_orders",
     },
     {
       title: "Revenue (YTD)",
@@ -261,7 +261,7 @@ export default function DashboardPage() {
                   </Link>
                 </Button>
                 <Button variant="outline" size="sm" asChild>
-                  <Link href="/purchase-orders/new">
+                  <Link href="/purchase_orders/new">
                     <FileText className="h-4 w-4 mr-2" />
                     Create PO
                   </Link>
