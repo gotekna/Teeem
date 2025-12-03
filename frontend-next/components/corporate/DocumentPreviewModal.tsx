@@ -1821,7 +1821,11 @@ export default function DocumentPreviewModal({
                               : "border-purple-500 bg-purple-50 dark:bg-purple-900/20")
                             : ""
                         )}>
-                          {document.ai_extracted_date || "-"}
+                          {document.ai_extracted_date
+                            ? document.ai_extracted_date.match(/^\d{4}-\d{2}-\d{2}$/)
+                              ? document.ai_extracted_date.split('-').reverse().join('-')  // Convert YYYY-MM-DD to DD-MM-YYYY
+                              : document.ai_extracted_date
+                            : "-"}
                         </div>
                       </div>
                     )}

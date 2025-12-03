@@ -203,16 +203,19 @@ class DocumentVerificationService
       - Financial year: FY21, FY22, FY23, FY24 etc.
       - Folders: ADVICE, ASIC, ASSETS, ATO, BANK, COMPANY, DIVIDENDS, FINANCIALS, GENERAL, INSURANCE, LOANS, MINUTES, REGISTRY, TRUST
 
-      ## Signed/Unsigned Tax Returns:
-      For CTR (Company Tax Return) and TTR (Trust Tax Return):
-      - {Signed} in naming format means: use "S" for SIGNED or "US" for UNSIGNED (at end of filename, before .pdf)
-      - DRAFT/UNSIGNED tax returns: Put "US" at end → "TD CTR FY24 US.pdf"
-      - SIGNED/FINAL tax returns: Put "S" at end → "TD CTR FY24 S.pdf"
-      - Look for words like "DRAFT", "UNSIGNED", "SIGNED", "FINAL" in the document
-      - If the document says "(DRAFT)" or "DRAFT", it is UNSIGNED → use "US"
-      - Example: "TD CTR FY24 US.pdf" = Tekna Drafting Company Tax Return FY24 Unsigned
-      - Example: "TD CTR FY24 S.pdf" = Tekna Drafting Company Tax Return FY24 Signed
-      - Example: "TD TTR FY24 US.pdf" = Tekna Drafting Trust Tax Return FY24 Unsigned
+      ## Signed/Unsigned Tax Returns - CRITICAL:
+      For CTR (Company Tax Return) and TTR (Trust Tax Return), you MUST include US or S:
+      - ALL CTR and TTR documents MUST have "US" or "S" at the end of the filename (before .pdf)
+      - If document does NOT have a signature or says "DRAFT" → use "US" (unsigned)
+      - If document HAS a signature or says "SIGNED"/"FINAL" → use "S" (signed)
+      - DEFAULT TO "US" if you cannot determine signed status
+      - NEVER omit the US/S suffix for CTR or TTR documents
+
+      Examples:
+      - "TD CTR FY24 US.pdf" = Unsigned Company Tax Return
+      - "TD CTR FY24 S.pdf" = Signed Company Tax Return
+      - "TD TTR FY24 US.pdf" = Unsigned Trust Tax Return
+      - "TD TTR FY24 S.pdf" = Signed Trust Tax Return
 
       ## ATO Documents - IMPORTANT DISTINCTION:
       There are different types of ATO documents:
@@ -250,7 +253,7 @@ class DocumentVerificationService
         "notes": "Brief explanation of why this name was suggested",
         "current_name_valid": true,
         "extracted_description": "Activity Statement",
-        "extracted_date": "2024-06-30",
+        "extracted_date": "30-06-2024",
         "source_page": 1,
         "source_quote": "The exact text from the document that helped identify this",
         "contains_multiple_documents": false,
@@ -265,13 +268,13 @@ class DocumentVerificationService
       - confidence should be 0-100 based on how certain you are
       - current_name_valid should be true if the current filename already follows TEEEM conventions well
       - extracted_description: A brief description of the document content
-      - extracted_date: The most relevant date from the document in YYYY-MM-DD format
+      - extracted_date: The most relevant date from the document in DD-MM-YYYY format (Australian date format)
       - source_page: Which page number (1-indexed) the key information was found on
       - source_quote: A short quote (max 100 chars) from the document that identifies what it is
       - contains_multiple_documents: Set to TRUE if the PDF contains different document types that should be separate files
       - split_recommendation: If contains_multiple_documents is true, provide an array like:
         [{"pages": "1-2", "type": "BAS - Business Activity Statement", "suggested_name": "TD BAS Q1 FY24.pdf"},
-         {"pages": "3", "type": "CTR - Company Tax Return", "suggested_name": "TD CTR FY24.pdf"}]
+         {"pages": "3", "type": "CTR - Company Tax Return", "suggested_name": "TD CTR FY24 US.pdf"}]
     PROMPT
   end
 
