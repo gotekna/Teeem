@@ -205,13 +205,35 @@ class DocumentVerificationService
 
       ## Signed/Unsigned Tax Returns:
       For CTR (Company Tax Return) and TTR (Trust Tax Return):
-      - {Signed} in naming format means: use "S " for SIGNED or "US " for UNSIGNED (note the space after)
-      - DRAFT/UNSIGNED tax returns: Use "US CTR" or "US TTR"
-      - SIGNED/FINAL tax returns: Use "S CTR" or "S TTR"
+      - {Signed} in naming format means: use "S" for SIGNED or "US" for UNSIGNED (at end of filename, before .pdf)
+      - DRAFT/UNSIGNED tax returns: Put "US" at end → "TD CTR FY24 US.pdf"
+      - SIGNED/FINAL tax returns: Put "S" at end → "TD CTR FY24 S.pdf"
       - Look for words like "DRAFT", "UNSIGNED", "SIGNED", "FINAL" in the document
       - If the document says "(DRAFT)" or "DRAFT", it is UNSIGNED → use "US"
-      - Example: "TD US CTR FY24.pdf" = Tekna Drafting Unsigned Company Tax Return for FY24
-      - Example: "TD S CTR FY24.pdf" = Tekna Drafting Signed Company Tax Return for FY24
+      - Example: "TD CTR FY24 US.pdf" = Tekna Drafting Company Tax Return FY24 Unsigned
+      - Example: "TD CTR FY24 S.pdf" = Tekna Drafting Company Tax Return FY24 Signed
+      - Example: "TD TTR FY24 US.pdf" = Tekna Drafting Trust Tax Return FY24 Unsigned
+
+      ## ATO Documents - IMPORTANT DISTINCTION:
+      There are different types of ATO documents:
+
+      1. **BAS (Business Activity Statement)** - The actual quarterly/monthly lodgement showing GST, PAYG, etc.
+         - Look for: "Print activity statement", specific period like "Jan 2024 - Mar 2024", GST amounts
+         - Format: {CompanyCode} BAS {Period} FY{YY}.pdf
+         - Example: "TD BAS Q3 FY24.pdf" or "TD BAS Jan-Mar 2024.pdf"
+
+      2. **ATO BAS Statement** - Transaction history/ledger for the BAS account over a date range
+         - Look for: "Activity statement 001", "Transactions", date range like "26 June 2022 to 26 June 2024"
+         - Shows: Payments received, interest charges, original activity statements, balances
+         - Format: {CompanyCode} BAS Statement {FromDate} to {ToDate} ({PrintDate}).pdf
+         - Example: "TD BAS Statement 26-06-2022 to 26-06-2024 (27-08-2024).pdf"
+
+      3. **ATO Income Tax Statement** - Transaction history/ledger for Income Tax account
+         - Similar to BAS Statement but for Income Tax account
+         - Format: {CompanyCode} Income Tax Statement {FromDate} to {ToDate} ({PrintDate}).pdf
+         - Example: "TD Income Tax Statement 01-07-2022 to 30-06-2024 (27-08-2024).pdf"
+
+      Date formats: Use DD-MM-YYYY for dates in filenames.
 
       ## Document Types and Naming Formats:
       #{document_types_section}
@@ -296,8 +318,8 @@ class DocumentVerificationService
     else
       # Fallback to hardcoded values if no document types in database
       <<~TYPES
-        - CTR = Company Tax Return - Format: {CompanyCode} {Signed}CTR FY{YY} (use US or S prefix for unsigned/signed)
-        - TTR = Trust Tax Return - Format: {CompanyCode} {Signed}TTR FY{YY} (use US or S prefix for unsigned/signed)
+        - CTR = Company Tax Return - Format: {CompanyCode} CTR FY{YY} {Signed} (use US or S suffix for unsigned/signed)
+        - TTR = Trust Tax Return - Format: {CompanyCode} TTR FY{YY} {Signed} (use US or S suffix for unsigned/signed)
         - BAS = Business Activity Statement - Format: {CompanyCode} BAS {Period} {Year}
         - PPSR = PPSR Registration - Format: {CompanyCode} {LoanID} PPSR {AssetCode} {Date}
         - SD = Security Deed - Format: {CompanyCode} {LoanID} Security Deed {AssetCode} {Date}

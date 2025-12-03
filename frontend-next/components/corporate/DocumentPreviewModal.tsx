@@ -1535,7 +1535,7 @@ export default function DocumentPreviewModal({
                   />
                 </div>
 
-                {/* Table Title Preview - shows full document type name + Signed/Unsigned + FY + Amended */}
+                {/* Table Title Preview - shows full document type name + FY + Signed/Unsigned + Amended */}
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
                   <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 line-clamp-2">
@@ -1546,11 +1546,39 @@ export default function DocumentPreviewModal({
                       const fyPart = editedFinancialYears.length > 0
                         ? editedFinancialYears.map(y => `FY${y}`).join(" ")
                         : "";
-                      const amendedPart = isAmended ? 'Amended' : '';
-                      const parts = [fullTypeName, signedPart, fyPart, amendedPart].filter(Boolean);
+                      const amendedPart = isAmended ? (amendedNumber && amendedNumber > 1 ? `Amended ${amendedNumber}` : 'Amended') : '';
+                      const parts = [fullTypeName, fyPart, signedPart, amendedPart].filter(Boolean);
                       return parts.length > 0 ? parts.join(" ") : "-";
                     })()}
                   </div>
+                </div>
+
+                {/* Validate button - shown when document can be validated */}
+                <div className="pt-2 border-t">
+                  {validated ? (
+                    <div className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
+                      <Check className="h-4 w-4" />
+                      <span className="text-xs font-medium">Document Validated</span>
+                      {document.user_validated_at && (
+                        <span className="text-[10px] text-muted-foreground">
+                          ({new Date(document.user_validated_at).toLocaleDateString()})
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleValidate}
+                      disabled={validating}
+                      size="sm"
+                      className="h-7 text-xs bg-green-600 hover:bg-green-700"
+                    >
+                      {validating ? (
+                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Validating</>
+                      ) : (
+                        <><Check className="h-3 w-3 mr-1" />Validate Document</>
+                      )}
+                    </Button>
+                  )}
                 </div>
 
                 {/* Save button and action notes */}
@@ -1674,9 +1702,9 @@ export default function DocumentPreviewModal({
                               suggestedType.includes("company tax return") || suggestedType.includes("trust tax return");
                             const aiNeedsSigned = aiDocType?.naming_format?.includes("{Signed}") || isTaxReturn;
                             if (aiNeedsSigned) {
-                              // Detect from suggested name which one AI picked
-                              const isUnsigned = document.ai_suggested_name?.includes(" US ") || document.ai_suggested_name?.match(/\bUS\s/);
-                              const isSigned = document.ai_suggested_name?.includes(" S ") && !isUnsigned;
+                              // Detect from suggested name which one AI picked (can be at start like "TD US CTR" or end like "TD CTR FY24 US.pdf")
+                              const isUnsigned = document.ai_suggested_name?.match(/\bUS\b/i);
+                              const isSigned = document.ai_suggested_name?.match(/\bS\b/) && !isUnsigned;
                               return (
                                 <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
                                   <Button
@@ -1817,7 +1845,7 @@ export default function DocumentPreviewModal({
                       </div>
                     </div>
 
-                    {/* Table Title Preview - shows full document type name + Signed/Unsigned + FY + Amended */}
+                    {/* Table Title Preview - shows full document type name + FY + Signed/Unsigned + Amended */}
                     <div>
                       <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
                       <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 line-clamp-2">
@@ -1833,16 +1861,20 @@ export default function DocumentPreviewModal({
                           // Check if this type needs signed/unsigned
                           const isTaxReturn = suggestedType.includes("ctr") || suggestedType.includes("ttr") ||
                             suggestedType.includes("company tax return") || suggestedType.includes("trust tax return");
-                          // Detect signed/unsigned from AI suggested name
-                          const isUnsigned = document.ai_suggested_name?.includes(" US ") || document.ai_suggested_name?.match(/\bUS\s/);
-                          const isSigned = document.ai_suggested_name?.includes(" S ") && !isUnsigned;
+                          // Detect signed/unsigned from AI suggested name (can be at start or end of filename)
+                          const isUnsigned = document.ai_suggested_name?.match(/\bUS\b/i);
+                          const isSigned = document.ai_suggested_name?.match(/\bS\b/) && !isUnsigned;
                           const signedPart = isTaxReturn ? (isSigned ? 'Signed' : isUnsigned ? 'Unsigned' : 'Unsigned') : '';
                           const fyArray = parseFinancialYears(document.ai_suggested_fy);
                           const fyPart = fyArray.length > 0
                             ? fyArray.map(y => `FY${y}`).join(" ")
                             : "";
-                          const amendedPart = document.ai_suggested_name?.toLowerCase().includes("amended") ? 'Amended' : '';
-                          const parts = [fullTypeName, signedPart, fyPart, amendedPart].filter(Boolean);
+                          // Extract amendment number from AI suggested name (e.g., "Amended 2" -> 2)
+                          const amendedMatch = document.ai_suggested_name?.match(/amended\s*(\d+)?/i);
+                          const amendedPart = amendedMatch
+                            ? (amendedMatch[1] && parseInt(amendedMatch[1]) > 1 ? `Amended ${amendedMatch[1]}` : 'Amended')
+                            : '';
+                          const parts = [fullTypeName, fyPart, signedPart, amendedPart].filter(Boolean);
                           return parts.length > 0 ? parts.join(" ") : "-";
                         })()}
                       </div>
