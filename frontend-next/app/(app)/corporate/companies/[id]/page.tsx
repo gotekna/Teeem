@@ -1812,7 +1812,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
           });
 
           // Update the document in our local state
-          if (response.success && response.document) {
+          if (response?.success && response.document) {
             setDocuments(prev => prev.map(d =>
               d.id === docId ? {
                 ...d,
