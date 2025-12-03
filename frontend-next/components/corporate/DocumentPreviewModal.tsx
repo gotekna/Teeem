@@ -1201,12 +1201,9 @@ export default function DocumentPreviewModal({
           <div className="w-1/2 flex flex-col overflow-hidden border-r">
             {/* Top Bar - Current Document Info (read-only) - compact */}
             <div className="px-3 py-2 bg-muted/30 border-b flex-shrink-0">
-              <div className="flex items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-2">
                 <FileText className="h-3 w-3 text-muted-foreground" />
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Current</span>
-              </div>
-              <div className="font-mono text-xs bg-background px-2 py-1 rounded border mb-2 break-all truncate">
-                {document.file_name || document.title || "-"}
               </div>
               <div className="grid grid-cols-6 gap-2 text-xs">
                 <div>
