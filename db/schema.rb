@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_03_013023) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -201,9 +201,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.string "status", default: "active"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "xero_account_id"
     t.index ["company_id", "status"], name: "index_bank_accounts_on_company_id_and_status"
     t.index ["company_id"], name: "index_bank_accounts_on_company_id"
     t.index ["status"], name: "index_bank_accounts_on_status"
+    t.index ["xero_account_id"], name: "index_bank_accounts_on_xero_account_id"
+  end
+
+  create_table "bank_transactions", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "bank_account_id"
+    t.string "xero_transaction_id", null: false
+    t.string "transaction_type"
+    t.date "transaction_date", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "reference"
+    t.text "description"
+    t.string "contact_name"
+    t.string "xero_contact_id"
+    t.string "status"
+    t.string "line_amount_types"
+    t.boolean "is_reconciled", default: false
+    t.string "currency_code", default: "AUD"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_account_id", "transaction_date"], name: "idx_on_bank_account_id_transaction_date_4b5f834392"
+    t.index ["bank_account_id"], name: "index_bank_transactions_on_bank_account_id"
+    t.index ["company_id", "transaction_date"], name: "index_bank_transactions_on_company_id_and_transaction_date"
+    t.index ["company_id"], name: "index_bank_transactions_on_company_id"
+    t.index ["status"], name: "index_bank_transactions_on_status"
+    t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
   end
 
   create_table "bug_hunter_test_runs", force: :cascade do |t|
@@ -238,6 +266,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
+  create_table "column_type_definitions", force: :cascade do |t|
+    t.string "type_key", null: false
+    t.string "display_name", null: false
+    t.string "category"
+    t.string "sql_type", null: false
+    t.string "rails_type"
+    t.integer "default_max_length"
+    t.integer "default_min_length"
+    t.decimal "default_min_value", precision: 15, scale: 2
+    t.decimal "default_max_value", precision: 15, scale: 2
+    t.text "validation_regex"
+    t.text "validation_rules"
+    t.text "example_values"
+    t.text "used_for"
+    t.string "icon"
+    t.string "emoji"
+    t.boolean "needs_config", default: false
+    t.boolean "is_active", default: true
+    t.integer "version", default: 1
+    t.datetime "version_updated_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_column_type_definitions_on_category"
+    t.index ["is_active"], name: "index_column_type_definitions_on_is_active"
+    t.index ["type_key"], name: "index_column_type_definitions_on_type_key", unique: true
+  end
+
   create_table "columns", force: :cascade do |t|
     t.bigint "foundation_id", null: false
     t.string "name", null: false
@@ -268,6 +323,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.string "data_align", default: "left"
     t.string "column_group"
     t.boolean "has_ui", default: false
+    t.bigint "column_type_definition_id"
+    t.integer "override_max_length"
+    t.integer "override_min_length"
+    t.decimal "override_min_value", precision: 15, scale: 2
+    t.decimal "override_max_value", precision: 15, scale: 2
+    t.text "override_validation_message"
+    t.integer "type_version_applied", default: 0
+    t.datetime "last_compliance_check"
+    t.index ["column_type_definition_id"], name: "index_columns_on_column_type_definition_id"
     t.index ["foundation_id", "column_name"], name: "index_columns_on_foundation_id_and_column_name", unique: true
     t.index ["foundation_id"], name: "index_columns_on_foundation_id"
     t.index ["has_cross_table_refs"], name: "index_columns_on_has_cross_table_refs"
@@ -323,6 +387,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.date "bank_start_date"
     t.date "bank_end_date"
     t.bigint "consolidation_parent_id"
+    t.string "slug"
     t.index ["abn"], name: "index_companies_on_abn", unique: true, where: "(abn IS NOT NULL)"
     t.index ["acn"], name: "index_companies_on_acn", unique: true, where: "(acn IS NOT NULL)"
     t.index ["code"], name: "index_companies_on_code", unique: true
@@ -333,6 +398,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["name"], name: "index_companies_on_name"
     t.index ["parent_company_id"], name: "index_companies_on_parent_company_id"
     t.index ["review_date"], name: "index_companies_on_review_date"
+    t.index ["slug"], name: "index_companies_on_slug", unique: true
     t.index ["status"], name: "index_companies_on_status"
   end
 
@@ -421,6 +487,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.bigint "asset_id"
     t.bigint "loan_id"
     t.bigint "contact_id"
+    t.integer "financial_years", default: [], array: true
+    t.datetime "ai_verified_at"
+    t.string "ai_verification_status"
+    t.string "ai_suggested_name"
+    t.string "ai_suggested_folder"
+    t.decimal "ai_confidence_score"
+    t.datetime "user_validated_at"
+    t.bigint "user_validated_by_id"
+    t.string "display_title"
+    t.string "ai_suggested_type"
+    t.integer "ai_suggested_fy", default: [], array: true
+    t.text "ai_analysis_notes"
+    t.boolean "validation_required", default: false
+    t.date "ref_date"
+    t.date "filed_date"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
@@ -428,6 +509,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["document_date"], name: "index_company_documents_on_document_date"
     t.index ["document_type"], name: "index_company_documents_on_document_type"
     t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
+    t.index ["financial_years"], name: "index_company_documents_on_financial_years", using: :gin
     t.index ["folder"], name: "index_company_documents_on_folder"
     t.index ["loan_id"], name: "index_company_documents_on_loan_id"
     t.index ["onedrive_file_id"], name: "index_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
@@ -551,18 +633,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
 
   create_table "company_xero_connections", force: :cascade do |t|
     t.bigint "company_id", null: false
-    t.string "tenant_id", null: false
-    t.string "tenant_name"
-    t.text "access_token"
-    t.text "refresh_token"
+    t.string "xero_tenant_id", null: false
+    t.string "xero_tenant_name"
+    t.text "encrypted_access_token"
+    t.text "encrypted_refresh_token"
     t.datetime "token_expires_at"
     t.datetime "last_sync_at"
-    t.boolean "connected", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "connection_status", default: "disconnected"
+    t.text "last_sync_error"
     t.index ["company_id"], name: "index_company_xero_connections_on_company_id", unique: true
-    t.index ["connected"], name: "index_company_xero_connections_on_connected"
-    t.index ["tenant_id"], name: "index_company_xero_connections_on_tenant_id"
+    t.index ["connection_status"], name: "index_company_xero_connections_on_connection_status"
+    t.index ["xero_tenant_id"], name: "index_company_xero_connections_on_xero_tenant_id"
   end
 
   create_table "contact_activities", force: :cascade do |t|
@@ -785,6 +868,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.boolean "is_family_member", default: false
     t.boolean "is_potential_director", default: false
     t.bigint "company_group_id"
+    t.integer "xero_invoice_count", default: 0
+    t.boolean "xero_disconnect", default: false
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
@@ -894,6 +979,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["status"], name: "index_dividends_on_status"
   end
 
+  create_table "document_activities", force: :cascade do |t|
+    t.bigint "company_document_id", null: false
+    t.bigint "user_id"
+    t.string "action", null: false
+    t.jsonb "old_values", default: {}
+    t.jsonb "new_values", default: {}
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_document_activities_on_action"
+    t.index ["company_document_id"], name: "index_document_activities_on_company_document_id"
+    t.index ["created_at"], name: "index_document_activities_on_created_at"
+    t.index ["user_id"], name: "index_document_activities_on_user_id"
+  end
+
   create_table "document_tasks", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "category"
@@ -923,11 +1023,39 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.datetime "updated_at", null: false
     t.jsonb "tabs", default: []
     t.string "primary_tab"
+    t.string "name_format"
+    t.string "naming_format"
+    t.string "abbreviation"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name"], name: "index_document_types_on_name", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
+  end
+
+  create_table "document_verification_feedbacks", force: :cascade do |t|
+    t.bigint "company_document_id", null: false
+    t.bigint "user_id", null: false
+    t.string "ai_suggested_name"
+    t.string "ai_suggested_folder"
+    t.string "ai_suggested_type"
+    t.string "ai_suggested_fy"
+    t.integer "ai_confidence"
+    t.string "user_final_name"
+    t.string "user_final_folder"
+    t.string "user_final_type"
+    t.string "user_final_fy"
+    t.string "action", null: false
+    t.text "rejection_reason"
+    t.text "document_text_snippet"
+    t.string "company_code"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["action"], name: "index_document_verification_feedbacks_on_action"
+    t.index ["company_code", "action"], name: "idx_on_company_code_action_af023a5fcb"
+    t.index ["company_code"], name: "index_document_verification_feedbacks_on_company_code"
+    t.index ["company_document_id"], name: "index_document_verification_feedbacks_on_company_document_id"
+    t.index ["user_id"], name: "index_document_verification_feedbacks_on_user_id"
   end
 
   create_table "documentation_categories", force: :cascade do |t|
@@ -1315,6 +1443,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.string "feature"
     t.boolean "has_ui", default: false
     t.boolean "allow_reserved_name", default: false
+    t.decimal "compliance_score", precision: 5, scale: 2
+    t.datetime "compliance_checked_at"
+    t.jsonb "non_compliant_columns", default: []
+    t.index ["compliance_score"], name: "index_foundations_on_compliance_score"
     t.index ["database_table_name"], name: "index_foundations_on_database_table_name"
     t.index ["model_class"], name: "index_foundations_on_model_class"
     t.index ["slug"], name: "index_foundations_on_slug", unique: true
@@ -1322,7 +1454,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   end
 
   create_table "gold_standard_table", force: :cascade do |t|
-    t.string "email"
+    t.string "email", limit: 255
     t.string "phone", limit: 20
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1330,17 +1462,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.string "mobile", limit: 20
     t.integer "user_id"
     t.text "multiple_category_ids"
-    t.string "action_buttons"
+    t.string "action_buttons", limit: 255
     t.string "single_line_text", limit: 255
     t.text "multiple_lines_text"
     t.string "url", limit: 500
-    t.decimal "number", precision: 10, scale: 2
-    t.decimal "currency", precision: 10, scale: 2
-    t.decimal "percentage", precision: 5, scale: 2
+    t.decimal "number", precision: 15, scale: 2
+    t.decimal "currency", precision: 15, scale: 2
+    t.decimal "percentage", precision: 15, scale: 2
     t.date "date"
     t.datetime "date_and_time", precision: nil
-    t.string "gps_coordinates", limit: 100
-    t.string "color_picker", limit: 7
+    t.string "gps_coordinates", limit: 255
+    t.string "color_picker", limit: 255
     t.text "file_upload"
     t.boolean "boolean"
     t.string "choice", limit: 50
@@ -1348,6 +1480,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.text "multiple_lookups"
     t.integer "user"
     t.string "computed", limit: 255
+    t.jsonb "structured_data", default: {}
+    t.text "array_of_items", default: [], array: true
+    t.tsvector "searchable_text"
+    t.string "abn", limit: 14
+    t.string "acn", limit: 11
+    t.string "bsb", limit: 7
+    t.string "bank_account", limit: 9
+    t.string "postcode", limit: 4
+    t.string "tfn", limit: 11
   end
 
   create_table "grok_plans", force: :cascade do |t|
@@ -1440,6 +1581,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["company_id"], name: "index_insurance_policies_on_company_id"
+  end
+
+  create_table "intercompany_balances", force: :cascade do |t|
+    t.bigint "company_id", null: false
+    t.bigint "related_company_id", null: false
+    t.string "balance_type", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "currency", default: "AUD"
+    t.string "source", null: false
+    t.string "source_reference"
+    t.date "as_of_date", null: false
+    t.text "description"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["balance_type"], name: "index_intercompany_balances_on_balance_type"
+    t.index ["company_id", "as_of_date"], name: "index_intercompany_balances_on_company_id_and_as_of_date"
+    t.index ["company_id", "related_company_id", "balance_type", "as_of_date"], name: "idx_intercompany_balances_unique", unique: true
+    t.index ["company_id"], name: "index_intercompany_balances_on_company_id"
+    t.index ["related_company_id", "as_of_date"], name: "idx_on_related_company_id_as_of_date_a4e1451467"
+    t.index ["related_company_id"], name: "index_intercompany_balances_on_related_company_id"
+    t.index ["source"], name: "index_intercompany_balances_on_source"
   end
 
   create_table "job_activities", force: :cascade do |t|
@@ -1646,6 +1809,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["subcontractor_account_id"], name: "index_kudos_events_on_subcontractor_account_id"
   end
 
+  create_table "leads", force: :cascade do |t|
+    t.string "lead_number"
+    t.string "title"
+    t.string "status", default: "new"
+    t.string "source"
+    t.string "client_name"
+    t.string "client_email"
+    t.string "client_phone"
+    t.string "client_company"
+    t.string "site_address"
+    t.string "site_suburb"
+    t.string "site_state"
+    t.string "site_postcode"
+    t.string "lot_plan_number"
+    t.string "project_type"
+    t.string "dwelling_type"
+    t.integer "number_of_storeys"
+    t.decimal "estimated_floor_area", precision: 10, scale: 2
+    t.decimal "estimated_value", precision: 12, scale: 2, default: "0.0"
+    t.date "expected_start_date"
+    t.string "decision_timeline"
+    t.text "notes"
+    t.bigint "job_id"
+    t.integer "contract_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_leads_on_job_id"
+    t.index ["lead_number"], name: "index_leads_on_lead_number", unique: true
+    t.index ["status"], name: "index_leads_on_status"
+  end
+
   create_table "maintenance_requests", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "supplier_contact_id"
@@ -1776,6 +1970,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["active"], name: "index_minute_templates_on_active"
     t.index ["name"], name: "index_minute_templates_on_name", unique: true
     t.index ["template_type"], name: "index_minute_templates_on_template_type"
+  end
+
+  create_table "notifications", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "notification_type", null: false
+    t.string "notifiable_type"
+    t.bigint "notifiable_id"
+    t.string "title", null: false
+    t.text "message"
+    t.boolean "read", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["notifiable_type", "notifiable_id"], name: "index_notifications_on_notifiable"
+    t.index ["user_id", "created_at"], name: "index_notifications_on_user_id_and_created_at"
+    t.index ["user_id", "read"], name: "index_notifications_on_user_id_and_read"
+    t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
   create_table "one_drive_credentials", force: :cascade do |t|
@@ -2304,6 +2514,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["job_id", "date"], name: "index_rain_logs_on_job_id_and_date", unique: true
     t.index ["job_id"], name: "index_rain_logs_on_job_id"
     t.index ["source"], name: "index_rain_logs_on_source"
+  end
+
+  create_table "reconciliation_reports", force: :cascade do |t|
+    t.bigint "company_group_id"
+    t.date "as_of_date", null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_pairs_checked", default: 0
+    t.integer "matched_pairs", default: 0
+    t.integer "mismatched_pairs", default: 0
+    t.decimal "total_discrepancy", precision: 15, scale: 2, default: "0.0"
+    t.jsonb "summary", default: {}
+    t.jsonb "discrepancies", default: []
+    t.text "error_message"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["company_group_id", "as_of_date"], name: "idx_on_company_group_id_as_of_date_12c13ba60d"
+    t.index ["company_group_id"], name: "index_reconciliation_reports_on_company_group_id"
+    t.index ["status"], name: "index_reconciliation_reports_on_status"
   end
 
   create_table "role_permissions", force: :cascade do |t|
@@ -3028,6 +3258,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.index ["xero_tenant_id"], name: "index_sync_configurations_on_xero_tenant_id", unique: true
   end
 
+  create_table "table_health_checks", force: :cascade do |t|
+    t.bigint "foundation_id"
+    t.string "table_name"
+    t.string "check_type", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.string "api_endpoint", null: false
+    t.string "severity", default: "warning"
+    t.boolean "enabled", default: true
+    t.string "icon"
+    t.string "action_path"
+    t.integer "display_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["check_type"], name: "index_table_health_checks_on_check_type"
+    t.index ["enabled"], name: "index_table_health_checks_on_enabled"
+    t.index ["foundation_id"], name: "index_table_health_checks_on_foundation_id"
+    t.index ["table_name"], name: "index_table_health_checks_on_table_name"
+  end
+
   create_table "table_protections", force: :cascade do |t|
     t.string "table_name", null: false
     t.boolean "is_protected", default: true, null: false
@@ -3214,6 +3464,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
     t.boolean "preload_price_books", default: false, null: false
     t.jsonb "assigned_roles", default: []
     t.bigint "user_group_id"
+    t.datetime "last_seen_at"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["role"], name: "index_users_on_role"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
@@ -3654,9 +3905,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "companies"
   add_foreign_key "bank_accounts", "companies"
+  add_foreign_key "bank_transactions", "bank_accounts"
+  add_foreign_key "bank_transactions", "companies"
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
+  add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
   add_foreign_key "companies", "companies", column: "consolidation_parent_id", on_delete: :nullify
   add_foreign_key "companies", "companies", column: "parent_company_id"
@@ -3695,7 +3949,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   add_foreign_key "dividend_payments", "contacts", column: "shareholder_id"
   add_foreign_key "dividend_payments", "dividends"
   add_foreign_key "dividends", "companies"
+  add_foreign_key "document_activities", "company_documents"
+  add_foreign_key "document_activities", "users"
   add_foreign_key "document_tasks", "jobs"
+  add_foreign_key "document_verification_feedbacks", "company_documents"
+  add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "email_job_proposals", "email_warehouse"
   add_foreign_key "email_job_proposals", "jobs"
   add_foreign_key "email_job_proposals", "users", column: "approved_by_user_id"
@@ -3719,6 +3977,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
   add_foreign_key "insurance_policies", "companies"
+  add_foreign_key "intercompany_balances", "companies"
+  add_foreign_key "intercompany_balances", "companies", column: "related_company_id"
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
   add_foreign_key "job_claims", "contacts"
@@ -3741,6 +4001,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   add_foreign_key "kudos_events", "purchase_orders"
   add_foreign_key "kudos_events", "quote_responses"
   add_foreign_key "kudos_events", "subcontractor_accounts"
+  add_foreign_key "leads", "jobs"
   add_foreign_key "maintenance_requests", "contacts", column: "supplier_contact_id"
   add_foreign_key "maintenance_requests", "jobs"
   add_foreign_key "maintenance_requests", "purchase_orders"
@@ -3754,6 +4015,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   add_foreign_key "meetings", "jobs"
   add_foreign_key "meetings", "meeting_types"
   add_foreign_key "meetings", "users", column: "created_by_id"
+  add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"
@@ -3801,6 +4063,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   add_foreign_key "quote_responses", "quote_requests"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
+  add_foreign_key "reconciliation_reports", "company_groups"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "schedule_task_checklist_items", "schedule_tasks"
   add_foreign_key "schedule_tasks", "jobs"
@@ -3873,6 +4136,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_11_30_102839) do
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
+  add_foreign_key "table_health_checks", "foundations"
   add_foreign_key "task_dependencies", "project_tasks", column: "predecessor_task_id"
   add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
   add_foreign_key "task_updates", "project_tasks"
