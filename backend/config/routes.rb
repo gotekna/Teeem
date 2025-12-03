@@ -1253,6 +1253,7 @@ Rails.application.routes.draw do
           get :duplicates
           post :analyze_duplicates
           post :resolve_duplicates
+          post :auto_resolve_duplicates
         end
         member do
           get :download

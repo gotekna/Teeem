@@ -71,9 +71,140 @@ class DocumentDuplicateService
       merge_documents(document_ids, options[:keep_id])
     when :delete_all
       delete_documents(document_ids)
+    when :no_action
+      { success: true, message: "No action needed - documents are legitimately different" }
     else
       { error: "Unknown action: #{action}" }
     end
+  end
+
+  # Confidence thresholds for different actions
+  # Destructive actions (delete, merge) need higher confidence
+  # Non-destructive actions (rename) can proceed with lower confidence
+  CONFIDENCE_THRESHOLDS = {
+    destructive: 89,  # delete_all, merge, keep_newest, keep_oldest, keep_verified
+    rename: 74        # rename only
+  }.freeze
+
+  DESTRUCTIVE_ACTIONS = [:delete_all, :merge, :keep_newest, :keep_oldest, :keep_verified].freeze
+
+  # Automatically resolve all duplicates using AI
+  # Options:
+  #   - company_id: Filter to specific company
+  #   - dry_run: If true, only analyze without executing (default: false)
+  def self.auto_resolve_all(company_id: nil, dry_run: false)
+    duplicates = find_duplicates(company_id: company_id)
+    results = []
+
+    duplicates.each do |dup_set|
+      document_ids = dup_set[:documents].map { |d| d[:id] }
+
+      Rails.logger.info "[AutoResolve] Analyzing: #{dup_set[:title]} (#{dup_set[:count]} copies)"
+
+      begin
+        # Get AI recommendation
+        analysis = analyze_duplicates(document_ids)
+
+        if analysis[:error]
+          results << {
+            title: dup_set[:title],
+            company: dup_set[:company_name],
+            status: :error,
+            error: analysis[:error]
+          }
+          next
+        end
+
+        recommendation = analysis[:recommendation]&.to_sym
+        confidence = analysis[:confidence] || 0
+
+        result_entry = {
+          title: dup_set[:title],
+          company: dup_set[:company_name],
+          document_ids: document_ids,
+          recommendation: recommendation,
+          confidence: confidence,
+          reasoning: analysis[:reasoning],
+          is_true_duplicate: analysis[:is_true_duplicate]
+        }
+
+        # Skip if no action needed
+        if recommendation == :no_action
+          result_entry[:status] = :skipped
+          result_entry[:message] = "Not true duplicates - different content"
+          results << result_entry
+          next
+        end
+
+        # Determine required confidence based on action type
+        required_confidence = if DESTRUCTIVE_ACTIONS.include?(recommendation)
+          CONFIDENCE_THRESHOLDS[:destructive]
+        else
+          CONFIDENCE_THRESHOLDS[:rename]
+        end
+
+        # Skip if confidence too low for this action type
+        if confidence < required_confidence
+          result_entry[:status] = :skipped
+          result_entry[:message] = "Confidence too low for #{recommendation} (#{confidence}% < #{required_confidence}% required)"
+          results << result_entry
+          next
+        end
+
+        # Execute unless dry run
+        if dry_run
+          result_entry[:status] = :dry_run
+          result_entry[:would_execute] = recommendation
+          result_entry[:required_confidence] = required_confidence
+          result_entry[:documents_to_delete] = analysis[:documents_to_delete]
+          result_entry[:documents_to_keep] = analysis[:documents_to_keep]
+        else
+          # Build options for execution
+          options = {}
+          if recommendation == :rename && analysis[:rename_suggestions].present?
+            suggestion = analysis[:rename_suggestions].first
+            options[:document_id] = suggestion[:document_id]
+            options[:new_name] = suggestion[:new_name]
+          elsif recommendation == :merge
+            options[:keep_id] = analysis[:documents_to_keep]&.first
+          end
+
+          execution_result = execute_action(recommendation, document_ids, options)
+
+          if execution_result[:error]
+            result_entry[:status] = :error
+            result_entry[:error] = execution_result[:error]
+          else
+            result_entry[:status] = :resolved
+            result_entry[:action_taken] = recommendation
+            result_entry[:result] = execution_result
+          end
+        end
+
+        results << result_entry
+
+      rescue StandardError => e
+        Rails.logger.error "[AutoResolve] Error processing #{dup_set[:title]}: #{e.message}"
+        results << {
+          title: dup_set[:title],
+          company: dup_set[:company_name],
+          status: :error,
+          error: e.message
+        }
+      end
+    end
+
+    # Summary
+    summary = {
+      total_duplicate_sets: duplicates.count,
+      resolved: results.count { |r| r[:status] == :resolved },
+      skipped: results.count { |r| r[:status] == :skipped },
+      errors: results.count { |r| r[:status] == :error },
+      dry_run: results.count { |r| r[:status] == :dry_run },
+      thresholds: CONFIDENCE_THRESHOLDS
+    }
+
+    { summary: summary, results: results }
   end
 
   private
