@@ -569,6 +569,36 @@ module Api
         render json: { success: true, **result }
       end
 
+      # GET /api/v1/company_documents/marked_for_deletion
+      # List all documents marked for deletion (prefixed with "DELETE - ")
+      def marked_for_deletion
+        docs = DocumentDuplicateService.find_marked_for_deletion(company_id: params[:company_id])
+        render json: { success: true, documents: docs, count: docs.count }
+      end
+
+      # POST /api/v1/company_documents/:id/restore
+      # Restore a document marked for deletion (remove DELETE prefix)
+      def restore
+        result = DocumentDuplicateService.restore_document(params[:id])
+        if result[:error]
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        else
+          render json: { success: true, **result }
+        end
+      end
+
+      # POST /api/v1/company_documents/permanently_delete
+      # Actually delete documents (use after reviewing marked files)
+      def permanently_delete
+        document_ids = params[:document_ids]
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+        end
+
+        result = DocumentDuplicateService.permanently_delete(document_ids)
+        render json: { success: true, **result }
+      end
+
       private
 
       def set_document

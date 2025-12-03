@@ -353,34 +353,39 @@ class DocumentDuplicateService
     { error: "Failed to parse AI response: #{e.message}" }
   end
 
+  # Prefix for marking documents for deletion (safety net)
+  DELETE_PREFIX = "DELETE - ".freeze
+
   # Action implementations
+  # Note: "delete" actions actually rename with DELETE prefix for safety
+  # Users can review and permanently delete later
   def self.keep_newest(document_ids)
     docs = CompanyDocument.where(id: document_ids).order(created_at: :desc)
     keep = docs.first
-    delete = docs.offset(1)
+    to_mark = docs.offset(1)
 
-    delete_from_sharepoint_and_db(delete.pluck(:id))
+    marked = mark_for_deletion(to_mark.pluck(:id))
 
     {
       success: true,
       kept: keep.id,
-      deleted: delete.pluck(:id),
-      message: "Kept newest document (ID: #{keep.id}), deleted #{delete.count} duplicates"
+      marked_for_deletion: marked,
+      message: "Kept newest document (ID: #{keep.id}), marked #{to_mark.count} duplicates for deletion"
     }
   end
 
   def self.keep_oldest(document_ids)
     docs = CompanyDocument.where(id: document_ids).order(created_at: :asc)
     keep = docs.first
-    delete = docs.offset(1)
+    to_mark = docs.offset(1)
 
-    delete_from_sharepoint_and_db(delete.pluck(:id))
+    marked = mark_for_deletion(to_mark.pluck(:id))
 
     {
       success: true,
       kept: keep.id,
-      deleted: delete.pluck(:id),
-      message: "Kept oldest document (ID: #{keep.id}), deleted #{delete.count} duplicates"
+      marked_for_deletion: marked,
+      message: "Kept oldest document (ID: #{keep.id}), marked #{to_mark.count} duplicates for deletion"
     }
   end
 
@@ -392,14 +397,14 @@ class DocumentDuplicateService
       return { error: "No verified document found among duplicates" }
     end
 
-    delete = docs.where.not(id: verified.id)
-    delete_from_sharepoint_and_db(delete.pluck(:id))
+    to_mark = docs.where.not(id: verified.id)
+    marked = mark_for_deletion(to_mark.pluck(:id))
 
     {
       success: true,
       kept: verified.id,
-      deleted: delete.pluck(:id),
-      message: "Kept verified document (ID: #{verified.id}), deleted #{delete.count} duplicates"
+      marked_for_deletion: marked,
+      message: "Kept verified document (ID: #{verified.id}), marked #{to_mark.count} duplicates for deletion"
     }
   end
 
@@ -522,16 +527,57 @@ class DocumentDuplicateService
   end
 
   def self.delete_documents(document_ids)
-    delete_from_sharepoint_and_db(document_ids)
+    # Safety net: mark for deletion instead of actually deleting
+    marked = mark_for_deletion(document_ids)
 
     {
       success: true,
-      deleted: document_ids,
-      message: "Deleted #{document_ids.count} documents"
+      marked_for_deletion: marked,
+      message: "Marked #{document_ids.count} documents for deletion (prefixed with '#{DELETE_PREFIX}')"
     }
   end
 
-  def self.delete_from_sharepoint_and_db(document_ids)
+  # Mark documents for deletion by renaming with DELETE prefix
+  # This is a safety net - users can review before permanently deleting
+  def self.mark_for_deletion(document_ids)
+    results = []
+
+    CompanyDocument.where(id: document_ids).find_each do |doc|
+      # Skip if already marked for deletion
+      if doc.title.start_with?(DELETE_PREFIX)
+        results << { id: doc.id, title: doc.title, status: :already_marked }
+        next
+      end
+
+      new_name = "#{DELETE_PREFIX}#{doc.title}"
+
+      begin
+        # Rename in SharePoint
+        if doc.onedrive_file_id.present?
+          credential = OrganizationOneDriveCredential.active_credential
+          if credential
+            client = MicrosoftGraphClient.new(credential)
+            client.rename_file(doc.onedrive_file_id, new_name)
+          end
+        end
+
+        # Update database
+        old_name = doc.title
+        doc.update!(title: new_name)
+        Rails.logger.info("Marked for deletion: #{old_name} -> #{new_name}")
+
+        results << { id: doc.id, old_name: old_name, new_name: new_name, status: :marked }
+      rescue StandardError => e
+        Rails.logger.warn("Could not mark document #{doc.id} for deletion: #{e.message}")
+        results << { id: doc.id, title: doc.title, status: :error, error: e.message }
+      end
+    end
+
+    results
+  end
+
+  # Actually delete documents (for when user confirms deletion of marked files)
+  def self.permanently_delete(document_ids)
     CompanyDocument.where(id: document_ids).find_each do |doc|
       # Delete from SharePoint
       if doc.onedrive_file_id.present?
@@ -540,7 +586,7 @@ class DocumentDuplicateService
           if credential
             client = MicrosoftGraphClient.new(credential)
             client.delete_file(doc.onedrive_file_id)
-            Rails.logger.info("Deleted SharePoint file: #{doc.onedrive_file_id}")
+            Rails.logger.info("Permanently deleted SharePoint file: #{doc.onedrive_file_id}")
           end
         rescue StandardError => e
           Rails.logger.warn("Could not delete SharePoint file #{doc.onedrive_file_id}: #{e.message}")
@@ -551,5 +597,52 @@ class DocumentDuplicateService
       # Delete from database
       doc.destroy
     end
+
+    {
+      success: true,
+      deleted: document_ids,
+      message: "Permanently deleted #{document_ids.count} documents"
+    }
+  end
+
+  # Find all documents marked for deletion
+  def self.find_marked_for_deletion(company_id: nil)
+    scope = CompanyDocument.where("title LIKE ?", "#{DELETE_PREFIX}%")
+    scope = scope.where(company_id: company_id) if company_id.present?
+    scope.includes(:company).map { |d| document_summary(d) }
+  end
+
+  # Restore a document marked for deletion (remove DELETE prefix)
+  def self.restore_document(document_id)
+    doc = CompanyDocument.find(document_id)
+
+    unless doc.title.start_with?(DELETE_PREFIX)
+      return { error: "Document is not marked for deletion" }
+    end
+
+    new_name = doc.title.sub(DELETE_PREFIX, '')
+
+    # Rename in SharePoint
+    if doc.onedrive_file_id.present?
+      credential = OrganizationOneDriveCredential.active_credential
+      if credential
+        client = MicrosoftGraphClient.new(credential)
+        client.rename_file(doc.onedrive_file_id, new_name)
+      end
+    end
+
+    # Update database
+    old_name = doc.title
+    doc.update!(title: new_name)
+
+    {
+      success: true,
+      document_id: doc.id,
+      old_name: old_name,
+      new_name: new_name,
+      message: "Restored document: #{new_name}"
+    }
+  rescue StandardError => e
+    { error: "Restore failed: #{e.message}" }
   end
 end
