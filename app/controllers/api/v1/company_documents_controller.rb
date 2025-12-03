@@ -554,6 +554,21 @@ module Api
         end
       end
 
+      # POST /api/v1/company_documents/auto_resolve_duplicates
+      # Automatically resolve all duplicates using AI
+      # Confidence thresholds: 89% for destructive (delete/merge), 74% for rename
+      # Params:
+      #   - company_id (optional): Filter to specific company
+      #   - dry_run (optional): If true, only show what would be done without executing
+      def auto_resolve_duplicates
+        result = DocumentDuplicateService.auto_resolve_all(
+          company_id: params[:company_id],
+          dry_run: params[:dry_run] == 'true' || params[:dry_run] == true
+        )
+
+        render json: { success: true, **result }
+      end
+
       private
 
       def set_document
