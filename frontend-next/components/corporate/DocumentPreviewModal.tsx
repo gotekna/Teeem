@@ -1509,7 +1509,11 @@ export default function DocumentPreviewModal({
                             ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                             : document.ai_suggested_name ? "border-red-500 bg-red-50 dark:bg-red-900/20" : ""
                         )}>
-                          {document.ai_suggested_name ? (document.company?.code ? `[${document.company.code}]` : "-") : "-"}
+                          {document.ai_suggested_name ? (
+                            document.company ? (
+                              <span className="truncate">{document.company.code ? `[${document.company.code}] ` : ''}{document.company.name}</span>
+                            ) : "-"
+                          ) : "-"}
                         </div>
                       </div>
                       <div>
@@ -1608,7 +1612,11 @@ export default function DocumentPreviewModal({
                       <div className={cn(
                         "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center font-mono bg-muted/50 overflow-hidden",
                         document.ai_suggested_name
-                          ? (editedTitle === document.ai_suggested_name
+                          ? ((() => {
+                              // Compare filenames ignoring .pdf extension
+                              const normalizeFilename = (name: string) => name?.replace(/\.pdf$/i, '').trim().toLowerCase() || '';
+                              return normalizeFilename(editedTitle) === normalizeFilename(document.ai_suggested_name || '');
+                            })()
                             ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                             : "border-red-500 bg-red-50 dark:bg-red-900/20")
                           : ""
