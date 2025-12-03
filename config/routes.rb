@@ -1252,6 +1252,7 @@ Rails.application.routes.draw do
         member do
           get :download
           get :preview
+          get :content
           post :validate
           post :ai_verify
           post :apply_ai_suggestion

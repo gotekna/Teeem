@@ -77,6 +77,7 @@ class Company < ApplicationRecord
   # validates :company_group, inclusion: { in: %w[tekna team_harder promise charity other] }, allow_blank: true
   validates :gst_registration_status, inclusion: { in: %w[registered not_registered] }, allow_blank: true
   validates :accounting_method, inclusion: { in: %w[cash accrual] }, allow_blank: true
+  validates :bas_frequency, inclusion: { in: %w[quarterly monthly] }, allow_blank: true
   validates :code, uniqueness: true, allow_blank: true, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
   validates :slug, uniqueness: true, allow_blank: true
 

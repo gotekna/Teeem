@@ -35,6 +35,13 @@ namespace :teeem do
       { model: 'InspiringQuote', icon: '💬', feature: 'System', name: 'Inspiring Quotes' },
       { model: 'ScheduleTemplate', icon: '📋', feature: 'Schedule Manager', name: 'Schedule Templates' },
       { model: 'FolderTemplate', icon: '📁', feature: 'System', name: 'Folder Templates' },
+      # Added for TeeemTableView migration
+      { model: 'Lead', icon: '🎯', feature: 'Sales', name: 'Leads' },
+      { model: 'QuoteRequest', icon: '📝', feature: 'Procurement', name: 'Quote Requests' },
+      { model: 'Document', icon: '📄', feature: 'Documents' },
+      { model: 'TaskTemplate', icon: '📋', feature: 'Templates', name: 'Task Templates' },
+      { model: 'EmailJobProposal', icon: '📧', feature: 'Sales', name: 'Email Proposals' },
+      { model: 'PortalUser', icon: '🌐', feature: 'Portal', name: 'Portal Users' },
     ]
 
     created = 0
