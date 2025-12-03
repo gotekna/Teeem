@@ -189,7 +189,6 @@ interface LinkedCompany {
   is_trustee: boolean;
   trust_name: string | null;
   date_incorporated: string | null;
-  date_registered: string | null;
   registered_office_address: string | null;
   principal_place_of_business: string | null;
   company_group_id: number | null;

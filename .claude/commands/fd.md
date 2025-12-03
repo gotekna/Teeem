@@ -2,20 +2,18 @@
 
 **Shortcut:** `/fd` (full deploy)
 
-Commits ALL pending changes and deploys directly to Heroku staging via git subtree push.
+Commits ALL pending changes and deploys directly to Heroku via git subtree push.
 
 **Run from teeem root. Auto-generate commit messages.**
 
-## 🔴 STAGING ONLY - NEVER DEPLOY TO LIVE
+## 🔄 BRANCH-AWARE DEPLOYMENT
 
-**This command deploys to STAGING (rob branch) ONLY.**
+**This command detects your current branch and deploys to the correct environment:**
 
-- ✅ Staging Frontend: https://teeemrob.vercel.app/
-- ✅ Staging Backend: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
-- ❌ NEVER push to main/Live branch
-- ❌ NEVER deploy to https://teeem.vercel.app/ (production)
-
-**To deploy to production:** Create a PR from rob → main (Live branch).
+| Current Branch | Deploys To | Backend URL | Frontend URL |
+|----------------|------------|-------------|--------------|
+| `rob` | Staging | https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/ | https://teeemrob.vercel.app/ |
+| `Live` | Production | https://teeemlive-ce8e2660a615.herokuapp.com/ | https://teeemlive.vercel.app/ |
 
 ## Parallel Execution Strategy
 
@@ -26,22 +24,20 @@ git status --short
 cd backend && bin/rails db:migrate:status
 ```
 
-### Step 2 - Verify No Main Merge (ONLY check if recent merge from main)
+### Step 2 - Determine Target Environment
 
-**ONLY block if someone just merged main into rob:**
+**Based on current branch from Step 1:**
+
+| Branch | Remote | Heroku App | Backend URL |
+|--------|--------|------------|-------------|
+| `rob` | `heroku-rob-dev` | teeem-rob-dev | https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/ |
+| `Live` | `heroku-teeemlive` | teeemlive | https://teeemlive-ce8e2660a615.herokuapp.com/ |
+
+**If on `rob` branch only:** Check for merge commits from main:
 ```bash
-# Check if last commit is a merge from main
 git log -1 --merges --oneline | grep -i "merge.*main"
 ```
-
-If this returns a result, STOP and warn:
-```
-❌ BLOCKED: Rob branch has a merge commit from main!
-This violates the branch strategy. Rob should stay independent.
-Proper flow: rob → main (via PR), NEVER main → rob
-```
-
-**Otherwise, proceed with deployment** (ignore if main and rob have different commits - that's normal)
+If found, warn but proceed.
 
 ### Step 3 - Auto-Generate Commit Message and Commit
 
@@ -66,10 +62,11 @@ git commit -m "[auto-generated message]
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 
-### Step 4 - Push to GitHub (rob branch)
+### Step 4 - Push to GitHub (current branch)
 ```bash
-git pull origin rob --rebase
-git push origin rob
+# Use the current branch name (rob or Live)
+git pull origin [CURRENT_BRANCH] --rebase
+git push origin [CURRENT_BRANCH]
 ```
 
 ### Step 5 - Deploy Backend Directly to Heroku
@@ -81,26 +78,33 @@ git push origin rob
 # MUST run from repo root - subtree requires toplevel working tree
 cd /Users/robertharder/GitHub/teeem && git subtree split --prefix backend -b temp-backend-deploy
 
-# Force push to Heroku (heroku-rob-dev remote)
-git push heroku-rob-dev temp-backend-deploy:main --force
+# Force push to appropriate Heroku remote based on branch:
+# - rob branch → heroku-rob-dev
+# - Live branch → heroku-teeemlive
+git push [HEROKU_REMOTE] temp-backend-deploy:main --force
 
 # Clean up temp branch
 git branch -D temp-backend-deploy
 ```
 
-**Note:** The `heroku-rob-dev` remote should be configured as:
+**Heroku remotes must be configured:**
 ```bash
 git remote add heroku-rob-dev https://git.heroku.com/teeem-rob-dev.git
+git remote add heroku-teeemlive https://git.heroku.com/teeemlive.git
 ```
 
 ### Step 6 - Verify Deploy & Sync Version
 ```bash
 # Verify backend is up (wait a moment for dyno restart)
 sleep 5
-curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version
 
-# Sync local version to match staging
-cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
+# Use the appropriate URL based on branch:
+# - rob → https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/version
+# - Live → https://teeemlive-ce8e2660a615.herokuapp.com/version
+curl -s [BACKEND_URL]/version
+
+# Sync local version to match deployed version
+cd backend && bin/rails runner "Version.current.update(current_version: $(curl -s [BACKEND_URL]/version | grep -o '\"version\":\"v[0-9]*\"' | grep -o '[0-9]*'))"
 ```
 
 **Note:** Version only increments if backend code changed. Frontend-only deploys won't change the version number.
@@ -121,22 +125,26 @@ curl -s http://localhost:3001/version
 **Note:** This ensures local dev environment has latest migrations and code.
 
 ### Step 8 - Report Status
+
+**For rob branch:**
 - ✅ Branch: rob
 - ✅ Commit: [hash + message]
-- ✅ Backend deployed to Heroku: [version from /version endpoint]
+- ✅ Backend deployed to: teeem-rob-dev (staging)
 - ✅ Backend URL: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
-- ✅ Frontend: https://teeemrob.vercel.app/ (auto-deploys via Vercel on push)
-- ✅ Local version synced to: [version]
-- ✅ Local Rails server restarted: [local version]
-- 🔴 Warnings (if any)
+- ✅ Frontend: https://teeemrob.vercel.app/
+- ✅ Version: [version]
 
-## Branch Strategy
+**For Live branch:**
+- ✅ Branch: Live
+- ✅ Commit: [hash + message]
+- ✅ Backend deployed to: teeemlive (production)
+- ✅ Backend URL: https://teeemlive-ce8e2660a615.herokuapp.com/
+- ✅ Frontend: https://teeemlive.vercel.app/
+- ✅ Version: [version]
 
-```
-Feature → rob (staging) → main (production)
-          ↓                   ↑
-       Direct Heroku      Create PR
-       subtree push
-```
+## Environment Reference
 
-**Critical Rule:** Rob and main are independent. NEVER merge main → rob.
+| Branch | Heroku Remote | Heroku App | Backend URL | Frontend URL |
+|--------|---------------|------------|-------------|--------------|
+| `rob` | heroku-rob-dev | teeem-rob-dev | https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/ | https://teeemrob.vercel.app/ |
+| `Live` | heroku-teeemlive | teeemlive | https://teeemlive-ce8e2660a615.herokuapp.com/ | https://teeemlive.vercel.app/ |

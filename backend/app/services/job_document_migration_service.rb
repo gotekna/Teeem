@@ -8,7 +8,7 @@
 #
 class JobDocumentMigrationService
   # Path to legacy job documents in SharePoint
-  SOURCE_FOLDER_PATH = 'Old House Data'
+  SOURCE_FOLDER_PATH = 'Old House Data/00 Active - Soon to be moved out'
 
   attr_reader :stats, :credential, :client
 
