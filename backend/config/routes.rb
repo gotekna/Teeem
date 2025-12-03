@@ -1254,6 +1254,8 @@ Rails.application.routes.draw do
           post :analyze_duplicates
           post :resolve_duplicates
           post :auto_resolve_duplicates
+          get :marked_for_deletion
+          post :permanently_delete
         end
         member do
           get :download
@@ -1264,6 +1266,7 @@ Rails.application.routes.draw do
           post :apply_ai_suggestion
           post :relocate
           post :feedback
+          post :restore
         end
       end
 
