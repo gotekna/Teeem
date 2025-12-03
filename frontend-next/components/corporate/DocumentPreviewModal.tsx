@@ -1662,11 +1662,17 @@ export default function DocumentPreviewModal({
                         <div className="flex items-center gap-2">
                           {/* Show Signed/Unsigned toggle if AI suggested type needs it - same style as Edit */}
                           {(() => {
+                            const suggestedType = document.ai_suggested_type?.toLowerCase() || "";
                             const aiDocType = documentTypes.find(t =>
-                              t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
-                              t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+                              t.name?.toLowerCase() === suggestedType ||
+                              t.abbreviation?.toLowerCase() === suggestedType ||
+                              t.name?.toLowerCase().includes(suggestedType) ||
+                              suggestedType.includes(t.abbreviation?.toLowerCase() || "")
                             );
-                            const aiNeedsSigned = aiDocType?.naming_format?.includes("{Signed}");
+                            // Also check if it's a CTR/TTR type directly
+                            const isTaxReturn = suggestedType.includes("ctr") || suggestedType.includes("ttr") ||
+                              suggestedType.includes("company tax return") || suggestedType.includes("trust tax return");
+                            const aiNeedsSigned = aiDocType?.naming_format?.includes("{Signed}") || isTaxReturn;
                             if (aiNeedsSigned) {
                               // Detect from suggested name which one AI picked
                               const isUnsigned = document.ai_suggested_name?.includes(" US ") || document.ai_suggested_name?.match(/\bUS\s/);
@@ -1816,15 +1822,21 @@ export default function DocumentPreviewModal({
                       <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
                       <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 line-clamp-2">
                         {(() => {
+                          const suggestedType = document.ai_suggested_type?.toLowerCase() || "";
                           const aiDocType = documentTypes.find(t =>
-                            t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
-                            t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
+                            t.name?.toLowerCase() === suggestedType ||
+                            t.abbreviation?.toLowerCase() === suggestedType ||
+                            t.name?.toLowerCase().includes(suggestedType) ||
+                            suggestedType.includes(t.abbreviation?.toLowerCase() || "")
                           );
                           const fullTypeName = aiDocType?.name || document.ai_suggested_type || "";
+                          // Check if this type needs signed/unsigned
+                          const isTaxReturn = suggestedType.includes("ctr") || suggestedType.includes("ttr") ||
+                            suggestedType.includes("company tax return") || suggestedType.includes("trust tax return");
                           // Detect signed/unsigned from AI suggested name
                           const isUnsigned = document.ai_suggested_name?.includes(" US ") || document.ai_suggested_name?.match(/\bUS\s/);
                           const isSigned = document.ai_suggested_name?.includes(" S ") && !isUnsigned;
-                          const signedPart = isSigned ? 'Signed' : isUnsigned ? 'Unsigned' : '';
+                          const signedPart = isTaxReturn ? (isSigned ? 'Signed' : isUnsigned ? 'Unsigned' : 'Unsigned') : '';
                           const fyArray = parseFinancialYears(document.ai_suggested_fy);
                           const fyPart = fyArray.length > 0
                             ? fyArray.map(y => `FY${y}`).join(" ")

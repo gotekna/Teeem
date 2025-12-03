@@ -145,14 +145,21 @@ class CompanyDocument < ApplicationRecord
     display = display.gsub(/\bFY(\d{2})\b/) { "20#{$1}" }
     display = display.gsub(/\bFY(\d{4})\b/) { $1 }
 
+    # Expand S/US to Signed/Unsigned BEFORE expanding CTR/TTR
+    # "US CTR FY24" -> "Unsigned CTR FY24" -> "Unsigned Company Tax Return 2024"
+    display = display.gsub(/\bUS\s+CTR\b/i, 'Unsigned CTR')
+    display = display.gsub(/\bS\s+CTR\b/i, 'Signed CTR')
+    display = display.gsub(/\bUS\s+TTR\b/i, 'Unsigned TTR')
+    display = display.gsub(/\bS\s+TTR\b/i, 'Signed TTR')
+
     # Expand document type abbreviations
     DOCUMENT_TYPE_ABBREVIATIONS.each do |abbr, full|
       display = display.gsub(/\b#{abbr}\b/, full)
     end
 
-    # Titleize DRAFT/SIGNED
+    # Titleize DRAFT/AMENDED
     display = display.gsub(/\bDRAFT\b/i, 'Draft')
-    display = display.gsub(/\bSIGNED\b/i, 'Signed')
+    display = display.gsub(/\bAMENDED\b/i, 'Amended')
 
     # Remove file extension
     display = display.sub(/\.(pdf|docx?|xlsx?|png|jpg|jpeg)$/i, '')

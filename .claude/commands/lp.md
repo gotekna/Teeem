@@ -2,7 +2,7 @@
 
 **Shortcut:** `/lp` (Live Push)
 
-Commits ALL pending changes, deploys to staging (rob), merges into Live, deploys to production, then returns to rob branch.
+Commits ALL pending changes, deploys to staging (rob), merges into Live, deploys to production, and stays on Live branch.
 
 **Run from teeem root. Auto-generate commit messages.**
 
@@ -12,7 +12,7 @@ This command:
 1. Deploys all changes to STAGING first (like `/fd`)
 2. Merges rob → Live
 3. Deploys Live to PRODUCTION
-4. Returns to rob branch
+4. Stays on Live branch (for continued Live work)
 
 ## Complete Workflow
 
@@ -122,19 +122,11 @@ sleep 10
 curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
 ```
 
-### Phase 4: Return to Rob Branch
-
-#### Step 4.1 - Switch Back to Rob
-```bash
-git checkout rob
-```
-
-### Step 5 - Report Status
+### Step 4 - Report Status
 
 Report combined status:
 
 **Staging (rob):**
-- ✅ Branch: rob
 - ✅ Commit: [hash + message]
 - ✅ Backend deployed to: teeem-rob-dev
 - ✅ Staging Backend: https://teeem-rob-dev-cfbdfa15b107.herokuapp.com/
@@ -148,13 +140,13 @@ Report combined status:
 - ✅ Production Frontend: https://teeemlive.vercel.app/
 
 **Current Branch:**
-- ✅ Returned to: rob
+- ✅ Staying on: Live (for continued development)
 
 ## Error Handling
 
 If any step fails:
 1. Report which phase/step failed
-2. Ensure you return to rob branch before stopping
+2. Stay on current branch
 3. Provide recovery instructions
 
 ## Heroku Remotes Required
