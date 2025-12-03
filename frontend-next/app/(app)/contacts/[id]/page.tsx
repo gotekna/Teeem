@@ -108,6 +108,21 @@ interface Contact {
   bank_account_name: string | null;
   // LGAs
   lgas: string[];
+  // Entity type for SSoT
+  entity_type: string | null;
+}
+
+interface CompanyGroupMembership {
+  id: number;
+  contact_id: number;
+  company_group_id: number;
+  company_group_name: string;
+  membership_type: string;
+  company_id: number | null;
+  company_name: string | null;
+  can_view_confidential: boolean;
+  can_edit: boolean;
+  is_active: boolean;
 }
 
 export default function ContactDetailPage() {
@@ -119,12 +134,21 @@ export default function ContactDetailPage() {
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [memberships, setMemberships] = useState<CompanyGroupMembership[]>([]);
+  const [loadingMemberships, setLoadingMemberships] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
 
   useEffect(() => {
     loadContact();
   }, [id]);
+
+  // Load memberships when contact loads
+  useEffect(() => {
+    if (contact?.id) {
+      loadMemberships();
+    }
+  }, [contact?.id]);
 
   const loadContact = async () => {
     try {
@@ -137,6 +161,21 @@ export default function ContactDetailPage() {
       setError("Failed to load contact");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMemberships = async () => {
+    try {
+      setLoadingMemberships(true);
+      const response = await api.get<{ success: boolean; data: CompanyGroupMembership[] }>(
+        `/api/v1/contacts/${contact?.id}/company_group_memberships`
+      );
+      setMemberships(response.data || []);
+    } catch (err) {
+      console.error("Failed to load memberships:", err);
+      setMemberships([]);
+    } finally {
+      setLoadingMemberships(false);
     }
   };
 
@@ -231,6 +270,12 @@ export default function ContactDetailPage() {
           )}
           <TabsTrigger value="portal">Portal Access</TabsTrigger>
           <TabsTrigger value="xero">Xero</TabsTrigger>
+          <TabsTrigger value="company-groups">
+            Company Groups
+            {memberships.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5">{memberships.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -631,6 +676,89 @@ export default function ContactDetailPage() {
                   <Button variant="outline">
                     Link to Xero Contact
                   </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Company Groups Tab */}
+        <TabsContent value="company-groups" className="mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                Company Group Memberships
+                {memberships.length > 0 && (
+                  <Badge variant="secondary">{memberships.length}</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loadingMemberships ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader />
+                </div>
+              ) : memberships.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">
+                    This contact is not a member of any company groups.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {memberships.map((membership) => (
+                    <div
+                      key={membership.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                          <Building2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium">{membership.company_group_name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge
+                              className={
+                                membership.membership_type === "director"
+                                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                                  : membership.membership_type === "shareholder"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                                  : "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300"
+                              }
+                            >
+                              {membership.membership_type}
+                            </Badge>
+                            {membership.company_name && (
+                              <span className="text-sm text-muted-foreground">
+                                via {membership.company_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {membership.can_view_confidential && (
+                          <Badge variant="outline" className="text-xs">
+                            View Confidential
+                          </Badge>
+                        )}
+                        {membership.can_edit && (
+                          <Badge variant="outline" className="text-xs">
+                            Can Edit
+                          </Badge>
+                        )}
+                        {membership.is_active ? (
+                          <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">Inactive</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

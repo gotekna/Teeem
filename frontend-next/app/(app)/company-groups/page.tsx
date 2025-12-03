@@ -97,14 +97,91 @@ interface CompanyGroup {
   companies_count?: number;
 }
 
+interface PersonRole {
+  type: string;
+  company_id: number;
+  company_name: string;
+  position?: string;
+  is_current?: boolean;
+  shares?: number;
+  percentage?: number;
+}
+
+interface PersonMembership {
+  id: number;
+  contact_id: number;
+  name: string;
+  email?: string;
+  membership_type: string;
+  is_active: boolean;
+  roles: PersonRole[];
+}
+
 interface GroupStructure {
   companies: Company[];
+  people?: PersonMembership[];
   stats?: {
     total_companies: number;
     top_level_count: number;
     trustees_count: number;
     trusts_count: number;
+    people_count?: number;
   };
+}
+
+// Person row component for the People section
+function PersonRow({
+  person,
+  onNavigate,
+}: {
+  person: PersonMembership;
+  onNavigate: (contactId: number) => void;
+}) {
+  const getRoleSummary = (roles: PersonRole[]) => {
+    const directorships = roles.filter(r => r.type === 'director');
+    const shareholdings = roles.filter(r => r.type === 'shareholder');
+    const parts: string[] = [];
+
+    if (directorships.length > 0) {
+      parts.push(`Director (${directorships.length})`);
+    }
+    if (shareholdings.length > 0) {
+      parts.push(`Shareholder`);
+    }
+    return parts.join(', ') || person.membership_type;
+  };
+
+  return (
+    <div
+      className="flex items-center py-2 px-3 hover:bg-muted/50 cursor-pointer border-b"
+      onClick={() => onNavigate(person.contact_id)}
+    >
+      {/* Person icon */}
+      <div className="flex-shrink-0 mr-3 text-teal-600">
+        <PersonIcon className="h-5 w-5" />
+      </div>
+
+      {/* Person details */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-foreground">{person.name}</span>
+          {!person.is_active && (
+            <Badge variant="secondary" className="text-xs">Inactive</Badge>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground">{getRoleSummary(person.roles)}</div>
+      </div>
+
+      {/* Roles detail */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {person.roles.filter(r => r.type === 'director').map((role, i) => (
+          <Badge key={i} variant="outline" className="text-[10px]">
+            {role.company_name.split(' ')[0]}
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 // Recursive tree node component
@@ -422,6 +499,12 @@ export default function CompanyGroupsPage() {
                   <span className="text-muted-foreground">Trusts</span>
                   <span className="font-medium text-rose-500">{structure.stats.trusts_count}</span>
                 </div>
+                {structure.stats.people_count !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">People</span>
+                    <span className="font-medium text-teal-600">{structure.stats.people_count}</span>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
@@ -457,18 +540,44 @@ export default function CompanyGroupsPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : selectedGroup ? (
-              filteredCompanies.length > 0 ? (
-                <div className="divide-y">
-                  {filteredCompanies.map((company) => (
-                    <CompanyTreeNode
-                      key={company.id}
-                      company={company}
-                      level={0}
-                      expandedNodes={expandedNodes}
-                      toggleNode={toggleNode}
-                      onNavigate={(id) => router.push(`/corporate/companies/${id}`)}
-                    />
-                  ))}
+              filteredCompanies.length > 0 || (structure?.people && structure.people.length > 0) ? (
+                <div>
+                  {/* Companies Section */}
+                  {filteredCompanies.length > 0 && (
+                    <div className="divide-y">
+                      {filteredCompanies.map((company) => (
+                        <CompanyTreeNode
+                          key={company.id}
+                          company={company}
+                          level={0}
+                          expandedNodes={expandedNodes}
+                          toggleNode={toggleNode}
+                          onNavigate={(id) => router.push(`/corporate/companies/${id}`)}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* People Section - SSoT */}
+                  {structure?.people && structure.people.length > 0 && (
+                    <div className="border-t-2 border-teal-200 dark:border-teal-900">
+                      <div className="bg-teal-50 dark:bg-teal-950/30 px-4 py-2 flex items-center gap-2">
+                        <Users className="h-4 w-4 text-teal-600" />
+                        <span className="font-medium text-teal-700 dark:text-teal-300 text-sm">
+                          People ({structure.people.length})
+                        </span>
+                      </div>
+                      <div className="divide-y">
+                        {structure.people.map((person) => (
+                          <PersonRow
+                            key={person.id}
+                            person={person}
+                            onNavigate={(contactId) => router.push(`/contacts/${contactId}`)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-48 text-muted-foreground">

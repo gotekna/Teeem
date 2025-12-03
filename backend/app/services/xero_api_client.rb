@@ -444,6 +444,99 @@ class XeroApiClient
     { success: false, error: e.message }
   end
 
+  # ============================================
+  # ATTACHMENT METHODS (for Data Warehouse sync)
+  # ============================================
+
+  # Get list of attachments for an entity (Invoice, Bill, etc.)
+  # @param entity_type [String] - 'Invoices', 'CreditNotes', 'BankTransactions', etc.
+  # @param entity_id [String] - The Xero GUID of the entity
+  # @param options [Hash] - :tenant_id to specify which tenant
+  # @return [Hash] - { success: true, attachments: [...] } or { success: false, error: ... }
+  def get_attachments(entity_type, entity_id, options = {})
+    endpoint = "#{entity_type}/#{entity_id}/Attachments"
+    response = make_request(:get, endpoint, {}, options)
+
+    if response[:success]
+      attachments = response[:data]['Attachments'] || []
+      {
+        success: true,
+        attachments: attachments.map do |att|
+          {
+            attachment_id: att['AttachmentID'],
+            filename: att['FileName'],
+            url: att['Url'],
+            mime_type: att['MimeType'],
+            content_length: att['ContentLength'],
+            include_online: att['IncludeOnline']
+          }
+        end
+      }
+    else
+      { success: false, error: 'Failed to fetch attachments' }
+    end
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error fetching attachments for #{entity_type}/#{entity_id}: #{e.message}")
+    { success: false, error: e.message }
+  end
+
+  # Download a specific attachment's content
+  # @param entity_type [String] - 'Invoices', 'CreditNotes', etc.
+  # @param entity_id [String] - The Xero GUID of the entity
+  # @param filename [String] - The filename of the attachment
+  # @param options [Hash] - :tenant_id to specify which tenant
+  # @return [Hash] - { success: true, content: binary_data, filename: ..., mime_type: ... }
+  def download_attachment(entity_type, entity_id, filename, options = {})
+    endpoint = "#{entity_type}/#{entity_id}/Attachments/#{ERB::Util.url_encode(filename)}"
+
+    # Make raw binary request (not JSON)
+    make_binary_request(:get, endpoint, options)
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error downloading attachment #{filename}: #{e.message}")
+    { success: false, error: e.message }
+  end
+
+  # Get an invoice as a PDF
+  # Xero can generate PDFs for invoices directly via Accept: application/pdf header
+  # @param invoice_id [String] - The Xero Invoice GUID
+  # @param options [Hash] - :tenant_id to specify which tenant
+  # @return [Hash] - { success: true, content: binary_pdf, filename: "INV-XXX.pdf" }
+  def get_invoice_pdf(invoice_id, options = {})
+    endpoint = "Invoices/#{invoice_id}"
+
+    result = make_binary_request(:get, endpoint, options.merge(accept: 'application/pdf'))
+
+    if result[:success]
+      # Set a sensible filename based on invoice number if we can get it
+      result[:filename] ||= "Invoice-#{invoice_id[0..7]}.pdf"
+      result[:mime_type] = 'application/pdf'
+    end
+
+    result
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error fetching PDF for invoice #{invoice_id}: #{e.message}")
+    { success: false, error: e.message }
+  end
+
+  # Get a quote as a PDF
+  # @param quote_id [String] - The Xero Quote GUID
+  # @param options [Hash] - :tenant_id to specify which tenant
+  def get_quote_pdf(quote_id, options = {})
+    endpoint = "Quotes/#{quote_id}"
+
+    result = make_binary_request(:get, endpoint, options.merge(accept: 'application/pdf'))
+
+    if result[:success]
+      result[:filename] ||= "Quote-#{quote_id[0..7]}.pdf"
+      result[:mime_type] = 'application/pdf'
+    end
+
+    result
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error fetching PDF for quote #{quote_id}: #{e.message}")
+    { success: false, error: e.message }
+  end
+
   private
 
   def credentials_present?
@@ -553,6 +646,72 @@ class XeroApiClient
     rescue StandardError => e
       Rails.logger.error("Xero API error: #{e.message}")
       raise ApiError, e.message
+    end
+  end
+
+  # Make a binary request (for downloading PDFs/attachments)
+  def make_binary_request(method, endpoint, options = {})
+    tenant_id = options[:tenant_id]
+    accept_type = options[:accept] || 'application/octet-stream'
+
+    # Find credential (same logic as make_request)
+    credential = nil
+    if tenant_id.present?
+      credential = CompanyXeroConnection.find_by(xero_tenant_id: tenant_id)
+      credential ||= XeroCredential.find_by(tenant_id: tenant_id)
+    end
+    credential ||= XeroCredential.current
+
+    unless credential
+      raise AuthenticationError, 'Not authenticated with Xero'
+    end
+
+    # Refresh token if needed
+    if credential.respond_to?(:needs_refresh?) ? credential.needs_refresh? : credential.expired?
+      if credential.is_a?(CompanyXeroConnection)
+        credential.refresh_tokens!
+      else
+        refresh_access_token_for(credential)
+      end
+    end
+
+    credential.reload
+
+    request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
+    url = "#{BASE_URL}/#{endpoint}"
+
+    headers = {
+      'Authorization' => "Bearer #{credential.access_token}",
+      'Xero-tenant-id' => request_tenant_id,
+      'Accept' => accept_type
+    }
+
+    response = HTTParty.get(url, headers: headers, timeout: 60)
+
+    case response.code
+    when 200..299
+      content_disposition = response.headers['content-disposition']
+      filename = nil
+      if content_disposition.present?
+        match = content_disposition.match(/filename="?([^";\s]+)"?/)
+        filename = match[1] if match
+      end
+
+      {
+        success: true,
+        content: response.body,
+        filename: filename,
+        mime_type: response.headers['content-type'],
+        content_length: response.headers['content-length']&.to_i
+      }
+    when 401
+      raise AuthenticationError, 'Authentication failed'
+    when 404
+      { success: false, error: 'Not found' }
+    when 429
+      raise RateLimitError, 'Rate limit exceeded'
+    else
+      { success: false, error: "Request failed with status #{response.code}" }
     end
   end
 

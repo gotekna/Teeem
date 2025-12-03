@@ -1,6 +1,7 @@
 class Company < ApplicationRecord
   # Associations
   belongs_to :company_group, optional: true
+  belongs_to :contact, optional: true  # SSoT - links Company to Contact identity store
 
   # Hierarchy - parent/subsidiary relationships
   belongs_to :parent_company, class_name: 'Company', optional: true

@@ -49,6 +49,29 @@ class User < ApplicationRecord
     role == 'builder'
   end
 
+  # SSoT: God View access (internal staff sees everything)
+  # God View users see all entities in all groups they have access to
+  def god_view?
+    role.in?(%w[admin product_owner user estimator supervisor builder])
+  end
+
+  # SSoT: Can this user view confidential fields (TFN, passport, bank details)?
+  def can_view_confidential?
+    return true if admin?
+    can_view_confidential_fields
+  end
+
+  # SSoT: Get accessible company groups for this user
+  def accessible_company_groups
+    if admin?
+      CompanyGroup.all
+    else
+      # TODO: Add UserCompanyGroupAssignment when needed
+      # For now, all internal users can see all groups
+      CompanyGroup.all
+    end
+  end
+
   # Permission checks for schedule features
   def can_create_templates?
     admin? || product_owner?
@@ -89,14 +112,23 @@ class User < ApplicationRecord
         'manage_workflows',
         'view_gantt',
         'manage_company_settings',
-        'manage_integrations'
+        'manage_integrations',
+        # SSoT Corporate permissions
+        'god_view',
+        'view_confidential_fields',
+        'view_all_company_groups',
+        'edit_company_group_memberships',
+        'run_investigations'
       ]
     when 'product_owner'
       perms += [
         'create_templates',
         'edit_schedule',
         'edit_projects',
-        'view_gantt'
+        'view_gantt',
+        # SSoT Corporate permissions
+        'god_view',
+        'view_all_company_groups'
       ]
     when 'estimator'
       perms += [

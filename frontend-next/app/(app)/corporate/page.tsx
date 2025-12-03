@@ -305,6 +305,7 @@ export default function CorporateDashboardPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <QuickAction label="Health Report" icon={Heart} href="/corporate/health" color="green" />
             <QuickAction label="Company Groups" icon={Building2} href="/company-groups" color="indigo" />
+            <QuickAction label="CG NEW (SSoT)" icon={Users} href="/corporate/cg-new" color="indigo" />
             <QuickAction label="Add Company" icon={Plus} href="/corporate/companies/new" color="blue" />
             <QuickAction label="Add Asset" icon={Package} href="/corporate/assets/new" />
             <QuickAction label="View Directors" icon={Users} href="/corporate/directors" />

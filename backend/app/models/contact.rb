@@ -68,6 +68,13 @@ class Contact < ApplicationRecord
   # Personal documents (for family members, directors, etc.)
   has_many :company_documents, dependent: :destroy
 
+  # Company Group memberships (SSoT - links contact to company groups with permissions)
+  has_many :company_group_memberships, class_name: 'ContactCompanyGroupMembership', dependent: :destroy
+  has_many :company_groups_via_membership, through: :company_group_memberships, source: :company_group
+
+  # SSoT - if this contact is a company/trust, link to the Company record
+  has_one :company_record, class_name: 'Company', foreign_key: 'contact_id', dependent: :nullify
+
   # Encrypted TFN for directors
   encrypts :tfn, deterministic: true
 

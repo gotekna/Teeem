@@ -88,6 +88,16 @@ const OVERVIEW_SUB_TABS = [
   { id: "consolidation", name: "Consolidation" },
 ];
 
+// Trust-specific sub-tabs (only shown for Trust/Superfund entities)
+const TRUST_SUB_TABS = [
+  { id: "info", name: "Information" },
+  { id: "trustee", name: "Trustee" },
+  { id: "beneficiaries", name: "Beneficiaries" },
+  { id: "appointor", name: "Appointor" },
+  { id: "trust-deed", name: "Trust Deed" },
+  { id: "distributions", name: "Distributions" },
+];
+
 interface Director {
   id: number;
   position: string;
@@ -186,6 +196,50 @@ interface Investment {
   percentage: number;
   share_class?: string;
   acquisition_date?: string;
+}
+
+interface TrustRolesMember {
+  membership_id: number;
+  contact_id: number;
+  contact_name: string;
+  contact_email?: string;
+  contact_entity_type?: string;
+  membership_type: string;
+  can_view_confidential: boolean;
+  is_active: boolean;
+}
+
+interface TrustRolesData {
+  trust: {
+    id: number;
+    name: string;
+    entity_type: string;
+    status: string;
+    company_group_id: number;
+    date_incorporated?: string;
+  } | null;
+  corporate_trustee: {
+    id: number;
+    name: string;
+    code?: string;
+    acn?: string;
+    is_trustee: boolean;
+    trust_name?: string;
+  } | null;
+  beneficiaries: TrustRolesMember[];
+  appointors: TrustRolesMember[];
+  contact_relationships: {
+    id: number;
+    contact_id: number;
+    contact_name: string;
+    related_contact_id: number;
+    related_contact_name: string;
+    relationship_type: string;
+    ownership_percentage?: number;
+    start_date?: string;
+    end_date?: string;
+    is_current: boolean;
+  }[];
 }
 
 function CopyButton({ value }: { value: string }) {
@@ -1160,6 +1214,285 @@ function TrustsTab({ company, onUpdate }: { company: Company; onUpdate: () => vo
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// Trust-specific tabs for Trust/Superfund entities
+function TrusteeTab({ company }: { company: Company }) {
+  const router = useRouter();
+  const [trustRoles, setTrustRoles] = React.useState<TrustRolesData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadTrustRoles = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: TrustRolesData }>(
+          `/api/v1/companies/${company.id}/trust_roles`
+        );
+        setTrustRoles(response.data);
+      } catch (error) {
+        console.error("Failed to load trust roles:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTrustRoles();
+  }, [company.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const trustee = trustRoles?.corporate_trustee;
+
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Trustee</h3>
+      {trustee ? (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">{trustee.name}</div>
+                {trustee.acn && (
+                  <div className="text-sm text-muted-foreground">ACN: {trustee.acn}</div>
+                )}
+                <Badge variant="outline" className="mt-1 bg-purple-100 text-purple-700">
+                  Corporate Trustee
+                </Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push(`/corporate/companies/${trustee.id}`)}
+              >
+                <ExternalLink className="h-4 w-4 mr-1" />
+                View
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="text-center text-muted-foreground py-8 border rounded-lg">
+          No trustee assigned to this trust
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BeneficiariesTab({ company }: { company: Company }) {
+  const router = useRouter();
+  const [trustRoles, setTrustRoles] = React.useState<TrustRolesData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadTrustRoles = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: TrustRolesData }>(
+          `/api/v1/companies/${company.id}/trust_roles`
+        );
+        setTrustRoles(response.data);
+      } catch (error) {
+        console.error("Failed to load trust roles:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTrustRoles();
+  }, [company.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const beneficiaries = trustRoles?.beneficiaries || [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Beneficiaries ({beneficiaries.length})</h3>
+        <Button variant="outline" size="sm">
+          <Plus className="h-4 w-4 mr-1" />
+          Add Beneficiary
+        </Button>
+      </div>
+      {beneficiaries.length > 0 ? (
+        <div className="space-y-2">
+          {beneficiaries.map((b) => (
+            <Card key={b.membership_id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{b.contact_name}</div>
+                    {b.contact_email && (
+                      <div className="text-sm text-muted-foreground">{b.contact_email}</div>
+                    )}
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="bg-amber-100 text-amber-700">
+                        Beneficiary
+                      </Badge>
+                      {b.contact_entity_type && (
+                        <Badge variant="outline">{b.contact_entity_type}</Badge>
+                      )}
+                      {!b.is_active && (
+                        <Badge variant="destructive">Inactive</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/contacts/${b.contact_id}`)}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    View
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center text-muted-foreground py-8 border rounded-lg">
+          No beneficiaries recorded for this trust.
+          <div className="text-sm mt-2">Add beneficiaries to track trust distributions.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AppointorTab({ company }: { company: Company }) {
+  const router = useRouter();
+  const [trustRoles, setTrustRoles] = React.useState<TrustRolesData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadTrustRoles = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: TrustRolesData }>(
+          `/api/v1/companies/${company.id}/trust_roles`
+        );
+        setTrustRoles(response.data);
+      } catch (error) {
+        console.error("Failed to load trust roles:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadTrustRoles();
+  }, [company.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const appointors = trustRoles?.appointors || [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Appointor</h3>
+        {appointors.length === 0 && (
+          <Button variant="outline" size="sm">
+            <Plus className="h-4 w-4 mr-1" />
+            Set Appointor
+          </Button>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        The appointor has the power to remove and appoint trustees.
+      </p>
+      {appointors.length > 0 ? (
+        <div className="space-y-2">
+          {appointors.map((a) => (
+            <Card key={a.membership_id}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{a.contact_name}</div>
+                    {a.contact_email && (
+                      <div className="text-sm text-muted-foreground">{a.contact_email}</div>
+                    )}
+                    <Badge variant="outline" className="mt-1 bg-rose-100 text-rose-700">
+                      Appointor
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => router.push(`/contacts/${a.contact_id}`)}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    View
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <div className="text-center text-muted-foreground py-8 border rounded-lg">
+          No appointor recorded for this trust.
+          <div className="text-sm mt-2">Check the trust deed for appointor details.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrustDeedTab({ company }: { company: Company }) {
+  return (
+    <div className="space-y-4">
+      <h3 className="text-lg font-semibold">Trust Deed</h3>
+      <p className="text-sm text-muted-foreground">
+        View the trust deed document and any deed variations.
+      </p>
+      <div className="text-center text-muted-foreground py-8 border rounded-lg">
+        Trust deed documents are shown in the TRUST document category tab.
+        <div className="mt-4">
+          <Button variant="outline" size="sm">
+            Go to TRUST Documents
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DistributionsTab({ company }: { company: Company }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-semibold">Distributions</h3>
+        <Button variant="outline" size="sm">
+          <Plus className="h-4 w-4 mr-1" />
+          Record Distribution
+        </Button>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Track income and capital distributions to beneficiaries.
+      </p>
+      <div className="text-center text-muted-foreground py-8 border rounded-lg">
+        No distributions recorded yet.
+        <div className="text-sm mt-2">
+          Distributions will appear here once recorded.
+        </div>
+      </div>
     </div>
   );
 }
@@ -2633,34 +2966,67 @@ export default function CompanyDetailPage() {
         <CardContent className="p-6">
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Overview Sub-tabs */}
-              <div className="border-b">
-                <nav className="-mb-px flex gap-6">
-                  {OVERVIEW_SUB_TABS.map((subTab) => (
-                    <button
-                      key={subTab.id}
-                      onClick={() => setOverviewSubTab(subTab.id)}
-                      className={cn(
-                        "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
-                        overviewSubTab === subTab.id
-                          ? "border-primary text-primary"
-                          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                      )}
-                    >
-                      {subTab.name}
-                    </button>
-                  ))}
-                </nav>
-              </div>
+              {/* Overview Sub-tabs - Different tabs for Trust/Superfund entities */}
+              {company.entity_type === "Trust" || company.entity_type === "Superfund" ? (
+                <>
+                  <div className="border-b">
+                    <nav className="-mb-px flex gap-6">
+                      {TRUST_SUB_TABS.map((subTab) => (
+                        <button
+                          key={subTab.id}
+                          onClick={() => setOverviewSubTab(subTab.id)}
+                          className={cn(
+                            "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
+                            overviewSubTab === subTab.id
+                              ? "border-primary text-primary"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                          )}
+                        >
+                          {subTab.name}
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
 
-              {/* Overview Sub-tab Content */}
-              {overviewSubTab === "info" && <InformationTab company={company} />}
-              {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
-              {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
-              {overviewSubTab === "directors" && <DirectorsTab company={company} />}
-              {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
-              {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
-              {overviewSubTab === "consolidation" && <ConsolidationTab company={company} onUpdate={loadCompany} />}
+                  {/* Trust-specific Sub-tab Content */}
+                  {overviewSubTab === "info" && <InformationTab company={company} />}
+                  {overviewSubTab === "trustee" && <TrusteeTab company={company} />}
+                  {overviewSubTab === "beneficiaries" && <BeneficiariesTab company={company} />}
+                  {overviewSubTab === "appointor" && <AppointorTab company={company} />}
+                  {overviewSubTab === "trust-deed" && <TrustDeedTab company={company} />}
+                  {overviewSubTab === "distributions" && <DistributionsTab company={company} />}
+                </>
+              ) : (
+                <>
+                  <div className="border-b">
+                    <nav className="-mb-px flex gap-6">
+                      {OVERVIEW_SUB_TABS.map((subTab) => (
+                        <button
+                          key={subTab.id}
+                          onClick={() => setOverviewSubTab(subTab.id)}
+                          className={cn(
+                            "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
+                            overviewSubTab === subTab.id
+                              ? "border-primary text-primary"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                          )}
+                        >
+                          {subTab.name}
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
+
+                  {/* Company Sub-tab Content */}
+                  {overviewSubTab === "info" && <InformationTab company={company} />}
+                  {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
+                  {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
+                  {overviewSubTab === "directors" && <DirectorsTab company={company} />}
+                  {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
+                  {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
+                  {overviewSubTab === "consolidation" && <ConsolidationTab company={company} onUpdate={loadCompany} />}
+                </>
+              )}
             </div>
           )}
 
