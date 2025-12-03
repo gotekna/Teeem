@@ -4,7 +4,8 @@ class CompanyDirector < ApplicationRecord
   belongs_to :contact
 
   # Validations
-  validates :position, inclusion: { in: %w[director secretary public_officer director_secretary director_public_officer secretary_public_officer director_secretary_public_officer chairman] }, allow_blank: true
+  # Positions: director, secretary, public_officer, corporate_officer, chairman, and combinations
+  validates :position, inclusion: { in: %w[director secretary public_officer corporate_officer director_secretary director_public_officer director_corporate_officer secretary_public_officer secretary_corporate_officer director_secretary_public_officer director_secretary_corporate_officer chairman] }, allow_blank: true
   validates :contact_id, uniqueness: { scope: :company_id, conditions: -> { where(is_current: true) },
                                        message: "is already a current director/officer of this company" }
   validate :resignation_date_after_appointment
@@ -12,8 +13,10 @@ class CompanyDirector < ApplicationRecord
   # Scopes
   scope :current, -> { where(is_current: true) }
   scope :historical, -> { where(is_current: false) }
-  scope :directors, -> { where(position: ['director', 'director_secretary', 'chairman']) }
-  scope :secretaries, -> { where(position: ['secretary', 'director_secretary']) }
+  scope :directors, -> { where("position LIKE '%director%' OR position = 'chairman'") }
+  scope :secretaries, -> { where("position LIKE '%secretary%'") }
+  scope :corporate_officers, -> { where("position LIKE '%corporate_officer%'") }
+  scope :public_officers, -> { where("position LIKE '%public_officer%'") }
 
   # Callbacks
   before_save :update_current_status

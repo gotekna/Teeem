@@ -7,6 +7,8 @@ class ContactCompanyGroupMembership < ApplicationRecord
   # Constants
   MEMBERSHIP_TYPES = %w[
     director
+    secretary
+    corporate_officer
     shareholder
     beneficiary
     trustee
@@ -26,6 +28,8 @@ class ContactCompanyGroupMembership < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :with_type, ->(type) { where(membership_type: type) }
   scope :directors, -> { with_type('director') }
+  scope :secretaries, -> { with_type('secretary') }
+  scope :corporate_officers, -> { with_type('corporate_officer') }
   scope :shareholders, -> { with_type('shareholder') }
   scope :beneficiaries, -> { with_type('beneficiary') }
   scope :trustees, -> { with_type('trustee') }

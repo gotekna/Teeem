@@ -249,6 +249,63 @@ module Api
             }
           end
 
+        # SSoT: If this contact is linked to a Company, include company data
+        linked_company = Company.find_by(contact_id: @contact.id)
+        if linked_company
+          contact_json[:linked_company] = {
+            id: linked_company.id,
+            name: linked_company.name,
+            acn: linked_company.acn,
+            abn: linked_company.abn,
+            status: linked_company.status,
+            entity_type: linked_company.entity_type,
+            is_trustee: linked_company.is_trustee,
+            trust_name: linked_company.trust_name,
+            date_incorporated: linked_company.date_incorporated,
+            date_registered: linked_company.date_registered,
+            registered_office_address: linked_company.registered_office_address,
+            principal_place_of_business: linked_company.principal_place_of_business,
+            company_group_id: linked_company.company_group_id,
+            company_group_name: linked_company.company_group&.name,
+            # Directors
+            directors: linked_company.company_directors.includes(:contact).map do |d|
+              {
+                id: d.id,
+                contact_id: d.contact_id,
+                contact_name: d.contact&.display_name,
+                position: d.position,
+                formatted_position: d.formatted_position,
+                appointment_date: d.appointment_date,
+                resignation_date: d.resignation_date,
+                is_current: d.is_current
+              }
+            end,
+            # Shareholdings
+            shareholdings: linked_company.company_shareholdings.includes(:shareholder).map do |s|
+              {
+                id: s.id,
+                shareholder_type: s.shareholder_type,
+                shareholder_id: s.shareholder_id,
+                shareholder_name: s.shareholder&.respond_to?(:name) ? s.shareholder.name : s.shareholder&.full_name,
+                share_class: s.share_class,
+                number_of_shares: s.number_of_shares,
+                percentage_of_total: s.percentage_of_total,
+                date_acquired: s.date_acquired
+              }
+            end,
+            # Counts
+            directors_count: linked_company.company_directors.current.count,
+            shareholdings_count: linked_company.company_shareholdings.count,
+            documents_count: linked_company.company_documents.count
+          }
+        end
+
+        # SSoT: Filter confidential fields based on user permissions
+        contact_json = filter_confidential_fields(contact_json)
+
+        # Add permission indicator for frontend
+        contact_json[:can_view_confidential] = current_user&.can_view_confidential? || false
+
         render json: {
           success: true,
           contact: contact_json
@@ -1572,6 +1629,26 @@ module Api
             @contact.contact_group_memberships.create!(contact_group: group) unless @contact.contact_groups.include?(group)
           end
         end
+      end
+
+      # SSoT: Confidential fields that require permission to view
+      CONFIDENTIAL_FIELDS = %w[
+        tfn tax_number date_of_birth place_of_birth birth_state birth_country
+        residential_address drivers_licence passport_number
+        bank_bsb bank_account_number bank_account_name
+      ].freeze
+
+      # Filter confidential fields from contact JSON based on user permissions
+      def filter_confidential_fields(contact_json)
+        return contact_json if current_user&.can_view_confidential?
+
+        CONFIDENTIAL_FIELDS.each do |field|
+          if contact_json.key?(field) && contact_json[field].present?
+            contact_json[field] = '[RESTRICTED]'
+          end
+        end
+
+        contact_json
       end
 
       def contact_params

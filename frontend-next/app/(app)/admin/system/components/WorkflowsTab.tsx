@@ -100,7 +100,9 @@ export function WorkflowsTab() {
 
   const loadWorkflows = async () => {
     try {
-      const data = await api.get<WorkflowDefinition[]>("/api/v1/workflow_definitions");
+      const response = await api.get<{ workflow_definitions: WorkflowDefinition[] } | WorkflowDefinition[]>("/api/v1/workflow_definitions");
+      // Handle both { workflow_definitions: [...] } and direct array responses
+      const data = Array.isArray(response) ? response : (response?.workflow_definitions || []);
       setWorkflows(data);
     } catch (error) {
       console.error("Failed to load workflows:", error);

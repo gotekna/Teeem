@@ -134,7 +134,9 @@ export function FoldersTab() {
 
   const loadTemplates = async () => {
     try {
-      const data = await api.get<FolderTemplate[]>("/api/v1/folder_templates");
+      const response = await api.get<{ folder_templates: FolderTemplate[] } | FolderTemplate[]>("/api/v1/folder_templates");
+      // Handle both { folder_templates: [...] } and direct array responses
+      const data = Array.isArray(response) ? response : (response?.folder_templates || []);
       setTemplates(data);
     } catch (error) {
       console.error("Failed to load templates:", error);

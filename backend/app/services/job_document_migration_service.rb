@@ -1,0 +1,500 @@
+# Service to migrate job documents from legacy SharePoint folder structure
+# to the new job-specific OneDrive folders
+#
+# Usage:
+#   service = JobDocumentMigrationService.new
+#   service.run(dry_run: true)  # Preview changes
+#   service.run(dry_run: false) # Execute migration
+#
+class JobDocumentMigrationService
+  # Path to legacy job documents in SharePoint
+  SOURCE_FOLDER_PATH = 'Old House Data/00 Active - Soon to be moved out'
+
+  attr_reader :stats, :credential, :client
+
+  def initialize
+    @credential = begin
+      cred = OrganizationOneDriveCredential.active_credential
+      # Try to access an encrypted field to verify decryption works
+      cred&.access_token if cred
+      cred
+    rescue ActiveRecord::Encryption::Errors::Decryption => e
+      Rails.logger.warn "[JobDocumentMigration] Decryption error loading credential: #{e.message}"
+      nil
+    end
+
+    @client = MicrosoftGraphClient.new(@credential) if @credential
+    @stats = {
+      matched: 0,
+      unmatched: 0,
+      files_found: 0,
+      files_moved: 0,
+      folders_processed: 0,
+      errors: [],
+      unmatched_folders: [],
+      matched_jobs: []
+    }
+  end
+
+  # Run the migration
+  # @param dry_run [Boolean] If true, only preview changes without moving files
+  # @param limit [Integer] Limit number of folders to process (nil = all)
+  # @return [Hash] Statistics about the migration
+  def run(dry_run: true, limit: nil)
+    unless @credential && @client
+      puts 'ERROR: No active OneDrive credential found'
+      return { success: false, error: 'No OneDrive credential' }
+    end
+
+    puts '=== Job Document Migration ==='
+    puts "Mode: #{dry_run ? 'DRY RUN (preview only)' : 'LIVE (files will be moved)'}"
+    puts ''
+
+    # Find the source folder
+    source_folder = find_folder_by_path(SOURCE_FOLDER_PATH)
+    unless source_folder
+      puts "ERROR: Source folder not found: #{SOURCE_FOLDER_PATH}"
+      return { success: false, error: 'Source folder not found' }
+    end
+
+    puts "Found source folder: #{source_folder['name']} (ID: #{source_folder['id']})"
+    puts ''
+
+    # List all subfolders (each should be a job)
+    job_folders = list_subfolders(source_folder['id'])
+    puts "Found #{job_folders.count} job folders"
+    puts ''
+
+    # Apply limit if specified
+    job_folders = job_folders.first(limit) if limit
+
+    # Process each folder
+    job_folders.each_with_index do |folder, index|
+      puts "[#{index + 1}/#{job_folders.count}] Processing: #{folder['name']}"
+      @stats[:folders_processed] += 1
+
+      # Try to match folder to a job
+      job = match_folder_to_job(folder['name'])
+
+      if job
+        @stats[:matched] += 1
+        @stats[:matched_jobs] << { folder: folder['name'], job_id: job.id, job_title: job.title }
+        puts "  MATCHED to Job ##{job.id}: #{job.title}"
+
+        migrate_folder_to_job(folder, job, dry_run: dry_run)
+      else
+        @stats[:unmatched] += 1
+        @stats[:unmatched_folders] << folder['name']
+        puts "  NOT MATCHED - no job found"
+      end
+
+      puts ''
+    end
+
+    print_summary(dry_run)
+    @stats
+  end
+
+  # List legacy files for a specific job (used by API)
+  # Returns files from the old location that might belong to this job
+  def list_legacy_files_for_job(job)
+    return [] unless @credential && @client
+
+    source_folder = find_folder_by_path(SOURCE_FOLDER_PATH)
+    return [] unless source_folder
+
+    # Find folder matching this job
+    job_folders = list_subfolders(source_folder['id'])
+
+    matching_folder = job_folders.find do |folder|
+      folder_matches_job?(folder['name'], job)
+    end
+
+    return [] unless matching_folder
+
+    # Return all files in this folder
+    list_files_recursive(matching_folder['id'])
+  end
+
+  # Import specific files from legacy location to a job
+  # @param job [Job] The target job
+  # @param file_ids [Array<String>] OneDrive file IDs to import
+  # @return [Hash] Result of the import
+  def import_files_to_job(job, file_ids)
+    return { success: false, error: 'No OneDrive credential' } unless @credential && @client
+
+    results = { success: true, imported: [], errors: [] }
+
+    # Ensure job has OneDrive folder
+    ensure_job_folder(job)
+
+    file_ids.each do |file_id|
+      begin
+        # Get file info
+        file = @client.get("/drives/#{@credential.drive_id}/items/#{file_id}")
+
+        # Detect category based on filename
+        category = detect_document_category(file['name'])
+
+        # Get or create target folder
+        target_folder_id = find_or_create_category_folder(job, category)
+
+        # Move the file
+        @client.patch("/drives/#{@credential.drive_id}/items/#{file_id}", {
+          parentReference: { id: target_folder_id }
+        })
+
+        results[:imported] << {
+          file_id: file_id,
+          name: file['name'],
+          category: category
+        }
+      rescue StandardError => e
+        results[:errors] << { file_id: file_id, error: e.message }
+        results[:success] = false if results[:errors].count > results[:imported].count
+      end
+    end
+
+    results
+  end
+
+  private
+
+  # Find a folder by path (e.g., "Old House Data/00 Active")
+  def find_folder_by_path(path)
+    parts = path.split('/')
+    current_folder_id = nil
+
+    parts.each do |part|
+      parent_path = current_folder_id ? "/drives/#{@credential.drive_id}/items/#{current_folder_id}/children" : "/drives/#{@credential.drive_id}/root/children"
+
+      result = @client.get(parent_path)
+      folder = result['value']&.find { |item| item['name'] == part && item['folder'].present? }
+
+      return nil unless folder
+
+      current_folder_id = folder['id']
+    end
+
+    @client.get("/drives/#{@credential.drive_id}/items/#{current_folder_id}")
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error("Failed to find folder path '#{path}': #{e.message}")
+    nil
+  end
+
+  # List subfolders in a folder
+  def list_subfolders(folder_id)
+    result = @client.get("/drives/#{@credential.drive_id}/items/#{folder_id}/children")
+    result['value']&.select { |item| item['folder'].present? } || []
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error("Failed to list subfolders: #{e.message}")
+    []
+  end
+
+  # Match a folder name to a Job
+  def match_folder_to_job(folder_name)
+    # Clean up folder name for matching
+    normalized = normalize_folder_name(folder_name)
+
+    # 1. Try exact match on title
+    job = Job.find_by("LOWER(title) = ?", normalized.downcase)
+    return job if job
+
+    # 2. Try match on job number if folder starts with a number
+    if folder_name =~ /^(\d+)\s*[-_]/
+      job_number = $1
+      job = Job.find_by(job_number: job_number)
+      return job if job
+    end
+
+    # 3. Try fuzzy match on address components (Lot, Street, Suburb)
+    # Extract key components from folder name
+    address_parts = extract_address_parts(folder_name)
+
+    if address_parts[:lot] || address_parts[:street]
+      conditions = []
+      params = []
+
+      if address_parts[:lot]
+        conditions << "title ILIKE ?"
+        params << "%#{address_parts[:lot]}%"
+      end
+
+      if address_parts[:street]
+        conditions << "title ILIKE ?"
+        params << "%#{address_parts[:street]}%"
+      end
+
+      if conditions.any?
+        job = Job.where(conditions.join(' AND '), *params).first
+        return job if job
+      end
+    end
+
+    # 4. Try contains match (folder name within job title or vice versa)
+    job = Job.where("LOWER(title) LIKE ?", "%#{normalized.downcase}%").first
+    return job if job
+
+    # 5. Try job title within folder name
+    Job.find_each do |j|
+      if folder_name.downcase.include?(j.title.downcase.split(',').first) ||
+         j.title.downcase.include?(folder_name.downcase)
+        return j
+      end
+    end
+
+    nil
+  end
+
+  # Check if a folder name matches a specific job
+  def folder_matches_job?(folder_name, job)
+    normalized = normalize_folder_name(folder_name)
+
+    # Check various match conditions
+    return true if job.title.downcase == normalized.downcase
+    return true if job.title.downcase.include?(normalized.downcase)
+    return true if normalized.downcase.include?(job.title.split(',').first.downcase)
+
+    # Check address components
+    address_parts = extract_address_parts(folder_name)
+    if address_parts[:lot] && job.title.downcase.include?(address_parts[:lot].downcase)
+      return true
+    end
+
+    false
+  end
+
+  # Normalize folder name for matching
+  def normalize_folder_name(name)
+    name.gsub(/[_-]+/, ' ')
+        .gsub(/\s+/, ' ')
+        .strip
+  end
+
+  # Extract address components from a folder name
+  # Returns hash with :lot, :street, :suburb
+  def extract_address_parts(name)
+    parts = {}
+
+    # Match "Lot X" or "Lot X (Y)"
+    if name =~ /lot\s*(\d+)/i
+      parts[:lot] = "Lot #{$1}"
+    end
+
+    # Match street number and name
+    if name =~ /(\d+)\s+([A-Za-z]+\s+(?:Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres))/i
+      parts[:street] = "#{$1} #{$2}"
+    end
+
+    # Match suburb (usually last word or in caps)
+    words = name.split(/[,\s]+/)
+    potential_suburb = words.select { |w| w =~ /^[A-Z]{3,}$/ || w =~ /QLD|NSW|VIC|SA|WA|TAS|NT|ACT/i }.first
+    parts[:suburb] = potential_suburb if potential_suburb
+
+    parts
+  end
+
+  # Migrate all files from a folder to a job
+  def migrate_folder_to_job(source_folder, job, dry_run:)
+    # Get all files recursively
+    files = list_files_recursive(source_folder['id'])
+    @stats[:files_found] += files.count
+
+    puts "  Found #{files.count} files"
+
+    return if files.empty?
+
+    # Ensure job has OneDrive folder (only if not dry run)
+    ensure_job_folder(job) unless dry_run
+
+    files.each do |file|
+      category = detect_document_category(file[:name])
+
+      if dry_run
+        puts "    WOULD MOVE: #{file[:name]} -> #{category}/"
+      else
+        begin
+          target_folder_id = find_or_create_category_folder(job, category)
+
+          @client.patch("/drives/#{@credential.drive_id}/items/#{file[:id]}", {
+            parentReference: { id: target_folder_id }
+          })
+
+          @stats[:files_moved] += 1
+          puts "    MOVED: #{file[:name]} -> #{category}/"
+        rescue StandardError => e
+          @stats[:errors] << { file: file[:name], error: e.message }
+          puts "    ERROR: #{file[:name]} - #{e.message}"
+        end
+      end
+    end
+  end
+
+  # List all files in a folder recursively
+  def list_files_recursive(folder_id, depth = 0)
+    return [] if depth > 5 # Prevent infinite recursion
+
+    files = []
+
+    begin
+      result = @client.get("/drives/#{@credential.drive_id}/items/#{folder_id}/children")
+
+      result['value']&.each do |item|
+        if item['file']
+          files << {
+            id: item['id'],
+            name: item['name'],
+            size: item['size'],
+            web_url: item['webUrl'],
+            modified: item['lastModifiedDateTime']
+          }
+        elsif item['folder']
+          # Recurse into subfolder
+          files.concat(list_files_recursive(item['id'], depth + 1))
+        end
+      end
+    rescue MicrosoftGraphClient::APIError => e
+      Rails.logger.error("Failed to list files in folder #{folder_id}: #{e.message}")
+    end
+
+    files
+  end
+
+  # Ensure job has a OneDrive folder
+  def ensure_job_folder(job)
+    return if job.onedrive_folder_id.present?
+
+    # Create folder structure for job
+    # This should use the same logic as OrganizationOneDriveController#create_job_folders
+    job_folder_name = job.title.gsub(/[\/\\:*?"<>|]/, '-').strip
+    root_folder = get_or_create_jobs_root_folder
+
+    folder = @client.post("/drives/#{@credential.drive_id}/items/#{root_folder['id']}/children", {
+      name: job_folder_name,
+      folder: {},
+      '@microsoft.graph.conflictBehavior': 'rename'
+    })
+
+    job.update(onedrive_folder_id: folder['id'], onedrive_folder_path: folder['webUrl'])
+    folder
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error("Failed to create job folder: #{e.message}")
+    nil
+  end
+
+  # Get or create the root folder for job documents
+  def get_or_create_jobs_root_folder
+    root_folder_name = 'TEEEM Jobs'
+
+    result = @client.get("/drives/#{@credential.drive_id}/root/children")
+    folder = result['value']&.find { |item| item['name'] == root_folder_name && item['folder'].present? }
+
+    return folder if folder
+
+    @client.post("/drives/#{@credential.drive_id}/root/children", {
+      name: root_folder_name,
+      folder: {},
+      '@microsoft.graph.conflictBehavior': 'fail'
+    })
+  rescue MicrosoftGraphClient::APIError => e
+    # If folder exists, try to get it
+    result = @client.get("/drives/#{@credential.drive_id}/root/children")
+    result['value']&.find { |item| item['name'] == root_folder_name }
+  end
+
+  # Detect document category from filename
+  def detect_document_category(filename)
+    filename_lower = filename.downcase
+
+    # Contract/Sales documents
+    return 'Sales' if filename_lower.include?('contract') || filename_lower.include?('agreement')
+    return 'Sales' if filename_lower.include?('variation') || filename_lower.include?('vo')
+    return 'Sales' if filename_lower.include?('quote') || filename_lower.include?('proposal')
+
+    # Site documents
+    return 'Site' if filename_lower.include?('site') || filename_lower.include?('inspection')
+    return 'Site' if filename_lower.include?('soil') || filename_lower.include?('survey')
+
+    # Plans
+    return 'Plan' if filename_lower.include?('plan') || filename_lower.include?('drawing')
+    return 'Plan' if filename_lower.include?('blueprint') || filename_lower.include?('cad')
+
+    # Precon documents
+    return 'Precon' if filename_lower.include?('engineer') || filename_lower.include?('structural')
+    return 'Precon' if filename_lower.include?('approval') || filename_lower.include?('permit')
+    return 'Precon' if filename_lower.include?('certif') # Certificate/Certification
+
+    # Photos
+    return 'Photo' if filename_lower.include?('photo') || filename_lower.include?('image')
+    return 'Photo' if filename_lower =~ /\.(jpg|jpeg|png|gif|heic|heif)$/i
+
+    # Final Certificate
+    return 'Final Certificate' if filename_lower.include?('final') || filename_lower.include?('completion')
+    return 'Final Certificate' if filename_lower.include?('occupancy') || filename_lower.include?('ccc')
+
+    # Client documents
+    return 'Client' if filename_lower.include?('client') || filename_lower.include?('customer')
+
+    # Default to General/Site
+    'Site'
+  end
+
+  # Find or create a category subfolder within job folder
+  def find_or_create_category_folder(job, category)
+    return job.onedrive_folder_id unless category.present?
+
+    # Get job folder ID
+    job_folder_id = job.onedrive_folder_id
+    return job_folder_id unless job_folder_id
+
+    # Check if category folder exists
+    result = @client.get("/drives/#{@credential.drive_id}/items/#{job_folder_id}/children")
+    existing = result['value']&.find { |item| item['name'].downcase == category.downcase && item['folder'].present? }
+
+    return existing['id'] if existing
+
+    # Create the folder
+    folder = @client.post("/drives/#{@credential.drive_id}/items/#{job_folder_id}/children", {
+      name: category,
+      folder: {},
+      '@microsoft.graph.conflictBehavior': 'rename'
+    })
+
+    folder['id']
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error("Failed to create category folder #{category}: #{e.message}")
+    job_folder_id # Fall back to root job folder
+  end
+
+  # Print summary of migration
+  def print_summary(dry_run)
+    puts '=== Migration Summary ==='
+    puts "Mode: #{dry_run ? 'DRY RUN' : 'LIVE'}"
+    puts ''
+    puts "Folders processed: #{@stats[:folders_processed]}"
+    puts "  Matched to jobs: #{@stats[:matched]}"
+    puts "  Not matched:     #{@stats[:unmatched]}"
+    puts ''
+    puts "Files found:  #{@stats[:files_found]}"
+    puts "Files moved:  #{@stats[:files_moved]}" unless dry_run
+    puts ''
+
+    if @stats[:unmatched_folders].any?
+      puts 'Unmatched folders (need manual review):'
+      @stats[:unmatched_folders].first(20).each { |f| puts "  - #{f}" }
+      puts "  ... and #{@stats[:unmatched_folders].count - 20} more" if @stats[:unmatched_folders].count > 20
+      puts ''
+    end
+
+    if @stats[:errors].any?
+      puts 'Errors:'
+      @stats[:errors].first(10).each { |e| puts "  - #{e[:file]}: #{e[:error]}" }
+      puts ''
+    end
+
+    if dry_run
+      puts 'This was a DRY RUN. No files were actually moved.'
+      puts 'To execute the migration, run with dry_run: false'
+    end
+  end
+end

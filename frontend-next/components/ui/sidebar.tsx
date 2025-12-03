@@ -37,6 +37,7 @@ import {
   ChevronRight,
   Network,
   Wrench,
+  Scale,
 } from "lucide-react";
 import {
   Persona,
@@ -81,6 +82,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Price Book", href: urls.pricebook(), icon: Package },
   { name: "Documents", href: "/documents", icon: FolderOpen },
   { name: "Corporate", href: "/corporate", icon: Building2 },
+  { name: "Cases", href: "/cases", icon: Scale },
   { name: "CG NEW", href: "/corporate/cg-new", icon: Network },
   { name: "Portal", href: "/portal", icon: ExternalLink },
   { name: "Admin", href: "/admin", icon: Wrench },

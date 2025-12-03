@@ -32,7 +32,19 @@ import {
   ChevronRight,
   ArrowLeft,
   File,
+  Download,
+  FolderInput,
+  X,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 
 interface OrgStatus {
@@ -96,6 +108,14 @@ interface DocumentTask {
   validated_by: string | null;
 }
 
+interface LegacyFile {
+  id: string;
+  name: string;
+  size?: number;
+  web_url?: string;
+  modified?: string;
+}
+
 interface JobDocumentsTabProps {
   jobId: string | number;
   jobTitle?: string;
@@ -120,6 +140,13 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [folderPath, setFolderPath] = useState<FolderPath[]>([]);
   const [folderContents, setFolderContents] = useState<OneDriveItem[]>([]);
   const [loadingContents, setLoadingContents] = useState(false);
+
+  // Legacy import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [legacyFiles, setLegacyFiles] = useState<LegacyFile[]>([]);
+  const [loadingLegacy, setLoadingLegacy] = useState(false);
+  const [selectedLegacyFiles, setSelectedLegacyFiles] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -356,6 +383,92 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       }
     } catch (err) {
       console.error("Failed to validate document:", err);
+    }
+  };
+
+  // Load legacy files from the old SharePoint folder
+  const loadLegacyFiles = async () => {
+    try {
+      setLoadingLegacy(true);
+      setError(null);
+      const response = await api.get<{
+        success: boolean;
+        files: LegacyFile[];
+        count: number;
+        source_folder: string;
+      }>(`/api/v1/organization_onedrive/legacy_files?job_id=${jobId}`);
+
+      if (response?.success) {
+        setLegacyFiles(response.files || []);
+        setSelectedLegacyFiles([]);
+      }
+    } catch (err) {
+      console.error("Failed to load legacy files:", err);
+      setLegacyFiles([]);
+    } finally {
+      setLoadingLegacy(false);
+    }
+  };
+
+  // Import selected legacy files to the job folder
+  const handleImportLegacy = async () => {
+    if (selectedLegacyFiles.length === 0) return;
+
+    try {
+      setImporting(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        imported: { file_id: string; name: string; category: string }[];
+        errors: { file_id: string; error: string }[];
+      }>("/api/v1/organization_onedrive/import_legacy", {
+        job_id: jobId,
+        file_ids: selectedLegacyFiles,
+      });
+
+      if (response?.success) {
+        setMessage({
+          type: "success",
+          text: response.message || `Imported ${response.imported?.length || 0} files successfully!`,
+        });
+        setShowImportModal(false);
+        setSelectedLegacyFiles([]);
+        // Refresh the folder list
+        await checkJobFolderStatus();
+      } else {
+        setError(response?.errors?.map((e) => e.error).join(", ") || "Import failed");
+      }
+    } catch (err) {
+      console.error("Failed to import legacy files:", err);
+      setError("Failed to import files. Please try again.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Open import modal and load files
+  const openImportModal = async () => {
+    setShowImportModal(true);
+    await loadLegacyFiles();
+  };
+
+  // Toggle file selection
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedLegacyFiles((prev) =>
+      prev.includes(fileId)
+        ? prev.filter((id) => id !== fileId)
+        : [...prev, fileId]
+    );
+  };
+
+  // Select all files
+  const selectAllFiles = () => {
+    if (selectedLegacyFiles.length === legacyFiles.length) {
+      setSelectedLegacyFiles([]);
+    } else {
+      setSelectedLegacyFiles(legacyFiles.map((f) => f.id));
     }
   };
 
@@ -599,6 +712,10 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                 </p>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={openImportModal}>
+                  <FolderInput className="h-4 w-4 mr-1" />
+                  Import from Legacy
+                </Button>
                 <Button variant="outline" size="sm" onClick={checkJobFolderStatus}>
                   <RefreshCw className="h-4 w-4 mr-1" />
                   Refresh
@@ -791,6 +908,112 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       </div>
 
       {viewMode === "tasks" ? renderTasksView() : renderOneDriveView()}
+
+      {/* Import Legacy Files Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderInput className="h-5 w-5" />
+              Import from Legacy Folder
+            </DialogTitle>
+            <DialogDescription>
+              Select files from the old SharePoint folder to import into this job's folder.
+              Files will be automatically categorized and moved.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {loadingLegacy ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-3 text-muted-foreground">Searching for files...</span>
+              </div>
+            ) : legacyFiles.length === 0 ? (
+              <div className="py-12 text-center">
+                <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
+                <p className="mt-2 text-muted-foreground">No legacy files found for this job.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  The old folder structure may not contain files matching this job.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* Select All */}
+                <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                  <Checkbox
+                    id="select-all"
+                    checked={selectedLegacyFiles.length === legacyFiles.length}
+                    onCheckedChange={selectAllFiles}
+                  />
+                  <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                    Select All ({legacyFiles.length} files)
+                  </label>
+                </div>
+
+                {/* File list */}
+                <div className="border rounded-lg divide-y">
+                  {legacyFiles.map((file) => (
+                    <div
+                      key={file.id}
+                      className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer"
+                      onClick={() => toggleFileSelection(file.id)}
+                    >
+                      <Checkbox
+                        checked={selectedLegacyFiles.includes(file.id)}
+                        onCheckedChange={() => toggleFileSelection(file.id)}
+                      />
+                      <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {file.size && formatFileSize(file.size)}
+                          {file.modified && ` • Modified ${new Date(file.modified).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                      {file.web_url && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(file.web_url, "_blank");
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowImportModal(false)} disabled={importing}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportLegacy}
+              disabled={importing || selectedLegacyFiles.length === 0}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Import {selectedLegacyFiles.length} {selectedLegacyFiles.length === 1 ? "File" : "Files"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

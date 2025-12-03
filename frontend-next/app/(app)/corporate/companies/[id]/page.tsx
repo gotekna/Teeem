@@ -98,6 +98,15 @@ const TRUST_SUB_TABS = [
   { id: "distributions", name: "Distributions" },
 ];
 
+// Corporate Trustee sub-tabs (simplified - companies that act as trustees)
+const TRUSTEE_COMPANY_SUB_TABS = [
+  { id: "info", name: "Information" },
+  { id: "corporate", name: "Corporate" },
+  { id: "directors", name: "Directors" },
+  { id: "shareholdings", name: "Shareholdings" },
+  { id: "trusts", name: "Trusts Managed" },
+];
+
 interface Director {
   id: number;
   position: string;
@@ -2996,7 +3005,37 @@ export default function CompanyDetailPage() {
                   {overviewSubTab === "trust-deed" && <TrustDeedTab company={company} />}
                   {overviewSubTab === "distributions" && <DistributionsTab company={company} />}
                 </>
+              ) : company.is_trustee ? (
+                // Corporate Trustee - Simplified tabs (company that acts as trustee for trusts)
+                <>
+                  <div className="border-b">
+                    <nav className="-mb-px flex gap-6">
+                      {TRUSTEE_COMPANY_SUB_TABS.map((subTab) => (
+                        <button
+                          key={subTab.id}
+                          onClick={() => setOverviewSubTab(subTab.id)}
+                          className={cn(
+                            "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
+                            overviewSubTab === subTab.id
+                              ? "border-primary text-primary"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                          )}
+                        >
+                          {subTab.name}
+                        </button>
+                      ))}
+                    </nav>
+                  </div>
+
+                  {/* Corporate Trustee Sub-tab Content */}
+                  {overviewSubTab === "info" && <InformationTab company={company} />}
+                  {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
+                  {overviewSubTab === "directors" && <DirectorsTab company={company} />}
+                  {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
+                  {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
+                </>
               ) : (
+                // Trading Company - Full tabs
                 <>
                   <div className="border-b">
                     <nav className="-mb-px flex gap-6">
