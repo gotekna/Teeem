@@ -51,7 +51,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
-import { RefreshCw, Link2, Unlink } from "lucide-react";
+import { RefreshCw, Link2, Unlink, Sparkles } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -1483,6 +1483,7 @@ const buildDocumentColumns = (): TableColumn[] => [
   { key: "id", label: "ID", column_type: "whole_number", resizable: true, sortable: true, filterable: true, filterType: "text", width: 60 },
   { key: "title", label: "Title", column_type: "string", resizable: true, sortable: true, filterable: true, filterType: "text", width: 300 },
   { key: "validated", label: "✓", column_type: "boolean", resizable: false, sortable: true, filterable: true, filterType: "dropdown", width: 50 },
+  { key: "ai_confidence", label: "AI", column_type: "whole_number", resizable: false, sortable: true, filterable: true, filterType: "dropdown", width: 50 },
   { key: "document_type", label: "Type", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
   { key: "financial_years", label: "FY", column_type: "structured_data", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 80 },
   { key: "folder", label: "Folder", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
@@ -1549,6 +1550,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
           : doc.financial_years || "",
         validated: !!(doc.user_validated_at || doc.ai_verification_status === "verified"),
         validation_source: doc.user_validated_at ? "user" : doc.ai_verification_status === "verified" ? "ai" : undefined,
+        ai_confidence: doc.ai_confidence_score || null,
       }));
       setDocuments(transformed);
     } catch (error) {
@@ -1666,6 +1668,40 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
             <span className="h-5 w-5 rounded-full border-2 border-muted-foreground/30" />
           </div>
         );
+      case "ai_confidence":
+        // Show AI verification status with confidence percentage
+        if (doc.ai_verification_status === "processing") {
+          return (
+            <div className="flex justify-center" title="AI analyzing...">
+              <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+            </div>
+          );
+        }
+        if (doc.ai_confidence_score) {
+          const score = doc.ai_confidence_score;
+          const colorClass = score >= 90 ? "text-green-600 bg-green-100 dark:bg-green-900/30"
+            : score >= 70 ? "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30"
+            : "text-red-600 bg-red-100 dark:bg-red-900/30";
+          return (
+            <div className="flex justify-center" title={`AI confidence: ${score}%\n${doc.ai_analysis_notes || ''}`}>
+              <Badge variant="outline" className={cn("text-[10px] px-1 py-0 font-mono", colorClass)}>
+                {score}%
+              </Badge>
+            </div>
+          );
+        }
+        if (doc.ai_verification_status === "error") {
+          return (
+            <div className="flex justify-center" title={doc.ai_error_message || "AI analysis failed"}>
+              <XCircle className="h-4 w-4 text-red-400" />
+            </div>
+          );
+        }
+        return (
+          <div className="flex justify-center" title="Not analyzed by AI">
+            <span className="text-muted-foreground text-xs">-</span>
+          </div>
+        );
       case "source":
         if (doc.source === "sharepoint") {
           return (
@@ -1750,6 +1786,57 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     return company.sharepoint_folder_url;
   };
 
+  // Bulk AI verification state
+  const [bulkAiProcessing, setBulkAiProcessing] = React.useState(false);
+  const [bulkAiProgress, setBulkAiProgress] = React.useState<{ current: number; total: number } | null>(null);
+
+  // Bulk AI verification handler
+  const handleBulkAiVerify = async (ids: (number | string)[], clearSelection: () => void) => {
+    setBulkAiProcessing(true);
+    setBulkAiProgress({ current: 0, total: ids.length });
+
+    try {
+      // Process documents one by one (or use a bulk endpoint if available)
+      for (let i = 0; i < ids.length; i++) {
+        const docId = ids[i];
+        setBulkAiProgress({ current: i + 1, total: ids.length });
+
+        try {
+          // Call AI verify endpoint
+          const response = await api.post<{
+            success: boolean;
+            document: CompanyDocument;
+            auto_applied?: boolean;
+          }>(`/api/v1/company_documents/${docId}/ai_verify`, {
+            auto_apply_threshold: 90 // Auto-apply if 90%+ confidence
+          });
+
+          // Update the document in our local state
+          if (response.success && response.document) {
+            setDocuments(prev => prev.map(d =>
+              d.id === docId ? {
+                ...d,
+                ...response.document,
+                ai_confidence: response.document.ai_confidence_score || null,
+              } : d
+            ));
+          }
+        } catch (err) {
+          console.error(`Failed to AI verify document ${docId}:`, err);
+        }
+      }
+
+      // Reload documents to get final state
+      await loadDocuments();
+      clearSelection();
+    } catch (error) {
+      console.error("Bulk AI verification failed:", error);
+    } finally {
+      setBulkAiProcessing(false);
+      setBulkAiProgress(null);
+    }
+  };
+
   // Left actions for table toolbar (Add Record button)
   const leftActions = (
     <Button>
@@ -1802,6 +1889,27 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
         showDataHealth={true}
         leftActions={leftActions}
         customCellRenderer={customCellRenderer}
+        customBulkActions={(selectedIds, clearSelection) => (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleBulkAiVerify(selectedIds, clearSelection)}
+            disabled={bulkAiProcessing}
+            className="bg-purple-50 hover:bg-purple-100 border-purple-200 text-purple-700"
+          >
+            {bulkAiProcessing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                {bulkAiProgress ? `${bulkAiProgress.current}/${bulkAiProgress.total}` : "Processing..."}
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4 mr-1" />
+                Run AI ({selectedIds.length})
+              </>
+            )}
+          </Button>
+        )}
       />
 
       {/* Document Side Panel - Single click preview */}

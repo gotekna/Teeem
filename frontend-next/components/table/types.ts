@@ -127,6 +127,7 @@ export interface TeeemTableViewProps {
   // Custom rendering
   leftActions?: React.ReactNode;
   customActions?: React.ReactNode;
+  customBulkActions?: (selectedIds: (number | string)[], clearSelection: () => void) => React.ReactNode; // Custom bulk action buttons
   customCellRenderer?: (entry: TableRow, columnKey: string) => React.ReactNode | null;
   extraRowProps?: Record<string, unknown>;
 

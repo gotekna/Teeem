@@ -971,6 +971,7 @@ export default function TeeemTableView({
   onViewSchema,
   customActions,
   leftActions,
+  customBulkActions,
   customCellRenderer,
   extraRowProps,
   viewOnly = false,
@@ -5112,6 +5113,11 @@ export default function TeeemTableView({
               <Trash2 className="h-4 w-4 mr-1" />
               Delete
             </Button>
+          )}
+          {/* Custom bulk actions - rendered via callback */}
+          {customBulkActions && customBulkActions(
+            Array.from(selectedRows),
+            () => setSelectedRows(new Set())
           )}
         </div>
       )}
