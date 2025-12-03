@@ -2,7 +2,7 @@ module Api
   module V1
     class CompanyDocumentsController < ApplicationController
       skip_before_action :authorize_request, only: [:content]
-      before_action :set_document, only: [:show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split]
 
       # GET /api/v1/company_documents
       def index
@@ -494,6 +494,118 @@ module Api
               },
               methods: [:formatted_document_type, :file_size_mb]
             )
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/company_documents/:id/upload_edited
+      # Uploads an edited PDF back to SharePoint, optionally as a new file
+      # Accepts either:
+      #   - file: multipart file upload
+      #   - file_data: base64 encoded file content (from PDF editor)
+      def upload_edited
+        # Support both file upload and base64 data from PDF editor
+        unless params[:file].present? || params[:file_data].present?
+          return render json: { success: false, error: 'No file or file_data provided' }, status: :bad_request
+        end
+
+        new_filename = params[:file_name] || params[:filename] || @document.title
+        create_new = params[:create_new] == 'true' || params[:create_new] == true
+
+        begin
+          credential = OrganizationOneDriveCredential.active_credential
+          raise "No active OneDrive credential" unless credential
+
+          client = MicrosoftGraphClient.new(credential)
+
+          # Get content from either file upload or base64 data
+          content = if params[:file].present?
+            params[:file].read
+          else
+            Base64.decode64(params[:file_data])
+          end
+
+          if create_new
+            # Create a new document in the same folder
+            file_info = client.get_item(@document.onedrive_file_id)
+            parent_folder_id = file_info.dig('parentReference', 'id')
+
+            result = client.upload_file_content(parent_folder_id, new_filename, content)
+
+            # Create new document record
+            new_document = CompanyDocument.create!(
+              company_id: @document.company_id,
+              title: new_filename,
+              folder: @document.folder,
+              document_type: params[:document_type] || @document.document_type,
+              source: 'edited',
+              onedrive_file_id: result[:id],
+              file_size: content.bytesize,
+              financial_years: @document.financial_years,
+              ai_verification_status: 'pending',
+              ai_analysis_notes: "Created from edited version of #{@document.title}"
+            )
+
+            render json: {
+              success: true,
+              message: 'New document created successfully',
+              document: new_document.as_json(
+                include: { company: { only: [:id, :name, :code] } },
+                methods: [:formatted_document_type, :file_size_mb]
+              )
+            }
+          else
+            # Replace existing file
+            client.update_file_content(@document.onedrive_file_id, content)
+
+            # Update document record
+            @document.update!(
+              file_size: content.bytesize,
+              title: new_filename
+            )
+
+            render json: {
+              success: true,
+              message: 'Document updated successfully',
+              document: @document.reload.as_json(
+                include: { company: { only: [:id, :name, :code] } },
+                methods: [:formatted_document_type, :file_size_mb]
+              )
+            }
+          end
+        rescue StandardError => e
+          Rails.logger.error("Upload edited failed: #{e.message}")
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/company_documents/:id/split
+      # Splits a document into multiple new files
+      def split
+        splits = params[:splits]
+
+        unless splits.present? && splits.is_a?(Array)
+          return render json: { success: false, error: 'splits array required' }, status: :bad_request
+        end
+
+        service = DocumentSplitService.new(@document)
+        result = service.split!(splits.map(&:to_unsafe_h))
+
+        if result[:success]
+          render json: {
+            success: true,
+            message: "Document split into #{result[:documents].length} files",
+            documents: result[:documents].map do |doc|
+              doc.as_json(
+                include: { company: { only: [:id, :name, :code] } },
+                methods: [:formatted_document_type, :file_size_mb]
+              )
+            end
           }
         else
           render json: {

@@ -52,6 +52,7 @@ gem "creek", "~> 2.6"   # xlsx streaming parser (required by roo for xlsx suppor
 gem "caxlsx", "~> 4.1.0"  # Excel generation
 gem "caxlsx_rails", "~> 0.6.3"  # Rails integration for Excel export
 gem "pdf-reader", "~> 2.12"  # PDF text extraction for email attachments
+gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
 
 # Image management and scraping
 gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN

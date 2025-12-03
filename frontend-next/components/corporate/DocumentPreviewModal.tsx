@@ -2026,15 +2026,43 @@ export default function DocumentPreviewModal({
                   url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
                   fileName={document.file_name || document.title || "document.pdf"}
                   onSave={async (pdfBytes, fileName) => {
-                    // TODO: Upload edited PDF back to OneDrive
-                    // For now, download locally
-                    const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
-                    const downloadUrl = URL.createObjectURL(blob);
-                    const a = window.document.createElement("a");
-                    a.href = downloadUrl;
-                    a.download = fileName;
-                    a.click();
-                    URL.revokeObjectURL(downloadUrl);
+                    try {
+                      // Convert bytes to base64 for JSON transport
+                      const base64 = btoa(
+                        new Uint8Array(pdfBytes).reduce(
+                          (data, byte) => data + String.fromCharCode(byte),
+                          ''
+                        )
+                      );
+
+                      // Upload to SharePoint via backend
+                      const response = await api.post(
+                        `/api/v1/company_documents/${document.id}/upload_edited`,
+                        {
+                          file_data: base64,
+                          file_name: fileName,
+                          create_new: false, // Replace existing file
+                        }
+                      );
+
+                      if (response.success) {
+                        // Update local document state with new data
+                        if (response.document) {
+                          setDocument(response.document);
+                        }
+                        // Refresh parent list
+                        if (onDocumentUpdate) {
+                          await onDocumentUpdate();
+                        }
+                        setIsEditingPdf(false);
+                      } else {
+                        console.error("Failed to save PDF:", response.error);
+                        alert(`Failed to save: ${response.error || 'Unknown error'}`);
+                      }
+                    } catch (error) {
+                      console.error("Error saving PDF:", error);
+                      alert("Failed to save PDF. Please try again.");
+                    }
                   }}
                   onClose={() => setIsEditingPdf(false)}
                   className="flex-1"

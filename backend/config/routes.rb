@@ -1258,6 +1258,8 @@ Rails.application.routes.draw do
           post :apply_ai_suggestion
           post :relocate
           post :feedback
+          post :upload_edited  # Upload edited PDF back to SharePoint
+          post :split  # Split document into multiple files
         end
       end
 
