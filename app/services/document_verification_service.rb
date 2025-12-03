@@ -40,7 +40,13 @@ class DocumentVerificationService
       ai_suggested_type: analysis[:suggested_type],
       ai_suggested_fy: analysis[:suggested_fy],
       ai_confidence_score: analysis[:confidence],
-      ai_analysis_notes: analysis[:notes]
+      ai_analysis_notes: analysis[:notes],
+      ai_extracted_description: analysis[:extracted_description],
+      ai_extracted_date: analysis[:extracted_date],
+      ai_source_page: analysis[:source_page],
+      ai_source_quote: analysis[:source_quote],
+      ai_contains_multiple_documents: analysis[:contains_multiple_documents],
+      ai_split_recommendation: analysis[:split_recommendation]
     )
 
     { success: true, analysis: analysis }
@@ -108,8 +114,20 @@ class DocumentVerificationService
 
       begin
         reader = PDF::Reader.new(file.path)
-        text = reader.pages.map(&:text).join("\n")
-        return text if text.present?
+        # Extract text page-by-page with page numbers
+        pages_text = []
+        reader.pages.each_with_index do |page, index|
+          page_text = page.text.to_s.strip
+          if page_text.present?
+            pages_text << {
+              page: index + 1,
+              text: page_text[0..1500] # Limit each page to 1500 chars
+            }
+          end
+        end
+
+        # Return structured page data
+        return { pages: pages_text, total_pages: reader.page_count } if pages_text.any?
         nil
       rescue PDF::Reader::MalformedPDFError => e
         Rails.logger.warn("Malformed PDF: #{e.message}")
@@ -142,7 +160,7 @@ class DocumentVerificationService
     raise VerificationError, "Claude API error: #{e.message}"
   end
 
-  def build_prompt(text)
+  def build_prompt(text_data)
     # Build context about the document
     context_parts = []
     context_parts << "Current filename: #{@document.title}"
@@ -152,9 +170,15 @@ class DocumentVerificationService
 
     document_context = context_parts.join("\n")
 
-    # Only include text if we extracted any
-    text_section = if text.present?
-      "\n## Document text (first 3000 chars):\n#{text[0..3000]}"
+    # Build text section - now with page-by-page structure
+    text_section = if text_data.is_a?(Hash) && text_data[:pages].present?
+      pages_content = text_data[:pages].first(10).map do |p|
+        "--- PAGE #{p[:page]} ---\n#{p[:text]}"
+      end.join("\n\n")
+      "\n## Document Content (#{text_data[:total_pages]} pages):\n#{pages_content}"
+    elsif text_data.is_a?(String) && text_data.present?
+      # Fallback for old string format
+      "\n## Document text:\n#{text_data[0..3000]}"
     else
       "\n## Note: Could not extract text from this document. Please analyze based on the filename only."
     end
@@ -167,6 +191,8 @@ class DocumentVerificationService
 
     <<~PROMPT
       Analyze this document and suggest the best filename following TEEEM naming conventions.
+
+      IMPORTANT: Check if this PDF contains MULTIPLE DIFFERENT documents (e.g., a BAS statement on pages 1-2 and a Company Tax Return on page 3). If so, recommend splitting.
 
       ## Document Context:
       #{document_context}
@@ -184,22 +210,36 @@ class DocumentVerificationService
 
       ## Respond ONLY with valid JSON in this exact format:
       {
-        "suggested_name": "TD FY24 CTR.pdf",
+        "suggested_name": "TD ATO Activity Statement 24-06-2024.pdf",
         "suggested_folder": "ATO",
-        "suggested_type": "tax_return",
+        "suggested_type": "ATO Documents",
         "suggested_fy": [2024],
         "confidence": 85,
         "notes": "Brief explanation of why this name was suggested",
-        "current_name_valid": true
+        "current_name_valid": true,
+        "extracted_description": "Activity Statement",
+        "extracted_date": "2024-06-30",
+        "source_page": 1,
+        "source_quote": "The exact text from the document that helped identify this",
+        "contains_multiple_documents": false,
+        "split_recommendation": null
       }
 
       Notes:
       - suggested_name should follow the TEEEM convention strictly using the naming format for the document type
       - suggested_folder should be one of the valid folders listed above
+      - suggested_type MUST be the EXACT document type name from the list above (e.g., "ATO Documents", "BAS - Business Activity Statement", etc.)
       - suggested_fy should be an array of financial years (e.g., [2024] or [2023, 2024] for multi-year docs)
       - confidence should be 0-100 based on how certain you are
       - current_name_valid should be true if the current filename already follows TEEEM conventions well
-      - If the current name is already good, set current_name_valid to true and suggested_name can match the current
+      - extracted_description: A brief description of the document content
+      - extracted_date: The most relevant date from the document in YYYY-MM-DD format
+      - source_page: Which page number (1-indexed) the key information was found on
+      - source_quote: A short quote (max 100 chars) from the document that identifies what it is
+      - contains_multiple_documents: Set to TRUE if the PDF contains different document types that should be separate files
+      - split_recommendation: If contains_multiple_documents is true, provide an array like:
+        [{"pages": "1-2", "type": "BAS - Business Activity Statement", "suggested_name": "TD BAS Q1 FY24.pdf"},
+         {"pages": "3", "type": "CTR - Company Tax Return", "suggested_name": "TD CTR FY24.pdf"}]
     PROMPT
   end
 
@@ -234,7 +274,10 @@ class DocumentVerificationService
         types.each do |dt|
           abbrev = dt.abbreviation.present? ? " (#{dt.abbreviation})" : ""
           format = dt.naming_format.present? ? " - Format: #{dt.naming_format}" : ""
-          lines << "- #{dt.name}#{abbrev}#{format}"
+          # Include all aliases (database + defaults) so AI knows alternative names
+          all_aliases = dt.all_terms - [dt.name]
+          aliases_info = all_aliases.any? ? " [Also known as: #{all_aliases.first(5).join(', ')}]" : ""
+          lines << "- #{dt.name}#{abbrev}#{format}#{aliases_info}"
         end
         lines << ""
       end
@@ -283,14 +326,36 @@ class DocumentVerificationService
 
     json = JSON.parse(json_match[0])
 
+    # Normalize suggested_type to canonical document type name
+    suggested_type = json["suggested_type"]
+    if suggested_type.present?
+      canonical_type = DocumentType.find_by_name_or_alias(suggested_type)
+      suggested_type = canonical_type&.name || suggested_type
+    end
+
+    # Determine status - if multiple docs detected, flag for splitting
+    status = if json["contains_multiple_documents"]
+      "needs_split"
+    elsif json["current_name_valid"]
+      "verified"
+    else
+      "mismatch"
+    end
+
     {
-      status: json["current_name_valid"] ? "verified" : "mismatch",
+      status: status,
       suggested_name: json["suggested_name"],
       suggested_folder: json["suggested_folder"],
-      suggested_type: json["suggested_type"],
+      suggested_type: suggested_type,
       suggested_fy: json["suggested_fy"] || [],
       confidence: json["confidence"].to_i,
-      notes: json["notes"]
+      notes: json["notes"],
+      extracted_description: json["extracted_description"],
+      extracted_date: json["extracted_date"],
+      source_page: json["source_page"],
+      source_quote: json["source_quote"],
+      contains_multiple_documents: json["contains_multiple_documents"] || false,
+      split_recommendation: json["split_recommendation"]
     }
 
   rescue JSON::ParserError => e

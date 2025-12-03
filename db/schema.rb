@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_03_025721) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_03_050741) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -503,6 +503,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_025721) do
     t.boolean "validation_required", default: false
     t.date "ref_date"
     t.date "filed_date"
+    t.string "ai_extracted_description"
+    t.date "ai_extracted_date"
+    t.integer "ai_source_page"
+    t.text "ai_source_quote"
+    t.boolean "ai_contains_multiple_documents", default: false
+    t.jsonb "ai_split_recommendation"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"
@@ -1027,7 +1033,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_025721) do
     t.string "name_format"
     t.string "naming_format"
     t.string "abbreviation"
+    t.jsonb "aliases", default: []
+    t.string "display_name"
     t.index ["active"], name: "index_document_types_on_active"
+    t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name"], name: "index_document_types_on_name", unique: true
