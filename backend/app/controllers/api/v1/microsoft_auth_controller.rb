@@ -320,8 +320,13 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def render_popup_close_page(success:, email: nil, error: nil)
-    # Get the frontend URL from environment or derive from request
-    frontend_url = ENV['FRONTEND_URL'] || 'https://teeemrob.vercel.app'
+    # Get the frontend URL from environment or derive from request referer
+    frontend_url = get_frontend_url_from_referer
+
+    # Build the redirect URL with status params
+    redirect_path = "/settings/integrations/microsoft"
+    query_params = success ? "?connected=true&email=#{CGI.escape(email || '')}" : "?error=#{CGI.escape(error || 'Unknown error')}"
+    redirect_url = "#{frontend_url}#{redirect_path}#{query_params}"
 
     html = <<~HTML
       <!DOCTYPE html>
@@ -361,10 +366,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
           <h1>#{success ? 'Microsoft Connected!' : 'Connection Failed'}</h1>
           <p>#{success ? "Connected as #{email}" : error}</p>
           #{success ? services_html : ''}
-          <p style="margin-top: 16px; font-size: 14px; color: #9ca3af;">This window will close automatically...</p>
+          <p style="margin-top: 16px; font-size: 14px; color: #9ca3af;">Redirecting back to settings...</p>
         </div>
         <script>
-          // Notify parent window of success/failure
+          // If this was opened as a popup, notify parent and close
           if (window.opener) {
             window.opener.postMessage({
               type: 'microsoft-oauth-callback',
@@ -372,13 +377,34 @@ class Api::V1::MicrosoftAuthController < ApplicationController
               email: #{email.to_json},
               error: #{error.to_json}
             }, '#{frontend_url}');
+            setTimeout(function() { window.close(); }, 2000);
+          } else {
+            // Not a popup - redirect back to the settings page
+            setTimeout(function() {
+              window.location.href = '#{redirect_url}';
+            }, 1500);
           }
-          setTimeout(function() { window.close(); }, 2500);
         </script>
       </body>
       </html>
     HTML
     render html: html.html_safe
+  end
+
+  def get_frontend_url_from_referer
+    # Try to get from referer header (where user came from)
+    referer = request.referer
+    if referer.present?
+      begin
+        uri = URI.parse(referer)
+        return "#{uri.scheme}://#{uri.host}#{uri.port && ![80, 443].include?(uri.port) ? ":#{uri.port}" : ''}"
+      rescue URI::InvalidURIError
+        # Fall through to defaults
+      end
+    end
+
+    # Fall back to environment variable
+    ENV['FRONTEND_URL'] || 'https://teeemrob.vercel.app'
   end
 
   def services_html
