@@ -1619,9 +1619,11 @@ export default function DocumentPreviewModal({
                   <Loader2 className="h-12 w-12 animate-spin mb-4" />
                   <p className="text-sm">Loading preview...</p>
                 </div>
-              ) : fileType === "pdf" && (previewUrl || document.file_url) ? (
+              ) : fileType === "pdf" && document.id ? (
+                // For PDFs, always use the /content endpoint to bypass CORS
+                // SharePoint embed URLs don't work with PDF.js due to CORS restrictions
                 <PDFViewer
-                  url={previewUrl || document.file_url || ""}
+                  url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
                   className="flex-1"
                   showThumbnails={false}
                   fallbackUrl={document.file_url}

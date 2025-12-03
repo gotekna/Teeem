@@ -3,7 +3,7 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
-import { Loader2, FileText, ExternalLink } from "lucide-react";
+import { Loader2, FileText, ExternalLink, RefreshCw } from "lucide-react";
 import { Button } from "./button";
 
 export interface PDFViewerProps {
@@ -29,10 +29,12 @@ function PDFViewerLoading({ className }: { className?: string }) {
 function PDFViewerError({
   error,
   fallbackUrl,
+  onRetry,
   className
 }: {
   error: string;
   fallbackUrl?: string;
+  onRetry?: () => void;
   className?: string;
 }) {
   return (
@@ -40,14 +42,22 @@ function PDFViewerError({
       <FileText className="h-16 w-16 mb-4" />
       <p className="text-lg font-medium mb-2">Failed to load PDF</p>
       <p className="text-sm text-center mb-4">{error}</p>
-      {fallbackUrl && (
-        <Button asChild>
-          <a href={fallbackUrl} target="_blank" rel="noopener noreferrer">
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Open in New Tab
-          </a>
-        </Button>
-      )}
+      <div className="flex items-center gap-2">
+        {onRetry && (
+          <Button variant="outline" onClick={onRetry}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        )}
+        {fallbackUrl && (
+          <Button asChild>
+            <a href={fallbackUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open in New Tab
+            </a>
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -63,17 +73,24 @@ const PDFViewerImpl = dynamic(
 
 export function PDFViewer(props: PDFViewerProps) {
   const [error, setError] = React.useState<string | null>(null);
+  const [retryKey, setRetryKey] = React.useState(0);
 
   const handleError = React.useCallback((e: Error) => {
     setError(e.message || "Failed to load PDF");
     props.onError?.(e);
   }, [props.onError]);
 
+  const handleRetry = React.useCallback(() => {
+    setError(null);
+    setRetryKey((k) => k + 1); // Force remount of PDFViewerImpl
+  }, []);
+
   if (error) {
     return (
       <PDFViewerError
         error={error}
         fallbackUrl={props.fallbackUrl}
+        onRetry={handleRetry}
         className={props.className}
       />
     );
@@ -81,6 +98,7 @@ export function PDFViewer(props: PDFViewerProps) {
 
   return (
     <PDFViewerImpl
+      key={retryKey}
       {...props}
       onError={handleError}
     />
