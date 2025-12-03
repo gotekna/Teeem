@@ -1159,6 +1159,40 @@ Rails.application.routes.draw do
         end
       end
 
+      # Cases/Actions System (Investigation & Audit)
+      resources :cases do
+        collection do
+          get :types  # Get available case types, statuses, action types
+        end
+        member do
+          # Case content
+          get :actions
+          get :documents
+          get :emails
+          get :timeline
+          get :contacts
+          get :companies
+          get :jobs
+
+          # Warehouse integration
+          get :warehouse_summary
+          get :search_emails
+          get :search_documents
+          get :financial_analysis
+          post :build_timeline
+
+          # Add items to case
+          post :add_document
+          post :add_email
+          post :add_contact
+          post :add_company
+          post :add_job
+
+          # Run actions
+          post :run_action
+        end
+      end
+
       # Consolidation / Intercompany Reconciliation
       resources :consolidation, only: [:index] do
         collection do
