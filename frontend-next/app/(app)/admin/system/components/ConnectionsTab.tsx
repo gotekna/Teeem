@@ -31,8 +31,8 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 
-// OneDrive Connection Component
-function OneDriveConnection() {
+// SharePoint Connection Component
+function SharePointConnection() {
   const { toast } = useToast();
   const [status, setStatus] = React.useState<{
     connected: boolean;
@@ -53,7 +53,7 @@ function OneDriveConnection() {
       const data = await api.get<typeof status>("/api/v1/organization_onedrive/status");
       setStatus(data);
     } catch (error) {
-      console.error("Failed to load OneDrive status:", error);
+      console.error("Failed to load SharePoint status:", error);
       setStatus({ connected: false });
     } finally {
       setLoading(false);
@@ -73,15 +73,15 @@ function OneDriveConnection() {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Are you sure you want to disconnect OneDrive?")) return;
+    if (!confirm("Are you sure you want to disconnect SharePoint?")) return;
     setDisconnecting(true);
     try {
       await api.delete("/api/v1/organization_onedrive/disconnect");
-      toast({ title: "Success", description: "OneDrive disconnected successfully" });
+      toast({ title: "Success", description: "SharePoint disconnected successfully" });
       setStatus({ connected: false });
     } catch (error) {
       console.error("Failed to disconnect:", error);
-      toast({ title: "Error", description: "Failed to disconnect OneDrive", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to disconnect SharePoint", variant: "destructive" });
     } finally {
       setDisconnecting(false);
     }
@@ -106,7 +106,7 @@ function OneDriveConnection() {
               <Cloud className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <CardTitle className="text-base">OneDrive</CardTitle>
+              <CardTitle className="text-base">SharePoint</CardTitle>
               <CardDescription>Organization file storage and sync</CardDescription>
             </div>
           </div>
@@ -165,7 +165,7 @@ function OneDriveConnection() {
             ) : (
               <Cloud className="h-4 w-4 mr-2" />
             )}
-            Connect OneDrive
+            Connect SharePoint
           </Button>
         )}
       </CardContent>
@@ -546,7 +546,7 @@ function TwilioConfiguration() {
 export function ConnectionsTab() {
   return (
     <div className="space-y-6">
-      <OneDriveConnection />
+      <SharePointConnection />
       <OutlookConnection />
       <TwilioConfiguration />
     </div>
