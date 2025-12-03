@@ -28,8 +28,8 @@ class DocumentVerificationService
     # 3. Extract text from PDF
     text = extract_text(content)
 
-    # 4. Send to Claude for analysis
-    analysis = analyze_with_claude(text)
+    # 4. Send to Claude for analysis (pass PDF content for vision fallback if text extraction failed)
+    analysis = analyze_with_claude(text, text.nil? ? content : nil)
 
     # 5. Update document with results
     @document.update!(
@@ -139,25 +139,121 @@ class DocumentVerificationService
     end
   end
 
-  def analyze_with_claude(text)
+  def analyze_with_claude(text, pdf_content = nil)
     api_key = ENV['ANTHROPIC_API_KEY']
     raise VerificationError, "ANTHROPIC_API_KEY not configured" unless api_key
 
     client = Anthropic::Client.new(access_token: api_key)
     prompt = build_prompt(text)
 
-    response = client.messages(
-      parameters: {
-        model: MODEL,
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }]
-      }
-    )
+    # If no text was extracted but we have PDF content, use vision
+    if text.nil? && pdf_content.present?
+      response = analyze_with_vision(client, prompt, pdf_content)
+    else
+      response = client.messages(
+        parameters: {
+          model: MODEL,
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }]
+        }
+      )
+    end
 
     parse_response(response)
   rescue Anthropic::Error => e
     Rails.logger.error("Anthropic API error: #{e.message}")
     raise VerificationError, "Claude API error: #{e.message}"
+  end
+
+  def analyze_with_vision(client, prompt, pdf_content)
+    # Convert PDF pages to images using MiniMagick
+    images = convert_pdf_to_images(pdf_content)
+
+    if images.empty?
+      Rails.logger.warn("Could not convert PDF to images, falling back to text-only")
+      return client.messages(
+        parameters: {
+          model: MODEL,
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }]
+        }
+      )
+    end
+
+    # Build message content with images
+    content = []
+
+    # Add first few pages as images (limit to 5 pages to control costs)
+    images.first(5).each_with_index do |image_data, idx|
+      content << {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: "image/png",
+          data: image_data
+        }
+      }
+    end
+
+    # Add the text prompt
+    content << {
+      type: "text",
+      text: prompt
+    }
+
+    client.messages(
+      parameters: {
+        model: MODEL,
+        max_tokens: 1024,
+        messages: [{ role: "user", content: content }]
+      }
+    )
+  end
+
+  def convert_pdf_to_images(pdf_content)
+    images = []
+
+    Tempfile.create(['doc', '.pdf']) do |pdf_file|
+      pdf_file.binmode
+      pdf_file.write(pdf_content)
+      pdf_file.rewind
+
+      begin
+        # Try MiniMagick first (requires ImageMagick + Ghostscript on system)
+        page_count = get_pdf_page_count(pdf_file.path)
+
+        # Convert each page (limit to first 5)
+        [page_count, 5].min.times do |page_num|
+          Tempfile.create(['page', '.png']) do |img_file|
+            MiniMagick::Tool::Convert.new do |convert|
+              convert.density(150)
+              convert << "#{pdf_file.path}[#{page_num}]"
+              convert.resize("1200x1600>")  # Max dimensions
+              convert.quality(85)
+              convert << img_file.path
+            end
+
+            img_file.rewind
+            image_data = img_file.read
+            images << Base64.strict_encode64(image_data) if image_data.present?
+          end
+        end
+      rescue StandardError => e
+        Rails.logger.error("PDF to image conversion failed: #{e.message}")
+        Rails.logger.error("Make sure ImageMagick and Ghostscript are installed")
+      end
+    end
+
+    images
+  end
+
+  def get_pdf_page_count(pdf_path)
+    # Use PDF::Reader to get page count (more reliable than MiniMagick)
+    reader = PDF::Reader.new(pdf_path)
+    reader.page_count
+  rescue StandardError => e
+    Rails.logger.warn("Could not get PDF page count: #{e.message}")
+    1
   end
 
   def build_prompt(text_data)
