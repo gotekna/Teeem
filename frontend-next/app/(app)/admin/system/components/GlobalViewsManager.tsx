@@ -909,6 +909,24 @@ export function GlobalViewsManager({
         // Reload views list - if this was a new view, pass the name so we can select it
         console.log('[GlobalViewsManager] Reloading views, selectByName:', isNewView ? editName : 'none');
         await loadViews(isNewView ? editName : undefined);
+
+        // Apply the saved view to the table immediately
+        const savedView: SavedView = {
+          id: isNewView && response.view?.id ? response.view.id : editingView.id,
+          name: editName,
+          is_global: editIsGlobal,
+          visibleColumns: editVisibleColumns,
+          columnOrder: editColumnOrder,
+          columnWidths: editColumnWidths,
+          autoFitColumns: editAutoFitColumns,
+          showTotals: editShowTotals,
+          filters: editFilters,
+          filterGroups: editFilterGroups,
+          interGroupLogic: editInterGroupLogic,
+          sortColumns: editSortColumns,
+          groupByColumns: editGroupByColumns,
+        };
+        onApplyView?.(savedView);
         onViewsChange?.();
       } else {
         throw new Error(response?.error || "Failed to save view");
@@ -1626,7 +1644,7 @@ export function GlobalViewsManager({
                                 )}
                                 Save
                               </Button>
-                              <Button size="sm" onClick={async () => { await handleSaveView(); setIsEditing(false); }} disabled={saving}>
+                              <Button size="sm" onClick={async () => { await handleSaveView(); setIsEditing(false); onOpenChange(false); }} disabled={saving}>
                                 {saving ? (
                                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                 ) : (
