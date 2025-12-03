@@ -1253,6 +1253,11 @@ Rails.application.routes.draw do
 
       # Company Documents
       resources :company_documents do
+        collection do
+          get :duplicates  # Find duplicate documents
+          post :analyze_duplicates  # AI analyze duplicate documents
+          post :resolve_duplicates  # Execute action to resolve duplicates
+        end
         member do
           get :download
           get :preview
