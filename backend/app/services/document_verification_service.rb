@@ -381,6 +381,11 @@ class DocumentVerificationService
       If the filename or content shows TWO OR MORE distinct document types, set contains_multiple_documents: true and provide split_recommendation.
       Each document type should be its own file - NEVER combine different document types into one suggested name.
 
+      EXCEPTION - DO NOT flag for splitting:
+      - Management reports, quarterly summaries, or financial reports that INCLUDE a BAS statement as supporting documentation
+      - These are intentionally bundled together as a single management package
+      - If the document is primarily a management report with BAS/financial data attached, treat it as ONE document (type: BAS - Business Activity Statement)
+
       ## Document Context:
       #{document_context}
 
