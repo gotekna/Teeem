@@ -47,7 +47,9 @@ class DocumentRelocateService
     if needs_rename
       # Preserve file extension
       current_extension = File.extname(current_file['name'])
-      new_name = new_title.end_with?(current_extension) ? new_title : "#{new_title}#{current_extension}"
+      # Sanitize the title for OneDrive (remove illegal characters)
+      sanitized_title = sanitize_onedrive_filename(new_title)
+      new_name = sanitized_title.end_with?(current_extension) ? sanitized_title : "#{sanitized_title}#{current_extension}"
       update_payload[:name] = new_name
       actions << { type: 'rename', from: current_file['name'], to: new_name }
     end
@@ -88,6 +90,25 @@ class DocumentRelocateService
   end
 
   private
+
+  # Sanitize filename for OneDrive - remove characters not allowed by Microsoft
+  # Invalid characters: " * : < > ? / \ |
+  # Also remove leading/trailing spaces and periods
+  def sanitize_onedrive_filename(filename)
+    return '' if filename.blank?
+
+    # Remove invalid characters for OneDrive/SharePoint
+    sanitized = filename.gsub(/["*:<>?\/\\|]/, '')
+
+    # Replace multiple spaces with single space
+    sanitized = sanitized.gsub(/\s+/, ' ')
+
+    # Remove leading/trailing spaces and periods
+    sanitized = sanitized.strip.gsub(/^\.+|\.+$/, '')
+
+    # Ensure not empty after sanitization
+    sanitized.presence || 'Untitled'
+  end
 
   # Find the OneDrive folder ID for the target company/folder
   def find_target_folder_id(company_id:, folder:)
