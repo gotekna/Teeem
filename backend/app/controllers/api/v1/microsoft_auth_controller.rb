@@ -115,6 +115,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # Also update the legacy outlook_credential for backward compatibility
     update_legacy_outlook_credential(user, tokens, microsoft_email)
 
+    # Also create/update organization-level OneDrive credential for SharePoint access
+    # This allows the org to have shared OneDrive/SharePoint access via any user's connection
+    update_organization_onedrive_credential(user, tokens)
+
     Rails.logger.info "Microsoft connected successfully for user #{user.id} (#{microsoft_email})"
     render_popup_close_page(success: true, email: microsoft_email, frontend_url: frontend_url)
   rescue => e
@@ -332,6 +336,79 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       email: email,
       tenant_id: ENV['OUTLOOK_TENANT_ID'] || 'common'
     )
+  end
+
+  def update_organization_onedrive_credential(user, tokens)
+    # Create or update organization-level OneDrive credential
+    # This provides shared SharePoint/OneDrive access for the whole org
+    Rails.logger.info "[Microsoft Auth] Updating organization OneDrive credential..."
+
+    # Deactivate any existing credentials
+    OrganizationOneDriveCredential.where(is_active: true).update_all(is_active: false)
+
+    # Create new credential
+    credential = OrganizationOneDriveCredential.create!(
+      access_token: tokens[:access_token],
+      refresh_token: tokens[:refresh_token],
+      token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,
+      connected_by: user,
+      is_active: true
+    )
+
+    Rails.logger.info "[Microsoft Auth] Created org credential ID: #{credential.id}"
+
+    # Try to connect to the TEEEM SharePoint site
+    begin
+      client = MicrosoftGraphClient.new(credential)
+
+      # First try to find the TEEEM SharePoint site
+      Rails.logger.info "[Microsoft Auth] Looking for TEEEM SharePoint site..."
+
+      # Search for the site by name
+      begin
+        result = client.use_sharepoint_site("TEEEM")
+        Rails.logger.info "[Microsoft Auth] Connected to SharePoint site: #{result[:site]['displayName'] || 'TEEEM'}"
+      rescue StandardError => e
+        Rails.logger.warn "[Microsoft Auth] Could not find TEEEM site by name: #{e.message}"
+
+        # Try searching for it
+        begin
+          sites = client.list_sharepoint_sites
+          teeem_site = sites.find { |s| s[:name]&.downcase&.include?('teeem') }
+
+          if teeem_site
+            result = client.use_sharepoint_site(teeem_site[:id])
+            Rails.logger.info "[Microsoft Auth] Connected to SharePoint via search: #{teeem_site[:name]}"
+          else
+            # Fall back to personal OneDrive
+            Rails.logger.warn "[Microsoft Auth] No TEEEM SharePoint found, using personal OneDrive"
+            drive_info = client.get('/me/drive')
+            credential.update!(
+              drive_id: drive_info['id'],
+              drive_name: drive_info['name'] || 'My OneDrive',
+              metadata: {
+                drive_type: 'personal',
+                owner_name: drive_info.dig('owner', 'user', 'displayName')
+              }
+            )
+          end
+        rescue StandardError => search_error
+          Rails.logger.warn "[Microsoft Auth] SharePoint search failed: #{search_error.message}"
+          # Still use personal OneDrive as fallback
+          drive_info = client.get('/me/drive')
+          credential.update!(
+            drive_id: drive_info['id'],
+            drive_name: drive_info['name'] || 'My OneDrive',
+            metadata: { drive_type: 'personal' }
+          )
+        end
+      end
+    rescue StandardError => e
+      Rails.logger.error "[Microsoft Auth] Failed to set up SharePoint: #{e.message}"
+      # The credential is still valid for basic OneDrive operations
+    end
+
+    credential
   end
 
   def render_popup_close_page(success:, email: nil, error: nil, frontend_url: nil)
