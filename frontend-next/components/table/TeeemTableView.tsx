@@ -5731,9 +5731,9 @@ export default function TeeemTableView({
         <DialogContent className="max-w-6xl max-h-[90vh] p-8">
           <DialogHeader className="pb-4">
             <DialogTitle>SHOW/HIDE & REORDER COLUMNS</DialogTitle>
-            <p className="text-sm text-muted-foreground mt-1">
+            <DialogDescription>
               Drag rows to reorder, or click the position number to type a new position
-            </p>
+            </DialogDescription>
           </DialogHeader>
 
           <ScrollArea className="h-[600px] border rounded-md">

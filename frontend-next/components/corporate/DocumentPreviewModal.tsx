@@ -809,6 +809,11 @@ export default function DocumentPreviewModal({
               if (pollingRef.current) clearInterval(pollingRef.current);
               setAiVerifying(false);
 
+              // Refresh parent list to update AI status in table
+              if (onDocumentUpdate) {
+                onDocumentUpdate();
+              }
+
               // Auto-fill ALL fields from AI when results arrive
               const doc = response.document;
 
@@ -1535,19 +1540,43 @@ export default function DocumentPreviewModal({
                   />
                 </div>
 
-                {/* Table Title Preview - shows full document type name + FY + Signed/Unsigned + Amended */}
+                {/* Table Title Preview - shows full document type name + dates/FY + Signed/Unsigned + Amended */}
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
                   <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 line-clamp-2">
                     {(() => {
                       const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
                       const fullTypeName = docTypeRecord?.name || editedDocumentType || "";
+                      const fullTypeNameLower = fullTypeName.toLowerCase();
+
+                      // Check if this is a date-range document (statements, etc)
+                      const isDateRangeDoc = fullTypeNameLower.includes("statement") ||
+                        fullTypeNameLower.includes("summary") ||
+                        editedTitle?.includes(" to ");
+
+                      // Extract date range and print date from edited title
+                      // Format: "TD Income Tax Statement 01-07-2023 to 01-07-2025 (01-07-2025).pdf"
+                      const dateRangeMatch = editedTitle?.match(/(\d{2}-\d{2}-\d{4})\s*to\s*(\d{2}-\d{2}-\d{4})/);
+                      const printDateMatch = editedTitle?.match(/\((\d{2}-\d{2}-\d{4})\)/);
+
+                      let datePart = "";
+                      if (isDateRangeDoc && dateRangeMatch) {
+                        // Use full date range for statement-type documents
+                        datePart = `${dateRangeMatch[1]} to ${dateRangeMatch[2]}`;
+                        // Add print date if present
+                        if (printDateMatch) {
+                          datePart += ` (${printDateMatch[1]})`;
+                        }
+                      } else {
+                        // Use FY format for other documents (2-digit)
+                        datePart = editedFinancialYears.length > 0
+                          ? editedFinancialYears.map(y => `FY${String(y).slice(-2)}`).join(" ")
+                          : "";
+                      }
+
                       const signedPart = signedStatus === 'signed' ? 'Signed' : signedStatus === 'unsigned' ? 'Unsigned' : '';
-                      const fyPart = editedFinancialYears.length > 0
-                        ? editedFinancialYears.map(y => `FY${y}`).join(" ")
-                        : "";
                       const amendedPart = isAmended ? (amendedNumber && amendedNumber > 1 ? `Amended ${amendedNumber}` : 'Amended') : '';
-                      const parts = [fullTypeName, fyPart, signedPart, amendedPart].filter(Boolean);
+                      const parts = [fullTypeName, datePart, signedPart, amendedPart].filter(Boolean);
                       return parts.length > 0 ? parts.join(" ") : "-";
                     })()}
                   </div>
@@ -1868,36 +1897,55 @@ export default function DocumentPreviewModal({
                       </div>
                     </div>
 
-                    {/* Table Title Preview - shows full document type name + FY + Signed/Unsigned + Amended */}
+                    {/* Table Title Preview - shows full document type name + dates/FY + Signed/Unsigned + Amended */}
                     <div>
                       <Label className="text-[10px] text-muted-foreground">Table Title Preview</Label>
                       <div className="mt-0.5 min-h-[2.5rem] text-xs border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 line-clamp-2">
                         {(() => {
-                          const suggestedType = document.ai_suggested_type?.toLowerCase() || "";
-                          const aiDocType = documentTypes.find(t =>
-                            t.name?.toLowerCase() === suggestedType ||
-                            t.abbreviation?.toLowerCase() === suggestedType ||
-                            t.name?.toLowerCase().includes(suggestedType) ||
-                            suggestedType.includes(t.abbreviation?.toLowerCase() || "")
-                          );
-                          const fullTypeName = aiDocType?.name || document.ai_suggested_type || "";
+                          // Use the AI suggested type directly (it's already the full name from backend)
+                          const fullTypeName = document.ai_suggested_type || "";
+                          const suggestedTypeLower = fullTypeName.toLowerCase();
+
+                          // Check if this is a date-range document (statements, etc)
+                          const isDateRangeDoc = suggestedTypeLower.includes("statement") ||
+                            suggestedTypeLower.includes("summary") ||
+                            document.ai_suggested_name?.includes(" to ");
+
+                          // Extract date range and print date from suggested filename
+                          // Format: "TD Income Tax Statement 01-07-2023 to 01-07-2025 (01-07-2025).pdf"
+                          const dateRangeMatch = document.ai_suggested_name?.match(/(\d{2}-\d{2}-\d{4})\s*to\s*(\d{2}-\d{2}-\d{4})/);
+                          const printDateMatch = document.ai_suggested_name?.match(/\((\d{2}-\d{2}-\d{4})\)/);
+
+                          let datePart = "";
+                          if (isDateRangeDoc && dateRangeMatch) {
+                            // Use full date range for statement-type documents
+                            datePart = `${dateRangeMatch[1]} to ${dateRangeMatch[2]}`;
+                            // Add print date if present
+                            if (printDateMatch) {
+                              datePart += ` (${printDateMatch[1]})`;
+                            }
+                          } else {
+                            // Use FY format for other documents (2-digit)
+                            const fyArray = parseFinancialYears(document.ai_suggested_fy);
+                            datePart = fyArray.length > 0
+                              ? fyArray.map(y => `FY${String(y).slice(-2)}`).join(" ")
+                              : "";
+                          }
+
                           // Check if this type needs signed/unsigned
-                          const isTaxReturn = suggestedType.includes("ctr") || suggestedType.includes("ttr") ||
-                            suggestedType.includes("company tax return") || suggestedType.includes("trust tax return");
+                          const isTaxReturn = suggestedTypeLower.includes("ctr") || suggestedTypeLower.includes("ttr") ||
+                            suggestedTypeLower.includes("company tax return") || suggestedTypeLower.includes("trust tax return");
                           // Detect signed/unsigned from AI suggested name (can be at start or end of filename)
                           const isUnsigned = document.ai_suggested_name?.match(/\bUS\b/i);
                           const isSigned = document.ai_suggested_name?.match(/\bS\b/) && !isUnsigned;
                           const signedPart = isTaxReturn ? (isSigned ? 'Signed' : isUnsigned ? 'Unsigned' : 'Unsigned') : '';
-                          const fyArray = parseFinancialYears(document.ai_suggested_fy);
-                          const fyPart = fyArray.length > 0
-                            ? fyArray.map(y => `FY${y}`).join(" ")
-                            : "";
+
                           // Extract amendment number from AI suggested name (e.g., "Amended 2" -> 2)
                           const amendedMatch = document.ai_suggested_name?.match(/amended\s*(\d+)?/i);
                           const amendedPart = amendedMatch
                             ? (amendedMatch[1] && parseInt(amendedMatch[1]) > 1 ? `Amended ${amendedMatch[1]}` : 'Amended')
                             : '';
-                          const parts = [fullTypeName, fyPart, signedPart, amendedPart].filter(Boolean);
+                          const parts = [fullTypeName, datePart, signedPart, amendedPart].filter(Boolean);
                           return parts.length > 0 ? parts.join(" ") : "-";
                         })()}
                       </div>
@@ -2036,7 +2084,7 @@ export default function DocumentPreviewModal({
                       );
 
                       // Upload to SharePoint via backend
-                      const response = await api.post(
+                      const response = await api.post<{ success: boolean; document?: CompanyDocument; error?: string }>(
                         `/api/v1/company_documents/${document.id}/upload_edited`,
                         {
                           file_data: base64,
@@ -2045,7 +2093,7 @@ export default function DocumentPreviewModal({
                         }
                       );
 
-                      if (response.success) {
+                      if (response?.success) {
                         // Update local document state with new data
                         if (response.document) {
                           setDocument(response.document);
@@ -2056,8 +2104,8 @@ export default function DocumentPreviewModal({
                         }
                         setIsEditingPdf(false);
                       } else {
-                        console.error("Failed to save PDF:", response.error);
-                        alert(`Failed to save: ${response.error || 'Unknown error'}`);
+                        console.error("Failed to save PDF:", response?.error);
+                        alert(`Failed to save: ${response?.error || 'Unknown error'}`);
                       }
                     } catch (error) {
                       console.error("Error saving PDF:", error);

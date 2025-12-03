@@ -31,6 +31,16 @@ class DocumentVerificationService
     # 4. Send to Claude for analysis (pass PDF content for vision fallback if text extraction failed)
     analysis = analyze_with_claude(text, text.nil? ? content : nil)
 
+    # Check if this is a date-range document (statements, summaries)
+    # These use date ranges instead of financial years
+    suggested_type_lower = (analysis[:suggested_type] || '').downcase
+    is_date_range_doc = suggested_type_lower.include?('statement') ||
+                        suggested_type_lower.include?('summary') ||
+                        (analysis[:suggested_name] || '').include?(' to ')
+
+    # Don't store suggested_fy for date-range documents
+    suggested_fy = is_date_range_doc ? nil : analysis[:suggested_fy]
+
     # 5. Update document with results
     @document.update!(
       ai_verified_at: Time.current,
@@ -38,7 +48,7 @@ class DocumentVerificationService
       ai_suggested_name: analysis[:suggested_name],
       ai_suggested_folder: analysis[:suggested_folder],
       ai_suggested_type: analysis[:suggested_type],
-      ai_suggested_fy: analysis[:suggested_fy],
+      ai_suggested_fy: suggested_fy,
       ai_confidence_score: analysis[:confidence],
       ai_analysis_notes: analysis[:notes],
       ai_extracted_description: analysis[:extracted_description],
@@ -49,7 +59,13 @@ class DocumentVerificationService
       ai_split_recommendation: analysis[:split_recommendation]
     )
 
-    { success: true, analysis: analysis }
+    # 6. Auto-apply if confidence >= 90% and not a multi-document PDF
+    auto_applied = false
+    if analysis[:confidence].to_i >= 90 && !analysis[:contains_multiple_documents]
+      auto_applied = auto_apply_suggestion!(analysis)
+    end
+
+    { success: true, analysis: analysis, auto_applied: auto_applied }
 
   rescue VerificationError => e
     @document.update!(
@@ -71,6 +87,62 @@ class DocumentVerificationService
   end
 
   private
+
+  # Auto-apply AI suggestion when confidence is high
+  # - Renames file in SharePoint
+  # - Updates document record with suggested values
+  # - Marks as verified
+  def auto_apply_suggestion!(analysis)
+    return false unless analysis[:suggested_name].present?
+
+    # Rename file in SharePoint if name changed
+    if analysis[:suggested_name] != @document.title && @document.onedrive_file_id.present?
+      begin
+        credential = OrganizationOneDriveCredential.active_credential
+        if credential
+          client = MicrosoftGraphClient.new(credential)
+          client.rename_file(@document.onedrive_file_id, analysis[:suggested_name])
+          Rails.logger.info("Auto-renamed SharePoint file to: #{analysis[:suggested_name]}")
+        end
+      rescue StandardError => e
+        Rails.logger.warn("Failed to rename SharePoint file: #{e.message}")
+        # Continue with database update even if SharePoint rename fails
+      end
+    end
+
+    # Check if this is a date-range document (statements, summaries)
+    # These use date ranges instead of financial years
+    suggested_type_lower = (analysis[:suggested_type] || '').downcase
+    is_date_range_doc = suggested_type_lower.include?('statement') ||
+                        suggested_type_lower.include?('summary') ||
+                        (analysis[:suggested_name] || '').include?(' to ')
+
+    # Update document record with AI suggestions
+    update_attrs = {
+      title: analysis[:suggested_name],
+      folder: analysis[:suggested_folder] || @document.folder,
+      document_type: analysis[:suggested_type] || @document.document_type,
+      ref_date: analysis[:extracted_date].presence || @document.ref_date,
+      ai_verification_status: 'verified',
+      user_validated_at: Time.current
+    }
+
+    # Only set financial_years for non-date-range documents
+    unless is_date_range_doc
+      update_attrs[:financial_years] = analysis[:suggested_fy].presence || @document.financial_years
+    else
+      # Clear financial_years for date-range documents
+      update_attrs[:financial_years] = nil
+    end
+
+    @document.update!(update_attrs)
+
+    Rails.logger.info("Auto-applied AI suggestion for document #{@document.id} (confidence: #{analysis[:confidence]}%)")
+    true
+  rescue StandardError => e
+    Rails.logger.error("Failed to auto-apply AI suggestion: #{e.message}")
+    false
+  end
 
   def validate_file_available!
     unless @document.onedrive_file_id.present?

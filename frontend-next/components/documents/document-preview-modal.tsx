@@ -4,9 +4,11 @@ import * as React from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -113,6 +115,9 @@ export function DocumentPreviewModal({
                 <FileText className="h-5 w-5" />
                 {displayName}
               </DialogTitle>
+              <VisuallyHidden asChild>
+                <DialogDescription>Preview and manage document</DialogDescription>
+              </VisuallyHidden>
               {expandedTitle && expandedTitle !== displayName && (
                 <p className="text-sm text-muted-foreground">{expandedTitle}</p>
               )}
