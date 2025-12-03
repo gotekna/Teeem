@@ -30,6 +30,8 @@ import {
   RefreshCw,
   Loader2,
   ChevronRight,
+  ArrowLeft,
+  File,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -46,6 +48,20 @@ interface JobFolderStatus {
   jobFolderId?: string;
 }
 
+interface OneDriveItem {
+  id: string;
+  name: string;
+  webUrl: string;
+  lastModifiedDateTime?: string;
+  folder?: {
+    childCount: number;
+  };
+  file?: {
+    mimeType: string;
+  };
+  size?: number;
+}
+
 interface OneDriveFolder {
   id: string;
   name: string;
@@ -54,6 +70,11 @@ interface OneDriveFolder {
   folder?: {
     childCount: number;
   };
+}
+
+interface FolderPath {
+  id: string;
+  name: string;
 }
 
 interface DocumentCategory {
@@ -95,6 +116,10 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [uploading, setUploading] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [folderPath, setFolderPath] = useState<FolderPath[]>([]);
+  const [folderContents, setFolderContents] = useState<OneDriveItem[]>([]);
+  const [loadingContents, setLoadingContents] = useState(false);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -218,6 +243,46 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const handleUpload = (folderId: string) => {
     setUploadFolderId(folderId);
     fileInputRef.current?.click();
+  };
+
+  const loadFolderContents = async (folderId: string, folderName: string) => {
+    try {
+      setLoadingContents(true);
+      const response = await api.get<{ items: OneDriveItem[] }>(
+        `/api/v1/organization_onedrive/folder_contents?folder_id=${folderId}&job_id=${jobId}`
+      );
+
+      setFolderContents(response?.items || []);
+      setCurrentFolderId(folderId);
+      setFolderPath((prev) => [...prev, { id: folderId, name: folderName }]);
+    } catch (err) {
+      console.error("Failed to load folder contents:", err);
+      setError("Failed to load folder contents");
+    } finally {
+      setLoadingContents(false);
+    }
+  };
+
+  const navigateBack = () => {
+    if (folderPath.length <= 1) {
+      // Go back to folder list
+      setCurrentFolderId(null);
+      setFolderPath([]);
+      setFolderContents([]);
+    } else {
+      // Go up one level
+      const newPath = folderPath.slice(0, -2);
+      const parentFolder = folderPath[folderPath.length - 2];
+      setFolderPath(newPath);
+      loadFolderContents(parentFolder.id, parentFolder.name);
+    }
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -476,9 +541,9 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
         <Card>
           <CardContent className="py-12 text-center">
             <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
-            <h3 className="mt-4 text-lg font-semibold">OneDrive Not Connected</h3>
+            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Your organization hasn't connected OneDrive yet. An admin needs to connect OneDrive in Settings first.
+              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
             </p>
             <Button asChild className="mt-6">
               <Link href="/settings/integrations/microsoft">
@@ -498,7 +563,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             <Folder className="h-16 w-16 text-yellow-500 mx-auto" />
             <h3 className="mt-4 text-lg font-semibold">Create Folder Structure</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Create the folder structure in OneDrive for {jobTitle || "this job"}.
+              Create the folder structure in SharePoint for {jobTitle || "this job"}.
             </p>
             <Button className="mt-6" onClick={handleCreateFolders} disabled={creatingFolders}>
               {creatingFolders ? (
@@ -527,10 +592,10 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
-                  <h3 className="font-semibold">OneDrive Connected</h3>
+                  <h3 className="font-semibold">SharePoint Connected</h3>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Folder structure created for {jobTitle || "this job"}
+                  Job folder found for {jobTitle || "this job"}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -541,7 +606,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                 {jobFolderStatus.webUrl && (
                   <Button variant="outline" size="sm" onClick={() => window.open(jobFolderStatus.webUrl!, "_blank")}>
                     <ExternalLink className="h-4 w-4 mr-1" />
-                    Open in OneDrive
+                    Open in SharePoint
                   </Button>
                 )}
               </div>
@@ -549,50 +614,133 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           </CardContent>
         </Card>
 
-        {/* Folders list */}
+        {/* Folders list or folder contents */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Folder Structure</CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              {currentFolderId ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={navigateBack}>
+                    <ArrowLeft className="h-4 w-4 mr-1" />
+                    Back
+                  </Button>
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    {folderPath.map((p, i) => (
+                      <span key={p.id} className="flex items-center">
+                        {i > 0 && <ChevronRight className="h-3 w-3 mx-1" />}
+                        <span className={i === folderPath.length - 1 ? "font-medium text-foreground" : ""}>
+                          {p.name}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <CardTitle className="text-base">Folder Structure</CardTitle>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-0">
-            {folders.length > 0 ? (
-              <div className="divide-y">
-                {folders.map((folder) => (
-                  <div
-                    key={folder.id}
-                    className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      <Folder className="h-5 w-5 text-yellow-500" />
-                      <div>
-                        <p className="text-sm font-medium">{folder.name}</p>
-                        {folder.lastModifiedDateTime && (
-                          <p className="text-xs text-muted-foreground">
-                            Modified {new Date(folder.lastModifiedDateTime).toLocaleDateString()}
-                          </p>
+            {loadingContents ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : currentFolderId ? (
+              // Show folder contents
+              folderContents.length > 0 ? (
+                <div className="divide-y">
+                  {folderContents.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors group ${item.folder ? "cursor-pointer" : ""}`}
+                      onClick={() => item.folder && loadFolderContents(item.id, item.name)}
+                    >
+                      <div className="flex items-center gap-3">
+                        {item.folder ? (
+                          <>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            <Folder className="h-5 w-5 text-yellow-500" />
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-4" />
+                            <File className="h-5 w-5 text-blue-500" />
+                          </>
                         )}
+                        <div>
+                          <p className="text-sm font-medium">{item.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.lastModifiedDateTime && `Modified ${new Date(item.lastModifiedDateTime).toLocaleDateString()}`}
+                            {item.size && ` • ${formatFileSize(item.size)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {item.folder && (
+                          <span className="text-xs text-muted-foreground">
+                            {item.folder.childCount || 0} items
+                          </span>
+                        )}
+                        {!item.folder && (
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); window.open(item.webUrl, "_blank"); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); window.open(item.webUrl, "_blank"); }}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-xs text-muted-foreground">
-                        {folder.folder?.childCount || 0} items
-                      </span>
-                      <Button variant="ghost" size="icon" onClick={() => handleUpload(folder.id)}>
-                        <Upload className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => window.open(folder.webUrl, "_blank")}>
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
+                  <p className="mt-2 text-sm text-muted-foreground">This folder is empty.</p>
+                </div>
+              )
             ) : (
-              <div className="py-12 text-center">
-                <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
-                <p className="mt-2 text-sm text-muted-foreground">No folders found. Try refreshing.</p>
-              </div>
+              // Show top-level folders
+              folders.length > 0 ? (
+                <div className="divide-y">
+                  {folders.map((folder) => (
+                    <div
+                      key={folder.id}
+                      className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors group cursor-pointer"
+                      onClick={() => loadFolderContents(folder.id, folder.name)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <Folder className="h-5 w-5 text-yellow-500" />
+                        <div>
+                          <p className="text-sm font-medium">{folder.name}</p>
+                          {folder.lastModifiedDateTime && (
+                            <p className="text-xs text-muted-foreground">
+                              Modified {new Date(folder.lastModifiedDateTime).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-xs text-muted-foreground">
+                          {folder.folder?.childCount || 0} items
+                        </span>
+                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleUpload(folder.id); }}>
+                          <Upload className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); window.open(folder.webUrl, "_blank"); }}>
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
+                  <p className="mt-2 text-sm text-muted-foreground">No folders found. Try refreshing.</p>
+                </div>
+              )
             )}
           </CardContent>
         </Card>

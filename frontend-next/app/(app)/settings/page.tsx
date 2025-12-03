@@ -75,6 +75,16 @@ interface TrainingStats {
   certificates_earned: number;
 }
 
+interface MicrosoftStatus {
+  connected: boolean;
+  email?: string;
+}
+
+interface XeroStatus {
+  connected: boolean;
+  organization_name?: string;
+}
+
 const personaIcons: Record<Persona, typeof HardHat> = {
   site: HardHat,
   office: Building2,
@@ -97,6 +107,8 @@ function SettingsPageContent() {
   });
   const [trainingModules, setTrainingModules] = React.useState<TrainingModule[]>([]);
   const [trainingStats, setTrainingStats] = React.useState<TrainingStats | null>(null);
+  const [microsoftStatus, setMicrosoftStatus] = React.useState<MicrosoftStatus | null>(null);
+  const [xeroStatus, setXeroStatus] = React.useState<XeroStatus | null>(null);
 
   // Profile form state
   const [profileName, setProfileName] = React.useState("");
@@ -132,6 +144,24 @@ function SettingsPageContent() {
     const fetchSettings = async () => {
       // Note: Organization settings moved to System Admin (/admin/system)
       // User settings API endpoint not yet implemented - using defaults
+
+      // Fetch Microsoft status - silently default to not connected on any error
+      try {
+        const msData = await api.get<MicrosoftStatus>("/api/v1/microsoft/status");
+        setMicrosoftStatus(msData || { connected: false });
+      } catch {
+        // Silently default to not connected - don't log errors for expected failures
+        setMicrosoftStatus({ connected: false });
+      }
+
+      // Fetch Xero status - silently default to not connected on any error
+      try {
+        const xeroData = await api.xero.getStatus();
+        setXeroStatus(xeroData || { connected: false });
+      } catch {
+        // Silently default to not connected - don't log errors for expected failures
+        setXeroStatus({ connected: false });
+      }
 
       // Load mock training data
       setTrainingModules([
@@ -532,7 +562,14 @@ function SettingsPageContent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">Not Connected</Badge>
+                    {microsoftStatus?.connected ? (
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Not Connected</Badge>
+                    )}
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>
@@ -557,7 +594,14 @@ function SettingsPageContent() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant="secondary">Not Connected</Badge>
+                    {xeroStatus?.connected ? (
+                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">Not Connected</Badge>
+                    )}
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </div>

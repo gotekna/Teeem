@@ -54,12 +54,17 @@ interface HeaderBarProps {
   onMenuClick?: () => void;
 }
 
+// Connection status: 'connected' | 'disconnected' | 'error'
+type ConnectionStatus = 'connected' | 'disconnected' | 'error';
+
 export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [unreadCount, setUnreadCount] = React.useState(0);
-  const [xeroConnected, setXeroConnected] = React.useState(false);
-  const [office365Connected, setOffice365Connected] = React.useState(false);
+  const [xeroStatus, setXeroStatus] = React.useState<ConnectionStatus>('disconnected');
+  const [office365Status, setOffice365Status] = React.useState<ConnectionStatus>('disconnected');
+  const [xeroTooltip, setXeroTooltip] = React.useState('Xero: Not Connected');
+  const [office365Tooltip, setOffice365Tooltip] = React.useState('Office 365: Not Connected');
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -75,24 +80,51 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     };
 
     const fetchIntegrationStatus = async () => {
+      // Check Xero connection
       try {
-        // Check Xero connection
-        const xeroResponse = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/xero/status");
-        setXeroConnected(xeroResponse?.connected === true);
+        const xeroResponse = await api.get<{ connected?: boolean; data?: { connected?: boolean; message?: string }; message?: string }>("/api/v1/xero/status");
+        const xeroData = xeroResponse?.data || xeroResponse;
+
+        if (xeroData?.connected === true) {
+          setXeroStatus('connected');
+          setXeroTooltip('Xero: Connected');
+        } else if (xeroData?.message?.toLowerCase().includes('expired') || xeroData?.message?.toLowerCase().includes('reconnect')) {
+          setXeroStatus('error');
+          setXeroTooltip(`Xero: ${xeroData.message || 'Connection Lost'}`);
+        } else {
+          setXeroStatus('disconnected');
+          setXeroTooltip('Xero: Not Connected');
+        }
       } catch (error) {
         console.debug("Failed to fetch Xero status:", error);
-        setXeroConnected(false);
+        setXeroStatus('disconnected');
+        setXeroTooltip('Xero: Not Connected');
       }
 
       // Skip OneDrive check on localhost (endpoint not available locally)
       if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
         try {
-          // Check Office 365 / OneDrive connection (organization-wide)
-          const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/organization_onedrive/status");
-          setOffice365Connected(office365Response?.connected === true);
+          const office365Response = await api.get<{ connected?: boolean; needs_refresh?: boolean; error?: string; message?: string }>("/api/v1/organization_onedrive/status");
+
+          if (office365Response?.connected === true) {
+            if (office365Response?.needs_refresh || office365Response?.error) {
+              setOffice365Status('error');
+              setOffice365Tooltip(`Office 365: ${office365Response.error || 'Needs Reconnection'}`);
+            } else {
+              setOffice365Status('connected');
+              setOffice365Tooltip('Office 365: Connected');
+            }
+          } else if (office365Response?.message?.toLowerCase().includes('expired') || office365Response?.message?.toLowerCase().includes('reconnect') || office365Response?.error) {
+            setOffice365Status('error');
+            setOffice365Tooltip(`Office 365: ${office365Response.message || office365Response.error || 'Connection Lost'}`);
+          } else {
+            setOffice365Status('disconnected');
+            setOffice365Tooltip('Office 365: Not Connected');
+          }
         } catch (error) {
           console.debug("Failed to fetch Office 365 status:", error);
-          setOffice365Connected(false);
+          setOffice365Status('disconnected');
+          setOffice365Tooltip('Office 365: Not Connected');
         }
       }
     };
@@ -104,6 +136,18 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Helper to get color classes based on connection status
+  const getStatusColors = (status: ConnectionStatus) => {
+    switch (status) {
+      case 'connected':
+        return "text-green-500 hover:text-green-600";
+      case 'error':
+        return "text-red-500 hover:text-red-600";
+      default:
+        return "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500";
+    }
+  };
 
   const handleBack = () => {
     router.back();
@@ -196,21 +240,29 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             <Bell className="h-4 w-4" />
           </button>
 
-          {/* Integrations Status */}
+          {/* Office 365 Status */}
           <Link
-            href="/settings?tab=integrations"
+            href="/settings/integrations/microsoft"
             className={cn(
-              "p-1.5 rounded-md transition-colors flex items-center gap-0.5",
-              office365Connected && xeroConnected
-                ? "text-green-500 hover:text-green-600"
-                : office365Connected || xeroConnected
-                  ? "text-yellow-500 hover:text-yellow-600"
-                  : "text-gray-300 hover:text-gray-400 dark:text-gray-600 dark:hover:text-gray-500"
+              "p-1.5 rounded-md transition-colors",
+              getStatusColors(office365Status)
             )}
-            title={`Integrations: Office 365 ${office365Connected ? "✓" : "✗"}, Xero ${xeroConnected ? "✓" : "✗"}`}
+            title={office365Tooltip}
           >
-            <span className="sr-only">Integrations</span>
+            <span className="sr-only">Office 365</span>
             <Microsoft365Icon className="h-4 w-4" />
+          </Link>
+
+          {/* Xero Status */}
+          <Link
+            href="/settings/integrations/xero"
+            className={cn(
+              "p-1.5 rounded-md transition-colors",
+              getStatusColors(xeroStatus)
+            )}
+            title={xeroTooltip}
+          >
+            <span className="sr-only">Xero</span>
             <XeroIcon className="h-4 w-4" />
           </Link>
 
