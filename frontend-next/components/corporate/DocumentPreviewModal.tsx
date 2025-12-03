@@ -1157,7 +1157,7 @@ export default function DocumentPreviewModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="!max-w-[100vw] !w-[100vw] !max-h-[100vh] !h-[100vh] !rounded-none overflow-hidden p-0 flex flex-col"
+        className="!max-w-[100vw] !w-[100vw] !max-h-[calc(100vh-36px)] !h-[calc(100vh-36px)] !top-0 !translate-y-0 !rounded-none overflow-hidden p-0 flex flex-col"
         aria-describedby={undefined}
         hideClose
       >
