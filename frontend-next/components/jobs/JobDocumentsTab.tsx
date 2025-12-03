@@ -476,9 +476,9 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
         <Card>
           <CardContent className="py-12 text-center">
             <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
-            <h3 className="mt-4 text-lg font-semibold">OneDrive Not Connected</h3>
+            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Your organization hasn't connected OneDrive yet. An admin needs to connect OneDrive in Settings first.
+              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
             </p>
             <Button asChild className="mt-6">
               <Link href="/settings/integrations/microsoft">
@@ -498,7 +498,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             <Folder className="h-16 w-16 text-yellow-500 mx-auto" />
             <h3 className="mt-4 text-lg font-semibold">Create Folder Structure</h3>
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-              Create the folder structure in OneDrive for {jobTitle || "this job"}.
+              Create the folder structure in SharePoint for {jobTitle || "this job"}.
             </p>
             <Button className="mt-6" onClick={handleCreateFolders} disabled={creatingFolders}>
               {creatingFolders ? (
@@ -527,10 +527,10 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
-                  <h3 className="font-semibold">OneDrive Connected</h3>
+                  <h3 className="font-semibold">SharePoint Connected</h3>
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Folder structure created for {jobTitle || "this job"}
+                  Job folder found for {jobTitle || "this job"}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -541,7 +541,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                 {jobFolderStatus.webUrl && (
                   <Button variant="outline" size="sm" onClick={() => window.open(jobFolderStatus.webUrl!, "_blank")}>
                     <ExternalLink className="h-4 w-4 mr-1" />
-                    Open in OneDrive
+                    Open in SharePoint
                   </Button>
                 )}
               </div>
