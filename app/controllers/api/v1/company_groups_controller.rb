@@ -241,16 +241,55 @@ module Api
       def get_person_roles(contact, company_group_id)
         roles = []
 
-        # Get directorship roles
+        # Get directorship/officer roles (director, secretary, corporate_officer, public_officer)
         contact.company_directorships.includes(:company).each do |dir|
           next unless dir.company&.company_group_id == company_group_id
-          roles << {
-            type: 'director',
-            company_id: dir.company_id,
-            company_name: dir.company.name,
-            position: dir.position,
-            is_current: dir.is_current
-          }
+
+          position = dir.position.to_s
+
+          # Add director role if position includes director or is chairman
+          if position.include?('director') || position == 'chairman'
+            roles << {
+              type: 'director',
+              company_id: dir.company_id,
+              company_name: dir.company.name,
+              position: dir.position,
+              is_current: dir.is_current
+            }
+          end
+
+          # Add secretary role if position includes secretary
+          if position.include?('secretary')
+            roles << {
+              type: 'secretary',
+              company_id: dir.company_id,
+              company_name: dir.company.name,
+              position: dir.position,
+              is_current: dir.is_current
+            }
+          end
+
+          # Add corporate_officer role if position includes corporate_officer
+          if position.include?('corporate_officer')
+            roles << {
+              type: 'corporate_officer',
+              company_id: dir.company_id,
+              company_name: dir.company.name,
+              position: dir.position,
+              is_current: dir.is_current
+            }
+          end
+
+          # Add public_officer role if position includes public_officer
+          if position.include?('public_officer')
+            roles << {
+              type: 'public_officer',
+              company_id: dir.company_id,
+              company_name: dir.company.name,
+              position: dir.position,
+              is_current: dir.is_current
+            }
+          end
         end
 
         # Get shareholder roles

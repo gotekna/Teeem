@@ -986,6 +986,9 @@ Rails.application.routes.draw do
       get 'organization_onedrive/preview_private_folders', to: 'organization_onedrive#preview_private_folders'
       post 'organization_onedrive/create_private_folders', to: 'organization_onedrive#create_private_folders'
       post 'organization_onedrive/copy_files', to: 'organization_onedrive#copy_files'
+      get 'organization_onedrive/legacy_files', to: 'organization_onedrive#legacy_files'
+      post 'organization_onedrive/import_legacy', to: 'organization_onedrive#import_legacy'
+      post 'organization_onedrive/run_migration', to: 'organization_onedrive#run_migration'
 
       # Schema information
       get 'schema', to: 'schema#index'
