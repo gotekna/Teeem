@@ -199,9 +199,16 @@ export default function MicrosoftIntegrationPage() {
               <div className="flex items-center gap-2">
                 <Button
                   variant="default"
+                  onClick={() => window.open("https://outlook.office.com/mail/", "_blank")}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Open Outlook
+                </Button>
+                <Button
+                  variant="default"
                   onClick={() => window.open("https://tekaboringmachines.sharepoint.com", "_blank")}
                 >
-                  <ExternalLink className="h-4 w-4 mr-2" />
+                  <FolderOpen className="h-4 w-4 mr-2" />
                   Open SharePoint
                 </Button>
                 <Button variant="outline" onClick={handleConnect} disabled={connecting}>

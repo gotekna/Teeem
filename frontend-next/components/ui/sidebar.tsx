@@ -96,6 +96,7 @@ export function Sidebar() {
   const [persona, setPersona] = useState<Persona>('manager');
   const [personaMenuOpen, setPersonaMenuOpen] = useState(false);
   const [badges, setBadges] = useState<Record<string, number>>({});
+  const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -104,6 +105,19 @@ export function Sidebar() {
   // Load persona from localStorage on mount
   useEffect(() => {
     setPersona(getStoredPersona());
+  }, []);
+
+  // Load backend version
+  useEffect(() => {
+    const loadVersion = async () => {
+      try {
+        const response = await api.get<{ version: string }>("/version");
+        setBackendVersion(response.version);
+      } catch (error) {
+        console.debug("Failed to load backend version:", error);
+      }
+    };
+    loadVersion();
   }, []);
 
   // Load badge counts (pending proposals, etc.)
@@ -220,6 +234,32 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Version Info */}
+      {(backendVersion || process.env.NEXT_PUBLIC_BUILD_NUMBER) && (
+        <div
+          className={cn(
+            "px-3 py-2 text-[10px] text-muted-foreground border-t border-border",
+            !isExpanded && !mobile && "text-center"
+          )}
+        >
+          {isExpanded || mobile ? (
+            <div className="flex flex-col gap-0.5">
+              {backendVersion && <span>Backend: {backendVersion}</span>}
+              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
+                <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col gap-0.5">
+              {backendVersion && <span>{backendVersion}</span>}
+              {process.env.NEXT_PUBLIC_BUILD_NUMBER && (
+                <span>v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* User Profile */}
       <div className="p-2 border-t border-border">
