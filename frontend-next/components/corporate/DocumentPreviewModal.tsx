@@ -1703,8 +1703,12 @@ export default function DocumentPreviewModal({
                             const aiNeedsSigned = aiDocType?.naming_format?.includes("{Signed}") || isTaxReturn;
                             if (aiNeedsSigned) {
                               // Detect from suggested name which one AI picked (can be at start like "TD US CTR" or end like "TD CTR FY24 US.pdf")
-                              const isUnsigned = document.ai_suggested_name?.match(/\bUS\b/i);
-                              const isSigned = document.ai_suggested_name?.match(/\bS\b/) && !isUnsigned;
+                              // Look for standalone S (not part of US) by checking for " S " or " S." pattern
+                              const hasUS = document.ai_suggested_name?.match(/\bUS\b/i);
+                              const hasStandaloneS = document.ai_suggested_name?.match(/(?<![U])\bS\b(?![\w])/i) && !hasUS;
+                              // Default to Unsigned if neither is explicitly present (for CTR/TTR)
+                              const isUnsigned = hasUS || !hasStandaloneS;
+                              const isSigned = hasStandaloneS;
                               return (
                                 <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
                                   <Button
@@ -1845,7 +1849,22 @@ export default function DocumentPreviewModal({
                             : "border-red-500 bg-red-50 dark:bg-red-900/20")
                           : ""
                       )}>
-                        <span className="truncate">{document.ai_suggested_name || "-"}</span>
+                        <span className="truncate">{(() => {
+                          // Auto-inject US for CTR/TTR if missing signed status
+                          let suggestedName = document.ai_suggested_name || "-";
+                          if (suggestedName !== "-") {
+                            const isCtrOrTtr = /\b(CTR|TTR)\b/i.test(suggestedName);
+                            const hasSignedStatus = /\b(US|S)\b/.test(suggestedName);
+                            if (isCtrOrTtr && !hasSignedStatus) {
+                              // Insert "US" before .pdf or at end
+                              suggestedName = suggestedName.replace(/\.pdf$/i, ' US.pdf');
+                              if (!suggestedName.endsWith('.pdf')) {
+                                suggestedName = suggestedName + ' US';
+                              }
+                            }
+                          }
+                          return suggestedName;
+                        })()}</span>
                       </div>
                     </div>
 
