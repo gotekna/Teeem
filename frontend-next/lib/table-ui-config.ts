@@ -35,7 +35,6 @@ export interface TableUIConfig {
   enableImport?: boolean;
   enableExport?: boolean;
   enableSchemaEditor?: boolean;
-  showFilterButton?: boolean;
 
   // Row behavior
   rowClickBehavior?: 'view' | 'edit' | 'none';
@@ -53,7 +52,6 @@ export const DEFAULT_TABLE_UI_CONFIG: TableUIConfig = {
   enableExport: true,
   enableImport: false,
   enableSchemaEditor: false,
-  showFilterButton: true,
   rowClickBehavior: 'none',
   viewOnly: false,
 };

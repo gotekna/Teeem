@@ -776,7 +776,6 @@ export default function TeeemTableView({
   preloadedViews = null,
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
-  showFilterButton = false,
   onLoadViewReady,
   onServerSearch,
   serverSearchLoading = false,
@@ -802,6 +801,7 @@ export default function TeeemTableView({
   // - Schema Editor (Create/Edit/Delete columns)
   // - Filters button visible
   const shouldAutoEnable = !!foundationIdNumeric;
+
   const effectiveEnableImport = enableImport || shouldAutoEnable;
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
@@ -4217,28 +4217,8 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Custom actions */}
-          {customActions}
-
-          {/* Filters button - auto-enabled when foundationIdNumeric is set */}
-          {/* Source: TEEEM_DOCS/GOLD_STANDARD_TABLE.md */}
-          {/* Don't show if customActions is provided (page handles its own filter button) */}
-          {shouldAutoEnable && !customActions && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilterModal(true)}
-              className="gap-2 shrink-0"
-            >
-              <Filter className="h-4 w-4" />
-              {safeFilters.length > 0 ? "Filters" : "+ Filter"}
-              {safeFilters.length > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                  {safeFilters.length}
-                </Badge>
-              )}
-            </Button>
-          )}
+          {/* Custom actions (e.g., Views button) */}
+          {customActions && <div className="shrink-0">{customActions}</div>}
 
           {/* More actions menu */}
           <DropdownMenu>

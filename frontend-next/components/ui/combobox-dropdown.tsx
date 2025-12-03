@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Search } from "lucide-react";
 import * as React from "react";
 
 import { CommandList } from "cmdk";
@@ -39,6 +39,8 @@ type Props<T> = {
   onCreate?: (value: string) => void;
   headless?: boolean;
   className?: string;
+  /** Show search input in the trigger button instead of inside the dropdown */
+  searchInTrigger?: boolean;
 };
 
 export function ComboboxDropdown<T extends ComboboxItem>({
@@ -56,12 +58,14 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   disabled,
   onCreate,
   className,
+  searchInTrigger = false,
 }: Props<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalSelectedItem, setInternalSelectedItem] = React.useState<
     T | undefined
   >();
   const [inputValue, setInputValue] = React.useState("");
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   const selectedItem = incomingSelectedItem ?? internalSelectedItem;
 
@@ -71,14 +75,32 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
   const showCreate = onCreate && Boolean(inputValue) && !filteredItems.length;
 
+  // Handle input change for searchInTrigger mode
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+    if (!open && e.target.value) {
+      setOpen(true);
+    }
+  };
+
+  // Handle item selection
+  const handleSelectItem = (item: T) => {
+    onSelect(item);
+    setInternalSelectedItem(item);
+    setInputValue(""); // Clear search after selection
+    setOpen(false);
+  };
+
   const Component = (
     <Command loop shouldFilter={false}>
-      <CommandInput
-        value={inputValue}
-        onValueChange={setInputValue}
-        placeholder={searchPlaceholder ?? "Search item..."}
-        className="px-3"
-      />
+      {!searchInTrigger && (
+        <CommandInput
+          value={inputValue}
+          onValueChange={setInputValue}
+          placeholder={searchPlaceholder ?? "Search item..."}
+          className="px-3"
+        />
+      )}
 
       <CommandGroup>
         <CommandList className="max-h-[225px] overflow-auto">
@@ -98,9 +120,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                     return;
                   }
 
-                  onSelect(foundItem);
-                  setInternalSelectedItem(foundItem);
-                  setOpen(false);
+                  handleSelectItem(foundItem);
                 }}
               >
                 {renderListItem ? (
@@ -146,6 +166,53 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
   if (headless) {
     return Component;
+  }
+
+  // Search in trigger mode - input is in the button area
+  if (searchInTrigger) {
+    return (
+      <Popover open={open} onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen) {
+          setInputValue(""); // Clear search when closing
+        }
+      }} modal>
+        <PopoverTrigger asChild disabled={disabled} className="w-full">
+          <div className="relative w-full">
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputValue || (selectedItem ? "" : "")}
+              onChange={handleInputChange}
+              onFocus={() => setOpen(true)}
+              placeholder={selectedItem ? (renderSelectedItem ? renderSelectedItem(selectedItem) as string : selectedItem.label) : (placeholder as string ?? "Search...")}
+              disabled={disabled}
+              className={cn(
+                "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
+                "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                "disabled:cursor-not-allowed disabled:opacity-50",
+                selectedItem && !inputValue && "placeholder:text-foreground"
+              )}
+            />
+            <Search className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          </div>
+        </PopoverTrigger>
+
+        <PopoverContent
+          className="p-0"
+          {...popoverProps}
+          style={{
+            width: "var(--radix-popover-trigger-width)",
+            ...popoverProps?.style,
+          }}
+          onOpenAutoFocus={(e) => {
+            e.preventDefault(); // Keep focus on the input
+          }}
+        >
+          {Component}
+        </PopoverContent>
+      </Popover>
+    );
   }
 
   return (

@@ -84,13 +84,16 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setXeroConnected(false);
       }
 
-      try {
-        // Check Office 365 / OneDrive connection (organization-wide)
-        const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/organization_onedrive/status");
-        setOffice365Connected(office365Response?.connected === true);
-      } catch (error) {
-        console.debug("Failed to fetch Office 365 status:", error);
-        setOffice365Connected(false);
+      // Skip OneDrive check on localhost (endpoint not available locally)
+      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+        try {
+          // Check Office 365 / OneDrive connection (organization-wide)
+          const office365Response = await api.get<{ connected?: boolean; success?: boolean }>("/api/v1/organization_onedrive/status");
+          setOffice365Connected(office365Response?.connected === true);
+        } catch (error) {
+          console.debug("Failed to fetch Office 365 status:", error);
+          setOffice365Connected(false);
+        }
       }
     };
 

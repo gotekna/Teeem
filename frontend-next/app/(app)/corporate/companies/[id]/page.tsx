@@ -10,6 +10,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft,
   Building2,
   Users,
@@ -1447,16 +1454,41 @@ interface CompanyDocument extends TableRow {
   company_id?: number;
 }
 
+// Folder options for documents
+const DOCUMENT_FOLDER_OPTIONS = [
+  "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
+  "DIVIDENDS", "FINANCIALS", "GENERAL", "INSURANCE",
+  "LOANS", "MINUTES", "REGISTRY", "TRUST"
+];
+
+// Document type options
+const DOCUMENT_TYPE_OPTIONS = [
+  { value: "tax_return", label: "Tax Return" },
+  { value: "bas", label: "BAS" },
+  { value: "financial_statement", label: "Financial Statement" },
+  { value: "annual_report", label: "Annual Report" },
+  { value: "minutes", label: "Minutes" },
+  { value: "resolution", label: "Resolution" },
+  { value: "contract", label: "Contract" },
+  { value: "loan", label: "Loan Document" },
+  { value: "insurance", label: "Insurance" },
+  { value: "asic", label: "ASIC Document" },
+  { value: "other", label: "Other" },
+];
+
 // Build column definitions for documents table
 // Column types must match Foundation ID 357 (company_documents)
 const buildDocumentColumns = (): TableColumn[] => [
   { key: "id", label: "ID", column_type: "whole_number", resizable: true, sortable: true, filterable: true, filterType: "text", width: 60 },
+  { key: "title", label: "Title", column_type: "string", resizable: true, sortable: true, filterable: true, filterType: "text", width: 300 },
+  { key: "validated", label: "✓", column_type: "boolean", resizable: false, sortable: true, filterable: true, filterType: "dropdown", width: 50 },
   { key: "document_type", label: "Type", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
   { key: "financial_years", label: "FY", column_type: "structured_data", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 80 },
   { key: "folder", label: "Folder", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
+  { key: "ref_date", label: "REF Date", column_type: "date", resizable: true, sortable: true, filterable: true, filterType: "date", width: 100 },
+  { key: "filed_date", label: "Filed", column_type: "date", resizable: true, sortable: true, filterable: true, filterType: "date", width: 100 },
   { key: "source", label: "Source", column_type: "choice", resizable: true, sortable: true, filterable: true, filterType: "dropdown", width: 100 },
   { key: "file_size", label: "Size", column_type: "whole_number", resizable: true, sortable: true, filterable: false, width: 100 },
-  { key: "document_date", label: "Doc Date", column_type: "date", resizable: true, sortable: true, filterable: true, filterType: "date", width: 120 },
   { key: "created_at", label: "Uploaded", column_type: "date_and_time", resizable: true, sortable: true, filterable: false, width: 150 },
 ];
 
@@ -1473,6 +1505,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
   const [loading, setLoading] = React.useState(true);
   const [sharepointConnected, setShaepointConnected] = React.useState(false);
   const [columns] = React.useState(buildDocumentColumns());
+  const [companies, setCompanies] = React.useState<Company[]>([]);
 
   // Document preview modal state
   const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null);
@@ -1481,7 +1514,17 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
   React.useEffect(() => {
     loadDocuments();
     checkSharePointConnection();
+    loadCompanies();
   }, [companyId, category]);
+
+  const loadCompanies = async () => {
+    try {
+      const response = await api.get<{ companies: Company[] }>("/api/v1/companies");
+      setCompanies(response.companies || []);
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  };
 
   const loadDocuments = async () => {
     try {
@@ -1547,6 +1590,27 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     }
   };
 
+  // Handle inline document field update (folder, type, etc.)
+  const handleInlineUpdate = async (docId: number | string, field: string, value: string) => {
+    try {
+      // Use relocate endpoint for folder changes (moves file in OneDrive)
+      if (field === "folder") {
+        await api.post(`/api/v1/company_documents/${docId}/relocate`, {
+          relocate: { folder: value }
+        });
+      } else {
+        // Regular update for other fields
+        await api.patch(`/api/v1/company_documents/${docId}`, {
+          company_document: { [field]: value }
+        });
+      }
+      await loadDocuments();
+    } catch (error) {
+      console.error(`Failed to update document ${field}:`, error);
+      alert(`Failed to update ${field}`);
+    }
+  };
+
   // Custom cell renderer
   const customCellRenderer = (doc: CompanyDocument, columnKey: string) => {
     switch (columnKey) {
@@ -1576,15 +1640,63 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
       case "file_size":
         return <span className="text-muted-foreground">{formatFileSize(doc.file_size)}</span>;
       case "folder":
-        return doc.folder ? (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-            {doc.folder}
-          </Badge>
-        ) : null;
+        return (
+          <Select
+            value={doc.folder || ""}
+            onValueChange={(value) => handleInlineUpdate(doc.id, "folder", value)}
+          >
+            <SelectTrigger
+              className="h-7 w-[120px] text-xs border-0 bg-transparent hover:bg-muted"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <SelectValue placeholder="Select...">
+                {doc.folder ? (
+                  <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    {doc.folder}
+                  </Badge>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent onClick={(e) => e.stopPropagation()}>
+              {DOCUMENT_FOLDER_OPTIONS.map((folder) => (
+                <SelectItem key={folder} value={folder}>
+                  {folder}
+                  {folder === doc.folder && " ✓"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
       case "document_type":
-        return doc.document_type ? (
-          <span className="text-muted-foreground capitalize">{doc.document_type.replace(/_/g, " ")}</span>
-        ) : null;
+        return (
+          <Select
+            value={doc.document_type || ""}
+            onValueChange={(value) => handleInlineUpdate(doc.id, "document_type", value)}
+          >
+            <SelectTrigger
+              className="h-7 w-[130px] text-xs border-0 bg-transparent hover:bg-muted"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <SelectValue placeholder="Select...">
+                {doc.document_type ? (
+                  <span className="capitalize">{doc.document_type.replace(/_/g, " ")}</span>
+                ) : (
+                  <span className="text-muted-foreground">-</span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent onClick={(e) => e.stopPropagation()}>
+              {DOCUMENT_TYPE_OPTIONS.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                  {type.value === doc.document_type && " ✓"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
       default:
         return null;
     }
@@ -1599,36 +1711,12 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     return company.sharepoint_folder_url;
   };
 
-  // Custom actions for table header
-  const customActions = (
-    <div className="flex items-center gap-2">
-      {/* SharePoint status badge */}
-      {sharepointConnected && getSharePointUrl() ? (
-        <a
-          href={getSharePointUrl()!}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors"
-        >
-          <CheckCircle className="h-3.5 w-3.5" />
-          SharePoint
-          <ExternalLink className="h-3 w-3" />
-        </a>
-      ) : (
-        <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium bg-muted text-muted-foreground">
-          <XCircle className="h-3.5 w-3.5" />
-          SharePoint Offline
-        </span>
-      )}
-      <Button>
-        <Plus className="h-4 w-4 mr-2" />
-        Upload
-      </Button>
-      <Button variant="outline">
-        <Edit className="h-4 w-4 mr-2" />
-        Edit
-      </Button>
-    </div>
+  // Left actions for table toolbar (Add Record button)
+  const leftActions = (
+    <Button>
+      <Plus className="h-4 w-4 mr-2" />
+      Upload
+    </Button>
   );
 
   if (loading && documents.length === 0) {
@@ -1650,7 +1738,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
             : "No documents found. Upload a document or sync from SharePoint."}
         </p>
         <div className="flex gap-2 mt-4">
-          {customActions}
+          {leftActions}
         </div>
       </div>
     );
@@ -1672,7 +1760,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
         enableExport={true}
         enableSchemaEditor={false}
         showDataHealth={true}
-        customActions={customActions}
+        leftActions={leftActions}
         customCellRenderer={customCellRenderer}
       />
 
@@ -1686,6 +1774,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
           }}
           document={selectedDocument}
           onDocumentUpdate={loadDocuments}
+          companies={companies}
         />
       )}
     </>

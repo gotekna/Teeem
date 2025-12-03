@@ -50,6 +50,111 @@ const FOLDER_OPTIONS = [
   "TRUST",
 ];
 
+// Document type options mapped to folders/tabs
+const DOCUMENT_TYPE_BY_FOLDER: Record<string, { value: string; label: string; abbrev: string }[]> = {
+  ATO: [
+    { value: "tax_return", label: "Company Tax Return", abbrev: "CTR" },
+    { value: "trust_tax_return", label: "Trust Tax Return", abbrev: "TTR" },
+    { value: "tax", label: "Tax (General)", abbrev: "TAX" },
+    { value: "bas", label: "BAS", abbrev: "BAS" },
+    { value: "ias", label: "IAS", abbrev: "IAS" },
+    { value: "tfn", label: "Tax File Number", abbrev: "TFN" },
+    { value: "ato_correspondence", label: "ATO Correspondence", abbrev: "ATO" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  ASIC: [
+    { value: "annual_statement", label: "Annual Statement", abbrev: "AS" },
+    { value: "company_extract", label: "Company Extract", abbrev: "CE" },
+    { value: "asic_correspondence", label: "ASIC Correspondence", abbrev: "ASIC" },
+    { value: "form_484", label: "Form 484", abbrev: "484" },
+    { value: "form_492", label: "Form 492", abbrev: "492" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  FINANCIALS: [
+    { value: "financial_statement", label: "Financial Statement", abbrev: "FS" },
+    { value: "annual_report", label: "Annual Report", abbrev: "AR" },
+    { value: "management_accounts", label: "Management Accounts", abbrev: "MA" },
+    { value: "trial_balance", label: "Trial Balance", abbrev: "TB" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  MINUTES: [
+    { value: "minutes", label: "Minutes", abbrev: "MIN" },
+    { value: "resolution", label: "Resolution", abbrev: "RES" },
+    { value: "consent", label: "Consent", abbrev: "CON" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  COMPANY: [
+    { value: "constitution", label: "Constitution", abbrev: "CON" },
+    { value: "shareholder_agreement", label: "Shareholder Agreement", abbrev: "SHA" },
+    { value: "share_certificate", label: "Share Certificate", abbrev: "SC" },
+    { value: "register", label: "Register", abbrev: "REG" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  LOANS: [
+    { value: "loan_agreement", label: "Loan Agreement", abbrev: "LA" },
+    { value: "security_deed", label: "Security Deed", abbrev: "SD" },
+    { value: "ppsr", label: "PPSR Registration", abbrev: "PPSR" },
+    { value: "mortgage", label: "Mortgage", abbrev: "MTG" },
+    { value: "guarantee", label: "Guarantee", abbrev: "GTY" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  BANK: [
+    { value: "bank_statement", label: "Bank Statement", abbrev: "BS" },
+    { value: "bank_letter", label: "Bank Letter", abbrev: "BL" },
+    { value: "account_opening", label: "Account Opening", abbrev: "AO" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  INSURANCE: [
+    { value: "policy", label: "Policy", abbrev: "POL" },
+    { value: "certificate", label: "Certificate of Currency", abbrev: "COC" },
+    { value: "renewal", label: "Renewal", abbrev: "REN" },
+    { value: "claim", label: "Claim", abbrev: "CLM" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  TRUST: [
+    { value: "trust_deed", label: "Trust Deed", abbrev: "TD" },
+    { value: "deed_variation", label: "Deed of Variation", abbrev: "DOV" },
+    { value: "vesting", label: "Vesting", abbrev: "VST" },
+    { value: "distribution", label: "Distribution Resolution", abbrev: "DR" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  ADVICE: [
+    { value: "accountant_advice", label: "Accountant Advice", abbrev: "AA" },
+    { value: "client_advice", label: "Client Advice", abbrev: "CA" },
+    { value: "legal_advice", label: "Legal Advice", abbrev: "LA" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  DIVIDENDS: [
+    { value: "dividend_statement", label: "Dividend Statement", abbrev: "DS" },
+    { value: "dividend_resolution", label: "Dividend Resolution", abbrev: "DR" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  ASSETS: [
+    { value: "valuation", label: "Valuation", abbrev: "VAL" },
+    { value: "purchase_contract", label: "Purchase Contract", abbrev: "PC" },
+    { value: "sale_contract", label: "Sale Contract", abbrev: "SC" },
+    { value: "title", label: "Title", abbrev: "TTL" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  REGISTRY: [
+    { value: "share_register", label: "Share Register", abbrev: "SR" },
+    { value: "member_register", label: "Member Register", abbrev: "MR" },
+    { value: "director_register", label: "Director Register", abbrev: "DR" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+  GENERAL: [
+    { value: "correspondence", label: "Correspondence", abbrev: "COR" },
+    { value: "contract", label: "Contract", abbrev: "CON" },
+    { value: "other", label: "Other", abbrev: "OTH" },
+  ],
+};
+
+// Get document types for a specific folder from hardcoded fallback
+const getHardcodedDocumentTypesForFolder = (folder: string | undefined) => {
+  const normalizedFolder = (folder || "GENERAL").toUpperCase();
+  return DOCUMENT_TYPE_BY_FOLDER[normalizedFolder] || DOCUMENT_TYPE_BY_FOLDER.GENERAL;
+};
+
 // Generate financial year options (last 10 years)
 const generateFYOptions = () => {
   const currentYear = new Date().getFullYear();
@@ -82,6 +187,25 @@ const parseFinancialYears = (fy: number[] | string | undefined): number[] => {
 interface Company {
   id: number;
   name: string;
+  code?: string;
+}
+
+interface DocumentTypeOption {
+  id: number;
+  name: string;
+  abbreviation?: string;
+  folder?: string;
+  tabs?: string[];
+  primary_tab?: string;
+  category?: string;
+}
+
+interface Asset {
+  id: number;
+  name?: string;
+  description?: string;
+  abbreviation?: string;
+  display_name?: string;
 }
 
 interface CompanyDocument {
@@ -92,10 +216,15 @@ interface CompanyDocument {
   file_url?: string;
   file_size?: number;
   folder?: string;
+  document_type?: string;
   financial_years?: number[] | string;
+  ref_date?: string;
+  filed_date?: string;
   source?: string;
   company_id?: number;
   company?: Company;
+  asset_id?: number;
+  asset?: Asset;
   onedrive_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
@@ -136,13 +265,70 @@ export default function DocumentPreviewModal({
     String(initialDocument?.company_id || initialDocument?.company?.id || "")
   );
   const [editedFolder, setEditedFolder] = React.useState(initialDocument?.folder || "");
+  const [editedDocumentType, setEditedDocumentType] = React.useState(initialDocument?.document_type || "");
   const [editedFinancialYears, setEditedFinancialYears] = React.useState<number[]>(
     parseFinancialYears(initialDocument?.financial_years)
   );
+  const [editedDescription, setEditedDescription] = React.useState("");
+  const [editedRefDate, setEditedRefDate] = React.useState("");
+  const [editedFiledDate, setEditedFiledDate] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+
+  // Document types from database
+  const [documentTypes, setDocumentTypes] = React.useState<DocumentTypeOption[]>([]);
 
   const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Fetch document types from database
+  React.useEffect(() => {
+    const fetchDocumentTypes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: DocumentTypeOption[] }>("/api/v1/document_types");
+        if (response.success && response.data) {
+          setDocumentTypes(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch document types:", error);
+      }
+    };
+    fetchDocumentTypes();
+  }, []);
+
+  // Get document types for a specific folder - uses database if available, fallback to hardcoded
+  const getDocumentTypesForFolder = React.useCallback((folder: string | undefined) => {
+    const normalizedFolder = (folder || "GENERAL").toUpperCase();
+    let types: { value: string; label: string; abbrev: string }[] = [];
+
+    // Filter database types by folder or tabs containing this folder
+    if (documentTypes.length > 0) {
+      const filtered = documentTypes.filter(dt =>
+        dt.folder?.toUpperCase() === normalizedFolder ||
+        dt.primary_tab?.toUpperCase() === normalizedFolder ||
+        dt.tabs?.some(t => t.toUpperCase() === normalizedFolder)
+      );
+
+      if (filtered.length > 0) {
+        types = filtered.map(dt => ({
+          value: dt.name,
+          label: dt.name,
+          abbrev: dt.abbreviation || dt.name.substring(0, 3).toUpperCase()
+        }));
+      }
+    }
+
+    // Fallback to hardcoded if no database types
+    if (types.length === 0) {
+      types = [...getHardcodedDocumentTypesForFolder(folder)];
+    }
+
+    // Always ensure "Other" is at the end as a catch-all
+    if (!types.some(t => t.value === "other")) {
+      types.push({ value: "other", label: "Other", abbrev: "OTH" });
+    }
+
+    return types;
+  }, [documentTypes]);
 
   // Update state when initialDocument changes
   React.useEffect(() => {
@@ -151,6 +337,7 @@ export default function DocumentPreviewModal({
     setEditedTitle(initialDocument?.title || "");
     setEditedCompanyId(String(initialDocument?.company_id || initialDocument?.company?.id || ""));
     setEditedFolder(initialDocument?.folder || "");
+    setEditedDocumentType(initialDocument?.document_type || "");
     setEditedFinancialYears(parseFinancialYears(initialDocument?.financial_years));
   }, [initialDocument]);
 
@@ -203,6 +390,50 @@ export default function DocumentPreviewModal({
       titleInputRef.current.select();
     }
   }, [isEditing]);
+
+  // Format date for filename (DD-MM-YYYY)
+  const formatDateForFilename = (dateStr: string) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  // Auto-fill document name when selections change
+  React.useEffect(() => {
+    const companyCode = companies.find(c => String(c.id) === editedCompanyId)?.code || "";
+
+    // Handle "Other" document type with special format
+    if (editedDocumentType === "other") {
+      // Format: {CompanyCode} OTH {Description} REF {Date} Filed {Date}
+      if (companyCode && editedDescription) {
+        let newName = `${companyCode} OTH ${editedDescription}`;
+        if (editedRefDate) {
+          newName += ` REF ${formatDateForFilename(editedRefDate)}`;
+        }
+        if (editedFiledDate) {
+          newName += ` Filed ${formatDateForFilename(editedFiledDate)}`;
+        }
+        setEditedTitle(newName.trim());
+      }
+      return;
+    }
+
+    // Standard document type format
+    const docTypeAbbrev = getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "";
+    const fyPart = editedFinancialYears.length > 0
+      ? editedFinancialYears.map(y => `FY${y.toString().slice(-2)}`).join(" ")
+      : "";
+    const descPart = editedDescription ? ` ${editedDescription}` : "";
+
+    // Only auto-fill if we have the required fields
+    if (companyCode && docTypeAbbrev && fyPart) {
+      const newName = `${companyCode} ${docTypeAbbrev} ${fyPart}${descPart}`.trim();
+      setEditedTitle(newName);
+    }
+  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder]);
 
   // Handle user validation
   const handleValidate = async () => {
@@ -267,7 +498,10 @@ export default function DocumentPreviewModal({
             title: editedTitle.trim(),
             company_id: editedCompanyId || null,
             folder: editedFolder || null,
+            document_type: editedDocumentType || null,
             financial_years: editedFinancialYears,
+            ref_date: editedRefDate || null,
+            filed_date: editedFiledDate || null,
           },
         }
       );
@@ -528,14 +762,27 @@ export default function DocumentPreviewModal({
               </div>
             </div>
           ) : (
-            <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="mb-6 grid grid-cols-2 md:grid-cols-7 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Company</p>
                 <p className="text-sm font-medium">{currentCompanyName}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Folder</p>
+                <p className="text-xs text-muted-foreground">Tab/Folder</p>
                 <p className="text-sm font-medium">{document.folder || "-"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Doc Type</p>
+                <p className="text-sm font-medium">
+                  {document.document_type ? (
+                    <span className="flex items-center gap-1">
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.abbrev || "?"}
+                      </Badge>
+                      {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.label || document.document_type.replace(/_/g, " ")}
+                    </span>
+                  ) : "-"}
+                </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Financial Year</p>
@@ -546,11 +793,498 @@ export default function DocumentPreviewModal({
                 </p>
               </div>
               <div>
+                <p className="text-xs text-muted-foreground">Linked To</p>
+                <p className="text-sm font-medium">
+                  {document.asset ? (
+                    <span className="flex items-center gap-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {document.asset.abbreviation || document.asset.display_name || document.asset.name || `Asset #${document.asset.id}`}
+                      </Badge>
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </p>
+              </div>
+              <div>
                 <p className="text-xs text-muted-foreground">File Size</p>
                 <p className="text-sm font-medium">{formatFileSize(document.file_size)}</p>
               </div>
             </div>
           )}
+
+          {/* Naming Information Section */}
+          <div className="mb-6 p-4 bg-muted/30 rounded-lg border space-y-3">
+            <h3 className="text-sm font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Naming Information
+            </h3>
+
+            {/* Original Filename */}
+            <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
+              <span className="text-muted-foreground">Original File:</span>
+              <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all">
+                {document.file_name || document.title || "-"}
+              </span>
+            </div>
+
+            {/* Current Title */}
+            <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
+              <span className="text-muted-foreground">Current Title:</span>
+              <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all">
+                {document.title || "-"}
+              </span>
+            </div>
+
+            {/* Naming Convention Guide */}
+            <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
+              <span className="text-muted-foreground">TEEEM Format:</span>
+              <div className="space-y-2">
+                <span className="font-mono text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 px-2 py-1 rounded inline-block">
+                  {"{CompanyCode}"} {"{DocType}"} FY{"{YY}"} {"{Details/Asset}"}.pdf
+                </span>
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Format breakdown:</p>
+                  <ul className="list-disc list-inside ml-2 space-y-0.5">
+                    <li><span className="font-mono">CompanyCode</span> - Company abbreviation (e.g., TD, ANZ)</li>
+                    <li><span className="font-mono">DocType</span> - Document type abbreviation (CTR, BAS, LA)</li>
+                    <li><span className="font-mono">FY{"{YY}"}</span> - Financial year (FY24, FY25)</li>
+                    <li><span className="font-mono">Details/Asset</span> - Additional info: period, asset name, description</li>
+                  </ul>
+                  <p className="mt-2 font-medium text-foreground">Examples:</p>
+                  <ul className="list-disc list-inside ml-2 space-y-0.5">
+                    <li><span className="font-mono">TD CTR FY24.pdf</span> - Company Tax Return</li>
+                    <li><span className="font-mono">TD BAS Q1 FY24.pdf</span> - BAS for Quarter 1</li>
+                    <li><span className="font-mono">TD LA FY24 ANZ Loan.pdf</span> - Loan Agreement linked to ANZ Loan asset</li>
+                    <li><span className="font-mono">TD MTG FY24 123 Main St.pdf</span> - Mortgage for property</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Linked Asset Info (if any) */}
+            {document.asset && (
+              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
+                <span className="text-muted-foreground">Linked Asset:</span>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="font-medium">
+                    {document.asset.abbreviation || document.asset.display_name || document.asset.name}
+                  </Badge>
+                  {document.asset.description && (
+                    <span className="text-xs text-muted-foreground">
+                      {document.asset.description}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* AI Suggestion (if available) */}
+            {document.ai_suggested_name && (
+              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
+                <span className="text-muted-foreground flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-purple-500" />
+                  AI Suggestion:
+                </span>
+                <div className="space-y-1">
+                  <span className="font-mono text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded inline-block">
+                    {document.ai_suggested_name}
+                  </span>
+                  {document.ai_confidence_score && (
+                    <span className={cn(
+                      "text-xs ml-2",
+                      document.ai_confidence_score >= 80 ? "text-green-600" :
+                      document.ai_confidence_score >= 60 ? "text-yellow-600" : "text-red-600"
+                    )}>
+                      ({document.ai_confidence_score}% confidence)
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* AI Reasoning (if available) */}
+            {document.ai_analysis_notes && (
+              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
+                <span className="text-muted-foreground">AI Reasoning:</span>
+                <p className="text-xs text-muted-foreground italic bg-muted/50 px-2 py-1 rounded">
+                  {document.ai_analysis_notes}
+                </p>
+              </div>
+            )}
+
+            {/* Current Tab/Folder and Document Type - side by side */}
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-[120px_1fr] gap-2">
+                <span className="text-muted-foreground">Tab/Folder:</span>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="font-medium">
+                    {document.folder || "GENERAL"}
+                  </Badge>
+                  {document.ai_suggested_folder && document.ai_suggested_folder !== document.folder && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-purple-500" />
+                      <Badge variant="outline" className="text-purple-600 border-purple-300">{document.ai_suggested_folder}</Badge>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-[100px_1fr] gap-2">
+                <span className="text-muted-foreground">Doc Type:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium capitalize">
+                    {document.document_type?.replace(/_/g, " ") || "-"}
+                  </span>
+                  {document.ai_suggested_type && document.ai_suggested_type !== document.document_type && (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-purple-500" />
+                      <span className="text-purple-600 capitalize">{document.ai_suggested_type.replace(/_/g, " ")}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Company, Folder, Type & Details - User can modify document location */}
+            <div className="pt-3 border-t space-y-3">
+              {/* Move to Company */}
+              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
+                <span className="text-muted-foreground">Move to Company:</span>
+                <div className="flex gap-2 items-center">
+                  <Select value={editedCompanyId} onValueChange={setEditedCompanyId}>
+                    <SelectTrigger className="w-[280px]">
+                      <SelectValue placeholder="Select company...">
+                        {companies.find(c => String(c.id) === editedCompanyId)?.name || "Select company..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companies.map((company) => (
+                        <SelectItem key={company.id} value={String(company.id)}>
+                          <div className="flex items-center gap-2">
+                            {company.code && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {company.code}
+                              </Badge>
+                            )}
+                            {company.name}
+                            {String(company.id) === String(document.company_id || document.company?.id) && " (current)"}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {editedCompanyId !== String(document.company_id || document.company?.id || "") && (
+                    <span className="text-xs text-amber-600">⚠️ Will move file to new company folder</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Tab/Folder and Document Type - side by side */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Move to Tab/Folder */}
+                <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
+                  <span className="text-muted-foreground">Tab/Folder:</span>
+                  <Select value={editedFolder} onValueChange={setEditedFolder}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select tab..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FOLDER_OPTIONS.map((folder) => (
+                        <SelectItem key={folder} value={folder}>
+                          {folder}
+                          {folder === document.folder && " (current)"}
+                          {folder === document.ai_suggested_folder && folder !== document.folder && " ✨ AI"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Document Type - filtered by selected folder */}
+                <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
+                  <span className="text-muted-foreground">Doc Type:</span>
+                  <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select type...">
+                        {editedDocumentType ? (
+                          <span className="flex items-center gap-2">
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "?"}
+                            </Badge>
+                            {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || editedDocumentType}
+                          </span>
+                        ) : "Select type..."}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getDocumentTypesForFolder(editedFolder).map((type) => (
+                        <SelectItem key={type.value} value={type.value}>
+                          <span className="flex items-center gap-2">
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {type.abbrev}
+                            </Badge>
+                            {type.label}
+                            {type.value === document.document_type && " (current)"}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Fields shown when doc type is selected */}
+              {editedDocumentType && editedDocumentType !== "other" && (
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Financial Year Selector */}
+                  <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-start">
+                    <span className="text-muted-foreground pt-2">Fin. Year:</span>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1">
+                        {editedFinancialYears.length > 0 ? (
+                          editedFinancialYears.map((year) => (
+                            <Badge
+                              key={year}
+                              variant="secondary"
+                              className="gap-1 cursor-pointer hover:bg-destructive/20"
+                              onClick={() => toggleFinancialYear(year)}
+                            >
+                              FY{year.toString().slice(-2)}
+                              <X className="h-3 w-3" />
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Select year(s)...</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {FY_OPTIONS.slice(0, 5).map((year) => (
+                          <Button
+                            key={year}
+                            type="button"
+                            size="sm"
+                            variant={editedFinancialYears.includes(year) ? "default" : "outline"}
+                            onClick={() => toggleFinancialYear(year)}
+                            className="h-6 px-2 text-xs"
+                          >
+                            FY{year.toString().slice(-2)}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Manual Description */}
+                  <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
+                    <span className="text-muted-foreground">Details:</span>
+                    <Input
+                      value={editedDescription}
+                      onChange={(e) => setEditedDescription(e.target.value)}
+                      placeholder="e.g., Q1, ANZ Loan, 123 Main St..."
+                      className="text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* "Other" document type - special fields */}
+              {editedDocumentType === "other" && (
+                <div className="space-y-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800">
+                  <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
+                    Other Document - Please provide details:
+                  </p>
+
+                  {/* Description (required) */}
+                  <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
+                    <span className="text-muted-foreground">Description:</span>
+                    <Input
+                      value={editedDescription}
+                      onChange={(e) => setEditedDescription(e.target.value)}
+                      placeholder="What is this document? e.g., Letter from ATO, Notice..."
+                      className="text-sm"
+                    />
+                  </div>
+
+                  {/* Reference Date */}
+                  <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
+                    <span className="text-muted-foreground">REF Date:</span>
+                    <Input
+                      type="date"
+                      value={editedRefDate}
+                      onChange={(e) => setEditedRefDate(e.target.value)}
+                      className="text-sm w-[180px]"
+                    />
+                  </div>
+
+                  {/* Filed Date */}
+                  <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
+                    <span className="text-muted-foreground">Filed Date:</span>
+                    <Input
+                      type="date"
+                      value={editedFiledDate}
+                      onChange={(e) => setEditedFiledDate(e.target.value)}
+                      className="text-sm w-[180px]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* New Name section */}
+              <div className="bg-muted/50 p-3 rounded space-y-3">
+                {/* Human-readable display name - shows what fields are filled/missing */}
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
+                  <span className="text-muted-foreground">Display As:</span>
+                  {editedDocumentType === "other" ? (
+                    /* Other document type display */
+                    <div className="flex flex-wrap gap-1 text-xs">
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        companies.find(c => String(c.id) === editedCompanyId)?.code
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      )}>
+                        {companies.find(c => String(c.id) === editedCompanyId)?.code || "Company?"}
+                      </span>
+                      <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        Other
+                      </span>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        editedDescription
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      )}>
+                        {editedDescription || "Description?"}
+                      </span>
+                      {editedRefDate && (
+                        <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          REF {formatDateForFilename(editedRefDate)}
+                        </span>
+                      )}
+                      {editedFiledDate && (
+                        <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                          Filed {formatDateForFilename(editedFiledDate)}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    /* Standard document type display */
+                    <div className="flex flex-wrap gap-1 text-xs">
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        companies.find(c => String(c.id) === editedCompanyId)?.code
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      )}>
+                        {companies.find(c => String(c.id) === editedCompanyId)?.code || "Company?"}
+                      </span>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        editedDocumentType
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      )}>
+                        {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || "Doc Type?"}
+                      </span>
+                      <span className={cn(
+                        "px-2 py-0.5 rounded",
+                        editedFinancialYears.length > 0
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      )}>
+                        {editedFinancialYears.length > 0
+                          ? editedFinancialYears.map(y => y.toString()).join(", ")
+                          : "Year?"}
+                      </span>
+                      {editedDescription && (
+                        <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          {editedDescription}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Divider */}
+                <div className="border-t" />
+
+                {/* Actual file rename input */}
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
+                  <span className="text-muted-foreground">Rename To:</span>
+                  <div className="flex gap-2">
+                    <Input
+                      value={editedTitle}
+                      onChange={(e) => setEditedTitle(e.target.value)}
+                      placeholder="File name auto-fills from selections..."
+                      className="flex-1 font-mono text-sm"
+                    />
+                    {document.ai_suggested_name && editedTitle !== document.ai_suggested_name && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditedTitle(document.ai_suggested_name || "")}
+                        className="whitespace-nowrap text-purple-600 border-purple-300 hover:bg-purple-50"
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        Use AI
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Save button - show when there are changes */}
+              {((editedTitle && editedTitle !== document.title) ||
+                (editedFolder && editedFolder !== document.folder) ||
+                (editedDocumentType && editedDocumentType !== document.document_type) ||
+                (editedCompanyId && editedCompanyId !== String(document.company_id || document.company?.id || ""))) && (
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    onClick={handleSave}
+                    disabled={saving || !editedTitle.trim()}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-3 w-3 mr-1" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditedTitle(document.title || "");
+                      setEditedFolder(document.folder || "");
+                      setEditedDocumentType(document.document_type || "");
+                      setEditedCompanyId(String(document.company_id || document.company?.id || ""));
+                      setEditedFinancialYears(parseFinancialYears(document.financial_years));
+                      setEditedDescription("");
+                      setEditedRefDate("");
+                      setEditedFiledDate("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {editedCompanyId !== String(document.company_id || document.company?.id || "")
+                      ? "Will move file to new company folder in OneDrive"
+                      : editedFolder !== document.folder
+                        ? "Will move file in OneDrive"
+                        : "Will rename in OneDrive"}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Preview Area */}
           <div

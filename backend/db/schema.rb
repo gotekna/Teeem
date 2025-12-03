@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_02_220046) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_03_002943) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -500,6 +500,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_02_220046) do
     t.integer "ai_suggested_fy", default: [], array: true
     t.text "ai_analysis_notes"
     t.boolean "validation_required", default: false
+    t.date "ref_date"
+    t.date "filed_date"
     t.index ["asset_id"], name: "index_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_company_documents_on_company_code"
     t.index ["company_id"], name: "index_company_documents_on_company_id"

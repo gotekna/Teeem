@@ -134,7 +134,6 @@ export interface TeeemTableViewProps {
   preloadedViews?: SavedView[] | null;
   hideUpdateViewButton?: boolean;
   initialGroupByColumn?: string | null;
-  showFilterButton?: boolean; // Show a "Filters" button in the toolbar
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
 
   // Server-side operations

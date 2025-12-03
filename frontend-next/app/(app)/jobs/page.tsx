@@ -12,7 +12,7 @@ import { api } from "@/lib/api";
 import { slugifyJobTitle } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { Loader } from "@/components/ui/loader";
-import { Plus, Filter } from "lucide-react";
+import { Plus, Filter, Settings } from "lucide-react";
 import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
 
 interface Job {
@@ -162,9 +162,34 @@ export default function JobsPage() {
         }
         return { ...col, editable: !isSysCol, system: isSysCol };
       });
+
+      // Ensure job_status and job_type columns are always available for filtering
+      // (they may not be returned by the API but exist in the data)
+      const columnKeys = enrichedColumns.map(c => c.key || (c as unknown as { column_name?: string }).column_name);
+      const additionalColumns: TableColumn[] = [];
+
+      if (!columnKeys.includes('job_status')) {
+        additionalColumns.push({
+          key: "job_status", label: "Job Status", width: 120, sortable: true, filterable: true,
+          filterType: "dropdown", column_type: "choice", choices: jobStatuses.map(s => s.name)
+        });
+      }
+      if (!columnKeys.includes('job_type')) {
+        additionalColumns.push({
+          key: "job_type", label: "Job Type", width: 120, sortable: true, filterable: true,
+          filterType: "dropdown", column_type: "choice", choices: jobTypes.map(t => t.name)
+        });
+      }
+      if (!columnKeys.includes('ted_number')) {
+        additionalColumns.push({
+          key: "ted_number", label: "TED #", width: 100, sortable: true, filterable: true, column_type: "single_line_text"
+        });
+      }
+
       return [
         { key: "select", label: "", width: 40, sortable: false, filterable: false },
         ...enrichedColumns,
+        ...additionalColumns,
         { key: "actions", label: "Actions", width: 100, sortable: false, filterable: false },
       ];
     }
@@ -363,9 +388,9 @@ export default function JobsPage() {
           preloadedViews={views}
           onRefresh={() => loadJobs()}
           customActions={
-            <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
+            <Button variant="default" size="sm" onClick={() => setShowViewsManager(true)}>
+              <Settings className="h-4 w-4 mr-2" />
+              Views
             </Button>
           }
         />

@@ -76,6 +76,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 
 // Types
 interface CascadeFilter {
@@ -669,6 +670,7 @@ export function GlobalViewsManager({
   const [filtersExpanded, setFiltersExpanded] = React.useState(true);
   const [sortExpanded, setSortExpanded] = React.useState(true);
   const [groupByExpanded, setGroupByExpanded] = React.useState(true);
+  const [columnsExpanded, setColumnsExpanded] = React.useState(true);
 
   // Lookup options cache for filter dropdowns
   const [lookupOptionsCache, setLookupOptionsCache] = React.useState<Record<string, { id: number; display: string }[]>>({});
@@ -1134,26 +1136,31 @@ export function GlobalViewsManager({
           });
         }
 
+        // Convert options to ComboboxItem format
+        const knownMappingItems: ComboboxItem[] = options.map((opt) => ({
+          id: opt.display,
+          label: opt.display,
+        }));
+
+        if (isLoading) {
+          return (
+            <div className="w-[140px] h-8 flex items-center justify-center border rounded">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          );
+        }
+
         return (
-          <Select
-            value={String(filter.value || "")}
-            onValueChange={(v) => updateFilter(filter.id, { value: v })}
-          >
-            <SelectTrigger className="w-[100px] h-8">
-              {isLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <SelectValue placeholder="Select..." />
-              )}
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((opt) => (
-                <SelectItem key={opt.id} value={opt.display}>
-                  {opt.display}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-[140px]">
+            <ComboboxDropdown
+              items={knownMappingItems}
+              selectedItem={filter.value ? { id: String(filter.value), label: String(filter.value) } : undefined}
+              onSelect={(item) => updateFilter(filter.id, { value: item.id })}
+              placeholder="Search value..."
+              searchInTrigger={true}
+              popoverProps={{ className: "w-[200px]" }}
+            />
+          </div>
         );
       }
 
@@ -1203,36 +1210,26 @@ export function GlobalViewsManager({
     // Choice dropdown - also handle available_choices on any column type
     const hasAvailableChoices = column.available_choices && column.available_choices.length > 0;
 
-    console.log('[GlobalViewsManager] Choice check:', {
-      column_name: column.column_name,
-      isChoiceColumn,
-      hasAvailableChoices,
-      available_choices: column.available_choices,
-    });
-
     if (isChoiceColumn || hasAvailableChoices) {
       const choices = column.available_choices || [];
       if (choices.length > 0) {
+        // Convert choices to ComboboxItem format
+        const choiceItems: ComboboxItem[] = choices.map((choice, idx) => {
+          const value = typeof choice === 'string' ? choice : (choice.value || String(choice.id));
+          return { id: value, label: value };
+        });
+
         return (
-          <Select
-            value={String(filter.value || "")}
-            onValueChange={(v) => updateFilter(filter.id, { value: v })}
-          >
-            <SelectTrigger className="w-[120px] h-8">
-              <SelectValue placeholder="Select..." />
-            </SelectTrigger>
-            <SelectContent>
-              {choices.map((choice, idx) => {
-                const value = typeof choice === 'string' ? choice : (choice.value || String(choice.id));
-                const display = typeof choice === 'string' ? choice : (choice.value || String(choice.id));
-                return (
-                  <SelectItem key={idx} value={value}>
-                    {display}
-                  </SelectItem>
-                );
-              })}
-            </SelectContent>
-          </Select>
+          <div className="w-[140px]">
+            <ComboboxDropdown
+              items={choiceItems}
+              selectedItem={filter.value ? { id: String(filter.value), label: String(filter.value) } : undefined}
+              onSelect={(item) => updateFilter(filter.id, { value: item.id })}
+              placeholder="Search value..."
+              searchInTrigger={true}
+              popoverProps={{ className: "w-[200px]" }}
+            />
+          </div>
         );
       } else if (isChoiceColumn) {
         // Choice column with no choices defined - show text input with hint
@@ -1267,31 +1264,32 @@ export function GlobalViewsManager({
           });
         }
 
+        // Convert options to ComboboxItem format
+        const lookupItems: ComboboxItem[] = options.map((opt) => ({
+          id: opt.display,
+          label: opt.display,
+        }));
+
+        if (isLoading) {
+          return (
+            <div className="w-[140px] h-8 flex items-center justify-center border rounded">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          );
+        }
+
         return (
-          <Select
-            value={String(filter.value || "")}
-            onValueChange={(v) => updateFilter(filter.id, { value: v })}
-          >
-            <SelectTrigger className="w-[120px] h-8">
-              {isLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <SelectValue placeholder="Select..." />
-              )}
-            </SelectTrigger>
-            <SelectContent>
-              {options.length === 0 && !isLoading && (
-                <SelectItem value="__no_options__" disabled>
-                  No options available
-                </SelectItem>
-              )}
-              {options.map((opt) => (
-                <SelectItem key={opt.id} value={opt.display}>
-                  {opt.display}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-[140px]">
+            <ComboboxDropdown
+              items={lookupItems}
+              selectedItem={filter.value ? { id: String(filter.value), label: String(filter.value) } : undefined}
+              onSelect={(item) => updateFilter(filter.id, { value: item.id })}
+              placeholder="Search value..."
+              searchInTrigger={true}
+              emptyResults="No options available"
+              popoverProps={{ className: "w-[200px]" }}
+            />
+          </div>
         );
       } else {
         // Lookup without foundation_id - show text input with hint
@@ -1739,22 +1737,23 @@ export function GlobalViewsManager({
                                           ) : (
                                             groupFilters.map(filter => (
                                               <div key={filter.id} className="flex flex-wrap items-center gap-2 p-2 bg-background rounded border">
-                                                {/* Column Select */}
-                                                <Select
-                                                  value={filter.column}
-                                                  onValueChange={(v) => updateFilter(filter.id, { column: v })}
-                                                >
-                                                  <SelectTrigger className="w-[120px] h-8">
-                                                    <SelectValue placeholder="Column..." />
-                                                  </SelectTrigger>
-                                                  <SelectContent>
-                                                    {filteredColumns.map(col => (
-                                                      <SelectItem key={col.column_name} value={col.column_name}>
-                                                        {col.name || col.column_name}
-                                                      </SelectItem>
-                                                    ))}
-                                                  </SelectContent>
-                                                </Select>
+                                                {/* Column Select - Searchable in trigger */}
+                                                <div className="w-[140px]">
+                                                  <ComboboxDropdown
+                                                    items={filteredColumns.map(col => ({
+                                                      id: col.column_name,
+                                                      label: col.name || col.column_name,
+                                                    }))}
+                                                    selectedItem={filter.column ? {
+                                                      id: filter.column,
+                                                      label: filteredColumns.find(c => c.column_name === filter.column)?.name || filter.column,
+                                                    } : undefined}
+                                                    onSelect={(item) => updateFilter(filter.id, { column: item.id })}
+                                                    placeholder="Search column..."
+                                                    searchInTrigger={true}
+                                                    popoverProps={{ className: "w-[200px]" }}
+                                                  />
+                                                </div>
 
                                                 {/* Operator Select */}
                                                 <Select
@@ -1937,116 +1936,126 @@ export function GlobalViewsManager({
                         </div>
                       </ScrollArea>
 
-                      {/* Right Side - Columns (Takes remaining space) */}
-                      <div className="flex-1 flex flex-col p-4 overflow-hidden min-w-0">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-2 font-semibold text-sm">
-                            <Eye className="h-4 w-4" />
-                            Columns
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="show-totals" className="text-xs text-muted-foreground">Totals</Label>
-                              <Switch
-                                id="show-totals"
-                                checked={editShowTotals}
-                                onCheckedChange={setEditShowTotals}
-                              />
+                      {/* Right Side - Columns (Collapsible) */}
+                      <Collapsible open={columnsExpanded} onOpenChange={setColumnsExpanded} className={cn("flex flex-col p-4 overflow-hidden border-l transition-all", columnsExpanded ? "flex-1 min-w-0" : "w-auto")}>
+                        <CollapsibleTrigger asChild>
+                          <div className="flex items-center justify-between mb-3 cursor-pointer hover:bg-muted/50 -mx-2 px-2 py-1 rounded">
+                            <div className="flex items-center gap-2 font-semibold text-sm">
+                              {columnsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <Eye className="h-4 w-4" />
+                              Columns
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                {Object.values(editVisibleColumns).filter(Boolean).length}
+                              </Badge>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
-                              <Switch
-                                id="auto-fit"
-                                checked={editAutoFitColumns}
-                                onCheckedChange={handleAutoFitChange}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        <ScrollArea className="flex-1 -mx-4 px-4">
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleColumnDragEnd}
-                          >
-                            <SortableContext
-                              items={editColumnOrder}
-                              strategy={verticalListSortingStrategy}
-                            >
-                              {/* Visible Columns Section */}
-                              <div className="mb-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                                    <Eye className="h-3.5 w-3.5" />
-                                    Visible
-                                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                                      {Object.values(editVisibleColumns).filter(Boolean).length}
-                                    </Badge>
-                                  </div>
-                                  <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={hideAllColumns}>
-                                    Hide All
-                                  </Button>
+                            {columnsExpanded && (
+                              <div className="flex items-center gap-4" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center gap-2">
+                                  <Label htmlFor="show-totals" className="text-xs text-muted-foreground">Totals</Label>
+                                  <Switch
+                                    id="show-totals"
+                                    checked={editShowTotals}
+                                    onCheckedChange={setEditShowTotals}
+                                  />
                                 </div>
-                                <div className="grid grid-cols-3 gap-1">
-                                  {(() => {
-                                    const visibleCols = getVisibleColumnsInOrder();
-                                    return visibleCols.map((col, index) => (
-                                      <SortableColumnItem
-                                        key={col.column_name}
-                                        id={col.column_name}
-                                        column={col}
-                                        isVisible={true}
-                                        onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
-                                        index={index + 1}
-                                        totalVisible={visibleCols.length}
-                                        onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
-                                        showWidthInput={!editAutoFitColumns}
-                                        width={editColumnWidths[col.column_name]}
-                                        onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
-                                      />
-                                    ));
-                                  })()}
+                                <div className="flex items-center gap-2">
+                                  <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
+                                  <Switch
+                                    id="auto-fit"
+                                    checked={editAutoFitColumns}
+                                    onCheckedChange={handleAutoFitChange}
+                                  />
                                 </div>
                               </div>
-
-                              {/* Hidden Columns Section */}
-                              <div>
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                                    <EyeOff className="h-3.5 w-3.5" />
-                                    Hidden
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                      {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length}
-                                    </Badge>
-                                  </div>
-                                  {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 && (
-                                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={showAllColumns}>
-                                      Show All
+                            )}
+                          </div>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="flex-1 overflow-hidden">
+                          <ScrollArea className="h-full -mx-4 px-4">
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={handleColumnDragEnd}
+                            >
+                              <SortableContext
+                                items={editColumnOrder}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {/* Visible Columns Section */}
+                                <div className="mb-4">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                      <Eye className="h-3.5 w-3.5" />
+                                      Visible
+                                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                        {Object.values(editVisibleColumns).filter(Boolean).length}
+                                      </Badge>
+                                    </div>
+                                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={hideAllColumns}>
+                                      Hide All
                                     </Button>
-                                  )}
-                                </div>
-                                {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 ? (
+                                  </div>
                                   <div className="grid grid-cols-3 gap-1">
-                                    {getSortedColumns()
-                                      .filter(col => editVisibleColumns[col.column_name] !== true)
-                                      .map(col => (
+                                    {(() => {
+                                      const visibleCols = getVisibleColumnsInOrder();
+                                      return visibleCols.map((col, index) => (
                                         <SortableColumnItem
                                           key={col.column_name}
                                           id={col.column_name}
                                           column={col}
-                                          isVisible={false}
+                                          isVisible={true}
                                           onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                          index={index + 1}
+                                          totalVisible={visibleCols.length}
+                                          onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
+                                          showWidthInput={!editAutoFitColumns}
+                                          width={editColumnWidths[col.column_name]}
+                                          onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
                                         />
-                                      ))}
+                                      ));
+                                    })()}
                                   </div>
-                                ) : (
-                                  <p className="text-xs text-muted-foreground italic py-2">No hidden columns</p>
-                                )}
-                              </div>
-                            </SortableContext>
-                          </DndContext>
-                        </ScrollArea>
-                      </div>
+                                </div>
+
+                                {/* Hidden Columns Section */}
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                      <EyeOff className="h-3.5 w-3.5" />
+                                      Hidden
+                                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                        {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length}
+                                      </Badge>
+                                    </div>
+                                    {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 && (
+                                      <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={showAllColumns}>
+                                        Show All
+                                      </Button>
+                                    )}
+                                  </div>
+                                  {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 ? (
+                                    <div className="grid grid-cols-3 gap-1">
+                                      {getSortedColumns()
+                                        .filter(col => editVisibleColumns[col.column_name] !== true)
+                                        .map(col => (
+                                          <SortableColumnItem
+                                            key={col.column_name}
+                                            id={col.column_name}
+                                            column={col}
+                                            isVisible={false}
+                                            onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                          />
+                                        ))}
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground italic py-2">No hidden columns</p>
+                                  )}
+                                </div>
+                              </SortableContext>
+                            </DndContext>
+                          </ScrollArea>
+                        </CollapsibleContent>
+                      </Collapsible>
                     </div>
                   </>
                 ) : (

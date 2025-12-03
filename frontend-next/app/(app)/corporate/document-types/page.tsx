@@ -305,7 +305,7 @@ export default function DocumentTypesPage() {
         enableExport={true}
         enableSchemaEditor={true}
         customCellRenderer={customCellRenderer}
-        customActions={
+        leftActions={
           <Button onClick={() => setShowAddForm(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Add Document Type
