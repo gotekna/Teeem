@@ -55,6 +55,7 @@ import { RefreshCw, Link2, Unlink } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
+import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 
 // Document category tabs
 const DOCUMENT_TABS = [
@@ -1507,9 +1508,11 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
   const [columns] = React.useState(buildDocumentColumns());
   const [companies, setCompanies] = React.useState<Company[]>([]);
 
-  // Document preview modal state
+  // Document preview state - side panel for single click, fullscreen modal for double click
   const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
+  const [sidePanelDocument, setSidePanelDocument] = React.useState<CompanyDocument | null>(null);
+  const [isSidePanelOpen, setIsSidePanelOpen] = React.useState(false);
 
   React.useEffect(() => {
     loadDocuments();
@@ -1564,10 +1567,30 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     }
   };
 
-  const handleRowClick = (doc: CompanyDocument) => {
-    // Open document preview modal instead of opening file directly
+  // Single click - open side panel preview
+  const handleSingleClick = (doc: CompanyDocument) => {
+    setSidePanelDocument(doc);
+    setIsSidePanelOpen(true);
+  };
+
+  // Double click - open fullscreen modal for editing
+  const handleDoubleClick = (doc: CompanyDocument) => {
+    // Close side panel if open
+    setIsSidePanelOpen(false);
+    setSidePanelDocument(null);
+    // Open fullscreen modal
     setSelectedDocument(doc);
     setIsPreviewOpen(true);
+  };
+
+  // Expand from side panel to fullscreen modal
+  const handleExpandToFullscreen = () => {
+    if (sidePanelDocument) {
+      setSelectedDocument(sidePanelDocument);
+      setIsPreviewOpen(true);
+      setIsSidePanelOpen(false);
+      setSidePanelDocument(null);
+    }
   };
 
   const handleDelete = async (doc: CompanyDocument) => {
@@ -1755,7 +1778,8 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
         columns={columns}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
-        onRowDoubleClick={handleRowClick}
+        onRowClick={handleSingleClick}
+        onRowDoubleClick={handleDoubleClick}
         enableImport={false}
         enableExport={true}
         enableSchemaEditor={false}
@@ -1764,7 +1788,18 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
         customCellRenderer={customCellRenderer}
       />
 
-      {/* Document Preview Modal with AI Verification */}
+      {/* Document Side Panel - Single click preview */}
+      <DocumentSidePanel
+        document={sidePanelDocument}
+        open={isSidePanelOpen}
+        onOpenChange={(open) => {
+          setIsSidePanelOpen(open);
+          if (!open) setSidePanelDocument(null);
+        }}
+        onExpandToFullscreen={handleExpandToFullscreen}
+      />
+
+      {/* Document Preview Modal with AI Verification - Double click for editing */}
       {selectedDocument && (
         <DocumentPreviewModal
           open={isPreviewOpen}

@@ -951,9 +951,6 @@ export default function TeeemTableView({
   const [exportScope, setExportScope] = useState<"visible" | "all">("visible");
   const [exportFormat, setExportFormat] = useState<"csv" | "excel" | "pdf">("csv");
 
-  // Filter modal state
-  const [showFilterModal, setShowFilterModal] = useState(false);
-
   // Global Views Manager state (auto-enabled when foundationIdNumeric is set)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useState(false);
 
@@ -4767,7 +4764,7 @@ export default function TeeemTableView({
                 key={filter.id}
                 variant="secondary"
                 className="gap-1 cursor-pointer hover:bg-secondary/80"
-                onClick={() => setShowFilterModal(true)}
+                onClick={() => setShowGlobalViewsManager(true)}
               >
                 {col?.label || filter.column}{" "}
                 {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
@@ -5758,85 +5755,6 @@ export default function TeeemTableView({
             <Button onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               Export {exportFormat.toUpperCase()}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Filter Modal */}
-      <Dialog open={showFilterModal} onOpenChange={setShowFilterModal}>
-        <DialogContent className="max-w-2xl p-6">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters
-            </DialogTitle>
-            <DialogDescription>
-              Add, edit, or reorder filters for this table
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {/* Current Filters */}
-            {safeFilters.length > 0 ? (
-              <div className="space-y-2">
-                {safeFilters.map((filter, index) => (
-                  <div key={filter.id} className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground w-6">{index + 1}.</span>
-                    <CascadeFilterItem
-                      filter={filter}
-                      columns={COLUMNS}
-                      onUpdate={updateFilter}
-                      onRemove={removeFilter}
-                      lookupOptions={lookupOptions}
-                      lookupLoading={lookupLoading}
-                      onFetchLookupOptions={fetchLookupOptions}
-                    />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                No filters applied. Click &quot;Add Filter&quot; to create one.
-              </div>
-            )}
-
-            {/* Add Filter Button */}
-            <Button
-              variant="outline"
-              onClick={() => {
-                const firstColumn = COLUMNS.find(
-                  (c) => c.filterable !== false && c.key !== "select" && c.key !== "actions"
-                );
-                if (!firstColumn) return;
-                setCascadeFilters((prev) => [
-                  ...prev,
-                  {
-                    id: `filter_${Date.now()}`,
-                    column: firstColumn.key,
-                    operator: "=",
-                    value: "",
-                    groupId: "default",
-                  },
-                ]);
-              }}
-              className="w-full"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Filter
-            </Button>
-          </div>
-
-          <DialogFooter className="flex justify-between">
-            <Button
-              variant="ghost"
-              onClick={clearAllFilters}
-              disabled={safeFilters.length === 0}
-            >
-              Clear All
-            </Button>
-            <Button onClick={() => setShowFilterModal(false)}>
-              Done
             </Button>
           </DialogFooter>
         </DialogContent>

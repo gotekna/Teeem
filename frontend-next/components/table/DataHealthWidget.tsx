@@ -185,36 +185,35 @@ export function DataHealthWidget({
     <div className="bg-background border rounded-lg overflow-hidden">
       {/* Header */}
       <Collapsible open={expanded} onOpenChange={setExpanded}>
-        <CollapsibleTrigger showIcon={false} className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors">
-            <div className="flex items-center gap-3">
-              <div
-                className={cn(
-                  "flex items-center justify-center w-10 h-10 rounded-lg",
-                  overallColor === "green" && "bg-green-100 dark:bg-green-900/30",
-                  overallColor === "orange" && "bg-orange-100 dark:bg-orange-900/30",
-                  overallColor === "red" && "bg-red-100 dark:bg-red-900/30"
-                )}
-              >
-                {overallColor === "green" ? (
-                  <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-                ) : (
-                  <AlertTriangle
-                    className={cn(
-                      "h-6 w-6",
-                      overallColor === "orange" && "text-orange-600 dark:text-orange-400",
-                      overallColor === "red" && "text-red-600 dark:text-red-400"
-                    )}
-                  />
-                )}
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold">Data Health</h3>
-                <p className="text-xs text-muted-foreground">
-                  {healthData.total_issues.toLocaleString()} issues found • Click to fix
-                </p>
-              </div>
+        <div className="px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors">
+          <CollapsibleTrigger showIcon={false} className="flex items-center gap-3 flex-1 cursor-pointer">
+            <div
+              className={cn(
+                "flex items-center justify-center w-10 h-10 rounded-lg",
+                overallColor === "green" && "bg-green-100 dark:bg-green-900/30",
+                overallColor === "orange" && "bg-orange-100 dark:bg-orange-900/30",
+                overallColor === "red" && "bg-red-100 dark:bg-red-900/30"
+              )}
+            >
+              {overallColor === "green" ? (
+                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+              ) : (
+                <AlertTriangle
+                  className={cn(
+                    "h-6 w-6",
+                    overallColor === "orange" && "text-orange-600 dark:text-orange-400",
+                    overallColor === "red" && "text-red-600 dark:text-red-400"
+                  )}
+                />
+              )}
             </div>
-            <div className="flex items-center gap-3">
+            <div>
+              <h3 className="text-sm font-semibold">Data Health</h3>
+              <p className="text-xs text-muted-foreground">
+                {healthData.total_issues.toLocaleString()} issues found • Click to fix
+              </p>
+            </div>
+            <div className="flex items-center gap-3 ml-auto">
               <span
                 className={cn(
                   "text-2xl font-bold",
@@ -225,25 +224,26 @@ export function DataHealthWidget({
               >
                 {healthData.overall_health}%
               </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  loadHealthData();
-                }}
-                title="Refresh"
-              >
-                <RefreshCw className="h-4 w-4 text-muted-foreground" />
-              </Button>
               {expanded ? (
                 <ChevronDown className="h-5 w-5 text-muted-foreground" />
               ) : (
                 <ChevronRight className="h-5 w-5 text-muted-foreground" />
               )}
             </div>
-        </CollapsibleTrigger>
+          </CollapsibleTrigger>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 ml-2"
+            onClick={(e) => {
+              e.stopPropagation();
+              loadHealthData();
+            }}
+            title="Refresh"
+          >
+            <RefreshCw className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
 
         {/* Expanded Details */}
         <CollapsibleContent>
