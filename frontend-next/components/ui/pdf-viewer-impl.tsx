@@ -31,11 +31,18 @@ export function PDFViewerImpl({
         setIsLoading(true);
         setLoadError(null);
 
+        // Get JWT token from localStorage for authenticated API calls
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const headers: Record<string, string> = {
+          'Accept': 'application/pdf',
+        };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(url, {
           credentials: 'include',
-          headers: {
-            'Accept': 'application/pdf',
-          },
+          headers,
         });
 
         if (!response.ok) {
