@@ -384,13 +384,13 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                   <TableRow
                     key={po.id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/purchase-orders/${po.id}`)}
+                    onClick={() => router.push(`/purchase_orders/${po.id}`)}
                   >
                     <TableCell className="font-medium">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          router.push(`/purchase-orders/${po.id}`);
+                          router.push(`/purchase_orders/${po.id}`);
                         }}
                         className="text-primary hover:underline"
                       >
@@ -435,7 +435,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/purchase-orders/${po.id}`);
+                              router.push(`/purchase_orders/${po.id}`);
                             }}
                           >
                             <Eye className="h-4 w-4 mr-2" />
@@ -444,7 +444,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                           <DropdownMenuItem
                             onClick={(e) => {
                               e.stopPropagation();
-                              router.push(`/purchase-orders/${po.id}/edit`);
+                              router.push(`/purchase_orders/${po.id}/edit`);
                             }}
                           >
                             <Pencil className="h-4 w-4 mr-2" />

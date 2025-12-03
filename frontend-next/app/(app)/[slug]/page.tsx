@@ -55,7 +55,7 @@ function TablePageContent() {
   const [showAddModal, setShowAddModal] = useState(false);
 
   // Load foundation data by slug
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug(cleanSlug);
+  const { foundation, columns, records, isLoading, error, refresh, serverSearch, isSearching } = useFoundationBySlug(cleanSlug);
 
   // Get table ID from foundation (needed for UI config)
   const tableId = foundation?.id || 0;
@@ -201,6 +201,9 @@ function TablePageContent() {
     onBulkDelete: !uiConfig.viewOnly ? handleBulkDelete : undefined,
     // Merge is handled internally by TeeemTableView when foundationIdNumeric is set
     leftActions: leftActions,
+    // Server-side search for large tables
+    onServerSearch: serverSearch,
+    serverSearchLoading: isSearching,
   };
 
   return (

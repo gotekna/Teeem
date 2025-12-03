@@ -190,6 +190,16 @@ import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalVi
 // HELPER FUNCTIONS
 // ============================================================================
 
+// Convert view name to URL-safe slug
+const slugifyViewName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '') // Remove special characters
+    .replace(/\s+/g, '-') // Replace spaces with hyphens
+    .replace(/-+/g, '-'); // Remove consecutive hyphens
+};
+
 // Column types that are system-generated/computed (user cannot manually enter)
 const SYSTEM_GENERATED_TYPES = [
   "computed",
@@ -2045,10 +2055,10 @@ export default function TeeemTableView({
           setSavedViews(filteredViews);
 
           // Auto-apply default view - prioritize global views, then display_order
-          // Check URL for view parameter first
-          const urlViewId = searchParams.get('view');
-          if (urlViewId) {
-            const urlView = filteredViews.find((v) => String(v.id) === urlViewId);
+          // Check URL for view parameter first (matches by slugified name)
+          const urlViewSlug = searchParams.get('view');
+          if (urlViewSlug) {
+            const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
             if (urlView) {
               loadViewState(urlView);
               return;
@@ -2159,9 +2169,9 @@ export default function TeeemTableView({
       });
 
       // URL update is kept outside startTransition as it's a side effect
-      if (view.id) {
+      if (view.id && view.name) {
         const currentParams = new URLSearchParams(searchParams.toString());
-        currentParams.set('view', String(view.id));
+        currentParams.set('view', slugifyViewName(view.name));
         const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
         router.replace(newUrl, { scroll: false });
       }

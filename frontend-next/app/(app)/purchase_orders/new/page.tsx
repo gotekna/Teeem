@@ -94,10 +94,10 @@ export default function NewPurchaseOrderPage() {
         },
       });
 
-      router.push(`/purchase-orders`);
+      router.push(`/purchase_orders`);
     } catch (error) {
       console.error("Failed to create purchase order:", error);
-      router.push("/purchase-orders");
+      router.push("/purchase_orders");
     } finally {
       setLoading(false);
     }
@@ -108,7 +108,7 @@ export default function NewPurchaseOrderPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/purchase-orders">
+          <Link href="/purchase_orders">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -261,7 +261,7 @@ export default function NewPurchaseOrderPage() {
                   )}
                 </Button>
                 <Button type="button" variant="outline" asChild>
-                  <Link href="/purchase-orders">Cancel</Link>
+                  <Link href="/purchase_orders">Cancel</Link>
                 </Button>
               </div>
             </CardContent>

@@ -141,3 +141,72 @@ export const LEAD_SOURCE_LABELS: Record<LeadSource, string> = {
   repeat_client: "Repeat Client",
   other: "Other",
 };
+
+// Pipeline Job - Job with Enquiry status displayed in pipeline view
+export interface PipelineJob {
+  id: number;
+  title: string;
+  location?: string;
+  contract_value: number;
+  job_type?: string;
+  job_status?: string;
+  job_stage?: string;
+  job_stage_id?: number;
+  client_name?: string;
+  client_email?: string;
+  client_company?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// Pipeline stage names (match backend JobStage names for Enquiry status)
+export type PipelineStage =
+  | "proposal"
+  | "priced_up"
+  | "contacted"
+  | "qualified"
+  | "contract_sent"
+  | "won"
+  | "lost";
+
+// Config for pipeline stages (similar to lead status config)
+export const PIPELINE_STAGE_CONFIG: Record<
+  PipelineStage,
+  { label: string; color: string; bgColor: string }
+> = {
+  proposal: {
+    label: "Proposal",
+    color: "text-yellow-700 dark:text-yellow-300",
+    bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
+  },
+  priced_up: {
+    label: "Priced Up",
+    color: "text-gray-700 dark:text-gray-300",
+    bgColor: "bg-gray-100 dark:bg-gray-800",
+  },
+  contacted: {
+    label: "Contacted",
+    color: "text-blue-700 dark:text-blue-300",
+    bgColor: "bg-blue-100 dark:bg-blue-900/30",
+  },
+  qualified: {
+    label: "Qualified",
+    color: "text-purple-700 dark:text-purple-300",
+    bgColor: "bg-purple-100 dark:bg-purple-900/30",
+  },
+  contract_sent: {
+    label: "Contract Sent",
+    color: "text-orange-700 dark:text-orange-300",
+    bgColor: "bg-orange-100 dark:bg-orange-900/30",
+  },
+  won: {
+    label: "Won",
+    color: "text-green-700 dark:text-green-300",
+    bgColor: "bg-green-100 dark:bg-green-900/30",
+  },
+  lost: {
+    label: "Lost",
+    color: "text-red-700 dark:text-red-300",
+    bgColor: "bg-red-100 dark:bg-red-900/30",
+  },
+};

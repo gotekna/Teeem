@@ -3,12 +3,10 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
-  Plus,
   ShoppingCart,
   FileText,
   Clock,
@@ -18,8 +16,8 @@ import {
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 
-// Foundation ID for Purchase Orders table
-const PURCHASE_ORDERS_FOUNDATION_ID = 217;
+// Use database table name instead of hardcoded foundation ID
+const PURCHASE_ORDERS_TABLE_NAME = "purchase_orders";
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-AU", {
@@ -33,29 +31,32 @@ function formatCurrency(value: number): string {
 export default function PurchaseOrdersPage() {
   const router = useRouter();
 
-  // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(PURCHASE_ORDERS_FOUNDATION_ID);
+  // Use foundation hook with table name (slug) instead of hardcoded ID
+  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug(PURCHASE_ORDERS_TABLE_NAME);
 
-  // Handle row click - navigate to job with PO tab
+  // Get foundation ID from loaded foundation data
+  const foundationId = foundation?.id;
+
+  // Handle row click - navigate to PO detail page
   const handleRowClick = useCallback((row: TableRow) => {
-    const jobId = row.job_id || (row.job as { id?: number })?.id;
-    if (jobId) {
-      router.push(`/jobs/${jobId}?tab=purchase-orders`);
+    if (row.id) {
+      router.push(`/purchase_orders/${row.id}`);
     }
   }, [router]);
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    if (!foundationId) return;
     try {
-      await api.patch(`/api/v1/foundations/${PURCHASE_ORDERS_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/${foundationId}/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
-    } catch (error) {
-      console.error("Failed to update purchase order:", error);
-      throw error;
+    } catch (err) {
+      console.error("Failed to update purchase order:", err);
+      throw err;
     }
-  }, [refresh]);
+  }, [foundationId, refresh]);
 
   // Stats from records
   const stats = {
@@ -79,10 +80,10 @@ export default function PurchaseOrdersPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight font-serif">Purchase Orders</h1>
+        <h1 className="text-2xl font-bold tracking-tight font-serif">{foundation?.name || "Purchase Orders"}</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Manage purchase orders across all jobs
-          <span className="ml-2 text-xs font-mono">Table #217</span>
+          {foundationId && <span className="ml-2 text-xs font-mono">Table #{foundationId}</span>}
         </p>
       </div>
 
@@ -139,8 +140,8 @@ export default function PurchaseOrdersPage() {
       <TeeemTableView
         entries={records}
         columns={columns}
-        foundationId={String(PURCHASE_ORDERS_FOUNDATION_ID)}
-        foundationIdNumeric={PURCHASE_ORDERS_FOUNDATION_ID}
+        foundationId={foundationId ? String(foundationId) : ""}
+        foundationIdNumeric={foundationId || 0}
         tableName={foundation?.name || "Purchase Orders"}
         enableExport={true}
         onRefresh={refresh}

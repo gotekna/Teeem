@@ -441,7 +441,7 @@ function ProposalCard({
                 disabled={processing === proposal.id}
               >
                 <CheckCircle className="w-4 h-4 mr-1" />
-                Approve
+                Edit & Approve
               </Button>
               <Button
                 variant="outline"

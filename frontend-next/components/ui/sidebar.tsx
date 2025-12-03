@@ -75,7 +75,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Meetings", href: "/meetings", icon: Calendar },
   { name: "WHS", href: "/whs", icon: Shield },
   { name: "Xero", href: "/xero", icon: Layers },
-  { name: "Purchase Orders", href: "/purchase-orders", icon: FileText },
+  { name: "Purchase Orders", href: "/purchase_orders", icon: FileText },
   { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
   { name: "Contacts", href: urls.contacts(), icon: Users },
   { name: "Price Book", href: urls.pricebook(), icon: Package },

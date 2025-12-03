@@ -39,7 +39,7 @@ export const PAGE_HELP_MAPPING: Record<string, HelpInfo> = {
   '/ai-review': { chapter: 7, section: 'overview' },
 
   // Purchase Orders (Chapter 8)
-  '/purchase-orders': { chapter: 8, section: 'overview' },
+  '/purchase_orders': { chapter: 8, section: 'overview' },
 
   // Gantt & Schedule Master (Chapter 9)
   '/gantt': { chapter: 9, section: 'overview' },
