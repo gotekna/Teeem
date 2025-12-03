@@ -16,12 +16,18 @@ module Api
 
         # If no org credential, check if user has Microsoft token with OneDrive access
         unless credential
+          # Try to use user's Microsoft token as fallback
+          # Wrap in rescue to handle any decryption errors from encrypted fields
           begin
             microsoft_token = current_user&.microsoft_token
             # Check status first (not encrypted), then try to access encrypted field
             if microsoft_token&.status == 'connected'
               # Try to access the encrypted access_token - this may fail with decryption errors
-              has_access_token = microsoft_token.access_token.present? rescue false
+              has_access_token = begin
+                microsoft_token.access_token.present?
+              rescue ActiveRecord::Encryption::Errors::Decryption
+                false
+              end
               if has_access_token
                 # User has a connected Microsoft account - use it as the OneDrive connection
                 return render json: {
