@@ -2,7 +2,7 @@ module Api
   module V1
     class CompanyDocumentsController < ApplicationController
       skip_before_action :authorize_request, only: [:content]
-      before_action :set_document, only: [:show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :content, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback, :upload_edited, :split, :restore]
 
       # GET /api/v1/company_documents
       def index
@@ -618,29 +618,19 @@ module Api
       # GET /api/v1/company_documents/duplicates
       # Find all duplicate documents (same title within same company)
       def duplicates
-        duplicates = DocumentDuplicateService.find_duplicates(company_id: params[:company_id])
-
-        render json: {
-          success: true,
-          count: duplicates.count,
-          duplicates: duplicates
-        }
+        result = DocumentDuplicateService.find_duplicates(company_id: params[:company_id])
+        render json: { success: true, duplicates: result }
       end
 
       # POST /api/v1/company_documents/analyze_duplicates
-      # Analyze specific documents with AI and get recommendation
+      # Use AI to analyze a set of duplicate documents and recommend action
       def analyze_duplicates
         document_ids = params[:document_ids]
-
-        unless document_ids.is_a?(Array) && document_ids.length >= 2
-          return render json: {
-            success: false,
-            error: 'Must provide at least 2 document_ids'
-          }, status: :unprocessable_entity
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
         end
 
         result = DocumentDuplicateService.analyze_duplicates(document_ids)
-
         if result[:error]
           render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         else
@@ -649,30 +639,76 @@ module Api
       end
 
       # POST /api/v1/company_documents/resolve_duplicates
-      # Execute the recommended action to resolve duplicates
+      # Execute a duplicate resolution action (keep_newest, keep_oldest, merge, rename, delete_all)
       def resolve_duplicates
         action = params[:action_type]
         document_ids = params[:document_ids]
+
+        unless action.present?
+          return render json: { success: false, error: 'action_type required' }, status: :bad_request
+        end
+
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+        end
+
         options = {
           document_id: params[:document_id],
           new_name: params[:new_name],
           keep_id: params[:keep_id]
-        }
-
-        unless action.present? && document_ids.present?
-          return render json: {
-            success: false,
-            error: 'Must provide action_type and document_ids'
-          }, status: :unprocessable_entity
-        end
+        }.compact
 
         result = DocumentDuplicateService.execute_action(action, document_ids, options)
-
         if result[:error]
           render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         else
-          render json: result
+          render json: { success: true, result: result }
         end
+      end
+
+      # POST /api/v1/company_documents/auto_resolve_duplicates
+      # Automatically resolve all duplicates using AI
+      # Confidence thresholds: 89% for destructive (delete/merge), 74% for rename
+      # Params:
+      #   - company_id (optional): Filter to specific company
+      #   - dry_run (optional): If true, only show what would be done without executing
+      def auto_resolve_duplicates
+        result = DocumentDuplicateService.auto_resolve_all(
+          company_id: params[:company_id],
+          dry_run: params[:dry_run] == 'true' || params[:dry_run] == true
+        )
+
+        render json: { success: true, **result }
+      end
+
+      # GET /api/v1/company_documents/marked_for_deletion
+      # List all documents marked for deletion (prefixed with "DELETE - ")
+      def marked_for_deletion
+        docs = DocumentDuplicateService.find_marked_for_deletion(company_id: params[:company_id])
+        render json: { success: true, documents: docs, count: docs.count }
+      end
+
+      # POST /api/v1/company_documents/:id/restore
+      # Restore a document marked for deletion (remove DELETE prefix)
+      def restore
+        result = DocumentDuplicateService.restore_document(params[:id])
+        if result[:error]
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        else
+          render json: { success: true, **result }
+        end
+      end
+
+      # POST /api/v1/company_documents/permanently_delete
+      # Actually delete documents (use after reviewing marked files)
+      def permanently_delete
+        document_ids = params[:document_ids]
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: 'document_ids array required' }, status: :bad_request
+        end
+
+        result = DocumentDuplicateService.permanently_delete(document_ids)
+        render json: { success: true, **result }
       end
 
       private
