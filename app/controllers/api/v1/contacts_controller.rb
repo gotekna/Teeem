@@ -262,7 +262,6 @@ module Api
             is_trustee: linked_company.is_trustee,
             trust_name: linked_company.trust_name,
             date_incorporated: linked_company.date_incorporated,
-            date_registered: linked_company.date_registered,
             registered_office_address: linked_company.registered_office_address,
             principal_place_of_business: linked_company.principal_place_of_business,
             company_group_id: linked_company.company_group_id,
