@@ -488,18 +488,21 @@ function SortableSortByItem({
         >
           <GripVertical className="h-4 w-4 text-muted-foreground" />
         </div>
-        <Select value={sort.column} onValueChange={onChangeColumn}>
-          <SelectTrigger className="flex-1 h-8">
-            <SelectValue placeholder="Column..." />
-          </SelectTrigger>
-          <SelectContent>
-            {columns.map(c => (
-              <SelectItem key={c.column_name} value={c.column_name}>
-                {c.name || c.column_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex-1">
+          <ComboboxDropdown
+            items={columns.map(c => ({
+              id: c.column_name,
+              label: c.name || c.column_name,
+            }))}
+            selectedItem={sort.column ? {
+              id: sort.column,
+              label: columns.find(c => c.column_name === sort.column)?.name || sort.column,
+            } : undefined}
+            onSelect={(item) => onChangeColumn(item.id)}
+            placeholder="Search column..."
+            searchPlaceholder="Search columns..."
+          />
+        </div>
         <Select value={sort.dir} onValueChange={(v) => onChangeDir(v as "asc" | "desc" | "custom")}>
           <SelectTrigger className="w-[110px] h-8">
             <SelectValue />
@@ -603,18 +606,21 @@ function SortableGroupByItem({
       >
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </div>
-      <Select value={id} onValueChange={onChangeColumn}>
-        <SelectTrigger className="flex-1 h-8">
-          <SelectValue placeholder="Column...">{columnName}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {columns.map(c => (
-            <SelectItem key={c.column_name} value={c.column_name}>
-              {c.name || c.column_name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="flex-1">
+        <ComboboxDropdown
+          items={columns.map(c => ({
+            id: c.column_name,
+            label: c.name || c.column_name,
+          }))}
+          selectedItem={{
+            id: id,
+            label: columnName,
+          }}
+          onSelect={(item) => onChangeColumn(item.id)}
+          placeholder="Search column..."
+          searchPlaceholder="Search columns..."
+        />
+      </div>
       <Button
         variant="ghost"
         size="icon"

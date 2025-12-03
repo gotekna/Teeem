@@ -1,45 +1,36 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { useFoundationById } from "@/hooks/useFoundationById";
 import { LeadPipeline } from "@/components/leads/lead-pipeline";
 import { LeadForm } from "@/components/leads/lead-form";
 import { EmailProposalsTab } from "@/components/leads/email-proposals-tab";
 import {
   Lead,
   LeadStatus,
-  LEAD_STATUS_CONFIG,
-  PROJECT_TYPE_LABELS,
 } from "@/types/leads";
 import { api } from "@/lib/api";
 import {
   Plus,
-  Search,
-  Filter,
-  LayoutGrid,
-  List,
-  DollarSign,
   TrendingUp,
   Clock,
   CheckCircle,
   Mail,
+  DollarSign,
+  LayoutGrid,
+  List,
 } from "lucide-react";
+import type { TableRow } from "@/components/table/types";
+
+// Foundation ID for Leads table
+const LEADS_FOUNDATION_ID = 455;
 
 // Email proposal type for pipeline display
 export interface EmailProposal {
@@ -95,25 +86,15 @@ export default function LeadsPage() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "leads";
 
-  const [leads, setLeads] = useState<Lead[]>([]);
+  // Use foundation hook for TeeemTableView
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(LEADS_FOUNDATION_ID);
+
   const [emailProposals, setEmailProposals] = useState<EmailProposal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<"pipeline" | "table">("pipeline");
   const [formOpen, setFormOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [pendingProposalCount, setPendingProposalCount] = useState(0);
-
-  const loadLeads = async () => {
-    try {
-      const response = await api.get<{ leads: Lead[] }>("/api/v1/leads");
-      setLeads(response.leads || []);
-    } catch (error) {
-      console.error("Failed to load leads:", error);
-      setLeads([]);
-    }
-  };
 
   const loadEmailProposals = async () => {
     try {
@@ -122,7 +103,6 @@ export default function LeadsPage() {
       );
       const proposals = response.proposals || [];
       setEmailProposals(proposals);
-      // Update pending count for the tab badge
       const pendingCount = proposals.filter(p => p.status === "pending").length;
       setPendingProposalCount(pendingCount);
     } catch (error) {
@@ -132,29 +112,15 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      await Promise.all([loadLeads(), loadEmailProposals()]);
-      setLoading(false);
-    };
-    load();
+    loadEmailProposals();
   }, []);
 
   const handleCreateLead = async (data: Partial<Lead>) => {
     try {
       await api.post("/api/v1/leads", data);
-      await loadLeads();
+      refresh();
     } catch (error) {
       console.error("Failed to create lead:", error);
-      // For demo: add to local state
-      const newLead: Lead = {
-        id: Date.now(),
-        lead_number: `LEAD-${new Date().getFullYear()}-${String(leads.length + 1).padStart(3, "0")}`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        ...data,
-      } as Lead;
-      setLeads((prev) => [...prev, newLead]);
     }
   };
 
@@ -162,15 +128,9 @@ export default function LeadsPage() {
     if (!editingLead) return;
     try {
       await api.patch(`/api/v1/leads/${editingLead.id}`, data);
-      await loadLeads();
+      refresh();
     } catch (error) {
       console.error("Failed to update lead:", error);
-      // For demo: update local state
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === editingLead.id ? { ...l, ...data, updated_at: new Date().toISOString() } : l
-        )
-      );
     }
     setEditingLead(null);
   };
@@ -178,29 +138,29 @@ export default function LeadsPage() {
   const handleStatusChange = async (leadId: number, newStatus: LeadStatus) => {
     try {
       await api.patch(`/api/v1/leads/${leadId}/status`, { status: newStatus });
-      await loadLeads();
+      refresh();
     } catch (error) {
       console.error("Failed to update status:", error);
-      // For demo: update local state
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === leadId ? { ...l, status: newStatus, updated_at: new Date().toISOString() } : l
-        )
-      );
     }
   };
 
-  const handleLeadClick = (lead: Lead) => {
-    router.push(`/leads/${lead.id}`);
-  };
+  // Handle row click - navigate to lead detail
+  const handleRowClick = useCallback((row: TableRow) => {
+    router.push(`/leads/${row.id}`);
+  }, [router]);
 
-  const filteredLeads = leads.filter(
-    (lead) =>
-      lead.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.client_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.site_suburb.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      lead.lead_number.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Handle inline row update
+  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/foundations/${LEADS_FOUNDATION_ID}/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      refresh();
+    } catch (error) {
+      console.error("Failed to update lead:", error);
+      throw error;
+    }
+  }, [refresh]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-AU", {
@@ -211,23 +171,31 @@ export default function LeadsPage() {
     }).format(value);
   };
 
-  // Stats
-  const totalValue = leads.reduce((sum, l) => sum + l.estimated_value, 0);
-  const activeLeads = leads.filter(
-    (l) => !["won", "lost"].includes(l.status)
+  // Stats from records
+  const totalValue = records.reduce((sum, l) => sum + (Number(l.estimated_value) || 0), 0);
+  const activeLeads = records.filter(
+    (l) => !["won", "lost"].includes(l.status as string)
   ).length;
-  const wonLeads = leads.filter((l) => l.status === "won").length;
-  const pipelineValue = leads
-    .filter((l) => !["won", "lost"].includes(l.status))
-    .reduce((sum, l) => sum + l.estimated_value, 0);
+  const wonLeads = records.filter((l) => l.status === "won").length;
+  const pipelineValue = records
+    .filter((l) => !["won", "lost"].includes(l.status as string))
+    .reduce((sum, l) => sum + (Number(l.estimated_value) || 0), 0);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader />
       </div>
     );
   }
+
+  // Left actions - New Lead button
+  const leftActions = (
+    <Button onClick={() => setFormOpen(true)}>
+      <Plus className="h-4 w-4 mr-2" />
+      New Lead
+    </Button>
+  );
 
   return (
     <div className="space-y-6">
@@ -237,6 +205,7 @@ export default function LeadsPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Leads & Proposals</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage your sales pipeline and convert leads to jobs
+            <span className="ml-2 text-xs font-mono">Table #455</span>
           </p>
         </div>
         <Button onClick={() => setFormOpen(true)}>
@@ -256,9 +225,7 @@ export default function LeadsPage() {
             <Mail className="h-4 w-4 mr-2" />
             Email Proposals
             {pendingProposalCount > 0 && (
-              <Badge
-                className="ml-2 bg-yellow-500 text-white hover:bg-yellow-500"
-              >
+              <Badge className="ml-2 bg-yellow-500 text-white hover:bg-yellow-500">
                 {pendingProposalCount}
               </Badge>
             )}
@@ -315,133 +282,49 @@ export default function LeadsPage() {
             </Card>
           </div>
 
-          {/* View Toggle & Search */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <Button
-                variant={viewMode === "pipeline" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("pipeline")}
-              >
-                <LayoutGrid className="h-4 w-4 mr-1" />
-                Pipeline
-              </Button>
-              <Button
-                variant={viewMode === "table" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("table")}
-              >
-                <List className="h-4 w-4 mr-1" />
-                Table
-              </Button>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative max-w-sm">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search leads..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 w-[250px]"
-                />
-              </div>
-              <Button variant="outline" size="icon">
-                <Filter className="h-4 w-4" />
-              </Button>
-            </div>
+          {/* View Toggle */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant={viewMode === "pipeline" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("pipeline")}
+            >
+              <LayoutGrid className="h-4 w-4 mr-1" />
+              Pipeline
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+            >
+              <List className="h-4 w-4 mr-1" />
+              Table
+            </Button>
           </div>
 
           {/* Content */}
           {viewMode === "pipeline" ? (
             <LeadPipeline
-              leads={filteredLeads}
+              leads={records as unknown as Lead[]}
               emailProposals={emailProposals.filter(p => p.status === "pending")}
-              onLeadClick={handleLeadClick}
+              onLeadClick={(lead) => router.push(`/leads/${lead.id}`)}
               onStatusChange={handleStatusChange}
               onProposalsChange={loadEmailProposals}
-              onLeadsChange={loadLeads}
+              onLeadsChange={refresh}
             />
           ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Lead</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Value</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredLeads.map((lead) => (
-                    <TableRow key={lead.id}>
-                      <TableCell>
-                        <div>
-                          <Link
-                            href={`/leads/${lead.id}`}
-                            className="font-medium hover:underline"
-                          >
-                            {lead.title}
-                          </Link>
-                          <p className="text-xs text-muted-foreground font-mono">
-                            {lead.lead_number}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{lead.client_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {lead.client_email}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p>{lead.site_suburb}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {lead.site_state} {lead.site_postcode}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {PROJECT_TYPE_LABELS[lead.project_type]}
-                      </TableCell>
-                      <TableCell className="font-mono">
-                        {formatCurrency(lead.estimated_value)}
-                      </TableCell>
-                      <TableCell>
-                        <LeadStatusBadge status={lead.status} />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/leads/${lead.id}`}>View</Link>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredLeads.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
-                        <p className="text-muted-foreground">No leads found</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-2"
-                          onClick={() => setFormOpen(true)}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          Create your first lead
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </Card>
+            <TeeemTableView
+              entries={records}
+              columns={columns}
+              foundationId={String(LEADS_FOUNDATION_ID)}
+              foundationIdNumeric={LEADS_FOUNDATION_ID}
+              tableName={foundation?.name || "Leads"}
+              enableExport={true}
+              onRefresh={refresh}
+              onRowClick={handleRowClick}
+              onRowUpdate={handleRowUpdate}
+              leftActions={leftActions}
+            />
           )}
         </TabsContent>
 

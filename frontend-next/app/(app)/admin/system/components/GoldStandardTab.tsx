@@ -48,7 +48,6 @@ import {
   Eye,
   EyeOff,
   GripVertical,
-  Filter,
   Trash2,
 } from "lucide-react";
 import {
@@ -67,7 +66,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
-import { GlobalViewsManager } from "./GlobalViewsManager";
+// GlobalViewsManager is now handled internally by TeeemTableView when foundationIdNumeric is set
 import {
   Collapsible,
   CollapsibleContent,
@@ -211,7 +210,6 @@ function GoldStandardDataTab() {
   const [showFieldConfig, setShowFieldConfig] = React.useState(false);
   const [visibleFields, setVisibleFields] = React.useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = React.useState<Record<string, number>>({});
-  const [showViewsManager, setShowViewsManager] = React.useState(false);
 
   // Server search state
   const [serverSearchLoading, setServerSearchLoading] = React.useState(false);
@@ -872,12 +870,7 @@ function GoldStandardDataTab() {
             Add Item
           </Button>
         }
-        customActions={
-          <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
-            <Filter className="h-4 w-4 mr-2" />
-            Filters
-          </Button>
-        }
+        // Note: Filters button is auto-enabled by TeeemTableView when foundationIdNumeric is set
       />
 
       {/* Add Item Dialog */}
@@ -1136,18 +1129,7 @@ function GoldStandardDataTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Global Views Manager */}
-      <GlobalViewsManager
-        open={showViewsManager}
-        onOpenChange={setShowViewsManager}
-        foundationId={1}
-        columns={rawColumns.map(col => ({
-          ...col,
-          available_choices: col.available_choices || (col as unknown as { choices?: string[] }).choices,
-        }))}
-        onViewsChange={loadData}
-        rows={entries}
-      />
+      {/* Note: GlobalViewsManager is now handled by TeeemTableView internally when foundationIdNumeric is set */}
 
       {/* View Item Dialog (Read-only) */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>

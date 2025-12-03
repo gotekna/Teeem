@@ -28,6 +28,23 @@ import React, {
   memo,
   startTransition,
 } from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Search,
@@ -165,6 +182,7 @@ import {
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumnTypeValidationRules, COLUMN_TYPES } from "@/lib/column-types";
 import { DataHealthWidget } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { MergeModal } from "./MergeModal";
 import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
 
@@ -203,6 +221,187 @@ const SYSTEM_COLUMN_BG = '#fee2e2'; // red-100
 // ============================================================================
 // SUBCOMPONENTS
 // ============================================================================
+
+// Sortable Column Row for Edit Columns modal - with drag handle and position input
+interface SortableColumnRowProps {
+  id: string;
+  column: TableColumn;
+  isVisible: boolean;
+  index: number;
+  totalVisible: number;
+  onToggleVisibility: () => void;
+  onReorder: (newPosition: number) => void;
+  columnWidth: number;
+  onWidthChange: (width: number) => void;
+  getColumnTypeEmoji: (type: string) => string;
+  getColumnTypeSqlType: (type: string) => string;
+  getColumnTypeLabel: (type: string) => string;
+  getColumnTypeValidationRules: (type: string) => string;
+}
+
+function SortableColumnRow({
+  id,
+  column,
+  isVisible,
+  index,
+  totalVisible,
+  onToggleVisibility,
+  onReorder,
+  columnWidth,
+  onWidthChange,
+  getColumnTypeEmoji,
+  getColumnTypeSqlType,
+  getColumnTypeLabel,
+  getColumnTypeValidationRules,
+}: SortableColumnRowProps) {
+  const [isEditingPosition, setIsEditingPosition] = React.useState(false);
+  const [positionValue, setPositionValue] = React.useState(String(index));
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const columnType = column.column_type || "single_line_text";
+  const sqlType = getColumnTypeSqlType(columnType);
+  const displayLabel = getColumnTypeLabel(columnType);
+  const typeEmoji = getColumnTypeEmoji(columnType);
+  const validationRules = getColumnTypeValidationRules(columnType);
+  const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(column.key);
+
+  // Focus input when editing starts
+  React.useEffect(() => {
+    if (isEditingPosition && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingPosition]);
+
+  const handlePositionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isVisible) {
+      setPositionValue(String(index));
+      setIsEditingPosition(true);
+    }
+  };
+
+  const handlePositionSubmit = () => {
+    const newPos = parseInt(positionValue, 10);
+    if (!isNaN(newPos) && newPos >= 1 && newPos <= totalVisible) {
+      onReorder(newPos);
+    }
+    setIsEditingPosition(false);
+  };
+
+  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handlePositionSubmit();
+    } else if (e.key === 'Escape') {
+      setIsEditingPosition(false);
+      setPositionValue(String(index));
+    }
+  };
+
+  return (
+    <TableRow
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "hover:bg-muted/50",
+        isDragging && "opacity-50 bg-muted",
+        isSystemColumn && "bg-red-50 dark:bg-red-950/30",
+        !isVisible && "opacity-60"
+      )}
+    >
+      {/* Drag Handle + Position */}
+      <TableCell className="w-16">
+        <div className="flex items-center gap-1">
+          <div
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing touch-none p-1 hover:bg-muted rounded"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+          {isVisible && (
+            isEditingPosition ? (
+              <input
+                ref={inputRef}
+                type="text"
+                value={positionValue}
+                onChange={(e) => setPositionValue(e.target.value)}
+                onBlur={handlePositionSubmit}
+                onKeyDown={handlePositionKeyDown}
+                className="w-8 h-6 text-xs font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            ) : (
+              <button
+                onClick={handlePositionClick}
+                className="flex items-center justify-center w-6 h-6 text-xs font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
+                title="Click to change position"
+              >
+                {index}
+              </button>
+            )
+          )}
+        </div>
+      </TableCell>
+      {/* Visibility Checkbox */}
+      <TableCell className="w-12">
+        <Checkbox
+          checked={isVisible}
+          onCheckedChange={() => onToggleVisibility()}
+        />
+      </TableCell>
+      {/* Column Name */}
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <span>{typeEmoji}</span>
+          <span className="font-medium">{column.label}</span>
+        </div>
+      </TableCell>
+      {/* SQL Type */}
+      <TableCell>
+        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+          {sqlType}
+        </code>
+      </TableCell>
+      {/* Display Type */}
+      <TableCell>
+        <span className="text-sm text-muted-foreground">
+          {displayLabel}
+        </span>
+      </TableCell>
+      {/* Validation Rules */}
+      <TableCell>
+        <span className="text-xs text-muted-foreground">
+          {validationRules}
+        </span>
+      </TableCell>
+      {/* Width */}
+      <TableCell>
+        <Input
+          type="number"
+          value={columnWidth}
+          onChange={(e) => onWidthChange(parseInt(e.target.value) || 50)}
+          className="w-16 h-8 text-sm"
+          min={50}
+          max={500}
+        />
+      </TableCell>
+    </TableRow>
+  );
+}
 
 // Isolated search input component - prevents parent re-renders on every keystroke
 const SearchInput = memo(function SearchInput({
@@ -587,24 +786,24 @@ const CascadeFilterItem = memo(function CascadeFilterItem({
       );
     }
 
-    // Choice column - show choices dropdown
+    // Choice column - show searchable choices dropdown
     if (isChoiceColumn && column?.choices && column.choices.length > 0) {
+      const choiceItems: ComboboxItem[] = column.choices.map((choice) => ({
+        id: choice,
+        label: choice,
+      }));
+      const selectedChoice = choiceItems.find((item) => item.id === String(filter.value || ''));
+
       return (
-        <Select
-          value={String(filter.value || '')}
-          onValueChange={(value) => onUpdate(filter.id, { value })}
-        >
-          <SelectTrigger className="flex-1 h-8">
-            <SelectValue placeholder="Select..." />
-          </SelectTrigger>
-          <SelectContent>
-            {column.choices.map((choice) => (
-              <SelectItem key={choice} value={choice}>
-                {choice}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex-1">
+          <ComboboxDropdown
+            items={choiceItems}
+            selectedItem={selectedChoice}
+            onSelect={(item) => onUpdate(filter.id, { value: item.id })}
+            placeholder="Select..."
+            searchPlaceholder="Search choices..."
+          />
+        </div>
       );
     }
 
@@ -619,22 +818,22 @@ const CascadeFilterItem = memo(function CascadeFilterItem({
       }
 
       if (options.length > 0) {
+        const lookupItems: ComboboxItem[] = options.map((opt) => ({
+          id: String(opt.id),
+          label: opt.display,
+        }));
+        const selectedLookup = lookupItems.find((item) => item.id === String(filter.value || ''));
+
         return (
-          <Select
-            value={String(filter.value || '')}
-            onValueChange={(value) => onUpdate(filter.id, { value })}
-          >
-            <SelectTrigger className="flex-1 h-8">
-              <SelectValue placeholder="Select..." />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((opt) => (
-                <SelectItem key={opt.id} value={String(opt.id)}>
-                  {opt.display}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex-1">
+            <ComboboxDropdown
+              items={lookupItems}
+              selectedItem={selectedLookup}
+              onSelect={(item) => onUpdate(filter.id, { value: item.id })}
+              placeholder="Select..."
+              searchPlaceholder="Search records..."
+            />
+          </div>
         );
       }
     }
@@ -953,6 +1152,58 @@ export default function TeeemTableView({
 
   // Global Views Manager state (auto-enabled when foundationIdNumeric is set)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useState(false);
+
+  // DnD sensors for column reordering
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  // Handle column drag end for reordering
+  const handleColumnDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setColumnOrder((prev) => {
+      const oldIndex = prev.indexOf(active.id as string);
+      const newIndex = prev.indexOf(over.id as string);
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  }, []);
+
+  // Reorder a column to a specific position (1-based index)
+  const reorderColumnToPosition = useCallback((columnKey: string, newPosition: number) => {
+    setColumnOrder((prev) => {
+      // Get only visible columns in current order
+      const visibleInOrder = prev.filter(key => visibleColumns[key] === true);
+      const currentIndex = visibleInOrder.indexOf(columnKey);
+      if (currentIndex === -1) return prev;
+
+      // Convert to 0-based index and clamp
+      const targetIndex = Math.max(0, Math.min(newPosition - 1, visibleInOrder.length - 1));
+      if (currentIndex === targetIndex) return prev;
+
+      // Reorder within visible columns
+      const newVisibleOrder = [...visibleInOrder];
+      const [moved] = newVisibleOrder.splice(currentIndex, 1);
+      newVisibleOrder.splice(targetIndex, 0, moved);
+
+      // Rebuild full order: visible columns first, then hidden
+      const hiddenColumns = prev.filter(key => visibleColumns[key] !== true);
+      return [...newVisibleOrder, ...hiddenColumns];
+    });
+  }, [visibleColumns]);
+
+  // Get columns sorted by current columnOrder for the modal
+  const getSortedColumnsForModal = useCallback(() => {
+    const dataColumns = COLUMNS.filter(c => c.key !== "select" && c.key !== "actions");
+    const orderMap = new Map(columnOrder.map((key, idx) => [key, idx]));
+    return [...dataColumns].sort((a, b) => {
+      const aIdx = orderMap.get(a.key) ?? 999;
+      const bIdx = orderMap.get(b.key) ?? 999;
+      return aIdx - bIdx;
+    });
+  }, [COLUMNS, columnOrder]);
 
   // ============================================================================
   // DEVELOPER WARNINGS
@@ -2739,30 +2990,29 @@ export default function TeeemTableView({
           );
         }
 
-        // Choice - Dropdown with predefined options
+        // Choice - Searchable dropdown with predefined options
         if (columnType === 'choice' || columnType === 'single_select' || columnType === 'multi_select') {
           const choices = column.choices || [];
+          const choiceItems: ComboboxItem[] = choices.map((choice) => ({
+            id: choice,
+            label: choice,
+          }));
+          const currentValue = String(rowEditingData[column.key] ?? "");
+          const selectedChoice = choiceItems.find((item) => item.id === currentValue);
+
           return (
-            <Select
-              value={String(rowEditingData[column.key] ?? "")}
-              onValueChange={(val) =>
+            <ComboboxDropdown
+              items={choiceItems}
+              selectedItem={selectedChoice}
+              onSelect={(item) =>
                 setEditingData((prev) => ({
                   ...prev,
-                  [entry.id]: { ...prev[entry.id], [column.key]: val },
+                  [entry.id]: { ...prev[entry.id], [column.key]: item.id },
                 }))
               }
-            >
-              <SelectTrigger className="h-7 text-sm">
-                <SelectValue placeholder="Select..." />
-              </SelectTrigger>
-              <SelectContent>
-                {choices.map((choice) => (
-                  <SelectItem key={choice} value={choice}>
-                    {choice}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Select..."
+              searchPlaceholder="Search choices..."
+            />
           );
         }
 
@@ -2884,7 +3134,7 @@ export default function TeeemTableView({
           );
         }
 
-        // Lookup - Dropdown with options from related table
+        // Lookup - Searchable dropdown with options from related table
         if (columnType === 'lookup' || columnType === 'relation') {
           const options = lookupOptions[column.key] || [];
           const isLoading = lookupLoading[column.key];
@@ -2896,38 +3146,47 @@ export default function TeeemTableView({
             ? (currentValue as { id?: number }).id
             : currentValue;
 
+          // Build items with "No Record" option first
+          const lookupItems: ComboboxItem[] = [
+            { id: "__none__", label: "No Record" },
+            ...options.map((option) => ({
+              id: String(option.id),
+              label: option.display,
+            })),
+          ];
+          const selectedLookup = lookupItems.find((item) => item.id === (currentId ? String(currentId) : "__none__"));
+
           return (
-            <Select
-              value={currentId ? String(currentId) : "__none__"}
-              onValueChange={(val) => {
-                if (val === "__none__") {
+            <ComboboxDropdown
+              items={lookupItems}
+              selectedItem={selectedLookup}
+              onSelect={(item) => {
+                if (item.id === "__none__") {
                   setEditingData((prev) => ({
                     ...prev,
                     [entry.id]: { ...prev[entry.id], [column.key]: null },
                   }));
                   return;
                 }
-                const selectedOption = options.find(o => String(o.id) === val);
+                const selectedOption = options.find(o => String(o.id) === item.id);
                 setEditingData((prev) => ({
                   ...prev,
                   [entry.id]: { ...prev[entry.id], [column.key]: selectedOption ? { id: selectedOption.id, display: selectedOption.display } : null },
                 }));
               }}
-            >
-              <SelectTrigger className="h-7 text-sm">
-                <SelectValue placeholder={isLoading ? "Loading..." : "Select..."} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">
-                  <span className="text-muted-foreground italic">No Record</span>
-                </SelectItem>
-                {options.map((option) => (
-                  <SelectItem key={option.id} value={String(option.id)}>
-                    {option.display}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={isLoading ? "Loading..." : "Select..."}
+              searchPlaceholder="Search records..."
+              renderListItem={({ isChecked, item }) => (
+                <>
+                  <Check className={cn("mr-2 h-4 w-4", isChecked ? "opacity-100" : "opacity-0")} />
+                  {item.id === "__none__" ? (
+                    <span className="text-muted-foreground italic">{item.label}</span>
+                  ) : (
+                    item.label
+                  )}
+                </>
+              )}
+            />
           );
         }
 
@@ -3315,41 +3574,36 @@ export default function TeeemTableView({
           );
         }
 
-        // Choice - Dropdown with predefined options (auto-saves on selection)
+        // Choice - Searchable dropdown with predefined options (auto-saves on selection)
         if (columnType === 'choice' || columnType === 'single_select' || columnType === 'multi_select' || (column.choices && column.choices.length > 0)) {
           const choices = column.choices || [];
+          const choiceItems: ComboboxItem[] = choices.map((choice) => ({
+            id: choice,
+            label: choice,
+          }));
+          const currentValue = String(editingCellValue ?? "");
+          const selectedChoice = choiceItems.find((item) => item.id === currentValue);
+
           return (
-            <Select
-              value={String(editingCellValue ?? "")}
-              onValueChange={(val) => {
-                setEditingCellValue(val);
+            <ComboboxDropdown
+              items={choiceItems}
+              selectedItem={selectedChoice}
+              onSelect={(item) => {
+                setEditingCellValue(item.id);
                 // Auto-save choice changes
                 if (onRowUpdate) {
-                  onRowUpdate(entry.id, column.key, val);
+                  onRowUpdate(entry.id, column.key, item.id);
                 }
                 setEditingCell(null);
                 setEditingCellValue(null);
               }}
-              open={true}
-              onOpenChange={(open) => {
-                if (!open) cancelCellEdit();
-              }}
-            >
-              <SelectTrigger className="h-7 text-sm">
-                <SelectValue placeholder="Select..." />
-              </SelectTrigger>
-              <SelectContent>
-                {choices.map((choice) => (
-                  <SelectItem key={choice} value={choice}>
-                    {choice}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="Select..."
+              searchPlaceholder="Search choices..."
+            />
           );
         }
 
-        // Lookup - Dropdown with options from related table (auto-saves on selection)
+        // Lookup - Searchable dropdown with options from related table (auto-saves on selection)
         if (columnType === 'lookup' || columnType === 'relation' || column.lookup_config) {
           const options = lookupOptions[column.key] || [];
           const isLoading = lookupLoading[column.key];
@@ -3358,42 +3612,43 @@ export default function TeeemTableView({
             ? (currentValue as { id?: number }).id
             : currentValue;
 
+          // Build items with "None" option first
+          const lookupItems: ComboboxItem[] = [
+            { id: "__none__", label: "None" },
+            ...options.map((option) => ({
+              id: String(option.id),
+              label: option.display,
+            })),
+          ];
+          const selectedLookup = lookupItems.find((item) => item.id === (currentId ? String(currentId) : "__none__"));
+
           return (
-            <Select
-              value={currentId ? String(currentId) : "__none__"}
-              onValueChange={(val) => {
-                if (val === "__none__") {
+            <ComboboxDropdown
+              items={lookupItems}
+              selectedItem={selectedLookup}
+              onSelect={(item) => {
+                if (item.id === "__none__") {
                   if (onRowUpdate) onRowUpdate(entry.id, column.key, null);
                 } else {
-                  const selectedOption = options.find(o => String(o.id) === val);
-                  if (onRowUpdate) onRowUpdate(entry.id, column.key, selectedOption?.id || val);
+                  const selectedOption = options.find(o => String(o.id) === item.id);
+                  if (onRowUpdate) onRowUpdate(entry.id, column.key, selectedOption?.id || item.id);
                 }
                 setEditingCell(null);
                 setEditingCellValue(null);
               }}
-              open={true}
-              onOpenChange={(open) => {
-                if (!open) cancelCellEdit();
-              }}
-            >
-              <SelectTrigger className="h-7 text-sm">
-                {isLoading ? (
-                  <span className="text-muted-foreground">Loading...</span>
-                ) : (
-                  <SelectValue placeholder="Select..." />
-                )}
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">
-                  <span className="text-muted-foreground">None</span>
-                </SelectItem>
-                {options.map((option) => (
-                  <SelectItem key={option.id} value={String(option.id)}>
-                    {option.display}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder={isLoading ? "Loading..." : "Select..."}
+              searchPlaceholder="Search records..."
+              renderListItem={({ isChecked, item }) => (
+                <>
+                  <Check className={cn("mr-2 h-4 w-4", isChecked ? "opacity-100" : "opacity-0")} />
+                  {item.id === "__none__" ? (
+                    <span className="text-muted-foreground">{item.label}</span>
+                  ) : (
+                    item.label
+                  )}
+                </>
+              )}
+            />
           );
         }
 
@@ -5465,88 +5720,82 @@ export default function TeeemTableView({
         }}
       />
 
-      {/* Edit Columns Modal - Gold Standard style table */}
+      {/* Edit Columns Modal - Gold Standard style table with drag-and-drop */}
       <Dialog open={showEditColumnsModal} onOpenChange={setShowEditColumnsModal}>
         <DialogContent className="max-w-6xl max-h-[90vh] p-8">
           <DialogHeader className="pb-4">
-            <DialogTitle>SHOW/HIDE COLUMNS</DialogTitle>
+            <DialogTitle>SHOW/HIDE & REORDER COLUMNS</DialogTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              Drag rows to reorder, or click the position number to type a new position
+            </p>
           </DialogHeader>
 
           <ScrollArea className="h-[600px] border rounded-md">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead className="w-44">Column Name</TableHead>
-                  <TableHead className="w-32">SQL Type</TableHead>
-                  <TableHead className="w-32">Display Type</TableHead>
-                  <TableHead className="min-w-[200px]">Validation Rules</TableHead>
-                  <TableHead className="w-20">Width</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {COLUMNS.filter(c => c.key !== "select" && c.key !== "actions").map((col) => {
-                  // Map column_type to display info
-                  const columnType = col.column_type || "single_line_text";
-                  const sqlType = getColumnTypeSqlType(columnType);
-                  const displayLabel = getColumnTypeLabel(columnType);
-                  const typeEmoji = getColumnTypeEmoji(columnType);
-                  const validationRules = getColumnTypeValidationRules(columnType);
+            <DndContext
+              sensors={dndSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleColumnDragEnd}
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-16">Order</TableHead>
+                    <TableHead className="w-12">Show</TableHead>
+                    <TableHead className="w-44">Column Name</TableHead>
+                    <TableHead className="w-32">SQL Type</TableHead>
+                    <TableHead className="w-32">Display Type</TableHead>
+                    <TableHead className="min-w-[200px]">Validation Rules</TableHead>
+                    <TableHead className="w-20">Width</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <SortableContext
+                    items={getSortedColumnsForModal().map(c => c.key)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {(() => {
+                      const sortedColumns = getSortedColumnsForModal();
+                      const visibleColumnKeys = sortedColumns.filter(c => visibleColumns[c.key] === true).map(c => c.key);
+                      const totalVisible = visibleColumnKeys.length;
 
-                  return (
-                    <TableRow key={col.key} className="hover:bg-muted/50">
-                      <TableCell>
-                        <Checkbox
-                          checked={visibleColumns[col.key] === true}
-                          onCheckedChange={(checked) =>
-                            setVisibleColumns((prev) => ({
-                              ...prev,
-                              [col.key]: checked === true,
-                            }))
-                          }
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span>{typeEmoji}</span>
-                          <span className="font-medium">{col.label}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                          {sqlType}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-muted-foreground">
-                          {displayLabel}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-xs text-muted-foreground">
-                          {validationRules}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          value={columnWidths[col.key] || col.width || 50}
-                          onChange={(e) =>
-                            setColumnWidths((prev) => ({
-                              ...prev,
-                              [col.key]: parseInt(e.target.value) || 50,
-                            }))
-                          }
-                          className="w-16 h-8 text-sm"
-                          min={50}
-                          max={500}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                      return sortedColumns.map((col) => {
+                        const isVisible = visibleColumns[col.key] === true;
+                        const visibleIndex = isVisible ? visibleColumnKeys.indexOf(col.key) + 1 : 0;
+
+                        return (
+                          <SortableColumnRow
+                            key={col.key}
+                            id={col.key}
+                            column={col}
+                            isVisible={isVisible}
+                            index={visibleIndex}
+                            totalVisible={totalVisible}
+                            onToggleVisibility={() =>
+                              setVisibleColumns((prev) => ({
+                                ...prev,
+                                [col.key]: !prev[col.key],
+                              }))
+                            }
+                            onReorder={(newPos) => reorderColumnToPosition(col.key, newPos)}
+                            columnWidth={columnWidths[col.key] || col.width || 50}
+                            onWidthChange={(width) =>
+                              setColumnWidths((prev) => ({
+                                ...prev,
+                                [col.key]: width,
+                              }))
+                            }
+                            getColumnTypeEmoji={getColumnTypeEmoji}
+                            getColumnTypeSqlType={getColumnTypeSqlType}
+                            getColumnTypeLabel={getColumnTypeLabel}
+                            getColumnTypeValidationRules={getColumnTypeValidationRules}
+                          />
+                        );
+                      });
+                    })()}
+                  </SortableContext>
+                </TableBody>
+              </Table>
+            </DndContext>
           </ScrollArea>
 
           <DialogFooter className="flex justify-between pt-4">

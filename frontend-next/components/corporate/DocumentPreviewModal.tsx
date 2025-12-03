@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Combobox, type Option } from "@/components/ui/combobox";
 import { api } from "@/lib/api";
 import {
   FileText,
@@ -31,6 +33,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { PDFEditor } from "@/components/ui/pdf-editor";
 
 // Folder options for document organization
 const FOLDER_OPTIONS = [
@@ -167,6 +171,16 @@ const generateFYOptions = () => {
 
 const FY_OPTIONS = generateFYOptions();
 
+// BAS period options based on reporting frequency
+// Australian Financial Year quarters: Q1=Jul-Sep, Q2=Oct-Dec, Q3=Jan-Mar, Q4=Apr-Jun
+const QUARTERLY_PERIODS = [
+  { value: "Q1", label: "Q1", subtitle: "Jul-Sep" },
+  { value: "Q2", label: "Q2", subtitle: "Oct-Dec" },
+  { value: "Q3", label: "Q3", subtitle: "Jan-Mar" },
+  { value: "Q4", label: "Q4", subtitle: "Apr-Jun" },
+];
+const MONTHLY_PERIODS = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun"];
+
 // Helper to parse financial years from various formats
 const parseFinancialYears = (fy: number[] | string | undefined): number[] => {
   if (!fy) return [];
@@ -188,6 +202,7 @@ interface Company {
   id: number;
   name: string;
   code?: string;
+  bas_frequency?: "quarterly" | "monthly";
 }
 
 interface DocumentTypeOption {
@@ -273,6 +288,10 @@ export default function DocumentPreviewModal({
   const [editedDescription, setEditedDescription] = React.useState("");
   const [editedRefDate, setEditedRefDate] = React.useState("");
   const [editedFiledDate, setEditedFiledDate] = React.useState("");
+  const [isAmended, setIsAmended] = React.useState(false);
+  const [actionNotes, setActionNotes] = React.useState("");
+  const [amendedNumber, setAmendedNumber] = React.useState<number | null>(null);
+  const [existingAmendedDocs, setExistingAmendedDocs] = React.useState<CompanyDocument[]>([]);
   const [saving, setSaving] = React.useState(false);
 
   // Document types from database
@@ -285,6 +304,9 @@ export default function DocumentPreviewModal({
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [previewError, setPreviewError] = React.useState<string | null>(null);
+
+  // PDF Editor mode
+  const [isEditingPdf, setIsEditingPdf] = React.useState(false);
 
   // Fetch document types from database
   React.useEffect(() => {
@@ -300,6 +322,76 @@ export default function DocumentPreviewModal({
     };
     fetchDocumentTypes();
   }, []);
+
+  // Auto-fill date with today when Amended is checked
+  React.useEffect(() => {
+    if (isAmended && !editedRefDate) {
+      // Set to today's date in YYYY-MM-DD format for the date input
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
+      setEditedRefDate(`${yyyy}-${mm}-${dd}`);
+    }
+  }, [isAmended]);
+
+  // Check for existing amended documents when amended checkbox is ticked
+  React.useEffect(() => {
+    const checkExistingAmendedDocs = async () => {
+      if (!isAmended || !editedCompanyId || !editedDocumentType) {
+        setAmendedNumber(null);
+        setExistingAmendedDocs([]);
+        return;
+      }
+
+      try {
+        // Fetch documents for this company with same type that contain "Amended"
+        const response = await api.get<{ success: boolean; documents: CompanyDocument[] }>(
+          `/api/v1/company_documents?company_id=${editedCompanyId}&document_type=${editedDocumentType}`
+        );
+
+        if (response.success && response.documents) {
+          // Filter for amended documents (case-insensitive)
+          const amendedDocs = response.documents.filter(doc =>
+            doc.title?.toLowerCase().includes("amended") ||
+            doc.file_name?.toLowerCase().includes("amended")
+          );
+
+          // Sort by date to determine next number
+          const sortedDocs = amendedDocs.sort((a, b) => {
+            const dateA = new Date(a.ref_date || a.filed_date || "").getTime();
+            const dateB = new Date(b.ref_date || b.filed_date || "").getTime();
+            return dateA - dateB;
+          });
+
+          setExistingAmendedDocs(sortedDocs);
+
+          // Calculate next amended number
+          if (sortedDocs.length === 0) {
+            setAmendedNumber(null); // First amended, no number needed
+          } else {
+            // Find highest existing amended number
+            let maxNumber = 0;
+            for (const doc of sortedDocs) {
+              const match = (doc.title || doc.file_name || "").match(/Amended\s*(\d+)/i);
+              if (match) {
+                maxNumber = Math.max(maxNumber, parseInt(match[1], 10));
+              } else {
+                // If there's an "Amended" without a number, count it as 1
+                maxNumber = Math.max(maxNumber, 1);
+              }
+            }
+            setAmendedNumber(maxNumber + 1);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to check existing amended docs:", error);
+        setAmendedNumber(null);
+      }
+    };
+
+    checkExistingAmendedDocs();
+  }, [isAmended, editedCompanyId, editedDocumentType, editedFinancialYears]);
 
   // Fetch embeddable preview URL for OneDrive files
   React.useEffect(() => {
@@ -328,9 +420,13 @@ export default function DocumentPreviewModal({
           // Fall back to file_url if available
           setPreviewUrl(null);
         }
-      } catch (error) {
-        console.error("Failed to fetch preview URL:", error);
-        setPreviewError("Failed to load preview");
+      } catch (error: unknown) {
+        // Don't log OneDrive credential errors - expected in local dev
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (!errorMessage.includes("OneDrive credentials not available")) {
+          console.error("Failed to fetch preview URL:", error);
+        }
+        setPreviewError("Preview not available");
         setPreviewUrl(null);
       } finally {
         setPreviewLoading(false);
@@ -532,6 +628,11 @@ export default function DocumentPreviewModal({
   // Check if document type naming format includes a Details/Asset placeholder
   const needsDetails = React.useMemo(() => {
     if (editedDocumentType === "other") return true; // Other always needs details
+
+    // Document types that commonly need a period/details field
+    const typesNeedingDetails = ["bas", "ias"];
+    if (typesNeedingDetails.includes(editedDocumentType)) return true;
+
     const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
     if (docTypeRecord?.naming_format) {
       // Check for common detail placeholders in naming format
@@ -543,6 +644,22 @@ export default function DocumentPreviewModal({
     // Default to false for database types without explicit details placeholder
     return false;
   }, [editedDocumentType, getDocumentTypeRecord]);
+
+  // Check if this is a BAS or IAS document type (needs period selector)
+  const isBASDocument = React.useMemo(() => {
+    const basTypes = ["bas", "ias", "BAS - Business Activity Statement", "IAS - Instalment Activity Statement"];
+    return basTypes.some(t =>
+      editedDocumentType.toLowerCase() === t.toLowerCase() ||
+      editedDocumentType.toLowerCase().includes("bas") ||
+      editedDocumentType.toLowerCase().includes("ias")
+    );
+  }, [editedDocumentType]);
+
+  // Get the selected company's BAS frequency
+  const selectedCompanyBasFrequency = React.useMemo(() => {
+    const company = companies.find(c => String(c.id) === editedCompanyId);
+    return company?.bas_frequency || "quarterly"; // Default to quarterly
+  }, [editedCompanyId, companies]);
 
   // Update state when initialDocument changes - also auto-detect from filename
   React.useEffect(() => {
@@ -647,31 +764,103 @@ export default function DocumentPreviewModal({
     return `${day}-${month}-${year}`;
   };
 
-  // Auto-fill document name when selections change
+  // Build amended suffix for filename
+  const getAmendedSuffix = React.useCallback(() => {
+    if (!isAmended) return "";
+    // Use the edited date from the date picker, or today if not set
+    const dateStr = editedRefDate
+      ? formatDateForFilename(editedRefDate)
+      : formatDateForFilename(new Date().toISOString());
+    if (amendedNumber !== null && amendedNumber > 1) {
+      return ` Amended ${amendedNumber} ${dateStr}`;
+    }
+    return ` Amended ${dateStr}`;
+  }, [isAmended, amendedNumber, editedRefDate]);
+
+  // Auto-fill document name when selections change - follows naming_format template order
   React.useEffect(() => {
     const companyCode = companies.find(c => String(c.id) === editedCompanyId)?.code || "";
     const docTypeRecord = getDocumentTypeRecord(editedDocumentType);
     const docTypeAbbrev = docTypeRecord?.abbreviation ||
       getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "";
+    const namingFormat = docTypeRecord?.naming_format;
+    const amendedSuffix = getAmendedSuffix();
 
-    // Check if this doc type uses Description + Date format (like ATO Documents)
-    const usesDescriptionDate = editedDocumentType === "other" ||
-      (docTypeRecord?.naming_format?.includes("{Description}") ||
-       docTypeRecord?.naming_format?.includes("{Date}"));
+    // If we have a naming format from the database, use it as template
+    if (namingFormat && companyCode && docTypeAbbrev) {
+      let newName = namingFormat;
+
+      // Replace placeholders in the exact order they appear in the format
+      newName = newName.replace("{CompanyCode}", companyCode);
+      newName = newName.replace("{Abbreviation}", docTypeAbbrev);
+      newName = newName.replace("{Type}", docTypeAbbrev);
+
+      // Handle Period/Details/Description/Quarter placeholders
+      if (editedDescription) {
+        newName = newName.replace("{Period}", editedDescription);
+        newName = newName.replace("{Details}", editedDescription);
+        newName = newName.replace("{Description}", editedDescription);
+        newName = newName.replace("{Quarter}", editedDescription);
+        newName = newName.replace("{Asset}", editedDescription);
+      } else {
+        // Remove unfilled placeholders (but keep the rest of the format)
+        newName = newName.replace(/\{Period\}\s*/g, "");
+        newName = newName.replace(/\{Details\}\s*/g, "");
+        newName = newName.replace(/\{Description\}\s*/g, "");
+        newName = newName.replace(/\{Quarter\}\s*/g, "");
+        newName = newName.replace(/\{Asset\}\s*/g, "");
+      }
+
+      // Handle Financial Year placeholder
+      const fyPart = editedFinancialYears.length > 0
+        ? editedFinancialYears.map(y => `FY${y.toString().slice(-2)}`).join(" ")
+        : "";
+      if (fyPart) {
+        newName = newName.replace("FY{YY}", fyPart);
+        newName = newName.replace("{FY}", fyPart);
+      } else {
+        newName = newName.replace(/FY\{YY\}\s*/g, "");
+        newName = newName.replace(/\{FY\}\s*/g, "");
+      }
+
+      // Handle Date placeholder (only if not amended - amended has its own date)
+      if (editedRefDate && !isAmended) {
+        newName = newName.replace("{Date}", formatDateForFilename(editedRefDate));
+      } else {
+        newName = newName.replace(/\{Date\}\s*/g, "");
+      }
+
+      // Clean up multiple spaces and trim
+      newName = newName.replace(/\s+/g, " ").trim();
+
+      // Add amended suffix at the end
+      if (amendedSuffix) {
+        newName = newName + amendedSuffix;
+      }
+
+      if (newName && newName !== companyCode) {
+        setEditedTitle(newName);
+      }
+      return;
+    }
+
+    // Fallback for hardcoded types or "other" - use generic format
+    const usesDescriptionDate = editedDocumentType === "other";
 
     if (usesDescriptionDate) {
       // Format: {CompanyCode} {Abbrev} {Description} {Date}
       if (companyCode && docTypeAbbrev && editedDescription) {
         let newName = `${companyCode} ${docTypeAbbrev} ${editedDescription}`;
-        if (editedRefDate) {
+        if (editedRefDate && !isAmended) {
           newName += ` ${formatDateForFilename(editedRefDate)}`;
         }
+        newName += amendedSuffix;
         setEditedTitle(newName.trim());
       }
       return;
     }
 
-    // Standard document type format with FY
+    // Standard document type format with FY (for hardcoded types)
     const fyPart = editedFinancialYears.length > 0
       ? editedFinancialYears.map(y => `FY${y.toString().slice(-2)}`).join(" ")
       : "";
@@ -679,10 +868,10 @@ export default function DocumentPreviewModal({
 
     // Only auto-fill if we have the required fields
     if (companyCode && docTypeAbbrev && fyPart) {
-      const newName = `${companyCode} ${docTypeAbbrev} ${fyPart}${descPart}`.trim();
+      const newName = `${companyCode} ${docTypeAbbrev} ${fyPart}${descPart}${amendedSuffix}`.trim();
       setEditedTitle(newName);
     }
-  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord]);
+  }, [editedCompanyId, editedDocumentType, editedFinancialYears, editedDescription, editedRefDate, editedFiledDate, editedFolder, companies, getDocumentTypesForFolder, getDocumentTypeRecord, isAmended, getAmendedSuffix]);
 
   // Handle user validation
   const handleValidate = async () => {
@@ -751,6 +940,7 @@ export default function DocumentPreviewModal({
             financial_years: editedFinancialYears,
             ref_date: editedRefDate || null,
             filed_date: editedFiledDate || null,
+            notes: actionNotes.trim() || null,
           },
         }
       );
@@ -851,9 +1041,11 @@ export default function DocumentPreviewModal({
   const toggleFinancialYear = (year: number) => {
     setEditedFinancialYears((prev) => {
       if (prev.includes(year)) {
+        // Clicking same year deselects it
         return prev.filter((y) => y !== year);
       } else {
-        return [...prev, year].sort((a, b) => b - a);
+        // Single selection - replace previous
+        return [year];
       }
     });
   };
@@ -882,867 +1074,598 @@ export default function DocumentPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-        {/* Header */}
-        <DialogHeader className="px-6 py-4 border-b">
-          <div className="flex items-center gap-3">
-            <FileText className="h-6 w-6 text-muted-foreground flex-shrink-0" />
-            {isEditing ? (
-              <Input
-                ref={titleInputRef}
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                className="flex-1 text-lg font-semibold"
-                placeholder="Document title"
-              />
-            ) : (
-              <button
-                onClick={startEditing}
-                className="group flex items-center gap-2 text-left flex-1 min-w-0"
-                title="Click to edit"
+      <DialogContent
+        className="!max-w-[100vw] !w-[100vw] !max-h-[100vh] !h-[100vh] !rounded-none overflow-hidden p-0 flex flex-col"
+        aria-describedby={undefined}
+      >
+        {/* Header - compact */}
+        <DialogHeader className="px-4 py-2 border-b flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <DialogTitle className="truncate text-sm font-medium mb-0 flex-1">
+              {document.display_title || document.title}
+              {isEditingPdf && <span className="ml-2 text-xs text-orange-500">(Editing)</span>}
+            </DialogTitle>
+            {/* Edit PDF button - only for PDFs */}
+            {fileType === "pdf" && (previewUrl || document.file_url) && (
+              <Button
+                variant={isEditingPdf ? "default" : "outline"}
+                size="sm"
+                className="h-6 px-2"
+                onClick={() => setIsEditingPdf(!isEditingPdf)}
               >
-                <DialogTitle className="truncate mb-0">
-                  {document.display_title || document.title}
-                </DialogTitle>
-                <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-              </button>
+                <Pencil className="h-3 w-3 mr-1" />
+                <span className="text-xs">{isEditingPdf ? "View Mode" : "Edit PDF"}</span>
+              </Button>
             )}
+            {document.file_url && (
+              <Button variant="ghost" size="sm" asChild className="h-6 px-2">
+                <a href={document.file_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  <span className="text-xs">Open</span>
+                </a>
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={() => onOpenChange(false)}>
+              <X className="h-3 w-3" />
+            </Button>
           </div>
         </DialogHeader>
 
-        {/* Content */}
-        <div className="px-6 py-4">
-          {/* Document Details - Editable or Display */}
-          {isEditing ? (
-            <div className="mb-6 p-4 bg-muted/50 rounded-lg border">
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">
-                Edit Document Details
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Company Dropdown */}
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Company</Label>
-                  <Select value={editedCompanyId} onValueChange={setEditedCompanyId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select company..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companies.map((company) => (
-                        <SelectItem key={company.id} value={String(company.id)}>
-                          {company.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Folder Dropdown */}
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Folder (Tab)</Label>
-                  <Select value={editedFolder} onValueChange={setEditedFolder}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select folder..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FOLDER_OPTIONS.map((folder) => (
-                        <SelectItem key={folder} value={folder}>
-                          {folder}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Financial Year Multi-Select */}
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Financial Year(s)</Label>
-                  <div className="flex flex-wrap gap-1 min-h-[38px] p-2 border rounded-md bg-background">
-                    {editedFinancialYears.length > 0 ? (
-                      editedFinancialYears.map((year) => (
-                        <Badge
-                          key={year}
-                          variant="secondary"
-                          className="gap-1 cursor-pointer"
-                          onClick={() => toggleFinancialYear(year)}
-                        >
-                          FY{year.toString().slice(-2)}
-                          <X className="h-3 w-3" />
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-muted-foreground text-sm">Select years...</span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {FY_OPTIONS.slice(0, 6).map((year) => (
-                      <Button
-                        key={year}
-                        type="button"
-                        size="sm"
-                        variant={editedFinancialYears.includes(year) ? "default" : "outline"}
-                        onClick={() => toggleFinancialYear(year)}
-                        className="h-7 px-2 text-xs"
-                      >
-                        FY{year.toString().slice(-2)}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
+        {/* Main Content Area - Three Panels */}
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          {/* Left Section - Current Info + Edit + AI (stacked) */}
+          <div className="w-1/2 flex flex-col overflow-hidden border-r">
+            {/* Top Bar - Current Document Info (read-only) - compact */}
+            <div className="px-3 py-2 bg-muted/30 border-b flex-shrink-0">
+              <div className="flex items-center gap-2 mb-1">
+                <FileText className="h-3 w-3 text-muted-foreground" />
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Current</span>
               </div>
-
-              {/* Save/Cancel buttons */}
-              <div className="mt-4 flex items-center gap-3">
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-4 w-4 mr-2" />
-                      Save Changes
-                    </>
-                  )}
-                </Button>
-                <Button variant="outline" onClick={cancelEditing} disabled={saving}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="mb-6 grid grid-cols-2 md:grid-cols-7 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Company</p>
-                <p className="text-sm font-medium">{currentCompanyName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Tab/Folder</p>
-                <p className="text-sm font-medium">{document.folder || "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Doc Type</p>
-                <p className="text-sm font-medium">
-                  {document.document_type ? (
-                    <span className="flex items-center gap-1">
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.abbrev || "?"}
-                      </Badge>
-                      {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.label || document.document_type.replace(/_/g, " ")}
-                    </span>
-                  ) : "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Financial Year</p>
-                <p className="text-sm font-medium">
-                  {Array.isArray(document.financial_years) && document.financial_years.length > 0
-                    ? document.financial_years.map((y) => `FY${y.toString().slice(-2)}`).join(", ")
-                    : "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Linked To</p>
-                <p className="text-sm font-medium">
-                  {document.asset ? (
-                    <span className="flex items-center gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {document.asset.abbreviation || document.asset.display_name || document.asset.name || `Asset #${document.asset.id}`}
-                      </Badge>
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">File Size</p>
-                <p className="text-sm font-medium">{formatFileSize(document.file_size)}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Naming Information Section */}
-          <div className="mb-6 p-4 bg-muted/30 rounded-lg border space-y-3">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Naming Information
-            </h3>
-
-            {/* Original Filename */}
-            <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-              <span className="text-muted-foreground">Original File:</span>
-              <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all">
+              <div className="font-mono text-xs bg-background px-2 py-1 rounded border mb-2 break-all truncate">
                 {document.file_name || document.title || "-"}
-              </span>
+              </div>
+              <div className="grid grid-cols-6 gap-2 text-xs">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Company</p>
+                  <p className="font-medium truncate text-xs">{currentCompanyName}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Folder</p>
+                  <Badge variant="secondary" className="text-[10px]">{document.folder || "GENERAL"}</Badge>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Type</p>
+                  {document.document_type ? (
+                    <Badge variant="outline" className="font-mono text-[10px]">
+                      {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.abbrev || "?"}
+                    </Badge>
+                  ) : <span className="text-muted-foreground">-</span>}
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">FY</p>
+                  <p className="font-medium text-xs">
+                    {Array.isArray(document.financial_years) && document.financial_years.length > 0
+                      ? document.financial_years.map((y) => `FY${y.toString().slice(-2)}`).join(", ")
+                      : <span className="text-muted-foreground">-</span>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Asset</p>
+                  {document.asset ? (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {document.asset.abbreviation || document.asset.display_name || document.asset.name}
+                    </Badge>
+                  ) : <span className="text-muted-foreground">-</span>}
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Size</p>
+                  <p className="font-medium text-xs">{formatFileSize(document.file_size)}</p>
+                </div>
+              </div>
             </div>
 
-            {/* Current Title */}
-            <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-              <span className="text-muted-foreground">Current Title:</span>
-              <span className="font-mono text-xs bg-muted px-2 py-1 rounded break-all">
-                {document.title || "-"}
-              </span>
-            </div>
+            {/* Edit + AI Panels side by side */}
+            <div className="flex flex-1 overflow-hidden min-h-0">
+              {/* Left Panel - User Editable */}
+              <div className="w-1/2 overflow-y-auto border-r p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Pencil className="h-3 w-3 text-blue-500" />
+                <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wide">Edit</span>
+              </div>
 
-            {/* Naming Convention Guide */}
-            <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-              <span className="text-muted-foreground">TEEEM Format:</span>
               <div className="space-y-2">
-                <span className="font-mono text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 px-2 py-1 rounded inline-block">
-                  {"{CompanyCode}"} {"{DocType}"} FY{"{YY}"} {"{Details/Asset}"}.pdf
-                </span>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Format breakdown:</p>
-                  <ul className="list-disc list-inside ml-2 space-y-0.5">
-                    <li><span className="font-mono">CompanyCode</span> - Company abbreviation (e.g., TD, ANZ)</li>
-                    <li><span className="font-mono">DocType</span> - Document type abbreviation (CTR, BAS, LA)</li>
-                    <li><span className="font-mono">FY{"{YY}"}</span> - Financial year (FY24, FY25)</li>
-                    <li><span className="font-mono">Details/Asset</span> - Additional info: period, asset name, description</li>
-                  </ul>
-                  <p className="mt-2 font-medium text-foreground">Examples:</p>
-                  <ul className="list-disc list-inside ml-2 space-y-0.5">
-                    <li><span className="font-mono">TD CTR FY24.pdf</span> - Company Tax Return</li>
-                    <li><span className="font-mono">TD BAS Q1 FY24.pdf</span> - BAS for Quarter 1</li>
-                    <li><span className="font-mono">TD LA FY24 ANZ Loan.pdf</span> - Loan Agreement linked to ANZ Loan asset</li>
-                    <li><span className="font-mono">TD MTG FY24 123 Main St.pdf</span> - Mortgage for property</li>
-                  </ul>
+                {/* Company (searchable) + Folder side by side */}
+                <div className="grid grid-cols-2 gap-1">
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Company</Label>
+                    <Combobox
+                      options={companies.map(c => ({
+                        id: String(c.id),
+                        name: `${c.code ? `[${c.code}] ` : ''}${c.name}`,
+                        data: c
+                      }))}
+                      value={editedCompanyId ? {
+                        id: editedCompanyId,
+                        name: (() => {
+                          const c = companies.find(c => String(c.id) === editedCompanyId);
+                          return c ? `${c.code ? `[${c.code}] ` : ''}${c.name}` : '';
+                        })()
+                      } : undefined}
+                      onSelect={(option) => option && setEditedCompanyId(option.id)}
+                      placeholder="Search..."
+                      className="mt-0.5 h-7 text-xs border rounded-md px-2"
+                      showIcon={false}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Tab/Folder</Label>
+                    <Select value={editedFolder} onValueChange={setEditedFolder}>
+                      <SelectTrigger className="mt-0.5 h-7 text-xs">
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FOLDER_OPTIONS.map((folder) => (
+                          <SelectItem key={folder} value={folder}>{folder}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Linked Asset Info (if any) */}
-            {document.asset && (
-              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-                <span className="text-muted-foreground">Linked Asset:</span>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="font-medium">
-                    {document.asset.abbreviation || document.asset.display_name || document.asset.name}
-                  </Badge>
-                  {document.asset.description && (
-                    <span className="text-xs text-muted-foreground">
-                      {document.asset.description}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* AI Suggestion (if available) */}
-            {document.ai_suggested_name && (
-              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-                <span className="text-muted-foreground flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 text-purple-500" />
-                  AI Suggestion:
-                </span>
-                <div className="space-y-1">
-                  <span className="font-mono text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded inline-block">
-                    {document.ai_suggested_name}
-                  </span>
-                  {document.ai_confidence_score && (
-                    <span className={cn(
-                      "text-xs ml-2",
-                      document.ai_confidence_score >= 80 ? "text-green-600" :
-                      document.ai_confidence_score >= 60 ? "text-yellow-600" : "text-red-600"
-                    )}>
-                      ({document.ai_confidence_score}% confidence)
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* AI Reasoning (if available) */}
-            {document.ai_analysis_notes && (
-              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm">
-                <span className="text-muted-foreground">AI Reasoning:</span>
-                <p className="text-xs text-muted-foreground italic bg-muted/50 px-2 py-1 rounded">
-                  {document.ai_analysis_notes}
-                </p>
-              </div>
-            )}
-
-            {/* Current Tab/Folder and Document Type - side by side */}
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="grid grid-cols-[120px_1fr] gap-2">
-                <span className="text-muted-foreground">Tab/Folder:</span>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="font-medium">
-                    {document.folder || "GENERAL"}
-                  </Badge>
-                  {document.ai_suggested_folder && document.ai_suggested_folder !== document.folder && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Sparkles className="h-3 w-3 text-purple-500" />
-                      <Badge variant="outline" className="text-purple-600 border-purple-300">{document.ai_suggested_folder}</Badge>
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-[100px_1fr] gap-2">
-                <span className="text-muted-foreground">Doc Type:</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium capitalize">
-                    {document.document_type?.replace(/_/g, " ") || "-"}
-                  </span>
-                  {document.ai_suggested_type && document.ai_suggested_type !== document.document_type && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Sparkles className="h-3 w-3 text-purple-500" />
-                      <span className="text-purple-600 capitalize">{document.ai_suggested_type.replace(/_/g, " ")}</span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Company, Folder, Type & Details - User can modify document location */}
-            <div className="pt-3 border-t space-y-3">
-              {/* Move to Company */}
-              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
-                <span className="text-muted-foreground">Move to Company:</span>
-                <div className="flex gap-2 items-center">
-                  <Select value={editedCompanyId} onValueChange={setEditedCompanyId}>
-                    <SelectTrigger className="w-[280px]">
-                      <SelectValue placeholder="Select company...">
-                        {companies.find(c => String(c.id) === editedCompanyId)?.name || "Select company..."}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companies.map((company) => (
-                        <SelectItem key={company.id} value={String(company.id)}>
-                          <div className="flex items-center gap-2">
-                            {company.code && (
-                              <Badge variant="outline" className="font-mono text-xs">
-                                {company.code}
-                              </Badge>
-                            )}
-                            {company.name}
-                            {String(company.id) === String(document.company_id || document.company?.id) && " (current)"}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {editedCompanyId !== String(document.company_id || document.company?.id || "") && (
-                    <span className="text-xs text-amber-600">⚠️ Will move file to new company folder</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Tab/Folder */}
-              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
-                <span className="text-muted-foreground">Tab/Folder:</span>
-                <Select value={editedFolder} onValueChange={setEditedFolder}>
-                  <SelectTrigger className="w-full max-w-[300px]">
-                    <SelectValue placeholder="Select tab..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FOLDER_OPTIONS.map((folder) => (
-                      <SelectItem key={folder} value={folder}>
-                        {folder}
-                        {folder === document.folder && " (current)"}
-                        {folder === document.ai_suggested_folder && folder !== document.folder && " ✨ AI"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Document Type - filtered by selected folder */}
-              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-start">
-                <span className="text-muted-foreground pt-2">Doc Type:</span>
-                <div className="space-y-1">
+                {/* Document Type + Amended checkbox */}
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[10px] text-muted-foreground">Document Type</Label>
+                    <div className="flex items-center gap-1">
+                      <Checkbox
+                        id="amended"
+                        checked={isAmended}
+                        onCheckedChange={(checked) => setIsAmended(checked === true)}
+                        className="h-3 w-3"
+                      />
+                      <label
+                        htmlFor="amended"
+                        className="text-[10px] text-muted-foreground cursor-pointer select-none"
+                      >
+                        Amended
+                        {isAmended && amendedNumber !== null && amendedNumber > 1 && (
+                          <Badge variant="secondary" className="ml-1 text-[10px] px-1">
+                            #{amendedNumber}
+                          </Badge>
+                        )}
+                      </label>
+                    </div>
+                  </div>
                   <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
-                    <SelectTrigger className="w-full max-w-[400px]">
+                    <SelectTrigger className="mt-0.5 h-7 text-xs">
                       <SelectValue placeholder="Select type...">
                         {editedDocumentType ? (
-                          <span className="flex items-center gap-2">
-                            <Badge variant="outline" className="font-mono text-xs">
+                          <span className="flex items-center gap-1">
+                            <Badge variant="outline" className="font-mono text-[10px] px-1">
                               {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "?"}
                             </Badge>
-                            {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || editedDocumentType}
+                            <span className="truncate">{getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || editedDocumentType}</span>
                           </span>
-                        ) : "Select type..."}
+                        ) : "Select..."}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {getDocumentTypesForFolder(editedFolder).map((type) => (
                         <SelectItem key={type.value} value={type.value}>
-                          <span className="flex items-center gap-2">
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {type.abbrev}
-                            </Badge>
+                          <span className="flex items-center gap-1">
+                            <Badge variant="outline" className="font-mono text-[10px] px-1">{type.abbrev}</Badge>
                             {type.label}
-                            {type.value === document.document_type && " (current)"}
                           </span>
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  {/* Show naming format for selected doc type */}
                   {editedDocumentType && getDocumentTypeRecord(editedDocumentType)?.naming_format && (
-                    <p className="text-xs text-muted-foreground font-mono pl-1">
-                      Format: {getDocumentTypeRecord(editedDocumentType)?.naming_format}
+                    <p className="mt-0.5 text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded truncate">
+                      {getDocumentTypeRecord(editedDocumentType)?.naming_format}
+                      {isAmended && " + Amended"}
+                    </p>
+                  )}
+                  {isAmended && existingAmendedDocs.length > 0 && (
+                    <p className="mt-0.5 text-[10px] text-orange-600 dark:text-orange-400">
+                      {existingAmendedDocs.length} amended doc{existingAmendedDocs.length > 1 ? "s" : ""} found
                     </p>
                   )}
                 </div>
-              </div>
 
-              {/* Financial Year fields - shown when doc type needs FY */}
-              {editedDocumentType && needsFinancialYear && (
-                <div className={needsDetails ? "grid grid-cols-2 gap-4" : ""}>
-                  {/* Financial Year Selector */}
-                  <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-start">
-                    <span className="text-muted-foreground pt-2">Fin. Year:</span>
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-1">
-                        {editedFinancialYears.length > 0 ? (
-                          editedFinancialYears.map((year) => (
-                            <Badge
-                              key={year}
-                              variant="secondary"
-                              className="gap-1 cursor-pointer hover:bg-destructive/20"
-                              onClick={() => toggleFinancialYear(year)}
+                {/* Details/Period field - only show when format requires it */}
+                {(needsDescriptionAndDate || needsDetails || isBASDocument) && (
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">
+                      {needsDescriptionAndDate ? "Description" : isBASDocument ? "Period" : "Details"}
+                      {isBASDocument && (
+                        <span className="text-muted-foreground/50 ml-1">
+                          ({selectedCompanyBasFrequency === "monthly" ? "Mth" : "Qtr"})
+                        </span>
+                      )}
+                    </Label>
+                    {isBASDocument ? (
+                      <div className="mt-0.5 flex flex-wrap gap-0.5">
+                        {selectedCompanyBasFrequency === "monthly" ? (
+                          MONTHLY_PERIODS.map((period) => (
+                            <Button
+                              key={period}
+                              type="button"
+                              size="sm"
+                              variant={editedDescription === period ? "default" : "outline"}
+                              onClick={() => setEditedDescription(period)}
+                              className="h-5 px-1.5 text-[10px]"
                             >
-                              FY{year.toString().slice(-2)}
-                              <X className="h-3 w-3" />
-                            </Badge>
+                              {period}
+                            </Button>
                           ))
                         ) : (
-                          <span className="text-xs text-muted-foreground">Select year(s)...</span>
+                          QUARTERLY_PERIODS.map((period) => (
+                            <Button
+                              key={period.value}
+                              type="button"
+                              size="sm"
+                              variant={editedDescription === period.value ? "default" : "outline"}
+                              onClick={() => setEditedDescription(period.value)}
+                              className="h-auto py-0.5 px-1.5 text-[10px] flex flex-col items-center"
+                            >
+                              <span>{period.label}</span>
+                              <span className="text-[8px] opacity-70">{period.subtitle}</span>
+                            </Button>
+                          ))
                         )}
                       </div>
-                      <div className="flex flex-wrap gap-1">
-                        {FY_OPTIONS.slice(0, 5).map((year) => (
-                          <Button
-                            key={year}
-                            type="button"
-                            size="sm"
-                            variant={editedFinancialYears.includes(year) ? "default" : "outline"}
-                            onClick={() => toggleFinancialYear(year)}
-                            className="h-6 px-2 text-xs"
-                          >
-                            FY{year.toString().slice(-2)}
-                          </Button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Manual Description/Details - only shown if naming format requires it */}
-                  {needsDetails && (
-                    <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
-                      <span className="text-muted-foreground">Details:</span>
+                    ) : (
                       <Input
                         value={editedDescription}
                         onChange={(e) => setEditedDescription(e.target.value)}
-                        placeholder="e.g., Q1, ANZ Loan, 123 Main St..."
-                        className="text-sm"
+                        className="mt-0.5 h-7 text-xs"
+                        placeholder={needsDescriptionAndDate ? "e.g., Notice of Assessment..." : "e.g., Q1, Draft..."}
                       />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Description and Date fields - shown when doc type needs them (e.g., ATO Documents, Other) */}
-              {editedDocumentType && needsDescriptionAndDate && (
-                <div className="space-y-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800">
-                  <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">
-                    {getDocumentTypeRecord(editedDocumentType)?.name || "Other"} - Please provide details:
-                  </p>
-
-                  {/* Description (required) */}
-                  <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
-                    <span className="text-muted-foreground">Description:</span>
-                    <Input
-                      value={editedDescription}
-                      onChange={(e) => setEditedDescription(e.target.value)}
-                      placeholder="What is this document? e.g., Letter from ATO, Notice..."
-                      className="text-sm"
-                    />
+                    )}
                   </div>
+                )}
 
-                  {/* Document Date */}
-                  <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
-                    <span className="text-muted-foreground">Doc Date:</span>
+                {/* Financial Year - after Period to match format order */}
+                {needsFinancialYear && (
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Financial Year</Label>
+                    <div className="mt-0.5 flex flex-wrap gap-0.5">
+                      {FY_OPTIONS.slice(0, 6).map((year) => (
+                        <Button
+                          key={year}
+                          type="button"
+                          size="sm"
+                          variant={editedFinancialYears.includes(year) ? "default" : "outline"}
+                          onClick={() => toggleFinancialYear(year)}
+                          className="h-5 px-1.5 text-[10px]"
+                        >
+                          FY{year.toString().slice(-2)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Date field (when format needs it or when Amended is checked) */}
+                {(needsDescriptionAndDate || isAmended) && (
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">
+                      {isAmended ? "Amended Date" : "Date"}
+                    </Label>
                     <Input
                       type="date"
                       value={editedRefDate}
                       onChange={(e) => setEditedRefDate(e.target.value)}
-                      className="text-sm w-[180px]"
+                      className="mt-0.5 h-7 text-xs"
                     />
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* New Name section */}
-              <div className="bg-muted/50 p-3 rounded space-y-3">
-                {/* Human-readable display name - shows what fields are filled/missing */}
-                <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
-                  <span className="text-muted-foreground">Display As:</span>
-                  {needsDescriptionAndDate ? (
-                    /* Description + Date format display (ATO Documents, Other, etc.) */
-                    <div className="flex flex-wrap gap-1 text-xs">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded",
-                        companies.find(c => String(c.id) === editedCompanyId)?.code
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                      )}>
-                        {companies.find(c => String(c.id) === editedCompanyId)?.code || "Company?"}
-                      </span>
-                      <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                        {getDocumentTypeRecord(editedDocumentType)?.abbreviation ||
-                         getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev ||
-                         "OTH"}
-                      </span>
-                      <span className={cn(
-                        "px-2 py-0.5 rounded",
-                        editedDescription
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                      )}>
-                        {editedDescription || "Description?"}
-                      </span>
-                      <span className={cn(
-                        "px-2 py-0.5 rounded",
-                        editedRefDate
-                          ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                      )}>
-                        {editedRefDate ? formatDateForFilename(editedRefDate) : "Date?"}
-                      </span>
-                    </div>
-                  ) : (
-                    /* Standard document type display with FY */
-                    <div className="flex flex-wrap gap-1 text-xs">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded",
-                        companies.find(c => String(c.id) === editedCompanyId)?.code
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                      )}>
-                        {companies.find(c => String(c.id) === editedCompanyId)?.code || "Company?"}
-                      </span>
-                      <span className={cn(
-                        "px-2 py-0.5 rounded",
-                        editedDocumentType
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                      )}>
-                        {getDocumentTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || "Doc Type?"}
-                      </span>
-                      <span className={cn(
-                        "px-2 py-0.5 rounded",
-                        editedFinancialYears.length > 0
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                      )}>
-                        {editedFinancialYears.length > 0
-                          ? editedFinancialYears.map(y => y.toString()).join(", ")
-                          : "Year?"}
-                      </span>
-                      {editedDescription && (
-                        <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                          {editedDescription}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                {/* New filename - auto-generated from above fields */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">New File Name</Label>
+                  <Input
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    className="mt-0.5 h-7 font-mono text-xs bg-muted/50"
+                    placeholder="Auto-generated..."
+                  />
                 </div>
 
-                {/* Divider */}
-                <div className="border-t" />
-
-                {/* Actual file rename input */}
-                <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
-                  <span className="text-muted-foreground">Rename To:</span>
-                  <div className="flex gap-2">
-                    <Input
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      placeholder="File name auto-fills from selections..."
-                      className="flex-1 font-mono text-sm"
-                    />
-                    {document.ai_suggested_name && editedTitle !== document.ai_suggested_name && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditedTitle(document.ai_suggested_name || "")}
-                        className="whitespace-nowrap text-purple-600 border-purple-300 hover:bg-purple-50"
-                      >
-                        <Sparkles className="h-3 w-3 mr-1" />
-                        Use AI
+                {/* Save button and action notes */}
+                {((editedTitle && editedTitle !== document.title) ||
+                  (editedFolder && editedFolder !== document.folder) ||
+                  (editedDocumentType && editedDocumentType !== document.document_type) ||
+                  (editedCompanyId && editedCompanyId !== String(document.company_id || document.company?.id || "")) ||
+                  (JSON.stringify(editedFinancialYears) !== JSON.stringify(parseFinancialYears(document.financial_years)))) && (
+                  <div className="pt-2 border-t space-y-1.5">
+                    <div className="flex items-center gap-1">
+                      <Button onClick={handleSave} disabled={saving || !editedTitle.trim()} size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700">
+                        {saving ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving</> : <><Check className="h-3 w-3 mr-1" />Apply</>}
                       </Button>
-                    )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          setEditedTitle(document.title || "");
+                          setEditedFolder(document.folder || "");
+                          setEditedDocumentType(document.document_type || "");
+                          setEditedCompanyId(String(document.company_id || document.company?.id || ""));
+                          setEditedFinancialYears(parseFinancialYears(document.financial_years));
+                          setActionNotes("");
+                        }}
+                      >
+                        Reset
+                      </Button>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Notes (optional)</Label>
+                      <Input
+                        value={actionNotes}
+                        onChange={(e) => setActionNotes(e.target.value)}
+                        className="mt-0.5 h-7 text-xs"
+                        placeholder="e.g., Renamed per client request..."
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
-
-              {/* Save button - show when there are changes */}
-              {((editedTitle && editedTitle !== document.title) ||
-                (editedFolder && editedFolder !== document.folder) ||
-                (editedDocumentType && editedDocumentType !== document.document_type) ||
-                (editedCompanyId && editedCompanyId !== String(document.company_id || document.company?.id || ""))) && (
-                <div className="flex items-center gap-2 pt-2">
-                  <Button
-                    onClick={handleSave}
-                    disabled={saving || !editedTitle.trim()}
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="h-3 w-3 mr-1" />
-                        Save Changes
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setEditedTitle(document.title || "");
-                      setEditedFolder(document.folder || "");
-                      setEditedDocumentType(document.document_type || "");
-                      setEditedCompanyId(String(document.company_id || document.company?.id || ""));
-                      setEditedFinancialYears(parseFinancialYears(document.financial_years));
-                      setEditedDescription("");
-                      setEditedRefDate("");
-                      setEditedFiledDate("");
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    {editedCompanyId !== String(document.company_id || document.company?.id || "")
-                      ? "Will move file to new company folder in OneDrive"
-                      : editedFolder !== document.folder
-                        ? "Will move file in OneDrive"
-                        : "Will rename in OneDrive"}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Preview Area */}
-          <div
-            className="bg-muted rounded-lg overflow-hidden mb-6"
-            style={{ minHeight: "400px" }}
-          >
-            {/* Loading state for preview URL fetch */}
-            {previewLoading ? (
-              <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
-                <Loader2 className="h-12 w-12 animate-spin mb-4" />
-                <p className="text-sm">Loading preview...</p>
-              </div>
-            ) : previewUrl ? (
-              /* OneDrive embeddable preview - works for PDF, Word, Excel, etc. */
-              <iframe
-                src={previewUrl}
-                className="w-full h-[500px]"
-                title="Document Preview"
-                allow="fullscreen"
-              />
-            ) : fileType === "pdf" && document.file_url && !document.onedrive_file_id ? (
-              /* Direct PDF preview (non-OneDrive files) */
-              <iframe
-                src={document.file_url}
-                className="w-full h-[500px]"
-                title="Document Preview"
-              />
-            ) : fileType === "image" && document.file_url ? (
-              <div className="flex items-center justify-center p-4">
-                <img
-                  src={document.file_url}
-                  alt={document.title}
-                  className="max-w-full max-h-[500px] object-contain"
-                />
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
-                <FileText className="h-16 w-16 mb-4" />
-                <p className="text-lg font-medium mb-2">
-                  {previewError || "Preview not available"}
-                </p>
-                <p className="text-sm mb-4">
-                  {document.onedrive_file_id
-                    ? "Could not load OneDrive preview. Try opening in a new tab."
-                    : fileType === "word"
-                    ? "Word documents"
-                    : fileType === "excel"
-                    ? "Excel spreadsheets"
-                    : "This file type"}{" "}
-                  {!document.onedrive_file_id && "cannot be previewed inline"}
-                </p>
-                {document.file_url && (
-                  <Button asChild>
-                    <a href={document.file_url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Open in New Tab
-                    </a>
-                  </Button>
                 )}
               </div>
-            )}
+            </div>
+
+              {/* Right Panel - AI Suggestion (mirrors Edit panel layout exactly) */}
+              <div className={cn(
+                "w-1/2 overflow-y-auto p-3",
+                document.ai_suggested_name ? "bg-purple-50/50 dark:bg-purple-900/10" : "bg-muted/30"
+              )}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className={cn("h-3 w-3", document.ai_suggested_name ? "text-purple-500" : "text-muted-foreground/50")} />
+                  <span className={cn(
+                    "text-[10px] font-semibold uppercase tracking-wide",
+                    document.ai_suggested_name ? "text-purple-600" : "text-muted-foreground/50"
+                  )}>AI Suggestion</span>
+                  {document.ai_confidence_score && (
+                    <Badge variant="outline" className={cn(
+                      "text-[10px] ml-auto px-1",
+                      document.ai_confidence_score >= 80 ? "border-green-500 text-green-600" :
+                      document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600" : "border-red-500 text-red-600"
+                    )}>
+                      {document.ai_confidence_score}%
+                    </Badge>
+                  )}
+                </div>
+
+                {isProcessing ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin mb-2 text-purple-500" />
+                    <p className="text-xs">AI analyzing...</p>
+                  </div>
+                ) : (
+                  <div className={cn("space-y-2", !document.ai_suggested_name && "opacity-40")}>
+                    {/* Company + Folder - matching Edit panel */}
+                    <div className="grid grid-cols-2 gap-1">
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Company</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                          document.ai_suggested_name && editedCompanyId === String(document.company_id || document.company?.id || "")
+                            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                            : document.ai_suggested_name ? "border-red-500 bg-red-50 dark:bg-red-900/20" : ""
+                        )}>
+                          {document.ai_suggested_name ? (document.company?.code ? `[${document.company.code}]` : "-") : "-"}
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Tab/Folder</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                          document.ai_suggested_name && document.ai_suggested_folder
+                            ? (editedFolder === document.ai_suggested_folder
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : ""
+                        )}>
+                          {document.ai_suggested_folder || "-"}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Document Type - with space for Amended alignment */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[10px] text-muted-foreground">Document Type</Label>
+                        <div className="h-3" />
+                      </div>
+                      <div className={cn(
+                        "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                        document.ai_suggested_name && document.ai_suggested_type
+                          ? (editedDocumentType === document.ai_suggested_type
+                            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                            : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                          : ""
+                      )}>
+                        {document.ai_suggested_type || "-"}
+                      </div>
+                    </div>
+
+                    {/* Description/Period - only show if Edit panel shows it */}
+                    {(needsDescriptionAndDate || needsDetails || isBASDocument) && (
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">
+                          {needsDescriptionAndDate ? "Description" : isBASDocument ? "Period" : "Details"}
+                        </Label>
+                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
+                          -
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Financial Year - only show if Edit panel shows it */}
+                    {needsFinancialYear && (
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Financial Year</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                          document.ai_suggested_name && document.ai_suggested_fy
+                            ? (JSON.stringify(editedFinancialYears) === JSON.stringify(parseFinancialYears(document.ai_suggested_fy))
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : ""
+                        )}>
+                          {document.ai_suggested_fy
+                            ? parseFinancialYears(document.ai_suggested_fy).map(y => `FY${y.toString().slice(-2)}`).join(", ")
+                            : "-"}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Date field - only show if Edit panel shows it */}
+                    {(needsDescriptionAndDate || isAmended) && (
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">
+                          {isAmended ? "Amended Date" : "Date"}
+                        </Label>
+                        <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
+                          -
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Suggested File Name */}
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Suggested File Name</Label>
+                      <div className={cn(
+                        "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center font-mono bg-muted/50 overflow-hidden",
+                        document.ai_suggested_name
+                          ? (editedTitle === document.ai_suggested_name
+                            ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                            : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                          : ""
+                      )}>
+                        <span className="truncate">{document.ai_suggested_name || "-"}</span>
+                      </div>
+                    </div>
+
+                    {/* Action buttons - matching Edit panel button position */}
+                    {document.ai_suggested_name ? (
+                      <div className="pt-2 border-t flex items-center gap-1">
+                        <Button
+                          onClick={handleApplySuggestion}
+                          disabled={applyingSuggestion}
+                          size="sm"
+                          className="h-7 text-xs bg-purple-600 hover:bg-purple-700"
+                        >
+                          {applyingSuggestion ? (
+                            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Applying</>
+                          ) : (
+                            <><Sparkles className="h-3 w-3 mr-1" />Apply AI</>
+                          )}
+                        </Button>
+                      </div>
+                    ) : canAiVerify ? (
+                      <div className="pt-2 border-t">
+                        <Button
+                          onClick={handleAiVerify}
+                          variant="outline"
+                          size="sm"
+                          className="w-full h-7 text-xs text-purple-600 border-purple-300 hover:bg-purple-100"
+                        >
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          Run AI Analysis
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    {/* AI Reasoning - at bottom */}
+                    {document.ai_analysis_notes && (
+                      <div className="pt-1">
+                        <Label className="text-[10px] text-muted-foreground">AI Reasoning</Label>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground italic bg-muted/50 rounded-md px-1.5 py-1 line-clamp-2">
+                          {document.ai_analysis_notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
-          {/* AI Verification Results */}
-          {hasAiSuggestion && (
-            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <div className="flex items-start gap-3">
-                <Sparkles className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                    AI Suggests a Better Name
-                  </h4>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground w-20">Current:</span>
-                      <span className="font-mono bg-muted px-2 py-1 rounded">
-                        {document.title}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground w-20">Suggested:</span>
-                      <span className="font-mono text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
-                        {document.ai_suggested_name}
-                      </span>
-                    </div>
-                    {document.ai_confidence_score && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground w-20">Confidence:</span>
-                        <span className="font-medium text-blue-700 dark:text-blue-300">
-                          {document.ai_confidence_score}%
-                        </span>
-                      </div>
-                    )}
-                    {document.ai_analysis_notes && (
-                      <div className="mt-2 text-muted-foreground italic">
-                        {document.ai_analysis_notes}
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <Button
-                      onClick={handleApplySuggestion}
-                      disabled={applyingSuggestion}
-                      className="bg-blue-600 hover:bg-blue-700"
-                    >
-                      <Check className="h-4 w-4 mr-2" />
-                      {applyingSuggestion ? "Applying..." : "Apply Suggestion"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleRejectSuggestion}
-                      disabled={validating}
-                    >
-                      {validating ? "Keeping..." : "Keep Current Name"}
-                    </Button>
-                  </div>
+          {/* Right Half - Document Preview or Editor (full height) */}
+          <div className="w-1/2 bg-muted flex flex-col overflow-hidden">
+              {isEditingPdf && fileType === "pdf" && document.id ? (
+                // PDF Editor Mode - use /content endpoint to bypass CORS
+                <PDFEditor
+                  url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
+                  fileName={document.file_name || document.title || "document.pdf"}
+                  onSave={async (pdfBytes, fileName) => {
+                    // TODO: Upload edited PDF back to OneDrive
+                    // For now, download locally
+                    const blob = new Blob([new Uint8Array(pdfBytes)], { type: "application/pdf" });
+                    const downloadUrl = URL.createObjectURL(blob);
+                    const a = window.document.createElement("a");
+                    a.href = downloadUrl;
+                    a.download = fileName;
+                    a.click();
+                    URL.revokeObjectURL(downloadUrl);
+                  }}
+                  onClose={() => setIsEditingPdf(false)}
+                  className="flex-1"
+                />
+              ) : previewLoading ? (
+                <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground">
+                  <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                  <p className="text-sm">Loading preview...</p>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* AI Error Status */}
-          {aiStatus === "error" && document.ai_analysis_notes && (
-            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5" />
-                <div>
-                  <h4 className="text-sm font-medium text-red-800 dark:text-red-200">
-                    AI Verification Failed
-                  </h4>
-                  <p className="text-sm text-red-600 dark:text-red-400 mt-1">
-                    {document.ai_analysis_notes}
+              ) : fileType === "pdf" && (previewUrl || document.file_url) ? (
+                <PDFViewer
+                  url={previewUrl || document.file_url || ""}
+                  className="flex-1"
+                  showThumbnails={false}
+                  fallbackUrl={document.file_url}
+                />
+              ) : fileType === "image" && document.file_url ? (
+                <div className="flex items-center justify-center flex-1 p-4 overflow-auto">
+                  <img
+                    src={document.file_url}
+                    alt={document.title}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : previewUrl ? (
+                // For non-PDF OneDrive files (Word, Excel, etc), use iframe
+                <iframe
+                  src={previewUrl}
+                  className="w-full flex-1 border-0"
+                  title="Document Preview"
+                  allow="fullscreen"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground p-8">
+                  <FileText className="h-16 w-16 mb-4" />
+                  <p className="text-lg font-medium mb-2">
+                    {previewError || "Preview not available"}
                   </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* AI Processing Status */}
-          {isProcessing && (
-            <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-              <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 text-purple-600 dark:text-purple-400 animate-spin" />
-                <span className="text-sm font-medium text-purple-800 dark:text-purple-200">
-                  AI is analyzing document...
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Validation Status */}
-          {validated ? (
-            <div className="flex items-center gap-2 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-              <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-              <span className="text-sm font-medium text-green-800 dark:text-green-200">
-                Document naming has been validated
-              </span>
-            </div>
-          ) : (
-            !hasAiSuggestion &&
-            !isProcessing &&
-            !isEditing && (
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <p className="text-sm text-amber-800 dark:text-amber-200 mb-3">
-                  Please review the document and confirm the naming is correct.
-                </p>
-                <div className="flex items-center gap-4">
-                  <Button
-                    onClick={handleValidate}
-                    disabled={validating}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Check className="h-4 w-4 mr-2" />
-                    {validating ? "Validating..." : "Confirm Naming is Correct"}
-                  </Button>
-                  {canAiVerify && (
-                    <Button
-                      variant="outline"
-                      onClick={handleAiVerify}
-                      disabled={isProcessing}
-                      className="text-purple-700 dark:text-purple-300 border-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50"
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      {isProcessing ? "Verifying..." : "AI Verify"}
+                  <p className="text-sm mb-4 text-center">
+                    {document.onedrive_file_id
+                      ? "Could not load OneDrive preview."
+                      : "This file type cannot be previewed inline."}
+                  </p>
+                  {document.file_url && (
+                    <Button asChild>
+                      <a href={document.file_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open in New Tab
+                      </a>
                     </Button>
                   )}
                 </div>
-              </div>
-            )
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 bg-muted/50 border-t">
-          <div className="text-sm text-muted-foreground">{currentCompanyName}</div>
-          <div className="flex items-center gap-3">
-            {!isEditing && (
-              <Button variant="outline" onClick={startEditing}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            )}
-            {document.file_url && (
-              <Button variant="outline" asChild>
-                <a href={document.file_url} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open
-                </a>
-              </Button>
-            )}
-            <Button onClick={() => onOpenChange(false)}>Close</Button>
+              )}
           </div>
         </div>
+
       </DialogContent>
     </Dialog>
   );

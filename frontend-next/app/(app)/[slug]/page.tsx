@@ -10,9 +10,8 @@ import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, Plus, Filter } from "lucide-react";
+import { AlertCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
 
 function PageSkeleton() {
   return (
@@ -54,7 +53,6 @@ function TablePageContent() {
 
   const [activeTab, setActiveTab] = useState(tab || "data");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showViewsManager, setShowViewsManager] = useState(false);
 
   // Load foundation data by slug
   const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug(cleanSlug);
@@ -182,15 +180,8 @@ function TablePageContent() {
     </Button>
   ) : null;
 
-  // Custom actions - Filters button (same as Gold Standard)
-  const customActions = (
-    <Button variant="outline" size="sm" onClick={() => setShowViewsManager(true)}>
-      <Filter className="h-4 w-4 mr-2" />
-      Filters
-    </Button>
-  );
-
   // Common table props
+  // Note: Filters button is auto-enabled by TeeemTableView when foundationIdNumeric is set
   const tableProps = {
     entries: records,
     columns: columns,
@@ -210,7 +201,6 @@ function TablePageContent() {
     onBulkDelete: !uiConfig.viewOnly ? handleBulkDelete : undefined,
     // Merge is handled internally by TeeemTableView when foundationIdNumeric is set
     leftActions: leftActions,
-    customActions: customActions,
   };
 
   return (
@@ -275,25 +265,7 @@ function TablePageContent() {
         onSuccess={refresh}
       />
 
-      {/* Global Views Manager */}
-      <GlobalViewsManager
-        open={showViewsManager}
-        onOpenChange={setShowViewsManager}
-        foundationId={tableId}
-        columns={columns
-          .filter(col => col.key !== 'select' && col.key !== 'actions')
-          .map((col, index) => ({
-            id: col.id || index,
-            column_name: col.key,
-            name: col.label,
-            column_type: col.column_type || 'single_line_text',
-            position: index,
-          }))}
-        onViewsChange={refresh}
-        rows={records}
-      />
-
-      {/* Note: Merge modal is now handled by TeeemTableView internally */}
+      {/* Note: GlobalViewsManager is now handled by TeeemTableView internally when foundationIdNumeric is set */}
     </div>
   );
 }

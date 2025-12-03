@@ -76,9 +76,13 @@ export default function DocumentSidePanel({
           setPreviewError(response.error || "Preview not available");
           setPreviewUrl(null);
         }
-      } catch (error) {
-        console.error("Failed to fetch preview URL:", error);
-        setPreviewError("Failed to load preview");
+      } catch (error: unknown) {
+        // Don't log OneDrive credential errors - expected in local dev
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (!errorMessage.includes("OneDrive credentials not available")) {
+          console.error("Failed to fetch preview URL:", error);
+        }
+        setPreviewError("Preview not available");
         setPreviewUrl(null);
       } finally {
         setPreviewLoading(false);

@@ -1567,14 +1567,30 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     }
   };
 
-  // Single click - open side panel preview
+  // Debounce ref to distinguish single vs double click
+  const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Single click - open side panel preview (debounced to avoid triggering on double-click)
   const handleSingleClick = (doc: CompanyDocument) => {
-    setSidePanelDocument(doc);
-    setIsSidePanelOpen(true);
+    // Clear any pending single-click action
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+    // Delay single-click action to see if it's actually a double-click
+    clickTimeoutRef.current = setTimeout(() => {
+      setSidePanelDocument(doc);
+      setIsSidePanelOpen(true);
+      clickTimeoutRef.current = null;
+    }, 200); // 200ms delay to detect double-click
   };
 
   // Double click - open fullscreen modal for editing
   const handleDoubleClick = (doc: CompanyDocument) => {
+    // Cancel the pending single-click action
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+    }
     // Close side panel if open
     setIsSidePanelOpen(false);
     setSidePanelDocument(null);

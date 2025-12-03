@@ -132,6 +132,69 @@ module Api
         end
       end
 
+      # GET /api/v1/company_documents/:id/content
+      # Proxies the actual file content from OneDrive (for PDF editor CORS bypass)
+      def content
+        unless @document.onedrive_file_id.present?
+          return render json: {
+            success: false,
+            error: 'No OneDrive file available'
+          }, status: :unprocessable_entity
+        end
+
+        begin
+          credential = OrganizationOneDriveCredential.active_credential
+          unless credential
+            return render json: {
+              success: false,
+              error: 'OneDrive credentials not available in this environment'
+            }, status: :service_unavailable
+          end
+
+          client = MicrosoftGraphClient.new(credential)
+          file_content = client.download_file(@document.onedrive_file_id)
+
+          # Determine content type from file extension
+          content_type = case @document.file_name&.downcase
+          when /\.pdf$/
+            'application/pdf'
+          when /\.png$/
+            'image/png'
+          when /\.jpe?g$/
+            'image/jpeg'
+          when /\.gif$/
+            'image/gif'
+          when /\.docx?$/
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          when /\.xlsx?$/
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          else
+            'application/octet-stream'
+          end
+
+          # Set CORS headers for frontend access
+          response.headers['Access-Control-Allow-Origin'] = request.headers['Origin'] || '*'
+          response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+          response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+
+          send_data file_content,
+            type: content_type,
+            disposition: 'inline',
+            filename: @document.file_name
+        rescue MicrosoftGraphClient::APIError => e
+          render json: {
+            success: false,
+            error: "Failed to fetch file: #{e.message}"
+          }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "Document content fetch error: #{e.message}"
+          render json: {
+            success: false,
+            error: 'Failed to fetch document content'
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/company_documents/:id/preview
       # Returns an embeddable preview URL for OneDrive files
       def preview
@@ -327,7 +390,7 @@ module Api
       # POST /api/v1/company_documents/:id/relocate
       # Moves/renames document in OneDrive and updates metadata
       def relocate
-        relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, :document_type, :ref_date, :filed_date, financial_years: [])
+        relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, :document_type, :ref_date, :filed_date, :notes, financial_years: [])
 
         # Capture old values for activity log
         old_values = {
@@ -374,14 +437,14 @@ module Api
                      "updated"
                    end
 
-          # Create activity log entry
+          # Create activity log entry - use user-provided notes if available, otherwise use automated action summary
           DocumentActivity.log(
             document: @document,
             user: current_user,
             action: action,
             old_values: old_values,
             new_values: new_values,
-            notes: result[:actions]&.join(", ")
+            notes: relocate_params[:notes].presence || result[:actions]&.join(", ")
           )
 
           render json: {

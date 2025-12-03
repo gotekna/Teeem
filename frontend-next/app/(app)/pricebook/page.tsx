@@ -1,152 +1,116 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { useFoundationById } from "@/hooks/useFoundationById";
 import {
   Plus,
-  Search,
-  Upload,
   Download,
+  Upload,
   DollarSign,
   Package,
   AlertTriangle,
   Image as ImageIcon,
-  MoreHorizontal,
-  Edit,
-  Trash,
-  History,
-  QrCode,
-  FileText,
   CheckCircle,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
+import type { TableRow } from "@/components/table/types";
 
-interface PriceBookItem {
-  id: number;
-  item_code: string;
-  item_name: string;
-  category: string;
-  unit_of_measure: string;
-  current_price: number;
-  brand: string | null;
-  notes: string | null;
-  is_active: boolean;
-  needs_pricing_review: boolean;
-  price_last_updated_at: string | null;
-  image_url: string | null;
-  default_supplier_id: number | null;
-  requires_photo: boolean;
-  requires_spec: boolean;
-  spec_url: string | null;
-  gst_code: string | null;
-}
-
-interface CategoryCount {
-  category: string;
-  count: number;
-}
+// Foundation ID for Pricebook table
+const PRICEBOOK_FOUNDATION_ID = 205;
 
 export default function PriceBookPage() {
-  const [items, setItems] = useState<PriceBookItem[]>([]);
-  const [categories, setCategories] = useState<CategoryCount[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const router = useRouter();
+
+  // Use foundation hook for TeeemTableView
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(PRICEBOOK_FOUNDATION_ID);
+
   const [activeTab, setActiveTab] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const handleRowDoubleClick = (item: PriceBookItem) => {
-    setSelectedItemId(item.id);
+  // Handle row double-click - open drawer
+  const handleRowDoubleClick = useCallback((row: TableRow) => {
+    setSelectedItemId(row.id as number);
     setDrawerOpen(true);
-  };
-
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get<{ items: PriceBookItem[] }>("/api/v1/pricebook");
-        setItems(response.items || []);
-        // Extract categories from items
-        const catCounts = (response.items || []).reduce((acc: Record<string, number>, item) => {
-          if (item.category) {
-            acc[item.category] = (acc[item.category] || 0) + 1;
-          }
-          return acc;
-        }, {});
-        setCategories(
-          Object.entries(catCounts)
-            .map(([category, count]) => ({ category, count }))
-            .sort((a, b) => b.count - a.count)
-        );
-      } catch (error) {
-        console.error("Failed to load pricebook:", error);
-        setItems([]);
-        setCategories([]);
-      }
-      setLoading(false);
-    };
-    loadData();
   }, []);
 
+  // Handle row click - navigate to detail page
+  const handleRowClick = useCallback((row: TableRow) => {
+    const item = row as { id: number; item_code?: string };
+    if (item.item_code) {
+      router.push(`/pricebook/${slugifyPricebookCode(item.item_code)}`);
+    }
+  }, [router]);
+
+  // Handle inline row update
+  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/foundations/${PRICEBOOK_FOUNDATION_ID}/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      refresh();
+    } catch (error) {
+      console.error("Failed to update pricebook item:", error);
+      throw error;
+    }
+  }, [refresh]);
+
+  // Calculate stats from records
   const stats = {
-    total: items.length,
-    active: items.filter((i) => i.is_active).length,
-    needsReview: items.filter((i) => i.needs_pricing_review).length,
-    withImages: items.filter((i) => i.image_url).length,
-    categoriesCount: categories.length,
+    total: records.length,
+    active: records.filter((i) => i.is_active).length,
+    needsReview: records.filter((i) => i.needs_pricing_review).length,
+    withImages: records.filter((i) => i.image_url).length,
+    categoriesCount: new Set(records.map((i) => i.category).filter(Boolean)).size,
   };
 
-  const filteredItems = items.filter((item) => {
-    const matchesSearch =
-      item.item_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.item_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.brand?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "all" || item.category === selectedCategory;
-    const matchesTab =
-      activeTab === "all" ||
-      (activeTab === "needs-review" && item.needs_pricing_review) ||
-      (activeTab === "inactive" && !item.is_active);
-    return matchesSearch && matchesCategory && matchesTab;
-  });
+  // Filter records based on active tab
+  const getFilteredRecords = () => {
+    switch (activeTab) {
+      case "needs-review":
+        return records.filter((i) => i.needs_pricing_review);
+      case "inactive":
+        return records.filter((i) => !i.is_active);
+      default:
+        return records;
+    }
+  };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader />
       </div>
     );
   }
+
+  // Left actions - Add Item button
+  const leftActions = (
+    <div className="flex items-center gap-2">
+      <Button variant="outline">
+        <Download className="h-4 w-4 mr-2" />
+        Export
+      </Button>
+      <Button variant="outline">
+        <Upload className="h-4 w-4 mr-2" />
+        Import
+      </Button>
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Add Item
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -228,182 +192,39 @@ export default function PriceBookPage() {
         </Card>
       </div>
 
-      {/* Filters & Tabs */}
+      {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <TabsList>
-            <TabsTrigger value="all">All Items</TabsTrigger>
-            <TabsTrigger value="needs-review">
-              Needs Review
-              {stats.needsReview > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {stats.needsReview}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="inactive">Inactive</TabsTrigger>
-          </TabsList>
-
-          <div className="flex items-center gap-4">
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-[220px]">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.slice(0, 25).map((cat) => (
-                  <SelectItem key={cat.category} value={cat.category}>
-                    {cat.category} ({cat.count})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search code, name, brand..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-[280px]"
-              />
-            </div>
-          </div>
-        </div>
-
-        <TabsContent value={activeTab} className="mt-4">
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Code</TableHead>
-                  <TableHead>Item</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Brand</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead>Unit</TableHead>
-                  <TableHead>Flags</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.slice(0, 100).map((item) => (
-                  <TableRow
-                    key={item.id}
-                    className={`cursor-pointer hover:bg-muted/50 ${!item.is_active ? "opacity-50" : ""}`}
-                    onDoubleClick={() => handleRowDoubleClick(item)}
-                  >
-                    <TableCell>
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {item.item_code}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {item.image_url ? (
-                          <div className="w-10 h-10 bg-secondary rounded flex items-center justify-center overflow-hidden">
-                            <img
-                              src={item.image_url}
-                              alt={item.item_name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-10 bg-secondary rounded flex items-center justify-center">
-                            <Package className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div>
-                          <Link
-                            href={`/pricebook/${slugifyPricebookCode(item.item_code)}`}
-                            target="_blank"
-                            className="font-medium hover:underline hover:text-primary"
-                          >
-                            {item.item_name}
-                          </Link>
-                          {item.notes && (
-                            <div className="text-xs text-muted-foreground truncate max-w-[250px]">
-                              {item.notes}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400 text-xs">
-                        {item.category}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {item.brand || <span className="text-muted-foreground">-</span>}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      ${Number(item.current_price || 0).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {item.unit_of_measure}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {item.requires_photo && (
-                          <Badge variant="outline" className="text-xs py-0">
-                            <ImageIcon className="h-3 w-3 mr-1" />
-                            Photo
-                          </Badge>
-                        )}
-                        {item.requires_spec && (
-                          <Badge variant="outline" className="text-xs py-0">
-                            <FileText className="h-3 w-3 mr-1" />
-                            Spec
-                          </Badge>
-                        )}
-                        {item.needs_pricing_review && (
-                          <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500 text-xs py-0">
-                            Review
-                          </Badge>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <History className="h-4 w-4 mr-2" />
-                            Price History
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <QrCode className="h-4 w-4 mr-2" />
-                            Generate QR
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">
-                            <Trash className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            {filteredItems.length > 100 && (
-              <div className="p-4 text-center text-sm text-muted-foreground border-t">
-                Showing 100 of {filteredItems.length.toLocaleString()} items. Use search to filter.
-              </div>
+        <TabsList>
+          <TabsTrigger value="all">All Items</TabsTrigger>
+          <TabsTrigger value="needs-review">
+            Needs Review
+            {stats.needsReview > 0 && (
+              <Badge variant="secondary" className="ml-2">
+                {stats.needsReview}
+              </Badge>
             )}
-          </Card>
-        </TabsContent>
+          </TabsTrigger>
+          <TabsTrigger value="inactive">Inactive</TabsTrigger>
+        </TabsList>
+
+        {/* Tab Content - Use TeeemTableView */}
+        {["all", "needs-review", "inactive"].map((tabValue) => (
+          <TabsContent key={tabValue} value={tabValue} className="mt-4">
+            <TeeemTableView
+              entries={getFilteredRecords()}
+              columns={columns}
+              foundationId={String(PRICEBOOK_FOUNDATION_ID)}
+              foundationIdNumeric={PRICEBOOK_FOUNDATION_ID}
+              tableName={foundation?.name || "Pricebook"}
+              enableExport={true}
+              enableImport={true}
+              onRefresh={refresh}
+              onRowClick={handleRowClick}
+              onRowDoubleClick={handleRowDoubleClick}
+              onRowUpdate={handleRowUpdate}
+            />
+          </TabsContent>
+        ))}
       </Tabs>
 
       {/* Pricebook Detail Drawer */}
@@ -415,4 +236,3 @@ export default function PriceBookPage() {
     </div>
   );
 }
-

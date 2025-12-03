@@ -5,6 +5,8 @@ const nextConfig: any = {
     buildActivity: false,
     appIsrStatus: false,
   },
+  // Empty turbopack config to silence warning (PDF viewer uses dynamic import with ssr: false)
+  turbopack: {},
 };
 
 export default nextConfig;
