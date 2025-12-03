@@ -281,6 +281,11 @@ export default function DocumentPreviewModal({
   const pollingRef = React.useRef<NodeJS.Timeout | null>(null);
   const titleInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Preview URL state - for OneDrive embedded preview
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = React.useState(false);
+  const [previewError, setPreviewError] = React.useState<string | null>(null);
+
   // Fetch document types from database
   React.useEffect(() => {
     const fetchDocumentTypes = async () => {
@@ -295,6 +300,45 @@ export default function DocumentPreviewModal({
     };
     fetchDocumentTypes();
   }, []);
+
+  // Fetch embeddable preview URL for OneDrive files
+  React.useEffect(() => {
+    const fetchPreviewUrl = async () => {
+      // Only fetch preview for OneDrive files
+      if (!document?.onedrive_file_id || !open) {
+        setPreviewUrl(null);
+        return;
+      }
+
+      setPreviewLoading(true);
+      setPreviewError(null);
+
+      try {
+        const response = await api.get<{
+          success: boolean;
+          preview_url?: string;
+          error?: string;
+          fallback_url?: string;
+        }>(`/api/v1/company_documents/${document.id}/preview`);
+
+        if (response.success && response.preview_url) {
+          setPreviewUrl(response.preview_url);
+        } else {
+          setPreviewError(response.error || "Preview not available");
+          // Fall back to file_url if available
+          setPreviewUrl(null);
+        }
+      } catch (error) {
+        console.error("Failed to fetch preview URL:", error);
+        setPreviewError("Failed to load preview");
+        setPreviewUrl(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+
+    fetchPreviewUrl();
+  }, [document?.id, document?.onedrive_file_id, open]);
 
   // Get the full document type record from database (includes naming_format)
   const getDocumentTypeRecord = React.useCallback((docTypeName: string) => {
@@ -1492,7 +1536,22 @@ export default function DocumentPreviewModal({
             className="bg-muted rounded-lg overflow-hidden mb-6"
             style={{ minHeight: "400px" }}
           >
-            {fileType === "pdf" && document.file_url ? (
+            {/* Loading state for preview URL fetch */}
+            {previewLoading ? (
+              <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
+                <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                <p className="text-sm">Loading preview...</p>
+              </div>
+            ) : previewUrl ? (
+              /* OneDrive embeddable preview - works for PDF, Word, Excel, etc. */
+              <iframe
+                src={previewUrl}
+                className="w-full h-[500px]"
+                title="Document Preview"
+                allow="fullscreen"
+              />
+            ) : fileType === "pdf" && document.file_url && !document.onedrive_file_id ? (
+              /* Direct PDF preview (non-OneDrive files) */
               <iframe
                 src={document.file_url}
                 className="w-full h-[500px]"
@@ -1509,14 +1568,18 @@ export default function DocumentPreviewModal({
             ) : (
               <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
                 <FileText className="h-16 w-16 mb-4" />
-                <p className="text-lg font-medium mb-2">Preview not available</p>
+                <p className="text-lg font-medium mb-2">
+                  {previewError || "Preview not available"}
+                </p>
                 <p className="text-sm mb-4">
-                  {fileType === "word"
+                  {document.onedrive_file_id
+                    ? "Could not load OneDrive preview. Try opening in a new tab."
+                    : fileType === "word"
                     ? "Word documents"
                     : fileType === "excel"
                     ? "Excel spreadsheets"
                     : "This file type"}{" "}
-                  cannot be previewed inline
+                  {!document.onedrive_file_id && "cannot be previewed inline"}
                 </p>
                 {document.file_url && (
                   <Button asChild>

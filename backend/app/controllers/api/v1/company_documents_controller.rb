@@ -1,7 +1,7 @@
 module Api
   module V1
     class CompanyDocumentsController < ApplicationController
-      before_action :set_document, only: [:show, :update, :destroy, :download, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback]
+      before_action :set_document, only: [:show, :update, :destroy, :download, :preview, :validate, :ai_verify, :apply_ai_suggestion, :relocate, :feedback]
 
       # GET /api/v1/company_documents
       def index
@@ -129,6 +129,62 @@ module Api
             success: false,
             error: 'No file available for download'
           }, status: :not_found
+        end
+      end
+
+      # GET /api/v1/company_documents/:id/preview
+      # Returns an embeddable preview URL for OneDrive files
+      def preview
+        unless @document.onedrive_file_id.present?
+          return render json: {
+            success: false,
+            error: 'No OneDrive file available for preview',
+            fallback_url: @document.file_url
+          }, status: :unprocessable_entity
+        end
+
+        begin
+          # Get the active OneDrive credential (corporate SharePoint)
+          credential = OrganizationOneDriveCredential.active_credential
+          unless credential
+            return render json: {
+              success: false,
+              error: 'OneDrive not configured',
+              fallback_url: @document.file_url
+            }, status: :unprocessable_entity
+          end
+
+          client = MicrosoftGraphClient.new(credential)
+          preview_url = client.get_preview_url(@document.onedrive_file_id)
+
+          if preview_url
+            render json: {
+              success: true,
+              preview_url: preview_url,
+              file_name: @document.file_name,
+              file_type: @document.file_name&.split('.')&.last&.downcase
+            }
+          else
+            render json: {
+              success: false,
+              error: 'Preview not available for this file type',
+              fallback_url: @document.file_url
+            }, status: :unprocessable_entity
+          end
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          Rails.logger.error "OneDrive auth error getting preview: #{e.message}"
+          render json: {
+            success: false,
+            error: 'OneDrive authentication error',
+            fallback_url: @document.file_url
+          }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          Rails.logger.error "OneDrive API error getting preview: #{e.message}"
+          render json: {
+            success: false,
+            error: 'Failed to get preview from OneDrive',
+            fallback_url: @document.file_url
+          }, status: :unprocessable_entity
         end
       end
 

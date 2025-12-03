@@ -458,6 +458,33 @@ class MicrosoftGraphClient
     get("/drives/#{@credential.drive_id}/items/#{file_id}")
   end
 
+  # Get embeddable preview URL for a file (works for OneDrive and SharePoint)
+  # Returns a URL that can be embedded in an iframe without requiring authentication
+  def get_preview_url(file_id)
+    # Try the preview endpoint first (works for most file types)
+    begin
+      response = post("/drives/#{@credential.drive_id}/items/#{file_id}/preview", {})
+      return response['getUrl'] if response['getUrl'].present?
+    rescue APIError => e
+      Rails.logger.warn "Preview endpoint failed for file #{file_id}: #{e.message}"
+    end
+
+    # Fallback: Create an anonymous view sharing link
+    # This creates a link that anyone can use to view (not edit) the file
+    begin
+      response = post("/drives/#{@credential.drive_id}/items/#{file_id}/createLink", {
+        type: "view",
+        scope: "anonymous"
+      })
+      # The webUrl from the sharing link can be embedded
+      return response.dig('link', 'webUrl')
+    rescue APIError => e
+      Rails.logger.warn "CreateLink fallback failed for file #{file_id}: #{e.message}"
+    end
+
+    nil
+  end
+
   # Delete file or folder
   def delete_item(item_id)
     delete("/drives/#{@credential.drive_id}/items/#{item_id}")
