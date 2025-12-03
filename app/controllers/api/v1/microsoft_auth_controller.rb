@@ -126,7 +126,18 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   # Check current user's Microsoft connection status
   def status
     microsoft_token = current_user.microsoft_token
-    outlook_credential = current_user.outlook_credential
+
+    # Load outlook credential with error handling for decryption errors
+    # (tokens are encrypted and may fail to decrypt if encrypted with different keys)
+    outlook_credential = begin
+      cred = current_user.outlook_credential
+      # Try to access an encrypted field to verify decryption works
+      cred&.access_token if cred
+      cred
+    rescue ActiveRecord::Encryption::Errors::Decryption => e
+      Rails.logger.warn "[Microsoft Status] Decryption error loading outlook credential: #{e.message}"
+      nil
+    end
 
     # Use new unified token if available, otherwise fall back to legacy
     if microsoft_token&.status == 'connected'

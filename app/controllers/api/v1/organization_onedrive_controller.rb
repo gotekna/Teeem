@@ -12,38 +12,36 @@ module Api
       # Will attempt to refresh expired tokens automatically
       # Falls back to user's Microsoft token if org credential not set up
       def status
-        credential = OrganizationOneDriveCredential.active_credential
+        # Wrap credential loading in rescue - tokens are encrypted and may fail to decrypt
+        # if encrypted with different keys across environments
+        credential = begin
+          cred = OrganizationOneDriveCredential.active_credential
+          # Try to access an encrypted field to verify decryption works
+          cred&.access_token if cred
+          cred
+        rescue ActiveRecord::Encryption::Errors::Decryption => e
+          Rails.logger.warn "[OneDrive Status] Decryption error loading org credential: #{e.message}"
+          nil
+        end
 
         # If no org credential, check if user has Microsoft token with OneDrive access
         unless credential
           # Try to use user's Microsoft token as fallback
-          # Wrap in rescue to handle any decryption errors from encrypted fields
+          # UserMicrosoftToken doesn't have encryption, so this should be safe
           begin
             microsoft_token = current_user&.microsoft_token
-            # Check status first (not encrypted), then try to access encrypted field
-            if microsoft_token&.status == 'connected'
-              # Try to access the encrypted access_token - this may fail with decryption errors
-              has_access_token = begin
-                microsoft_token.access_token.present?
-              rescue ActiveRecord::Encryption::Errors::Decryption
-                false
-              end
-              if has_access_token
-                # User has a connected Microsoft account - use it as the OneDrive connection
-                return render json: {
-                  connected: true,
-                  source: 'user_microsoft_token',
-                  drive_name: 'Personal OneDrive',
-                  connected_at: microsoft_token.created_at,
-                  connected_by: current_user&.as_json(only: [:id, :email]),
-                  token_expires_at: microsoft_token.token_expires_at,
-                  message: 'Using your Microsoft 365 connection for OneDrive access'
-                }
-              end
+            if microsoft_token&.status == 'connected' && microsoft_token&.access_token.present?
+              # User has a connected Microsoft account - use it as the OneDrive connection
+              return render json: {
+                connected: true,
+                source: 'user_microsoft_token',
+                drive_name: 'Personal OneDrive',
+                connected_at: microsoft_token.created_at,
+                connected_by: current_user&.as_json(only: [:id, :email]),
+                token_expires_at: microsoft_token.token_expires_at,
+                message: 'Using your Microsoft 365 connection for OneDrive access'
+              }
             end
-          rescue ActiveRecord::Encryption::Errors::Decryption => e
-            Rails.logger.warn "[OneDrive Status] Decryption error accessing Microsoft token: #{e.message}"
-            # Token exists but can't be decrypted - treat as not connected
           rescue StandardError => e
             Rails.logger.warn "[OneDrive Status] Error accessing Microsoft token: #{e.message}"
           end
