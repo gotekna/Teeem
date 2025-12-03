@@ -103,6 +103,22 @@ export default function DocumentTypesPage() {
     }
   };
 
+  // Standard inline cell editing - required for TeeemTableView inline edit
+  const handleRowUpdate = async (rowId: number | string, columnKey: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/document_types/${rowId}`, {
+        document_type: { [columnKey]: value }
+      });
+      // Update local state immediately for responsiveness
+      setDocumentTypes(prev => prev.map(dt =>
+        dt.id === rowId ? { ...dt, [columnKey]: value } : dt
+      ));
+    } catch (error) {
+      console.error("Failed to update document type:", error);
+      throw error; // Re-throw so TeeemTableView can show error
+    }
+  };
+
   const handleDelete = async (entry: DocumentType) => {
     if (!confirm(`Delete document type "${entry.name}"? This cannot be undone.`)) {
       return;
@@ -292,14 +308,15 @@ export default function DocumentTypesPage() {
         </Card>
       )}
 
-      {/* Table - Now a real foundation table with ID 455 */}
+      {/* Table - Foundation 454 */}
       <TeeemTableView
         foundationId="document-types"
-        foundationIdNumeric={455}
+        foundationIdNumeric={454}
         tableName={`Document Types (${documentTypes.length})`}
         entries={documentTypes}
         columns={columns}
         onEdit={handleEdit}
+        onRowUpdate={handleRowUpdate}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         enableExport={true}

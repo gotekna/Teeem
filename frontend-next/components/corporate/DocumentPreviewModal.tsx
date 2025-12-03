@@ -1184,32 +1184,31 @@ export default function DocumentPreviewModal({
                 </div>
               </div>
 
-              {/* Tab/Folder and Document Type - side by side */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Move to Tab/Folder */}
-                <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
-                  <span className="text-muted-foreground">Tab/Folder:</span>
-                  <Select value={editedFolder} onValueChange={setEditedFolder}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select tab..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FOLDER_OPTIONS.map((folder) => (
-                        <SelectItem key={folder} value={folder}>
-                          {folder}
-                          {folder === document.folder && " (current)"}
-                          {folder === document.ai_suggested_folder && folder !== document.folder && " ✨ AI"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Tab/Folder */}
+              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-center">
+                <span className="text-muted-foreground">Tab/Folder:</span>
+                <Select value={editedFolder} onValueChange={setEditedFolder}>
+                  <SelectTrigger className="w-full max-w-[300px]">
+                    <SelectValue placeholder="Select tab..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FOLDER_OPTIONS.map((folder) => (
+                      <SelectItem key={folder} value={folder}>
+                        {folder}
+                        {folder === document.folder && " (current)"}
+                        {folder === document.ai_suggested_folder && folder !== document.folder && " ✨ AI"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                {/* Document Type - filtered by selected folder */}
-                <div className="grid grid-cols-[80px_1fr] gap-2 text-sm items-center">
-                  <span className="text-muted-foreground">Doc Type:</span>
+              {/* Document Type - filtered by selected folder */}
+              <div className="grid grid-cols-[120px_1fr] gap-2 text-sm items-start">
+                <span className="text-muted-foreground pt-2">Doc Type:</span>
+                <div className="space-y-1">
                   <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger className="w-full max-w-[400px]">
                       <SelectValue placeholder="Select type...">
                         {editedDocumentType ? (
                           <span className="flex items-center gap-2">
@@ -1235,6 +1234,12 @@ export default function DocumentPreviewModal({
                       ))}
                     </SelectContent>
                   </Select>
+                  {/* Show naming format for selected doc type */}
+                  {editedDocumentType && getDocumentTypeRecord(editedDocumentType)?.naming_format && (
+                    <p className="text-xs text-muted-foreground font-mono pl-1">
+                      Format: {getDocumentTypeRecord(editedDocumentType)?.naming_format}
+                    </p>
+                  )}
                 </div>
               </div>
 
