@@ -5,6 +5,7 @@ import { Viewer, Worker, SpecialZoomLevel } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import type { PDFViewerProps } from "./pdf-viewer";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 
 // Import styles
 import "@react-pdf-viewer/core/lib/styles/index.css";
@@ -19,6 +20,46 @@ export function PDFViewerImpl({
   showThumbnails = false,
   onError,
 }: PDFViewerProps) {
+  const [pdfData, setPdfData] = React.useState<Uint8Array | null>(null);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
+
+  // Fetch PDF with credentials for authenticated API endpoints
+  React.useEffect(() => {
+    const fetchPDF = async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+
+        const response = await fetch(url, {
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/pdf',
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => response.statusText);
+          throw new Error(`Failed to fetch PDF: ${errorText}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        setPdfData(new Uint8Array(arrayBuffer));
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Failed to load PDF";
+        console.error("Failed to load PDF:", err);
+        setLoadError(errorMessage);
+        if (onError) {
+          onError(new Error(errorMessage));
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPDF();
+  }, [url, onError]);
+
   // Initialize the default layout plugin
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
     sidebarTabs: showThumbnails
@@ -36,12 +77,28 @@ export function PDFViewerImpl({
     },
   });
 
+  if (isLoading) {
+    return (
+      <div className={cn("flex items-center justify-center h-full", className)}>
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (loadError || !pdfData) {
+    return (
+      <div className={cn("flex items-center justify-center h-full text-muted-foreground", className)}>
+        <p>{loadError || "Failed to load PDF"}</p>
+      </div>
+    );
+  }
+
   return (
     <div className={cn("h-full w-full", className)}>
       <Worker workerUrl={WORKER_URL}>
         <div className="h-full w-full [&_.rpv-core__viewer]:h-full [&_.rpv-default-layout__container]:h-full">
           <Viewer
-            fileUrl={url}
+            fileUrl={pdfData}
             plugins={[defaultLayoutPluginInstance]}
             defaultScale={SpecialZoomLevel.PageFit}
             renderError={(error) => {
