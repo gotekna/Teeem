@@ -288,8 +288,8 @@ module Api
                 shareholder_name: s.shareholder&.respond_to?(:name) ? s.shareholder.name : s.shareholder&.full_name,
                 share_class: s.share_class,
                 number_of_shares: s.number_of_shares,
-                percentage_of_total: s.percentage_of_total,
-                date_acquired: s.date_acquired
+                beneficially_held: s.beneficially_held,
+                date_acquired: s.acquisition_date
               }
             end,
             # Counts

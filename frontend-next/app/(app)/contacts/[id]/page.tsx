@@ -175,7 +175,7 @@ interface LinkedCompanyShareholder {
   shareholder_name: string | null;
   share_class: string | null;
   number_of_shares: number | null;
-  percentage_of_total: number | null;
+  beneficially_held: boolean | null;
   date_acquired: string | null;
 }
 
