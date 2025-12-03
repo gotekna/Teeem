@@ -54,7 +54,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
     auth_url = "https://login.microsoftonline.com/#{tenant}/oauth2/v2.0/authorize?" + URI.encode_www_form(auth_params)
 
-    render json: { auth_url: auth_url }
+    render json: { url: auth_url, auth_url: auth_url }
   end
 
   # GET /api/v1/microsoft/callback
