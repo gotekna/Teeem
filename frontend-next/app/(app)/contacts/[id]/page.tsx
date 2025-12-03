@@ -708,9 +708,9 @@ export default function ContactDetailPage() {
                                       {sh.number_of_shares.toLocaleString()} shares
                                     </span>
                                   )}
-                                  {sh.percentage_of_total && (
+                                  {sh.beneficially_held && (
                                     <Badge variant="secondary" className="text-xs">
-                                      {sh.percentage_of_total}%
+                                      Beneficial
                                     </Badge>
                                   )}
                                 </div>
