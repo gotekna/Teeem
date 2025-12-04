@@ -115,6 +115,14 @@ interface DocumentTask {
   validated_by: string | null;
 }
 
+interface SuggestedDocType {
+  id: number;
+  name: string;
+  abbreviation?: string;
+  folder?: string;
+  confidence: number;
+}
+
 interface LegacyItem {
   id: string;
   name: string;
@@ -124,6 +132,7 @@ interface LegacyItem {
   type: "file" | "folder";
   child_count?: number;
   folder_path?: string; // Path to the file's parent folder (for recursive listing)
+  suggested_document_types?: SuggestedDocType[]; // AI-suggested document types
 }
 
 interface LegacyFolderPath {
@@ -169,6 +178,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [allFiles, setAllFiles] = useState<LegacyItem[]>([]);
   const [loadingAllFiles, setLoadingAllFiles] = useState(false);
   const [allFilesJobFolderUrl, setAllFilesJobFolderUrl] = useState<string | null>(null);
+
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -1130,51 +1140,72 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
               </div>
             ) : (
               <div className="divide-y max-h-[600px] overflow-y-auto">
-                {allFiles.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors group"
-                  >
-                    <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{item.name}</p>
-                        {item.folder_path && (
-                          <Badge variant="secondary" className="text-xs shrink-0">
-                            <Folder className="h-3 w-3 mr-1" />
-                            {item.folder_path}
-                          </Badge>
+                {allFiles.map((item) => {
+                  const suggestions = item.suggested_document_types || [];
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors group"
+                    >
+                      <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium truncate">{item.name}</p>
+                          {item.folder_path && (
+                            <Badge variant="secondary" className="text-xs shrink-0">
+                              <Folder className="h-3 w-3 mr-1" />
+                              {item.folder_path}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <p className="text-xs text-muted-foreground">
+                            {item.size ? formatFileSize(item.size) : ""}
+                            {item.modified && `${item.size ? ' • ' : ''}Modified ${new Date(item.modified).toLocaleDateString()}`}
+                          </p>
+                          {suggestions.length > 0 && (
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-xs text-muted-foreground">|</span>
+                              <span className="text-xs text-amber-600 dark:text-amber-400">Suggested:</span>
+                              {suggestions.map((match) => (
+                                <Badge
+                                  key={match.id}
+                                  variant="outline"
+                                  className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800"
+                                  title={`${match.name} (${match.confidence}% match)`}
+                                >
+                                  {match.abbreviation || match.name.split(' - ')[0]}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {item.web_url && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => window.open(item.web_url, "_blank")}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => window.open(item.web_url, "_blank")}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {item.size ? formatFileSize(item.size) : ""}
-                        {item.modified && `${item.size ? ' • ' : ''}Modified ${new Date(item.modified).toLocaleDateString()}`}
-                      </p>
                     </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      {item.web_url && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => window.open(item.web_url, "_blank")}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => window.open(item.web_url, "_blank")}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
