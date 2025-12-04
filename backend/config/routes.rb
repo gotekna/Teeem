@@ -317,6 +317,9 @@ Rails.application.routes.draw do
           get :categories
           get :internal_messages
           get :company_group_memberships
+          get :directorships
+          get :shareholdings
+          get :trust_roles
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices

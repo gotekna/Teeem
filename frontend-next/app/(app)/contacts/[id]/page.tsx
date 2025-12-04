@@ -214,6 +214,66 @@ interface CompanyGroupMembership {
   is_active: boolean;
 }
 
+// SSoT: Directorship from CompanyDirector table
+interface Directorship {
+  id: number;
+  company_id: number;
+  company_name: string;
+  company_acn: string | null;
+  company_abn: string | null;
+  company_status: string | null;
+  company_entity_type: string | null;
+  company_group_id: number | null;
+  company_group_name: string | null;
+  position: string;
+  formatted_position: string;
+  appointment_date: string | null;
+  resignation_date: string | null;
+  is_current: boolean;
+  din: string | null;
+}
+
+// SSoT: Shareholding from CompanyShareholding table
+interface Shareholding {
+  id: number;
+  company_id: number;
+  company_name: string;
+  company_acn: string | null;
+  company_abn: string | null;
+  company_status: string | null;
+  company_entity_type: string | null;
+  company_group_id: number | null;
+  company_group_name: string | null;
+  share_class: string | null;
+  number_of_shares: number | null;
+  percentage_of_total: number | null;
+  beneficially_held: boolean | null;
+  acquisition_date: string | null;
+  disposal_date: string | null;
+  consideration_paid: number | null;
+}
+
+// SSoT: Trust role (trustee, beneficiary, appointor)
+interface TrustRole {
+  id: number;
+  role_type: "trustee" | "beneficiary" | "appointor";
+  trust_id: number;
+  trust_name: string;
+  trust_entity_type: string | null;
+  ownership_percentage?: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  is_active: boolean;
+  notes: string | null;
+}
+
+interface TrustRolesData {
+  trustee_roles: TrustRole[];
+  beneficiary_roles: TrustRole[];
+  appointor_roles: TrustRole[];
+  total_count: number;
+}
+
 export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -226,6 +286,14 @@ export default function ContactDetailPage() {
   const [memberships, setMemberships] = useState<CompanyGroupMembership[]>([]);
   const [loadingMemberships, setLoadingMemberships] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+
+  // SSoT: Dedicated state for rich data tabs
+  const [directorships, setDirectorships] = useState<Directorship[]>([]);
+  const [loadingDirectorships, setLoadingDirectorships] = useState(false);
+  const [shareholdings, setShareholdings] = useState<Shareholding[]>([]);
+  const [loadingShareholdings, setLoadingShareholdings] = useState(false);
+  const [trustRoles, setTrustRoles] = useState<TrustRolesData | null>(null);
+  const [loadingTrustRoles, setLoadingTrustRoles] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
 
@@ -279,6 +347,70 @@ export default function ContactDetailPage() {
       setLoadingMemberships(false);
     }
   };
+
+  // SSoT: Load directorships from dedicated endpoint
+  const loadDirectorships = async () => {
+    if (!contact?.id) return;
+    try {
+      setLoadingDirectorships(true);
+      const response = await api.get<{ success: boolean; data: Directorship[] }>(
+        `/api/v1/contacts/${contact.id}/directorships`
+      );
+      setDirectorships(response.data || []);
+    } catch (err) {
+      console.error("Failed to load directorships:", err);
+      setDirectorships([]);
+    } finally {
+      setLoadingDirectorships(false);
+    }
+  };
+
+  // SSoT: Load shareholdings from dedicated endpoint
+  const loadShareholdings = async () => {
+    if (!contact?.id) return;
+    try {
+      setLoadingShareholdings(true);
+      const response = await api.get<{ success: boolean; data: Shareholding[] }>(
+        `/api/v1/contacts/${contact.id}/shareholdings`
+      );
+      setShareholdings(response.data || []);
+    } catch (err) {
+      console.error("Failed to load shareholdings:", err);
+      setShareholdings([]);
+    } finally {
+      setLoadingShareholdings(false);
+    }
+  };
+
+  // SSoT: Load trust roles from dedicated endpoint
+  const loadTrustRoles = async () => {
+    if (!contact?.id) return;
+    try {
+      setLoadingTrustRoles(true);
+      const response = await api.get<{ success: boolean; data: TrustRolesData }>(
+        `/api/v1/contacts/${contact.id}/trust_roles`
+      );
+      setTrustRoles(response.data || null);
+    } catch (err) {
+      console.error("Failed to load trust roles:", err);
+      setTrustRoles(null);
+    } finally {
+      setLoadingTrustRoles(false);
+    }
+  };
+
+  // SSoT: Load tab-specific data when tab changes
+  useEffect(() => {
+    if (!contact?.id) return;
+
+    if (activeTab === "directorships" && directorships.length === 0 && !loadingDirectorships) {
+      loadDirectorships();
+    } else if (activeTab === "shareholdings" && shareholdings.length === 0 && !loadingShareholdings) {
+      loadShareholdings();
+    } else if (activeTab === "relationships" && !trustRoles && !loadingTrustRoles) {
+      loadTrustRoles();
+    }
+  }, [activeTab, contact?.id]);
 
   const handleTabChange = (value: string) => {
     // Use slug for URL, don't show ?tab= for default "overview" tab
@@ -370,17 +502,27 @@ export default function ContactDetailPage() {
           </TabsTrigger>
           <TabsTrigger value="directorships">
             Directorships
-            {contact.director_companies && contact.director_companies.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5">{contact.director_companies.length}</Badge>
+            {directorships.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5">{directorships.length}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="shareholdings">Shareholdings</TabsTrigger>
+          <TabsTrigger value="shareholdings">
+            Shareholdings
+            {shareholdings.length > 0 && (
+              <Badge variant="secondary" className="ml-1.5">{shareholdings.length}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="financial">
             Financial
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
-          <TabsTrigger value="relationships">Related Contacts</TabsTrigger>
+          <TabsTrigger value="relationships">
+            Trust Roles
+            {trustRoles && trustRoles.total_count > 0 && (
+              <Badge variant="secondary" className="ml-1.5">{trustRoles.total_count}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="coms">Communications</TabsTrigger>
           {contact["is_supplier?"] && (
             <TabsTrigger value="pricebook">Price Book</TabsTrigger>
@@ -1012,49 +1154,70 @@ export default function ContactDetailPage() {
           </div>
         </TabsContent>
 
-        {/* Directorships Tab */}
+        {/* Directorships Tab - SSoT: Uses dedicated /directorships endpoint */}
         <TabsContent value="directorships" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Briefcase className="h-5 w-5" />
                 Directorships
-                {contact.director_companies && contact.director_companies.length > 0 && (
-                  <Badge variant="secondary">{contact.director_companies.length}</Badge>
+                {directorships.length > 0 && (
+                  <Badge variant="secondary">{directorships.length}</Badge>
                 )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {contact.director_companies && contact.director_companies.length > 0 ? (
+              {loadingDirectorships ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader />
+                </div>
+              ) : directorships.length > 0 ? (
                 <div className="space-y-3">
-                  {contact.director_companies.map((dc) => (
+                  {directorships.map((d) => (
                     <div
-                      key={dc.id}
+                      key={d.id}
                       className={cn(
                         "flex items-center justify-between p-4 rounded-lg border",
-                        dc.is_current ? "bg-green-50 border-green-200" : "bg-gray-50"
+                        d.is_current ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800" : "bg-gray-50 dark:bg-gray-900/50"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <Building2 className="h-5 w-5 text-muted-foreground" />
                         <div>
                           <Link
-                            href={`/corporate/companies/${dc.company_id}`}
+                            href={`/corporate/companies/${d.company_id}`}
                             className="font-medium hover:underline text-primary"
                           >
-                            {dc.company_name}
+                            {d.company_name}
                           </Link>
-                          <p className="text-sm text-muted-foreground">{dc.position}</p>
+                          <p className="text-sm text-muted-foreground">{d.formatted_position || d.position}</p>
+                          {d.company_group_name && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Group: {d.company_group_name}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="text-right">
-                        <Badge className={dc.is_current ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                          {dc.is_current ? "Current" : "Former"}
-                        </Badge>
+                        <div className="flex items-center gap-2 justify-end">
+                          <Badge className={d.is_current ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}>
+                            {d.is_current ? "Current" : "Former"}
+                          </Badge>
+                          {d.company_status && (
+                            <Badge variant="outline" className="text-xs">
+                              {d.company_status}
+                            </Badge>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {dc.appointed_date && `Appointed: ${new Date(dc.appointed_date).toLocaleDateString()}`}
-                          {dc.resigned_date && ` | Resigned: ${new Date(dc.resigned_date).toLocaleDateString()}`}
+                          {d.appointment_date && `Appointed: ${new Date(d.appointment_date).toLocaleDateString()}`}
+                          {d.resignation_date && ` | Resigned: ${new Date(d.resignation_date).toLocaleDateString()}`}
                         </p>
+                        {d.din && (
+                          <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                            DIN: {d.din}
+                          </p>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1068,52 +1231,85 @@ export default function ContactDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* Shareholdings Tab */}
+        {/* Shareholdings Tab - SSoT: Uses dedicated /shareholdings endpoint */}
         <TabsContent value="shareholdings" className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Percent className="h-5 w-5" />
                 Shareholdings
+                {shareholdings.length > 0 && (
+                  <Badge variant="secondary">{shareholdings.length}</Badge>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {contact.additional_companies &&
-               contact.additional_companies.filter(c => c.relationship_type === "shareholder_of").length > 0 ? (
+              {loadingShareholdings ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader />
+                </div>
+              ) : shareholdings.length > 0 ? (
                 <div className="space-y-3">
-                  {contact.additional_companies
-                    .filter(c => c.relationship_type === "shareholder_of")
-                    .map((company) => (
-                      <div
-                        key={company.id}
-                        className="flex items-center justify-between p-4 rounded-lg border"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Building2 className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <Link
-                              href={`/corporate/companies/${company.id}`}
-                              className="font-medium hover:underline text-primary"
-                            >
-                              {company.name}
-                            </Link>
-                            {company.role_in_relationship && (
-                              <p className="text-sm text-muted-foreground">{company.role_in_relationship}</p>
+                  {shareholdings.map((sh) => (
+                    <div
+                      key={sh.id}
+                      className={cn(
+                        "flex items-center justify-between p-4 rounded-lg border",
+                        !sh.disposal_date ? "bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800" : "bg-gray-50 dark:bg-gray-900/50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <Link
+                            href={`/corporate/companies/${sh.company_id}`}
+                            className="font-medium hover:underline text-primary"
+                          >
+                            {sh.company_name}
+                          </Link>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {sh.share_class && (
+                              <Badge variant="outline" className="text-xs">{sh.share_class}</Badge>
+                            )}
+                            {sh.number_of_shares && (
+                              <span className="text-sm text-muted-foreground">
+                                {sh.number_of_shares.toLocaleString()} shares
+                              </span>
                             )}
                           </div>
-                        </div>
-                        <div className="text-right">
-                          {company.ownership_percentage && (
-                            <Badge className="bg-blue-100 text-blue-700">
-                              {company.ownership_percentage}%
-                            </Badge>
+                          {sh.company_group_name && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Group: {sh.company_group_name}
+                            </p>
                           )}
-                          <Badge className={company.is_active ? "bg-green-100 text-green-700 ml-2" : "bg-gray-100 text-gray-600 ml-2"}>
-                            {company.is_active ? "Active" : "Inactive"}
-                          </Badge>
                         </div>
                       </div>
-                    ))}
+                      <div className="text-right">
+                        <div className="flex items-center gap-2 justify-end">
+                          {sh.percentage_of_total != null && (
+                            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
+                              {sh.percentage_of_total.toFixed(1)}%
+                            </Badge>
+                          )}
+                          {sh.beneficially_held && (
+                            <Badge variant="outline" className="text-xs">Beneficial</Badge>
+                          )}
+                          <Badge className={!sh.disposal_date ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}>
+                            {!sh.disposal_date ? "Current" : "Disposed"}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {sh.acquisition_date && `Acquired: ${new Date(sh.acquisition_date).toLocaleDateString()}`}
+                          {sh.disposal_date && ` | Disposed: ${new Date(sh.disposal_date).toLocaleDateString()}`}
+                        </p>
+                        {sh.consideration_paid != null && sh.consideration_paid > 0 && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            ${sh.consideration_paid.toLocaleString()} paid
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="text-muted-foreground text-center py-8">
@@ -1240,58 +1436,203 @@ export default function ContactDetailPage() {
           </div>
         </TabsContent>
 
-        {/* Relationships Tab */}
+        {/* Trust Roles Tab - SSoT: Uses dedicated /trust_roles endpoint */}
         <TabsContent value="relationships" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Share2 className="h-5 w-5" />
-                Related Contacts
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {contact.additional_companies && contact.additional_companies.length > 0 ? (
-                <div className="space-y-3">
-                  {contact.additional_companies.map((rel) => (
-                    <div
-                      key={rel.id}
-                      className="flex items-center justify-between p-4 rounded-lg border"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Building2 className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <Link
-                            href={`/corporate/companies/${rel.id}`}
-                            className="font-medium hover:underline text-primary"
+          <div className="space-y-6">
+            {loadingTrustRoles ? (
+              <Card>
+                <CardContent className="py-8">
+                  <div className="flex items-center justify-center">
+                    <Loader />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : trustRoles && trustRoles.total_count > 0 ? (
+              <>
+                {/* Trustee Roles */}
+                {trustRoles.trustee_roles.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <ShieldCheck className="h-5 w-5 text-purple-600" />
+                        Trustee Of
+                        <Badge className="bg-purple-100 text-purple-700">{trustRoles.trustee_roles.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {trustRoles.trustee_roles.map((role) => (
+                          <div
+                            key={role.id}
+                            className={cn(
+                              "flex items-center justify-between p-4 rounded-lg border",
+                              role.is_active ? "bg-purple-50 border-purple-200 dark:bg-purple-950/20 dark:border-purple-800" : "bg-gray-50 dark:bg-gray-900/50"
+                            )}
                           >
-                            {rel.name}
-                          </Link>
-                          <p className="text-sm text-muted-foreground capitalize">
-                            {rel.relationship_type.replace(/_/g, " ")}
-                            {rel.role_in_relationship && ` - ${rel.role_in_relationship}`}
-                          </p>
-                        </div>
+                            <div className="flex items-center gap-3">
+                              <Building2 className="h-5 w-5 text-purple-600" />
+                              <div>
+                                <Link
+                                  href={`/corporate/companies/${role.trust_id}`}
+                                  className="font-medium hover:underline text-primary"
+                                >
+                                  {role.trust_name}
+                                </Link>
+                                <p className="text-sm text-muted-foreground">
+                                  {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <Badge className={role.is_active ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300" : "bg-gray-100 text-gray-600"}>
+                                {role.is_active ? "Current Trustee" : "Former Trustee"}
+                              </Badge>
+                              {role.start_date && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Since {new Date(role.start_date).toLocaleDateString()}
+                                  {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                      <div className="text-right">
-                        <Badge className={rel.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                          {rel.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                        {rel.ownership_percentage && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Ownership: {rel.ownership_percentage}%
-                          </p>
-                        )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Beneficiary Roles */}
+                {trustRoles.beneficiary_roles.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Users className="h-5 w-5 text-green-600" />
+                        Beneficiary Of
+                        <Badge className="bg-green-100 text-green-700">{trustRoles.beneficiary_roles.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {trustRoles.beneficiary_roles.map((role) => (
+                          <div
+                            key={role.id}
+                            className={cn(
+                              "flex items-center justify-between p-4 rounded-lg border",
+                              role.is_active ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800" : "bg-gray-50 dark:bg-gray-900/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Building2 className="h-5 w-5 text-green-600" />
+                              <div>
+                                <Link
+                                  href={`/corporate/companies/${role.trust_id}`}
+                                  className="font-medium hover:underline text-primary"
+                                >
+                                  {role.trust_name}
+                                </Link>
+                                <p className="text-sm text-muted-foreground">
+                                  {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="flex items-center gap-2 justify-end">
+                                {role.ownership_percentage != null && (
+                                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                                    {role.ownership_percentage.toFixed(1)}% entitlement
+                                  </Badge>
+                                )}
+                                <Badge className={role.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
+                                  {role.is_active ? "Active" : "Inactive"}
+                                </Badge>
+                              </div>
+                              {role.start_date && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Since {new Date(role.start_date).toLocaleDateString()}
+                                  {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  No related contacts or relationships found.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Appointor Roles */}
+                {trustRoles.appointor_roles.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <User className="h-5 w-5 text-amber-600" />
+                        Appointor Of
+                        <Badge className="bg-amber-100 text-amber-700">{trustRoles.appointor_roles.length}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {trustRoles.appointor_roles.map((role) => (
+                          <div
+                            key={role.id}
+                            className={cn(
+                              "flex items-center justify-between p-4 rounded-lg border",
+                              role.is_active ? "bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800" : "bg-gray-50 dark:bg-gray-900/50"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Building2 className="h-5 w-5 text-amber-600" />
+                              <div>
+                                <Link
+                                  href={`/corporate/companies/${role.trust_id}`}
+                                  className="font-medium hover:underline text-primary"
+                                >
+                                  {role.trust_name}
+                                </Link>
+                                <p className="text-sm text-muted-foreground">
+                                  {role.trust_entity_type === "trust" ? "Trust" : role.trust_entity_type}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <Badge className={role.is_active ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300" : "bg-gray-100 text-gray-600"}>
+                                {role.is_active ? "Current Appointor" : "Former Appointor"}
+                              </Badge>
+                              {role.start_date && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Since {new Date(role.start_date).toLocaleDateString()}
+                                  {role.end_date && ` until ${new Date(role.end_date).toLocaleDateString()}`}
+                                </p>
+                              )}
+                              {role.notes && (
+                                <p className="text-xs text-muted-foreground mt-0.5 italic">
+                                  {role.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Share2 className="h-5 w-5" />
+                    Trust Roles
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-muted-foreground text-center py-8">
+                    No trust roles found. This contact is not a trustee, beneficiary, or appointor of any trusts.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         {/* Communications Tab */}
