@@ -51,7 +51,8 @@ module Api
             bank_accounts: { only: [:id, :institution_name, :status], methods: [:display_name, :masked_account_number] },
             # Note: active_assets removed - assets table not yet migrated
             pending_compliance_items: { only: [:id, :title, :due_date, :completed], methods: [:days_until_due] },
-            company_xero_connection: { only: [:id, :connection_status, :xero_tenant_name, :last_sync_at] }
+            company_xero_connection: { only: [:id, :connection_status, :xero_tenant_name, :last_sync_at] },
+            consolidation_parent: { only: [:id, :name] }
           },
           methods: [:formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url]
           # Note: total_asset_value removed - depends on assets table

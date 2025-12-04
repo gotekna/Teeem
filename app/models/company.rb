@@ -7,6 +7,10 @@ class Company < ApplicationRecord
   belongs_to :parent_company, class_name: 'Company', optional: true
   has_many :subsidiaries, class_name: 'Company', foreign_key: 'parent_company_id', dependent: :nullify
 
+  # Consolidation - financial consolidation parent/children
+  belongs_to :consolidation_parent, class_name: 'Company', optional: true
+  has_many :consolidated_children, class_name: 'Company', foreign_key: 'consolidation_parent_id', dependent: :nullify
+
   # Investments - what this company owns (as shareholder)
   has_many :investments, class_name: 'CompanyShareholding', as: :shareholder, dependent: :destroy
 
