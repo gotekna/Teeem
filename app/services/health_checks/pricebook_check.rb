@@ -168,11 +168,12 @@ module HealthChecks
 
       Contact.where(id: supplier_ids).find_each do |supplier|
         # Get categories this supplier has priced
+        # Note: PricebookItem table is named 'pricebook' not 'pricebook_items'
         priced_items = PriceHistory.joins(:pricebook_item)
                                    .where(supplier_id: supplier.id)
-                                   .where(pricebook_items: { is_active: true })
+                                   .where(pricebook: { is_active: true })
                                    .distinct
-                                   .pluck('pricebook_items.category', 'pricebook_items.id')
+                                   .pluck('pricebook.category', 'pricebook.id')
 
         priced_by_category = priced_items.group_by(&:first)
 

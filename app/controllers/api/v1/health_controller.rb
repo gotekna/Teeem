@@ -1,7 +1,16 @@
 module Api
   module V1
+    # DEPRECATED: This controller duplicates functionality from HealthChecks::PricebookCheck
+    # Use the following endpoints instead:
+    #   - GET /api/v1/foundations/205/health (or /api/v1/foundations/pricebook/health)
+    #   - GET /api/v1/system/health
+    #
+    # This controller remains for backwards compatibility with the old frontend.
+    # TODO: Remove after frontend migration is complete
     class HealthController < ApplicationController
+      # DEPRECATED: Use GET /api/v1/foundations/205/health instead
       def pricebook
+        Rails.logger.warn "[DEPRECATED] GET /api/v1/health/pricebook - use /api/v1/foundations/205/health instead"
         # Get pricebook items without default supplier
         items_without_default_supplier_query = PricebookItem.active
           .where(default_supplier_id: nil)
