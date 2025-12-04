@@ -1475,9 +1475,9 @@ export default function TeeemTableView({
     setEditingRowIds(new Set([row.id]));
     setEditingData({ [row.id]: { ...row } });
 
-    // Pre-fetch lookup options for lookup columns
+    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
-      if (col.column_type === 'lookup' || col.column_type === 'relation') {
+      if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
         if (col.lookup_config?.target_table_id) {
           fetchLookupOptions(col);
         }
@@ -1497,9 +1497,9 @@ export default function TeeemTableView({
     setEditingRowIds(new Set(rowIds));
     setEditingData(newEditingData);
 
-    // Pre-fetch lookup options for lookup columns
+    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
-      if (col.column_type === 'lookup' || col.column_type === 'relation') {
+      if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
         if (col.lookup_config?.target_table_id) {
           fetchLookupOptions(col);
         }

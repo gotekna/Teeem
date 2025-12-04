@@ -137,7 +137,7 @@ interface JobDocumentsTabProps {
 }
 
 export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
-  const [viewMode, setViewMode] = useState<"tasks" | "onedrive">("tasks");
+  const [viewMode, setViewMode] = useState<"tasks" | "onedrive" | "allfiles">("tasks");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<OneDriveFolder[]>([]);
@@ -164,6 +164,11 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [selectedLegacyFiles, setSelectedLegacyFiles] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
   const [legacyFolderPath, setLegacyFolderPath] = useState<LegacyFolderPath[]>([]);
+
+  // All Files tab state
+  const [allFiles, setAllFiles] = useState<LegacyItem[]>([]);
+  const [loadingAllFiles, setLoadingAllFiles] = useState(false);
+  const [allFilesJobFolderUrl, setAllFilesJobFolderUrl] = useState<string | null>(null);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -537,6 +542,49 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       setSelectedLegacyFiles(legacyItems.map((f) => f.id));
     }
   };
+
+  // Load all files in the job folder (for All Files tab)
+  const loadAllFiles = async () => {
+    try {
+      setLoadingAllFiles(true);
+      setError(null);
+      const url = `/api/v1/organization_onedrive/job_all_files?job_id=${jobId}`;
+      console.log('[All Files] Fetching:', url);
+
+      const response = await api.get<{
+        success: boolean;
+        items: LegacyItem[];
+        count: number;
+        job_folder_web_url?: string;
+        error?: string;
+      }>(url);
+
+      console.log('[All Files] Response:', response);
+
+      if (response?.success) {
+        console.log('[All Files] Found', response.items?.length || 0, 'files');
+        setAllFiles(response.items || []);
+        setAllFilesJobFolderUrl(response.job_folder_web_url || null);
+      } else {
+        console.log('[All Files] No job folder or empty:', response?.error);
+        setAllFiles([]);
+        setAllFilesJobFolderUrl(null);
+      }
+    } catch (err) {
+      console.error("[All Files] Exception:", err);
+      setError(err instanceof Error ? err.message : 'Failed to load files');
+      setAllFiles([]);
+    } finally {
+      setLoadingAllFiles(false);
+    }
+  };
+
+  // Load all files when switching to the All Files tab
+  useEffect(() => {
+    if (viewMode === "allfiles" && orgStatus.connected) {
+      loadAllFiles();
+    }
+  }, [viewMode, orgStatus.connected]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -988,6 +1036,148 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     );
   };
 
+  // All Files View - shows all files in the job folder recursively
+  const renderAllFilesView = () => {
+    if (orgStatus.loading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
+    if (!orgStatus.connected) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
+            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
+            </p>
+            <Button asChild className="mt-6">
+              <Link href="/settings/integrations/microsoft">
+                <Settings className="h-4 w-4 mr-2" />
+                Go to Settings
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {/* Header with refresh and open in SharePoint */}
+        <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Folder className="h-5 w-5 text-blue-600" />
+                  <h3 className="font-semibold">All Files in Job Folder</h3>
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {loadingAllFiles
+                    ? "Loading files..."
+                    : `${allFiles.length} files found across all folders`}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadAllFiles}
+                  disabled={loadingAllFiles}
+                >
+                  {loadingAllFiles ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  Refresh
+                </Button>
+                {allFilesJobFolderUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => window.open(allFilesJobFolderUrl, "_blank")}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in SharePoint
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Files list */}
+        <Card>
+          <CardContent className="p-0">
+            {loadingAllFiles ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-3 text-muted-foreground">Loading all files...</span>
+              </div>
+            ) : allFiles.length === 0 ? (
+              <div className="py-12 text-center">
+                <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
+                <p className="mt-2 text-muted-foreground">No files found in the job folder.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create the folder structure first or upload documents.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y max-h-[600px] overflow-y-auto">
+                {allFiles.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors group"
+                  >
+                    <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {item.folder_path && (
+                          <span className="text-blue-600 dark:text-blue-400">{item.folder_path}/</span>
+                        )}
+                        {item.size ? formatFileSize(item.size) : ""}
+                        {item.modified && ` • Modified ${new Date(item.modified).toLocaleDateString()}`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {item.web_url && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => window.open(item.web_url, "_blank")}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => window.open(item.web_url, "_blank")}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Messages */}
@@ -1026,9 +1216,19 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           <Cloud className="h-4 w-4 mr-2" />
           SharePoint Folders
         </Button>
+        <Button
+          variant={viewMode === "allfiles" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setViewMode("allfiles")}
+        >
+          <Folder className="h-4 w-4 mr-2" />
+          All Files
+        </Button>
       </div>
 
-      {viewMode === "tasks" ? renderTasksView() : renderOneDriveView()}
+      {viewMode === "tasks" && renderTasksView()}
+      {viewMode === "onedrive" && renderOneDriveView()}
+      {viewMode === "allfiles" && renderAllFilesView()}
 
       {/* Import Legacy Files Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
