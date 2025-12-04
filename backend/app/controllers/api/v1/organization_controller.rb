@@ -73,13 +73,14 @@ module Api
 
         # SharePoint stats
         # Note: OrganizationOneDriveCredential has drive_name, root_folder_path but not site_url/site_path
+        # Note: company_documents uses last_modified_at (not synced_at) for OneDrive sync timestamps
         onedrive_credential = OrganizationOneDriveCredential.active_credential rescue nil
         sharepoint_stats = {
           connected: onedrive_credential.present?,
           site_url: onedrive_credential&.drive_name || "SharePoint",
           site_path: onedrive_credential&.root_folder_path || "/Shared Documents",
           total_synced: documents.where(source: 'onedrive').count,
-          last_sync: onedrive_credential&.last_synced_at || documents.where(source: 'onedrive').maximum(:synced_at)
+          last_sync: onedrive_credential&.last_synced_at || documents.where(source: 'onedrive').maximum(:last_modified_at)
         }
 
         # Xero stats
