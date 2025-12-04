@@ -77,6 +77,11 @@ module Api
         @contacts = @contacts.with_email if params[:with_email] == "true"
         @contacts = @contacts.with_phone if params[:with_phone] == "true"
 
+        # Filter by entity type (person, company, trust)
+        if params[:entity_type].present?
+          @contacts = @contacts.where(entity_type: params[:entity_type])
+        end
+
         @contacts = @contacts.order(:full_name)
 
         # Optionally include companies and jobs data
@@ -92,7 +97,7 @@ module Api
             portal_user: { only: [:id, :email, :portal_type, :active] },
             company_group: { only: [:id, :name] }
           },
-          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?]
+          methods: [:is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count]
         )
 
         # Add company and job counts for all contacts

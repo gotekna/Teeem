@@ -1039,47 +1039,54 @@ export default function CorporateDashboardPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {people.map((person) => (
-                          <tr key={person.id} className="border-b hover:bg-muted/50">
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-2">
-                                <Users className="h-4 w-4 text-teal-500" />
-                                <div>
-                                  <div className="font-medium">{person.full_name || person.name}</div>
-                                  {person.position && (
-                                    <div className="text-xs text-muted-foreground">{person.position}</div>
-                                  )}
+                        {people.map((person) => {
+                          const name = (person.full_name || person.name || "Unknown") as string;
+                          const email = (person.email || "—") as string;
+                          const phone = (person.mobile_phone || person.phone || "—") as string;
+                          const position = person.position as string | undefined;
+                          const groupCount = (person.company_group_memberships_count || 0) as number;
+                          return (
+                            <tr key={person.id} className="border-b hover:bg-muted/50">
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2">
+                                  <Users className="h-4 w-4 text-teal-500" />
+                                  <div>
+                                    <div className="font-medium">{name}</div>
+                                    {position && (
+                                      <div className="text-xs text-muted-foreground">{position}</div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="py-2 px-3 text-muted-foreground">
-                              {person.email || "—"}
-                            </td>
-                            <td className="py-2 px-3 text-muted-foreground">
-                              {person.mobile_phone || person.phone || "—"}
-                            </td>
-                            <td className="py-2 px-3">
-                              {person.company_group_memberships_count > 0 ? (
-                                <Badge variant="secondary">
-                                  {person.company_group_memberships_count} group{person.company_group_memberships_count !== 1 ? 's' : ''}
-                                </Badge>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                            <td className="py-2 px-3">
-                              <div className="flex items-center gap-2">
-                                <button
-                                  onClick={() => router.push(`/contacts/${person.id}`)}
-                                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                  View
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="py-2 px-3 text-muted-foreground">
+                                {email}
+                              </td>
+                              <td className="py-2 px-3 text-muted-foreground">
+                                {phone}
+                              </td>
+                              <td className="py-2 px-3">
+                                {groupCount > 0 ? (
+                                  <Badge variant="secondary">
+                                    {groupCount} group{groupCount !== 1 ? 's' : ''}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </td>
+                              <td className="py-2 px-3">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => router.push(`/contacts/${person.id}`)}
+                                    className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                    View
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>

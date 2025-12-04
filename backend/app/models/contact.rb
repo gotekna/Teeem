@@ -218,6 +218,10 @@ class Contact < ApplicationRecord
       .map(&:related_contact)
   end
 
+  def company_group_memberships_count
+    company_group_memberships.count
+  end
+
   def trustees_of
     outgoing_relationships
       .where(relationship_type: 'trustee_of')
