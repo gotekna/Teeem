@@ -128,11 +128,21 @@ class JobDocumentMigrationService
 
   # Recursively list ALL files from a folder and all subfolders
   # Returns flat list of files with folder_path for context
-  def list_all_files_recursive(root_folder_id, max_depth: 5)
+  # Has a 25 second timeout to avoid Heroku's 30 second limit
+  def list_all_files_recursive(root_folder_id, max_depth: 5, max_time: 25)
     files = []
     folders_to_process = [[root_folder_id, 0, '']] # [folder_id, depth, path]
+    start_time = Time.now
+    timed_out = false
 
     while folders_to_process.any?
+      # Check if we've exceeded the time limit
+      if Time.now - start_time > max_time
+        Rails.logger.warn("[JobDocumentMigration] Recursive listing timed out after #{max_time}s with #{files.length} files found, #{folders_to_process.length} folders remaining")
+        timed_out = true
+        break
+      end
+
       current_id, depth, current_path = folders_to_process.shift
 
       begin
@@ -160,6 +170,8 @@ class JobDocumentMigrationService
         Rails.logger.warn("[JobDocumentMigration] Failed to list folder #{current_id}: #{e.message}")
       end
     end
+
+    Rails.logger.info("[JobDocumentMigration] Recursive listing completed: #{files.length} files in #{(Time.now - start_time).round(2)}s#{timed_out ? ' (partial due to timeout)' : ''}")
 
     # Sort by folder path then name
     files.sort_by { |f| [f[:folder_path].downcase, f[:name].downcase] }
