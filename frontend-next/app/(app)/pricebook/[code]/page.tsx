@@ -25,6 +25,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -50,6 +63,8 @@ import {
   QrCode,
   Search,
   X,
+  Check,
+  ChevronsUpDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -71,7 +86,8 @@ interface PriceHistory {
 
 interface Supplier {
   id: number;
-  name: string;
+  full_name: string;
+  display_name?: string;
 }
 
 interface PriceBookItem {
@@ -171,6 +187,8 @@ export default function PriceBookItemDetailPage() {
   const [pendingEdits, setPendingEdits] = useState<Map<number, Partial<PriceHistory>>>(new Map());
   const [editingRows, setEditingRows] = useState<Set<number>>(new Set());
   const [isSavingChanges, setIsSavingChanges] = useState(false);
+  const [supplierPopoverOpen, setSupplierPopoverOpen] = useState<Record<number, boolean>>({});
+  const [newPriceSupplierPopoverOpen, setNewPriceSupplierPopoverOpen] = useState(false);
 
   useEffect(() => {
     loadItem();
@@ -182,10 +200,7 @@ export default function PriceBookItemDetailPage() {
       setLoading(true);
       const response = await api.get<PriceBookItem>(`/api/v1/pricebook/${code}`);
       setItem(response);
-      // Set default supplier_id in new price entry if it exists
-      if (response.default_supplier_id && !newPriceEntry.supplier_id) {
-        setNewPriceEntry(prev => ({ ...prev, supplier_id: response.default_supplier_id }));
-      }
+      // Don't pre-select default supplier - let user choose
     } catch (err) {
       setError("Failed to load price book item");
       console.error(err);
@@ -196,12 +211,14 @@ export default function PriceBookItemDetailPage() {
 
   const loadSuppliers = async () => {
     try {
-      const response = await api.get<Supplier[]>('/api/v1/contacts?type=suppliers');
+      const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers');
       console.log('[loadSuppliers] Response:', response);
-      if (Array.isArray(response)) {
-        setSuppliers(response);
+
+      if (response.success && Array.isArray(response.contacts)) {
+        console.log('[loadSuppliers] Setting suppliers count:', response.contacts.length);
+        setSuppliers(response.contacts);
       } else {
-        console.error('[loadSuppliers] Response is not an array:', response);
+        console.error('[loadSuppliers] Invalid response structure:', response);
         setSuppliers([]);
       }
     } catch (err) {
@@ -315,9 +332,20 @@ export default function PriceBookItemDetailPage() {
 
     try {
       await api.delete(`/api/v1/pricebook/${code}/price_histories/${historyToDelete.id}`);
+
+      // Update state directly without reload - remove the deleted history
+      setItem(prevItem => {
+        if (!prevItem) return prevItem;
+
+        const updatedHistories = prevItem.price_histories?.filter(
+          h => h.id !== historyToDelete.id
+        );
+
+        return { ...prevItem, price_histories: updatedHistories };
+      });
+
       setIsDeleteModalOpen(false);
       setHistoryToDelete(null);
-      await loadItem();
     } catch (err) {
       console.error("Failed to delete price history:", err);
       alert("Failed to delete price history. Please try again.");
@@ -363,23 +391,45 @@ export default function PriceBookItemDetailPage() {
   const handleAddNewPrice = async () => {
     if (isBlankNewPrice()) return; // Don't save if blank
 
+    // Save the current values BEFORE making the API call
+    const supplierToKeep = newPriceEntry.supplier_id;
+    const lgaToKeep = newPriceEntry.lga;
+
+    console.log('[handleAddNewPrice] Current newPriceEntry:', newPriceEntry);
+    console.log('[handleAddNewPrice] Saving with supplier:', supplierToKeep, 'lga:', lgaToKeep);
+
     try {
-      await api.post(`/api/v1/pricebook/${code}/add_price`, {
+      const response = await api.post<{ success: boolean; item: PriceBookItem }>(`/api/v1/pricebook/${code}/add_price`, {
         price: parseFloat(newPriceEntry.price),
         supplier_id: newPriceEntry.supplier_id || item?.default_supplier_id || undefined,
         lga: newPriceEntry.lga || undefined,
         date_effective: newPriceEntry.date_effective || undefined,
       });
 
-      // Reset form for next entry
+      console.log('[handleAddNewPrice] Response received:', response);
+
+      // Update item state directly from response to avoid reload
+      if (response.success && response.item) {
+        console.log('[handleAddNewPrice] Updating item state with price_histories count:', response.item.price_histories?.length);
+        setItem(response.item);
+      }
+
+      // Reset form completely - clear all fields
+      console.log('[handleAddNewPrice] Clearing form');
+
       setNewPriceEntry({
         price: "",
         date_effective: new Date().toISOString().split('T')[0],
         lga: "",
-        supplier_id: item?.default_supplier_id || null,
+        supplier_id: null,
       });
 
-      await loadItem();
+      console.log('[handleAddNewPrice] Form reset complete');
+
+      // Log what the state should be after update
+      setTimeout(() => {
+        console.log('[handleAddNewPrice] After state update, newPriceEntry should have supplier_id:', supplierToKeep);
+      }, 100);
     } catch (err) {
       console.error("Failed to add price:", err);
       alert("Failed to add price. Please try again.");
@@ -415,7 +465,22 @@ export default function PriceBookItemDetailPage() {
         supplier_id: supplierId,
       });
       console.log('[handleSetDefaultSupplier] Success:', response);
-      await loadItem();
+
+      // Update state directly without reload
+      setItem(prevItem => {
+        if (!prevItem) return prevItem;
+
+        // Find the supplier object from price_histories
+        const supplierFromHistory = prevItem.price_histories?.find(
+          h => h.supplier?.id === supplierId
+        )?.supplier;
+
+        return {
+          ...prevItem,
+          default_supplier_id: supplierId,
+          default_supplier: supplierFromHistory || prevItem.default_supplier
+        };
+      });
     } catch (err: any) {
       console.error("[handleSetDefaultSupplier] Error details:", err);
       console.error("[handleSetDefaultSupplier] Error response:", err?.response?.data);
@@ -447,6 +512,11 @@ export default function PriceBookItemDetailPage() {
       newMap.set(historyId, { ...currentEdit, [field]: value });
       return newMap;
     });
+  };
+
+  const handleDiscardChanges = () => {
+    setPendingEdits(new Map());
+    setEditingRows(new Set());
   };
 
   const handleSaveAllChanges = async () => {
@@ -482,9 +552,12 @@ export default function PriceBookItemDetailPage() {
     }
 
     if (errors.length === 0) {
-      // Success - clear pending edits (no reload, no alert)
+      // Success - clear pending edits and reload to get updated current_price
       setPendingEdits(new Map());
       setEditingRows(new Set());
+
+      // Reload the item to get the recalculated current_price from backend
+      await loadItem();
     } else {
       // Show errors in console only
       console.error(`Failed to save ${errors.length} change(s):`, errors);
@@ -682,14 +755,24 @@ export default function PriceBookItemDetailPage() {
                   </CardTitle>
                   <div className="flex gap-2">
                     {pendingEdits.size > 0 && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={handleSaveAllChanges}
-                        disabled={isSavingChanges}
-                      >
-                        {isSavingChanges ? 'Saving...' : `Save Changes (${pendingEdits.size})`}
-                      </Button>
+                      <>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={handleSaveAllChanges}
+                          disabled={isSavingChanges}
+                        >
+                          {isSavingChanges ? 'Saving...' : `Save Changes (${pendingEdits.size})`}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDiscardChanges}
+                          disabled={isSavingChanges}
+                        >
+                          Discard Changes
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="outline"
@@ -794,22 +877,51 @@ export default function PriceBookItemDetailPage() {
                           {/* Supplier Cell */}
                           <TableCell className="py-2">
                             {isEditing ? (
-                              <select
-                                value={pendingEdit?.supplier?.id || history.supplier?.id || ''}
-                                onChange={(e) => {
-                                  const supplierId = e.target.value ? Number(e.target.value) : null;
-                                  const supplier = suppliers.find(s => s.id === supplierId);
-                                  handleFieldChange(history.id, 'supplier', supplier || null);
-                                }}
-                                className="border rounded px-2 h-9 w-full text-sm"
+                              <Popover
+                                open={supplierPopoverOpen[history.id] || false}
+                                onOpenChange={(open) => setSupplierPopoverOpen(prev => ({ ...prev, [history.id]: open }))}
                               >
-                                <option value="">Select Supplier...</option>
-                                {Array.isArray(suppliers) && suppliers.map(supplier => (
-                                  <option key={supplier.id} value={supplier.id}>
-                                    {supplier.name}
-                                  </option>
-                                ))}
-                              </select>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    className="w-full justify-between h-9 text-sm font-normal"
+                                  >
+                                    {pendingEdit?.supplier?.display_name || pendingEdit?.supplier?.full_name ||
+                                     history.supplier?.display_name || history.supplier?.full_name ||
+                                     <span className="text-muted-foreground">Select supplier...</span>}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[300px] p-0" align="start">
+                                  <Command>
+                                    <CommandInput placeholder="Search suppliers..." />
+                                    <CommandList>
+                                      <CommandEmpty>No supplier found.</CommandEmpty>
+                                      <CommandGroup>
+                                        {suppliers.map((supplier) => (
+                                          <CommandItem
+                                            key={supplier.id}
+                                            value={supplier.display_name || supplier.full_name}
+                                            onSelect={() => {
+                                              handleFieldChange(history.id, 'supplier', supplier);
+                                              setSupplierPopoverOpen(prev => ({ ...prev, [history.id]: false }));
+                                            }}
+                                          >
+                                            <Check
+                                              className={cn(
+                                                "mr-2 h-4 w-4",
+                                                (pendingEdit?.supplier?.id || history.supplier?.id) === supplier.id ? "opacity-100" : "opacity-0"
+                                              )}
+                                            />
+                                            {supplier.display_name || supplier.full_name}
+                                          </CommandItem>
+                                        ))}
+                                      </CommandGroup>
+                                    </CommandList>
+                                  </Command>
+                                </PopoverContent>
+                              </Popover>
                             ) : (
                               <span
                                 className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block"
@@ -904,22 +1016,66 @@ export default function PriceBookItemDetailPage() {
                         </select>
                       </TableCell>
                       <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
-                        <select
-                          value={newPriceEntry.supplier_id || ''}
-                          onChange={(e) => {
-                            console.log('[Supplier dropdown] Selected value:', e.target.value);
-                            setNewPriceEntry(prev => ({ ...prev, supplier_id: e.target.value ? Number(e.target.value) : null }));
-                          }}
-                          className="border rounded px-2 h-9 w-full text-sm"
-                          style={{ backgroundColor: '#f1f5f9' }}
+                        <Popover
+                          open={newPriceSupplierPopoverOpen}
+                          onOpenChange={setNewPriceSupplierPopoverOpen}
                         >
-                          <option value="">Select Supplier...</option>
-                          {Array.isArray(suppliers) && suppliers.map(supplier => (
-                            <option key={supplier.id} value={supplier.id}>
-                              {supplier.name}
-                            </option>
-                          ))}
-                        </select>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between h-9 text-sm font-normal border-0 rounded-none"
+                              style={{ backgroundColor: '#f1f5f9' }}
+                            >
+                              {(() => {
+                                if (!newPriceEntry.supplier_id) {
+                                  return <span className="text-muted-foreground">Select Supplier...</span>;
+                                }
+                                const selectedSupplier = suppliers.find(s => s.id === newPriceEntry.supplier_id);
+                                if (!selectedSupplier) {
+                                  console.log('[Supplier button] Could not find supplier with ID:', newPriceEntry.supplier_id, 'in', suppliers.length, 'suppliers');
+                                  return <span className="text-muted-foreground">Select Supplier...</span>;
+                                }
+                                return selectedSupplier.display_name || selectedSupplier.full_name;
+                              })()}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0 z-[9999]" align="start" sideOffset={5}>
+                            <Command>
+                              <CommandInput placeholder="Search suppliers..." />
+                              <CommandList>
+                                <CommandEmpty>No supplier found.</CommandEmpty>
+                                <CommandGroup>
+                                  {suppliers.map((supplier) => (
+                                    <CommandItem
+                                      key={supplier.id}
+                                      value={supplier.display_name || supplier.full_name}
+                                      onSelect={() => {
+                                        console.log('[New price supplier select] Selected:', supplier.display_name || supplier.full_name, 'ID:', supplier.id);
+                                        setNewPriceEntry(prev => {
+                                          console.log('[New price supplier select] Previous state:', prev);
+                                          const newState = { ...prev, supplier_id: supplier.id };
+                                          console.log('[New price supplier select] New state:', newState);
+                                          return newState;
+                                        });
+                                        setNewPriceSupplierPopoverOpen(false);
+                                      }}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          newPriceEntry.supplier_id === supplier.id ? "opacity-100" : "opacity-0"
+                                        )}
+                                      />
+                                      {supplier.display_name || supplier.full_name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </TableCell>
                       <TableCell className="py-1 border-b text-center" style={{ backgroundColor: '#f1f5f9' }}>
                         {newPriceEntry.supplier_id && (

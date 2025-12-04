@@ -126,6 +126,12 @@ class PricebookItem < ApplicationRecord
     price_histories.order(created_at: :desc).first
   end
 
+  # Get the current active price for this item
+  # The "Active" price is simply the current_price field
+  def active_price
+    current_price
+  end
+
   def price_trend(days: 90)
     histories = price_histories
       .where("created_at >= ?", days.days.ago)

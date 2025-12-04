@@ -56,7 +56,8 @@ interface PricebookItem {
   id: number;
   item_code: string;
   item_name: string;
-  current_price: number;
+  active_price?: number;  // From PO line items (includes active_price method)
+  current_price?: number; // From pricebook search API
   unit_of_measure?: string;
   gst_code?: string;
 }
@@ -244,9 +245,11 @@ export default function PurchaseOrderDetailPage() {
       const ordDate = response.ordered_date || "";
       const note = response.special_instructions || "";
       const supp = response.supplier || null;
-      // Ensure there's always one blank line at the end
+
+      // Sort line items by price and ensure there's always one blank line at the end
       const items = response.line_items || [];
-      const itemsWithBlank = [...items, { description: "", quantity: 0, unit_price: 0 }];
+      const sortedItems = [...items].sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0));
+      const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
 
       setDescription(desc);
       setStatus(stat);
@@ -257,7 +260,7 @@ export default function PurchaseOrderDetailPage() {
       setSelectedSupplier(supp);
       setLineItems(itemsWithBlank);
 
-      // Store original state for change tracking
+      // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
         status: stat,
@@ -360,7 +363,45 @@ export default function PurchaseOrderDetailPage() {
       };
 
       await api.patch(`/api/v1/purchase_orders/${recordId}`, updateData);
-      await loadPurchaseOrder();
+
+      // Reload the purchase order data
+      const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
+      setPurchaseOrder(response);
+
+      // Initialize editable fields
+      const desc = response.description || "";
+      const stat = response.status || "draft";
+      const budg = response.budget?.toString() || "";
+      const reqDate = response.required_date || "";
+      const ordDate = response.ordered_date || "";
+      const note = response.special_instructions || "";
+      const supp = response.supplier || null;
+
+      // Sort line items by price and ensure there's always one blank line at the end
+      const items = response.line_items || [];
+      const sortedItems = [...items].sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0));
+      const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
+
+      setDescription(desc);
+      setStatus(stat);
+      setBudget(budg);
+      setRequiredDate(reqDate);
+      setOrderedDate(ordDate);
+      setNotes(note);
+      setSelectedSupplier(supp);
+      setLineItems(itemsWithBlank);
+
+      // Store original state for change tracking (with sorted items)
+      setOriginalState({
+        description: desc,
+        status: stat,
+        budget: budg,
+        requiredDate: reqDate,
+        orderedDate: ordDate,
+        notes: note,
+        selectedSupplier: supp,
+        lineItems: itemsWithBlank,
+      });
     } catch (err) {
       console.error("Failed to save purchase order:", err);
       setError("Failed to save changes");
@@ -461,12 +502,14 @@ export default function PurchaseOrderDetailPage() {
 
   const selectPricebookItem = (index: number, item: PricebookItem) => {
     const updated = [...lineItems];
+    // Use active_price (from PO line items) or current_price (from pricebook search API)
+    const price = item.active_price ?? item.current_price ?? 0;
     updated[index] = {
       ...updated[index],
       pricebook_item_id: item.id,
       pricebook_item: item,
       description: item.item_name,
-      unit_price: item.current_price,
+      unit_price: price,
       gst_code: item.gst_code || "GST", // Copy GST code from pricebook item
     };
     // If selecting on the last item, add a new blank line
@@ -862,33 +905,45 @@ export default function PurchaseOrderDetailPage() {
               </TableHeader>
             <TableBody>
               {lineItems
-                .filter((item) => !item._destroy)
-                .sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0))
-                .map((item, index) => {
+                .map((item, originalIndex) => ({ item, originalIndex }))
+                .filter(({ item }) => !item._destroy)
+                .map(({ item, originalIndex }, displayIndex) => {
                   const activeItems = lineItems.filter((item) => !item._destroy);
-                  const isLastItem = index === activeItems.length - 1;
+                  const isLastItem = displayIndex === activeItems.length - 1;
                   const isBlank = isBlankLineItem(item);
                   const shouldGreyOut = isLastItem && isBlank;
 
                   // Check if price has changed from pricebook
                   // Convert to numbers for comparison to handle both string and number types
-                  const hasPriceChanged = item.pricebook_item?.current_price != null &&
-                    Number(item.unit_price) !== Number(item.pricebook_item.current_price);
+                  const hasPriceChanged = item.pricebook_item?.active_price != null &&
+                    Number(item.unit_price) !== Number(item.pricebook_item.active_price);
+
+                  // Debug logging
+                  if (item.pricebook_item && hasPriceChanged) {
+                    console.log('Price mismatch detected:', {
+                      item_code: item.pricebook_item.item_code,
+                      po_unit_price: item.unit_price,
+                      pricebook_active_price: item.pricebook_item.active_price,
+                      po_as_number: Number(item.unit_price),
+                      pricebook_as_number: Number(item.pricebook_item.active_price),
+                      are_equal: Number(item.unit_price) === Number(item.pricebook_item.active_price)
+                    });
+                  }
 
                   // Determine background color (priority: grey out > price changed > normal)
-                  const rowBgColor = shouldGreyOut ? '#f1f5f9' : (hasPriceChanged ? '#fed7aa' : undefined);
+                  const rowBgColor = shouldGreyOut ? '#f1f5f9' : (hasPriceChanged ? '#fb923c' : undefined);
 
                   return (
                   <TableRow
-                    key={item.id || `new-${index}`}
+                    key={item.id || `new-${originalIndex}`}
                     className="h-auto"
                     style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                   >
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Popover
-                        open={pricebookOpenFor === index}
+                        open={pricebookOpenFor === originalIndex}
                         onOpenChange={(open) => {
-                          setPricebookOpenFor(open ? index : null);
+                          setPricebookOpenFor(open ? originalIndex : null);
                           if (!open) setPricebookSearch(""); // Clear search when closing
                         }}
                       >
@@ -922,7 +977,7 @@ export default function PurchaseOrderDetailPage() {
                                     key={pbItem.id}
                                     value={`${pbItem.item_code} ${pbItem.item_name}`}
                                     onSelect={() => {
-                                      selectPricebookItem(index, pbItem);
+                                      selectPricebookItem(originalIndex, pbItem);
                                       setPricebookSearch("");
                                     }}
                                   >
@@ -951,7 +1006,7 @@ export default function PurchaseOrderDetailPage() {
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         value={item.description}
-                        onChange={(e) => updateLineItem(index, "description", e.target.value)}
+                        onChange={(e) => updateLineItem(originalIndex, "description", e.target.value)}
                         placeholder="Item description"
                         className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
                         style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
@@ -962,7 +1017,7 @@ export default function PurchaseOrderDetailPage() {
                         type="number"
                         value={item.quantity}
                         onChange={(e) =>
-                          updateLineItem(index, "quantity", parseFloat(e.target.value) || 0)
+                          updateLineItem(originalIndex, "quantity", parseFloat(e.target.value) || 0)
                         }
                         className={cn(
                           "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
@@ -977,7 +1032,7 @@ export default function PurchaseOrderDetailPage() {
                         type="number"
                         value={item.unit_price}
                         onChange={(e) =>
-                          updateLineItem(index, "unit_price", parseFloat(e.target.value) || 0)
+                          updateLineItem(originalIndex, "unit_price", parseFloat(e.target.value) || 0)
                         }
                         className={cn(
                           "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
@@ -1019,7 +1074,7 @@ export default function PurchaseOrderDetailPage() {
                                     <CommandItem
                                       key={gstOption.value}
                                       value={gstOption.value}
-                                      onSelect={() => updateLineItem(index, "gst_code", gstOption.value)}
+                                      onSelect={() => updateLineItem(originalIndex, "gst_code", gstOption.value)}
                                     >
                                       <Check
                                         className={cn(
@@ -1052,7 +1107,7 @@ export default function PurchaseOrderDetailPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => removeLineItem(index)}
+                        onClick={() => removeLineItem(originalIndex)}
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />

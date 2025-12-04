@@ -532,9 +532,29 @@ module Api
         update_params[:lga] = params[:lga] if params[:lga].present?
 
         if price_history.update(update_params)
+          # Recalculate the item's current_price based on active price history
+          recalculate_current_price(@item)
+
           render json: { success: true, message: 'Price history updated successfully', price_history: price_history }
         else
           render json: { success: false, errors: price_history.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      def recalculate_current_price(item)
+        # Find the active price history (most recent price from default supplier that's effective today or earlier)
+        if item.default_supplier_id
+          today = CompanySetting.today
+          active_history = item.price_histories
+            .where(supplier_id: item.default_supplier_id)
+            .where('date_effective IS NULL OR date_effective <= ?', today)
+            .order(Arel.sql('COALESCE(date_effective, created_at) DESC'))
+            .first
+
+          if active_history
+            item.skip_price_history_callback = true
+            item.update(current_price: active_history.new_price)
+          end
         end
       end
 
@@ -791,7 +811,11 @@ module Api
       def item_with_risk_data(item)
         item_json = item.as_json(include: {
           supplier: { only: [:id, :full_name] },
-          default_supplier: { only: [:id, :full_name] }
+          default_supplier: { only: [:id, :full_name] },
+          price_histories: {
+            include: { supplier: { only: [:id, :full_name] } },
+            methods: []
+          }
         })
 
         # Map full_name to name for backwards compatibility
@@ -800,6 +824,14 @@ module Api
         end
         if item_json['default_supplier']
           item_json['default_supplier']['name'] = item_json['default_supplier']['full_name']
+        end
+        # Map full_name to name for price_histories suppliers
+        if item_json['price_histories']
+          item_json['price_histories'].each do |ph|
+            if ph['supplier']
+              ph['supplier']['name'] = ph['supplier']['full_name']
+            end
+          end
         end
 
         item_json.merge(

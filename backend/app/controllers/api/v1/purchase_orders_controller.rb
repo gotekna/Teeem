@@ -89,7 +89,7 @@ module Api
               },
               schedule_tasks: { only: [:id, :title, :supplier_category] },
               line_items: {
-                include: { pricebook_item: { only: [:id, :item_code, :item_name, :current_price, :unit_of_measure] } },
+                include: { pricebook_item: { only: [:id, :item_code, :item_name, :unit_of_measure], methods: [:active_price] } },
                 methods: [:price_drift, :price_outdated?, :price_status, :price_status_label]
               },
               project_tasks: {
