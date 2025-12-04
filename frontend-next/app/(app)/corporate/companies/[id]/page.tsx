@@ -1536,9 +1536,9 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const [companyGroups, setCompanyGroups] = React.useState<CompanyGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = React.useState(String(company.company_group_id || ""));
   const [savingGroup, setSavingGroup] = React.useState(false);
-  // Parent company state
+  // Parent company state - SSoT: Use consolidation_parent_id for hierarchy
   const [parentCompanyOptions, setParentCompanyOptions] = React.useState<{ id: number; name: string }[]>([]);
-  const [selectedParentId, setSelectedParentId] = React.useState(String(company.parent_company_id || ""));
+  const [selectedParentId, setSelectedParentId] = React.useState(String(company.consolidation_parent_id || ""));
   const [savingParent, setSavingParent] = React.useState(false);
   // Trustee state
   const [availableTrusts, setAvailableTrusts] = React.useState<{ id: number; name: string; entity_type?: string }[]>([]);
@@ -1702,9 +1702,9 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const handleRemoveConsolidation = async (companyId: number) => {
     if (!confirm("Remove this company from consolidation?")) return;
     try {
-      // Clear both consolidation_parent_id AND parent_company_id
+      // SSoT: Only clear consolidation_parent_id (single source of truth)
       await api.put(`/api/v1/companies/${companyId}`, {
-        company: { consolidation_parent_id: null, parent_company_id: null },
+        company: { consolidation_parent_id: null },
       });
       loadConsolidatedCompanies();
       onUpdate();

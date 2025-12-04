@@ -17,6 +17,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Building2,
@@ -314,10 +320,12 @@ export default function CorporateDashboardPage() {
     corporateOfficer: true,
   });
   const [structureViewMode, setStructureViewMode] = React.useState<"chart" | "table">("chart");
+  const [selectedPerson, setSelectedPerson] = React.useState<StructurePerson | null>(null);
 
   // People tab state
   const [people, setPeople] = React.useState<TableRow[]>([]);
   const [loadingPeople, setLoadingPeople] = React.useState(false);
+  const [fullScreenPerson, setFullScreenPerson] = React.useState<TableRow | null>(null);
 
   // Groups tab state
   const [showCreateGroupDialog, setShowCreateGroupDialog] = React.useState(false);
@@ -1493,6 +1501,14 @@ export default function CorporateDashboardPage() {
                               <td className="py-2 px-3">
                                 <div className="flex items-center gap-2">
                                   <button
+                                    onClick={() => setFullScreenPerson(person)}
+                                    className="text-teal-600 hover:text-teal-800 flex items-center gap-1"
+                                    title="View Structure"
+                                  >
+                                    <GitBranch className="h-4 w-4" />
+                                    Structure
+                                  </button>
+                                  <button
                                     onClick={() => router.push(`/contacts/${person.id}`)}
                                     className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
                                   >
@@ -1511,6 +1527,154 @@ export default function CorporateDashboardPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Full Screen Person Structure Dialog */}
+          <Dialog open={!!fullScreenPerson} onOpenChange={(open) => !open && setFullScreenPerson(null)}>
+            <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] overflow-hidden flex flex-col">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-xl">
+                  <GitBranch className="h-6 w-6 text-teal-600" />
+                  {String(fullScreenPerson?.full_name || fullScreenPerson?.name || "")} - Corporate Structure
+                </DialogTitle>
+                <DialogDescription>
+                  All company relationships for this person
+                </DialogDescription>
+              </DialogHeader>
+              {fullScreenPerson && (
+                <div className="flex-1 overflow-y-auto p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {/* Group each company's roles together */}
+                    {(() => {
+                      // Get all roles from person data
+                      const roles = (fullScreenPerson.roles || []) as Array<{
+                        type: string;
+                        company_id: number;
+                        company_name: string;
+                        position?: string;
+                        is_current?: boolean;
+                        shares?: number;
+                        percentage?: number;
+                      }>;
+
+                      // Group roles by company
+                      const companiesMap = new Map<number, {
+                        id: number;
+                        name: string;
+                        roles: typeof roles;
+                      }>();
+
+                      roles.forEach(role => {
+                        if (!companiesMap.has(role.company_id)) {
+                          companiesMap.set(role.company_id, {
+                            id: role.company_id,
+                            name: role.company_name,
+                            roles: []
+                          });
+                        }
+                        companiesMap.get(role.company_id)!.roles.push(role);
+                      });
+
+                      // Convert to array and sort by company name
+                      const companies = Array.from(companiesMap.values()).sort((a, b) =>
+                        a.name.localeCompare(b.name)
+                      );
+
+                      if (companies.length === 0) {
+                        return (
+                          <div className="col-span-full text-center text-muted-foreground py-12">
+                            <GitBranch className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>No company relationships found</p>
+                          </div>
+                        );
+                      }
+
+                      return companies.map(company => (
+                        <Card key={company.id} className="hover:shadow-lg transition-shadow">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-base flex items-center gap-2">
+                              <Building2 className="h-5 w-5 text-blue-600" />
+                              <button
+                                onClick={() => {
+                                  setFullScreenPerson(null);
+                                  router.push(`/corporate/companies/${company.id}`);
+                                }}
+                                className="hover:underline text-left"
+                              >
+                                {company.name}
+                              </button>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {/* Director Role */}
+                            {company.roles.filter(r => r.type === "director").map((role, i) => (
+                              <div key={`dir-${i}`} className="flex items-center gap-2 bg-purple-50 dark:bg-purple-950/30 rounded-lg p-2">
+                                <Users className="h-4 w-4 text-purple-600" />
+                                <div>
+                                  <span className="font-medium text-purple-700 dark:text-purple-300">Director</span>
+                                  {role.position && role.position !== "director" && (
+                                    <span className="text-sm text-muted-foreground ml-1">({role.position})</span>
+                                  )}
+                                  {role.is_current === false && (
+                                    <Badge variant="secondary" className="ml-2 text-xs">Former</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Shareholder Role */}
+                            {company.roles.filter(r => r.type === "shareholder").map((role, i) => (
+                              <div key={`sh-${i}`} className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-2">
+                                <Package className="h-4 w-4 text-amber-600" />
+                                <div>
+                                  <span className="font-medium text-amber-700 dark:text-amber-300">Shareholder</span>
+                                  <span className="text-sm text-muted-foreground ml-2">
+                                    {role.shares?.toLocaleString() || 0} shares ({role.percentage || 0}%)
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Secretary Role */}
+                            {company.roles.filter(r => r.type === "secretary").map((role, i) => (
+                              <div key={`sec-${i}`} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-950/30 rounded-lg p-2">
+                                <FileText className="h-4 w-4 text-blue-600" />
+                                <span className="font-medium text-blue-700 dark:text-blue-300">Secretary</span>
+                              </div>
+                            ))}
+
+                            {/* Public/Corporate Officer Role */}
+                            {company.roles.filter(r => ["public_officer", "corporate_officer", "officer"].includes(r.type || "")).map((role, i) => (
+                              <div key={`off-${i}`} className="flex items-center gap-2 bg-green-50 dark:bg-green-950/30 rounded-lg p-2">
+                                <Key className="h-4 w-4 text-green-600" />
+                                <div>
+                                  <span className="font-medium text-green-700 dark:text-green-300">Public Officer</span>
+                                  {role.position && (
+                                    <span className="text-sm text-muted-foreground ml-1">({role.position})</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              )}
+              <DialogFooter className="border-t pt-4">
+                <Button variant="outline" onClick={() => setFullScreenPerson(null)}>
+                  Close
+                </Button>
+                <Button onClick={() => {
+                  setFullScreenPerson(null);
+                  router.push(`/contacts/${fullScreenPerson?.id}`);
+                }}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  View Full Contact
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Memberships Tab (SSoT) */}
@@ -1942,7 +2106,11 @@ export default function CorporateDashboardPage() {
                         columns={peopleColumns}
                         tableName={`${structureData.group.name} People`}
                         viewOnly={true}
-                        onRowClick={(row) => router.push(`/contacts/${row.contact_id}`)}
+                        onRowClick={(row) => {
+                          // Find the full person data to show in detail panel
+                          const person = structureData.people.find(p => p.contact_id === row.contact_id);
+                          if (person) setSelectedPerson(person);
+                        }}
                         customCellRenderer={(entry, columnKey) => {
                           if (columnKey === "name") {
                             return (
@@ -1988,6 +2156,136 @@ export default function CorporateDashboardPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* Person Detail Sheet */}
+          <Sheet open={!!selectedPerson} onOpenChange={(open) => !open && setSelectedPerson(null)}>
+            <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-teal-600" />
+                  {selectedPerson?.name}
+                </SheetTitle>
+              </SheetHeader>
+              {selectedPerson && (
+                <div className="mt-6 space-y-6">
+                  {/* Contact Info */}
+                  <div>
+                    <p className="text-sm text-muted-foreground">{selectedPerson.email || "No email"}</p>
+                    <Badge className="mt-2" variant={selectedPerson.is_active ? "default" : "secondary"}>
+                      {selectedPerson.is_active ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+
+                  {/* Directorships */}
+                  {selectedPerson.roles.filter(r => r.type === "director").length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-purple-700 dark:text-purple-400 mb-2 flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Directorships ({selectedPerson.roles.filter(r => r.type === "director").length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedPerson.roles.filter(r => r.type === "director").map((role, i) => (
+                          <div key={i} className="bg-purple-50 dark:bg-purple-950/30 rounded-lg p-3">
+                            <button
+                              onClick={() => router.push(`/corporate/companies/${role.company_id}`)}
+                              className="font-medium text-purple-700 dark:text-purple-300 hover:underline"
+                            >
+                              {role.company_name}
+                            </button>
+                            <p className="text-sm text-muted-foreground">
+                              {role.position || "Director"} {role.is_current === false && "(Former)"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Shareholdings */}
+                  {selectedPerson.roles.filter(r => r.type === "shareholder").length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-2">
+                        <Package className="h-4 w-4" />
+                        Shareholdings ({selectedPerson.roles.filter(r => r.type === "shareholder").length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedPerson.roles.filter(r => r.type === "shareholder").map((role, i) => (
+                          <div key={i} className="bg-amber-50 dark:bg-amber-950/30 rounded-lg p-3">
+                            <button
+                              onClick={() => router.push(`/corporate/companies/${role.company_id}`)}
+                              className="font-medium text-amber-700 dark:text-amber-300 hover:underline"
+                            >
+                              {role.company_name}
+                            </button>
+                            <p className="text-sm text-muted-foreground">
+                              {role.shares?.toLocaleString() || 0} shares ({role.percentage || 0}%)
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Secretary Roles */}
+                  {selectedPerson.roles.filter(r => r.type === "secretary").length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Secretary ({selectedPerson.roles.filter(r => r.type === "secretary").length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedPerson.roles.filter(r => r.type === "secretary").map((role, i) => (
+                          <div key={i} className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3">
+                            <button
+                              onClick={() => router.push(`/corporate/companies/${role.company_id}`)}
+                              className="font-medium text-blue-700 dark:text-blue-300 hover:underline"
+                            >
+                              {role.company_name}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Public/Corporate Officer Roles */}
+                  {selectedPerson.roles.filter(r => ["public_officer", "corporate_officer", "officer"].includes(r.type || "")).length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-green-700 dark:text-green-400 mb-2 flex items-center gap-2">
+                        <Key className="h-4 w-4" />
+                        Public/Corporate Officer ({selectedPerson.roles.filter(r => ["public_officer", "corporate_officer", "officer"].includes(r.type || "")).length})
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedPerson.roles.filter(r => ["public_officer", "corporate_officer", "officer"].includes(r.type || "")).map((role, i) => (
+                          <div key={i} className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3">
+                            <button
+                              onClick={() => router.push(`/corporate/companies/${role.company_id}`)}
+                              className="font-medium text-green-700 dark:text-green-300 hover:underline"
+                            >
+                              {role.company_name}
+                            </button>
+                            <p className="text-sm text-muted-foreground">{role.position}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* View Full Contact Button */}
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => router.push(`/contacts/${selectedPerson.contact_id}`)}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View Full Contact Profile
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </SheetContent>
+          </Sheet>
         </TabsContent>
       </Tabs>
     </div>

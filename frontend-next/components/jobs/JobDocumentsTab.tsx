@@ -594,10 +594,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     if (task.has_document) {
       return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"><Paperclip className="h-3 w-3 mr-1" />Attached</Badge>;
     }
-    if (task.required) {
-      return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Required</Badge>;
-    }
-    return <Badge variant="secondary">Optional</Badge>;
+    return <Badge variant="secondary">Pending</Badge>;
   };
 
   // Document Tasks View
@@ -670,34 +667,6 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold">
-                    {tasks.filter((t) => t.has_document).length}/{tasks.length}
-                  </div>
-                  <p className="text-sm text-muted-foreground">Documents Attached</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-green-600">
-                    {tasks.filter((t) => t.is_validated).length}/{tasks.length}
-                  </div>
-                  <p className="text-sm text-muted-foreground">Validated</p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-red-600">
-                    {tasks.filter((t) => t.required && !t.has_document).length}
-                  </div>
-                  <p className="text-sm text-muted-foreground">Required Missing</p>
-                </CardContent>
-              </Card>
-            </div>
-
             {/* Tasks Table */}
             <Card>
               <CardHeader className="pb-3">
@@ -734,10 +703,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                             <div className="flex items-start gap-3">
                               <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                               <div>
-                                <p className="font-medium">
-                                  {task.name}
-                                  {task.required && <span className="text-red-500 ml-1">*</span>}
-                                </p>
+                                <p className="font-medium">{task.name}</p>
                                 <p className="text-sm text-muted-foreground">{task.description}</p>
                               </div>
                             </div>
