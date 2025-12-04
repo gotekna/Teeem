@@ -43,7 +43,7 @@ module HealthChecks
                           .where.not(default_supplier_id: nil)
                           .left_joins(:price_histories)
                           .where(price_histories: { id: nil })
-                          .select('pricebook_items.id, pricebook_items.item_code, pricebook_items.item_name')
+                          .select('pricebook.id, pricebook.item_code, pricebook.item_name')
 
       build_result(
         name: 'Items Without Price History',
