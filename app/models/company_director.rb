@@ -83,6 +83,9 @@ class CompanyDirector < ApplicationRecord
     ) do |m|
       m.is_active = is_current
     end
+
+    # Also set company_group_id and link_to_cg on the Contact (for person contacts)
+    contact.update_columns(company_group_id: company.company_group_id, link_to_cg: true) if contact.company_group_id.nil?
   rescue StandardError => e
     Rails.logger.error("CompanyDirector##{id}: SSoT director membership creation failed - #{e.message}")
   end
