@@ -12,11 +12,19 @@ class CaseContact < ApplicationRecord
     in: %w[client accountant lawyer previous_accountant advisor opposing_party witness related_party ato_officer director shareholder bank_manager insurer broker],
     allow_blank: true
   }
+  validates :alignment, inclusion: {
+    in: %w[friendly neutral opposing],
+    allow_blank: true
+  }
 
   scope :primary, -> { where(is_primary: true) }
   scope :by_role, ->(role) { where(role: role) }
   scope :by_relationship_type, ->(type) { where(relationship_type: type) }
+  scope :by_alignment, ->(alignment) { where(alignment: alignment) }
   scope :subjects, -> { where(role: 'subject') }
+  scope :friendly, -> { where(alignment: 'friendly') }
+  scope :neutral, -> { where(alignment: 'neutral') }
+  scope :opposing, -> { where(alignment: 'opposing') }
 
   ROLES = {
     'subject' => 'Subject of Investigation',
@@ -24,6 +32,13 @@ class CaseContact < ApplicationRecord
     'advisor' => 'Advisor',
     'opposing_party' => 'Opposing Party',
     'related_party' => 'Related Party'
+  }.freeze
+
+  # Alignment - which side the contact is on
+  ALIGNMENTS = {
+    'friendly' => { name: 'Friendly', color: 'green', icon: 'user-check' },
+    'neutral' => { name: 'Neutral', color: 'gray', icon: 'user' },
+    'opposing' => { name: 'Opposing', color: 'red', icon: 'user-x' }
   }.freeze
 
   # Relationship types for the visual chart - more granular than roles
@@ -58,6 +73,18 @@ class CaseContact < ApplicationRecord
 
   def relationship_icon
     RELATIONSHIP_TYPES.dig(relationship_type, :icon) || 'user'
+  end
+
+  def formatted_alignment
+    ALIGNMENTS.dig(alignment, :name) || alignment&.titleize || 'Neutral'
+  end
+
+  def alignment_color
+    ALIGNMENTS.dig(alignment, :color) || 'gray'
+  end
+
+  def alignment_icon
+    ALIGNMENTS.dig(alignment, :icon) || 'user'
   end
 
   # For chart positioning

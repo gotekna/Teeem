@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_04_200425) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_04_204019) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -296,6 +296,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_200425) do
     t.string "relationship_type"
     t.text "relationship_description"
     t.jsonb "display_position", default: {}
+    t.string "alignment", default: "neutral"
+    t.index ["alignment"], name: "index_case_contacts_on_alignment"
     t.index ["case_id", "contact_id"], name: "index_case_contacts_on_case_id_and_contact_id", unique: true
     t.index ["case_id"], name: "index_case_contacts_on_case_id"
     t.index ["contact_id"], name: "index_case_contacts_on_contact_id"
