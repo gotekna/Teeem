@@ -446,39 +446,20 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     }
   };
 
-  // Navigate into a legacy subfolder
-  const navigateLegacyFolder = async (folder: LegacyItem) => {
-    setLegacyFolderPath((prev) => [...prev, { id: folder.id, name: folder.name }]);
-    await loadLegacyFiles(folder.id);
+  // Legacy folder navigation removed - now loads all files recursively
+  // These functions kept for compatibility but are no longer used
+  const navigateLegacyFolder = async (_folder: LegacyItem) => {
+    // No-op: all files loaded recursively
   };
 
-  // Navigate back in legacy folder hierarchy
   const navigateLegacyBack = async () => {
-    if (legacyFolderPath.length === 0) return;
-
-    const newPath = legacyFolderPath.slice(0, -1);
-    setLegacyFolderPath(newPath);
-
-    if (newPath.length === 0) {
-      // Go back to root
-      await loadLegacyFiles();
-    } else {
-      // Go to parent folder
-      await loadLegacyFiles(newPath[newPath.length - 1].id);
-    }
+    // No-op: all files loaded recursively
+    setLegacyFolderPath([]);
   };
 
-  // Navigate to a specific point in the breadcrumb
-  const navigateLegacyToPath = async (index: number) => {
-    if (index < 0) {
-      // Go to root
-      setLegacyFolderPath([]);
-      await loadLegacyFiles();
-    } else {
-      const newPath = legacyFolderPath.slice(0, index + 1);
-      setLegacyFolderPath(newPath);
-      await loadLegacyFiles(newPath[index].id);
-    }
+  const navigateLegacyToPath = async (_index: number) => {
+    // No-op: all files loaded recursively
+    setLegacyFolderPath([]);
   };
 
   // Import selected legacy files to the job folder

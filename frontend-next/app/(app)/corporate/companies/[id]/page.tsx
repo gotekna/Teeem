@@ -168,6 +168,8 @@ interface Company {
   company_group?: string | { name: string };
   company_group_id?: number;
   group_name?: string;
+  parent_company_id?: number;
+  parent_company?: { id: number; name: string };
   // Corporate details
   corporate_key?: string;
   asic_username?: string;
@@ -294,10 +296,76 @@ function InfoRow({ label, value, copyable = false, mono = false }: { label: stri
 }
 
 // Information Sub-Tab
-function InformationTab({ company }: { company: Company }) {
+function InformationTab({ company, onUpdate }: { company: Company; onUpdate: () => void }) {
+  const [availableCompanies, setAvailableCompanies] = React.useState<{ id: number; name: string }[]>([]);
+  const [selectedParentId, setSelectedParentId] = React.useState(String(company.parent_company_id || ""));
+  const [savingParent, setSavingParent] = React.useState(false);
+
+  React.useEffect(() => {
+    loadAvailableCompanies();
+  }, [company.company_group_id]);
+
+  const loadAvailableCompanies = async () => {
+    try {
+      const params: Record<string, string | number> = {};
+      if (company.company_group_id) {
+        params.company_group_id = company.company_group_id;
+      }
+      const response = await api.get<{ companies: { id: number; name: string }[] }>("/api/v1/companies", { params });
+      // Exclude current company from parent options
+      const filtered = (response.companies || []).filter((c) => c.id !== company.id);
+      setAvailableCompanies(filtered);
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  };
+
+  const handleParentChange = async (newParentId: string) => {
+    if (newParentId === selectedParentId) return;
+    try {
+      setSavingParent(true);
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: { parent_company_id: newParentId || null },
+      });
+      setSelectedParentId(newParentId);
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to update parent company:", error);
+    } finally {
+      setSavingParent(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-medium">Company Information</h3>
+
+      {/* Parent Company Selector */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <Label className="whitespace-nowrap">Parent Company:</Label>
+            <select
+              value={selectedParentId}
+              onChange={(e) => handleParentChange(e.target.value)}
+              disabled={savingParent}
+              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            >
+              <option value="">None (Top-level entity)</option>
+              {availableCompanies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {savingParent && <span className="text-sm text-muted-foreground">Saving...</span>}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            Set the parent company for hierarchy display on the Corporate dashboard
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
         <div>
           <p className="text-sm text-muted-foreground">Legal Name</p>
@@ -3498,7 +3566,7 @@ export default function CompanyDetailPage() {
                   </div>
 
                   {/* Trust-specific Sub-tab Content */}
-                  {overviewSubTab === "info" && <InformationTab company={company} />}
+                  {overviewSubTab === "info" && <InformationTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "trustee" && <TrusteeTab company={company} />}
                   {overviewSubTab === "beneficiaries" && <BeneficiariesTab company={company} />}
                   {overviewSubTab === "appointor" && <AppointorTab company={company} />}
@@ -3528,7 +3596,7 @@ export default function CompanyDetailPage() {
                   </div>
 
                   {/* Corporate Trustee Sub-tab Content */}
-                  {overviewSubTab === "info" && <InformationTab company={company} />}
+                  {overviewSubTab === "info" && <InformationTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "directors" && <DirectorsTab company={company} />}
                   {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
@@ -3557,7 +3625,7 @@ export default function CompanyDetailPage() {
                   </div>
 
                   {/* Company Sub-tab Content */}
-                  {overviewSubTab === "info" && <InformationTab company={company} />}
+                  {overviewSubTab === "info" && <InformationTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
                   {overviewSubTab === "directors" && <DirectorsTab company={company} />}
