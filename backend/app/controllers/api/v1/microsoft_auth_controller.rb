@@ -128,6 +128,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
 
   # GET /api/v1/microsoft/status
   # Check current user's Microsoft connection status
+  # Auto-refreshes token if needed, returns needs_reconnect if refresh fails
   def status
     microsoft_token = current_user.microsoft_token
 
@@ -144,19 +145,34 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     end
 
     # Use new unified token if available, otherwise fall back to legacy
-    if microsoft_token&.status == 'connected'
+    if microsoft_token.present?
+      # Auto-refresh if token is expired or about to expire
+      needs_reconnect = false
+      if microsoft_token.needs_refresh? && microsoft_token.refresh_token.present?
+        Rails.logger.info "[Microsoft Status] Token needs refresh for user #{current_user.id}, attempting auto-refresh..."
+        unless microsoft_token.refresh_access_token!
+          Rails.logger.warn "[Microsoft Status] Auto-refresh failed for user #{current_user.id}: #{microsoft_token.sync_error}"
+          needs_reconnect = true
+        end
+        microsoft_token.reload
+      end
+
+      # If token is in error state, it needs reconnect
+      needs_reconnect = true if microsoft_token.status == 'error'
+
       render json: {
-        connected: true,
+        connected: microsoft_token.status == 'connected',
         email: microsoft_token.email,
         status: microsoft_token.status,
         expires_at: microsoft_token.token_expires_at,
         needs_refresh: microsoft_token.needs_refresh?,
+        needs_reconnect: needs_reconnect,
         last_sync_at: microsoft_token.last_sync_at,
         sync_error: microsoft_token.sync_error,
         services: {
-          outlook: true,
-          onedrive: true,
-          sharepoint: true
+          outlook: microsoft_token.status == 'connected',
+          onedrive: microsoft_token.status == 'connected',
+          sharepoint: microsoft_token.status == 'connected'
         }
       }
     elsif outlook_credential.present?

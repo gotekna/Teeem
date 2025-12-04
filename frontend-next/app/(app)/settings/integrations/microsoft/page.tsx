@@ -35,6 +35,8 @@ interface MicrosoftStatus {
   connected: boolean;
   email?: string;
   connected_at?: string;
+  needs_reconnect?: boolean;
+  sync_error?: string;
   services: {
     outlook: boolean;
     onedrive: boolean;
@@ -100,6 +102,15 @@ export default function MicrosoftIntegrationPage() {
           api.get<ConnectionsResponse>("/api/v1/microsoft/connections"),
           api.get<MyDataStats>("/api/v1/microsoft/my_data_stats"),
         ]);
+
+        // Auto-reconnect if token refresh failed (user won't even notice)
+        if (statusData.needs_reconnect) {
+          console.log("Microsoft token needs reconnect, redirecting to auth...");
+          const { url } = await api.get<{ url: string }>("/api/v1/microsoft/auth_url");
+          window.location.href = url;
+          return; // Don't update state, we're redirecting
+        }
+
         setStatus(statusData);
         setConnections(connectionsData);
         setMyDataStats(myDataStatsData);
