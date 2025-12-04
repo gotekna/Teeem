@@ -59,8 +59,9 @@ class FolderTemplate < ApplicationRecord
   # Check if user can edit this template
   def can_edit?(user)
     return false unless user
-    # For now, users can edit their own templates, system templates cannot be edited
-    # TODO: Implement admin role that can edit all templates
+    # Admins can edit all templates including system defaults
+    return true if user.admin?
+    # Regular users can only edit their own non-system templates
     !is_system_default && created_by_id == user.id
   end
 
