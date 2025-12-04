@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -1462,6 +1462,157 @@ module Api
         render json: {
           success: false,
           error: "Failed to load memberships: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/directorships
+      # Returns all directorships for this contact (from CompanyDirector table)
+      def directorships
+        directorships = @contact.company_directorships
+          .includes(company: :company_group)
+          .order(is_current: :desc, appointment_date: :desc)
+
+        render json: {
+          success: true,
+          data: directorships.map do |d|
+            {
+              id: d.id,
+              company_id: d.company_id,
+              company_name: d.company&.name,
+              company_acn: d.company&.acn,
+              company_abn: d.company&.abn,
+              company_status: d.company&.status,
+              company_entity_type: d.company&.entity_type,
+              company_group_id: d.company&.company_group_id,
+              company_group_name: d.company&.company_group&.name,
+              position: d.position,
+              formatted_position: d.formatted_position,
+              appointment_date: d.appointment_date,
+              resignation_date: d.resignation_date,
+              is_current: d.is_current,
+              din: d.din,
+              created_at: d.created_at,
+              updated_at: d.updated_at
+            }
+          end
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to load directorships: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/shareholdings
+      # Returns all shareholdings for this contact (from CompanyShareholding table)
+      def shareholdings
+        shareholdings = @contact.company_shareholdings
+          .includes(company: :company_group)
+          .order(created_at: :desc)
+
+        render json: {
+          success: true,
+          data: shareholdings.map do |s|
+            {
+              id: s.id,
+              company_id: s.company_id,
+              company_name: s.company&.name,
+              company_acn: s.company&.acn,
+              company_abn: s.company&.abn,
+              company_status: s.company&.status,
+              company_entity_type: s.company&.entity_type,
+              company_group_id: s.company&.company_group_id,
+              company_group_name: s.company&.company_group&.name,
+              share_class: s.share_class,
+              number_of_shares: s.number_of_shares,
+              percentage_of_total: s.percentage_of_total,
+              beneficially_held: s.beneficially_held,
+              acquisition_date: s.acquisition_date,
+              disposal_date: s.disposal_date,
+              consideration_paid: s.consideration_paid,
+              created_at: s.created_at,
+              updated_at: s.updated_at
+            }
+          end
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to load shareholdings: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/trust_roles
+      # Returns all trust-related roles for this contact (trustee, beneficiary, appointor)
+      def trust_roles
+        # Get trustee roles (where this contact is trustee of a trust)
+        trustee_roles = @contact.outgoing_relationships
+          .where(relationship_type: 'trustee_of')
+          .includes(:related_contact)
+          .map do |rel|
+            {
+              id: rel.id,
+              role_type: 'trustee',
+              trust_id: rel.related_contact_id,
+              trust_name: rel.related_contact&.full_name,
+              trust_entity_type: rel.related_contact&.entity_type,
+              start_date: rel.start_date,
+              end_date: rel.end_date,
+              is_active: rel.is_active,
+              notes: rel.context
+            }
+          end
+
+        # Get beneficiary roles
+        beneficiary_roles = @contact.outgoing_relationships
+          .where(relationship_type: 'beneficiary_of')
+          .includes(:related_contact)
+          .map do |rel|
+            {
+              id: rel.id,
+              role_type: 'beneficiary',
+              trust_id: rel.related_contact_id,
+              trust_name: rel.related_contact&.full_name,
+              trust_entity_type: rel.related_contact&.entity_type,
+              ownership_percentage: rel.ownership_percentage,
+              start_date: rel.start_date,
+              end_date: rel.end_date,
+              is_active: rel.is_active,
+              notes: rel.context
+            }
+          end
+
+        # Get appointor roles
+        appointor_roles = @contact.outgoing_relationships
+          .where(relationship_type: 'appointor_of')
+          .includes(:related_contact)
+          .map do |rel|
+            {
+              id: rel.id,
+              role_type: 'appointor',
+              trust_id: rel.related_contact_id,
+              trust_name: rel.related_contact&.full_name,
+              trust_entity_type: rel.related_contact&.entity_type,
+              start_date: rel.start_date,
+              end_date: rel.end_date,
+              is_active: rel.is_active,
+              notes: rel.context
+            }
+          end
+
+        render json: {
+          success: true,
+          data: {
+            trustee_roles: trustee_roles,
+            beneficiary_roles: beneficiary_roles,
+            appointor_roles: appointor_roles,
+            total_count: trustee_roles.length + beneficiary_roles.length + appointor_roles.length
+          }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to load trust roles: #{e.message}"
         }, status: :internal_server_error
       end
 
