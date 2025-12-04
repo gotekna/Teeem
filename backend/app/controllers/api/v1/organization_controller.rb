@@ -72,13 +72,14 @@ module Api
         end
 
         # SharePoint stats
+        # Note: OrganizationOneDriveCredential has drive_name, root_folder_path but not site_url/site_path
         onedrive_credential = OrganizationOneDriveCredential.active_credential rescue nil
         sharepoint_stats = {
           connected: onedrive_credential.present?,
-          site_url: onedrive_credential&.site_url || "gotekna.sharepoint.com/sites/TEEEM",
-          site_path: onedrive_credential&.site_path || "/Shared Documents",
+          site_url: onedrive_credential&.drive_name || "SharePoint",
+          site_path: onedrive_credential&.root_folder_path || "/Shared Documents",
           total_synced: documents.where(source: 'onedrive').count,
-          last_sync: documents.where(source: 'onedrive').maximum(:synced_at)
+          last_sync: onedrive_credential&.last_synced_at || documents.where(source: 'onedrive').maximum(:synced_at)
         }
 
         # Xero stats
