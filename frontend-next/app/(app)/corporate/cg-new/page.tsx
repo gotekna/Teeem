@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ExternalLink, ToggleLeft, ToggleRight, ChevronRight, ChevronDown, CheckCircle2 } from "lucide-react";
+import { Loader2, ExternalLink, ToggleLeft, ToggleRight, ChevronRight, ChevronDown, CheckCircle2, Pencil } from "lucide-react";
 import { api } from "@/lib/api";
 
 interface Membership {
@@ -281,16 +281,30 @@ export default function CGNewPage() {
             )}
           </td>
           <td className="py-2 px-3">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                router.push(`/contacts/${contact.contact_id}`);
-              }}
-              className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-            >
-              <ExternalLink className="h-4 w-4" />
-              View
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/contacts/${contact.contact_id}`);
+                }}
+                className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                title="View Contact"
+              >
+                <ExternalLink className="h-4 w-4" />
+                View
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/contacts/${contact.contact_id}?edit=true`);
+                }}
+                className="text-amber-600 hover:text-amber-800 flex items-center gap-1"
+                title="Edit Contact (SSoT)"
+              >
+                <Pencil className="h-4 w-4" />
+                Edit
+              </button>
+            </div>
           </td>
         </tr>
         {/* Expanded memberships */}
@@ -444,7 +458,7 @@ export default function CGNewPage() {
                             <th className="text-left py-2 px-3 font-medium">Company</th>
                             <th className="text-left py-2 px-3 font-medium">Membership</th>
                             <th className="text-left py-2 px-3 font-medium">Group</th>
-                            <th className="text-left py-2 px-3 font-medium">Contact</th>
+                            <th className="text-left py-2 px-3 font-medium">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -467,7 +481,7 @@ export default function CGNewPage() {
                     <th className="text-left py-2 px-3 font-medium">Company</th>
                     <th className="text-left py-2 px-3 font-medium">Membership</th>
                     <th className="text-left py-2 px-3 font-medium">Group</th>
-                    <th className="text-left py-2 px-3 font-medium">Contact</th>
+                    <th className="text-left py-2 px-3 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>

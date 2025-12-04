@@ -240,6 +240,17 @@ export default function ContactDetailPage() {
     }
   }, [contact?.id]);
 
+  // SSoT: Auto-open edit modal when ?edit=true is in URL (e.g., from CG page)
+  useEffect(() => {
+    const editParam = searchParams.get("edit");
+    if (editParam === "true" && contact && !loading) {
+      setEditModalOpen(true);
+      // Remove the ?edit=true from URL to clean it up
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, "", newUrl);
+    }
+  }, [searchParams, contact, loading]);
+
   const loadContact = async () => {
     try {
       setLoading(true);
