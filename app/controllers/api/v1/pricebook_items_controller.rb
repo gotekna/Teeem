@@ -730,11 +730,20 @@ module Api
           # Numeric ID - direct lookup
           @item = PricebookItem.find(id_or_slug)
         else
-          # Slug - search by item_code (convert slug back to search term)
+          # Slug - search by item_code
           # Remove the _God_Loves_You_ suffix if present
           slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
-          search_term = slug.gsub('-', ' ')
-          @item = PricebookItem.where('LOWER(item_code) LIKE ?', "%#{search_term.downcase}%").first
+
+          # Try URL-decoded exact match first (for codes with periods, special chars)
+          decoded_code = CGI.unescape(slug)
+          @item = PricebookItem.where('LOWER(item_code) = ?', decoded_code.downcase).first
+
+          # Fallback to fuzzy search if exact match fails (for old slugified URLs)
+          unless @item
+            search_term = slug.gsub('-', ' ')
+            @item = PricebookItem.where('LOWER(item_code) LIKE ?', "%#{search_term.downcase}%").first
+          end
+
           raise ActiveRecord::RecordNotFound, "Pricebook item not found with slug: #{id_or_slug}" unless @item
         end
       rescue ActiveRecord::RecordNotFound
