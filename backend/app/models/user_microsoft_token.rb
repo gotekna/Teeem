@@ -27,6 +27,9 @@ class UserMicrosoftToken < ApplicationRecord
     token_expires_at.nil? || token_expires_at < 5.minutes.from_now
   end
 
+  # Alias for compatibility with MicrosoftGraphClient which expects token_expired?
+  alias_method :token_expired?, :needs_refresh?
+
   # Check if token is valid and connected
   def connected?
     status == 'connected' && access_token.present? && !needs_refresh?

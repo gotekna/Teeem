@@ -1766,7 +1766,20 @@ module Api
           # Remove the _God_Loves_You_ suffix if present
           slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, '')
           search_term = slug.gsub('-', ' ')
+
+          # Try exact substring match first
           @contact = Contact.where('LOWER(full_name) LIKE ?', "%#{search_term.downcase}%").first
+
+          # If not found, try matching all words (handles middle names)
+          # e.g., "rachel harder" should match "Rachel Anne Harder"
+          unless @contact
+            words = search_term.downcase.split(/\s+/).reject(&:blank?)
+            if words.any?
+              conditions = words.map { |w| "LOWER(full_name) LIKE '%#{Contact.sanitize_sql_like(w)}%'" }.join(' AND ')
+              @contact = Contact.where(conditions).first
+            end
+          end
+
           raise ActiveRecord::RecordNotFound, "Contact not found with slug: #{id_or_slug}" unless @contact
         end
       rescue ActiveRecord::RecordNotFound

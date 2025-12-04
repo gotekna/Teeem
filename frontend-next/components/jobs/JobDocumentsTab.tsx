@@ -92,7 +92,14 @@ interface FolderPath {
 interface DocumentCategory {
   id: number;
   name: string;
-  document_count: number;
+  document_count?: number;
+  icon?: string;
+  color?: string;
+  description?: string;
+  sequence_order?: number;
+  is_active?: boolean;
+  folder_path?: string;
+  children?: DocumentCategory[];
 }
 
 interface DocumentTask {
@@ -131,6 +138,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
   const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<DocumentCategory | null>(null);
   const [tasks, setTasks] = useState<DocumentTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [uploading, setUploading] = useState<number | null>(null);
@@ -154,10 +162,23 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   }, [jobId]);
 
   useEffect(() => {
+    // When a parent category is selected, auto-select the first child (or the parent itself if no children)
     if (selectedCategory) {
-      loadDocumentTasks(selectedCategory.id);
+      if (selectedCategory.children && selectedCategory.children.length > 0) {
+        setSelectedSubCategory(selectedCategory.children[0]);
+      } else {
+        setSelectedSubCategory(null);
+        loadDocumentTasks(selectedCategory.id);
+      }
     }
   }, [selectedCategory]);
+
+  useEffect(() => {
+    // Load tasks for the selected subcategory
+    if (selectedSubCategory) {
+      loadDocumentTasks(selectedSubCategory.id);
+    }
+  }, [selectedSubCategory]);
 
   const checkOrganizationStatus = async () => {
     try {
@@ -499,8 +520,12 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       );
     }
 
+    // Get the current active category (either the subcategory or the parent if no children)
+    const activeCategory = selectedSubCategory || selectedCategory;
+
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
+        {/* Main Tabs (Parent Categories) */}
         <Tabs
           value={String(selectedCategory?.id)}
           onValueChange={(val) => {
@@ -508,133 +533,175 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             if (cat) setSelectedCategory(cat);
           }}
         >
-          <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1">
             {documentCategories.map((cat) => (
-              <TabsTrigger key={cat.id} value={String(cat.id)}>
-                {cat.name} ({cat.document_count || 0})
+              <TabsTrigger
+                key={cat.id}
+                value={String(cat.id)}
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                {cat.name}
               </TabsTrigger>
             ))}
           </TabsList>
-
-          {documentCategories.map((cat) => (
-            <TabsContent key={cat.id} value={String(cat.id)}>
-              {loadingTasks ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">
-                          {tasks.filter((t) => t.has_document).length}/{tasks.length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Documents Attached</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-green-600">
-                          {tasks.filter((t) => t.is_validated).length}/{tasks.length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Validated</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-red-600">
-                          {tasks.filter((t) => t.required && !t.has_document).length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Required Missing</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Tasks Table */}
-                  <Card>
-                    <CardContent className="p-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Document</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Uploaded</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {tasks.map((task) => (
-                            <TableRow key={task.id}>
-                              <TableCell>
-                                <div className="flex items-start gap-3">
-                                  <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-                                  <div>
-                                    <p className="font-medium">
-                                      {task.name}
-                                      {task.required && <span className="text-red-500 ml-1">*</span>}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>{getStatusBadge(task)}</TableCell>
-                              <TableCell>
-                                {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <label className="cursor-pointer">
-                                    <input
-                                      type="file"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) handleTaskUpload(task.id, file);
-                                      }}
-                                      disabled={uploading === task.id}
-                                    />
-                                    <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
-                                      <span>
-                                        {uploading === task.id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <Upload className="h-4 w-4 mr-1" />
-                                        )}
-                                        {task.has_document ? "Replace" : "Upload"}
-                                      </span>
-                                    </Button>
-                                  </label>
-                                  {task.has_document && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => task.document_url && window.open(task.document_url, "_blank")}
-                                    >
-                                      <Eye className="h-4 w-4 mr-1" />
-                                      View
-                                    </Button>
-                                  )}
-                                  {task.has_document && !task.is_validated && (
-                                    <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
-                                      <ShieldCheck className="h-4 w-4 mr-1" />
-                                      Validate
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </TabsContent>
-          ))}
         </Tabs>
+
+        {/* Sub Tabs (Child Categories) - only show if selected parent has children */}
+        {selectedCategory?.children && selectedCategory.children.length > 0 && (
+          <Tabs
+            value={String(selectedSubCategory?.id)}
+            onValueChange={(val) => {
+              const subCat = selectedCategory.children?.find((c) => String(c.id) === val);
+              if (subCat) setSelectedSubCategory(subCat);
+            }}
+          >
+            <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap gap-1 bg-transparent p-0">
+              {selectedCategory.children.map((subCat) => (
+                <TabsTrigger
+                  key={subCat.id}
+                  value={String(subCat.id)}
+                  className="border border-border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  {subCat.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+
+        {/* Content for the active category */}
+        {loadingTasks ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold">
+                    {tasks.filter((t) => t.has_document).length}/{tasks.length}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Documents Attached</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-green-600">
+                    {tasks.filter((t) => t.is_validated).length}/{tasks.length}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Validated</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-red-600">
+                    {tasks.filter((t) => t.required && !t.has_document).length}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Required Missing</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tasks Table */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Folder className="h-5 w-5 text-yellow-500" />
+                  {activeCategory?.name}
+                  {activeCategory?.folder_path && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({activeCategory.folder_path})
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {tasks.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">No document tasks in this category.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Document</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Uploaded</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tasks.map((task) => (
+                        <TableRow key={task.id}>
+                          <TableCell>
+                            <div className="flex items-start gap-3">
+                              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <div>
+                                <p className="font-medium">
+                                  {task.name}
+                                  {task.required && <span className="text-red-500 ml-1">*</span>}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{task.description}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(task)}</TableCell>
+                          <TableCell>
+                            {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <label className="cursor-pointer">
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleTaskUpload(task.id, file);
+                                  }}
+                                  disabled={uploading === task.id}
+                                />
+                                <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
+                                  <span>
+                                    {uploading === task.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Upload className="h-4 w-4 mr-1" />
+                                    )}
+                                    {task.has_document ? "Replace" : "Upload"}
+                                  </span>
+                                </Button>
+                              </label>
+                              {task.has_document && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => task.document_url && window.open(task.document_url, "_blank")}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              )}
+                              {task.has_document && !task.is_validated && (
+                                <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
+                                  <ShieldCheck className="h-4 w-4 mr-1" />
+                                  Validate
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     );
   };

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_04_011100) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_04_030607) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1914,9 +1914,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_011100) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "folder_path"
+    t.bigint "parent_id"
     t.index ["job_id", "name"], name: "index_job_documentation_tabs_on_job_id_and_name", unique: true
     t.index ["job_id", "sequence_order"], name: "index_job_documentation_tabs_on_job_id_and_sequence_order"
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
+    t.index ["parent_id"], name: "index_job_documentation_tabs_on_parent_id"
   end
 
   create_table "job_documents", force: :cascade do |t|
@@ -4294,6 +4296,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_011100) do
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"
+  add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_documents", "document_types"
   add_foreign_key "job_documents", "jobs"
