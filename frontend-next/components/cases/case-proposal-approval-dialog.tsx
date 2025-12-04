@@ -39,10 +39,17 @@ import {
   Sparkles,
   AlertTriangle,
   FolderOpen,
+  FolderInput,
+  FolderOutput,
+  Copy,
+  Move,
   Calculator,
   Scale,
   Briefcase,
   Users,
+  Search,
+  X,
+  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -57,6 +64,24 @@ interface InvolvedParty {
   contact_exists?: boolean;
   contact_id?: number;
   skip_create?: boolean;
+}
+
+interface RelatedJob {
+  job_id: number;
+  job_title?: string;
+  address?: string;
+  job_found?: boolean;
+  address_match?: string;
+}
+
+interface RelatedCompany {
+  company_id?: number;
+  name: string;
+  entity_type?: string;
+  abn?: string;
+  acn?: string;
+  company_found?: boolean;
+  role?: string;
 }
 
 interface CaseProposal {
@@ -166,8 +191,20 @@ export function CaseProposalApprovalDialog({
   const [description, setDescription] = useState(data.description || "");
   const [priority, setPriority] = useState(data.priority || "medium");
   const [parties, setParties] = useState<InvolvedParty[]>(data.involved_parties || []);
-  const [folderPaths, setFolderPaths] = useState<string[]>(proposal.folder_paths || []);
-  const [newFolderPath, setNewFolderPath] = useState("");
+  const [sourceFolders, setSourceFolders] = useState<string[]>(proposal.folder_paths || []);
+  const [newSourceFolder, setNewSourceFolder] = useState("");
+  const [filingFolder, setFilingFolder] = useState(proposal.extracted_data?.filing_folder || "");
+  const [fileAction, setFileAction] = useState<"copy" | "move">("copy");
+
+  // Related items state
+  const [relatedJobs, setRelatedJobs] = useState<RelatedJob[]>([]);
+  const [relatedCompanies, setRelatedCompanies] = useState<RelatedCompany[]>([]);
+  const [jobSearch, setJobSearch] = useState("");
+  const [companySearch, setCompanySearch] = useState("");
+  const [jobSearchResults, setJobSearchResults] = useState<RelatedJob[]>([]);
+  const [companySearchResults, setCompanySearchResults] = useState<RelatedCompany[]>([]);
+  const [searchingJobs, setSearchingJobs] = useState(false);
+  const [searchingCompanies, setSearchingCompanies] = useState(false);
 
   // Reset form when proposal changes
   useEffect(() => {
@@ -177,7 +214,21 @@ export function CaseProposalApprovalDialog({
     setDescription(newData.description || "");
     setPriority(newData.priority || "medium");
     setParties(newData.involved_parties || []);
-    setFolderPaths(proposal.folder_paths || []);
+    setSourceFolders(proposal.folder_paths || []);
+    setFilingFolder(newData.filing_folder || "");
+    // Initialize related items from AI extraction
+    setRelatedJobs((newData.related_jobs || []).map((j: Record<string, unknown>) => ({
+      job_id: j.job_id as number,
+      job_title: j.job_title as string,
+      job_found: j.job_found as boolean,
+      address_match: j.address_match as string,
+    })).filter((j: RelatedJob) => j.job_id));
+    setRelatedCompanies((newData.related_companies || []).map((c: Record<string, unknown>) => ({
+      company_id: c.company_id as number,
+      name: c.name as string,
+      company_found: c.company_found as boolean,
+      role: c.role as string,
+    })));
   }, [proposal]);
 
   const updateParty = (index: number, updates: Partial<InvolvedParty>) => {
@@ -201,16 +252,112 @@ export function CaseProposalApprovalDialog({
     }]);
   };
 
-  const addFolderPath = () => {
-    if (newFolderPath.trim()) {
-      setFolderPaths(prev => [...prev, newFolderPath.trim()]);
-      setNewFolderPath("");
+  const addSourceFolder = () => {
+    if (newSourceFolder.trim()) {
+      setSourceFolders(prev => [...prev, newSourceFolder.trim()]);
+      setNewSourceFolder("");
     }
   };
 
-  const removeFolderPath = (index: number) => {
-    setFolderPaths(prev => prev.filter((_, i) => i !== index));
+  const removeSourceFolder = (index: number) => {
+    setSourceFolders(prev => prev.filter((_, i) => i !== index));
   };
+
+  // Search for jobs
+  const searchJobs = async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setJobSearchResults([]);
+      return;
+    }
+    setSearchingJobs(true);
+    try {
+      const response = await api.get(`/jobs?search=${encodeURIComponent(query)}&limit=10`);
+      const jobs = (response.data.jobs || response.data || []).map((j: Record<string, unknown>) => ({
+        job_id: j.id,
+        job_title: j.title || j.name,
+        address: j.address,
+        job_found: true,
+      }));
+      setJobSearchResults(jobs);
+    } catch (error) {
+      console.error("Error searching jobs:", error);
+      setJobSearchResults([]);
+    } finally {
+      setSearchingJobs(false);
+    }
+  };
+
+  // Search for companies
+  const searchCompanies = async (query: string) => {
+    if (!query.trim() || query.length < 2) {
+      setCompanySearchResults([]);
+      return;
+    }
+    setSearchingCompanies(true);
+    try {
+      const response = await api.get(`/companies?search=${encodeURIComponent(query)}&limit=10`);
+      const companies = (response.data.companies || response.data || []).map((c: Record<string, unknown>) => ({
+        company_id: c.id,
+        name: c.name,
+        entity_type: c.entity_type,
+        abn: c.abn,
+        acn: c.acn,
+        company_found: true,
+      }));
+      setCompanySearchResults(companies);
+    } catch (error) {
+      console.error("Error searching companies:", error);
+      setCompanySearchResults([]);
+    } finally {
+      setSearchingCompanies(false);
+    }
+  };
+
+  // Add job to related items
+  const addRelatedJob = (job: RelatedJob) => {
+    if (!relatedJobs.find(j => j.job_id === job.job_id)) {
+      setRelatedJobs(prev => [...prev, job]);
+    }
+    setJobSearch("");
+    setJobSearchResults([]);
+  };
+
+  // Remove job from related items
+  const removeRelatedJob = (jobId: number) => {
+    setRelatedJobs(prev => prev.filter(j => j.job_id !== jobId));
+  };
+
+  // Add company to related items
+  const addRelatedCompany = (company: RelatedCompany) => {
+    if (company.company_id && !relatedCompanies.find(c => c.company_id === company.company_id)) {
+      setRelatedCompanies(prev => [...prev, company]);
+    } else if (!company.company_id) {
+      // New company to create
+      setRelatedCompanies(prev => [...prev, company]);
+    }
+    setCompanySearch("");
+    setCompanySearchResults([]);
+  };
+
+  // Remove company from related items
+  const removeRelatedCompany = (index: number) => {
+    setRelatedCompanies(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (jobSearch) searchJobs(jobSearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [jobSearch]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (companySearch) searchCompanies(companySearch);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [companySearch]);
 
   const handleApprove = async () => {
     const userEdits = {
@@ -219,7 +366,12 @@ export function CaseProposalApprovalDialog({
       description,
       priority,
       involved_parties: parties.filter(p => !p.skip_create && p.name.trim()),
-      folder_paths: folderPaths,
+      source_folders: sourceFolders,
+      filing_folder: filingFolder,
+      file_action: fileAction,
+      job_ids: relatedJobs.map(j => j.job_id),
+      company_ids: relatedCompanies.filter(c => c.company_id).map(c => c.company_id),
+      new_companies: relatedCompanies.filter(c => !c.company_id),
     };
     await onApprove(proposal.id, userEdits);
   };
@@ -334,23 +486,23 @@ export function CaseProposalApprovalDialog({
                   </div>
                 )}
 
-                {/* Folder Paths for Indexing */}
+                {/* Source Folders - where documents currently are */}
                 <div className="grid gap-2">
                   <Label className="flex items-center gap-2">
-                    <FolderOpen className="w-4 h-4" />
-                    Folders to Index (OneDrive paths)
+                    <FolderInput className="w-4 h-4 text-blue-500" />
+                    Source Folders (where documents are now)
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Add OneDrive/SharePoint folder paths containing relevant documents to index
+                    OneDrive/SharePoint folders containing existing case documents to index
                   </p>
                   <div className="space-y-2">
-                    {folderPaths.map((path, idx) => (
+                    {sourceFolders.map((path, idx) => (
                       <div key={idx} className="flex items-center gap-2">
                         <Input value={path} readOnly className="flex-1 bg-muted" />
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => removeFolderPath(idx)}
+                          onClick={() => removeSourceFolder(idx)}
                         >
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
@@ -358,23 +510,77 @@ export function CaseProposalApprovalDialog({
                     ))}
                     <div className="flex items-center gap-2">
                       <Input
-                        value={newFolderPath}
-                        onChange={(e) => setNewFolderPath(e.target.value)}
-                        placeholder="/path/to/folder or OneDrive URL"
+                        value={newSourceFolder}
+                        onChange={(e) => setNewSourceFolder(e.target.value)}
+                        placeholder="e.g. /Tekna Drafting/Clients/Smith Family Trust"
                         className="flex-1"
-                        onKeyDown={(e) => e.key === "Enter" && addFolderPath()}
+                        onKeyDown={(e) => e.key === "Enter" && newSourceFolder.trim() && addSourceFolder()}
                       />
                       <Button
                         variant="outline"
-                        size="icon"
-                        onClick={addFolderPath}
-                        disabled={!newFolderPath.trim()}
+                        size="sm"
+                        onClick={addSourceFolder}
+                        disabled={!newSourceFolder.trim()}
                       >
-                        <Plus className="w-4 h-4" />
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add
                       </Button>
                     </div>
                   </div>
                 </div>
+
+                {/* Filing Folder - where to save new documents */}
+                <div className="grid gap-2">
+                  <Label className="flex items-center gap-2">
+                    <FolderOutput className="w-4 h-4 text-green-500" />
+                    Filing Folder (where to save case documents)
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    New documents will be saved here. Leave blank to create a new folder.
+                  </p>
+                  <Input
+                    value={filingFolder}
+                    onChange={(e) => setFilingFolder(e.target.value)}
+                    placeholder="e.g. /Tekna Drafting/Cases/Smith ATO Audit 2025"
+                  />
+                </div>
+
+                {/* Copy or Move toggle */}
+                {sourceFolders.length > 0 && filingFolder && (
+                  <div className="grid gap-2">
+                    <Label className="text-sm">File Action</Label>
+                    <p className="text-xs text-muted-foreground">
+                      What to do with files from source folders
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={fileAction === "copy" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFileAction("copy")}
+                        className={fileAction === "copy" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                      >
+                        <Copy className="w-4 h-4 mr-1" />
+                        Copy Files
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={fileAction === "move" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFileAction("move")}
+                        className={fileAction === "move" ? "bg-amber-600 hover:bg-amber-700" : ""}
+                      >
+                        <Move className="w-4 h-4 mr-1" />
+                        Move Files
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {fileAction === "copy"
+                        ? "Files will be copied to the filing folder (originals remain in source)"
+                        : "Files will be moved to the filing folder (removed from source)"}
+                    </p>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -415,47 +621,89 @@ export function CaseProposalApprovalDialog({
             {/* Related Items Tab */}
             <TabsContent value="related" className="space-y-4 m-0">
               {/* Related Jobs */}
-              {data.related_jobs && data.related_jobs.length > 0 && (
-                <Card>
-                  <CardContent className="pt-4">
-                    <h4 className="font-medium mb-3 flex items-center gap-2">
-                      <Briefcase className="w-4 h-4" />
-                      Related Jobs
-                    </h4>
-                    <div className="space-y-2">
-                      {data.related_jobs.map((job, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
-                          {job.job_found ? (
-                            <>
-                              <CheckCircle className="w-4 h-4 text-green-500" />
-                              <span className="font-medium">Job #{job.job_id}</span>
-                              <span className="text-muted-foreground">- {job.job_title}</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                              <span className="text-muted-foreground">
-                                Address match: {job.address_match}
-                              </span>
-                            </>
-                          )}
+              <Card>
+                <CardContent className="pt-4">
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Briefcase className="w-4 h-4" />
+                    Related Jobs
+                  </h4>
+
+                  {/* Added jobs */}
+                  {relatedJobs.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {relatedJobs.map((job) => (
+                        <div key={job.job_id} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
+                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <span className="font-medium">Job #{job.job_id}</span>
+                          <span className="text-muted-foreground flex-1">- {job.job_title}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeRelatedJob(job.job_id)}
+                          >
+                            <X className="w-3 h-3 text-red-500" />
+                          </Button>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
 
-              {/* Related Companies */}
-              {data.related_companies && data.related_companies.length > 0 && (
-                <Card>
-                  <CardContent className="pt-4">
-                    <h4 className="font-medium mb-3 flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      Related Companies
-                    </h4>
-                    <div className="space-y-2">
-                      {data.related_companies.map((company, idx) => (
+                  {/* Job search */}
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={jobSearch}
+                          onChange={(e) => setJobSearch(e.target.value)}
+                          placeholder="Search jobs by name or address..."
+                          className="pl-8"
+                        />
+                        {searchingJobs && (
+                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Search results dropdown */}
+                    {jobSearchResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto">
+                        {jobSearchResults.map((job) => (
+                          <button
+                            key={job.job_id}
+                            className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex items-center gap-2"
+                            onClick={() => addRelatedJob(job)}
+                          >
+                            <Briefcase className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">#{job.job_id}</span>
+                            <span className="text-muted-foreground truncate">{job.job_title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {relatedJobs.length === 0 && !jobSearch && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Search and add jobs related to this case
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Related Companies/Trusts */}
+              <Card>
+                <CardContent className="pt-4">
+                  <h4 className="font-medium mb-3 flex items-center gap-2">
+                    <Building2 className="w-4 h-4" />
+                    Related Companies & Trusts
+                  </h4>
+
+                  {/* Added companies */}
+                  {relatedCompanies.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {relatedCompanies.map((company, idx) => (
                         <div key={idx} className="flex items-center gap-2 text-sm p-2 bg-muted rounded">
                           {company.company_found ? (
                             <CheckCircle className="w-4 h-4 text-green-500" />
@@ -463,18 +711,93 @@ export function CaseProposalApprovalDialog({
                             <AlertTriangle className="w-4 h-4 text-yellow-500" />
                           )}
                           <span className="font-medium">{company.name}</span>
+                          {company.entity_type && (
+                            <Badge variant="outline" className="text-xs">{company.entity_type}</Badge>
+                          )}
                           {company.role && (
-                            <Badge variant="outline" className="text-xs">{company.role}</Badge>
+                            <Badge variant="secondary" className="text-xs">{company.role}</Badge>
                           )}
                           {!company.company_found && (
                             <span className="text-xs text-muted-foreground">(will be created)</span>
                           )}
+                          <div className="flex-1" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => removeRelatedCompany(idx)}
+                          >
+                            <X className="w-3 h-3 text-red-500" />
+                          </Button>
                         </div>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  )}
+
+                  {/* Company search */}
+                  <div className="relative">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={companySearch}
+                          onChange={(e) => setCompanySearch(e.target.value)}
+                          placeholder="Search companies, trusts by name or ABN..."
+                          className="pl-8"
+                        />
+                        {searchingCompanies && (
+                          <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin" />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Search results dropdown */}
+                    {companySearchResults.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto">
+                        {companySearchResults.map((company) => (
+                          <button
+                            key={company.company_id}
+                            className="w-full text-left px-3 py-2 hover:bg-muted text-sm flex items-center gap-2"
+                            onClick={() => addRelatedCompany(company)}
+                          >
+                            <Building2 className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">{company.name}</span>
+                            {company.entity_type && (
+                              <Badge variant="outline" className="text-xs">{company.entity_type}</Badge>
+                            )}
+                            {company.abn && (
+                              <span className="text-xs text-muted-foreground">ABN: {company.abn}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Option to create new */}
+                    {companySearch.length >= 2 && !searchingCompanies && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 text-xs"
+                        onClick={() => addRelatedCompany({
+                          name: companySearch,
+                          company_found: false,
+                          role: 'subject'
+                        })}
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Create new: "{companySearch}"
+                      </Button>
+                    )}
+                  </div>
+
+                  {relatedCompanies.length === 0 && !companySearch && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Search and add companies or trusts related to this case
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Key Dates */}
               {data.key_dates && data.key_dates.length > 0 && (
@@ -510,12 +833,6 @@ export function CaseProposalApprovalDialog({
                 </Card>
               )}
 
-              {!data.related_jobs?.length && !data.related_companies?.length &&
-               !data.key_dates?.length && !data.document_requests?.length && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>No related items detected</p>
-                </div>
-              )}
             </TabsContent>
 
             {/* Email Tab */}

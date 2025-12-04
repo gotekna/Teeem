@@ -123,13 +123,11 @@ export function Sidebar() {
         }
         if (response.timestamp) {
           const date = new Date(response.timestamp);
-          setDeployedAt(date.toLocaleString('en-AU', {
-            day: 'numeric',
-            month: 'short',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-          }));
+          const day = date.getDate();
+          const month = date.getMonth() + 1;
+          const hours = date.getHours();
+          const minutes = date.getMinutes().toString().padStart(2, '0');
+          setDeployedAt(`${hours}:${minutes} ${day}/${month}`);
         }
       } catch (error) {
         console.debug("Failed to load backend version:", error);
@@ -278,7 +276,7 @@ export function Sidebar() {
                 <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
               )}
               {herokuRelease && <span>Heroku: {herokuRelease}</span>}
-              {deployedAt && <span>Deployed: {deployedAt}</span>}
+              {deployedAt && <span>D: {deployedAt}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">

@@ -65,12 +65,22 @@ curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 ```
 
 ### Step 6 - Report Status
-- ✅ Branch: Live
-- ✅ Commit: [hash + message]
-- ✅ Backend deployed to: teeemlive (production)
-- ✅ Version: [version from /version endpoint]
-- ✅ Backend URL: https://teeem-backend-39604ccca45a.herokuapp.com/
-- ✅ Frontend URL: https://teeemlive.vercel.app/
+
+Show compact deploy summary matching TEEEM sidebar format (same order):
+```
+========================================
+Backend: v[XXX]
+Frontend: v[XX] (Vercel auto-deploy)
+Heroku: v[XXX]
+D: H:MM D/M (e.g., 9:23 5/12)
+========================================
+```
+
+Get values from:
+- Backend version: from /version endpoint
+- Frontend version: from NEXT_PUBLIC_BUILD_NUMBER or git commit
+- Heroku release: from `heroku releases --app teeemlive -n 1`
+- D: Current Brisbane time in H:MM D/M format
 
 ## Error Handling
 
