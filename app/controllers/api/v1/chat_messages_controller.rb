@@ -1,5 +1,89 @@
 class Api::V1::ChatMessagesController < ApplicationController
 
+  # GET /api/v1/chat_messages/online_users
+  # Returns list of users with their online status
+  def online_users
+    users = User.select(:id, :name, :email, :last_seen_at)
+                .where.not(id: current_user.id)
+                .order(:name)
+
+    render json: users.map { |user|
+      last_seen = user.last_seen_at
+      presence_status = if last_seen.nil?
+                          'offline'
+                        elsif last_seen > 5.minutes.ago
+                          'online'
+                        elsif last_seen > 30.minutes.ago
+                          'away'
+                        else
+                          'offline'
+                        end
+
+      {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        presence_status: presence_status,
+        is_online: presence_status == 'online',
+        last_seen_at: user.last_seen_at
+      }
+    }
+  end
+
+  # GET /api/v1/chat_messages/conversations
+  # Returns list of conversations for current user
+  def conversations
+    # Get all direct message conversations for current user
+    direct_messages = ChatMessage
+      .where('user_id = ? OR recipient_user_id = ?', current_user.id, current_user.id)
+      .where.not(recipient_user_id: nil)
+      .select('DISTINCT ON (LEAST(user_id, recipient_user_id), GREATEST(user_id, recipient_user_id)) *')
+      .order(Arel.sql('LEAST(user_id, recipient_user_id), GREATEST(user_id, recipient_user_id), created_at DESC'))
+
+    # Get unique conversation partner IDs
+    partner_ids = direct_messages.flat_map { |m| [m.user_id, m.recipient_user_id] }.uniq - [current_user.id]
+    partners = User.where(id: partner_ids).index_by(&:id)
+
+    conversations = direct_messages.map do |msg|
+      partner_id = msg.user_id == current_user.id ? msg.recipient_user_id : msg.user_id
+      partner = partners[partner_id]
+      next unless partner
+
+      last_seen = partner.last_seen_at
+      is_online = last_seen.present? && last_seen > 5.minutes.ago
+
+      {
+        id: "dm-#{[current_user.id, partner_id].sort.join('-')}",
+        type: 'direct',
+        name: partner.name,
+        participants: [
+          { id: current_user.id, name: current_user.name, is_online: true },
+          { id: partner.id, name: partner.name, is_online: is_online }
+        ],
+        last_message: {
+          id: msg.id,
+          content: msg.content,
+          sender_id: msg.user_id,
+          sender_name: msg.user_id == current_user.id ? 'You' : partner.name,
+          created_at: msg.created_at,
+          is_own: msg.user_id == current_user.id
+        },
+        unread_count: ChatMessage.where(user_id: partner_id, recipient_user_id: current_user.id)
+                                 .where('created_at > ?', current_user.last_chat_read_at || Time.at(0))
+                                 .count,
+        is_pinned: false,
+        job_id: nil,
+        job_name: nil,
+        updated_at: msg.created_at
+      }
+    end.compact
+
+    # Sort by most recent message
+    conversations.sort_by! { |c| c[:updated_at] }.reverse!
+
+    render json: { conversations: conversations }
+  end
+
   # GET /api/v1/chat_messages?channel=general
   # GET /api/v1/chat_messages?project_id=123
   # GET /api/v1/chat_messages?user_id=456
