@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   ArrowLeft,
@@ -18,16 +18,15 @@ import {
 import { api } from "@/lib/api";
 
 // Foundation ID for WHS Inspections table
-const WHS_INSPECTIONS_FOUNDATION_ID = 209;
 
 export default function WHSInspectionsPage() {
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(WHS_INSPECTIONS_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("whs_inspections");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${WHS_INSPECTIONS_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/whs_inspections/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -88,7 +87,7 @@ export default function WHSInspectionsPage() {
             <h1 className="text-2xl font-bold tracking-tight font-serif">Site Inspections</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Conduct and track workplace safety inspections
-              <span className="ml-2 text-xs font-mono">Table #209</span>
+              
             </p>
           </div>
         </div>
@@ -150,8 +149,8 @@ export default function WHSInspectionsPage() {
       <TeeemTableView
         entries={records}
         columns={columns}
-        foundationId={String(WHS_INSPECTIONS_FOUNDATION_ID)}
-        foundationIdNumeric={WHS_INSPECTIONS_FOUNDATION_ID}
+        foundationId="whs_inspections"
+        foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Site Inspections"}
         enableExport={true}
         onRefresh={refresh}

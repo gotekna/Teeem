@@ -22,7 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
 import { ContactDetailDrawer } from "@/components/contacts/ContactDetailDrawer";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   Users,
@@ -81,16 +81,13 @@ const entityTypeLabels: Record<string, string> = {
   default_supplier: "Supplier",
 };
 
-// Foundation ID for Contacts table
-const CONTACTS_FOUNDATION_ID = 214;
-
 export default function ContactsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const showDuplicates = searchParams.get("duplicates") === "true";
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(CONTACTS_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("contacts");
 
   const [duplicateGroups, setDuplicateGroups] = useState<DuplicateGroup[]>([]);
   const [duplicatesLoading, setDuplicatesLoading] = useState(true);
@@ -144,7 +141,7 @@ export default function ContactsPage() {
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${CONTACTS_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/contacts/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -204,7 +201,6 @@ export default function ContactsPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {stats.total.toLocaleString()} contacts - {stats.active.toLocaleString()} active
-            <span className="ml-2 text-xs font-mono">Table #214</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -409,8 +405,8 @@ export default function ContactsPage() {
             <TeeemTableView
               entries={getFilteredRecords()}
               columns={columns}
-              foundationId={String(CONTACTS_FOUNDATION_ID)}
-              foundationIdNumeric={CONTACTS_FOUNDATION_ID}
+              foundationId="contacts"
+              foundationIdNumeric={foundation?.id}
               tableName={foundation?.name || "Contacts"}
               enableExport={true}
               enableImport={true}

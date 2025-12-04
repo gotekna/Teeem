@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   Download,
@@ -25,14 +25,11 @@ import { slugifyPricebookCode } from "@/lib/url-utils";
 import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
 import type { TableRow } from "@/components/table/types";
 
-// Foundation ID for Pricebook table
-const PRICEBOOK_FOUNDATION_ID = 205;
-
 export default function PriceBookPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView with server-side stats
-  const { foundation, columns, records, originalRecords, totalCount, isLoading, error, refresh, serverSearch, isSearching } = useFoundationById(PRICEBOOK_FOUNDATION_ID);
+  const { foundation, columns, records, originalRecords, totalCount, isLoading, error, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook");
 
   const [activeTab, setActiveTab] = useState("all");
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
@@ -62,7 +59,7 @@ export default function PriceBookPage() {
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${PRICEBOOK_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/pricebook/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -141,7 +138,6 @@ export default function PriceBookPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Price Book</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {stats.total.toLocaleString()} items across {stats.categoriesCount} categories
-            <span className="ml-2 text-xs font-mono">Table #205</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -234,8 +230,8 @@ export default function PriceBookPage() {
             <TeeemTableView
               entries={getFilteredRecords()}
               columns={columns}
-              foundationId={String(PRICEBOOK_FOUNDATION_ID)}
-              foundationIdNumeric={PRICEBOOK_FOUNDATION_ID}
+              foundationId="pricebook"
+              foundationIdNumeric={foundation?.id}
               tableName={foundation?.name || "Pricebook"}
               enableExport={true}
               enableImport={true}

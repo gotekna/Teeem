@@ -39,8 +39,11 @@ export default function PurchaseOrdersPage() {
 
   // Handle row click - navigate to PO detail page
   const handleRowClick = useCallback((row: TableRow) => {
-    if (row.id) {
-      router.push(`/purchase_orders/${row.id}`);
+    // Use purchase_order_number if available, otherwise fall back to ID
+    const poNumber = row.purchase_order_number as string | undefined;
+    const slug = poNumber?.replace('PO-', '') || row.id;
+    if (slug) {
+      router.push(`/purchase_orders/${slug}`);
     }
   }, [router]);
 

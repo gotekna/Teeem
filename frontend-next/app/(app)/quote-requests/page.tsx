@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   FileQuestion,
@@ -18,13 +18,12 @@ import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 
 // Foundation ID for Quote Requests table
-const QUOTE_REQUESTS_FOUNDATION_ID = 409;
 
 export default function QuoteRequestsPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(QUOTE_REQUESTS_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("quote_requests");
 
   // Handle row click - navigate to quote request detail
   const handleRowClick = useCallback((row: TableRow) => {
@@ -34,7 +33,7 @@ export default function QuoteRequestsPage() {
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${QUOTE_REQUESTS_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/quote_requests/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -78,7 +77,7 @@ export default function QuoteRequestsPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Quote Requests</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Request and compare quotes from suppliers
-            <span className="ml-2 text-xs font-mono">Table #409</span>
+            
           </p>
         </div>
         <Button>
@@ -137,8 +136,8 @@ export default function QuoteRequestsPage() {
       <TeeemTableView
         entries={records}
         columns={columns}
-        foundationId={String(QUOTE_REQUESTS_FOUNDATION_ID)}
-        foundationIdNumeric={QUOTE_REQUESTS_FOUNDATION_ID}
+        foundationId="quote_requests"
+        foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Quote Requests"}
         enableExport={true}
         onRefresh={refresh}

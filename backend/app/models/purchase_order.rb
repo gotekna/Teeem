@@ -70,7 +70,33 @@ class PurchaseOrder < ApplicationRecord
   scope :visible_to_suppliers, -> { where(visible_to_supplier: true) }
   scope :by_supplier, ->(supplier_id) { where(supplier_id: supplier_id) if supplier_id.present? }
 
+  # Class methods
+  def self.find_by_slug(slug)
+    # Support finding by:
+    # 1. Full PO number (PO-000123)
+    # 2. Just the 6-digit number (000123)
+    # 3. Numeric ID (fallback for backwards compatibility)
+
+    if slug.match?(/^PO-\d{6}$/)
+      # Full format: PO-000123
+      find_by(purchase_order_number: slug)
+    elsif slug.match?(/^\d{6}$/)
+      # Just 6 digits: 000123
+      find_by(purchase_order_number: "PO-#{slug}")
+    elsif slug.match?(/^\d+$/)
+      # Fallback: numeric ID (for backwards compatibility)
+      find(slug)
+    else
+      nil
+    end
+  end
+
   # Instance methods
+  def to_param
+    # Use the 6-digit number as the slug
+    purchase_order_number&.sub(/^PO-/, '')
+  end
+
   def calculate_totals
     self.sub_total = line_items.reject(&:marked_for_destruction?).sum { |item|
       (item.quantity || 0) * (item.unit_price || 0)

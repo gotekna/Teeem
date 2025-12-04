@@ -206,6 +206,19 @@ export default function PurchaseOrderDetailPage() {
     loadPurchaseOrder();
   }, [recordId]);
 
+  // Refetch data when window regains focus (e.g., switching back from pricebook tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('[PO Detail] Window focused - reloading data');
+      loadPurchaseOrder();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [recordId]);
+
   // Debounced server-side search for pricebook items
   useEffect(() => {
     if (pricebookOpenFor === null) return;
@@ -817,9 +830,19 @@ export default function PurchaseOrderDetailPage() {
       {/* Line Items */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">Line Items</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              <h3 className="text-lg font-semibold">Line Items</h3>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadPurchaseOrder}
+              disabled={loading}
+            >
+              {loading ? "Refreshing..." : "Refresh Prices"}
+            </Button>
           </div>
 
           <div className="border rounded-md">
@@ -840,15 +863,28 @@ export default function PurchaseOrderDetailPage() {
             <TableBody>
               {lineItems
                 .filter((item) => !item._destroy)
+                .sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0))
                 .map((item, index) => {
                   const activeItems = lineItems.filter((item) => !item._destroy);
                   const isLastItem = index === activeItems.length - 1;
                   const isBlank = isBlankLineItem(item);
                   const shouldGreyOut = isLastItem && isBlank;
 
+                  // Check if price has changed from pricebook
+                  // Convert to numbers for comparison to handle both string and number types
+                  const hasPriceChanged = item.pricebook_item?.current_price != null &&
+                    Number(item.unit_price) !== Number(item.pricebook_item.current_price);
+
+                  // Determine background color (priority: grey out > price changed > normal)
+                  const rowBgColor = shouldGreyOut ? '#f1f5f9' : (hasPriceChanged ? '#fed7aa' : undefined);
+
                   return (
-                  <TableRow key={item.id || `new-${index}`} className="h-auto" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
-                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                  <TableRow
+                    key={item.id || `new-${index}`}
+                    className="h-auto"
+                    style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
+                  >
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Popover
                         open={pricebookOpenFor === index}
                         onOpenChange={(open) => {
@@ -861,7 +897,7 @@ export default function PurchaseOrderDetailPage() {
                             variant="outline"
                             role="combobox"
                             className="w-full justify-between border-0 rounded-none h-10 focus-visible:ring-0 focus-visible:ring-offset-0"
-                            style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
+                            style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                           >
                             {item.pricebook_item?.item_code || (
                               <span className="text-muted-foreground">-</span>
@@ -912,16 +948,16 @@ export default function PurchaseOrderDetailPage() {
                         </PopoverContent>
                       </Popover>
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         value={item.description}
                         onChange={(e) => updateLineItem(index, "description", e.target.value)}
                         placeholder="Item description"
                         className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
-                        style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
+                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                       />
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         type="number"
                         value={item.quantity}
@@ -932,11 +968,11 @@ export default function PurchaseOrderDetailPage() {
                           "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
                           shouldGreyOut && "text-muted-foreground"
                         )}
-                        style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
+                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                         min={0}
                       />
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         type="number"
                         value={item.unit_price}
@@ -945,14 +981,15 @@ export default function PurchaseOrderDetailPage() {
                         }
                         className={cn(
                           "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
-                          shouldGreyOut && "text-muted-foreground"
+                          shouldGreyOut && "text-muted-foreground",
+                          hasPriceChanged && "text-orange-600 font-semibold"
                         )}
-                        style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
+                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                         min={0}
                         step={0.01}
                       />
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {/* GST Type selector - disabled if pricebook item is selected */}
                       <Popover>
                         <PopoverTrigger asChild>
@@ -964,7 +1001,7 @@ export default function PurchaseOrderDetailPage() {
                               item.pricebook_item_id && "opacity-60",
                               shouldGreyOut && "text-muted-foreground"
                             )}
-                            style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}
+                            style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                             disabled={!!item.pricebook_item_id}
                           >
                             {GST_CODES.find((c) => c.value === (item.gst_code || "GST"))?.label || "GST"}
@@ -1002,16 +1039,16 @@ export default function PurchaseOrderDetailPage() {
                         )}
                       </Popover>
                     </TableCell>
-                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0))}
                     </TableCell>
-                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * getGstRate(item.gst_code))}
                     </TableCell>
-                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "font-medium")} style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "font-medium")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * (1 + getGstRate(item.gst_code)))}
                     </TableCell>
-                    <TableCell className="py-1 border-b" style={shouldGreyOut ? { backgroundColor: '#f1f5f9' } : undefined}>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Button
                         variant="ghost"
                         size="icon"

@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   ArrowLeft,
@@ -18,16 +18,15 @@ import {
 import { api } from "@/lib/api";
 
 // Foundation ID for WHS Inductions table
-const WHS_INDUCTIONS_FOUNDATION_ID = 208;
 
 export default function WHSInductionsPage() {
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(WHS_INDUCTIONS_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("whs_inductions");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${WHS_INDUCTIONS_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/whs_inductions/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -81,7 +80,7 @@ export default function WHSInductionsPage() {
             <h1 className="text-2xl font-bold tracking-tight font-serif">Site Inductions</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Manage worker inductions and site access
-              <span className="ml-2 text-xs font-mono">Table #208</span>
+              
             </p>
           </div>
         </div>
@@ -138,8 +137,8 @@ export default function WHSInductionsPage() {
       <TeeemTableView
         entries={records}
         columns={columns}
-        foundationId={String(WHS_INDUCTIONS_FOUNDATION_ID)}
-        foundationIdNumeric={WHS_INDUCTIONS_FOUNDATION_ID}
+        foundationId="whs_inductions"
+        foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Site Inductions"}
         enableExport={true}
         onRefresh={refresh}

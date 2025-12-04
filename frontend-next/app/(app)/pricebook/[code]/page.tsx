@@ -30,7 +30,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,6 +62,7 @@ interface PriceHistory {
   date_effective: string | null;
   created_at: string;
   change_reason?: string;
+  lga?: string;
   supplier?: {
     id: number;
     name: string;
@@ -115,6 +115,17 @@ interface PriceBookItem {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
+// QLD Local Government Areas for LGA dropdown
+const QLD_COUNCILS = [
+  'Brisbane',
+  'Gold Coast',
+  'Sunshine Coast',
+  'Logan',
+  'Ipswich',
+  'Moreton Bay',
+  'Redland'
+];
+
 export default function PriceBookItemDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -145,14 +156,25 @@ export default function PriceBookItemDetailPage() {
     price: string;
     date_effective: string;
     lga: string;
+    supplier_id: number | null;
   }>({
     price: "",
     date_effective: new Date().toISOString().split('T')[0],
     lga: "",
+    supplier_id: null,
   });
+
+  // Suppliers list for dropdown
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+
+  // Batch editing state
+  const [pendingEdits, setPendingEdits] = useState<Map<number, Partial<PriceHistory>>>(new Map());
+  const [editingRows, setEditingRows] = useState<Set<number>>(new Set());
+  const [isSavingChanges, setIsSavingChanges] = useState(false);
 
   useEffect(() => {
     loadItem();
+    loadSuppliers();
   }, [code]);
 
   const loadItem = async () => {
@@ -160,11 +182,31 @@ export default function PriceBookItemDetailPage() {
       setLoading(true);
       const response = await api.get<PriceBookItem>(`/api/v1/pricebook/${code}`);
       setItem(response);
+      // Set default supplier_id in new price entry if it exists
+      if (response.default_supplier_id && !newPriceEntry.supplier_id) {
+        setNewPriceEntry(prev => ({ ...prev, supplier_id: response.default_supplier_id }));
+      }
     } catch (err) {
       setError("Failed to load price book item");
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSuppliers = async () => {
+    try {
+      const response = await api.get<Supplier[]>('/api/v1/contacts?type=suppliers');
+      console.log('[loadSuppliers] Response:', response);
+      if (Array.isArray(response)) {
+        setSuppliers(response);
+      } else {
+        console.error('[loadSuppliers] Response is not an array:', response);
+        setSuppliers([]);
+      }
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
+      setSuppliers([]);
     }
   };
 
@@ -324,7 +366,7 @@ export default function PriceBookItemDetailPage() {
     try {
       await api.post(`/api/v1/pricebook/${code}/add_price`, {
         price: parseFloat(newPriceEntry.price),
-        supplier_id: item?.default_supplier_id || undefined,
+        supplier_id: newPriceEntry.supplier_id || item?.default_supplier_id || undefined,
         lga: newPriceEntry.lga || undefined,
         date_effective: newPriceEntry.date_effective || undefined,
       });
@@ -334,6 +376,7 @@ export default function PriceBookItemDetailPage() {
         price: "",
         date_effective: new Date().toISOString().split('T')[0],
         lga: "",
+        supplier_id: item?.default_supplier_id || null,
       });
 
       await loadItem();
@@ -341,6 +384,113 @@ export default function PriceBookItemDetailPage() {
       console.error("Failed to add price:", err);
       alert("Failed to add price. Please try again.");
     }
+  };
+
+  // Handle setting default supplier from price history
+  const handleSetDefaultSupplier = async (supplierId: number | undefined) => {
+    console.log('[handleSetDefaultSupplier] Called with supplierId:', supplierId, 'type:', typeof supplierId);
+
+    if (!supplierId) {
+      console.error('[handleSetDefaultSupplier] No supplier ID provided');
+      alert('Cannot set default supplier: Supplier ID is missing');
+      return;
+    }
+
+    if (!item) {
+      console.error('[handleSetDefaultSupplier] No item loaded');
+      return;
+    }
+
+    if (item.default_supplier_id === supplierId) {
+      console.log('[handleSetDefaultSupplier] This supplier is already the default');
+      return;
+    }
+
+    console.log('[handleSetDefaultSupplier] Setting default supplier:', supplierId);
+    console.log('[handleSetDefaultSupplier] Current default:', item.default_supplier_id);
+    console.log('[handleSetDefaultSupplier] Request body:', { supplier_id: supplierId });
+
+    try {
+      const response = await api.post(`/api/v1/pricebook/${code}/set_default_supplier`, {
+        supplier_id: supplierId,
+      });
+      console.log('[handleSetDefaultSupplier] Success:', response);
+      await loadItem();
+    } catch (err: any) {
+      console.error("[handleSetDefaultSupplier] Error details:", err);
+      console.error("[handleSetDefaultSupplier] Error response:", err?.response?.data);
+      const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err.message || 'Unknown error';
+      alert(`Failed to set default supplier: ${errorMessage}`);
+    }
+  };
+
+  // Batch editing functions
+  const handleStartEdit = (historyId: number, history: PriceHistory) => {
+    // Add row to editing set
+    setEditingRows(prev => new Set([...prev, historyId]));
+
+    // Initialize pending edits with current values if not already present
+    if (!pendingEdits.has(historyId)) {
+      setPendingEdits(prev => new Map(prev).set(historyId, {
+        new_price: history.new_price,
+        date_effective: history.date_effective,
+        lga: history.lga,
+        supplier: history.supplier,
+      }));
+    }
+  };
+
+  const handleFieldChange = (historyId: number, field: keyof PriceHistory, value: any) => {
+    setPendingEdits(prev => {
+      const newMap = new Map(prev);
+      const currentEdit = newMap.get(historyId) || {};
+      newMap.set(historyId, { ...currentEdit, [field]: value });
+      return newMap;
+    });
+  };
+
+  const handleSaveAllChanges = async () => {
+    if (pendingEdits.size === 0) return;
+
+    setIsSavingChanges(true);
+    const errors = [];
+
+    for (const [historyId, changes] of pendingEdits.entries()) {
+      try {
+        const response = await api.patch(`/api/v1/pricebook/${code}/price_histories/${historyId}`, {
+          new_price: changes.new_price,
+          date_effective: changes.date_effective,
+          lga: changes.lga,
+          supplier_id: changes.supplier?.id,
+        });
+
+        // Update the item state directly with the response to avoid full reload
+        setItem(prevItem => {
+          if (!prevItem) return prevItem;
+
+          const updatedHistories = prevItem.price_histories?.map(h =>
+            h.id === historyId
+              ? { ...h, ...changes }
+              : h
+          );
+
+          return { ...prevItem, price_histories: updatedHistories };
+        });
+      } catch (err) {
+        errors.push({ historyId, error: err });
+      }
+    }
+
+    if (errors.length === 0) {
+      // Success - clear pending edits (no reload, no alert)
+      setPendingEdits(new Map());
+      setEditingRows(new Set());
+    } else {
+      // Show errors in console only
+      console.error(`Failed to save ${errors.length} change(s):`, errors);
+    }
+
+    setIsSavingChanges(false);
   };
 
   const getStatusBadge = (color: string) => {
@@ -530,13 +680,25 @@ export default function PriceBookItemDetailPage() {
                     <BarChart3 className="h-5 w-5 text-primary" />
                     Price History
                   </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowAllPrices(!showAllPrices)}
-                  >
-                    {showAllPrices ? "Hide Old Prices" : "Show All Prices"}
-                  </Button>
+                  <div className="flex gap-2">
+                    {pendingEdits.size > 0 && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={handleSaveAllChanges}
+                        disabled={isSavingChanges}
+                      >
+                        {isSavingChanges ? 'Saving...' : `Save Changes (${pendingEdits.size})`}
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAllPrices(!showAllPrices)}
+                    >
+                      {showAllPrices ? "Hide Old Prices" : "Show All Prices"}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -544,7 +706,7 @@ export default function PriceBookItemDetailPage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[140px]">Date</TableHead>
-                      <TableHead className="w-[100px]">Price</TableHead>
+                      <TableHead className="w-[120px]">Price</TableHead>
                       <TableHead className="w-[100px]">LGA</TableHead>
                       <TableHead>Supplier</TableHead>
                       <TableHead className="w-[80px] text-center">Default</TableHead>
@@ -556,40 +718,127 @@ export default function PriceBookItemDetailPage() {
                     {item.price_histories && item.price_histories.slice(0, showAllPrices ? undefined : 10).map((history) => {
                       const isDefaultSupplier = history.supplier?.id === item.default_supplier_id;
                       const isActive = activePriceHistory && history.id === activePriceHistory.id;
+                      const isEditing = editingRows.has(history.id);
+                      const pendingEdit = pendingEdits.get(history.id);
+                      const hasPendingChanges = pendingEdits.has(history.id);
 
                       return (
-                        <TableRow key={history.id}>
+                        <TableRow key={history.id} className={hasPendingChanges ? 'bg-yellow-50' : ''}>
+                          {/* Date Cell */}
                           <TableCell className="py-2">
-                            <div className="flex items-center gap-2 text-sm">
-                              {formatDate(history.date_effective || history.created_at)}
-                              {isActive && (
-                                <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
-                                  Active
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-2 font-medium">
-                            {formatCurrency(history.new_price)}
-                          </TableCell>
-                          <TableCell className="py-2 text-sm text-muted-foreground">
-                            -
-                          </TableCell>
-                          <TableCell className="py-2">
-                            {history.supplier ? (
-                              <Link
-                                href={`/contacts/${history.supplier.id}`}
-                                className="text-sm text-primary hover:underline"
-                              >
-                                {history.supplier.name}
-                              </Link>
+                            {isEditing ? (
+                              <Input
+                                type="date"
+                                value={pendingEdit?.date_effective || history.date_effective || ''}
+                                onChange={(e) => handleFieldChange(history.id, 'date_effective', e.target.value)}
+                                className="h-9 text-sm"
+                              />
                             ) : (
-                              <span className="text-sm text-muted-foreground">-</span>
+                              <div
+                                className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+                                onClick={() => handleStartEdit(history.id, history)}
+                              >
+                                {formatDate(history.date_effective || history.created_at)}
+                                {isActive && (
+                                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
+                                    Active
+                                  </Badge>
+                                )}
+                              </div>
                             )}
                           </TableCell>
+
+                          {/* Price Cell */}
+                          <TableCell className="py-2 font-medium text-base">
+                            {isEditing ? (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={pendingEdit?.new_price ?? history.new_price}
+                                onChange={(e) => handleFieldChange(history.id, 'new_price', parseFloat(e.target.value))}
+                                className="h-9 text-sm"
+                              />
+                            ) : (
+                              <span
+                                className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block"
+                                onClick={() => handleStartEdit(history.id, history)}
+                              >
+                                {formatCurrency(history.new_price)}
+                              </span>
+                            )}
+                          </TableCell>
+
+                          {/* LGA Cell */}
+                          <TableCell className="py-2 text-sm text-muted-foreground">
+                            {isEditing ? (
+                              <select
+                                value={pendingEdit?.lga || history.lga || ''}
+                                onChange={(e) => handleFieldChange(history.id, 'lga', e.target.value)}
+                                className="border rounded px-2 h-9 w-full text-sm"
+                              >
+                                <option value="">Select LGA...</option>
+                                {QLD_COUNCILS.map(council => (
+                                  <option key={council} value={council}>{council}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span
+                                className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block"
+                                onClick={() => handleStartEdit(history.id, history)}
+                              >
+                                {history.lga || '-'}
+                              </span>
+                            )}
+                          </TableCell>
+
+                          {/* Supplier Cell */}
+                          <TableCell className="py-2">
+                            {isEditing ? (
+                              <select
+                                value={pendingEdit?.supplier?.id || history.supplier?.id || ''}
+                                onChange={(e) => {
+                                  const supplierId = e.target.value ? Number(e.target.value) : null;
+                                  const supplier = suppliers.find(s => s.id === supplierId);
+                                  handleFieldChange(history.id, 'supplier', supplier || null);
+                                }}
+                                className="border rounded px-2 h-9 w-full text-sm"
+                              >
+                                <option value="">Select Supplier...</option>
+                                {Array.isArray(suppliers) && suppliers.map(supplier => (
+                                  <option key={supplier.id} value={supplier.id}>
+                                    {supplier.name}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span
+                                className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded block"
+                                onClick={() => handleStartEdit(history.id, history)}
+                              >
+                                {history.supplier ? (
+                                  <Link
+                                    href={`/contacts/${history.supplier.id}`}
+                                    className="text-sm text-primary hover:underline"
+                                  >
+                                    {history.supplier.name}
+                                  </Link>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">-</span>
+                                )}
+                              </span>
+                            )}
+                          </TableCell>
+
                           <TableCell className="py-2 text-center">
                             {history.supplier && (
-                              <Checkbox checked={isDefaultSupplier} disabled />
+                              <Checkbox
+                                checked={isDefaultSupplier}
+                                onCheckedChange={() => {
+                                  console.log('[Checkbox click] history.supplier:', history.supplier);
+                                  console.log('[Checkbox click] supplier.id:', history.supplier?.id);
+                                  handleSetDefaultSupplier(history.supplier?.id);
+                                }}
+                              />
                             )}
                           </TableCell>
                           <TableCell className="py-2 text-right">
@@ -642,20 +891,47 @@ export default function PriceBookItemDetailPage() {
                         />
                       </TableCell>
                       <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
-                        <Input
-                          type="text"
-                          placeholder="LGA"
+                        <select
                           value={newPriceEntry.lga}
                           onChange={(e) => updateNewPriceEntry('lga', e.target.value)}
-                          className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-9 text-sm text-muted-foreground"
+                          className="border rounded px-2 h-9 w-full text-sm"
                           style={{ backgroundColor: '#f1f5f9' }}
-                        />
+                        >
+                          <option value="">Select LGA...</option>
+                          {QLD_COUNCILS.map(council => (
+                            <option key={council} value={council}>{council}</option>
+                          ))}
+                        </select>
                       </TableCell>
-                      <TableCell className="py-1 border-b text-sm text-muted-foreground" style={{ backgroundColor: '#f1f5f9' }}>
-                        {item.default_supplier?.name || '-'}
+                      <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
+                        <select
+                          value={newPriceEntry.supplier_id || ''}
+                          onChange={(e) => {
+                            console.log('[Supplier dropdown] Selected value:', e.target.value);
+                            setNewPriceEntry(prev => ({ ...prev, supplier_id: e.target.value ? Number(e.target.value) : null }));
+                          }}
+                          className="border rounded px-2 h-9 w-full text-sm"
+                          style={{ backgroundColor: '#f1f5f9' }}
+                        >
+                          <option value="">Select Supplier...</option>
+                          {Array.isArray(suppliers) && suppliers.map(supplier => (
+                            <option key={supplier.id} value={supplier.id}>
+                              {supplier.name}
+                            </option>
+                          ))}
+                        </select>
                       </TableCell>
                       <TableCell className="py-1 border-b text-center" style={{ backgroundColor: '#f1f5f9' }}>
-                        <Checkbox checked={true} disabled />
+                        {newPriceEntry.supplier_id && (
+                          <Checkbox
+                            checked={newPriceEntry.supplier_id === item.default_supplier_id}
+                            onCheckedChange={() => {
+                              if (newPriceEntry.supplier_id) {
+                                handleSetDefaultSupplier(newPriceEntry.supplier_id);
+                              }
+                            }}
+                          />
+                        )}
                       </TableCell>
                       <TableCell className="py-1 border-b" style={{ backgroundColor: '#f1f5f9' }}>
                         {!isBlankNewPrice() && (

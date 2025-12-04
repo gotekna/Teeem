@@ -260,7 +260,7 @@ Rails.application.routes.draw do
       end
 
       # Price Book management
-      resources :pricebook, controller: 'pricebook_items', path: 'pricebook' do
+      resources :pricebook, controller: 'pricebook_items', path: 'pricebook', constraints: { id: /[^\/]+/ } do
         member do
           get :history
           post :fetch_image

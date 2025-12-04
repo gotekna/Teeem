@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Upload,
   FolderOpen,
@@ -20,7 +20,6 @@ import { AIVerificationModal } from "@/components/documents/ai-verification-moda
 import { DocumentPreviewModal } from "@/components/documents/document-preview-modal";
 
 // Foundation ID for Documents table
-const DOCUMENTS_FOUNDATION_ID = 434;
 
 interface Document {
   id: number;
@@ -68,12 +67,12 @@ export default function DocumentsPage() {
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(DOCUMENTS_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("supplier_ratings");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${DOCUMENTS_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/supplier_ratings/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -145,7 +144,7 @@ export default function DocumentsPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Documents</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Manage project documents and files
-            <span className="ml-2 text-xs font-mono">Table #434</span>
+            
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -263,8 +262,8 @@ export default function DocumentsPage() {
           <TeeemTableView
             entries={records}
             columns={columns}
-            foundationId={String(DOCUMENTS_FOUNDATION_ID)}
-            foundationIdNumeric={DOCUMENTS_FOUNDATION_ID}
+            foundationId="supplier_ratings"
+            foundationIdNumeric={foundation?.id}
             tableName={foundation?.name || "Documents"}
             enableExport={true}
             onRefresh={refresh}
