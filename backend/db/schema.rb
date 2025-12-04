@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_04_045234) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -965,8 +965,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_045234) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "contact_types", default: [], array: true
-    t.index ["contact_types"], name: "index_contact_roles_on_contact_types", using: :gin
+    t.text "contact_types", default: "{}"
     t.index ["name"], name: "index_contact_roles_on_name", unique: true
   end
 
@@ -1007,7 +1006,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_045234) do
     t.datetime "updated_at", null: false
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
-    t.string "contact_types", default: [], array: true
+    t.text "contact_types", default: "{}"
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
@@ -1069,7 +1068,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_045234) do
     t.integer "linked_company_id"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
-    t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
@@ -1942,12 +1940,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_045234) do
     t.jsonb "cad_metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "ai_suggested_type_id"
+    t.string "ai_proposed_name"
+    t.decimal "ai_confidence", precision: 5, scale: 2
+    t.text "ai_reasoning"
+    t.datetime "ai_analyzed_at"
+    t.string "rename_status", default: "pending"
+    t.datetime "rename_approved_at"
+    t.bigint "rename_approved_by_id"
+    t.string "original_file_name"
+    t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
+    t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
     t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
     t.index ["file_type"], name: "index_job_documents_on_file_type"
     t.index ["job_id", "file_type"], name: "index_job_documents_on_job_id_and_file_type"
     t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
     t.index ["job_id"], name: "index_job_documents_on_job_id"
     t.index ["onedrive_item_id"], name: "index_job_documents_on_onedrive_item_id", unique: true
+    t.index ["rename_status"], name: "index_job_documents_on_rename_status"
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
   end
 
@@ -4301,7 +4311,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_045234) do
   add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
   add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_documents", "document_types"
+  add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
   add_foreign_key "job_documents", "jobs"
+  add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
   add_foreign_key "job_status_stages", "job_stages"

@@ -326,6 +326,16 @@ export default function CorporateDashboardPage() {
   const [people, setPeople] = React.useState<TableRow[]>([]);
   const [loadingPeople, setLoadingPeople] = React.useState(false);
   const [fullScreenPerson, setFullScreenPerson] = React.useState<TableRow | null>(null);
+  const [fullScreenPersonRoles, setFullScreenPersonRoles] = React.useState<Array<{
+    type: string;
+    company_id: number;
+    company_name: string;
+    position?: string;
+    is_current?: boolean;
+    shares?: number;
+    percentage?: number;
+  }>>([]);
+  const [loadingPersonRoles, setLoadingPersonRoles] = React.useState(false);
 
   // Groups tab state
   const [showCreateGroupDialog, setShowCreateGroupDialog] = React.useState(false);
@@ -565,6 +575,64 @@ export default function CorporateDashboardPage() {
       loadPeople();
     }
   }, [activeTab, people.length, groups, groupsMap]);
+
+  // Load roles when full screen person dialog opens
+  React.useEffect(() => {
+    const loadPersonRoles = async () => {
+      if (!fullScreenPerson) {
+        setFullScreenPersonRoles([]);
+        return;
+      }
+
+      // If the person already has roles (from Structure tab), use them
+      if (fullScreenPerson.roles && Array.isArray(fullScreenPerson.roles) && (fullScreenPerson.roles as unknown[]).length > 0) {
+        setFullScreenPersonRoles(fullScreenPerson.roles as typeof fullScreenPersonRoles);
+        return;
+      }
+
+      // Otherwise, fetch roles from all company groups
+      try {
+        setLoadingPersonRoles(true);
+        const allRoles: typeof fullScreenPersonRoles = [];
+        const contactId = fullScreenPerson.id as number;
+
+        // Search through all groups to find this person's roles
+        for (const group of groups) {
+          try {
+            const response = await api.get<{ success: boolean; data: StructureData }>(
+              `/api/v1/company_groups/${group.id}/structure`
+            );
+            const data = response.data;
+            if (data?.people) {
+              const personInGroup = data.people.find(p => p.contact_id === contactId);
+              if (personInGroup?.roles && personInGroup.roles.length > 0) {
+                // Deduplicate roles by company_id + type
+                personInGroup.roles.forEach(role => {
+                  const exists = allRoles.some(r =>
+                    r.company_id === role.company_id && r.type === role.type
+                  );
+                  if (!exists) {
+                    allRoles.push(role);
+                  }
+                });
+              }
+            }
+          } catch (groupError) {
+            console.error(`Failed to load structure for group ${group.id}:`, groupError);
+          }
+        }
+
+        setFullScreenPersonRoles(allRoles);
+      } catch (error) {
+        console.error("Failed to load person roles:", error);
+        setFullScreenPersonRoles([]);
+      } finally {
+        setLoadingPersonRoles(false);
+      }
+    };
+
+    loadPersonRoles();
+  }, [fullScreenPerson, groups]);
 
   // ===== HANDLERS =====
 
@@ -1542,19 +1610,16 @@ export default function CorporateDashboardPage() {
               </DialogHeader>
               {fullScreenPerson && (
                 <div className="flex-1 overflow-y-auto p-4">
+                  {loadingPersonRoles ? (
+                    <div className="flex items-center justify-center h-64">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {/* Group each company's roles together */}
                     {(() => {
-                      // Get all roles from person data
-                      const roles = (fullScreenPerson.roles || []) as Array<{
-                        type: string;
-                        company_id: number;
-                        company_name: string;
-                        position?: string;
-                        is_current?: boolean;
-                        shares?: number;
-                        percentage?: number;
-                      }>;
+                      // Use the fetched roles from state
+                      const roles = fullScreenPersonRoles;
 
                       // Group roles by company
                       const companiesMap = new Map<number, {
@@ -1659,6 +1724,7 @@ export default function CorporateDashboardPage() {
                       ));
                     })()}
                   </div>
+                  )}
                 </div>
               )}
               <DialogFooter className="border-t pt-4">
