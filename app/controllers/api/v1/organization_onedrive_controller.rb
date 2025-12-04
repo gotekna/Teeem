@@ -1347,15 +1347,53 @@ module Api
       end
 
       # GET /api/v1/organization_onedrive/job_all_files
-      # List ALL files from the job's OneDrive folder recursively
-      # Used for the "All Files" tab to show complete folder contents
+      # List ALL files from the job's OneDrive folder
+      # Uses Data Warehouse pattern: reads from JobDocument table for instant results
+      # Falls back to live API if no cached data, and triggers background sync
       def job_all_files
         job = Job.find(params[:job_id])
 
+        # Check if we have cached documents in the data warehouse
+        cached_docs = job.job_documents.includes(:document_type).synced
+
+        if cached_docs.any?
+          # Data Warehouse approach: instant results from database
+          files_with_suggestions = cached_docs.map do |doc|
+            {
+              id: doc.onedrive_item_id,
+              name: doc.file_name,
+              size: doc.file_size,
+              web_url: doc.web_url,
+              modified: doc.last_modified_at&.iso8601,
+              type: "file",
+              folder_path: doc.folder_path || "",
+              document_type_id: doc.document_type_id,
+              document_type_name: doc.document_type&.name,
+              document_type_abbreviation: doc.document_type&.abbreviation,
+              suggested_document_types: doc.document_type_id ? [] : suggest_cached_doc_type(doc),
+              from_cache: true
+            }
+          end
+
+          # Sort by folder path then name
+          files_with_suggestions.sort_by! { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+
+          return render json: {
+            success: true,
+            job_id: job.id,
+            job_title: job.title,
+            items: files_with_suggestions,
+            count: files_with_suggestions.length,
+            from_cache: true,
+            last_synced_at: cached_docs.maximum(:last_synced_at)&.iso8601
+          }
+        end
+
+        # No cached data - fall back to live API and trigger sync
         credential = get_onedrive_credential
 
         unless credential
-          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
         end
 
         begin
@@ -1367,14 +1405,14 @@ module Api
           unless job_folder
             return render json: {
               success: false,
-              error: 'Job folder not found. Please create the folder structure first.',
+              error: "Job folder not found. Please create the folder structure first.",
               job_folder_exists: false,
               items: []
             }, status: :ok
           end
 
-          # Recursively list all files in the job folder
-          files = list_all_job_files_recursive(client, credential, job_folder['id'])
+          # Recursively list all files in the job folder (live API)
+          files = list_all_job_files_recursive(client, credential, job_folder["id"])
 
           # Load document types ONCE for efficiency (not per-file)
           @cached_doc_types = DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
@@ -1382,8 +1420,11 @@ module Api
           # Add suggested document types for each file based on filename and folder
           files_with_suggestions = files.map do |file|
             suggested = suggest_document_type_for_file(file[:name], file[:folder_path])
-            file.merge(suggested_document_types: suggested)
+            file.merge(suggested_document_types: suggested, from_cache: false)
           end
+
+          # Trigger background sync to populate data warehouse for next time
+          JobDocumentSyncJob.perform_later(job.id) if defined?(JobDocumentSyncJob)
 
           render json: {
             success: true,
@@ -1391,8 +1432,10 @@ module Api
             job_title: job.title,
             items: files_with_suggestions,
             count: files_with_suggestions.length,
-            job_folder_id: job_folder['id'],
-            job_folder_web_url: job_folder['webUrl']
+            job_folder_id: job_folder["id"],
+            job_folder_web_url: job_folder["webUrl"],
+            from_cache: false,
+            sync_triggered: true
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
@@ -1404,6 +1447,42 @@ module Api
           Rails.logger.error e.backtrace.join("\n")
           render json: { error: "Failed to list files: #{e.message}" }, status: :internal_server_error
         end
+      end
+
+      # Helper to suggest document types for cached documents
+      def suggest_cached_doc_type(doc)
+        @cached_doc_types ||= DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
+        suggestions = suggest_document_type_for_file(doc.file_name, doc.folder_path)
+        suggestions || []
+      end
+
+      # POST /api/v1/organization_onedrive/sync_job_documents
+      # Manually trigger sync of job documents to data warehouse
+      # Can sync a single job or all jobs with OneDrive folders
+      def sync_job_documents
+        job_id = params[:job_id]
+
+        if job_id.present?
+          # Sync single job
+          job = Job.find(job_id)
+          JobDocumentSyncJob.perform_later(job.id)
+          render json: {
+            success: true,
+            message: "Sync triggered for job #{job.id}: #{job.title}",
+            job_id: job.id
+          }
+        else
+          # Sync all jobs with OneDrive folders
+          JobDocumentSyncJob.perform_later
+          jobs_count = Job.where(onedrive_folder_creation_status: "completed").count
+          render json: {
+            success: true,
+            message: "Sync triggered for #{jobs_count} jobs with OneDrive folders",
+            jobs_count: jobs_count
+          }
+        end
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { error: "Job not found" }, status: :not_found
       end
 
       # GET /api/v1/organization_onedrive/legacy_files

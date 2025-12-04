@@ -49,3 +49,9 @@ production:
     queue: low
     args: [{ limit: 25 }]
     schedule: every 4 hours at minute 30
+
+  # Sync job documents from OneDrive to database (data warehouse)
+  warehouse_job_documents_sync:
+    class: JobDocumentSyncJob
+    queue: low
+    schedule: every 6 hours at minute 15
