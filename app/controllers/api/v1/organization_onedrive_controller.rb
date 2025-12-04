@@ -7,6 +7,17 @@ module Api
       # Require admin for sensitive operations
       before_action :require_admin, only: [:disconnect, :change_root_folder, :sync_pricebook_images, :sync_corporate_documents]
 
+      # Handle decryption errors gracefully - this happens when credentials were encrypted
+      # with different encryption keys (e.g., production vs development environments)
+      rescue_from ActiveRecord::Encryption::Errors::Decryption do |e|
+        Rails.logger.warn "[OneDrive] Decryption error: #{e.message}"
+        render json: {
+          connected: false,
+          error: 'OneDrive credentials could not be decrypted. Please reconnect to OneDrive.',
+          decryption_error: true
+        }, status: :unauthorized
+      end
+
       # GET /api/v1/organization_onedrive/status
       # Check if organization has OneDrive connected
       # Will attempt to refresh expired tokens automatically
@@ -649,9 +660,9 @@ module Api
       def list_job_items
         job = Job.find(params[:job_id])
 
-        credential = OrganizationOneDriveCredential.active_credential
+        credential = get_onedrive_credential
 
-        unless credential&.valid_credential?
+        unless credential
           return render json: { error: 'OneDrive not connected' }, status: :unauthorized
         end
 
@@ -1335,14 +1346,142 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/legacy_files
+      # List files from the legacy "Old House Data/00 Active" folder that match a job
+      # Used for importing legacy job documents into the new job folder structure
+      # Supports folder navigation with optional folder_id parameter
+      def legacy_files
+        job = Job.find(params[:job_id])
+
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          service = JobDocumentMigrationService.new
+          # Pass folder_id for subfolder navigation support
+          items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id])
+
+          render json: {
+            success: true,
+            job_id: job.id,
+            job_title: job.title,
+            items: items,
+            count: items.length,
+            current_folder_id: params[:folder_id],
+            source_folder: JobDocumentMigrationService::SOURCE_FOLDER_PATH
+          }
+
+        rescue StandardError => e
+          Rails.logger.error "[Legacy Files] Exception: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to list legacy files: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/import_legacy
+      # Import selected files from legacy location to a job's OneDrive folder
+      # Params:
+      #   - job_id: Target job ID
+      #   - file_ids: Array of OneDrive file IDs to import
+      def import_legacy
+        job = Job.find(params[:job_id])
+        file_ids = params[:file_ids] || []
+
+        if file_ids.empty?
+          return render json: { error: 'No files selected for import' }, status: :bad_request
+        end
+
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        begin
+          service = JobDocumentMigrationService.new
+          result = service.import_files_to_job(job, file_ids)
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: "Imported #{result[:imported].length} files to job folder",
+              job_id: job.id,
+              imported: result[:imported],
+              errors: result[:errors]
+            }
+          else
+            render json: {
+              success: false,
+              error: result[:error],
+              imported: result[:imported] || [],
+              errors: result[:errors] || []
+            }, status: :unprocessable_entity
+          end
+
+        rescue StandardError => e
+          Rails.logger.error "[Import Legacy] Exception: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to import files: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/organization_onedrive/run_migration
+      # Run the bulk job document migration (dry_run by default)
+      # Admin only - migrates all documents from legacy folder to job folders
+      def run_migration
+        unless current_user&.admin?
+          return render json: { error: 'Admin access required' }, status: :forbidden
+        end
+
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        dry_run = params[:dry_run] != 'false' && params[:dry_run] != false
+        limit = params[:limit]&.to_i
+
+        begin
+          service = JobDocumentMigrationService.new
+          stats = service.run(dry_run: dry_run, limit: limit)
+
+          render json: {
+            success: true,
+            dry_run: dry_run,
+            stats: stats
+          }
+
+        rescue StandardError => e
+          Rails.logger.error "[Run Migration] Exception: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Migration failed: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       private
 
       # Get the best available credential for OneDrive operations
       # Prioritizes organization credential, falls back to user's Microsoft token
+      # Handles decryption errors gracefully (e.g., when credentials were encrypted with different keys)
       def get_onedrive_credential
         # First try organization-wide credential
-        credential = OrganizationOneDriveCredential.active_credential
-        return credential if credential&.valid_credential?
+        credential = begin
+          cred = OrganizationOneDriveCredential.active_credential
+          # Try to access an encrypted field to verify decryption works
+          if cred
+            cred.access_token
+            cred if cred.valid_credential?
+          end
+        rescue ActiveRecord::Encryption::Errors::Decryption => e
+          Rails.logger.warn "[OneDrive] Decryption error loading org credential: #{e.message}"
+          nil
+        end
+
+        return credential if credential
 
         # Fall back to user's Microsoft token
         microsoft_token = current_user&.microsoft_token
