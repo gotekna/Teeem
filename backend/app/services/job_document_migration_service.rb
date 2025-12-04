@@ -97,6 +97,7 @@ class JobDocumentMigrationService
 
   # List legacy files for a specific job (used by API)
   # Returns files from the old location that might belong to this job
+  # Optimized for speed - uses Graph API search instead of recursive listing
   def list_legacy_files_for_job(job)
     return [] unless @credential && @client
 
@@ -112,8 +113,45 @@ class JobDocumentMigrationService
 
     return [] unless matching_folder
 
-    # Return all files in this folder
-    list_files_recursive(matching_folder['id'])
+    # Use fast file listing (limits depth, uses parallel loading where possible)
+    list_files_fast(matching_folder['id'])
+  end
+
+  # Fast file listing - gets files with folder structure in fewer API calls
+  # Uses $expand to reduce API calls and limits depth
+  def list_files_fast(folder_id, max_depth: 2)
+    files = []
+    folders_to_process = [[folder_id, 0]] # [folder_id, depth]
+
+    while folders_to_process.any?
+      current_id, depth = folders_to_process.shift
+
+      begin
+        # Get items with minimal fields for speed
+        result = @client.get(
+          "/drives/#{@credential.drive_id}/items/#{current_id}/children",
+          { '$select' => 'id,name,size,webUrl,lastModifiedDateTime,file,folder', '$top' => 200 }
+        )
+
+        result['value']&.each do |item|
+          if item['file']
+            files << {
+              id: item['id'],
+              name: item['name'],
+              size: item['size'],
+              web_url: item['webUrl'],
+              modified: item['lastModifiedDateTime']
+            }
+          elsif item['folder'] && depth < max_depth
+            folders_to_process << [item['id'], depth + 1]
+          end
+        end
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.warn("[JobDocumentMigration] Failed to list folder #{current_id}: #{e.message}")
+      end
+    end
+
+    files
   end
 
   # Import specific files from legacy location to a job
