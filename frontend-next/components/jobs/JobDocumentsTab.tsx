@@ -424,6 +424,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       setError(null);
       // Always request recursive=true to get all files from all subfolders
       const url = `/api/v1/organization_onedrive/legacy_files?job_id=${jobId}&recursive=true`;
+      console.log('[Legacy Import] Fetching:', url);
 
       const response = await api.get<{
         success: boolean;
@@ -431,15 +432,24 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
         count: number;
         source_folder: string;
         recursive: boolean;
+        error?: string;
       }>(url);
 
+      console.log('[Legacy Import] Response:', response);
+
       if (response?.success) {
+        console.log('[Legacy Import] Found', response.items?.length || 0, 'files');
         setLegacyItems(response.items || []);
         setSelectedLegacyFiles([]);
         setLegacyFolderPath([]);
+      } else {
+        console.error('[Legacy Import] API returned error:', response?.error || 'Unknown error');
+        setError(response?.error || 'Failed to load legacy files');
+        setLegacyItems([]);
       }
     } catch (err) {
-      console.error("Failed to load legacy files:", err);
+      console.error("[Legacy Import] Exception:", err);
+      setError(err instanceof Error ? err.message : 'Failed to load legacy files');
       setLegacyItems([]);
     } finally {
       setLoadingLegacy(false);
