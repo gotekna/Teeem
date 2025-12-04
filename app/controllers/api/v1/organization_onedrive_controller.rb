@@ -1361,8 +1361,9 @@ module Api
 
         begin
           service = JobDocumentMigrationService.new
-          # Pass folder_id for subfolder navigation support
-          items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id])
+          # Pass folder_id for subfolder navigation, recursive for all files
+          recursive = params[:recursive] == 'true' || params[:recursive] == true
+          items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id], recursive: recursive)
 
           render json: {
             success: true,
@@ -1371,6 +1372,7 @@ module Api
             items: items,
             count: items.length,
             current_folder_id: params[:folder_id],
+            recursive: recursive,
             source_folder: JobDocumentMigrationService::SOURCE_FOLDER_PATH
           }
 

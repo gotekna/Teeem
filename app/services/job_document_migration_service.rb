@@ -99,21 +99,70 @@ class JobDocumentMigrationService
   # ULTRA-OPTIMIZED: Uses cached folder ID and single-level listing for speed
   # @param job [Job] The job to find legacy files for
   # @param folder_id [String, nil] Optional folder ID to navigate into (for subfolder navigation)
+  # @param recursive [Boolean] If true, recursively list ALL files from all subfolders
   # @return [Array<Hash>] Array of items (files and folders) with type field
-  def list_legacy_files_for_job(job, folder_id: nil)
+  def list_legacy_files_for_job(job, folder_id: nil, recursive: false)
     return [] unless @credential && @client
 
     # If folder_id provided, just list that folder directly (for subfolder navigation)
     if folder_id.present?
-      return list_folder_contents_fast(folder_id)
+      if recursive
+        return list_all_files_recursive(folder_id)
+      else
+        return list_folder_contents_fast(folder_id)
+      end
     end
 
     # Find the job's legacy folder using cached source folder ID
     matching_folder = find_legacy_folder_for_job(job)
     return [] unless matching_folder
 
+    # If recursive, get ALL files from all subfolders
+    if recursive
+      return list_all_files_recursive(matching_folder['id'])
+    end
+
     # Return top-level contents only (files + folders as navigable items)
     list_folder_contents_fast(matching_folder['id'])
+  end
+
+  # Recursively list ALL files from a folder and all subfolders
+  # Returns flat list of files with folder_path for context
+  def list_all_files_recursive(root_folder_id, max_depth: 5)
+    files = []
+    folders_to_process = [[root_folder_id, 0, '']] # [folder_id, depth, path]
+
+    while folders_to_process.any?
+      current_id, depth, current_path = folders_to_process.shift
+
+      begin
+        url = "/drives/#{@credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+        result = @client.get(url)
+
+        result['value']&.each do |item|
+          if item['file']
+            files << {
+              id: item['id'],
+              name: item['name'],
+              size: item['size'],
+              web_url: item['webUrl'],
+              modified: item['lastModifiedDateTime'],
+              type: 'file',
+              folder_path: current_path
+            }
+          elsif item['folder'] && depth < max_depth
+            folder_name = item['name']
+            new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
+            folders_to_process << [item['id'], depth + 1, new_path]
+          end
+        end
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.warn("[JobDocumentMigration] Failed to list folder #{current_id}: #{e.message}")
+      end
+    end
+
+    # Sort by folder path then name
+    files.sort_by { |f| [f[:folder_path].downcase, f[:name].downcase] }
   end
 
   # Find the legacy folder matching a job (cached in instance for speed)
