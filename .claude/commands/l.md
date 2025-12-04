@@ -6,10 +6,10 @@ Commits ALL pending changes and deploys the `Live` branch backend to production 
 
 **Run from teeem root. Auto-generate commit messages.**
 
-## 🔴 PRODUCTION DEPLOY - USE WITH CAUTION
+## PRODUCTION DEPLOY
 
 This deploys directly to **PRODUCTION**:
-- Backend: https://teeemlive-ce8e2660a615.herokuapp.com/
+- Backend: https://teeem-backend-39604ccca45a.herokuapp.com/
 - Frontend: https://teeemlive.vercel.app/
 
 ## Instructions
@@ -61,7 +61,7 @@ git branch -D temp-live-deploy
 ### Step 5 - Verify Deploy
 ```bash
 sleep 10
-curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
+curl -s https://teeem-backend-39604ccca45a.herokuapp.com/version
 ```
 
 ### Step 6 - Report Status
@@ -69,7 +69,7 @@ curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version
 - ✅ Commit: [hash + message]
 - ✅ Backend deployed to: teeemlive (production)
 - ✅ Version: [version from /version endpoint]
-- ✅ Backend URL: https://teeemlive-ce8e2660a615.herokuapp.com/
+- ✅ Backend URL: https://teeem-backend-39604ccca45a.herokuapp.com/
 - ✅ Frontend URL: https://teeemlive.vercel.app/
 
 ## Error Handling

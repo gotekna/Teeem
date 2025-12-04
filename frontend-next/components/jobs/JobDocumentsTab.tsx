@@ -115,12 +115,19 @@ interface DocumentTask {
   validated_by: string | null;
 }
 
-interface LegacyFile {
+interface LegacyItem {
   id: string;
   name: string;
   size?: number;
   web_url?: string;
   modified?: string;
+  type: "file" | "folder";
+  child_count?: number;
+}
+
+interface LegacyFolderPath {
+  id: string;
+  name: string;
 }
 
 interface JobDocumentsTabProps {
@@ -151,10 +158,11 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
 
   // Legacy import state
   const [showImportModal, setShowImportModal] = useState(false);
-  const [legacyFiles, setLegacyFiles] = useState<LegacyFile[]>([]);
+  const [legacyItems, setLegacyItems] = useState<LegacyItem[]>([]);
   const [loadingLegacy, setLoadingLegacy] = useState(false);
   const [selectedLegacyFiles, setSelectedLegacyFiles] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [legacyFolderPath, setLegacyFolderPath] = useState<LegacyFolderPath[]>([]);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -408,26 +416,71 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   };
 
   // Load legacy files from the old SharePoint folder
-  const loadLegacyFiles = async () => {
+  // Supports folder navigation with optional folder_id parameter
+  const loadLegacyFiles = async (folderId?: string) => {
     try {
       setLoadingLegacy(true);
       setError(null);
+      const url = folderId
+        ? `/api/v1/organization_onedrive/legacy_files?job_id=${jobId}&folder_id=${folderId}`
+        : `/api/v1/organization_onedrive/legacy_files?job_id=${jobId}`;
+
       const response = await api.get<{
         success: boolean;
-        files: LegacyFile[];
+        items: LegacyItem[];
         count: number;
         source_folder: string;
-      }>(`/api/v1/organization_onedrive/legacy_files?job_id=${jobId}`);
+        current_folder_id?: string;
+      }>(url);
 
       if (response?.success) {
-        setLegacyFiles(response.files || []);
-        setSelectedLegacyFiles([]);
+        setLegacyItems(response.items || []);
+        // Only clear selection when navigating to a new folder
+        if (!folderId) {
+          setSelectedLegacyFiles([]);
+          setLegacyFolderPath([]);
+        }
       }
     } catch (err) {
       console.error("Failed to load legacy files:", err);
-      setLegacyFiles([]);
+      setLegacyItems([]);
     } finally {
       setLoadingLegacy(false);
+    }
+  };
+
+  // Navigate into a legacy subfolder
+  const navigateLegacyFolder = async (folder: LegacyItem) => {
+    setLegacyFolderPath((prev) => [...prev, { id: folder.id, name: folder.name }]);
+    await loadLegacyFiles(folder.id);
+  };
+
+  // Navigate back in legacy folder hierarchy
+  const navigateLegacyBack = async () => {
+    if (legacyFolderPath.length === 0) return;
+
+    const newPath = legacyFolderPath.slice(0, -1);
+    setLegacyFolderPath(newPath);
+
+    if (newPath.length === 0) {
+      // Go back to root
+      await loadLegacyFiles();
+    } else {
+      // Go to parent folder
+      await loadLegacyFiles(newPath[newPath.length - 1].id);
+    }
+  };
+
+  // Navigate to a specific point in the breadcrumb
+  const navigateLegacyToPath = async (index: number) => {
+    if (index < 0) {
+      // Go to root
+      setLegacyFolderPath([]);
+      await loadLegacyFiles();
+    } else {
+      const newPath = legacyFolderPath.slice(0, index + 1);
+      setLegacyFolderPath(newPath);
+      await loadLegacyFiles(newPath[index].id);
     }
   };
 
@@ -475,7 +528,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     await loadLegacyFiles();
   };
 
-  // Toggle file selection
+  // Toggle file selection (files only, not folders)
   const toggleFileSelection = (fileId: string) => {
     setSelectedLegacyFiles((prev) =>
       prev.includes(fileId)
@@ -484,12 +537,13 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     );
   };
 
-  // Select all files
+  // Select all files (only files, not folders)
   const selectAllFiles = () => {
-    if (selectedLegacyFiles.length === legacyFiles.length) {
+    const allFiles = legacyItems.filter((i) => i.type === "file");
+    if (selectedLegacyFiles.length === allFiles.length && allFiles.length > 0) {
       setSelectedLegacyFiles([]);
     } else {
-      setSelectedLegacyFiles(legacyFiles.map((f) => f.id));
+      setSelectedLegacyFiles(allFiles.map((f) => f.id));
     }
   };
 
@@ -1005,7 +1059,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 <span className="ml-3 text-muted-foreground">Searching for files...</span>
               </div>
-            ) : legacyFiles.length === 0 ? (
+            ) : legacyItems.length === 0 ? (
               <div className="py-12 text-center">
                 <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
                 <p className="mt-2 text-muted-foreground">No legacy files found for this job.</p>
@@ -1015,46 +1069,107 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
               </div>
             ) : (
               <div className="space-y-2">
-                {/* Select All */}
-                <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
-                  <Checkbox
-                    id="select-all"
-                    checked={selectedLegacyFiles.length === legacyFiles.length}
-                    onCheckedChange={selectAllFiles}
-                  />
-                  <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                    Select All ({legacyFiles.length} files)
-                  </label>
-                </div>
-
-                {/* File list */}
-                <div className="border rounded-lg divide-y">
-                  {legacyFiles.map((file) => (
-                    <div
-                      key={file.id}
-                      className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer"
-                      onClick={() => toggleFileSelection(file.id)}
+                {/* Breadcrumb navigation */}
+                {legacyFolderPath.length > 0 && (
+                  <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={navigateLegacyBack}
+                      className="h-8 px-2"
                     >
-                      <Checkbox
-                        checked={selectedLegacyFiles.includes(file.id)}
-                        onCheckedChange={() => toggleFileSelection(file.id)}
-                      />
-                      <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Back
+                    </Button>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground overflow-x-auto">
+                      <button
+                        className="hover:text-foreground cursor-pointer"
+                        onClick={() => navigateLegacyToPath(-1)}
+                      >
+                        Root
+                      </button>
+                      {legacyFolderPath.map((folder, index) => (
+                        <span key={folder.id} className="flex items-center">
+                          <ChevronRight className="h-3 w-3 mx-1 flex-shrink-0" />
+                          <button
+                            className={`hover:text-foreground cursor-pointer truncate max-w-[150px] ${
+                              index === legacyFolderPath.length - 1 ? "font-medium text-foreground" : ""
+                            }`}
+                            onClick={() => navigateLegacyToPath(index)}
+                          >
+                            {folder.name}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Select All (only show if there are files) */}
+                {legacyItems.some((i) => i.type === "file") && (
+                  <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                    <Checkbox
+                      id="select-all"
+                      checked={
+                        selectedLegacyFiles.length > 0 &&
+                        selectedLegacyFiles.length === legacyItems.filter((i) => i.type === "file").length
+                      }
+                      onCheckedChange={selectAllFiles}
+                    />
+                    <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                      Select All ({legacyItems.filter((i) => i.type === "file").length} files)
+                    </label>
+                  </div>
+                )}
+
+                {/* Items list (folders and files) */}
+                <div className="border rounded-lg divide-y">
+                  {legacyItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer ${
+                        item.type === "folder" ? "bg-muted/30" : ""
+                      }`}
+                      onClick={() =>
+                        item.type === "folder"
+                          ? navigateLegacyFolder(item)
+                          : toggleFileSelection(item.id)
+                      }
+                    >
+                      {item.type === "folder" ? (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      ) : (
+                        <Checkbox
+                          checked={selectedLegacyFiles.includes(item.id)}
+                          onCheckedChange={() => toggleFileSelection(item.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      {item.type === "folder" ? (
+                        <Folder className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                      ) : (
+                        <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{file.name}</p>
+                        <p className="text-sm font-medium truncate">{item.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {file.size && formatFileSize(file.size)}
-                          {file.modified && ` • Modified ${new Date(file.modified).toLocaleDateString()}`}
+                          {item.type === "folder"
+                            ? `${item.child_count || 0} items`
+                            : `${item.size ? formatFileSize(item.size) : ""}${
+                                item.modified
+                                  ? ` • Modified ${new Date(item.modified).toLocaleDateString()}`
+                                  : ""
+                              }`}
                         </p>
                       </div>
-                      {file.web_url && (
+                      {item.web_url && (
                         <Button
                           variant="ghost"
                           size="icon"
                           className="flex-shrink-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(file.web_url, "_blank");
+                            window.open(item.web_url, "_blank");
                           }}
                         >
                           <ExternalLink className="h-4 w-4" />

@@ -1349,6 +1349,7 @@ module Api
       # GET /api/v1/organization_onedrive/legacy_files
       # List files from the legacy "Old House Data/00 Active" folder that match a job
       # Used for importing legacy job documents into the new job folder structure
+      # Supports folder navigation with optional folder_id parameter
       def legacy_files
         job = Job.find(params[:job_id])
 
@@ -1360,14 +1361,16 @@ module Api
 
         begin
           service = JobDocumentMigrationService.new
-          files = service.list_legacy_files_for_job(job)
+          # Pass folder_id for subfolder navigation support
+          items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id])
 
           render json: {
             success: true,
             job_id: job.id,
             job_title: job.title,
-            files: files,
-            count: files.length,
+            items: items,
+            count: items.length,
+            current_folder_id: params[:folder_id],
             source_folder: JobDocumentMigrationService::SOURCE_FOLDER_PATH
           }
 

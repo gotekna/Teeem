@@ -1,6 +1,6 @@
 # Pull Heroku Database from Production
 
-Pull the production database (teeemlive) to both local and staging environments concurrently.
+Pull the production database (teeemlive) to local environment.
 
 ## Data Flow
 
@@ -17,24 +17,13 @@ Pull the production database (teeemlive) to both local and staging environments 
 │   on Heroku         │
 └──────────┬──────────┘
            │
-     ┌─────┴─────┐
-     │           │
-     ▼           ▼
-┌─────────┐ ┌─────────────────┐
-│ Step 2a │ │    Step 2b      │
-│Download │ │ Direct restore  │
-│ .dump   │ │ from backup URL │
-└────┬────┘ └────────┬────────┘
-     │               │
-     ▼               ▼
-┌─────────────┐ ┌─────────────────┐
-│   LOCAL     │ │  teeem-rob-dev  │
-│ teeem_dev   │ │    (STAGING)    │
-└─────────────┘ └─────────────────┘
+           ▼
+┌─────────────┐
+│   LOCAL     │
+│ teeem_dev   │
+└─────────────┘
 
-Both restores run CONCURRENTLY
-
-Step 3: Restart local frontend & backend servers
+Step 2: Restart local frontend & backend servers
 ```
 
 ## Auto-Execute
@@ -46,12 +35,8 @@ psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHER
 # Step 2: Capture backup from teeemlive (production)
 cd /Users/robertharder/GitHub/teeem/backend && heroku pg:backups:capture --app teeemlive && heroku pg:backups:download --app teeemlive -o latest.dump
 
-# Step 3: Restore CONCURRENTLY to both local and staging
-# 3a: teeemlive backup → local teeem_development
-(pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20 && bin/rails db:migrate) &
-# 3b: teeemlive backup → teeem-rob-dev (staging)
-(heroku pg:reset --app teeem-rob-dev --confirm teeem-rob-dev && heroku pg:restore "$(heroku pg:backups:url --app teeemlive)" --app teeem-rob-dev --confirm teeem-rob-dev) &
-wait
+# Step 3: Restore to local
+pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -20 && bin/rails db:migrate
 
 # Step 4: Clean up
 rm -f latest.dump
@@ -75,8 +60,7 @@ echo "✅ Database synced and servers restarted"
 | Step | From | To | Method |
 |------|------|-----|--------|
 | 1 | teeemlive | Heroku backup | `pg:backups:capture` |
-| 2a | Heroku backup | local file | `pg:backups:download` |
-| 3a | local file | teeem_development | `pg_restore` |
-| 3b | Heroku backup URL | teeem-rob-dev | `pg:restore` |
+| 2 | Heroku backup | local file | `pg:backups:download` |
+| 3 | local file | teeem_development | `pg_restore` |
 | 4 | - | - | Clean up dump file |
 | 5 | - | localhost:3000 + 3001 | Restart Next.js + Rails |

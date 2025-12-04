@@ -96,25 +96,71 @@ class JobDocumentMigrationService
   end
 
   # List legacy files for a specific job (used by API)
-  # Returns files from the old location that might belong to this job
-  # Optimized for speed - uses Graph API search instead of recursive listing
-  def list_legacy_files_for_job(job)
+  # ULTRA-OPTIMIZED: Uses cached folder ID and single-level listing for speed
+  # @param job [Job] The job to find legacy files for
+  # @param folder_id [String, nil] Optional folder ID to navigate into (for subfolder navigation)
+  # @return [Array<Hash>] Array of items (files and folders) with type field
+  def list_legacy_files_for_job(job, folder_id: nil)
     return [] unless @credential && @client
 
-    source_folder = find_folder_by_path(SOURCE_FOLDER_PATH)
-    return [] unless source_folder
-
-    # Find folder matching this job
-    job_folders = list_subfolders(source_folder['id'])
-
-    matching_folder = job_folders.find do |folder|
-      folder_matches_job?(folder['name'], job)
+    # If folder_id provided, just list that folder directly (for subfolder navigation)
+    if folder_id.present?
+      return list_folder_contents_fast(folder_id)
     end
 
+    # Find the job's legacy folder using cached source folder ID
+    matching_folder = find_legacy_folder_for_job(job)
     return [] unless matching_folder
 
-    # Use fast file listing (limits depth, uses parallel loading where possible)
-    list_files_fast(matching_folder['id'])
+    # Return top-level contents only (files + folders as navigable items)
+    list_folder_contents_fast(matching_folder['id'])
+  end
+
+  # Find the legacy folder matching a job (cached for speed)
+  def find_legacy_folder_for_job(job)
+    # Use Rails cache to store source folder ID (avoid repeated path navigation)
+    source_folder_id = Rails.cache.fetch('legacy_source_folder_id', expires_in: 1.hour) do
+      folder = find_folder_by_path(SOURCE_FOLDER_PATH)
+      folder&.dig('id')
+    end
+
+    return nil unless source_folder_id
+
+    # Get job folders (also cache this list for 5 minutes)
+    job_folders = Rails.cache.fetch('legacy_job_folders', expires_in: 5.minutes) do
+      list_subfolders(source_folder_id)
+    end
+
+    # Find matching folder
+    job_folders.find { |folder| folder_matches_job?(folder['name'], job) }
+  end
+
+  # List folder contents in a single API call (files + subfolders)
+  # Returns items with type: 'file' or 'folder' for navigation
+  def list_folder_contents_fast(folder_id)
+    items = []
+
+    begin
+      url = "/drives/#{@credential.drive_id}/items/#{folder_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+      result = @client.get(url)
+
+      result['value']&.each do |item|
+        items << {
+          id: item['id'],
+          name: item['name'],
+          size: item['size'],
+          web_url: item['webUrl'],
+          modified: item['lastModifiedDateTime'],
+          type: item['file'] ? 'file' : 'folder',
+          child_count: item.dig('folder', 'childCount')
+        }
+      end
+    rescue MicrosoftGraphClient::APIError => e
+      Rails.logger.warn("[JobDocumentMigration] Failed to list folder #{folder_id}: #{e.message}")
+    end
+
+    # Sort: folders first, then files
+    items.sort_by { |i| [i[:type] == 'folder' ? 0 : 1, i[:name].downcase] }
   end
 
   # Fast file listing - gets files with folder structure in fewer API calls
