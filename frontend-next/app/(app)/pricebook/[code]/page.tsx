@@ -409,7 +409,7 @@ export default function PriceBookItemDetailPage() {
       console.log('[handleAddNewPrice] Response received:', response);
 
       // Update item state directly from response to avoid reload
-      if (response.success && response.item) {
+      if (response?.success && response.item) {
         console.log('[handleAddNewPrice] Updating item state with price_histories count:', response.item.price_histories?.length);
         setItem(response.item);
       }
