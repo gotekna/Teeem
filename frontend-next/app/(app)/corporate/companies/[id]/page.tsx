@@ -2357,6 +2357,387 @@ function ActivityTab() {
   );
 }
 
+// Data Warehouse Tab - Shows data stats, sync status, and storage information
+interface DataStats {
+  company: { id: number; name: string; code: string };
+  documents: {
+    total_documents: number;
+    by_source: Record<string, number>;
+    by_folder: Record<string, number>;
+    by_document_type: Record<string, number>;
+    by_ai_status: Record<string, number>;
+    with_files: number;
+    verified: number;
+    needs_review: number;
+    latest_upload: string | null;
+    oldest_document: string | null;
+    newest_document: string | null;
+    financial_years: number[];
+    total_file_size: number;
+  };
+  document_types: Array<{ type: string; abbreviation: string; count: number }>;
+  onedrive: {
+    total: number;
+    last_synced: string | null;
+    by_folder: Record<string, number>;
+  };
+  xero: {
+    connected: boolean;
+    tenant_name?: string;
+    last_sync?: string;
+    status?: string;
+  };
+  sharepoint: {
+    folder_url: string | null;
+    has_folder: boolean;
+  };
+  file_extensions: Record<string, number>;
+  last_updated: string;
+}
+
+function DataWarehouseTab({ companyId }: { companyId: string }) {
+  const [loading, setLoading] = React.useState(true);
+  const [stats, setStats] = React.useState<DataStats | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  React.useEffect(() => {
+    loadStats();
+  }, [companyId]);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; data: DataStats }>(
+        `/api/v1/companies/${companyId}/data_stats`
+      );
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load data stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "N/A";
+    return format(new Date(dateStr), "MMM d, yyyy h:mm a");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        Failed to load data statistics
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium">Data Warehouse</h3>
+          <p className="text-sm text-muted-foreground">
+            Document storage, sync status, and data statistics for {stats.company.name}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+          <RefreshCcw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents.total_documents}</p>
+                <p className="text-xs text-muted-foreground">Total Documents</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents.verified}</p>
+                <p className="text-xs text-muted-foreground">AI Verified</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents.needs_review}</p>
+                <p className="text-xs text-muted-foreground">Needs Review</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <HardDrive className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatBytes(stats.documents.total_file_size)}</p>
+                <p className="text-xs text-muted-foreground">Total Size</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Integrations Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* SharePoint/OneDrive */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              SharePoint / OneDrive
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Connected</span>
+              {stats.sharepoint.has_folder ? (
+                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Not Connected
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Synced Documents</span>
+              <span className="font-medium">{stats.onedrive.total}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Last Synced</span>
+              <span className="text-sm">{formatDate(stats.onedrive.last_synced)}</span>
+            </div>
+            {stats.sharepoint.folder_url && (
+              <Button variant="outline" size="sm" className="w-full" asChild>
+                <a href={stats.sharepoint.folder_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open SharePoint Folder
+                </a>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Xero */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Xero Accounting
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status</span>
+              {stats.xero.connected ? (
+                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Not Connected
+                </Badge>
+              )}
+            </div>
+            {stats.xero.tenant_name && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Organization</span>
+                <span className="font-medium">{stats.xero.tenant_name}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Last Sync</span>
+              <span className="text-sm">{formatDate(stats.xero.last_sync || null)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Document Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* By Document Type */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Documents by Type</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.document_types.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No documents yet</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {stats.document_types.map((dt) => (
+                  <div key={dt.type || "unknown"} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {dt.abbreviation && (
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {dt.abbreviation}
+                        </Badge>
+                      )}
+                      <span className="text-sm truncate">{dt.type || "Unclassified"}</span>
+                    </div>
+                    <Badge variant="secondary">{dt.count}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* By Folder */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Documents by Folder</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {Object.keys(stats.documents.by_folder).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No documents yet</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {Object.entries(stats.documents.by_folder)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([folder, count]) => (
+                    <div key={folder || "unfiled"} className="flex items-center justify-between">
+                      <span className="text-sm truncate">{folder || "Unfiled"}</span>
+                      <Badge variant="secondary">{count}</Badge>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI Verification Status */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">AI Verification Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            {Object.entries(stats.documents.by_ai_status).map(([status, count]) => {
+              const config = {
+                verified: { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
+                mismatch: { color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
+                needs_review: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: Eye },
+                pending: { color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300", icon: Clock },
+              }[status] || { color: "bg-gray-100 text-gray-600", icon: FileText };
+              const Icon = config.icon;
+              return (
+                <Badge key={status || "none"} variant="outline" className={cn("text-sm py-1 px-3", config.color)}>
+                  <Icon className="h-3 w-3 mr-1" />
+                  {status || "None"}: {count}
+                </Badge>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* File Extensions */}
+      {Object.keys(stats.file_extensions).length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">File Types</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(stats.file_extensions).map(([ext, count]) => (
+                <Badge key={ext} variant="secondary" className="font-mono">
+                  {ext}: {count}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Financial Years Coverage */}
+      {stats.documents.financial_years.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Financial Years Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {stats.documents.financial_years.map((year) => (
+                <Badge key={year} variant="outline" className="bg-blue-50 dark:bg-blue-900/20">
+                  FY{year}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Documents dated from {formatDate(stats.documents.oldest_document)} to {formatDate(stats.documents.newest_document)}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Last Updated */}
+      <div className="text-xs text-muted-foreground text-right">
+        Last updated: {formatDate(stats.last_updated)}
+      </div>
+    </div>
+  );
+}
+
 // Xero Connection Card for BANK tab
 interface XeroConnectionStatus {
   connected: boolean;
