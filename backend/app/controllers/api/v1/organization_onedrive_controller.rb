@@ -1370,7 +1370,7 @@ module Api
               document_type_id: doc.document_type_id,
               document_type_name: doc.document_type&.name,
               document_type_abbreviation: doc.document_type&.abbreviation,
-              suggested_document_types: doc.document_type_id ? [] : suggest_cached_doc_type(doc),
+              suggested_document_types: build_document_type_display(doc),
               from_cache: true
             }
           end
@@ -1446,6 +1446,24 @@ module Api
           Rails.logger.error "[Job All Files] Exception: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
           render json: { error: "Failed to list files: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # Helper to build document type display for cached documents
+      # Shows assigned type if present, otherwise shows suggestions
+      def build_document_type_display(doc)
+        if doc.document_type_id.present? && doc.document_type
+          # File has an assigned document type - show it as confirmed
+          [{
+            id: doc.document_type.id,
+            name: doc.document_type.name,
+            abbreviation: doc.document_type.abbreviation,
+            folder: doc.document_type.folder,
+            confidence: 100
+          }]
+        else
+          # No type assigned - show suggestions
+          suggest_cached_doc_type(doc)
         end
       end
 

@@ -1151,34 +1151,24 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-medium truncate">{item.name}</p>
-                          {item.folder_path && (
-                            <Badge variant="secondary" className="text-xs shrink-0">
-                              <Folder className="h-3 w-3 mr-1" />
-                              {item.folder_path}
+                          {suggestions.length > 0 && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800 shrink-0"
+                              title={`Suggested: ${suggestions[0].name}${suggestions[0].confidence ? ` (${suggestions[0].confidence}% match)` : ''}`}
+                            >
+                              → {suggestions[0].abbreviation || suggestions[0].name.split(' - ')[0]}
                             </Badge>
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <p className="text-xs text-muted-foreground">
+                            {item.folder_path && (
+                              <span className="text-blue-600 dark:text-blue-400 mr-1">{item.folder_path}/</span>
+                            )}
                             {item.size ? formatFileSize(item.size) : ""}
                             {item.modified && `${item.size ? ' • ' : ''}Modified ${new Date(item.modified).toLocaleDateString()}`}
                           </p>
-                          {suggestions.length > 0 && (
-                            <div className="flex items-center gap-1 flex-wrap">
-                              <span className="text-xs text-muted-foreground">|</span>
-                              <span className="text-xs text-amber-600 dark:text-amber-400">Suggested:</span>
-                              {suggestions.map((match) => (
-                                <Badge
-                                  key={match.id}
-                                  variant="outline"
-                                  className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800"
-                                  title={`${match.name} (${match.confidence}% match)`}
-                                >
-                                  {match.abbreviation || match.name.split(' - ')[0]}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
