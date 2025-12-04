@@ -79,7 +79,7 @@ class Contact < ApplicationRecord
   encrypts :tfn, deterministic: true
 
   # Constants
-  CONTACT_TYPES = %w[customer supplier sales land_agent].freeze
+  CONTACT_TYPES = %w[customer supplier sales land_agent corporate default_supplier].freeze
   ENTITY_TYPES = %w[person company trust].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
