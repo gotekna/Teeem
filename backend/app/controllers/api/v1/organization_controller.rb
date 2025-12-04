@@ -1,7 +1,7 @@
 module Api
   module V1
     class OrganizationController < ApplicationController
-      before_action :authenticate_user!
+      # Note: authorize_request is already called by ApplicationController
 
       # GET /api/v1/organization/data_stats
       # Returns organization-wide data warehouse statistics

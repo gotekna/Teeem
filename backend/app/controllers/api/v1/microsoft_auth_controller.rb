@@ -260,7 +260,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     render json: {
       user_email: user_email,
       connected: microsoft_token&.status == 'connected',
-      connected_at: microsoft_token&.connected_at,
+      connected_at: microsoft_token&.created_at,
       email: email_stats,
       calendar: calendar_stats,
       onedrive: onedrive_stats

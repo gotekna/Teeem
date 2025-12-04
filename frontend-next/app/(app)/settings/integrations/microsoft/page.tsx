@@ -26,6 +26,8 @@ import {
   User,
   Cloud,
   ChevronDown,
+  Database,
+  Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -58,25 +60,49 @@ interface ConnectionsResponse {
   calendar: ConnectionInfo;
 }
 
+interface MyDataStats {
+  user_email: string;
+  connected: boolean;
+  connected_at?: string;
+  email: {
+    total_synced: number;
+    last_sync?: string;
+    sync_status: string;
+    emails_in_warehouse: number;
+  };
+  calendar: {
+    upcoming_events: number;
+    last_sync?: string;
+  };
+  onedrive: {
+    files_accessed: number;
+    last_activity?: string;
+  };
+}
+
 export default function MicrosoftIntegrationPage() {
   const router = useRouter();
   const [status, setStatus] = React.useState<MicrosoftStatus | null>(null);
   const [connections, setConnections] = React.useState<ConnectionsResponse | null>(null);
+  const [myDataStats, setMyDataStats] = React.useState<MyDataStats | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [mainOpen, setMainOpen] = React.useState(true);
   const [servicesOpen, setServicesOpen] = React.useState(true);
+  const [myDataOpen, setMyDataOpen] = React.useState(true);
 
   React.useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statusData, connectionsData] = await Promise.all([
+        const [statusData, connectionsData, myDataStatsData] = await Promise.all([
           api.get<MicrosoftStatus>("/api/v1/microsoft/status"),
           api.get<ConnectionsResponse>("/api/v1/microsoft/connections"),
+          api.get<MyDataStats>("/api/v1/microsoft/my_data_stats"),
         ]);
         setStatus(statusData);
         setConnections(connectionsData);
+        setMyDataStats(myDataStatsData);
       } catch (error) {
         console.error("Failed to fetch Microsoft data:", error);
         setStatus({
@@ -299,6 +325,140 @@ export default function MicrosoftIntegrationPage() {
                     icon={<Calendar className="h-5 w-5 text-orange-600" />}
                     iconBg="bg-orange-100"
                   />
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+
+      {/* My Data - Collapsible */}
+      {status?.connected && myDataStats && (
+        <Collapsible open={myDataOpen} onOpenChange={setMyDataOpen}>
+          <Card>
+            <CollapsibleTrigger className="w-full text-left">
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-lg">
+                      <Database className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">My Data</CardTitle>
+                      <CardDescription className="text-xs">
+                        Your personal sync activity
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <ChevronDown
+                    className={`h-5 w-5 text-muted-foreground transition-transform ${
+                      myDataOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Email Stats */}
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-purple-100 rounded-lg">
+                        <Mail className="h-4 w-4 text-purple-600" />
+                      </div>
+                      <h3 className="font-medium text-sm">Email Sync</h3>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Emails Synced</span>
+                        <span className="text-lg font-bold text-purple-600">
+                          {myDataStats.email.total_synced.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">In Warehouse</span>
+                        <span className="text-sm font-medium">
+                          {myDataStats.email.emails_in_warehouse.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground pt-2 border-t">
+                        <Clock className="h-3 w-3" />
+                        <span>
+                          {myDataStats.email.last_sync
+                            ? `Last sync: ${new Date(myDataStats.email.last_sync).toLocaleDateString("en-AU", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
+                            : "Never synced"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calendar Stats */}
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-orange-100 rounded-lg">
+                        <Calendar className="h-4 w-4 text-orange-600" />
+                      </div>
+                      <h3 className="font-medium text-sm">Calendar</h3>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Upcoming Events</span>
+                        <span className="text-lg font-bold text-orange-600">
+                          {myDataStats.calendar.upcoming_events}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground pt-2 border-t">
+                        <Clock className="h-3 w-3" />
+                        <span>
+                          {myDataStats.calendar.last_sync
+                            ? `Last sync: ${new Date(myDataStats.calendar.last_sync).toLocaleDateString("en-AU", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
+                            : "Not synced yet"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* OneDrive Stats */}
+                  <div className="border rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-green-100 rounded-lg">
+                        <FolderOpen className="h-4 w-4 text-green-600" />
+                      </div>
+                      <h3 className="font-medium text-sm">OneDrive</h3>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Files Accessed</span>
+                        <span className="text-lg font-bold text-green-600">
+                          {myDataStats.onedrive.files_accessed}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground pt-2 border-t">
+                        <Clock className="h-3 w-3" />
+                        <span>
+                          {myDataStats.onedrive.last_activity
+                            ? `Last activity: ${new Date(myDataStats.onedrive.last_activity).toLocaleDateString("en-AU", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}`
+                            : "No activity yet"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </CollapsibleContent>

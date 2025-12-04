@@ -504,6 +504,10 @@ export default function CaseDetailPage() {
         }
       );
 
+      if (!response?.data) {
+        throw new Error("Failed to create sub-case");
+      }
+
       // Refresh case data to show new child case
       const caseResponse = await api.get<{ success: boolean; data: CaseDetail }>(
         `/api/v1/cases/${caseId}`
