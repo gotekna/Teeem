@@ -27,6 +27,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   CheckCircle,
   User,
+  UserCheck,
+  UserX,
+  UserMinus,
   Mail,
   Phone,
   Building2,
@@ -48,6 +51,7 @@ interface InvolvedParty {
   phone?: string;
   company?: string;
   relationship_type: string;
+  alignment?: string;
   is_primary?: boolean;
   contact_exists?: boolean;
   contact_id?: number;
@@ -130,12 +134,20 @@ const RELATIONSHIP_TYPES = [
   { value: "advisor", label: "Advisor", icon: Users, color: "bg-teal-500" },
   { value: "opposing_party", label: "Opposing Party", icon: AlertTriangle, color: "bg-orange-500" },
   { value: "witness", label: "Witness", icon: User, color: "bg-yellow-500" },
+  { value: "related_party", label: "Related Party", icon: Users, color: "bg-slate-500" },
   { value: "ato_officer", label: "ATO Officer", icon: Building2, color: "bg-red-500" },
   { value: "director", label: "Director", icon: Briefcase, color: "bg-indigo-500" },
   { value: "shareholder", label: "Shareholder", icon: Users, color: "bg-pink-500" },
   { value: "bank_manager", label: "Bank Manager", icon: Building2, color: "bg-cyan-500" },
   { value: "insurer", label: "Insurer", icon: Building2, color: "bg-emerald-500" },
   { value: "broker", label: "Broker", icon: Users, color: "bg-violet-500" },
+  { value: "trustee", label: "Trustee", icon: Briefcase, color: "bg-amber-500" },
+];
+
+const ALIGNMENTS = [
+  { value: "friendly", label: "Friendly", icon: UserCheck, color: "bg-green-500", textColor: "text-green-700" },
+  { value: "neutral", label: "Neutral", icon: UserMinus, color: "bg-gray-400", textColor: "text-gray-600" },
+  { value: "opposing", label: "Opposing", icon: UserX, color: "bg-red-500", textColor: "text-red-700" },
 ];
 
 export function CaseProposalApprovalDialog({
@@ -182,6 +194,7 @@ export function CaseProposalApprovalDialog({
       phone: "",
       company: "",
       relationship_type: "client",
+      alignment: "neutral",
       is_primary: false,
       contact_exists: false,
     }]);
@@ -565,20 +578,21 @@ interface PartyEditorProps {
 
 function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
   const relType = RELATIONSHIP_TYPES.find(r => r.value === party.relationship_type);
-  const Icon = relType?.icon || User;
+  const alignmentType = ALIGNMENTS.find(a => a.value === party.alignment) || ALIGNMENTS[1]; // default neutral
+  const AlignmentIcon = alignmentType.icon;
 
   return (
     <Card className={party.skip_create ? "opacity-50" : ""}>
       <CardContent className="pt-4">
         <div className="flex items-start gap-4">
-          {/* Icon */}
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${relType?.color || "bg-gray-500"}`}>
-            <Icon className="w-5 h-5" />
+          {/* Icon - shows alignment */}
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${alignmentType.color}`}>
+            <AlignmentIcon className="w-5 h-5" />
           </div>
 
           {/* Fields */}
           <div className="flex-1 grid gap-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="grid gap-1">
                 <Label className="text-xs">Name</Label>
                 <Input
@@ -600,6 +614,24 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
                     {RELATIONSHIP_TYPES.map((type) => (
                       <SelectItem key={type.value} value={type.value}>
                         {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-1">
+                <Label className="text-xs">Alignment</Label>
+                <Select
+                  value={party.alignment || "neutral"}
+                  onValueChange={(v) => onChange(index, { alignment: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ALIGNMENTS.map((align) => (
+                      <SelectItem key={align.value} value={align.value}>
+                        <span className={align.textColor}>{align.label}</span>
                       </SelectItem>
                     ))}
                   </SelectContent>
