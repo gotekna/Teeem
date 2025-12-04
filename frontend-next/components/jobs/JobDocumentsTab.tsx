@@ -32,7 +32,19 @@ import {
   ChevronRight,
   ArrowLeft,
   File,
+  Download,
+  FolderInput,
+  X,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 
 interface OrgStatus {
@@ -80,7 +92,14 @@ interface FolderPath {
 interface DocumentCategory {
   id: number;
   name: string;
-  document_count: number;
+  document_count?: number;
+  icon?: string;
+  color?: string;
+  description?: string;
+  sequence_order?: number;
+  is_active?: boolean;
+  folder_path?: string;
+  children?: DocumentCategory[];
 }
 
 interface DocumentTask {
@@ -94,6 +113,21 @@ interface DocumentTask {
   uploaded_at: string | null;
   validated_at: string | null;
   validated_by: string | null;
+}
+
+interface LegacyItem {
+  id: string;
+  name: string;
+  size?: number;
+  web_url?: string;
+  modified?: string;
+  type: "file" | "folder";
+  child_count?: number;
+}
+
+interface LegacyFolderPath {
+  id: string;
+  name: string;
 }
 
 interface JobDocumentsTabProps {
@@ -111,6 +145,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
   const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<DocumentCategory | null>(null);
   const [tasks, setTasks] = useState<DocumentTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [uploading, setUploading] = useState<number | null>(null);
@@ -121,16 +156,37 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [folderContents, setFolderContents] = useState<OneDriveItem[]>([]);
   const [loadingContents, setLoadingContents] = useState(false);
 
+  // Legacy import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [legacyItems, setLegacyItems] = useState<LegacyItem[]>([]);
+  const [loadingLegacy, setLoadingLegacy] = useState(false);
+  const [selectedLegacyFiles, setSelectedLegacyFiles] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [legacyFolderPath, setLegacyFolderPath] = useState<LegacyFolderPath[]>([]);
+
   useEffect(() => {
     checkOrganizationStatus();
     loadDocumentCategories();
   }, [jobId]);
 
   useEffect(() => {
+    // When a parent category is selected, auto-select the first child (or the parent itself if no children)
     if (selectedCategory) {
-      loadDocumentTasks(selectedCategory.id);
+      if (selectedCategory.children && selectedCategory.children.length > 0) {
+        setSelectedSubCategory(selectedCategory.children[0]);
+      } else {
+        setSelectedSubCategory(null);
+        loadDocumentTasks(selectedCategory.id);
+      }
     }
   }, [selectedCategory]);
+
+  useEffect(() => {
+    // Load tasks for the selected subcategory
+    if (selectedSubCategory) {
+      loadDocumentTasks(selectedSubCategory.id);
+    }
+  }, [selectedSubCategory]);
 
   const checkOrganizationStatus = async () => {
     try {
@@ -359,6 +415,138 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     }
   };
 
+  // Load legacy files from the old SharePoint folder
+  // Supports folder navigation with optional folder_id parameter
+  const loadLegacyFiles = async (folderId?: string) => {
+    try {
+      setLoadingLegacy(true);
+      setError(null);
+      const url = folderId
+        ? `/api/v1/organization_onedrive/legacy_files?job_id=${jobId}&folder_id=${folderId}`
+        : `/api/v1/organization_onedrive/legacy_files?job_id=${jobId}`;
+
+      const response = await api.get<{
+        success: boolean;
+        items: LegacyItem[];
+        count: number;
+        source_folder: string;
+        current_folder_id?: string;
+      }>(url);
+
+      if (response?.success) {
+        setLegacyItems(response.items || []);
+        // Only clear selection when navigating to a new folder
+        if (!folderId) {
+          setSelectedLegacyFiles([]);
+          setLegacyFolderPath([]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load legacy files:", err);
+      setLegacyItems([]);
+    } finally {
+      setLoadingLegacy(false);
+    }
+  };
+
+  // Navigate into a legacy subfolder
+  const navigateLegacyFolder = async (folder: LegacyItem) => {
+    setLegacyFolderPath((prev) => [...prev, { id: folder.id, name: folder.name }]);
+    await loadLegacyFiles(folder.id);
+  };
+
+  // Navigate back in legacy folder hierarchy
+  const navigateLegacyBack = async () => {
+    if (legacyFolderPath.length === 0) return;
+
+    const newPath = legacyFolderPath.slice(0, -1);
+    setLegacyFolderPath(newPath);
+
+    if (newPath.length === 0) {
+      // Go back to root
+      await loadLegacyFiles();
+    } else {
+      // Go to parent folder
+      await loadLegacyFiles(newPath[newPath.length - 1].id);
+    }
+  };
+
+  // Navigate to a specific point in the breadcrumb
+  const navigateLegacyToPath = async (index: number) => {
+    if (index < 0) {
+      // Go to root
+      setLegacyFolderPath([]);
+      await loadLegacyFiles();
+    } else {
+      const newPath = legacyFolderPath.slice(0, index + 1);
+      setLegacyFolderPath(newPath);
+      await loadLegacyFiles(newPath[index].id);
+    }
+  };
+
+  // Import selected legacy files to the job folder
+  const handleImportLegacy = async () => {
+    if (selectedLegacyFiles.length === 0) return;
+
+    try {
+      setImporting(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        imported: { file_id: string; name: string; category: string }[];
+        errors: { file_id: string; error: string }[];
+      }>("/api/v1/organization_onedrive/import_legacy", {
+        job_id: jobId,
+        file_ids: selectedLegacyFiles,
+      });
+
+      if (response?.success) {
+        setMessage({
+          type: "success",
+          text: response.message || `Imported ${response.imported?.length || 0} files successfully!`,
+        });
+        setShowImportModal(false);
+        setSelectedLegacyFiles([]);
+        // Refresh the folder list
+        await checkJobFolderStatus();
+      } else {
+        setError(response?.errors?.map((e) => e.error).join(", ") || "Import failed");
+      }
+    } catch (err) {
+      console.error("Failed to import legacy files:", err);
+      setError("Failed to import files. Please try again.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Open import modal and load files
+  const openImportModal = async () => {
+    setShowImportModal(true);
+    await loadLegacyFiles();
+  };
+
+  // Toggle file selection (files only, not folders)
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedLegacyFiles((prev) =>
+      prev.includes(fileId)
+        ? prev.filter((id) => id !== fileId)
+        : [...prev, fileId]
+    );
+  };
+
+  // Select all files (only files, not folders)
+  const selectAllFiles = () => {
+    const allFiles = legacyItems.filter((i) => i.type === "file");
+    if (selectedLegacyFiles.length === allFiles.length && allFiles.length > 0) {
+      setSelectedLegacyFiles([]);
+    } else {
+      setSelectedLegacyFiles(allFiles.map((f) => f.id));
+    }
+  };
+
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
       return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"><CheckCircle className="h-3 w-3 mr-1" />Validated</Badge>;
@@ -386,8 +574,12 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       );
     }
 
+    // Get the current active category (either the subcategory or the parent if no children)
+    const activeCategory = selectedSubCategory || selectedCategory;
+
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
+        {/* Main Tabs (Parent Categories) */}
         <Tabs
           value={String(selectedCategory?.id)}
           onValueChange={(val) => {
@@ -395,133 +587,175 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             if (cat) setSelectedCategory(cat);
           }}
         >
-          <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1">
             {documentCategories.map((cat) => (
-              <TabsTrigger key={cat.id} value={String(cat.id)}>
-                {cat.name} ({cat.document_count || 0})
+              <TabsTrigger
+                key={cat.id}
+                value={String(cat.id)}
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                {cat.name}
               </TabsTrigger>
             ))}
           </TabsList>
-
-          {documentCategories.map((cat) => (
-            <TabsContent key={cat.id} value={String(cat.id)}>
-              {loadingTasks ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">
-                          {tasks.filter((t) => t.has_document).length}/{tasks.length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Documents Attached</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-green-600">
-                          {tasks.filter((t) => t.is_validated).length}/{tasks.length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Validated</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-red-600">
-                          {tasks.filter((t) => t.required && !t.has_document).length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Required Missing</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Tasks Table */}
-                  <Card>
-                    <CardContent className="p-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Document</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Uploaded</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {tasks.map((task) => (
-                            <TableRow key={task.id}>
-                              <TableCell>
-                                <div className="flex items-start gap-3">
-                                  <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-                                  <div>
-                                    <p className="font-medium">
-                                      {task.name}
-                                      {task.required && <span className="text-red-500 ml-1">*</span>}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>{getStatusBadge(task)}</TableCell>
-                              <TableCell>
-                                {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <label className="cursor-pointer">
-                                    <input
-                                      type="file"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) handleTaskUpload(task.id, file);
-                                      }}
-                                      disabled={uploading === task.id}
-                                    />
-                                    <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
-                                      <span>
-                                        {uploading === task.id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <Upload className="h-4 w-4 mr-1" />
-                                        )}
-                                        {task.has_document ? "Replace" : "Upload"}
-                                      </span>
-                                    </Button>
-                                  </label>
-                                  {task.has_document && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => task.document_url && window.open(task.document_url, "_blank")}
-                                    >
-                                      <Eye className="h-4 w-4 mr-1" />
-                                      View
-                                    </Button>
-                                  )}
-                                  {task.has_document && !task.is_validated && (
-                                    <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
-                                      <ShieldCheck className="h-4 w-4 mr-1" />
-                                      Validate
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </TabsContent>
-          ))}
         </Tabs>
+
+        {/* Sub Tabs (Child Categories) - only show if selected parent has children */}
+        {selectedCategory?.children && selectedCategory.children.length > 0 && (
+          <Tabs
+            value={String(selectedSubCategory?.id)}
+            onValueChange={(val) => {
+              const subCat = selectedCategory.children?.find((c) => String(c.id) === val);
+              if (subCat) setSelectedSubCategory(subCat);
+            }}
+          >
+            <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap gap-1 bg-transparent p-0">
+              {selectedCategory.children.map((subCat) => (
+                <TabsTrigger
+                  key={subCat.id}
+                  value={String(subCat.id)}
+                  className="border border-border bg-muted text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  {subCat.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+
+        {/* Content for the active category */}
+        {loadingTasks ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold">
+                    {tasks.filter((t) => t.has_document).length}/{tasks.length}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Documents Attached</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-green-600">
+                    {tasks.filter((t) => t.is_validated).length}/{tasks.length}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Validated</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-red-600">
+                    {tasks.filter((t) => t.required && !t.has_document).length}
+                  </div>
+                  <p className="text-sm text-muted-foreground">Required Missing</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Tasks Table */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Folder className="h-5 w-5 text-yellow-500" />
+                  {activeCategory?.name}
+                  {activeCategory?.folder_path && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({activeCategory.folder_path})
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {tasks.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">No document tasks in this category.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Document</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Uploaded</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tasks.map((task) => (
+                        <TableRow key={task.id}>
+                          <TableCell>
+                            <div className="flex items-start gap-3">
+                              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <div>
+                                <p className="font-medium">
+                                  {task.name}
+                                  {task.required && <span className="text-red-500 ml-1">*</span>}
+                                </p>
+                                <p className="text-sm text-muted-foreground">{task.description}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(task)}</TableCell>
+                          <TableCell>
+                            {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <label className="cursor-pointer">
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleTaskUpload(task.id, file);
+                                  }}
+                                  disabled={uploading === task.id}
+                                />
+                                <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
+                                  <span>
+                                    {uploading === task.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Upload className="h-4 w-4 mr-1" />
+                                    )}
+                                    {task.has_document ? "Replace" : "Upload"}
+                                  </span>
+                                </Button>
+                              </label>
+                              {task.has_document && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => task.document_url && window.open(task.document_url, "_blank")}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              )}
+                              {task.has_document && !task.is_validated && (
+                                <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
+                                  <ShieldCheck className="h-4 w-4 mr-1" />
+                                  Validate
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     );
   };
@@ -565,19 +799,28 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
               Create the folder structure in SharePoint for {jobTitle || "this job"}.
             </p>
-            <Button className="mt-6" onClick={handleCreateFolders} disabled={creatingFolders}>
-              {creatingFolders ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating Folders...
-                </>
-              ) : (
-                <>
-                  <Folder className="h-4 w-4 mr-2" />
-                  Create Folder Structure
-                </>
-              )}
-            </Button>
+            <div className="mt-6 flex gap-3 justify-center">
+              <Button onClick={handleCreateFolders} disabled={creatingFolders}>
+                {creatingFolders ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Creating Folders...
+                  </>
+                ) : (
+                  <>
+                    <Folder className="h-4 w-4 mr-2" />
+                    Create Folder Structure
+                  </>
+                )}
+              </Button>
+              <Button variant="outline" onClick={openImportModal}>
+                <FolderInput className="h-4 w-4 mr-2" />
+                Import from Legacy
+              </Button>
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              Or import existing documents from the legacy SharePoint folder
+            </p>
           </CardContent>
         </Card>
       );
@@ -599,6 +842,10 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                 </p>
               </div>
               <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={openImportModal}>
+                  <FolderInput className="h-4 w-4 mr-1" />
+                  Import from Legacy
+                </Button>
                 <Button variant="outline" size="sm" onClick={checkJobFolderStatus}>
                   <RefreshCw className="h-4 w-4 mr-1" />
                   Refresh
@@ -791,6 +1038,173 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       </div>
 
       {viewMode === "tasks" ? renderTasksView() : renderOneDriveView()}
+
+      {/* Import Legacy Files Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderInput className="h-5 w-5" />
+              Import from Legacy Folder
+            </DialogTitle>
+            <DialogDescription>
+              Select files from the old SharePoint folder to import into this job's folder.
+              Files will be automatically categorized and moved.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {loadingLegacy ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <span className="ml-3 text-muted-foreground">Searching for files...</span>
+              </div>
+            ) : legacyItems.length === 0 ? (
+              <div className="py-12 text-center">
+                <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
+                <p className="mt-2 text-muted-foreground">No legacy files found for this job.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  The old folder structure may not contain files matching this job.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* Breadcrumb navigation */}
+                {legacyFolderPath.length > 0 && (
+                  <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={navigateLegacyBack}
+                      className="h-8 px-2"
+                    >
+                      <ArrowLeft className="h-4 w-4 mr-1" />
+                      Back
+                    </Button>
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground overflow-x-auto">
+                      <button
+                        className="hover:text-foreground cursor-pointer"
+                        onClick={() => navigateLegacyToPath(-1)}
+                      >
+                        Root
+                      </button>
+                      {legacyFolderPath.map((folder, index) => (
+                        <span key={folder.id} className="flex items-center">
+                          <ChevronRight className="h-3 w-3 mx-1 flex-shrink-0" />
+                          <button
+                            className={`hover:text-foreground cursor-pointer truncate max-w-[150px] ${
+                              index === legacyFolderPath.length - 1 ? "font-medium text-foreground" : ""
+                            }`}
+                            onClick={() => navigateLegacyToPath(index)}
+                          >
+                            {folder.name}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Select All (only show if there are files) */}
+                {legacyItems.some((i) => i.type === "file") && (
+                  <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                    <Checkbox
+                      id="select-all"
+                      checked={
+                        selectedLegacyFiles.length > 0 &&
+                        selectedLegacyFiles.length === legacyItems.filter((i) => i.type === "file").length
+                      }
+                      onCheckedChange={selectAllFiles}
+                    />
+                    <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+                      Select All ({legacyItems.filter((i) => i.type === "file").length} files)
+                    </label>
+                  </div>
+                )}
+
+                {/* Items list (folders and files) */}
+                <div className="border rounded-lg divide-y">
+                  {legacyItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer ${
+                        item.type === "folder" ? "bg-muted/30" : ""
+                      }`}
+                      onClick={() =>
+                        item.type === "folder"
+                          ? navigateLegacyFolder(item)
+                          : toggleFileSelection(item.id)
+                      }
+                    >
+                      {item.type === "folder" ? (
+                        <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      ) : (
+                        <Checkbox
+                          checked={selectedLegacyFiles.includes(item.id)}
+                          onCheckedChange={() => toggleFileSelection(item.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      {item.type === "folder" ? (
+                        <Folder className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                      ) : (
+                        <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{item.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {item.type === "folder"
+                            ? `${item.child_count || 0} items`
+                            : `${item.size ? formatFileSize(item.size) : ""}${
+                                item.modified
+                                  ? ` • Modified ${new Date(item.modified).toLocaleDateString()}`
+                                  : ""
+                              }`}
+                        </p>
+                      </div>
+                      {item.web_url && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(item.web_url, "_blank");
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-shrink-0 gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowImportModal(false)} disabled={importing}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleImportLegacy}
+              disabled={importing || selectedLegacyFiles.length === 0}
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Import {selectedLegacyFiles.length} {selectedLegacyFiles.length === 1 ? "File" : "Files"}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
