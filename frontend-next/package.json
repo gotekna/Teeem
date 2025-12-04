@@ -45,6 +45,7 @@
     "@types/leaflet": "^1.9.21",
     "@types/lodash.throttle": "^4.1.9",
     "@types/pg": "^8.15.6",
+    "@xyflow/react": "^12.9.3",
     "autoprefixer": "^10.4.22",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

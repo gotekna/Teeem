@@ -115,14 +115,6 @@ interface DocumentTask {
   validated_by: string | null;
 }
 
-interface SuggestedDocType {
-  id: number;
-  name: string;
-  abbreviation?: string;
-  folder?: string;
-  confidence: number;
-}
-
 interface LegacyItem {
   id: string;
   name: string;
@@ -132,7 +124,6 @@ interface LegacyItem {
   type: "file" | "folder";
   child_count?: number;
   folder_path?: string; // Path to the file's parent folder (for recursive listing)
-  suggested_document_types?: SuggestedDocType[]; // AI-suggested document types
 }
 
 interface LegacyFolderPath {
@@ -1079,109 +1070,91 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     return (
       <div className="space-y-4">
         {/* Header with refresh and open in SharePoint */}
-        <Card className="bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Folder className="h-5 w-5 text-blue-600" />
-                  <h3 className="font-semibold">All Files in Job Folder</h3>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {loadingAllFiles
-                    ? "Loading files..."
-                    : `${allFiles.length} files found across all folders`}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={loadAllFiles}
-                  disabled={loadingAllFiles}
-                >
-                  {loadingAllFiles ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4 mr-1" />
-                  )}
-                  Refresh
-                </Button>
-                {allFilesJobFolderUrl && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => window.open(allFilesJobFolderUrl, "_blank")}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    Open in SharePoint
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold">All Files</h3>
+            <span className="text-sm text-muted-foreground">
+              {loadingAllFiles ? "Loading..." : `${allFiles.length} files`}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadAllFiles}
+              disabled={loadingAllFiles}
+            >
+              {loadingAllFiles ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-1" />
+              )}
+              Refresh
+            </Button>
+            {allFilesJobFolderUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(allFilesJobFolderUrl, "_blank")}
+              >
+                <ExternalLink className="h-4 w-4 mr-1" />
+                Open in SharePoint
+              </Button>
+            )}
+          </div>
+        </div>
 
-        {/* Files list */}
+        {/* Files table */}
         <Card>
           <CardContent className="p-0">
             {loadingAllFiles ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                <span className="ml-3 text-muted-foreground">Loading all files...</span>
-              </div>
-            ) : allFiles.length === 0 ? (
-              <div className="py-12 text-center">
-                <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
-                <p className="mt-2 text-muted-foreground">No files found in the job folder.</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Create the folder structure first or upload documents.
-                </p>
               </div>
             ) : (
-              <div className="divide-y max-h-[600px] overflow-y-auto">
-                {allFiles.map((item) => {
-                  const suggestions = item.suggested_document_types || [];
-                  return (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors group"
-                    >
-                      <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium truncate">{item.name}</p>
-                          {suggestions.length > 0 && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800 shrink-0"
-                              title={`Suggested: ${suggestions[0].name}${suggestions[0].confidence ? ` (${suggestions[0].confidence}% match)` : ''}`}
-                            >
-                              → {suggestions[0].abbreviation || suggestions[0].name.split(' - ')[0]}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          <p className="text-xs text-muted-foreground">
-                            {item.folder_path && (
-                              <span className="text-blue-600 dark:text-blue-400 mr-1">{item.folder_path}/</span>
-                            )}
-                            {item.size ? formatFileSize(item.size) : ""}
-                            {item.modified && `${item.size ? ' • ' : ''}Modified ${new Date(item.modified).toLocaleDateString()}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {item.web_url && (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => window.open(item.web_url, "_blank")}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>File Name</TableHead>
+                    <TableHead>Folder</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Modified</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allFiles.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No files found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    allFiles.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                            <span className="text-sm truncate max-w-[300px]">{item.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {item.folder_path || "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {item.size ? formatFileSize(item.size) : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {item.modified ? new Date(item.modified).toLocaleDateString() : "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {item.web_url && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -1190,13 +1163,13 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>

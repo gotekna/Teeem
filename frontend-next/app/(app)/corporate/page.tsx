@@ -47,6 +47,13 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import dynamic from "next/dynamic";
+
+// Dynamically import the chart to avoid SSR issues with React Flow
+const CorporateStructureChart = dynamic(
+  () => import("@/components/corporate/CorporateStructureChart"),
+  { ssr: false, loading: () => <div className="h-[600px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> }
+);
 
 // Import from centralized utilities
 import {
@@ -149,6 +156,7 @@ interface StructureCompany {
   is_trustee: boolean;
   trust_name: string | null;
   hierarchy_level: number | null;
+  date_incorporated: string | null;
   shareholders: StructureShareholder[];
   investments: unknown[];
   children: StructureCompany[];
@@ -303,7 +311,9 @@ export default function CorporateDashboardPage() {
     shareholders: true,
     directors: true,
     secretary: true,
+    corporateOfficer: true,
   });
+  const [structureViewMode, setStructureViewMode] = React.useState<"chart" | "table">("chart");
 
   // People tab state
   const [people, setPeople] = React.useState<TableRow[]>([]);
@@ -754,16 +764,18 @@ export default function CorporateDashboardPage() {
         const hasDirector = p.roles.some(r => r.type?.toLowerCase() === 'director');
         const hasSecretary = p.roles.some(r => r.type?.toLowerCase() === 'secretary');
         const hasShareholder = p.roles.some(r => r.type?.toLowerCase() === 'shareholder');
+        const hasCorporateOfficer = p.roles.some(r => r.type?.toLowerCase() === 'corporate officer' || r.type?.toLowerCase() === 'officer');
 
         // If no filters selected, show nothing
-        if (!structureFilters.shareholders && !structureFilters.directors && !structureFilters.secretary) {
+        if (!structureFilters.shareholders && !structureFilters.directors && !structureFilters.secretary && !structureFilters.corporateOfficer) {
           return false;
         }
 
         // Show person if they match any selected filter
         return (structureFilters.directors && hasDirector) ||
                (structureFilters.secretary && hasSecretary) ||
-               (structureFilters.shareholders && hasShareholder);
+               (structureFilters.shareholders && hasShareholder) ||
+               (structureFilters.corporateOfficer && hasCorporateOfficer);
       })
       .map(p => ({
         id: p.id,
@@ -1735,65 +1747,144 @@ export default function CorporateDashboardPage() {
                 </Card>
               </div>
 
-              {/* Companies/Trusts Hierarchy Table */}
+              {/* Companies/Trusts Hierarchy */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-blue-600" />
                     Companies & Trusts Hierarchy
                   </CardTitle>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    {/* View Mode Toggle */}
+                    <div className="flex items-center gap-2 border rounded-lg p-1">
+                      <button
+                        onClick={() => setStructureViewMode("chart")}
+                        className={cn(
+                          "px-3 py-1 text-sm rounded-md transition-colors",
+                          structureViewMode === "chart"
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-muted"
+                        )}
+                      >
+                        Chart
+                      </button>
+                      <button
+                        onClick={() => setStructureViewMode("table")}
+                        className={cn(
+                          "px-3 py-1 text-sm rounded-md transition-colors",
+                          structureViewMode === "table"
+                            ? "bg-primary text-primary-foreground"
+                            : "hover:bg-muted"
+                        )}
+                      >
+                        Table
+                      </button>
+                    </div>
+                    {/* Filters */}
+                    <span className="text-sm text-muted-foreground">Show:</span>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={structureFilters.shareholders}
+                        onChange={(e) => setStructureFilters(prev => ({ ...prev, shareholders: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                      />
+                      <span className="text-sm text-amber-700 dark:text-amber-400">Shareholders</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={structureFilters.directors}
+                        onChange={(e) => setStructureFilters(prev => ({ ...prev, directors: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-sm text-purple-700 dark:text-purple-400">Directors</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={structureFilters.secretary}
+                        onChange={(e) => setStructureFilters(prev => ({ ...prev, secretary: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-blue-700 dark:text-blue-400">Secretary</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={structureFilters.corporateOfficer}
+                        onChange={(e) => setStructureFilters(prev => ({ ...prev, corporateOfficer: e.target.checked }))}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-green-700 dark:text-green-400">Officer</span>
+                    </label>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <TeeemTableView
-                    entries={structureRows}
-                    columns={structureColumns}
-                    tableName={`${structureData.group.name} Structure`}
-                    viewOnly={true}
-                    onRowClick={(row) => router.push(`/corporate/companies/${row.id}`)}
-                    customCellRenderer={(entry, columnKey) => {
-                      if (columnKey === "display_name") {
-                        const level = entry._level as number;
-                        const isTrust = (entry.entity_type as string)?.toLowerCase() === "trust";
-                        const isTrustee = entry.is_trustee === "Yes";
-                        return (
-                          <div className="flex items-center gap-2">
-                            {level > 0 && (
-                              <span className="text-muted-foreground text-xs" style={{ marginLeft: (level - 1) * 16 }}>
-                                └─
+                  {structureViewMode === "chart" ? (
+                    <CorporateStructureChart
+                      data={structureData}
+                      filters={structureFilters}
+                      onEntityClick={(id, type) => {
+                        if (type === "company") {
+                          router.push(`/corporate/companies/${id}`);
+                        } else {
+                          router.push(`/contacts/${id}`);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <TeeemTableView
+                      entries={structureRows}
+                      columns={structureColumns}
+                      tableName={`${structureData.group.name} Structure`}
+                      viewOnly={true}
+                      onRowClick={(row) => router.push(`/corporate/companies/${row.id}`)}
+                      customCellRenderer={(entry, columnKey) => {
+                        if (columnKey === "display_name") {
+                          const level = entry._level as number;
+                          const isTrust = (entry.entity_type as string)?.toLowerCase() === "trust";
+                          const isTrustee = entry.is_trustee === "Yes";
+                          return (
+                            <div className="flex items-center gap-2">
+                              {level > 0 && (
+                                <span className="text-muted-foreground text-xs" style={{ marginLeft: (level - 1) * 16 }}>
+                                  └─
+                                </span>
+                              )}
+                              {isTrust ? (
+                                <Network className="h-4 w-4 text-rose-500 flex-shrink-0" />
+                              ) : isTrustee ? (
+                                <Building2 className="h-4 w-4 text-indigo-500 flex-shrink-0" />
+                              ) : (
+                                <Building2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                              )}
+                              <span className={isTrust ? "text-rose-700 dark:text-rose-400" : isTrustee ? "text-indigo-700 dark:text-indigo-400" : ""}>
+                                {entry.name as string}
                               </span>
-                            )}
-                            {isTrust ? (
-                              <Network className="h-4 w-4 text-rose-500 flex-shrink-0" />
-                            ) : isTrustee ? (
-                              <Building2 className="h-4 w-4 text-indigo-500 flex-shrink-0" />
-                            ) : (
-                              <Building2 className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                            )}
-                            <span className={isTrust ? "text-rose-700 dark:text-rose-400" : isTrustee ? "text-indigo-700 dark:text-indigo-400" : ""}>
-                              {entry.name as string}
-                            </span>
-                          </div>
-                        );
-                      }
-                      if (columnKey === "entity_type") {
-                        const type = entry.entity_type as string;
-                        return (
-                          <Badge className={getEntityTypeBadgeColor(type?.toLowerCase() === "trust" ? "trust" : "company")}>
-                            {type || "Company"}
-                          </Badge>
-                        );
-                      }
-                      if (columnKey === "status") {
-                        const status = entry.status as string;
-                        return (
-                          <Badge variant={status === "active" ? "default" : "secondary"}>
-                            {status}
-                          </Badge>
-                        );
-                      }
-                      return null;
-                    }}
-                  />
+                            </div>
+                          );
+                        }
+                        if (columnKey === "entity_type") {
+                          const type = entry.entity_type as string;
+                          return (
+                            <Badge className={getEntityTypeBadgeColor(type?.toLowerCase() === "trust" ? "trust" : "company")}>
+                              {type || "Company"}
+                            </Badge>
+                          );
+                        }
+                        if (columnKey === "status") {
+                          const status = entry.status as string;
+                          return (
+                            <Badge variant={status === "active" ? "default" : "secondary"}>
+                              {status}
+                            </Badge>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                  )}
                 </CardContent>
               </Card>
 
@@ -1832,6 +1923,15 @@ export default function CorporateDashboardPage() {
                           className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <span className="text-sm text-blue-700 dark:text-blue-400">Secretary</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={structureFilters.corporateOfficer}
+                          onChange={(e) => setStructureFilters(prev => ({ ...prev, corporateOfficer: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        />
+                        <span className="text-sm text-green-700 dark:text-green-400">Corporate Officer</span>
                       </label>
                     </div>
                   </CardHeader>

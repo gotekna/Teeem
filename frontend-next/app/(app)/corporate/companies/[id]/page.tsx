@@ -1607,8 +1607,9 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     if (newParentId === selectedParentId) return;
     try {
       setSavingParent(true);
+      // SSoT: Use consolidation_parent_id for hierarchy (single source of truth)
       await api.put(`/api/v1/companies/${company.id}`, {
-        company: { parent_company_id: newParentId || null },
+        company: { consolidation_parent_id: newParentId || null },
       });
       setSelectedParentId(newParentId);
       onUpdate();
@@ -1680,11 +1681,10 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     if (!selectedCompanyId) return;
     try {
       setSaving(true);
-      // Set both consolidation_parent_id AND parent_company_id so it shows in hierarchy
+      // SSoT: Only use consolidation_parent_id for hierarchy (single source of truth)
       await api.put(`/api/v1/companies/${selectedCompanyId}`, {
         company: {
           consolidation_parent_id: company.id,
-          parent_company_id: company.id,
           company_group_id: company.company_group_id
         },
       });
