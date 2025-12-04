@@ -1123,6 +1123,7 @@ export default function TeeemTableView({
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [activeViewId, setActiveViewId] = useState<number | string | null>(null);
   const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
+  const initialViewLoadedRef = useRef(false); // Prevent re-loading views after initial load
   const [groupByColumn, setGroupByColumn] = useState<string | null>(initialGroupByColumn);
   const [groupByColumns, setGroupByColumns] = useState<string[]>(
     initialGroupByColumn ? [initialGroupByColumn] : []
@@ -2101,7 +2102,13 @@ export default function TeeemTableView({
     const loadSavedViews = async () => {
       if (!foundationIdNumeric) return;
 
-      // Prevent duplicate fetches (React StrictMode double-mount)
+      // Prevent re-loading views after initial load (avoid loops from state changes)
+      if (initialViewLoadedRef.current) {
+        console.log('[loadSavedViews] Skipping - initial view already loaded');
+        return;
+      }
+
+      // Prevent duplicate concurrent fetches (React StrictMode double-mount)
       if (viewsLoadingRef.current) {
         console.log('[loadSavedViews] Skipping - already loading');
         return;
@@ -2160,7 +2167,10 @@ export default function TeeemTableView({
           if (urlViewSlug) {
             const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
             if (urlView) {
-              loadViewState(urlView);
+              // Skip URL update since we're loading from URL
+              loadViewState(urlView, true);
+              initialViewLoadedRef.current = true;
+              viewsLoadingRef.current = false;
               return;
             }
           }
@@ -2172,9 +2182,12 @@ export default function TeeemTableView({
               filteredViews.find((v: SavedView) => v.display_order === 0) ||
               filteredViews[0];
             if (defaultView) {
-              loadViewState(defaultView);
+              // Skip URL update for initial default view load (URL will update on user interaction)
+              loadViewState(defaultView, true);
+              initialViewLoadedRef.current = true;
             }
           }
+          viewsLoadingRef.current = false;
           return;
         }
 
@@ -2183,6 +2196,8 @@ export default function TeeemTableView({
           console.log('[loadSavedViews] Waiting for in-flight request');
           const views = await viewsFetchPromises[foundationIdNumeric];
           setSavedViews(views || []);
+          initialViewLoadedRef.current = true;
+          viewsLoadingRef.current = false;
           return;
         }
 
@@ -2263,7 +2278,9 @@ export default function TeeemTableView({
         if (urlViewSlug) {
           const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
           if (urlView) {
-            loadViewState(urlView);
+            // Skip URL update since we're loading from URL
+            loadViewState(urlView, true);
+            initialViewLoadedRef.current = true;
             return;
           }
         }
@@ -2278,11 +2295,16 @@ export default function TeeemTableView({
             filteredViews[0]; // Fallback to first view
 
           if (defaultView) {
-            loadViewState(defaultView);
+            // Skip URL update for initial default view load (URL will update on user interaction)
+            loadViewState(defaultView, true);
+            initialViewLoadedRef.current = true;
           }
         }
       } catch (error) {
         console.error("Error loading saved views:", error);
+      } finally {
+        // Reset loading flag to allow future loads (e.g., on foundation change)
+        viewsLoadingRef.current = false;
       }
     };
 
@@ -2290,8 +2312,9 @@ export default function TeeemTableView({
   }, [foundationIdNumeric, preloadedViews]);
 
   // Load view state helper - uses startTransition for non-urgent updates to avoid blocking UI
+  // skipUrlUpdate: set to true when loading from URL to avoid redundant URL updates that can cause loops
   const loadViewState = useCallback(
-    (view: SavedView) => {
+    (view: SavedView, skipUrlUpdate = false) => {
       // Helper to ensure filters have unique ids
       const ensureFilterIds = (filters: CascadeFilter[]) =>
         filters.map((f, idx) => ({
@@ -2373,11 +2396,17 @@ export default function TeeemTableView({
       });
 
       // URL update is kept outside startTransition as it's a side effect
-      if (view.id && view.name) {
-        const currentParams = new URLSearchParams(searchParams.toString());
-        currentParams.set('view', slugifyViewName(view.name));
-        const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
-        router.replace(newUrl, { scroll: false });
+      // Skip URL update when loading from URL to avoid redundant updates/loops
+      if (view.id && view.name && !skipUrlUpdate) {
+        const currentUrlViewSlug = searchParams.get('view');
+        const newViewSlug = slugifyViewName(view.name);
+        // Only update URL if the slug is actually different
+        if (currentUrlViewSlug !== newViewSlug) {
+          const currentParams = new URLSearchParams(searchParams.toString());
+          currentParams.set('view', newViewSlug);
+          const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+          router.replace(newUrl, { scroll: false });
+        }
       }
 
       // Handle apiParams for server-side filtering
