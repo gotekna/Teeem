@@ -61,6 +61,19 @@ interface RecordsResponse {
 }
 
 /**
+ * API response shape for views
+ */
+interface ViewsResponse {
+  success: boolean;
+  views: unknown[];
+}
+
+// Module-level cache for preloaded views (shared with TeeemTableView)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const preloadedViewsCache: Record<number, { views: any[]; timestamp: number }> = {};
+const VIEWS_CACHE_TTL = 60000; // 1 minute
+
+/**
  * Hook for loading foundation data by slug (not ID)
  * Used for slug-based URLs like /jobs_GOD_LOVES_YOU_ instead of /204/jobs_GOD_LOVES_YOU_
  *
@@ -119,13 +132,43 @@ export function useFoundationBySlug(
       const foundationObj = foundationData.foundation;
       setFoundation(foundationObj);
 
-      // Load records via the universal records endpoint using the foundation ID
+      // Load records AND views in parallel for better performance
       const recordsStartTime = performance.now();
-      const recordsData = await api.get<RecordsResponse>(
+
+      // Check if views are already cached
+      const cachedViews = preloadedViewsCache[foundationObj.id];
+      const now = Date.now();
+      const viewsCached = cachedViews && (now - cachedViews.timestamp) < VIEWS_CACHE_TTL;
+
+      // Start both requests in parallel
+      const recordsPromise = api.get<RecordsResponse>(
         `/api/v1/foundations/${foundationObj.id}/records`,
         { params: { per_page: perPage } }
       );
+
+      // Only fetch views if not cached
+      const viewsPromise = viewsCached
+        ? Promise.resolve(null)
+        : api.get<ViewsResponse>(
+            `/api/v1/foundation_views`,
+            { params: { foundation_id: foundationObj.id } }
+          );
+
+      // Wait for both to complete
+      const [recordsData, viewsData] = await Promise.all([recordsPromise, viewsPromise]);
+
       console.log('[useFoundationBySlug] Records loaded in', (performance.now() - recordsStartTime).toFixed(0), 'ms', '- count:', recordsData.records?.length);
+
+      // Cache the views for TeeemTableView to use
+      if (viewsData?.success && viewsData.views) {
+        preloadedViewsCache[foundationObj.id] = {
+          views: viewsData.views,
+          timestamp: Date.now()
+        };
+        console.log('[useFoundationBySlug] Views preloaded:', viewsData.views.length);
+      } else if (viewsCached) {
+        console.log('[useFoundationBySlug] Using cached views');
+      }
 
       const loadedRecords = recordsData.records || [];
       setRecords(loadedRecords);

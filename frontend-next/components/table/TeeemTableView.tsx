@@ -32,6 +32,9 @@ const viewsCache: Record<number, CachedViewsEntry> = {};
 const viewsFetchPromises: Record<number, Promise<SavedView[]> | undefined> = {};
 const VIEWS_CACHE_TTL = 60000; // 1 minute TTL for views cache
 
+// Import preloaded views cache from useFoundationBySlug (populated in parallel with records)
+import { preloadedViewsCache } from '@/hooks/useFoundationBySlug';
+
 import React, {
   useState,
   useMemo,
@@ -2109,9 +2112,44 @@ export default function TeeemTableView({
       console.log('[loadSavedViews] Starting for foundation:', foundationIdNumeric);
 
       try {
-        // Check module-level cache first
-        const cachedEntry = viewsCache[foundationIdNumeric];
+        // Check preloaded views cache first (populated by useFoundationBySlug in parallel)
+        const preloadedEntry = preloadedViewsCache[foundationIdNumeric];
         const now = Date.now();
+        if (preloadedEntry && (now - preloadedEntry.timestamp) < VIEWS_CACHE_TTL && !viewsCache[foundationIdNumeric]) {
+          console.log('[loadSavedViews] Using preloaded views from useFoundationBySlug, age:', (now - preloadedEntry.timestamp), 'ms');
+
+          // Map the raw API views to frontend format (same mapping as below)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mappedViews = (preloadedEntry.views as any[]).map((v) => ({
+            ...v,
+            visibleColumns: v.columns?.visible || v.visibleColumns || {},
+            columnOrder: v.columns?.order || v.columnOrder || [],
+            columnWidths: v.columns?.widths || v.columnWidths || {},
+            autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
+            showTotals: v.columns?.showTotals !== false && v.showTotals !== false,
+            filters: v.filters?.cascadeFilters || v.filters || [],
+            filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
+            interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
+            sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
+            groupByColumns: v.group_by_columns || v.groupByColumns || [],
+          })) as SavedView[];
+
+          // Sort views by display_order
+          const sortedViews = mappedViews.sort((a, b) => {
+            if (a.is_global && !b.is_global) return -1;
+            if (!a.is_global && b.is_global) return 1;
+            return (a.display_order ?? 999) - (b.display_order ?? 999);
+          });
+
+          // Copy to local cache
+          viewsCache[foundationIdNumeric] = {
+            views: sortedViews,
+            timestamp: preloadedEntry.timestamp
+          };
+        }
+
+        // Check module-level cache (includes preloaded views now)
+        const cachedEntry = viewsCache[foundationIdNumeric];
         if (cachedEntry && (now - cachedEntry.timestamp) < VIEWS_CACHE_TTL) {
           console.log('[loadSavedViews] Using cached views, age:', (now - cachedEntry.timestamp), 'ms');
           const filteredViews = cachedEntry.views;

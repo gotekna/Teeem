@@ -451,7 +451,20 @@ export default function DocumentPreviewModal({
 
   // Get the full document type record from database (includes naming_format)
   const getDocumentTypeRecord = React.useCallback((docTypeName: string) => {
-    return documentTypes.find(dt => dt.name === docTypeName);
+    // Try exact match first
+    let record = documentTypes.find(dt => dt.name === docTypeName);
+    if (record) return record;
+
+    // Try matching without the abbreviation suffix like "(ASICR)" that AI might add
+    const nameWithoutAbbrev = docTypeName.replace(/\s*\([^)]+\)\s*$/, '').trim();
+    if (nameWithoutAbbrev !== docTypeName) {
+      record = documentTypes.find(dt => dt.name === nameWithoutAbbrev);
+      if (record) return record;
+    }
+
+    // Try case-insensitive match
+    const docTypeNameLower = docTypeName.toLowerCase();
+    return documentTypes.find(dt => dt.name.toLowerCase() === docTypeNameLower);
   }, [documentTypes]);
 
   // Get document types for a specific folder - uses database if available, fallback to hardcoded
