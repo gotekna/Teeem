@@ -40,6 +40,7 @@ import {
 import { api } from "@/lib/api";
 import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
+import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 
 // Helper function to format ABN as XX XXX XXX XXX
 const formatABN = (abn: string | null) => {
@@ -224,6 +225,7 @@ export default function ContactDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [memberships, setMemberships] = useState<CompanyGroupMembership[]>([]);
   const [loadingMemberships, setLoadingMemberships] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const activeTab = searchParams.get("tab") || "overview";
 
@@ -336,7 +338,7 @@ export default function ContactDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setEditModalOpen(true)}>
             <Pencil className="h-4 w-4 mr-2" />
             Edit
           </Button>
@@ -1435,6 +1437,14 @@ export default function ContactDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Modal */}
+      <ContactEditModal
+        contact={contact}
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        onSaved={loadContact}
+      />
     </div>
   );
 }
