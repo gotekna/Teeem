@@ -1537,11 +1537,16 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const [parentCompanyOptions, setParentCompanyOptions] = React.useState<{ id: number; name: string }[]>([]);
   const [selectedParentId, setSelectedParentId] = React.useState(String(company.parent_company_id || ""));
   const [savingParent, setSavingParent] = React.useState(false);
+  // Trustee state
+  const [availableTrusts, setAvailableTrusts] = React.useState<{ id: number; name: string; entity_type?: string }[]>([]);
+  const [selectedTrustName, setSelectedTrustName] = React.useState(company.trust_name || "");
+  const [savingTrustee, setSavingTrustee] = React.useState(false);
 
   React.useEffect(() => {
     loadConsolidatedCompanies();
     loadCompanyGroups();
     loadParentCompanyOptions();
+    loadAvailableTrusts();
   }, [company.id]);
 
   const loadConsolidatedCompanies = async () => {
@@ -1608,6 +1613,42 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
       console.error("Failed to update parent company:", error);
     } finally {
       setSavingParent(false);
+    }
+  };
+
+  const loadAvailableTrusts = async () => {
+    try {
+      const params: Record<string, string | number> = {};
+      if (company.company_group_id) {
+        params.company_group_id = company.company_group_id;
+      }
+      const response = await api.get<{ companies: { id: number; name: string; entity_type?: string }[] }>("/api/v1/companies", { params });
+      // Filter to only trusts and superfunds
+      const trusts = (response.companies || []).filter((c) =>
+        ["Trust", "Superfund"].includes(c.entity_type || "")
+      );
+      setAvailableTrusts(trusts);
+    } catch (error) {
+      console.error("Failed to load available trusts:", error);
+    }
+  };
+
+  const handleTrusteeChange = async (trustName: string) => {
+    if (trustName === selectedTrustName) return;
+    try {
+      setSavingTrustee(true);
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: {
+          is_trustee: trustName ? true : false,
+          trust_name: trustName || null,
+        },
+      });
+      setSelectedTrustName(trustName);
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to update trustee:", error);
+    } finally {
+      setSavingTrustee(false);
     }
   };
 
@@ -1710,8 +1751,25 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
             </select>
             {savingParent && <span className="text-sm text-muted-foreground">Saving...</span>}
           </div>
+          <div className="flex items-center gap-4">
+            <Label className="whitespace-nowrap w-32">Trustee For:</Label>
+            <select
+              value={selectedTrustName}
+              onChange={(e) => handleTrusteeChange(e.target.value)}
+              disabled={savingTrustee}
+              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            >
+              <option value="">Not a trustee</option>
+              {availableTrusts.map((trust) => (
+                <option key={trust.id} value={trust.name}>
+                  {trust.name}
+                </option>
+              ))}
+            </select>
+            {savingTrustee && <span className="text-sm text-muted-foreground">Saving...</span>}
+          </div>
           <p className="text-xs text-muted-foreground">
-            Parent Company sets the hierarchy for the Corporate dashboard display
+            Set relationships: Parent Company for hierarchy, Trustee For if this company acts as trustee for a trust
           </p>
         </CardContent>
       </Card>
