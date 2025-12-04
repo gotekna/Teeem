@@ -19,10 +19,49 @@
 - User says "/l" (deploy command)
 - User says "ship it" or "looks good, push it"
 
+**After committing or deploying, ALWAYS show:**
+```
+================================================
+DEPLOYED: [Brisbane Time - e.g., 2025-12-05 3:45 PM AEST]
+Backend:  v[number] (teeemlive)
+Frontend: v[number] (teeemlive.vercel.app)
+================================================
+```
+
+To get version numbers:
+- Backend: `heroku releases --app teeemlive -n 1` or check release output
+- Frontend: Check Vercel deployment or `git log --oneline -1` for frontend
+
 **Examples of when NOT to commit/deploy:**
 - Fixing a bug (wait for user to test and confirm)
 - Making any code change (wait for user approval)
 - Even if deployment is failing (ask user first)
+
+## 🔴 CRITICAL: SSoT (Single Source of Truth) Violations
+
+**If you find multiple ways to do the same thing, STOP and alert the user.**
+
+When discovering duplicate/conflicting implementations:
+1. ⚠️ **IMMEDIATELY flag it to the user** - Don't silently pick one
+2. 📍 **Show both locations** - File paths and line numbers
+3. ❓ **Ask which should be the SSoT** - Let user decide
+4. 🔧 **Offer to consolidate** - Remove the duplicate after user confirms
+
+**Examples of SSoT violations to watch for:**
+- Two config files for the same thing (e.g., `solid_queue.yml` AND `recurring.yml`)
+- Same constant defined in multiple places
+- Duplicate route definitions
+- Same logic implemented in two different services
+- Two different ways to authenticate/authorize
+- Duplicate database columns or tables
+- Multiple environment variable files with overlapping keys
+
+**When you find a violation, say:**
+> "⚠️ SSoT VIOLATION FOUND: I found [X] defined in two places:
+> 1. `path/to/file1.rb:123`
+> 2. `path/to/file2.rb:456`
+>
+> Which should be the single source of truth? Want me to consolidate?"
 
 ## 🔴 CRITICAL: Git Branch - Rob Works on Live
 

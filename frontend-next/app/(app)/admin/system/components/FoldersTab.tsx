@@ -34,6 +34,9 @@ import {
   Check,
   X,
   FolderPlus,
+  ExternalLink,
+  Settings2,
+  Cloud,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -56,6 +59,17 @@ interface FolderTemplate {
   template_type: "system" | "user";
   items: FolderTemplateItem[];
   created_at: string;
+}
+
+interface SharePointConfig {
+  connected: boolean;
+  name?: string;
+  url?: string;
+  document_library?: string;
+  root_folder?: string;  // Maps to root_folder_path in backend
+  authenticated_as?: string;
+  auth_type?: "organization" | "personal";
+  drive_id?: string;
 }
 
 function buildTree(items: FolderTemplateItem[]): FolderTemplateItem[] {
@@ -459,10 +473,23 @@ export function FoldersTab() {
   const [duplicating, setDuplicating] = React.useState<number | null>(null);
   const [deleting, setDeleting] = React.useState<number | null>(null);
   const [selectedTemplate, setSelectedTemplate] = React.useState<FolderTemplate | null>(null);
+  const [sharePointConfig, setSharePointConfig] = React.useState<SharePointConfig | null>(null);
 
   React.useEffect(() => {
     loadTemplates();
+    loadSharePointConfig();
   }, []);
+
+  const loadSharePointConfig = async () => {
+    try {
+      const response = await api.get<{ sharepoint: SharePointConfig }>("/api/v1/microsoft/connections");
+      setSharePointConfig(response?.sharepoint || null);
+    } catch (error) {
+      console.error("Failed to load SharePoint config:", error);
+      // Not connected - that's OK
+      setSharePointConfig({ connected: false });
+    }
+  };
 
   const loadTemplates = async () => {
     try {
@@ -579,6 +606,85 @@ export function FoldersTab() {
           </div>
         )}
       </div>
+
+      {/* SharePoint Destination Path */}
+      <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <Cloud className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div className="space-y-1">
+                <h3 className="font-medium text-sm">SharePoint Destination</h3>
+                <p className="text-xs text-muted-foreground">
+                  Job folders will be created at this location:
+                </p>
+                {sharePointConfig?.connected ? (
+                  <div className="space-y-2 mt-2">
+                    <div className="bg-white dark:bg-slate-900 rounded-md border p-3 font-mono text-xs">
+                      <div className="text-muted-foreground mb-1">SharePoint Site</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-600 dark:text-blue-400">
+                          {sharePointConfig.url ? sharePointConfig.url.replace('https://', '').split('/Shared')[0] : "gotekna.sharepoint.com/sites/TEEEM"}
+                        </span>
+                        <a
+                          href={sharePointConfig.url || "https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-primary"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                      <div className="text-muted-foreground mt-2 mb-1">Folder Path</div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Folder className="h-3 w-3 text-yellow-500" />
+                        <span>{sharePointConfig.document_library || "Shared Documents"}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span>{sharePointConfig.root_folder || "TEEEM Jobs"}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-emerald-600 dark:text-emerald-400">{"[Job Code] - [Project Name]"}</span>
+                        <span className="text-muted-foreground">/</span>
+                        <span className="text-muted-foreground italic">{"[template folders...]"}</span>
+                      </div>
+                      {sharePointConfig.authenticated_as && (
+                        <div className="text-muted-foreground mt-2 pt-2 border-t">
+                          Connected as: <span className="text-foreground">{sharePointConfig.authenticated_as}</span>
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Example: <code className="bg-muted px-1 rounded">047 - Malbon Street/02 PreCon/Estimation/</code>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 mt-2 text-amber-600 dark:text-amber-400">
+                    <span className="text-xs">SharePoint not connected</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => window.location.href = "/settings/integrations/microsoft"}
+                    >
+                      Connect
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {sharePointConfig?.connected && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => window.location.href = "/settings/integrations/microsoft"}
+              >
+                <Settings2 className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Template List */}
