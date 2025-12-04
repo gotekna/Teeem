@@ -1,7 +1,7 @@
 module Api
   module V1
     class ContactsController < ApplicationController
-      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles]
+      before_action :set_contact, only: [:show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain]
 
       # GET /api/v1/contacts/read_only_fields
       # Returns the list of Xero-synced fields that are read-only in TEEEM
@@ -1621,6 +1621,32 @@ module Api
         }, status: :internal_server_error
       end
 
+      # GET /api/v1/contacts/:id/ownership_chain
+      # Returns the full ownership chain showing what companies this person owns
+      # and what those companies own (including trusts)
+      def ownership_chain
+        # Get direct shareholdings for this contact
+        direct_holdings = @contact.company_shareholdings
+          .includes(company: [:company_group])
+          .where('number_of_shares > 0')
+
+        chain = direct_holdings.map do |holding|
+          percentage = holding.percentage_of_total
+          next nil if percentage <= 0
+          build_ownership_node(holding.company, percentage)
+        end.compact
+
+        render json: {
+          success: true,
+          data: chain
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to load ownership chain: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # GET /api/v1/contacts/possible_duplicates
       # Find contacts that might be duplicates based on name matching
       def possible_duplicates
@@ -1757,6 +1783,42 @@ module Api
           entity_type: contact.entity_type,
           contact_types: contact.contact_types,
           has_xero: contact.xero_id.present?
+        }
+      end
+
+      # Build ownership node recursively for ownership_chain endpoint
+      def build_ownership_node(company, percentage, visited = Set.new)
+        return nil if company.nil? || visited.include?(company.id)
+        visited.add(company.id)
+
+        # Get companies this company owns shares in
+        child_holdings = CompanyShareholding
+          .where(shareholder_type: 'Company', shareholder_id: company.id)
+          .where('number_of_shares > 0')
+          .includes(company: [:company_group])
+
+        children = child_holdings.map do |holding|
+          child_percentage = holding.percentage_of_total
+          next nil if child_percentage <= 0
+          build_ownership_node(holding.company, child_percentage, visited)
+        end.compact
+
+        # Check if this company is a trustee
+        trust_entity = nil
+        if company.is_trustee && company.trust_name.present?
+          trust_entity = Company.where(entity_type: ['Trust', 'Superfund']).find_by(name: company.trust_name)
+        end
+
+        {
+          company_id: company.id,
+          company_name: company.name,
+          percentage: percentage,
+          entity_type: company.entity_type,
+          is_trustee: company.is_trustee,
+          trust_name: company.trust_name,
+          trust_id: trust_entity&.id,
+          trust_entity_type: trust_entity&.entity_type,
+          children: children
         }
       end
 

@@ -320,6 +320,7 @@ Rails.application.routes.draw do
           get :directorships
           get :shareholdings
           get :trust_roles
+          get :ownership_chain
           post :copy_price_history
           delete :remove_from_categories
           post :bulk_update_prices
