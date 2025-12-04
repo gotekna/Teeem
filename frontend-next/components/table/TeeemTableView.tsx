@@ -3689,13 +3689,21 @@ export default function TeeemTableView({
                     <Button
                       size="sm"
                       className="h-6 text-xs"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
+                        e.preventDefault();
+                        console.log('[MultipleLookups Save] clicked, entry.id:', entry.id, 'column.key:', column.key, 'editingCellValue:', editingCellValue, 'onRowUpdate:', !!onRowUpdate);
                         if (onRowUpdate) {
                           const idsToSave = Array.isArray(editingCellValue)
                             ? (editingCellValue as (number | string)[]).map(id => typeof id === 'string' ? parseInt(id, 10) : id)
                             : [];
-                          onRowUpdate(entry.id, column.key, idsToSave);
+                          console.log('[MultipleLookups Save] calling onRowUpdate with idsToSave:', idsToSave);
+                          try {
+                            await onRowUpdate(entry.id, column.key, idsToSave);
+                            console.log('[MultipleLookups Save] onRowUpdate completed successfully');
+                          } catch (err) {
+                            console.error('[MultipleLookups Save] onRowUpdate failed:', err);
+                          }
                         }
                         setEditingCell(null);
                         setEditingCellValue(null);

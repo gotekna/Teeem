@@ -153,7 +153,6 @@ interface StructureCompany {
   investments: unknown[];
   children: StructureCompany[];
   is_trust_of_trustee?: boolean;
-  is_trustee_of_trust?: boolean;
 }
 
 interface StructurePerson {
@@ -300,6 +299,11 @@ export default function CorporateDashboardPage() {
   // Structure tab state
   const [structureData, setStructureData] = React.useState<StructureData | null>(null);
   const [loadingStructure, setLoadingStructure] = React.useState(false);
+  const [structureFilters, setStructureFilters] = React.useState({
+    shareholders: true,
+    directors: true,
+    secretary: true,
+  });
 
   // People tab state
   const [people, setPeople] = React.useState<TableRow[]>([]);
@@ -702,7 +706,6 @@ export default function CorporateDashboardPage() {
         is_trustee: company.is_trustee ? "Yes" : "No",
         trust_name: company.trust_name || "—",
         is_trust_of_trustee: company.is_trust_of_trustee || false,
-        is_trustee_of_trust: company.is_trustee_of_trust || false,
         shareholders_count: company.shareholders.length,
         children_count: company.children.length,
       });
@@ -743,17 +746,36 @@ export default function CorporateDashboardPage() {
 
   const peopleRows: TableRow[] = React.useMemo(() => {
     if (!structureData) return [];
-    return structureData.people.map(p => ({
-      id: p.id,
-      contact_id: p.contact_id,
-      name: p.name,
-      email: p.email || "—",
-      membership_type: p.membership_type,
-      is_active: p.is_active ? "Yes" : "No",
-      roles_summary: p.roles.map(r => `${r.type} @ ${r.company_name}`).join(", ") || "—",
-      roles: p.roles,
-    }));
-  }, [structureData]);
+
+    // Filter people based on selected role filters
+    return structureData.people
+      .filter(p => {
+        // Check if person has any of the selected roles
+        const hasDirector = p.roles.some(r => r.type?.toLowerCase() === 'director');
+        const hasSecretary = p.roles.some(r => r.type?.toLowerCase() === 'secretary');
+        const hasShareholder = p.roles.some(r => r.type?.toLowerCase() === 'shareholder');
+
+        // If no filters selected, show nothing
+        if (!structureFilters.shareholders && !structureFilters.directors && !structureFilters.secretary) {
+          return false;
+        }
+
+        // Show person if they match any selected filter
+        return (structureFilters.directors && hasDirector) ||
+               (structureFilters.secretary && hasSecretary) ||
+               (structureFilters.shareholders && hasShareholder);
+      })
+      .map(p => ({
+        id: p.id,
+        contact_id: p.contact_id,
+        name: p.name,
+        email: p.email || "—",
+        membership_type: p.membership_type,
+        is_active: p.is_active ? "Yes" : "No",
+        roles_summary: p.roles.map(r => `${r.type} @ ${r.company_name}`).join(", ") || "—",
+        roles: p.roles,
+      }));
+  }, [structureData, structureFilters]);
 
   // ===== BADGE HELPERS =====
 
@@ -1776,47 +1798,82 @@ export default function CorporateDashboardPage() {
               </Card>
 
               {/* People Table */}
-              {peopleRows.length > 0 && (
+              {structureData && structureData.people.length > 0 && (
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="text-base flex items-center gap-2">
                       <Users className="h-5 w-5 text-teal-600" />
                       People in Group ({peopleRows.length})
                     </CardTitle>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={structureFilters.shareholders}
+                          onChange={(e) => setStructureFilters(prev => ({ ...prev, shareholders: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                        />
+                        <span className="text-sm text-amber-700 dark:text-amber-400">Shareholders</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={structureFilters.directors}
+                          onChange={(e) => setStructureFilters(prev => ({ ...prev, directors: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <span className="text-sm text-purple-700 dark:text-purple-400">Directors</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={structureFilters.secretary}
+                          onChange={(e) => setStructureFilters(prev => ({ ...prev, secretary: e.target.checked }))}
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-blue-700 dark:text-blue-400">Secretary</span>
+                      </label>
+                    </div>
                   </CardHeader>
                   <CardContent>
-                    <TeeemTableView
-                      entries={peopleRows}
-                      columns={peopleColumns}
-                      tableName={`${structureData.group.name} People`}
-                      viewOnly={true}
-                      onRowClick={(row) => router.push(`/contacts/${row.contact_id}`)}
-                      customCellRenderer={(entry, columnKey) => {
-                        if (columnKey === "name") {
-                          return (
-                            <div className="flex items-center gap-2">
-                              <Users className="h-4 w-4 text-teal-500 flex-shrink-0" />
-                              <span>{entry.name as string}</span>
-                            </div>
-                          );
-                        }
-                        if (columnKey === "membership_type") {
-                          return (
-                            <Badge className={getMembershipTypeBadgeColor(entry.membership_type as string)}>
-                              {entry.membership_type as string}
-                            </Badge>
-                          );
-                        }
-                        if (columnKey === "is_active") {
-                          return (
-                            <Badge variant={(entry.is_active as string) === "Yes" ? "default" : "secondary"}>
-                              {entry.is_active as string}
-                            </Badge>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
+                    {peopleRows.length > 0 ? (
+                      <TeeemTableView
+                        entries={peopleRows}
+                        columns={peopleColumns}
+                        tableName={`${structureData.group.name} People`}
+                        viewOnly={true}
+                        onRowClick={(row) => router.push(`/contacts/${row.contact_id}`)}
+                        customCellRenderer={(entry, columnKey) => {
+                          if (columnKey === "name") {
+                            return (
+                              <div className="flex items-center gap-2">
+                                <Users className="h-4 w-4 text-teal-500 flex-shrink-0" />
+                                <span>{entry.name as string}</span>
+                              </div>
+                            );
+                          }
+                          if (columnKey === "membership_type") {
+                            return (
+                              <Badge className={getMembershipTypeBadgeColor(entry.membership_type as string)}>
+                                {entry.membership_type as string}
+                              </Badge>
+                            );
+                          }
+                          if (columnKey === "is_active") {
+                            return (
+                              <Badge variant={(entry.is_active as string) === "Yes" ? "default" : "secondary"}>
+                                {entry.is_active as string}
+                              </Badge>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center text-muted-foreground py-8">
+                        No people match the selected filters
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
