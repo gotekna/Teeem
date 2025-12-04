@@ -13,6 +13,8 @@ default: &default
       threads: 3
       processes: 1
       polling_interval: 0.1
+  scheduler:
+    polling_interval: 10
 
 production:
   <<: *default
