@@ -10,16 +10,25 @@ module Api
                                           .order(is_system_default: :desc, created_at: :desc)
 
         render json: {
-          folder_templates: @folder_templates.as_json(
-            include: {
-              folder_template_items: {
-                only: [:id, :name, :level, :order, :parent_id, :description]
-              },
-              created_by: {
-                only: [:id, :name, :email]
-              }
+          folder_templates: @folder_templates.map do |template|
+            {
+              id: template.id,
+              name: template.name,
+              description: template.template_type,
+              template_type: template.is_system_default ? "system" : "user",
+              created_at: template.created_at,
+              items: template.folder_template_items.map do |item|
+                {
+                  id: item.id,
+                  name: item.name,
+                  item_type: "folder",
+                  parent_id: item.parent_id,
+                  order: item.order,
+                  description: item.description
+                }
+              end
             }
-          )
+          end
         }
       end
 
