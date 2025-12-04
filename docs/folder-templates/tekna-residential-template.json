@@ -6,106 +6,97 @@
   "root_folder_pattern": "{job_code} - {project_name}",
   "folders": [
     {
-      "name": "01 REVIT",
+      "name": "01 Sales",
       "level": 1,
       "order": 1,
-      "description": "REVIT models and architectural files"
+      "description": "Sales documentation and client information"
     },
     {
-      "name": "02 Land Info",
+      "name": "02 PreCon",
       "level": 1,
       "order": 2,
-      "description": "Land information, surveys, and site documentation"
-    },
-    {
-      "name": "03 Contract",
-      "level": 1,
-      "order": 3,
-      "description": "Contract documents and sales information",
+      "description": "Pre-construction documents - CAD, contracts, estimation, colour selection",
       "children": [
         {
-          "name": "Sales Info",
+          "name": "Revit-DWG",
           "level": 2,
-          "order": 1
-        },
-        {
-          "name": "Sent",
-          "level": 2,
-          "order": 2
-        }
-      ]
-    },
-    {
-      "name": "04 Certification",
-      "level": 1,
-      "order": 4,
-      "description": "Certification, approvals, and inspection documentation",
-      "children": [
-        {
-          "name": "Final Inspection Form 16, Form 11 or 21",
-          "level": 2,
-          "order": 1
-        },
-        {
-          "name": "Final Send For Inc Certificates",
-          "level": 2,
-          "order": 2
-        },
-        {
-          "name": "SDA Plan Approved",
-          "level": 2,
-          "order": 3
-        },
-        {
-          "name": "Send SDA Approval",
-          "level": 2,
-          "order": 4
-        },
-        {
-          "name": "Start Approved Plan And Approval",
-          "level": 2,
-          "order": 5
-        },
-        {
-          "name": "Start To Send For Certification",
-          "level": 2,
-          "order": 6
-        }
-      ]
-    },
-    {
-      "name": "05 Estimation",
-      "level": 1,
-      "order": 5,
-      "description": "Cost estimation, quotes, and utility connections",
-      "children": [
-        {
-          "name": "Energex Connection",
-          "level": 2,
-          "order": 1
+          "order": 1,
+          "description": "Revit models, AutoCAD drawings, and land surveys"
         },
         {
           "name": "Estimation",
           "level": 2,
-          "order": 2
+          "order": 2,
+          "description": "Cost estimation and quotes"
         },
         {
-          "name": "Quotes",
+          "name": "Contracts",
           "level": 2,
-          "order": 3
+          "order": 3,
+          "description": "Contract documents and variations"
+        },
+        {
+          "name": "Colour Selection",
+          "level": 2,
+          "order": 4,
+          "description": "Color selections and finish specifications"
         }
       ]
     },
     {
-      "name": "06 Colour Selection",
+      "name": "03 Certification",
       "level": 1,
-      "order": 6,
-      "description": "Color selections and finish specifications"
+      "order": 3,
+      "description": "All certifications and approvals",
+      "children": [
+        {
+          "name": "Council",
+          "level": 2,
+          "order": 1,
+          "description": "Council approvals and relaxations"
+        },
+        {
+          "name": "NDIS",
+          "level": 2,
+          "order": 2,
+          "description": "NDIS certifications"
+        },
+        {
+          "name": "Plumbing",
+          "level": 2,
+          "order": 3,
+          "description": "Plumbing certificates"
+        },
+        {
+          "name": "Energy (HEBS)",
+          "level": 2,
+          "order": 4,
+          "description": "Energy compliance certificates"
+        },
+        {
+          "name": "Final Approval",
+          "level": 2,
+          "order": 5,
+          "description": "Final inspection and approval documents"
+        }
+      ]
     },
     {
-      "name": "07 Photos",
+      "name": "04 Plans",
       "level": 1,
-      "order": 7,
+      "order": 4,
+      "description": "Consultant plans and documentation"
+    },
+    {
+      "name": "05 Site",
+      "level": 1,
+      "order": 5,
+      "description": "Site management documents and logs"
+    },
+    {
+      "name": "06 Photo",
+      "level": 1,
+      "order": 6,
       "description": "Construction progress photos organized by stage",
       "children": [
         {
@@ -153,35 +144,16 @@
       ]
     },
     {
-      "name": "08 SITE",
+      "name": "07 Final Approval",
       "level": 1,
-      "order": 8,
-      "description": "Site management documents and logs"
-    },
-    {
-      "name": "09 Handover",
-      "level": 1,
-      "order": 9,
-      "description": "Handover documentation and client materials"
-    },
-    {
-      "name": "10 Finance",
-      "level": 1,
-      "order": 10,
-      "description": "Financial documents and invoices",
-      "children": [
-        {
-          "name": "Invoices PDF",
-          "level": 2,
-          "order": 1
-        }
-      ]
+      "order": 7,
+      "description": "Final approval and handover documentation"
     }
   ],
   "metadata": {
-    "total_folders": 30,
+    "total_folders": 25,
     "max_depth": 2,
-    "created_date": "2025-11-05",
+    "created_date": "2025-12-04",
     "industry": "Residential Construction",
     "region": "Australia (Queensland)"
   }
