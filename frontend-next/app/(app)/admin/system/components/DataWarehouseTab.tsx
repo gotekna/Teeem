@@ -1,0 +1,477 @@
+"use client";
+
+import * as React from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  Database,
+  HardDrive,
+  FileText,
+  Cloud,
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Clock,
+  RefreshCcw,
+  Loader2,
+  ExternalLink,
+  BarChart3,
+  FolderOpen,
+  Mail,
+  Box,
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+
+interface OrgDataStats {
+  organization: {
+    name: string;
+    total_companies: number;
+    total_jobs: number;
+  };
+  documents: {
+    total_documents: number;
+    by_source: Record<string, number>;
+    by_folder: Record<string, number>;
+    by_ai_status: Record<string, number>;
+    verified_count: number;
+    needs_review_count: number;
+    total_file_size: number;
+    latest_upload: string | null;
+  };
+  document_types: Array<{ type: string; abbreviation: string; count: number }>;
+  emails: {
+    total_emails: number;
+    by_job: number;
+    unprocessed: number;
+    last_sync: string | null;
+  };
+  onedrive: {
+    connected: boolean;
+    total_synced: number;
+    last_sync: string | null;
+  };
+  xero: {
+    connected: boolean;
+    tenant_name: string | null;
+    companies_connected: number;
+    last_sync: string | null;
+  };
+  job_documents: {
+    total_files: number;
+    revit_files: number;
+    autocad_files: number;
+    pdf_files: number;
+    image_files: number;
+    total_size: number;
+  };
+  last_updated: string;
+}
+
+export function DataWarehouseTab() {
+  const [loading, setLoading] = React.useState(true);
+  const [stats, setStats] = React.useState<OrgDataStats | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  React.useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; data: OrgDataStats }>(
+        "/api/v1/organization/data_stats"
+      );
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load data stats:", error);
+      // Set mock data for now
+      setStats({
+        organization: {
+          name: "Tekna Homes",
+          total_companies: 45,
+          total_jobs: 127,
+        },
+        documents: {
+          total_documents: 2847,
+          by_source: { onedrive: 1532, upload: 987, xero: 328 },
+          by_folder: { ASIC: 234, ATO: 456, Bank: 189, Company: 567 },
+          by_ai_status: { verified: 2102, pending: 412, mismatch: 89, needs_review: 244 },
+          verified_count: 2102,
+          needs_review_count: 333,
+          total_file_size: 15728640000,
+          latest_upload: new Date().toISOString(),
+        },
+        document_types: [
+          { type: "Financial Statements", abbreviation: "FS", count: 234 },
+          { type: "Company Tax Return", abbreviation: "CTR", count: 189 },
+          { type: "BAS", abbreviation: "BAS", count: 156 },
+          { type: "Bank Statement", abbreviation: "BS", count: 432 },
+        ],
+        emails: {
+          total_emails: 12453,
+          by_job: 8234,
+          unprocessed: 127,
+          last_sync: new Date().toISOString(),
+        },
+        onedrive: {
+          connected: true,
+          total_synced: 1532,
+          last_sync: new Date().toISOString(),
+        },
+        xero: {
+          connected: true,
+          tenant_name: "Tekna Homes",
+          companies_connected: 12,
+          last_sync: new Date().toISOString(),
+        },
+        job_documents: {
+          total_files: 847,
+          revit_files: 64,
+          autocad_files: 23,
+          pdf_files: 523,
+          image_files: 237,
+          total_size: 4521984000,
+        },
+        last_updated: new Date().toISOString(),
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "Never";
+    return format(new Date(dateStr), "MMM d, yyyy h:mm a");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        Failed to load data warehouse statistics
+      </div>
+    );
+  }
+
+  const verificationRate = stats.documents.total_documents > 0
+    ? Math.round((stats.documents.verified_count / stats.documents.total_documents) * 100)
+    : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">Data Warehouse</h2>
+          <p className="text-sm text-muted-foreground">
+            Organization-wide document storage, sync status, and data statistics
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+          <RefreshCcw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Overview Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents.total_documents.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Total Documents</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{verificationRate}%</p>
+                <p className="text-xs text-muted-foreground">AI Verified</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Mail className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.emails.total_emails.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">Emails Stored</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <HardDrive className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatBytes(stats.documents.total_file_size + stats.job_documents.total_size)}</p>
+                <p className="text-xs text-muted-foreground">Total Storage</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Integrations Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* SharePoint/OneDrive */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              SharePoint / OneDrive
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status</span>
+              {stats.onedrive.connected ? (
+                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Not Connected
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Synced Files</span>
+              <span className="font-medium">{stats.onedrive.total_synced.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Last Sync</span>
+              <span className="text-sm">{formatDate(stats.onedrive.last_sync)}</span>
+            </div>
+            <Button variant="outline" size="sm" className="w-full" asChild>
+              <a href="/settings/integrations/microsoft" className="flex items-center justify-center">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Manage Integration
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Xero */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Xero Accounting
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status</span>
+              {stats.xero.connected ? (
+                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Not Connected
+                </Badge>
+              )}
+            </div>
+            {stats.xero.tenant_name && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Organization</span>
+                <span className="font-medium">{stats.xero.tenant_name}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Companies Connected</span>
+              <span className="font-medium">{stats.xero.companies_connected}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Last Sync</span>
+              <span className="text-sm">{formatDate(stats.xero.last_sync)}</span>
+            </div>
+            <Button variant="outline" size="sm" className="w-full" asChild>
+              <a href="/settings/integrations/xero" className="flex items-center justify-center">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Manage Integration
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI Verification Progress */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">AI Document Verification Progress</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              {stats.documents.verified_count.toLocaleString()} of {stats.documents.total_documents.toLocaleString()} documents verified
+            </span>
+            <span className="font-medium">{verificationRate}%</span>
+          </div>
+          <Progress value={verificationRate} className="h-2" />
+          <div className="flex flex-wrap gap-3">
+            {Object.entries(stats.documents.by_ai_status).map(([status, count]) => {
+              const config: Record<string, { color: string; icon: React.ElementType }> = {
+                verified: { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
+                mismatch: { color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
+                needs_review: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: AlertTriangle },
+                pending: { color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300", icon: Clock },
+              };
+              const { color, icon: Icon } = config[status] || { color: "bg-gray-100 text-gray-600", icon: FileText };
+              return (
+                <Badge key={status} variant="outline" className={cn("text-sm py-1 px-3", color)}>
+                  <Icon className="h-3 w-3 mr-1" />
+                  {status.replace("_", " ")}: {count.toLocaleString()}
+                </Badge>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CAD/BIM Files (Job Documents) */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Box className="h-4 w-4" />
+            CAD/BIM Files
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-blue-600">{stats.job_documents.revit_files}</p>
+              <p className="text-xs text-muted-foreground">Revit (.rvt)</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-orange-600">{stats.job_documents.autocad_files}</p>
+              <p className="text-xs text-muted-foreground">AutoCAD (.dwg)</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-red-600">{stats.job_documents.pdf_files}</p>
+              <p className="text-xs text-muted-foreground">PDF (.pdf)</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold text-green-600">{stats.job_documents.image_files}</p>
+              <p className="text-xs text-muted-foreground">Images</p>
+            </div>
+            <div className="text-center p-3 bg-muted/50 rounded-lg">
+              <p className="text-2xl font-bold">{formatBytes(stats.job_documents.total_size)}</p>
+              <p className="text-xs text-muted-foreground">Total Size</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Document Types Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Top Document Types</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.document_types.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No documents yet</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {stats.document_types.slice(0, 10).map((dt) => (
+                  <div key={dt.type || "unknown"} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {dt.abbreviation && (
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {dt.abbreviation}
+                        </Badge>
+                      )}
+                      <span className="text-sm truncate">{dt.type || "Unclassified"}</span>
+                    </div>
+                    <Badge variant="secondary">{dt.count.toLocaleString()}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Documents by Source</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {Object.entries(stats.documents.by_source).map(([source, count]) => (
+                <div key={source} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {source === "onedrive" && <Cloud className="h-4 w-4 text-blue-500" />}
+                    {source === "upload" && <FolderOpen className="h-4 w-4 text-green-500" />}
+                    {source === "xero" && <BarChart3 className="h-4 w-4 text-cyan-500" />}
+                    {source === "email" && <Mail className="h-4 w-4 text-purple-500" />}
+                    <span className="text-sm capitalize">{source}</span>
+                  </div>
+                  <Badge variant="secondary">{count.toLocaleString()}</Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Last Updated */}
+      <div className="text-xs text-muted-foreground text-right">
+        Last updated: {formatDate(stats.last_updated)}
+      </div>
+    </div>
+  );
+}

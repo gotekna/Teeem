@@ -1206,15 +1206,28 @@ export default function TeeemTableView({
   }, [visibleColumns]);
 
   // Get columns sorted by current columnOrder for the modal
+  // Visible columns sorted by order first, then hidden columns sorted alphabetically
   const getSortedColumnsForModal = useCallback(() => {
     const dataColumns = COLUMNS.filter(c => c.key !== "select" && c.key !== "actions");
     const orderMap = new Map(columnOrder.map((key, idx) => [key, idx]));
-    return [...dataColumns].sort((a, b) => {
+
+    // Separate visible and hidden columns
+    const visibleCols = dataColumns.filter(c => visibleColumns[c.key] === true);
+    const hiddenCols = dataColumns.filter(c => visibleColumns[c.key] !== true);
+
+    // Sort visible columns by their order
+    visibleCols.sort((a, b) => {
       const aIdx = orderMap.get(a.key) ?? 999;
       const bIdx = orderMap.get(b.key) ?? 999;
       return aIdx - bIdx;
     });
-  }, [COLUMNS, columnOrder]);
+
+    // Sort hidden columns alphabetically by label
+    hiddenCols.sort((a, b) => (a.label || a.key).localeCompare(b.label || b.key));
+
+    // Return visible first, then hidden
+    return [...visibleCols, ...hiddenCols];
+  }, [COLUMNS, columnOrder, visibleColumns]);
 
   // ============================================================================
   // DEVELOPER WARNINGS

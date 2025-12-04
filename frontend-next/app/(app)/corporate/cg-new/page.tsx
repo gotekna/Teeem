@@ -250,10 +250,11 @@ export default function CGNewPage() {
                   e.stopPropagation();
                   router.push(`/corporate/companies/${contact.linked_company_id}`);
                 }}
-                className="text-green-600 hover:text-green-800"
+                className="flex items-center gap-1 text-green-600 hover:text-green-800 hover:underline"
                 title="View linked Company"
               >
                 <CheckCircle2 className="h-4 w-4" />
+                <span className="text-xs">View</span>
               </button>
             ) : (
               <span className="text-muted-foreground">-</span>
@@ -440,10 +441,10 @@ export default function CGNewPage() {
                           <tr className="border-b bg-muted/30">
                             <th className="text-left py-2 px-3 font-medium">Contact</th>
                             <th className="text-left py-2 px-3 font-medium">Entity Type</th>
-                            <th className="text-left py-2 px-3 font-medium">Linked</th>
+                            <th className="text-left py-2 px-3 font-medium">Company</th>
                             <th className="text-left py-2 px-3 font-medium">Membership</th>
                             <th className="text-left py-2 px-3 font-medium">Group</th>
-                            <th className="text-left py-2 px-3 font-medium">Link</th>
+                            <th className="text-left py-2 px-3 font-medium">Contact</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -463,10 +464,10 @@ export default function CGNewPage() {
                   <tr className="border-b">
                     <th className="text-left py-2 px-3 font-medium">Contact</th>
                     <th className="text-left py-2 px-3 font-medium">Entity Type</th>
-                    <th className="text-left py-2 px-3 font-medium">Linked</th>
+                    <th className="text-left py-2 px-3 font-medium">Company</th>
                     <th className="text-left py-2 px-3 font-medium">Membership</th>
                     <th className="text-left py-2 px-3 font-medium">Group</th>
-                    <th className="text-left py-2 px-3 font-medium">Link</th>
+                    <th className="text-left py-2 px-3 font-medium">Contact</th>
                   </tr>
                 </thead>
                 <tbody>

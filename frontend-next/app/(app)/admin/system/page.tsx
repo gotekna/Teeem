@@ -35,6 +35,7 @@ import {
   Loader2,
   ExternalLink,
   FileText,
+  Database,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -61,6 +62,7 @@ import { ClaudeShortcutsTab } from "./components/ClaudeShortcutsTab";
 import { UserManualTab } from "./components/UserManualTab";
 import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
 import { PerformanceTab } from "./components/PerformanceTab";
+import { DataWarehouseTab } from "./components/DataWarehouseTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -79,6 +81,7 @@ const TIMEZONES = [
 
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
+  { id: "data-warehouse", label: "Data Warehouse", icon: Database },
   { id: "gold-standard", label: "Gold Standard View", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
@@ -452,6 +455,9 @@ function SystemAdminPageContent() {
         <div className="mt-6">
           <TabsContent value="company">
             <CompanySettingsTab />
+          </TabsContent>
+          <TabsContent value="data-warehouse">
+            <DataWarehouseTab />
           </TabsContent>
           <TabsContent value="schedule-master">
             <ScheduleMasterTab />

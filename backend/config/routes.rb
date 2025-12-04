@@ -990,6 +990,9 @@ Rails.application.routes.draw do
       post 'organization_onedrive/import_legacy', to: 'organization_onedrive#import_legacy'
       post 'organization_onedrive/run_migration', to: 'organization_onedrive#run_migration'
 
+      # Organization-wide data stats
+      get 'organization/data_stats', to: 'organization#data_stats'
+
       # Schema information
       get 'schema', to: 'schema#index'
       get 'schema/tables', to: 'schema#tables'
