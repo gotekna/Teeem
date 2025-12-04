@@ -1376,12 +1376,18 @@ module Api
           # Recursively list all files in the job folder
           files = list_all_job_files_recursive(client, credential, job_folder['id'])
 
+          # Add suggested document types for each file based on filename and folder
+          files_with_suggestions = files.map do |file|
+            suggested = suggest_document_type_for_file(file[:name], file[:folder_path])
+            file.merge(suggested_document_types: suggested)
+          end
+
           render json: {
             success: true,
             job_id: job.id,
             job_title: job.title,
-            items: files,
-            count: files.length,
+            items: files_with_suggestions,
+            count: files_with_suggestions.length,
             job_folder_id: job_folder['id'],
             job_folder_web_url: job_folder['webUrl']
           }
@@ -1638,6 +1644,80 @@ module Api
 
         # Sort by folder path then name
         files.sort_by { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+      end
+
+      # Suggest document types for a file based on filename and folder path
+      # Returns array of {id, name, abbreviation, confidence} hashes
+      def suggest_document_type_for_file(filename, folder_path)
+        return [] if filename.blank?
+
+        suggestions = []
+        filename_lower = filename.downcase
+        folder_lower = (folder_path || '').downcase
+
+        # Get all job-scoped document types
+        job_doc_types = DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil))
+
+        job_doc_types.each do |dt|
+          confidence = 0
+
+          # Check filename patterns
+          dt_name_lower = dt.name.to_s.downcase
+          abbrev_lower = dt.abbreviation.to_s.downcase
+
+          # High confidence: abbreviation in filename
+          if abbrev_lower.present? && filename_lower.include?(abbrev_lower)
+            confidence += 50
+          end
+
+          # Medium confidence: doc type name keywords in filename
+          dt_keywords = dt_name_lower.split(/[\s\-\/]+/).reject { |w| w.length < 3 }
+          matching_keywords = dt_keywords.count { |kw| filename_lower.include?(kw) }
+          if matching_keywords > 0
+            confidence += (matching_keywords * 15)
+          end
+
+          # Medium confidence: folder path matches doc type folder
+          if dt.folder.present? && folder_lower.include?(dt.folder.downcase)
+            confidence += 25
+          end
+
+          # Check for common patterns
+          case
+          when filename_lower.match?(/photo|img_|dsc_|image/i) && dt_name_lower.include?('photo')
+            confidence += 40
+          when filename_lower.match?(/plan|drawing|cad|dwg/i) && dt_name_lower.include?('plan')
+            confidence += 40
+          when filename_lower.match?(/contract|agreement|variation/i) && dt_name_lower.match?(/contract|variation|agreement/)
+            confidence += 40
+          when filename_lower.match?(/certificate|cert/i) && dt_name_lower.include?('certificate')
+            confidence += 40
+          when filename_lower.match?(/invoice|po|purchase/i) && dt_name_lower.match?(/invoice|purchase|order/)
+            confidence += 40
+          when filename_lower.match?(/quote|proposal|estimate/i) && dt_name_lower.match?(/quote|proposal|estimate/)
+            confidence += 40
+          when filename_lower.match?(/engineer|structural/i) && dt_name_lower.match?(/engineer|structural/)
+            confidence += 40
+          when filename_lower.match?(/survey|soil|geotech/i) && dt_name_lower.match?(/survey|soil|geotech/)
+            confidence += 40
+          when filename_lower.match?(/insurance|coc|currency/i) && dt_name_lower.match?(/insurance|certificate of currency/)
+            confidence += 40
+          end
+
+          # Add to suggestions if confidence > threshold
+          if confidence >= 25
+            suggestions << {
+              id: dt.id,
+              name: dt.name,
+              abbreviation: dt.abbreviation,
+              folder: dt.folder,
+              confidence: confidence
+            }
+          end
+        end
+
+        # Sort by confidence descending and return top 3
+        suggestions.sort_by { |s| -s[:confidence] }.first(3)
       end
 
       # Dynamically determine the frontend URL from the request
