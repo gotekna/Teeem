@@ -5407,30 +5407,27 @@ export default function TeeemTableView({
           <div className="space-y-6 py-4">
             <div className="space-y-2">
               <Label>Column to update</Label>
-              <Select
-                value={bulkUpdateColumn}
-                onValueChange={(val) => {
-                  setBulkUpdateColumn(val);
+              <ComboboxDropdown
+                items={COLUMNS.filter(
+                  (c) =>
+                    c.key !== "select" &&
+                    c.key !== "actions" &&
+                    c.key !== "id" &&
+                    c.editable !== false
+                )
+                  .sort((a, b) => a.label.localeCompare(b.label))
+                  .map((col) => ({
+                    id: col.key,
+                    label: col.label,
+                  }))}
+                selectedItem={bulkUpdateColumn ? { id: bulkUpdateColumn, label: COLUMNS.find(c => c.key === bulkUpdateColumn)?.label || bulkUpdateColumn } : undefined}
+                onSelect={(item) => {
+                  setBulkUpdateColumn(item.id);
                   setBulkUpdateValue(""); // Reset value when column changes
                 }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select column..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {COLUMNS.filter(
-                    (c) =>
-                      c.key !== "select" &&
-                      c.key !== "actions" &&
-                      c.key !== "id" &&
-                      c.editable !== false
-                  ).map((col) => (
-                    <SelectItem key={col.key} value={col.key}>
-                      {col.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select column..."
+                searchPlaceholder="Search columns..."
+              />
             </div>
 
             {bulkUpdateColumn && (
