@@ -242,7 +242,7 @@ module Api
 
       # PATCH /api/v1/organization_onedrive/change_root_folder
       # Change the root folder for organization OneDrive
-      # Supports nested folder paths like "00 - TEEEM/Photos for Price Book"
+      # Accepts either folder_id (for browsed selection) or folder_name (for typed path)
       def change_root_folder
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -250,10 +250,15 @@ module Api
           return render json: { error: 'OneDrive not connected' }, status: :unauthorized
         end
 
+        # If folder_id is provided, use direct selection (from folder browser)
+        if params[:folder_id].present?
+          return change_root_folder_by_id(credential, params[:folder_id])
+        end
+
         folder_path = params[:folder_name]
 
         if folder_path.blank?
-          return render json: { error: 'Folder name is required' }, status: :bad_request
+          return render json: { error: 'Folder name or folder_id is required' }, status: :bad_request
         end
 
         # Validate folder path to prevent path traversal attacks
@@ -468,6 +473,7 @@ module Api
 
       # GET /api/v1/organization_onedrive/browse_folders
       # Browse OneDrive folders - optionally within a specific folder
+      # Returns folders and breadcrumb path for navigation
       def browse_folders
         credential = OrganizationOneDriveCredential.active_credential
 
@@ -480,8 +486,31 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
+          current_folder = nil
+          breadcrumbs = []
+
           # Get folders in the specified location
           if folder_id.present?
+            # Get current folder info for breadcrumb
+            current_folder_response = client.get("/me/drive/items/#{folder_id}")
+            current_folder = {
+              id: current_folder_response['id'],
+              name: current_folder_response['name'],
+              parent_id: current_folder_response.dig('parentReference', 'id')
+            }
+
+            # Build breadcrumb path from parentReference.path
+            parent_path = current_folder_response.dig('parentReference', 'path') || ''
+            # Path looks like: /drive/root:/Shared Documents/TEEEM Jobs
+            if parent_path.include?(':')
+              path_after_root = parent_path.split(':').last.to_s
+              path_parts = path_after_root.split('/').reject(&:blank?)
+              # Add each path segment to breadcrumbs (we'll get IDs by traversing)
+              breadcrumbs = path_parts.map { |name| { name: name, id: nil } }
+            end
+            # Add current folder to breadcrumbs
+            breadcrumbs << { name: current_folder[:name], id: current_folder[:id] }
+
             # Browse children of specific folder
             response = client.list_folder_items(folder_id)
           else
@@ -501,10 +530,12 @@ module Api
               created_at: folder['createdDateTime'],
               child_count: folder.dig('folder', 'childCount') || 0
             }
-          end
+          end.sort_by { |f| f[:name].downcase }
 
           render json: {
             folders: formatted_folders,
+            current_folder: current_folder,
+            breadcrumbs: breadcrumbs,
             parent_folder_id: folder_id
           }
 
@@ -1863,6 +1894,53 @@ module Api
       end
 
       private
+
+      # Change root folder by folder_id (for folder browser selection)
+      def change_root_folder_by_id(credential, folder_id)
+        client = MicrosoftGraphClient.new(credential)
+
+        # Get folder info from Graph API
+        folder_response = client.get("/me/drive/items/#{folder_id}")
+
+        # Build the folder path from parentReference.path
+        parent_path = folder_response.dig('parentReference', 'path') || ''
+        folder_name = folder_response['name']
+
+        # Path looks like: /drive/root:/Shared Documents/TEEEM Jobs
+        if parent_path.include?(':')
+          path_after_root = parent_path.split(':').last.to_s
+          path_parts = path_after_root.split('/').reject(&:blank?)
+          full_path = (path_parts + [folder_name]).join('/')
+        else
+          full_path = folder_name
+        end
+
+        # Update credential with new root folder info
+        credential.update!(
+          root_folder_id: folder_response['id'],
+          root_folder_path: full_path,
+          metadata: credential.metadata.merge({
+            root_folder_name: folder_name,
+            root_folder_web_url: folder_response['webUrl'],
+            updated_at: Time.current
+          })
+        )
+
+        render json: {
+          message: 'Root folder updated successfully',
+          root_folder_path: full_path,
+          root_folder_web_url: folder_response['webUrl']
+        }
+
+      rescue MicrosoftGraphClient::AuthenticationError => e
+        render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+      rescue MicrosoftGraphClient::APIError => e
+        render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+      rescue StandardError => e
+        Rails.logger.error "Failed to change root folder by ID: #{e.message}"
+        Rails.logger.error e.backtrace.join("\n")
+        render json: { error: "Failed to change root folder: #{e.message}" }, status: :internal_server_error
+      end
 
       # Get the best available credential for OneDrive operations
       # Prioritizes organization credential, falls back to user's Microsoft token

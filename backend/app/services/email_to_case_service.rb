@@ -354,15 +354,42 @@ class EmailToCaseService
   end
 
   def enrich_with_existing_data(extracted)
-    # Match involved parties to existing contacts
+    # Match involved parties to existing contacts and known_parties
     (extracted['involved_parties'] || []).each do |party|
-      next unless party['email'].present?
+      # First check if we know this party from previous cases
+      known = KnownParty.find_match(
+        name: party['name'],
+        email: party['email'],
+        organisation: party['company']
+      )
 
-      contact = Contact.find_by(email: party['email'])
+      if known
+        # Pre-fill from known party data
+        party['relationship_type'] ||= known.relationship_type if known.relationship_type.present?
+        party['alignment'] ||= known.default_alignment if known.default_alignment.present?
+        party['phone'] ||= known.phone if known.phone.present?
+        party['company'] ||= known.organisation if known.organisation.present?
+        party['email'] ||= known.email if known.email.present?
+        party['known_party_id'] = known.id
+        party['seen_before'] = true
+        party['seen_count'] = known.seen_count
+      end
+
+      # Then check for existing contact
+      contact = nil
+      if party['email'].present?
+        contact = Contact.find_by(email: party['email'])
+      end
+      contact ||= Contact.find_by(full_name: party['name']) if party['name'].present?
+
       if contact
         party['contact_id'] = contact.id
         party['contact_exists'] = true
         party['full_name'] = contact.full_name if party['name'].blank?
+        # Update party with contact details if missing
+        party['email'] ||= contact.email
+        party['phone'] ||= contact.mobile_phone
+        party['company'] ||= contact.company_name_or_trust
       else
         party['contact_exists'] = false
       end
@@ -431,6 +458,15 @@ class EmailToCaseService
         contact = Contact.find_by(full_name: party['name'])
       end
 
+      # Update existing contact with new details if provided
+      if contact
+        updates = {}
+        updates[:email] = email if email.present? && contact.email.blank?
+        updates[:mobile_phone] = party['phone'] if party['phone'].present? && contact.mobile_phone.blank?
+        updates[:company_name_or_trust] = party['company'] if party['company'].present? && contact.company_name_or_trust.blank?
+        contact.update(updates) if updates.present?
+      end
+
       # Create contact if doesn't exist and has enough info (name is required, email optional)
       if contact.nil? && party['name'].present?
         # Find or create company if specified
@@ -447,6 +483,12 @@ class EmailToCaseService
           primary_company_id: company_contact&.id,
           entity_type: 'person'
         )
+      end
+
+      # Upsert to known_parties for future reference
+      if party['name'].present?
+        known_party = KnownParty.upsert_from_party(party)
+        known_party&.update(contact_id: contact.id) if contact && known_party && known_party.contact_id.nil?
       end
 
       next unless contact

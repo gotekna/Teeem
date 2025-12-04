@@ -78,6 +78,9 @@ interface InvolvedParty {
   contact_exists?: boolean;
   contact_id?: number;
   skip_create?: boolean;
+  seen_before?: boolean;
+  seen_count?: number;
+  known_party_id?: number;
 }
 
 interface RelatedJob {
@@ -1071,6 +1074,13 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
                 <Badge className="bg-blue-100 text-blue-800 text-xs">
                   <Building2 className="w-3 h-3 mr-1" />
                   + Company
+                </Badge>
+              )}
+
+              {party.seen_before && (
+                <Badge className="bg-purple-100 text-purple-800 text-xs" title={`Seen in ${party.seen_count} previous case${party.seen_count === 1 ? '' : 's'}`}>
+                  <User className="w-3 h-3 mr-1" />
+                  Seen {party.seen_count}x
                 </Badge>
               )}
 
