@@ -165,7 +165,7 @@ export default function ChatPage() {
         // Transform backend response to our Message format
         const messages = (response || []).map((msg: any) => ({
           id: msg.id,
-          conversation_id: conversationId,
+          conversation_id: Number(conversationId),
           sender_id: msg.user_id,
           sender_name: msg.user?.name || "Unknown",
           sender_avatar: null,
