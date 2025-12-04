@@ -56,7 +56,7 @@ module Api
               system_searchable = {
                 'contacts' => %w[full_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
                 'constructions' => %w[name description address status],
-                'jobs' => %w[name description address status]
+                'jobs' => %w[title address]
               }
               table_name = model.table_name
               system_searchable[table_name] || model.columns.select { |c| [:string, :text].include?(c.type) && !c.array }.map(&:name).first(5)
