@@ -1680,8 +1680,13 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     if (!selectedCompanyId) return;
     try {
       setSaving(true);
+      // Set both consolidation_parent_id AND parent_company_id so it shows in hierarchy
       await api.put(`/api/v1/companies/${selectedCompanyId}`, {
-        company: { consolidation_parent_id: company.id, company_group_id: company.company_group_id },
+        company: {
+          consolidation_parent_id: company.id,
+          parent_company_id: company.id,
+          company_group_id: company.company_group_id
+        },
       });
       setShowAddForm(false);
       setSelectedCompanyId("");
@@ -1697,8 +1702,9 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const handleRemoveConsolidation = async (companyId: number) => {
     if (!confirm("Remove this company from consolidation?")) return;
     try {
+      // Clear both consolidation_parent_id AND parent_company_id
       await api.put(`/api/v1/companies/${companyId}`, {
-        company: { consolidation_parent_id: null },
+        company: { consolidation_parent_id: null, parent_company_id: null },
       });
       loadConsolidatedCompanies();
       onUpdate();
