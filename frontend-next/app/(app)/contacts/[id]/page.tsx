@@ -591,12 +591,23 @@ export default function ContactDetailPage() {
                         </div>
                       )}
 
-                      {contact.linked_company?.entity_type && (
+                      {/* Show Contact's entity_type (SSoT) - prefer this over linked_company.entity_type */}
+                      {(contact.entity_type || contact.linked_company?.entity_type) && (
                         <div className="flex items-center gap-3">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                           <div>
                             <p className="text-xs text-muted-foreground">Entity Type</p>
-                            <p className="text-sm">{contact.linked_company.entity_type}</p>
+                            <Badge
+                              className={cn(
+                                "capitalize",
+                                contact.entity_type === "trust" && "bg-red-100 text-red-700",
+                                contact.entity_type === "person" && "bg-blue-100 text-blue-700",
+                                contact.entity_type === "company" && "bg-green-100 text-green-700",
+                                !contact.entity_type && "bg-gray-100 text-gray-700"
+                              )}
+                            >
+                              {contact.entity_type || contact.linked_company?.entity_type || "unknown"}
+                            </Badge>
                           </div>
                         </div>
                       )}

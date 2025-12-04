@@ -71,13 +71,15 @@ interface DuplicateGroup {
 
 const entityTypeColors: Record<string, string> = {
   person: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
-  company: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
-  default_supplier: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
+  company: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
+  trust: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  default_supplier: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
 };
 
 const entityTypeLabels: Record<string, string> = {
   person: "Person",
   company: "Company",
+  trust: "Trust",
   default_supplier: "Supplier",
 };
 
@@ -135,11 +137,16 @@ export default function ContactsPage() {
     router.push(`/contacts/${slug}`);
   }, [router]);
 
-  // Handle row double-click - open drawer
+  // Handle row double-click - navigate to contact detail page
   const handleRowDoubleClick = useCallback((row: TTableRow) => {
-    setSelectedContactId(row.id as number);
-    setDrawerOpen(true);
-  }, []);
+    const contact = row as unknown as Contact;
+    const slug = slugifyContactName(
+      contact.first_name || undefined,
+      contact.last_name || undefined,
+      contact.full_name || contact.name
+    );
+    router.push(`/contacts/${slug}`);
+  }, [router]);
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -160,6 +167,7 @@ export default function ContactsPage() {
     active: records.filter((c) => c.is_active).length,
     persons: records.filter((c) => c.entity_type === "person").length,
     companies: records.filter((c) => c.entity_type === "company").length,
+    trusts: records.filter((c) => c.entity_type === "trust").length,
     suppliers: records.filter((c) => c.entity_type === "default_supplier").length,
     withXero: records.filter((c) => c.xero_id || c.xero_synced).length,
   };
@@ -171,6 +179,8 @@ export default function ContactsPage() {
         return records.filter((c) => c.entity_type === "person");
       case "companies":
         return records.filter((c) => c.entity_type === "company");
+      case "trusts":
+        return records.filter((c) => c.entity_type === "trust");
       case "suppliers":
         return records.filter((c) => c.entity_type === "default_supplier");
       default:
@@ -291,6 +301,7 @@ export default function ContactsPage() {
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="persons">Persons</TabsTrigger>
           <TabsTrigger value="companies">Companies</TabsTrigger>
+          <TabsTrigger value="trusts">Trusts</TabsTrigger>
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="duplicates" className="relative">
             Duplicates
