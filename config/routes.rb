@@ -537,8 +537,12 @@ Rails.application.routes.draw do
       get 'permissions/user/:id', to: 'permissions#user_permissions'
       post 'permissions/grant', to: 'permissions#grant'
 
-      # Contact types
-      resources :contact_types, only: [:index]
+      # Contact types (full CRUD for admin management)
+      resources :contact_types do
+        collection do
+          post :reorder
+        end
+      end
 
       # Legacy routes for backwards compatibility
       resources :documentation_entries, controller: 'trinity' do
