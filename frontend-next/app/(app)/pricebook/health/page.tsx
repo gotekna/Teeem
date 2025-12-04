@@ -352,7 +352,7 @@ export default function PricebookHealthPage() {
   const loadHealthData = async () => {
     try {
       setLoading(true);
-      const response = await api.get("/api/v1/health/pricebook");
+      const response = await api.get<HealthChecks>("/api/v1/health/pricebook");
       setHealthChecks(response);
     } catch (error) {
       console.error("Failed to load health data:", error);
@@ -363,7 +363,7 @@ export default function PricebookHealthPage() {
 
   const loadPriceHealthCheck = async () => {
     try {
-      const response = await api.get("/api/v1/pricebook/price_health_check");
+      const response = await api.get<PriceHealthCheck>("/api/v1/pricebook/price_health_check");
       setPriceHealthCheck(response);
     } catch (error) {
       console.error("Failed to load price health check:", error);
@@ -372,7 +372,7 @@ export default function PricebookHealthPage() {
 
   const loadXeroSyncHealth = async () => {
     try {
-      const response = await api.get("/api/v1/sync_configurations/health");
+      const response = await api.get<{ health: XeroSyncHealth }>("/api/v1/sync_configurations/health");
       setXeroSyncHealth(response.health);
     } catch (error) {
       console.error("Failed to load Xero sync health:", error);
