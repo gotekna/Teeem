@@ -447,6 +447,7 @@ module Api
             :description,
             :quantity,
             :unit_price,
+            :gst_code,
             :notes,
             :line_number,
             :_destroy

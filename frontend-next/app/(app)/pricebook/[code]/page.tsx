@@ -118,7 +118,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 export default function PriceBookItemDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const id = params.id as string;
+  const code = params.code as string;
 
   const [item, setItem] = useState<PriceBookItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,12 +143,12 @@ export default function PriceBookItemDetailPage() {
 
   useEffect(() => {
     loadItem();
-  }, [id]);
+  }, [code]);
 
   const loadItem = async () => {
     try {
       setLoading(true);
-      const response = await api.get<PriceBookItem>(`/api/v1/pricebook/${id}`);
+      const response = await api.get<PriceBookItem>(`/api/v1/pricebook/${code}`);
       setItem(response);
     } catch (err) {
       setError("Failed to load price book item");
@@ -165,7 +165,7 @@ export default function PriceBookItemDetailPage() {
     const urlField = `${fileType}_url` as keyof PriceBookItem;
 
     if (item[fileIdField]) {
-      return `${API_URL}/api/v1/pricebook/${id}/proxy_image/${fileType}`;
+      return `${API_URL}/api/v1/pricebook/${code}/proxy_image/${fileType}`;
     }
 
     return item[urlField] as string | null;
@@ -242,7 +242,7 @@ export default function PriceBookItemDetailPage() {
 
     try {
       setSavingBooleans(true);
-      await api.patch(`/api/v1/pricebook/${id}`, {
+      await api.patch(`/api/v1/pricebook/${code}`, {
         [fieldName]: newValue,
       });
     } catch (err) {
@@ -262,7 +262,7 @@ export default function PriceBookItemDetailPage() {
     if (!historyToDelete) return;
 
     try {
-      await api.delete(`/api/v1/pricebook/${id}/price_histories/${historyToDelete.id}`);
+      await api.delete(`/api/v1/pricebook/${code}/price_histories/${historyToDelete.id}`);
       setIsDeleteModalOpen(false);
       setHistoryToDelete(null);
       await loadItem();
