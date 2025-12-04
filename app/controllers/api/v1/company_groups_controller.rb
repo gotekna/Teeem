@@ -90,9 +90,10 @@ module Api
 
       # GET /api/v1/company_groups/:id/structure
       def structure
-        # Get top-level companies (no parent) in this group
+        # Get top-level companies (no consolidation parent) in this group
+        # Uses consolidation_parent_id for financial grouping hierarchy
         # Exclude Trust entities that have a Trustee company (they'll be shown under the Trustee)
-        all_top_level = @company_group.companies.where(parent_company_id: nil).order(:name)
+        all_top_level = @company_group.companies.where(consolidation_parent_id: nil).order(:name)
 
         # Find trusts/superfunds that have a trustee company in this group
         # Match by Trust/Superfund's name (not trust_name field) since trustee's trust_name = Trust's name
@@ -344,8 +345,8 @@ module Api
           }
         end
 
-        # Build children list - only include subsidiaries from the same company group
-        children = company.subsidiaries
+        # Build children list - use consolidated_children (financial consolidation hierarchy)
+        children = company.consolidated_children
           .where(company_group_id: company_group&.id)
           .order(:name)
           .map { |s| build_hierarchy_tree(s, company_group) }
@@ -387,6 +388,7 @@ module Api
           is_trustee: company.is_trustee,
           trust_name: company.trust_name,
           hierarchy_level: company.hierarchy_level,
+          date_incorporated: company.date_incorporated,
           shareholders: shareholders,
           investments: investments,
           children: children
