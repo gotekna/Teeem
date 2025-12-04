@@ -448,7 +448,11 @@ class Contact < ApplicationRecord
   def contact_types_must_be_valid
     return if contact_types.blank?
 
-    invalid_types = contact_types - CONTACT_TYPES
+    # Handle both array and JSON string formats
+    types = contact_types.is_a?(String) ? (JSON.parse(contact_types) rescue []) : contact_types
+    return if types.blank?
+
+    invalid_types = types - CONTACT_TYPES
     if invalid_types.any?
       errors.add(:contact_types, "contains invalid types: #{invalid_types.join(', ')}")
     end
