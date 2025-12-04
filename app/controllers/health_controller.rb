@@ -15,10 +15,11 @@ class HealthController < ApplicationController
       version: Version.current_version_string,
       timestamp: Time.current
     }
-    # Only include heroku_release if available (requires dyno metadata feature)
-    if ENV['HEROKU_RELEASE_VERSION'].present?
-      response[:heroku_release] = ENV['HEROKU_RELEASE_VERSION']
-    end
+    # Include heroku_release if available (requires dyno metadata feature)
+    # Also include debug info to troubleshoot metadata availability
+    heroku_release = ENV['HEROKU_RELEASE_VERSION']
+    response[:heroku_release] = heroku_release if heroku_release.present?
+    response[:heroku_app_name] = ENV['HEROKU_APP_NAME'] if ENV['HEROKU_APP_NAME'].present?
     render json: response
   end
 
