@@ -9,7 +9,7 @@ class CaseContact < ApplicationRecord
     allow_blank: true
   }
   validates :relationship_type, inclusion: {
-    in: %w[client accountant lawyer previous_accountant advisor opposing_party witness related_party ato_officer director shareholder bank_manager insurer broker trustee],
+    in: %w[client accountant lawyer previous_accountant advisor opposing_party witness related_party ato_officer afsa_officer inspector_general trustee director shareholder bank_manager insurer broker creditor debtor],
     allow_blank: true
   }
   validates :alignment, inclusion: {
@@ -52,12 +52,16 @@ class CaseContact < ApplicationRecord
     'witness' => { name: 'Witness', color: 'yellow', icon: 'eye' },
     'related_party' => { name: 'Related Party', color: 'gray', icon: 'users' },
     'ato_officer' => { name: 'ATO Officer', color: 'red', icon: 'landmark' },
+    'afsa_officer' => { name: 'AFSA Officer', color: 'red', icon: 'landmark' },
+    'inspector_general' => { name: 'Inspector-General', color: 'red', icon: 'landmark' },
+    'trustee' => { name: 'Trustee (Bankruptcy)', color: 'amber', icon: 'briefcase' },
     'director' => { name: 'Director', color: 'indigo', icon: 'briefcase' },
     'shareholder' => { name: 'Shareholder', color: 'pink', icon: 'pie-chart' },
     'bank_manager' => { name: 'Bank Manager', color: 'cyan', icon: 'building' },
     'insurer' => { name: 'Insurer', color: 'amber', icon: 'shield' },
     'broker' => { name: 'Broker', color: 'lime', icon: 'trending-up' },
-    'trustee' => { name: 'Trustee', color: 'amber', icon: 'briefcase' }
+    'creditor' => { name: 'Creditor', color: 'orange', icon: 'building' },
+    'debtor' => { name: 'Debtor', color: 'rose', icon: 'user' }
   }.freeze
 
   def formatted_role
