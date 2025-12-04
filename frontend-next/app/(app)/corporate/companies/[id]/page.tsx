@@ -3280,6 +3280,7 @@ export default function CompanyDetailPage() {
   const [activeTab, setActiveTab] = React.useState("overview");
   const [overviewSubTab, setOverviewSubTab] = React.useState("info");
   const [xeroConnected, setXeroConnected] = React.useState(false);
+  const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -3296,9 +3297,23 @@ export default function CompanyDetailPage() {
     }
   }, [companyId]);
 
+  // Load document counts for tabs
+  const loadDocumentCounts = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; counts: Record<string, number> }>(
+        `/api/v1/company_documents/counts`,
+        { params: { company_id: companyId } }
+      );
+      setDocumentCounts(response.counts || {});
+    } catch (error) {
+      console.error("Failed to load document counts:", error);
+    }
+  }, [companyId]);
+
   React.useEffect(() => {
     loadCompany();
-  }, [loadCompany]);
+    loadDocumentCounts();
+  }, [loadCompany, loadDocumentCounts]);
 
   // Handle tab from URL
   React.useEffect(() => {
@@ -3421,6 +3436,14 @@ export default function CompanyDetailPage() {
             </button>
             {DOCUMENT_TABS.map((tab) => {
               const Icon = tab.icon;
+              // Map tab id to count key (handle naming differences)
+              const countKey = tab.id === "assets-docs" ? "assets-docs" :
+                              tab.id === "dividends-docs" ? "dividends-docs" :
+                              tab.id === "loans-docs" ? "loans-docs" :
+                              tab.id === "minutes-docs" ? "minutes-docs" :
+                              tab.id;
+              const count = documentCounts[countKey] || 0;
+              const showCount = !["documents", "data", "activity"].includes(tab.id);
               return (
                 <button
                   key={tab.id}
@@ -3434,6 +3457,11 @@ export default function CompanyDetailPage() {
                 >
                   <Icon className="h-4 w-4 mr-2" />
                   {tab.name}
+                  {showCount && count > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
+                      {count}
+                    </span>
+                  )}
                 </button>
               );
             })}
