@@ -23,6 +23,15 @@
 const lookupCache: Record<string, Array<{ id: number; display: string }>> = {};
 const lookupFetchPromises: { [key: string]: Promise<Array<{ id: number; display: string }>> | undefined } = {};
 
+// Module-level cache for saved views (persists across component remounts, keyed by foundationId)
+interface CachedViewsEntry {
+  views: SavedView[];
+  timestamp: number;
+}
+const viewsCache: Record<number, CachedViewsEntry> = {};
+const viewsFetchPromises: Record<number, Promise<SavedView[]> | undefined> = {};
+const VIEWS_CACHE_TTL = 60000; // 1 minute TTL for views cache
+
 import React, {
   useState,
   useMemo,
@@ -1110,6 +1119,7 @@ export default function TeeemTableView({
   const [showFilters, setShowFilters] = useState(false);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [activeViewId, setActiveViewId] = useState<number | string | null>(null);
+  const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
   const [groupByColumn, setGroupByColumn] = useState<string | null>(initialGroupByColumn);
   const [groupByColumns, setGroupByColumns] = useState<string[]>(
     initialGroupByColumn ? [initialGroupByColumn] : []
@@ -2088,61 +2098,26 @@ export default function TeeemTableView({
     const loadSavedViews = async () => {
       if (!foundationIdNumeric) return;
 
+      // Prevent duplicate fetches (React StrictMode double-mount)
+      if (viewsLoadingRef.current) {
+        console.log('[loadSavedViews] Skipping - already loading');
+        return;
+      }
+      viewsLoadingRef.current = true;
+
+      const startTime = performance.now();
+      console.log('[loadSavedViews] Starting for foundation:', foundationIdNumeric);
+
       try {
-        let data;
-        if (preloadedViews && preloadedViews.length > 0) {
-          const firstViewTableId = preloadedViews[0]?.foundation_id;
-          if (firstViewTableId === foundationIdNumeric) {
-            data = { success: true, views: preloadedViews };
-          } else {
-            data = await api.get<{ success: boolean; views: SavedView[] }>(
-              `/api/v1/foundation_views`,
-              { params: { foundation_id: foundationIdNumeric } }
-            );
-          }
-        } else {
-          data = await api.get<{ success: boolean; views: SavedView[] }>(
-            `/api/v1/foundation_views`,
-            { params: { foundation_id: foundationIdNumeric } }
-          );
-        }
-
-        if (data.success && data.views) {
-          // Map API format to frontend format and filter/sort
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mappedViews = (data.views as any[]).map((v) => {
-            return {
-            ...v,
-            // Map columns.visible to visibleColumns (API format -> frontend format)
-            visibleColumns: v.columns?.visible || v.visibleColumns || {},
-            columnOrder: v.columns?.order || v.columnOrder || [],
-            columnWidths: v.columns?.widths || v.columnWidths || {},
-            autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
-            showTotals: v.columns?.showTotals !== false && v.showTotals !== false, // Default to true
-            // Map filters format
-            filters: v.filters?.cascadeFilters || v.filters || [],
-            filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
-            interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
-            // Map sort and group
-            sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
-            groupByColumns: v.group_by_columns || v.groupByColumns || [],
-          };
-          }) as SavedView[];
-
-          // Sort views by display_order
-          const filteredViews = mappedViews
-            .sort((a, b) => {
-              // Global views first
-              if (a.is_global && !b.is_global) return -1;
-              if (!a.is_global && b.is_global) return 1;
-              // Then by display_order
-              return (a.display_order ?? 999) - (b.display_order ?? 999);
-            });
-
+        // Check module-level cache first
+        const cachedEntry = viewsCache[foundationIdNumeric];
+        const now = Date.now();
+        if (cachedEntry && (now - cachedEntry.timestamp) < VIEWS_CACHE_TTL) {
+          console.log('[loadSavedViews] Using cached views, age:', (now - cachedEntry.timestamp), 'ms');
+          const filteredViews = cachedEntry.views;
           setSavedViews(filteredViews);
 
-          // Auto-apply default view - prioritize global views, then display_order
-          // Check URL for view parameter first (matches by slugified name)
+          // Auto-apply default view logic (duplicated from below)
           const urlViewSlug = searchParams.get('view');
           if (urlViewSlug) {
             const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
@@ -2151,19 +2126,121 @@ export default function TeeemTableView({
               return;
             }
           }
-
           if (!activeViewId && filteredViews.length > 0) {
-            // Find the best default: first check for explicit isDefault, then first global, then first by display_order
             const defaultView =
               filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
               filteredViews.find((v: SavedView) => v.isDefault) ||
               filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
               filteredViews.find((v: SavedView) => v.display_order === 0) ||
-              filteredViews[0]; // Fallback to first view
-
+              filteredViews[0];
             if (defaultView) {
               loadViewState(defaultView);
             }
+          }
+          return;
+        }
+
+        // Check if there's an in-flight request for this foundation
+        if (viewsFetchPromises[foundationIdNumeric]) {
+          console.log('[loadSavedViews] Waiting for in-flight request');
+          const views = await viewsFetchPromises[foundationIdNumeric];
+          setSavedViews(views || []);
+          return;
+        }
+
+        // Create the fetch promise
+        const fetchPromise = (async () => {
+          let data;
+          if (preloadedViews && preloadedViews.length > 0) {
+            const firstViewTableId = preloadedViews[0]?.foundation_id;
+            if (firstViewTableId === foundationIdNumeric) {
+              data = { success: true, views: preloadedViews };
+            } else {
+              data = await api.get<{ success: boolean; views: SavedView[] }>(
+                `/api/v1/foundation_views`,
+                { params: { foundation_id: foundationIdNumeric } }
+              );
+            }
+          } else {
+            data = await api.get<{ success: boolean; views: SavedView[] }>(
+              `/api/v1/foundation_views`,
+              { params: { foundation_id: foundationIdNumeric } }
+            );
+          }
+
+          if (data.success && data.views) {
+            // Map API format to frontend format and filter/sort
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mappedViews = (data.views as any[]).map((v) => {
+              return {
+              ...v,
+              // Map columns.visible to visibleColumns (API format -> frontend format)
+              visibleColumns: v.columns?.visible || v.visibleColumns || {},
+              columnOrder: v.columns?.order || v.columnOrder || [],
+              columnWidths: v.columns?.widths || v.columnWidths || {},
+              autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
+              showTotals: v.columns?.showTotals !== false && v.showTotals !== false, // Default to true
+              // Map filters format
+              filters: v.filters?.cascadeFilters || v.filters || [],
+              filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
+              interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
+              // Map sort and group
+              sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
+              groupByColumns: v.group_by_columns || v.groupByColumns || [],
+            };
+            }) as SavedView[];
+
+            // Sort views by display_order
+            const filteredViews = mappedViews
+              .sort((a, b) => {
+                // Global views first
+                if (a.is_global && !b.is_global) return -1;
+                if (!a.is_global && b.is_global) return 1;
+                // Then by display_order
+                return (a.display_order ?? 999) - (b.display_order ?? 999);
+              });
+
+            return filteredViews;
+          }
+          return [];
+        })();
+
+        viewsFetchPromises[foundationIdNumeric] = fetchPromise;
+        const filteredViews = await fetchPromise;
+
+        // Cache the results
+        viewsCache[foundationIdNumeric] = {
+          views: filteredViews,
+          timestamp: Date.now()
+        };
+        delete viewsFetchPromises[foundationIdNumeric];
+
+        console.log('[loadSavedViews] Views loaded in', (performance.now() - startTime).toFixed(0), 'ms, count:', filteredViews.length);
+
+        setSavedViews(filteredViews);
+
+        // Auto-apply default view - prioritize global views, then display_order
+        // Check URL for view parameter first (matches by slugified name)
+        const urlViewSlug = searchParams.get('view');
+        if (urlViewSlug) {
+          const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
+          if (urlView) {
+            loadViewState(urlView);
+            return;
+          }
+        }
+
+        if (!activeViewId && filteredViews.length > 0) {
+          // Find the best default: first check for explicit isDefault, then first global, then first by display_order
+          const defaultView =
+            filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
+            filteredViews.find((v: SavedView) => v.isDefault) ||
+            filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
+            filteredViews.find((v: SavedView) => v.display_order === 0) ||
+            filteredViews[0]; // Fallback to first view
+
+          if (defaultView) {
+            loadViewState(defaultView);
           }
         }
       } catch (error) {
@@ -2183,6 +2260,8 @@ export default function TeeemTableView({
           ...f,
           id: f.id || `filter_${Date.now()}_${idx}`,
         }));
+
+      console.log('[loadViewState] Loading view:', view.name, 'filters:', view.filters, 'visibleColumns:', view.visibleColumns);
 
       // Wrap all state updates in startTransition to mark them as non-urgent
       // This allows React to interrupt the update if user interacts again
@@ -2317,6 +2396,10 @@ export default function TeeemTableView({
       }
 
       if (response?.success && response.view) {
+        // Invalidate the views cache so next load gets fresh data
+        if (foundationIdNumeric) {
+          delete viewsCache[foundationIdNumeric];
+        }
         // Insert global views at the beginning, personal views at the end
         if (saveAsGlobal) {
           setSavedViews((prev) => [response.view, ...prev]);
@@ -2512,6 +2595,10 @@ export default function TeeemTableView({
 
     const elapsed = performance.now() - startTime;
     if (elapsed > 50) console.log('[filteredAndSortedEntries] took', elapsed.toFixed(0), 'ms for', entries.length, 'entries');
+    // Debug: log if filtering removed all entries
+    if (entries.length > 0 && result.length === 0) {
+      console.warn('[filteredAndSortedEntries] All entries filtered out! Had', entries.length, 'entries, now 0');
+    }
     return result;
   }, [
     entries,
@@ -2625,6 +2712,11 @@ export default function TeeemTableView({
     const hasActionsInOrder = orderedVisible.some(c => c.key === 'actions');
     if (actionsCol && !hasActionsInOrder) {
       orderedVisible.push(actionsCol);
+    }
+
+    // Debug: log if no visible columns
+    if (orderedVisible.length === 0) {
+      console.warn('[visibleColumnsInOrder] No visible columns! columnOrder:', columnOrder.length, 'visibleColumns:', Object.keys(visibleColumns).length, 'COLUMNS:', COLUMNS.length);
     }
 
     return orderedVisible;

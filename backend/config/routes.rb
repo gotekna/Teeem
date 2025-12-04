@@ -1000,6 +1000,12 @@ Rails.application.routes.draw do
       get 'organization_onedrive/job_all_files', to: 'organization_onedrive#job_all_files'
       post 'organization_onedrive/sync_job_documents', to: 'organization_onedrive#sync_job_documents'
 
+      # AI document analysis endpoints
+      post 'organization_onedrive/analyze_job_documents', to: 'organization_onedrive#analyze_job_documents'
+      get 'organization_onedrive/documents_needing_review', to: 'organization_onedrive#documents_needing_review'
+      post 'organization_onedrive/approve_document_rename', to: 'organization_onedrive#approve_document_rename'
+      post 'organization_onedrive/bulk_approve_renames', to: 'organization_onedrive#bulk_approve_renames'
+
       # Organization-wide data stats
       get 'organization/data_stats', to: 'organization#data_stats'
 

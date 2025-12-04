@@ -57,7 +57,7 @@ puts "\nLoaded #{jobs.count} jobs from database"
 # Manual mapping for known complex matches
 MANUAL_MAPPINGS = {
   "12 - Lot 83 West Ridge Street, Thornlands" => 69,
-  "13 - Lot 2 Manuka Road, Logan Village" => nil, # No direct match
+  "13 - Lot 2 Manuka Road, Logan Village" => 101, # Created job Dec 2024
   "16 - Lot 160 Alperton Road - NDIS" => 48,
   "18 - Lot 22 (6) Speargrass Drive, Logan Village 4207" => 73,
   "19 - 48 Mali Way Logan Village - Formerly Lot 11 (5) Speargrass Drive, Logan" => 74,
@@ -104,6 +104,9 @@ MANUAL_MAPPINGS = {
   # Completed FY jobs
   "20 - Lot 180 Avondale Street Morayfield QLD" => 75,
   "7 - Lot 6 Patrick King Drive, Burnside" => 86,
+
+  # FY25 completed jobs - different naming pattern from active folders
+  "Lot 2 Manuka Road - Logan Village" => 101,
 }.freeze
 
 def find_job_for_folder(folder_name, jobs)

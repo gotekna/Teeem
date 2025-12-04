@@ -625,8 +625,16 @@ class DocumentVerificationService
 
     # Only populate FY if the suggested name explicitly contains "FY"
     suggested_name = json["suggested_name"] || ""
-    raw_suggested_fy = if suggested_name.match?(/FY\d{2}/i)
-      json["suggested_fy"] || []
+    raw_suggested_fy = if suggested_name.match?(/FY(\d{2})/i)
+      # Extract FY from filename if Claude didn't provide it or provided nil
+      claude_fy = json["suggested_fy"]
+      if claude_fy.present? && claude_fy.is_a?(Array) && claude_fy.any?
+        claude_fy
+      else
+        # Extract from filename: "FY24" -> [2024]
+        fy_match = suggested_name.match(/FY(\d{2})/i)
+        fy_match ? [2000 + fy_match[1].to_i] : []
+      end
     else
       [] # No FY in filename = no FY in column
     end

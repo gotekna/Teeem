@@ -1,6 +1,8 @@
 class JobDocument < ApplicationRecord
   belongs_to :job
   belongs_to :document_type, optional: true
+  belongs_to :ai_suggested_type, class_name: 'DocumentType', optional: true
+  belongs_to :rename_approved_by, class_name: 'User', optional: true
 
   # File type enum based on extension
   FILE_TYPE_MAP = {

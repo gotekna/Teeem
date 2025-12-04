@@ -1354,14 +1354,16 @@ module Api
         job = Job.find(params[:job_id])
 
         # Check if we have cached documents in the data warehouse
-        cached_docs = job.job_documents.includes(:document_type).synced
+        cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type).synced
 
         if cached_docs.any?
           # Data Warehouse approach: instant results from database
           files_with_suggestions = cached_docs.map do |doc|
             {
               id: doc.onedrive_item_id,
+              document_id: doc.id,
               name: doc.file_name,
+              original_name: doc.original_file_name,
               size: doc.file_size,
               web_url: doc.web_url,
               modified: doc.last_modified_at&.iso8601,
@@ -1371,12 +1373,31 @@ module Api
               document_type_name: doc.document_type&.name,
               document_type_abbreviation: doc.document_type&.abbreviation,
               suggested_document_types: build_document_type_display(doc),
+              # AI analysis fields
+              ai_analyzed: doc.ai_analyzed_at.present?,
+              ai_analyzed_at: doc.ai_analyzed_at&.iso8601,
+              ai_suggested_type_id: doc.ai_suggested_type_id,
+              ai_suggested_type_name: doc.ai_suggested_type&.name,
+              ai_proposed_name: doc.ai_proposed_name,
+              ai_confidence: doc.ai_confidence&.to_f,
+              ai_reasoning: doc.ai_reasoning,
+              rename_status: doc.rename_status,
               from_cache: true
             }
           end
 
           # Sort by folder path then name
           files_with_suggestions.sort_by! { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+
+          # Calculate AI stats
+          ai_stats = {
+            total: cached_docs.count,
+            analyzed: cached_docs.where.not(ai_analyzed_at: nil).count,
+            unanalyzed: cached_docs.where(ai_analyzed_at: nil).count,
+            pending_review: cached_docs.where(rename_status: 'pending').where.not(ai_analyzed_at: nil).count,
+            approved: cached_docs.where(rename_status: 'completed').count,
+            rejected: cached_docs.where(rename_status: 'rejected').count
+          }
 
           return render json: {
             success: true,
@@ -1385,7 +1406,8 @@ module Api
             items: files_with_suggestions,
             count: files_with_suggestions.length,
             from_cache: true,
-            last_synced_at: cached_docs.maximum(:last_synced_at)&.iso8601
+            last_synced_at: cached_docs.maximum(:last_synced_at)&.iso8601,
+            ai_stats: ai_stats
           }
         end
 
@@ -1577,6 +1599,233 @@ module Api
           Rails.logger.error e.backtrace.join("\n")
           render json: { error: "Failed to queue import: #{e.message}" }, status: :internal_server_error
         end
+      end
+
+      # POST /api/v1/organization_onedrive/analyze_job_documents
+      # Trigger AI analysis for a job's documents
+      # Analyzes unanalyzed documents and suggests document types and filenames
+      def analyze_job_documents
+        job_id = params[:job_id]
+        limit = params[:limit]&.to_i || 25
+
+        unless job_id.present?
+          return render json: { error: 'job_id is required' }, status: :bad_request
+        end
+
+        job = Job.find(job_id)
+
+        # Count documents needing analysis
+        unanalyzed_count = JobDocument.where(job_id: job.id, ai_analyzed_at: nil).count
+
+        if unanalyzed_count == 0
+          return render json: {
+            success: true,
+            message: 'All documents have already been analyzed',
+            job_id: job.id,
+            analyzed_count: 0,
+            total_unanalyzed: 0
+          }
+        end
+
+        # Queue the batch analysis job
+        BatchJobDocumentAnalysisJob.perform_later(job_id: job.id, limit: limit)
+
+        render json: {
+          success: true,
+          message: "AI analysis queued for #{[limit, unanalyzed_count].min} documents",
+          job_id: job.id,
+          queued_count: [limit, unanalyzed_count].min,
+          total_unanalyzed: unanalyzed_count
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: 'Job not found' }, status: :not_found
+      end
+
+      # GET /api/v1/organization_onedrive/documents_needing_review
+      # List documents with AI suggestions pending review
+      # Params:
+      #   - job_id: Optional - filter by job
+      #   - status: 'pending' (default), 'approved', 'rejected', 'all'
+      #   - min_confidence: Optional - only show docs above this confidence (0-100)
+      def documents_needing_review
+        scope = JobDocument.includes(:job, :document_type, :ai_suggested_type)
+                          .where.not(ai_analyzed_at: nil)
+
+        # Filter by job if specified
+        if params[:job_id].present?
+          scope = scope.where(job_id: params[:job_id])
+        end
+
+        # Filter by rename status
+        status = params[:status] || 'pending'
+        unless status == 'all'
+          scope = scope.where(rename_status: status)
+        end
+
+        # Filter by minimum confidence
+        if params[:min_confidence].present?
+          min_conf = params[:min_confidence].to_i
+          scope = scope.where('ai_confidence >= ?', min_conf)
+        end
+
+        # Order by confidence descending (highest confidence first)
+        documents = scope.order(ai_confidence: :desc, ai_analyzed_at: :desc).limit(100)
+
+        render json: {
+          success: true,
+          documents: documents.map { |doc| format_document_for_review(doc) },
+          count: documents.length,
+          filters: {
+            job_id: params[:job_id],
+            status: status,
+            min_confidence: params[:min_confidence]
+          }
+        }
+      end
+
+      # POST /api/v1/organization_onedrive/approve_document_rename
+      # Approve or reject AI rename suggestion for a document
+      # Params:
+      #   - document_id: The JobDocument ID
+      #   - action: 'approve' or 'reject'
+      #   - custom_name: Optional - use this name instead of AI suggestion
+      #   - custom_type_id: Optional - use this document type instead of AI suggestion
+      def approve_document_rename
+        document = JobDocument.find(params[:document_id])
+        action = params[:action]
+
+        unless %w[approve reject].include?(action)
+          return render json: { error: "action must be 'approve' or 'reject'" }, status: :bad_request
+        end
+
+        if action == 'reject'
+          document.update!(
+            rename_status: 'rejected',
+            rename_approved_at: Time.current,
+            rename_approved_by_id: current_user&.id
+          )
+
+          return render json: {
+            success: true,
+            message: 'Rename suggestion rejected',
+            document_id: document.id,
+            status: 'rejected'
+          }
+        end
+
+        # Action is 'approve' - perform the rename in OneDrive
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        # Determine the new name
+        new_name = params[:custom_name].presence || document.ai_proposed_name
+
+        unless new_name.present?
+          return render json: { error: 'No proposed name available' }, status: :bad_request
+        end
+
+        # Determine the document type
+        new_type_id = params[:custom_type_id].presence || document.ai_suggested_type_id
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Rename the file in OneDrive
+          result = client.patch(
+            "/drives/#{credential.drive_id}/items/#{document.onedrive_item_id}",
+            { name: new_name }
+          )
+
+          # Update the document record
+          document.update!(
+            file_name: new_name,
+            document_type_id: new_type_id,
+            rename_status: 'completed',
+            rename_approved_at: Time.current,
+            rename_approved_by_id: current_user&.id,
+            web_url: result['webUrl']
+          )
+
+          render json: {
+            success: true,
+            message: 'Document renamed successfully',
+            document_id: document.id,
+            old_name: document.original_file_name,
+            new_name: new_name,
+            document_type_id: new_type_id,
+            web_url: result['webUrl']
+          }
+
+        rescue MicrosoftGraphClient::APIError => e
+          Rails.logger.error "[Approve Rename] OneDrive API error: #{e.message}"
+          render json: { error: "Failed to rename in OneDrive: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "[Approve Rename] Error: #{e.message}"
+          render json: { error: "Failed to rename: #{e.message}" }, status: :internal_server_error
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: 'Document not found' }, status: :not_found
+      end
+
+      # POST /api/v1/organization_onedrive/bulk_approve_renames
+      # Bulk approve multiple document renames
+      # Params:
+      #   - document_ids: Array of JobDocument IDs to approve
+      def bulk_approve_renames
+        document_ids = params[:document_ids] || []
+
+        if document_ids.empty?
+          return render json: { error: 'No document IDs provided' }, status: :bad_request
+        end
+
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        documents = JobDocument.where(id: document_ids, rename_status: 'pending')
+                              .where.not(ai_proposed_name: nil)
+
+        results = { approved: 0, failed: 0, errors: [] }
+
+        client = MicrosoftGraphClient.new(credential)
+
+        documents.each do |doc|
+          begin
+            # Rename in OneDrive
+            result = client.patch(
+              "/drives/#{credential.drive_id}/items/#{doc.onedrive_item_id}",
+              { name: doc.ai_proposed_name }
+            )
+
+            # Update document record
+            doc.update!(
+              file_name: doc.ai_proposed_name,
+              document_type_id: doc.ai_suggested_type_id,
+              rename_status: 'completed',
+              rename_approved_at: Time.current,
+              rename_approved_by_id: current_user&.id,
+              web_url: result['webUrl']
+            )
+
+            results[:approved] += 1
+
+          rescue StandardError => e
+            results[:failed] += 1
+            results[:errors] << { document_id: doc.id, error: e.message }
+            Rails.logger.error "[Bulk Approve] Failed for doc #{doc.id}: #{e.message}"
+          end
+        end
+
+        render json: {
+          success: true,
+          message: "Approved #{results[:approved]} renames, #{results[:failed]} failed",
+          results: results
+        }
       end
 
       # POST /api/v1/organization_onedrive/run_migration
@@ -1819,6 +2068,39 @@ module Api
 
         # Sort by confidence descending and return top 3
         suggestions.sort_by { |s| -s[:confidence] }.first(3)
+      end
+
+      # Format a document for the review UI
+      def format_document_for_review(doc)
+        {
+          id: doc.id,
+          job_id: doc.job_id,
+          job_title: doc.job&.title,
+          onedrive_item_id: doc.onedrive_item_id,
+          current_name: doc.file_name,
+          original_name: doc.original_file_name,
+          proposed_name: doc.ai_proposed_name,
+          folder_path: doc.folder_path,
+          file_extension: doc.file_extension,
+          file_type: doc.file_type,
+          file_size: doc.file_size,
+          web_url: doc.web_url,
+          current_type: doc.document_type ? {
+            id: doc.document_type.id,
+            name: doc.document_type.name,
+            abbreviation: doc.document_type.abbreviation
+          } : nil,
+          suggested_type: doc.ai_suggested_type ? {
+            id: doc.ai_suggested_type.id,
+            name: doc.ai_suggested_type.name,
+            abbreviation: doc.ai_suggested_type.abbreviation
+          } : nil,
+          ai_confidence: doc.ai_confidence&.to_f,
+          ai_reasoning: doc.ai_reasoning,
+          ai_analyzed_at: doc.ai_analyzed_at&.iso8601,
+          rename_status: doc.rename_status,
+          rename_approved_at: doc.rename_approved_at&.iso8601
+        }
       end
 
       # Dynamically determine the frontend URL from the request
