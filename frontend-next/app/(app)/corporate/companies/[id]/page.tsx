@@ -3570,56 +3570,53 @@ export default function CompanyDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Main Tabs */}
+      {/* Main Tabs - flex wrap for two rows */}
       <div className="border-b mb-4">
-        <ScrollArea className="w-full whitespace-nowrap">
-          <div className="flex gap-1 pb-2">
-            <button
-              onClick={() => handleTabChange("overview")}
-              className={cn(
-                "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                activeTab === "overview"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-              )}
-            >
-              <Building2 className="h-4 w-4 mr-2" />
-              Overview
-            </button>
-            {DOCUMENT_TABS.map((tab) => {
-              const Icon = tab.icon;
-              // Map tab id to count key (handle naming differences)
-              const countKey = tab.id === "assets-docs" ? "assets-docs" :
-                              tab.id === "dividends-docs" ? "dividends-docs" :
-                              tab.id === "loans-docs" ? "loans-docs" :
-                              tab.id === "minutes-docs" ? "minutes-docs" :
-                              tab.id;
-              const count = documentCounts[countKey] || 0;
-              const showCount = !["documents", "data", "activity"].includes(tab.id);
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={cn(
-                    "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                    activeTab === tab.id
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                  )}
-                >
-                  <Icon className="h-4 w-4 mr-2" />
-                  {tab.name}
-                  {showCount && count > 0 && (
-                    <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
-                      {count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        <div className="flex flex-wrap gap-1 pb-2">
+          <button
+            onClick={() => handleTabChange("overview")}
+            className={cn(
+              "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "overview"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            )}
+          >
+            <Building2 className="h-4 w-4 mr-2" />
+            Overview
+          </button>
+          {DOCUMENT_TABS.map((tab) => {
+            const Icon = tab.icon;
+            // Map tab id to count key (handle naming differences)
+            const countKey = tab.id === "assets-docs" ? "assets-docs" :
+                            tab.id === "dividends-docs" ? "dividends-docs" :
+                            tab.id === "loans-docs" ? "loans-docs" :
+                            tab.id === "minutes-docs" ? "minutes-docs" :
+                            tab.id;
+            const count = documentCounts[countKey] || 0;
+            const showCount = !["documents", "data", "activity"].includes(tab.id);
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={cn(
+                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                  activeTab === tab.id
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                <Icon className="h-4 w-4 mr-2" />
+                {tab.name}
+                {showCount && count > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Tab Content */}

@@ -341,7 +341,21 @@ export default function CorporateDashboardPage() {
     shares?: number;
     percentage?: number;
   }>>([]);
+  // Define recursive ownership node type
+  interface OwnershipNodeState {
+    company_id: number;
+    company_name: string;
+    percentage: number;
+    entity_type?: string;
+    is_trustee?: boolean;
+    trust_name?: string;
+    trust_id?: number;
+    trust_entity_type?: string;
+    children?: OwnershipNodeState[];
+  }
+  const [fullScreenPersonOwnershipChain, setFullScreenPersonOwnershipChain] = React.useState<OwnershipNodeState[]>([]);
   const [loadingPersonRoles, setLoadingPersonRoles] = React.useState(false);
+  const [showPersonFullDetail, setShowPersonFullDetail] = React.useState(true);
 
   // Groups tab state
   const [showCreateGroupDialog, setShowCreateGroupDialog] = React.useState(false);
@@ -582,25 +596,41 @@ export default function CorporateDashboardPage() {
     }
   }, [activeTab, people.length, groups, groupsMap]);
 
-  // Load roles when full screen person dialog opens
+  // Load roles and ownership chain when full screen person dialog opens
   React.useEffect(() => {
-    const loadPersonRoles = async () => {
+    const loadPersonData = async () => {
       if (!fullScreenPerson) {
         setFullScreenPersonRoles([]);
+        setFullScreenPersonOwnershipChain([]);
         return;
       }
 
-      // If the person already has roles (from Structure tab), use them
-      if (fullScreenPerson.roles && Array.isArray(fullScreenPerson.roles) && (fullScreenPerson.roles as unknown[]).length > 0) {
-        setFullScreenPersonRoles(fullScreenPerson.roles as typeof fullScreenPersonRoles);
-        return;
-      }
+      const contactId = fullScreenPerson.id as number;
 
-      // Otherwise, fetch roles from all company groups
       try {
         setLoadingPersonRoles(true);
+
+        // Fetch ownership chain from the new API endpoint
+        try {
+          const ownershipResponse = await api.get<{ success: boolean; data: OwnershipNodeState[] }>(
+            `/api/v1/contacts/${contactId}/ownership_chain`
+          );
+          if (ownershipResponse.success && ownershipResponse.data) {
+            setFullScreenPersonOwnershipChain(ownershipResponse.data);
+          }
+        } catch (ownershipError) {
+          console.error("Failed to load ownership chain:", ownershipError);
+          setFullScreenPersonOwnershipChain([]);
+        }
+
+        // If the person already has roles (from Structure tab), use them
+        if (fullScreenPerson.roles && Array.isArray(fullScreenPerson.roles) && (fullScreenPerson.roles as unknown[]).length > 0) {
+          setFullScreenPersonRoles(fullScreenPerson.roles as typeof fullScreenPersonRoles);
+          return;
+        }
+
+        // Otherwise, fetch roles from all company groups
         const allRoles: typeof fullScreenPersonRoles = [];
-        const contactId = fullScreenPerson.id as number;
 
         // Search through all groups to find this person's roles
         for (const group of groups) {
@@ -630,14 +660,14 @@ export default function CorporateDashboardPage() {
 
         setFullScreenPersonRoles(allRoles);
       } catch (error) {
-        console.error("Failed to load person roles:", error);
+        console.error("Failed to load person data:", error);
         setFullScreenPersonRoles([]);
       } finally {
         setLoadingPersonRoles(false);
       }
     };
 
-    loadPersonRoles();
+    loadPersonData();
   }, [fullScreenPerson, groups]);
 
   // ===== HANDLERS =====
@@ -1621,7 +1651,31 @@ export default function CorporateDashboardPage() {
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                     </div>
                   ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="space-y-6">
+                    {/* Visual Ownership Chart */}
+                    <PersonStructureChart
+                      personName={String(fullScreenPerson?.full_name || fullScreenPerson?.name || "")}
+                      personEmail={fullScreenPerson?.email as string | null}
+                      ownershipChain={fullScreenPersonOwnershipChain}
+                      directorRoles={fullScreenPersonRoles
+                        .filter(r => r.type === "director")
+                        .map(r => ({
+                          company_id: r.company_id,
+                          company_name: r.company_name,
+                          position: r.position,
+                          is_current: r.is_current,
+                        }))}
+                      onCompanyClick={(companyId) => {
+                        setFullScreenPerson(null);
+                        router.push(`/corporate/companies/${companyId}`);
+                      }}
+                      showFullDetail={showPersonFullDetail}
+                      onToggleFullDetail={() => setShowPersonFullDetail(!showPersonFullDetail)}
+                    />
+
+                    {/* Cards Grid - shown when Full Detail is enabled */}
+                    {showPersonFullDetail && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {/* Group each company's roles together */}
                     {(() => {
                       // Use the fetched roles from state
@@ -1723,6 +1777,8 @@ export default function CorporateDashboardPage() {
                         </Card>
                       ));
                     })()}
+                    </div>
+                    )}
                   </div>
                   )}
                 </div>

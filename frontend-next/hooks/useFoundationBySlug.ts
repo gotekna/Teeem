@@ -85,6 +85,9 @@ export function useFoundationBySlug(
   const [error, setError] = useState<Error | null>(null);
 
   const loadData = useCallback(async () => {
+    const startTime = performance.now();
+    console.log('[useFoundationBySlug] loadData starting for slug:', slug);
+
     if (!slug) {
       setIsLoading(false);
       return;
@@ -95,23 +98,28 @@ export function useFoundationBySlug(
 
     try {
       // Load foundation metadata by slug (backend supports slug lookup)
+      const foundationStartTime = performance.now();
       const foundationData = await api.get<FoundationLookupResponse>(
         `/api/v1/foundations/${slug}`
       );
+      console.log('[useFoundationBySlug] Foundation loaded in', (performance.now() - foundationStartTime).toFixed(0), 'ms');
 
       const foundationObj = foundationData.foundation;
       setFoundation(foundationObj);
 
       // Load records via the universal records endpoint using the foundation ID
+      const recordsStartTime = performance.now();
       const recordsData = await api.get<RecordsResponse>(
         `/api/v1/foundations/${foundationObj.id}/records`,
         { params: { per_page: perPage } }
       );
+      console.log('[useFoundationBySlug] Records loaded in', (performance.now() - recordsStartTime).toFixed(0), 'ms', '- count:', recordsData.records?.length);
 
       const loadedRecords = recordsData.records || [];
       setRecords(loadedRecords);
       setOriginalRecords(loadedRecords); // Store for clearing search
       setTotalCount(recordsData.pagination?.total_count ?? null); // Store total count from server
+      console.log('[useFoundationBySlug] Total loadData time:', (performance.now() - startTime).toFixed(0), 'ms');
     } catch (err) {
       console.error('Failed to load foundation data by slug:', err);
       setError(err instanceof Error ? err : new Error('Failed to load data'));

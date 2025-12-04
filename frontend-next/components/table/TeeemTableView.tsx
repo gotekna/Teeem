@@ -1674,6 +1674,9 @@ export default function TeeemTableView({
   }, [validateCell]);
 
   const saveEditing = useCallback(async () => {
+    const startTime = performance.now();
+    console.log('[saveEditing] Starting save...');
+
     if (editingRowIds.size === 0 || !onRowUpdate) return;
 
     // Check for validation errors before saving
@@ -1691,14 +1694,54 @@ export default function TeeemTableView({
     }
 
     try {
-      // Save each edited row
+      // Collect all changes for batch update
+      const rowsToUpdate: Array<{ rowId: number | string; changes: Record<string, unknown> }> = [];
+
       for (const rowId of editingRowIds) {
         const originalRow = entries.find((e) => e.id === rowId);
         const rowData = editingData[rowId];
         if (!originalRow || !rowData) continue;
 
+        const changes: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(rowData)) {
-          if (originalRow[key] !== value) {
+          // Compare values - handle objects/arrays properly
+          const originalValue = originalRow[key];
+          const valuesMatch = JSON.stringify(originalValue) === JSON.stringify(value);
+          if (!valuesMatch) {
+            changes[key] = value;
+          }
+        }
+
+        if (Object.keys(changes).length > 0) {
+          rowsToUpdate.push({ rowId, changes });
+        }
+      }
+
+      console.log('[saveEditing] Rows to update:', rowsToUpdate.length, 'foundationIdNumeric:', foundationIdNumeric);
+
+      // Use bulk_update API if foundationIdNumeric is available (single API call)
+      if (foundationIdNumeric && rowsToUpdate.length > 0) {
+        // Group by changes to minimize API calls
+        // For now, update each row with all its changes in one call
+        const apiStartTime = performance.now();
+        for (const { rowId, changes } of rowsToUpdate) {
+          console.log('[saveEditing] PATCH row:', rowId, 'changes:', changes);
+          await api.patch(`/api/v1/foundations/${foundationIdNumeric}/records/${rowId}`, {
+            record: changes
+          });
+        }
+        console.log('[saveEditing] API calls done in', (performance.now() - apiStartTime).toFixed(0), 'ms');
+
+        // Only refresh once after all updates
+        const refreshStartTime = performance.now();
+        console.log('[saveEditing] Starting refresh...');
+        onRefresh?.();
+        console.log('[saveEditing] Refresh called (async) after', (performance.now() - refreshStartTime).toFixed(0), 'ms');
+      } else {
+        // Fallback: call onRowUpdate for each field (triggers refresh per field - slow)
+        console.log('[saveEditing] Using fallback onRowUpdate (slow path)');
+        for (const { rowId, changes } of rowsToUpdate) {
+          for (const [key, value] of Object.entries(changes)) {
             await onRowUpdate(rowId, key, value);
           }
         }
@@ -1707,6 +1750,7 @@ export default function TeeemTableView({
       setEditingRowIds(new Set());
       setEditingData({});
       setValidationErrors({});
+      console.log('[saveEditing] Total time:', (performance.now() - startTime).toFixed(0), 'ms');
       toast({
         title: "Saved",
         description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
@@ -1720,7 +1764,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [editingRowIds, editingData, entries, onRowUpdate, toast, validationErrors]);
+  }, [editingRowIds, editingData, entries, foundationIdNumeric, onRowUpdate, onRefresh, toast, validationErrors]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
@@ -2944,11 +2988,11 @@ export default function TeeemTableView({
         case "actions":
           if (isEditing) {
             return (
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={saveEditing}>
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); saveEditing(); }}>
                   <Check className="h-4 w-4 text-green-600" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={cancelEditing}>
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); cancelEditing(); }}>
                   <X className="h-4 w-4 text-red-600" />
                 </Button>
               </div>
@@ -3273,64 +3317,96 @@ export default function TeeemTableView({
           );
         }
 
-        // Multiple lookups - multi-select (simplified tag input)
+        // Multiple lookups - multi-select with checkboxes
         if (columnType === 'multiple_lookups') {
-          const currentItems = Array.isArray(rowEditingData[column.key])
-            ? rowEditingData[column.key] as Array<{ id: number; display?: string }>
-            : [];
           const options = lookupOptions[column.key] || [];
+          const currentValue = rowEditingData[column.key];
+
+          // Build a set of selected option IDs
+          // Handle both string values (like "corporate") and numeric IDs
+          const getSelectedOptionIds = (): Set<number> => {
+            if (!Array.isArray(currentValue)) return new Set();
+
+            const selectedSet = new Set<number>();
+
+            for (const v of currentValue) {
+              if (typeof v === 'number') {
+                selectedSet.add(v);
+              } else if (typeof v === 'object' && v !== null && 'id' in v) {
+                const objId = (v as { id: number | string }).id;
+                if (typeof objId === 'number') {
+                  selectedSet.add(objId);
+                } else if (typeof objId === 'string') {
+                  const numId = parseInt(objId, 10);
+                  if (!isNaN(numId)) {
+                    selectedSet.add(numId);
+                  } else {
+                    // String name - find matching option by display name
+                    const normalizedValue = objId.toLowerCase().replace(/\s+/g, '_');
+                    const matchingOption = options.find(opt =>
+                      opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                    );
+                    if (matchingOption) {
+                      selectedSet.add(matchingOption.id);
+                    }
+                  }
+                }
+              } else if (typeof v === 'string') {
+                const numId = parseInt(v, 10);
+                if (!isNaN(numId)) {
+                  selectedSet.add(numId);
+                } else {
+                  // String name - find matching option by display name
+                  const normalizedValue = v.toLowerCase().replace(/\s+/g, '_');
+                  const matchingOption = options.find(opt =>
+                    opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                  );
+                  if (matchingOption) {
+                    selectedSet.add(matchingOption.id);
+                  }
+                }
+              }
+            }
+
+            return selectedSet;
+          };
+
+          const selectedOptionIds = getSelectedOptionIds();
 
           return (
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap gap-1 min-h-[28px] p-1 border rounded bg-background">
-                {currentItems.map((item, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs flex items-center gap-1">
-                    {item.display || `#${item.id}`}
-                    <button
-                      type="button"
-                      className="hover:text-destructive"
-                      onClick={() => {
-                        const newItems = currentItems.filter((_, i) => i !== idx);
+            <div
+              className="space-y-1 max-h-[150px] overflow-y-auto p-1 border rounded bg-background"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {options.length === 0 ? (
+                <p className="text-muted-foreground text-xs p-1">No options available</p>
+              ) : (
+                options.map((option) => (
+                  <label
+                    key={option.id}
+                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={selectedOptionIds.has(option.id)}
+                      onCheckedChange={(checked) => {
+                        const newIds = new Set(selectedOptionIds);
+                        if (checked) {
+                          newIds.add(option.id);
+                        } else {
+                          newIds.delete(option.id);
+                        }
+                        // Store as array of numeric IDs
                         setEditingData((prev) => ({
                           ...prev,
-                          [entry.id]: { ...prev[entry.id], [column.key]: newItems },
+                          [entry.id]: { ...prev[entry.id], [column.key]: Array.from(newIds) },
                         }));
                       }}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-              <Select
-                value=""
-                onValueChange={(val) => {
-                  if (!val) return;
-                  const option = options.find(o => String(o.id) === val);
-                  if (option && !currentItems.some(i => i.id === option.id)) {
-                    setEditingData((prev) => ({
-                      ...prev,
-                      [entry.id]: {
-                        ...prev[entry.id],
-                        [column.key]: [...currentItems, { id: option.id, display: option.display }]
-                      },
-                    }));
-                  }
-                }}
-              >
-                <SelectTrigger className="h-7 text-sm">
-                  <SelectValue placeholder="Add..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {options
-                    .filter(o => !currentItems.some(i => i.id === o.id))
-                    .map((option) => (
-                      <SelectItem key={option.id} value={String(option.id)}>
-                        {option.display}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                    />
+                    <span>{option.display}</span>
+                  </label>
+                ))
+              )}
             </div>
           );
         }
