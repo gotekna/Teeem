@@ -6,7 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   ArrowLeft,
   Mail,
@@ -18,6 +22,10 @@ import {
   Loader2,
   ExternalLink,
   AlertTriangle,
+  Building2,
+  User,
+  Cloud,
+  ChevronDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -32,20 +40,45 @@ interface MicrosoftStatus {
   };
 }
 
+interface ConnectionInfo {
+  connected: boolean;
+  name: string;
+  url?: string;
+  document_library?: string;
+  root_folder?: string;
+  authenticated_as?: string;
+  auth_type: "organization" | "personal";
+  drive_id?: string;
+}
+
+interface ConnectionsResponse {
+  sharepoint: ConnectionInfo;
+  onedrive: ConnectionInfo;
+  email: ConnectionInfo;
+  calendar: ConnectionInfo;
+}
+
 export default function MicrosoftIntegrationPage() {
   const router = useRouter();
   const [status, setStatus] = React.useState<MicrosoftStatus | null>(null);
+  const [connections, setConnections] = React.useState<ConnectionsResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
+  const [mainOpen, setMainOpen] = React.useState(true);
+  const [servicesOpen, setServicesOpen] = React.useState(true);
 
   React.useEffect(() => {
-    const fetchStatus = async () => {
+    const fetchData = async () => {
       try {
-        const data = await api.get<MicrosoftStatus>("/api/v1/microsoft/status");
-        setStatus(data);
+        const [statusData, connectionsData] = await Promise.all([
+          api.get<MicrosoftStatus>("/api/v1/microsoft/status"),
+          api.get<ConnectionsResponse>("/api/v1/microsoft/connections"),
+        ]);
+        setStatus(statusData);
+        setConnections(connectionsData);
       } catch (error) {
-        console.error("Failed to fetch Microsoft status:", error);
+        console.error("Failed to fetch Microsoft data:", error);
         setStatus({
           connected: false,
           services: { outlook: false, onedrive: false, calendar: false },
@@ -55,7 +88,7 @@ export default function MicrosoftIntegrationPage() {
       }
     };
 
-    fetchStatus();
+    fetchData();
   }, []);
 
   const handleConnect = async () => {
@@ -77,6 +110,7 @@ export default function MicrosoftIntegrationPage() {
         connected: false,
         services: { outlook: false, onedrive: false, calendar: false },
       });
+      setConnections(null);
     } catch (error) {
       console.error("Failed to disconnect Microsoft:", error);
     } finally {
@@ -92,8 +126,15 @@ export default function MicrosoftIntegrationPage() {
     );
   }
 
+  // Count connected services
+  const connectedCount = connections
+    ? [connections.sharepoint, connections.onedrive, connections.email, connections.calendar].filter(
+        (c) => c.connected
+      ).length
+    : 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.push("/settings")}>
@@ -107,234 +148,234 @@ export default function MicrosoftIntegrationPage() {
         </div>
       </div>
 
-      {/* Status Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Mail className="h-6 w-6 text-blue-600" />
+      {/* Main Status Card - Collapsible */}
+      <Collapsible open={mainOpen} onOpenChange={setMainOpen}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-blue-100 rounded-lg">
+                    <Mail className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <CardTitle>Microsoft 365</CardTitle>
+                    <CardDescription>Outlook, SharePoint, Calendar</CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {status?.connected ? (
+                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Connected
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">
+                      <XCircle className="h-3 w-3 mr-1" />
+                      Not Connected
+                    </Badge>
+                  )}
+                  <ChevronDown
+                    className={`h-5 w-5 text-muted-foreground transition-transform ${
+                      mainOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </div>
               </div>
-              <div>
-                <CardTitle>Microsoft 365</CardTitle>
-                <CardDescription>Outlook, SharePoint, Calendar</CardDescription>
-              </div>
-            </div>
-            {status?.connected ? (
-              <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-6 pt-0">
+              {status?.connected ? (
+                <>
+                  <div className="p-4 bg-muted rounded-lg">
+                    <p className="text-sm text-muted-foreground">Connected Account</p>
+                    <p className="font-medium">{status.email || "Unknown"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Connected{" "}
+                      {status.connected_at
+                        ? new Date(status.connected_at).toLocaleDateString("en-AU", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })
+                        : ""}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={handleConnect} disabled={connecting}>
+                      <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
+                      Reconnect
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDisconnect}
+                      disabled={disconnecting}
+                    >
+                      {disconnecting ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <XCircle className="h-4 w-4 mr-2" />
+                      )}
+                      Disconnect
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Not Connected</AlertTitle>
+                    <AlertDescription>
+                      Connect your Microsoft 365 account to sync emails, store documents in SharePoint,
+                      and sync calendar events.
+                    </AlertDescription>
+                  </Alert>
+
+                  <Button onClick={handleConnect} disabled={connecting}>
+                    {connecting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                    )}
+                    Connect to Microsoft 365
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Connected Services - Collapsible */}
+      {connections && (
+        <Collapsible open={servicesOpen} onOpenChange={setServicesOpen}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CardTitle className="text-lg">Connected Services</CardTitle>
+                    <Badge variant="secondary" className="text-xs">
+                      {connectedCount}/4
+                    </Badge>
+                  </div>
+                  <ChevronDown
+                    className={`h-5 w-5 text-muted-foreground transition-transform ${
+                      servicesOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* SharePoint Card */}
+                  <ConnectionCard
+                    connection={connections.sharepoint}
+                    icon={<Cloud className="h-5 w-5 text-blue-600" />}
+                    iconBg="bg-blue-100"
+                  />
+
+                  {/* OneDrive Card */}
+                  <ConnectionCard
+                    connection={connections.onedrive}
+                    icon={<FolderOpen className="h-5 w-5 text-green-600" />}
+                    iconBg="bg-green-100"
+                  />
+
+                  {/* Email Card */}
+                  <ConnectionCard
+                    connection={connections.email}
+                    icon={<Mail className="h-5 w-5 text-purple-600" />}
+                    iconBg="bg-purple-100"
+                  />
+
+                  {/* Calendar Card */}
+                  <ConnectionCard
+                    connection={connections.calendar}
+                    icon={<Calendar className="h-5 w-5 text-orange-600" />}
+                    iconBg="bg-orange-100"
+                  />
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+    </div>
+  );
+}
+
+function ConnectionCard({
+  connection,
+  icon,
+  iconBg,
+}: {
+  connection: ConnectionInfo;
+  icon: React.ReactNode;
+  iconBg: string;
+}) {
+  return (
+    <div className="border rounded-lg p-4">
+      <div className="flex items-start gap-3">
+        <div className={`p-2 ${iconBg} rounded-lg flex-shrink-0`}>{icon}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-medium text-sm">{connection.name}</h3>
+            {connection.connected ? (
+              <Badge className="bg-green-100 text-green-800 hover:bg-green-100 text-xs">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
                 Connected
               </Badge>
             ) : (
-              <Badge variant="secondary">
+              <Badge variant="secondary" className="text-xs">
                 <XCircle className="h-3 w-3 mr-1" />
                 Not Connected
               </Badge>
             )}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {status?.connected ? (
-            <>
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">Connected Account</p>
-                <p className="font-medium">{status.email || "Unknown"}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Connected{" "}
-                  {status.connected_at
-                    ? new Date(status.connected_at).toLocaleDateString("en-AU", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })
-                    : ""}
-                </p>
-              </div>
 
-              <Separator />
-
-              {/* Service Status */}
-              <div className="space-y-3">
-                <h4 className="font-medium">Connected Services</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Mail className="h-5 w-5 text-blue-500" />
-                    <div className="flex-1">
-                      <p className="font-medium">Outlook</p>
-                      <p className="text-xs text-muted-foreground">Email sync</p>
-                    </div>
-                    {status.services.outlook ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <FolderOpen className="h-5 w-5 text-blue-500" />
-                    <div className="flex-1">
-                      <p className="font-medium">SharePoint</p>
-                      <p className="text-xs text-muted-foreground">File storage</p>
-                    </div>
-                    {status.services.onedrive ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Calendar className="h-5 w-5 text-blue-500" />
-                    <div className="flex-1">
-                      <p className="font-medium">Calendar</p>
-                      <p className="text-xs text-muted-foreground">Events sync</p>
-                    </div>
-                    {status.services.calendar ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="default"
-                  onClick={() => window.open("https://outlook.office.com/mail/", "_blank")}
-                >
-                  <Mail className="h-4 w-4 mr-2" />
-                  Open Outlook
-                </Button>
-                <Button
-                  variant="default"
-                  onClick={() => window.open("https://tekaboringmachines.sharepoint.com", "_blank")}
-                >
-                  <FolderOpen className="h-4 w-4 mr-2" />
-                  Open SharePoint
-                </Button>
-                <Button variant="outline" onClick={handleConnect} disabled={connecting}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${connecting ? "animate-spin" : ""}`} />
-                  Reconnect
-                </Button>
-                <Button
-                  variant="destructive"
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                >
-                  {disconnecting ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <XCircle className="h-4 w-4 mr-2" />
-                  )}
-                  Disconnect
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>Not Connected</AlertTitle>
-                <AlertDescription>
-                  Connect your Microsoft 365 account to sync emails, store documents in SharePoint,
-                  and sync calendar events.
-                </AlertDescription>
-              </Alert>
-
-              <Button onClick={handleConnect} disabled={connecting}>
-                {connecting ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                )}
-                Connect to Microsoft 365
-              </Button>
-            </>
+          {connection.url && (
+            <a
+              href={connection.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-600 hover:text-blue-800 hover:underline break-all flex items-start gap-1"
+            >
+              <span className="break-all">{connection.url}</span>
+              <ExternalLink className="h-3 w-3 flex-shrink-0 mt-0.5" />
+            </a>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Features */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Mail className="h-5 w-5 text-blue-600" />
-              </div>
-              <CardTitle className="text-base">Outlook Integration</CardTitle>
+          {connection.authenticated_as && (
+            <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+              {connection.auth_type === "organization" ? (
+                <Building2 className="h-3 w-3" />
+              ) : (
+                <User className="h-3 w-3" />
+              )}
+              <span>
+                {connection.auth_type === "organization" ? "Org" : "Personal"}:{" "}
+                {connection.authenticated_as}
+              </span>
             </div>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Send emails from jobs
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Track email history
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Email templates
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <FolderOpen className="h-5 w-5 text-blue-600" />
-              </div>
-              <CardTitle className="text-base">SharePoint Storage</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Auto-create job folders
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Store documents securely
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Share files with team
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Calendar className="h-5 w-5 text-blue-600" />
-              </div>
-              <CardTitle className="text-base">Calendar Sync</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Sync meetings & events
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Schedule site visits
-              </li>
-              <li className="flex items-center gap-2">
-                <CheckCircle2 className="h-3 w-3 text-green-500" />
-                Team availability
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
+          {connection.connected && connection.url && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 h-7 text-xs"
+              onClick={() => window.open(connection.url, "_blank")}
+            >
+              <ExternalLink className="h-3 w-3 mr-1" />
+              Open
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

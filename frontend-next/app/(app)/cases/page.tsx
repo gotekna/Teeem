@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2,
   Plus,
@@ -25,9 +26,12 @@ import {
   Filter,
   Calendar,
   User,
+  Mail,
+  Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { CaseProposalsTab } from "@/components/cases/case-proposals-tab";
 
 interface CaseItem {
   id: number;
@@ -66,6 +70,9 @@ export default function CasesPage() {
     open: 0,
     overdue: 0,
   });
+
+  // Pending proposals count for tab badge
+  const [pendingProposals, setPendingProposals] = React.useState(0);
 
   // Filters
   const [search, setSearch] = React.useState("");
@@ -198,175 +205,202 @@ export default function CasesPage() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Cases</p>
-                <p className="text-2xl font-bold">{meta.total}</p>
-              </div>
-              <Briefcase className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Open Cases</p>
-                <p className="text-2xl font-bold">{meta.open}</p>
-              </div>
-              <Clock className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Overdue</p>
-                <p className="text-2xl font-bold text-red-600">{meta.overdue}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Tabs for Cases and Proposals */}
+      <Tabs defaultValue="cases" className="w-full">
+        <TabsList>
+          <TabsTrigger value="cases" className="flex items-center gap-2">
+            <Briefcase className="h-4 w-4" />
+            Cases
+          </TabsTrigger>
+          <TabsTrigger value="proposals" className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Email Proposals
+            {pendingProposals > 0 && (
+              <Badge className="ml-1 bg-yellow-500 text-white text-xs px-1.5 py-0">
+                {pendingProposals}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-4">
-          <div className="flex gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search cases..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9"
-                />
-              </div>
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                {types?.statuses &&
-                  Object.entries(types.statuses).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Case Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {types?.case_types &&
-                  Object.entries(types.case_types).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                {types?.priorities &&
-                  Object.entries(types.priorities).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
+        {/* Cases Tab */}
+        <TabsContent value="cases" className="space-y-6 mt-6">
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total Cases</p>
+                    <p className="text-2xl font-bold">{meta.total}</p>
+                  </div>
+                  <Briefcase className="h-8 w-8 text-muted-foreground" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Open Cases</p>
+                    <p className="text-2xl font-bold">{meta.open}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-blue-500" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Overdue</p>
+                    <p className="text-2xl font-bold text-red-600">{meta.overdue}</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Cases List */}
-      <Card>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : cases.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>No cases found</p>
-              <p className="text-sm mt-1">Create a new case to get started</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {cases.map((c) => (
-                <div
-                  key={c.id}
-                  className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={() => router.push(`/cases/${c.id}`)}
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm text-muted-foreground">
-                          {c.case_number}
-                        </span>
-                        <Badge className={getCaseTypeColor(c.case_type)}>
-                          {c.formatted_case_type}
-                        </Badge>
-                        <Badge className={getPriorityColor(c.priority)}>
-                          {c.formatted_priority}
-                        </Badge>
-                      </div>
-                      <h3 className="font-medium truncate">{c.title}</h3>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                        {c.primary_entity_name && (
-                          <span className="flex items-center gap-1">
-                            <User className="h-3 w-3" />
-                            {c.primary_entity_name}
-                          </span>
-                        )}
-                        {c.deadline && (
-                          <span
-                            className={`flex items-center gap-1 ${
-                              c.overdue ? "text-red-600" : ""
-                            }`}
-                          >
-                            <Calendar className="h-3 w-3" />
-                            {format(new Date(c.deadline), "d MMM yyyy")}
-                            {c.overdue && " (Overdue)"}
-                          </span>
-                        )}
-                        <span>
-                          {c.actions_count} actions · {c.documents_count} docs
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={getStatusColor(c.status)}>
-                        {getStatusIcon(c.status)}
-                        <span className="ml-1">{c.formatted_status}</span>
-                      </Badge>
-                    </div>
+          {/* Filters */}
+          <Card>
+            <CardContent className="pt-4">
+              <div className="flex gap-4 flex-wrap">
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search cases..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-9"
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Statuses</SelectItem>
+                    {types?.statuses &&
+                      Object.entries(types.statuses).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Select value={typeFilter} onValueChange={setTypeFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Case Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Types</SelectItem>
+                    {types?.case_types &&
+                      Object.entries(types.case_types).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-[150px]">
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Priorities</SelectItem>
+                    {types?.priorities &&
+                      Object.entries(types.priorities).map(([key, label]) => (
+                        <SelectItem key={key} value={key}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Cases List */}
+          <Card>
+            <CardContent className="p-0">
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : cases.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No cases found</p>
+                  <p className="text-sm mt-1">Create a new case to get started</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {cases.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                      onClick={() => router.push(`/cases/${c.id}`)}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono text-sm text-muted-foreground">
+                              {c.case_number}
+                            </span>
+                            <Badge className={getCaseTypeColor(c.case_type)}>
+                              {c.formatted_case_type}
+                            </Badge>
+                            <Badge className={getPriorityColor(c.priority)}>
+                              {c.formatted_priority}
+                            </Badge>
+                          </div>
+                          <h3 className="font-medium truncate">{c.title}</h3>
+                          <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                            {c.primary_entity_name && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" />
+                                {c.primary_entity_name}
+                              </span>
+                            )}
+                            {c.deadline && (
+                              <span
+                                className={`flex items-center gap-1 ${
+                                  c.overdue ? "text-red-600" : ""
+                                }`}
+                              >
+                                <Calendar className="h-3 w-3" />
+                                {format(new Date(c.deadline), "d MMM yyyy")}
+                                {c.overdue && " (Overdue)"}
+                              </span>
+                            )}
+                            <span>
+                              {c.actions_count} actions · {c.documents_count} docs
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={getStatusColor(c.status)}>
+                            {getStatusIcon(c.status)}
+                            <span className="ml-1">{c.formatted_status}</span>
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Email Proposals Tab */}
+        <TabsContent value="proposals" className="mt-6">
+          <CaseProposalsTab onPendingCountChange={setPendingProposals} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

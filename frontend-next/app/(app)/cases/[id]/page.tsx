@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -41,14 +49,26 @@ import {
   Activity,
   Paperclip,
   User,
+  Network,
+  FolderTree,
+  ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+// Lazy load the relationship chart since it uses XYFlow
+const CaseRelationshipChart = dynamic(
+  () => import("@/components/cases/CaseRelationshipChart"),
+  { ssr: false }
+);
 
 // Tabs for case detail
 const CASE_TABS = [
   { id: "overview", name: "Overview", icon: Briefcase },
+  { id: "subcases", name: "Sub-cases", icon: FolderTree },
+  { id: "relationships", name: "Relationships", icon: Network },
   { id: "actions", name: "Actions", icon: Play },
   { id: "documents", name: "Documents", icon: FileText },
   { id: "emails", name: "Emails", icon: Mail },
@@ -56,6 +76,24 @@ const CASE_TABS = [
   { id: "entities", name: "Entities", icon: Users },
   { id: "warehouse", name: "Warehouse", icon: BarChart3 },
 ];
+
+interface ChildCase {
+  id: number;
+  case_number: string;
+  title: string;
+  case_type: string;
+  formatted_case_type: string;
+  status: string;
+  formatted_status: string;
+  priority: string;
+  formatted_priority: string;
+  deadline: string | null;
+  overdue: boolean;
+  assigned_to: string | null;
+  has_children: boolean;
+  child_cases_count: number;
+  created_at: string;
+}
 
 interface CaseDetail {
   id: number;
@@ -93,6 +131,21 @@ interface CaseDetail {
   risk_score: number | null;
   created_at: string;
   updated_at: string;
+  // Hierarchy fields
+  parent_case_id: number | null;
+  parent_case_number: string | null;
+  parent_case_title: string | null;
+  hierarchy_level: number;
+  is_child_case: boolean;
+  has_children: boolean;
+  child_cases_count: number;
+  child_cases_summary: {
+    total: number;
+    open: number;
+    closed: number;
+    overdue: number;
+  };
+  child_cases: ChildCase[];
 }
 
 interface CaseAction {
@@ -243,6 +296,9 @@ export default function CaseDetailPage() {
   const [warehouseSummary, setWarehouseSummary] = React.useState<WarehouseSummary | null>(null);
   const [loadingWarehouse, setLoadingWarehouse] = React.useState(false);
 
+  const [relationshipGraph, setRelationshipGraph] = React.useState<any>(null);
+  const [loadingRelationships, setLoadingRelationships] = React.useState(false);
+
   // Action types
   const [actionTypes, setActionTypes] = React.useState<Record<string, ActionType>>({});
 
@@ -251,6 +307,12 @@ export default function CaseDetailPage() {
   const [selectedActionType, setSelectedActionType] = React.useState<string>("");
   const [actionQuery, setActionQuery] = React.useState("");
   const [runningAction, setRunningAction] = React.useState(false);
+
+  // Create sub-case modal
+  const [showCreateSubCase, setShowCreateSubCase] = React.useState(false);
+  const [newSubCaseTitle, setNewSubCaseTitle] = React.useState("");
+  const [newSubCaseDescription, setNewSubCaseDescription] = React.useState("");
+  const [creatingSubCase, setCreatingSubCase] = React.useState(false);
 
   // Load case
   React.useEffect(() => {
@@ -277,6 +339,9 @@ export default function CaseDetailPage() {
     if (!caseData) return;
 
     switch (activeTab) {
+      case "relationships":
+        if (!relationshipGraph) loadRelationshipGraph();
+        break;
       case "actions":
         if (actions.length === 0) loadActions();
         break;
@@ -386,6 +451,30 @@ export default function CaseDetailPage() {
     }
   };
 
+  const loadRelationshipGraph = async () => {
+    try {
+      setLoadingRelationships(true);
+      const response = await api.get<{ success: boolean; data: any }>(
+        `/api/v1/cases/${caseId}/relationship_graph`
+      );
+      setRelationshipGraph(response.data);
+    } catch (error) {
+      console.error("Failed to load relationship graph:", error);
+    } finally {
+      setLoadingRelationships(false);
+    }
+  };
+
+  const handleSaveContactPosition = async (contactId: number, position: { x: number; y: number }) => {
+    try {
+      await api.patch(`/api/v1/cases/${caseId}/contacts/${contactId}/position`, {
+        display_position: position,
+      });
+    } catch (error) {
+      console.error("Failed to save contact position:", error);
+    }
+  };
+
   const buildTimeline = async () => {
     try {
       setLoadingTimeline(true);
@@ -397,6 +486,41 @@ export default function CaseDetailPage() {
       console.error("Failed to build timeline:", error);
     } finally {
       setLoadingTimeline(false);
+    }
+  };
+
+  const createSubCase = async () => {
+    if (!newSubCaseTitle.trim()) return;
+
+    try {
+      setCreatingSubCase(true);
+      const response = await api.post<{ success: boolean; data: CaseDetail; message: string }>(
+        `/api/v1/cases/${caseId}/create_child`,
+        {
+          case: {
+            title: newSubCaseTitle,
+            description: newSubCaseDescription,
+          },
+        }
+      );
+
+      // Refresh case data to show new child case
+      const caseResponse = await api.get<{ success: boolean; data: CaseDetail }>(
+        `/api/v1/cases/${caseId}`
+      );
+      setCaseData(caseResponse.data);
+
+      // Reset form and close dialog
+      setNewSubCaseTitle("");
+      setNewSubCaseDescription("");
+      setShowCreateSubCase(false);
+
+      // Navigate to the new sub-case
+      router.push(`/cases/${response.data.id}`);
+    } catch (error) {
+      console.error("Failed to create sub-case:", error);
+    } finally {
+      setCreatingSubCase(false);
     }
   };
 
@@ -766,6 +890,168 @@ export default function CaseDetailPage() {
               )}
             </div>
           </div>
+        )}
+
+        {activeTab === "subcases" && (
+          <div className="space-y-6">
+            {/* Parent Case Banner */}
+            {caseData.parent_case_id && (
+              <Card className="bg-blue-50 dark:bg-blue-950/30 border-blue-200">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <ChevronRight className="h-5 w-5 text-blue-500 rotate-180" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">This is a sub-case of:</p>
+                        <p className="font-medium">{caseData.parent_case_title}</p>
+                        <p className="text-sm text-muted-foreground">{caseData.parent_case_number}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push(`/cases/${caseData.parent_case_id}`)}
+                    >
+                      View Parent Case
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Sub-cases Header */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FolderTree className="h-5 w-5" />
+                    Sub-cases
+                  </CardTitle>
+                  {caseData.child_cases_summary && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {caseData.child_cases_summary.open} open, {caseData.child_cases_summary.closed} closed
+                      {caseData.child_cases_summary.overdue > 0 && (
+                        <span className="text-red-600 ml-1">
+                          ({caseData.child_cases_summary.overdue} overdue)
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+                <Button onClick={() => setShowCreateSubCase(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Sub-case
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {caseData.child_cases && caseData.child_cases.length > 0 ? (
+                  <div className="space-y-3">
+                    {caseData.child_cases.map((child) => (
+                      <div
+                        key={child.id}
+                        className={cn(
+                          "p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                          child.overdue && "border-red-300 bg-red-50 dark:bg-red-950/20"
+                        )}
+                        onClick={() => router.push(`/cases/${child.id}`)}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-sm text-muted-foreground">
+                                {child.case_number}
+                              </span>
+                              <Badge className={getStatusColor(child.status)}>
+                                {child.formatted_status}
+                              </Badge>
+                              <Badge className={getPriorityColor(child.priority)}>
+                                {child.formatted_priority}
+                              </Badge>
+                              {child.overdue && (
+                                <Badge className="bg-red-100 text-red-800">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  Overdue
+                                </Badge>
+                              )}
+                            </div>
+                            <h4 className="font-medium truncate">{child.title}</h4>
+                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                              {child.assigned_to && (
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {child.assigned_to}
+                                </span>
+                              )}
+                              {child.deadline && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(child.deadline), "d MMM yyyy")}
+                                </span>
+                              )}
+                              {child.has_children && (
+                                <span className="flex items-center gap-1">
+                                  <FolderTree className="h-3 w-3" />
+                                  {child.child_cases_count} sub-case{child.child_cases_count !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No sub-cases yet</p>
+                    <p className="text-sm mt-1">Create a sub-case to track related issues</p>
+                    <Button className="mt-4" onClick={() => setShowCreateSubCase(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First Sub-case
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === "relationships" && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Network className="h-5 w-5" />
+                Case Relationships
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={() => loadRelationshipGraph()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingRelationships ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <CaseRelationshipChart
+                  caseId={parseInt(caseId)}
+                  data={relationshipGraph}
+                  onContactClick={(contactId) => router.push(`/contacts/${contactId}`)}
+                  onCompanyClick={(companyId) => router.push(`/corporate/companies/${companyId}`)}
+                  onJobClick={(jobId) => router.push(`/jobs/${jobId}`)}
+                  onCaseClick={(relatedCaseId) => router.push(`/cases/${relatedCaseId}`)}
+                  onPositionChange={handleSaveContactPosition}
+                />
+              )}
+              <div className="mt-4 text-sm text-muted-foreground">
+                <p>
+                  Drag nodes to reposition. Click on a contact, company, or job to view details.
+                  Node positions are saved automatically.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {activeTab === "actions" && (
@@ -1545,6 +1831,59 @@ export default function CaseDetailPage() {
           </Card>
         </div>
       )}
+
+      {/* Create Sub-case Dialog */}
+      <Dialog open={showCreateSubCase} onOpenChange={setShowCreateSubCase}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderTree className="h-5 w-5" />
+              Create Sub-case
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Create a new sub-case under "{caseData?.title}". The sub-case will inherit
+              contacts, companies, and investigation settings from the parent case.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="subcase-title">Title *</Label>
+              <Input
+                id="subcase-title"
+                placeholder="e.g., FY2024 Tax Assessment Issue"
+                value={newSubCaseTitle}
+                onChange={(e) => setNewSubCaseTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subcase-description">Description</Label>
+              <Textarea
+                id="subcase-description"
+                placeholder="Describe the specific issue this sub-case addresses..."
+                value={newSubCaseDescription}
+                onChange={(e) => setNewSubCaseDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateSubCase(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={createSubCase}
+              disabled={!newSubCaseTitle.trim() || creatingSubCase}
+            >
+              {creatingSubCase ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              Create Sub-case
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

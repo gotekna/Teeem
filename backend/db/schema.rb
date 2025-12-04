@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_04_200425) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -293,9 +293,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
     t.boolean "is_primary", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "relationship_type"
+    t.text "relationship_description"
+    t.jsonb "display_position", default: {}
     t.index ["case_id", "contact_id"], name: "index_case_contacts_on_case_id_and_contact_id", unique: true
     t.index ["case_id"], name: "index_case_contacts_on_case_id"
     t.index ["contact_id"], name: "index_case_contacts_on_contact_id"
+    t.index ["relationship_type"], name: "index_case_contacts_on_relationship_type"
     t.index ["role"], name: "index_case_contacts_on_role"
   end
 
@@ -398,6 +402,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "parent_case_id"
+    t.integer "hierarchy_level", default: 0
     t.index ["assigned_to_id"], name: "index_cases_on_assigned_to_id"
     t.index ["case_number"], name: "index_cases_on_case_number", unique: true
     t.index ["case_type"], name: "index_cases_on_case_type"
@@ -406,6 +412,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
     t.index ["contact_id"], name: "index_cases_on_contact_id"
     t.index ["created_by_id"], name: "index_cases_on_created_by_id"
     t.index ["deadline"], name: "index_cases_on_deadline"
+    t.index ["parent_case_id", "status"], name: "index_cases_on_parent_and_status"
+    t.index ["parent_case_id"], name: "index_cases_on_parent_case_id"
     t.index ["priority"], name: "index_cases_on_priority"
     t.index ["status"], name: "index_cases_on_status"
   end
@@ -1274,6 +1282,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
     t.datetime "updated_at", null: false
     t.string "folder_path"
     t.index ["name"], name: "index_documentation_categories_on_name", unique: true
+  end
+
+  create_table "email_case_proposals", force: :cascade do |t|
+    t.bigint "email_warehouse_id"
+    t.bigint "case_record_id"
+    t.bigint "created_by_id"
+    t.bigint "approved_by_id"
+    t.string "status", default: "pending", null: false
+    t.jsonb "extracted_data", default: {}
+    t.text "ai_prompt"
+    t.text "ai_response_raw"
+    t.integer "processing_time_ms"
+    t.string "ai_model_used"
+    t.decimal "confidence_score", precision: 3, scale: 2
+    t.text "rejection_reason"
+    t.text "error_message"
+    t.datetime "approved_at"
+    t.jsonb "folder_paths", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_email_case_proposals_on_approved_by_id"
+    t.index ["case_record_id"], name: "index_email_case_proposals_on_case_record_id"
+    t.index ["created_by_id"], name: "index_email_case_proposals_on_created_by_id"
+    t.index ["email_warehouse_id", "status"], name: "index_email_case_proposals_on_email_warehouse_id_and_status"
+    t.index ["email_warehouse_id"], name: "index_email_case_proposals_on_email_warehouse_id"
+    t.index ["status"], name: "index_email_case_proposals_on_status"
   end
 
   create_table "email_job_proposals", force: :cascade do |t|
@@ -4219,6 +4253,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
   add_foreign_key "case_timeline_events", "companies"
   add_foreign_key "case_timeline_events", "contacts"
   add_foreign_key "case_timeline_events", "jobs"
+  add_foreign_key "cases", "cases", column: "parent_case_id"
   add_foreign_key "cases", "companies"
   add_foreign_key "cases", "company_groups"
   add_foreign_key "cases", "contacts"
@@ -4275,6 +4310,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_090124) do
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_verification_feedbacks", "company_documents"
   add_foreign_key "document_verification_feedbacks", "users"
+  add_foreign_key "email_case_proposals", "cases", column: "case_record_id"
+  add_foreign_key "email_case_proposals", "email_warehouse"
+  add_foreign_key "email_case_proposals", "users", column: "approved_by_id"
+  add_foreign_key "email_case_proposals", "users", column: "created_by_id"
   add_foreign_key "email_job_proposals", "email_warehouse"
   add_foreign_key "email_job_proposals", "jobs"
   add_foreign_key "email_job_proposals", "users", column: "approved_by_user_id"
