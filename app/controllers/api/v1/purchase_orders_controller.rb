@@ -89,7 +89,7 @@ module Api
               },
               schedule_tasks: { only: [:id, :title, :supplier_category] },
               line_items: {
-                include: { pricebook_item: { only: [:id, :item_code, :item_name, :current_price, :unit_of_measure] } },
+                include: { pricebook_item: { only: [:id, :item_code, :item_name, :unit_of_measure], methods: [:active_price] } },
                 methods: [:price_drift, :price_outdated?, :price_status, :price_status_label]
               },
               project_tasks: {
@@ -414,7 +414,8 @@ module Api
       private
 
       def set_purchase_order
-        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find(params[:id])
+        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find_by_slug(params[:id])
+        raise ActiveRecord::RecordNotFound unless @purchase_order
       end
 
       def purchase_order_params
@@ -447,6 +448,7 @@ module Api
             :description,
             :quantity,
             :unit_price,
+            :gst_code,
             :notes,
             :line_number,
             :_destroy

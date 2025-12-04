@@ -1,17 +1,27 @@
 class PurchaseOrderLineItem < ApplicationRecord
+  # GST codes and their tax rates
+  GST_CODES = {
+    'GST' => 0.10,        # Standard GST (10%)
+    'GST Free' => 0.00,   # GST Free
+    'Input Taxed' => 0.00 # Input Taxed (no GST claim)
+  }.freeze
+
   # Associations
   belongs_to :purchase_order
   belongs_to :pricebook_item, optional: true
 
   # Validations
   validates :description, presence: true
-  validates :quantity, presence: true, numericality: { greater_than: 0 }
-  validates :unit_price, presence: true, numericality: { greater_than_or_equal_to: 0 }
+  # Note: allow_nil: false + numericality ensures value is present AND valid
+  # Using presence: true would reject 0 because 0.blank? is true in Rails
+  validates :quantity, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
+  validates :unit_price, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
   validates :line_number, presence: true, numericality: { only_integer: true, greater_than: 0 }
+  validates :gst_code, inclusion: { in: GST_CODES.keys }, allow_nil: true
 
   # Callbacks
   before_validation :set_line_number, if: :new_record?
-  before_validation :set_description_from_pricebook_item, if: -> { pricebook_item.present? && description.blank? }
+  before_validation :set_defaults_from_pricebook_item, if: -> { pricebook_item.present? }
   before_save :calculate_totals
 
   # Scopes
@@ -20,9 +30,15 @@ class PurchaseOrderLineItem < ApplicationRecord
   # Instance methods
   def calculate_totals
     line_subtotal = (quantity || 0) * (unit_price || 0)
-    # Calculate tax (10% GST by default, can be customized)
-    self.tax_amount = (line_subtotal * 0.10).round(2)
+    # Calculate tax based on GST code (default to 10% GST if not specified)
+    tax_rate = GST_CODES[gst_code] || 0.10
+    self.tax_amount = (line_subtotal * tax_rate).round(2)
     self.total_amount = (line_subtotal + tax_amount).round(2)
+  end
+
+  # Get the tax rate for this line item
+  def tax_rate
+    GST_CODES[gst_code] || 0.10
   end
 
   # Price drift detection
@@ -76,8 +92,11 @@ class PurchaseOrderLineItem < ApplicationRecord
     self.line_number = max_line + 1
   end
 
-  def set_description_from_pricebook_item
-    self.description = pricebook_item.item_name if pricebook_item
-    self.unit_price = pricebook_item.current_price if pricebook_item && unit_price.zero?
+  def set_defaults_from_pricebook_item
+    return unless pricebook_item
+
+    self.description = pricebook_item.item_name if description.blank?
+    self.unit_price = pricebook_item.current_price if unit_price.zero?
+    self.gst_code = pricebook_item.gst_code if pricebook_item.gst_code.present? && gst_code.blank?
   end
 end
