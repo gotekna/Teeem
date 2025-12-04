@@ -9,7 +9,7 @@ class CaseContact < ApplicationRecord
     allow_blank: true
   }
   validates :relationship_type, inclusion: {
-    in: %w[client accountant lawyer previous_accountant advisor opposing_party witness related_party ato_officer director shareholder bank_manager insurer broker],
+    in: %w[client accountant lawyer previous_accountant advisor opposing_party witness related_party ato_officer director shareholder bank_manager insurer broker trustee],
     allow_blank: true
   }
   validates :alignment, inclusion: {
@@ -56,7 +56,8 @@ class CaseContact < ApplicationRecord
     'shareholder' => { name: 'Shareholder', color: 'pink', icon: 'pie-chart' },
     'bank_manager' => { name: 'Bank Manager', color: 'cyan', icon: 'building' },
     'insurer' => { name: 'Insurer', color: 'amber', icon: 'shield' },
-    'broker' => { name: 'Broker', color: 'lime', icon: 'trending-up' }
+    'broker' => { name: 'Broker', color: 'lime', icon: 'trending-up' },
+    'trustee' => { name: 'Trustee', color: 'amber', icon: 'briefcase' }
   }.freeze
 
   def formatted_role

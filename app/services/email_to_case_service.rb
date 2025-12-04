@@ -227,7 +227,7 @@ class EmailToCaseService
       Extract the following information and return ONLY valid JSON (no markdown, no code blocks):
 
       {
-        "case_title": "Descriptive title for this case (e.g., 'ATO Audit - Smith Family Trust FY21-23')",
+        "case_title": "Start with the email subject line (remove RE:/FW: prefixes), then add context in parentheses if helpful. Example: 'Request for review of income contribution assessment - QLD 1570/22/5 (ATO Audit - Smith Family Trust)'",
         "case_type": "One of: ato_audit, legal_dispute, director_investigation, compliance_review, due_diligence, other",
         "description": "Detailed description of what the case is about, the issue or dispute",
         "priority": "One of: low, normal, high, urgent",
@@ -236,10 +236,11 @@ class EmailToCaseService
         "involved_parties": [
           {
             "name": "Full name of person",
-            "email": "email@example.com",
-            "phone": "Phone number if mentioned",
+            "email": "ACTUAL email address from the email thread (look in From, To, CC, signatures, and body). NEVER use placeholder like email@example.com - leave blank if not found",
+            "phone": "Phone number if mentioned in email signature or body",
             "company": "Company they work for/represent",
-            "relationship_type": "One of: client, accountant, lawyer, previous_accountant, advisor, opposing_party, witness, related_party, ato_officer, director, shareholder, bank_manager, insurer, broker",
+            "relationship_type": "One of: client, accountant, lawyer, previous_accountant, advisor, opposing_party, witness, related_party, ato_officer, director, shareholder, bank_manager, insurer, broker, trustee",
+            "alignment": "One of: friendly (on client's side), neutral (neither side), opposing (against client)",
             "is_primary": true/false (is this the main subject/client),
             "notes": "Any relevant notes about their role"
           }
@@ -300,6 +301,17 @@ class EmailToCaseService
       - Pay attention to deadlines and response due dates
       - Extract company structures if discussed (trusts, corporate groups)
       - Return ONLY the JSON object, no additional text
+
+      CRITICAL - Email extraction:
+      - Extract REAL email addresses from: From/To/CC headers, email signatures, and email body text
+      - NEVER use placeholder emails like "email@example.com" - leave email field blank/null if not found
+      - Look for patterns like "name@domain.com", "Contact: email@...", signatures with email addresses
+      - Government emails often end in .gov.au (ATO, ASIC, AFSA etc)
+
+      CRITICAL - Alignment:
+      - "friendly" = people helping your client (their accountant, lawyer, family)
+      - "neutral" = people with no stake either way (witnesses, banks providing info)
+      - "opposing" = people against your client (ATO officers, opposing lawyers, trustees in bankruptcy)
     PROMPT
   end
 
@@ -433,11 +445,12 @@ class EmailToCaseService
         is_primary: party['is_primary'] || false
       )
 
-      # Update the case_contact with relationship_type
+      # Update the case_contact with relationship_type and alignment
       case_contact = CaseContact.find_by(case_id: case_record.id, contact_id: contact.id)
       if case_contact
         case_contact.update(
           relationship_type: party['relationship_type'],
+          alignment: party['alignment'] || 'neutral',
           relationship_description: party['notes']
         )
       end
