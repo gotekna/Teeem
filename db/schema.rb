@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_04_204019) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -430,7 +430,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_204019) do
     t.integer "recipient_user_id"
     t.bigint "job_id"
     t.boolean "saved_to_job", default: false
+    t.bigint "contact_id"
+    t.bigint "case_id"
+    t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
+    t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
     t.index ["created_at"], name: "index_chat_messages_on_created_at"
     t.index ["job_id", "channel", "created_at"], name: "index_chat_messages_on_construction_channel_created"
     t.index ["job_id"], name: "index_chat_messages_on_job_id"
@@ -1089,6 +1093,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_204019) do
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
     t.index ["xero_id", "last_synced_at"], name: "index_contacts_on_xero_id_and_last_synced_at"
+  end
+
+  create_table "data_quality_issues", force: :cascade do |t|
+    t.string "view_name", null: false
+    t.string "check_name", null: false
+    t.string "severity", default: "warning", null: false
+    t.string "status", default: "open", null: false
+    t.text "description", null: false
+    t.jsonb "details", default: {}
+    t.integer "affected_row_count"
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.string "resolved_by"
+    t.text "resolution_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["check_name"], name: "index_data_quality_issues_on_check_name"
+    t.index ["detected_at"], name: "index_data_quality_issues_on_detected_at"
+    t.index ["severity", "status"], name: "index_data_quality_issues_on_severity_and_status"
+    t.index ["severity"], name: "index_data_quality_issues_on_severity"
+    t.index ["status"], name: "index_data_quality_issues_on_status"
+    t.index ["view_name", "status"], name: "index_data_quality_issues_on_view_name_and_status"
+    t.index ["view_name"], name: "index_data_quality_issues_on_view_name"
   end
 
   create_table "designs", force: :cascade do |t|
@@ -2294,6 +2321,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_204019) do
     t.index ["active"], name: "index_minute_templates_on_active"
     t.index ["name"], name: "index_minute_templates_on_name", unique: true
     t.index ["template_type"], name: "index_minute_templates_on_template_type"
+  end
+
+  create_table "mv_refresh_logs", force: :cascade do |t|
+    t.string "view_name", null: false
+    t.datetime "started_at", null: false
+    t.datetime "completed_at"
+    t.integer "row_count"
+    t.integer "previous_row_count"
+    t.float "duration_seconds"
+    t.string "status", default: "in_progress", null: false
+    t.text "error_message"
+    t.string "triggered_by"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["started_at"], name: "index_mv_refresh_logs_on_started_at"
+    t.index ["status"], name: "index_mv_refresh_logs_on_status"
+    t.index ["view_name", "started_at"], name: "index_mv_refresh_logs_on_view_name_and_started_at"
+    t.index ["view_name", "status"], name: "index_mv_refresh_logs_on_view_name_and_status"
+    t.index ["view_name"], name: "index_mv_refresh_logs_on_view_name"
   end
 
   create_table "notifications", force: :cascade do |t|
