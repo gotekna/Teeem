@@ -21,7 +21,7 @@ class MicrosoftGraphClient
   # If user token (no drive_id): "/me/drive"
   def drive_path
     if @credential.drive_id.present?
-      "#{drive_path}"
+      "/drives/#{@credential.drive_id}"
     else
       "/me/drive"
     end
