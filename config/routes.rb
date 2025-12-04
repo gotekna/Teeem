@@ -414,6 +414,8 @@ Rails.application.routes.draw do
           get :auth_url
           get :callback
           get :status
+          get :connections
+          get :my_data_stats
           post :refresh
           delete :disconnect
           # Admin consent for organization-wide permissions
@@ -457,6 +459,18 @@ Rails.application.routes.draw do
 
       # Email Job Proposals (AI-powered job creation from emails)
       resources :email_job_proposals, only: [:index, :show, :create] do
+        member do
+          post :approve
+          post :reject
+          post :re_extract
+        end
+      end
+
+      # Email Case Proposals (AI-powered case creation from emails)
+      resources :email_case_proposals, only: [:index, :show, :create] do
+        collection do
+          get :relationship_types
+        end
         member do
           post :approve
           post :reject
@@ -1197,6 +1211,9 @@ Rails.application.routes.draw do
           get :companies
           get :jobs
 
+          # Relationship visualization
+          get :relationship_graph
+
           # Warehouse integration
           get :warehouse_summary
           get :search_emails
@@ -1213,6 +1230,12 @@ Rails.application.routes.draw do
 
           # Run actions
           post :run_action
+
+          # Contact positions for chart
+          patch 'contacts/:contact_id/position', action: :update_contact_position
+
+          # Create sub-case
+          post :create_child
         end
       end
 
