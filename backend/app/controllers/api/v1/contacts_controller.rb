@@ -1490,7 +1490,7 @@ module Api
               appointment_date: d.appointment_date,
               resignation_date: d.resignation_date,
               is_current: d.is_current,
-              din: d.din,
+              director_id: @contact.director_id,
               created_at: d.created_at,
               updated_at: d.updated_at
             }
