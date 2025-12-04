@@ -74,7 +74,7 @@ interface Participant {
 
 interface Message {
   id: number;
-  conversation_id: number;
+  conversation_id: number | string;
   sender_id: number;
   sender_name: string;
   sender_avatar: string | null;
