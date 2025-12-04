@@ -5,6 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Database,
   HardDrive,
@@ -25,6 +34,9 @@ import {
   Download,
   Table2,
   Play,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -123,16 +135,63 @@ interface OrgDataStats {
   last_updated: string;
 }
 
+interface WarehouseMetadata {
+  success: boolean;
+  generated_at: string;
+  materialized_views: Array<{
+    name: string;
+    description: string;
+    refresh_frequency: string;
+    has_unique_index: boolean;
+    primary_key: string;
+    row_count: number | null;
+    last_refreshed: string | null;
+    columns: Array<{ name: string; type: string; nullable: boolean }>;
+  }>;
+  fact_tables: Array<{
+    name: string;
+    description: string;
+    granularity: string;
+    retention: string;
+    primary_key: string;
+    row_count: number | null;
+    columns: Array<{ name: string; type: string; nullable: boolean }>;
+  }>;
+  warehouse_tables: Array<{
+    name: string;
+    description: string;
+    source: string;
+    sync_type: string;
+    row_count: number | null;
+    columns: Array<{ name: string; type: string; nullable: boolean }>;
+  }>;
+}
+
+interface ViewData {
+  success: boolean;
+  view: string;
+  row_count: number;
+  data: Record<string, unknown>[];
+}
+
 export function DataWarehouseTab() {
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<OrgDataStats | null>(null);
   const [warehouseStatus, setWarehouseStatus] = React.useState<WarehouseStatus | null>(null);
+  const [warehouseMetadata, setWarehouseMetadata] = React.useState<WarehouseMetadata | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
   const [refreshingViews, setRefreshingViews] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState("overview");
+  const [selectedView, setSelectedView] = React.useState<string | null>(null);
+  const [viewData, setViewData] = React.useState<ViewData | null>(null);
+  const [loadingViewData, setLoadingViewData] = React.useState(false);
+  const [viewOffset, setViewOffset] = React.useState(0);
+  const PAGE_SIZE = 50;
 
   React.useEffect(() => {
     loadStats();
     loadWarehouseStatus();
+    loadWarehouseMetadata();
   }, []);
 
   const loadStats = async () => {
@@ -223,6 +282,53 @@ export function DataWarehouseTab() {
     }
   };
 
+  const loadWarehouseMetadata = async () => {
+    try {
+      const response = await api.get<WarehouseMetadata>("/api/v1/warehouse/metadata");
+      if (response.success) {
+        setWarehouseMetadata(response);
+      }
+    } catch (error) {
+      console.error("Failed to load warehouse metadata:", error);
+    }
+  };
+
+  const loadViewData = async (viewName: string, offset: number = 0) => {
+    setLoadingViewData(true);
+    try {
+      const response = await api.get<ViewData>(
+        `/api/v1/warehouse/export/${viewName}.json?limit=${PAGE_SIZE}&offset=${offset}`
+      );
+      if (response.success) {
+        setViewData(response);
+        setSelectedView(viewName);
+        setViewOffset(offset);
+      }
+    } catch (error) {
+      console.error("Failed to load view data:", error);
+    } finally {
+      setLoadingViewData(false);
+    }
+  };
+
+  const handleViewClick = (viewName: string) => {
+    setViewOffset(0);
+    loadViewData(viewName, 0);
+    setActiveTab("data");
+  };
+
+  const handleNextPage = () => {
+    if (selectedView) {
+      loadViewData(selectedView, viewOffset + PAGE_SIZE);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (selectedView && viewOffset >= PAGE_SIZE) {
+      loadViewData(selectedView, viewOffset - PAGE_SIZE);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([loadStats(), loadWarehouseStatus()]);
@@ -281,6 +387,35 @@ export function DataWarehouseTab() {
     ? Math.round((stats.documents.verified_count / stats.documents.total_documents) * 100)
     : 0;
 
+  // Get all views for the browse tab
+  const allViews = React.useMemo(() => {
+    if (!warehouseMetadata) return [];
+    return [
+      ...warehouseMetadata.materialized_views.map(v => ({ ...v, type: "Materialized View" })),
+      ...warehouseMetadata.fact_tables.map(v => ({ ...v, type: "Fact Table" })),
+      ...warehouseMetadata.warehouse_tables.map(v => ({ ...v, type: "Warehouse Table" })),
+    ];
+  }, [warehouseMetadata]);
+
+  // Format cell value for display
+  const formatCellValue = (value: unknown): string => {
+    if (value === null || value === undefined) return "-";
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (typeof value === "object") return JSON.stringify(value);
+    if (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/)) {
+      try {
+        return format(new Date(value), "MMM d, yyyy h:mm a");
+      } catch {
+        return String(value);
+      }
+    }
+    if (typeof value === "number") {
+      if (Number.isInteger(value)) return value.toLocaleString();
+      return value.toFixed(2);
+    }
+    return String(value);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -296,6 +431,279 @@ export function DataWarehouseTab() {
           Refresh
         </Button>
       </div>
+
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="browse">Browse Views</TabsTrigger>
+          <TabsTrigger value="data">View Data</TabsTrigger>
+        </TabsList>
+
+        {/* Browse Views Tab */}
+        <TabsContent value="browse" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Available Views & Tables
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {warehouseMetadata ? (
+                <div className="space-y-6">
+                  {/* Materialized Views */}
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <Table2 className="h-4 w-4" />
+                      Materialized Views ({warehouseMetadata.materialized_views.length})
+                    </h3>
+                    <div className="grid gap-2">
+                      {warehouseMetadata.materialized_views.map((view) => (
+                        <div
+                          key={view.name}
+                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{view.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{view.description}</p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              {view.row_count?.toLocaleString() ?? "?"} rows
+                            </Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              {view.refresh_frequency}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewClick(view.name)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleExportView(view.name, "csv")}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Fact Tables */}
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4" />
+                      Fact Tables ({warehouseMetadata.fact_tables.length})
+                    </h3>
+                    <div className="grid gap-2">
+                      {warehouseMetadata.fact_tables.map((table) => (
+                        <div
+                          key={table.name}
+                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{table.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">{table.description}</p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              {table.row_count?.toLocaleString() ?? "?"} rows
+                            </Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              {table.granularity}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewClick(table.name)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleExportView(table.name, "csv")}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Warehouse Tables */}
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                      <HardDrive className="h-4 w-4" />
+                      Warehouse Tables ({warehouseMetadata.warehouse_tables.length})
+                    </h3>
+                    <div className="grid gap-2">
+                      {warehouseMetadata.warehouse_tables.map((table) => (
+                        <div
+                          key={table.name}
+                          className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium">{table.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {table.description} • Source: {table.source}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <Badge variant="outline" className="text-xs">
+                              {table.row_count?.toLocaleString() ?? "?"} rows
+                            </Badge>
+                            <Badge variant="secondary" className="text-xs">
+                              {table.sync_type}
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewClick(table.name)}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleExportView(table.name, "csv")}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* View Data Tab */}
+        <TabsContent value="data" className="space-y-4">
+          {selectedView ? (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Table2 className="h-4 w-4" />
+                    {selectedView}
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleExportView(selectedView, "csv")}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleExportView(selectedView, "xlsx")}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Excel
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loadingViewData ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : viewData && viewData.data.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      Showing rows {viewOffset + 1} - {viewOffset + viewData.data.length} of {viewData.row_count.toLocaleString()}
+                    </div>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {Object.keys(viewData.data[0] || {}).map((col) => (
+                              <TableHead key={col} className="text-xs whitespace-nowrap">
+                                {col}
+                              </TableHead>
+                            ))}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {viewData.data.map((row, idx) => (
+                            <TableRow key={idx}>
+                              {Object.values(row).map((val, colIdx) => (
+                                <TableCell key={colIdx} className="text-xs whitespace-nowrap max-w-[300px] truncate">
+                                  {formatCellValue(val)}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePrevPage}
+                        disabled={viewOffset === 0}
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <span className="text-sm text-muted-foreground">
+                        Page {Math.floor(viewOffset / PAGE_SIZE) + 1} of {Math.ceil(viewData.row_count / PAGE_SIZE)}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNextPage}
+                        disabled={viewOffset + PAGE_SIZE >= viewData.row_count}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No data found in this view
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Select a view from the Browse Views tab to see its data</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
 
       {/* Overview Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -785,6 +1193,8 @@ export function DataWarehouseTab() {
       <div className="text-xs text-muted-foreground text-right">
         Last updated: {formatDate(stats.last_updated)}
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

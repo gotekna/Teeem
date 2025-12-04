@@ -1,14 +1,28 @@
 # Claude Code Instructions for TEEEM Project
 
-## 🔴 CRITICAL: Git Commit and Push Rules
+## 🔴 CRITICAL: Git Commit, Push, and Deploy Rules
 
-**NEVER commit or push unless the user explicitly says to.**
+**NEVER commit, push, or deploy unless the user explicitly asks.**
 
-- ❌ NEVER run `git commit` until the user confirms the fix works and says "commit" or "push"
-- ❌ NEVER run `git push` until the user explicitly requests it
-- ✅ Make code changes and let the user test locally first
-- ✅ Wait for user confirmation before committing
-- ✅ Only commit/push when user says: "commit", "push", "ship it", "looks good, push it", etc.
+- ❌ NEVER run `git commit` unless user explicitly asks to commit
+- ❌ NEVER run `git push` unless user explicitly asks to push
+- ❌ NEVER deploy to Heroku unless user explicitly asks to deploy
+- ❌ NEVER use `/l` command or `git subtree` deploy unless user asks
+- ✅ Make code changes and let the user test first
+- ✅ Wait for explicit user request before committing, pushing, or deploying
+- ✅ Only commit/push/deploy when user says: "commit", "push", "deploy", "ship it", "/l", etc.
+
+**Examples of when to commit/deploy:**
+- User says "commit" or "commit this"
+- User says "push" or "push it"
+- User says "deploy" or "deploy to production"
+- User says "/l" (deploy command)
+- User says "ship it" or "looks good, push it"
+
+**Examples of when NOT to commit/deploy:**
+- Fixing a bug (wait for user to test and confirm)
+- Making any code change (wait for user approval)
+- Even if deployment is failing (ask user first)
 
 ## 🔴 CRITICAL: Git Branch - Rob Works on Live
 
