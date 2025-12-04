@@ -52,6 +52,7 @@ import {
   Network,
   FolderTree,
   ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -64,11 +65,18 @@ const CaseRelationshipChart = dynamic(
   { ssr: false }
 );
 
+// Lazy load the EntityChat component
+const EntityChat = dynamic(
+  () => import("@/components/chat/EntityChat").then(mod => ({ default: mod.EntityChat })),
+  { ssr: false }
+);
+
 // Tabs for case detail
 const CASE_TABS = [
   { id: "overview", name: "Overview", icon: Briefcase },
   { id: "subcases", name: "Sub-cases", icon: FolderTree },
   { id: "relationships", name: "Relationships", icon: Network },
+  { id: "chat", name: "Chat", icon: MessageSquare },
   { id: "actions", name: "Actions", icon: Play },
   { id: "documents", name: "Documents", icon: FileText },
   { id: "emails", name: "Emails", icon: Mail },
@@ -1238,6 +1246,26 @@ export default function CaseDetailPage() {
                   Node positions are saved automatically.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === "chat" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Internal Chat
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EntityChat
+                entityType="case"
+                entityId={parseInt(caseId)}
+                entityName={caseDetail?.title}
+                showOnlineUsers={true}
+                maxHeight="500px"
+              />
             </CardContent>
           </Card>
         )}

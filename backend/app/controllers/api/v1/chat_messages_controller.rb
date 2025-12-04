@@ -87,8 +87,17 @@ class Api::V1::ChatMessagesController < ApplicationController
   # GET /api/v1/chat_messages?channel=general
   # GET /api/v1/chat_messages?project_id=123
   # GET /api/v1/chat_messages?user_id=456
+  # GET /api/v1/chat_messages?job_id=789
+  # GET /api/v1/chat_messages?contact_id=101
+  # GET /api/v1/chat_messages?case_id=102
   def index
-    if params[:project_id].present?
+    if params[:job_id].present?
+      @messages = ChatMessage.for_job(params[:job_id]).includes(:user).recent(100)
+    elsif params[:contact_id].present?
+      @messages = ChatMessage.for_contact(params[:contact_id]).includes(:user).recent(100)
+    elsif params[:case_id].present?
+      @messages = ChatMessage.for_case(params[:case_id]).includes(:user).recent(100)
+    elsif params[:project_id].present?
       @messages = ChatMessage.for_project(params[:project_id]).includes(:user).recent(100)
     elsif params[:user_id].present?
       # Direct messages between current user and specified user
@@ -184,7 +193,7 @@ class Api::V1::ChatMessagesController < ApplicationController
   private
 
   def message_params
-    params.require(:chat_message).permit(:content, :channel, :project_id, :recipient_user_id)
+    params.require(:chat_message).permit(:content, :channel, :project_id, :recipient_user_id, :job_id, :contact_id, :case_id)
   end
 
 end

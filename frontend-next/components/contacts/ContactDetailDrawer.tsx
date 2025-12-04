@@ -27,10 +27,12 @@ import {
   Loader2,
   FileText,
   Hash,
+  MessageSquare,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
+import { EntityChat } from "@/components/chat/EntityChat";
 
 interface ContactPerson {
   id: number;
@@ -357,6 +359,25 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                     </CardContent>
                   </Card>
                 )}
+
+                {/* Internal Chat */}
+                <Card>
+                  <CardHeader className="py-3">
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Internal Chat
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <EntityChat
+                      entityType="contact"
+                      entityId={contact.id}
+                      entityName={contact.full_name}
+                      showOnlineUsers={false}
+                      maxHeight="300px"
+                    />
+                  </CardContent>
+                </Card>
               </div>
             </ScrollArea>
           </>
