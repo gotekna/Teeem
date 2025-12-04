@@ -468,7 +468,8 @@ module Api
         # Handle Job model specifically
         if model == Job
           attrs[:title] = 'New Job' if attrs[:title].blank?
-          attrs[:status] = 'Active' if attrs[:status].blank?
+          # Note: job_status_id is a lookup field - don't set a default here
+          # The user should select a status from the lookup dropdown
           attrs[:site_supervisor_name] = 'TBA' if attrs[:site_supervisor_name].blank?
         end
 

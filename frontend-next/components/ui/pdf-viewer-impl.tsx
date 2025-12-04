@@ -28,6 +28,15 @@ export function PDFViewerImpl({
   const [scale, setScale] = React.useState<number>(1.0);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
+  // Create a stable copy of PDF data to prevent ArrayBuffer detachment issues
+  // The ArrayBuffer can only be transferred to the worker once, so we need to
+  // ensure we always pass a fresh copy when the Document component re-renders
+  const pdfFile = React.useMemo(() => {
+    if (!pdfData) return null;
+    // Create a fresh copy of the data to avoid "ArrayBuffer already detached" errors
+    return { data: new Uint8Array(pdfData) };
+  }, [pdfData]);
+
   // Fetch PDF with credentials for authenticated API endpoints
   React.useEffect(() => {
     const fetchPDF = async () => {
@@ -112,7 +121,7 @@ export function PDFViewerImpl({
     );
   }
 
-  if (loadError || !pdfData) {
+  if (loadError || !pdfFile) {
     return (
       <div className={cn("flex items-center justify-center h-full text-muted-foreground", className)}>
         <p>{loadError || "Failed to load PDF"}</p>
@@ -164,7 +173,7 @@ export function PDFViewerImpl({
       {/* PDF Content */}
       <div className="flex-1 overflow-auto flex justify-center p-4 bg-muted/30">
         <Document
-          file={{ data: pdfData }}
+          file={pdfFile}
           onLoadSuccess={onDocumentLoadSuccess}
           onLoadError={onDocumentLoadError}
           loading={

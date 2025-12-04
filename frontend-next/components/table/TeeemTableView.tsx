@@ -19,6 +19,10 @@
  * - Export/Import
  */
 
+// Module-level cache for lookup options (persists across component remounts)
+const lookupCache: Record<string, Array<{ id: number; display: string }>> = {};
+const lookupFetchPromises: Record<string, Promise<Array<{ id: number; display: string }>>> = {};
+
 import React, {
   useState,
   useMemo,
@@ -1429,14 +1433,44 @@ export default function TeeemTableView({
     return keys;
   }, []);
 
-  // Fetch lookup options for a column
+  // Fetch lookup options for a column (uses module-level cache)
   const fetchLookupOptions = useCallback(async (column: TableColumn) => {
     const targetTableId = column.lookup_config?.target_table_id;
-    if (!targetTableId || lookupOptions[column.key]) return;
+    const cacheKey = `${column.key}_${targetTableId}`;
 
+    if (!targetTableId) {
+      console.log('[fetchLookupOptions] Skipping', column.key, '- no target table');
+      return;
+    }
+
+    // Check module-level cache first (survives component remounts)
+    if (lookupCache[cacheKey]) {
+      console.log('[fetchLookupOptions] Using cached options for', column.key);
+      setLookupOptions(prev => ({ ...prev, [column.key]: lookupCache[cacheKey] }));
+      return;
+    }
+
+    // If there's already a fetch in progress, wait for it
+    if (lookupFetchPromises[cacheKey]) {
+      console.log('[fetchLookupOptions] Waiting for in-flight fetch for', column.key);
+      try {
+        const options = await lookupFetchPromises[cacheKey];
+        setLookupOptions(prev => ({ ...prev, [column.key]: options }));
+      } catch {
+        // Error already logged by original fetch
+      }
+      return;
+    }
+
+    console.log('[fetchLookupOptions] Fetching options for', column.key, 'from table', targetTableId);
+    const startTime = performance.now();
     setLookupLoading(prev => ({ ...prev, [column.key]: true }));
-    try {
+
+    // Create and store the fetch promise
+    lookupFetchPromises[cacheKey] = (async () => {
       const response = await api.get(`/api/v1/foundations/${targetTableId}/records`);
+      console.log('[fetchLookupOptions]', column.key, 'loaded in', (performance.now() - startTime).toFixed(0), 'ms');
+
       // Handle various response structures
       let records: Record<string, unknown>[] = [];
       if (Array.isArray(response)) {
@@ -1455,34 +1489,42 @@ export default function TeeemTableView({
       }
 
       const displayColumn = column.lookup_config?.display_column || 'name';
-
-      const options = records.map((record) => ({
+      return records.map((record) => ({
         id: record.id as number,
         display: String(record[displayColumn] || record.name || record.title || record.id),
       }));
+    })();
 
+    try {
+      const options = await lookupFetchPromises[cacheKey];
+      lookupCache[cacheKey] = options; // Store in module-level cache
       setLookupOptions(prev => ({ ...prev, [column.key]: options }));
     } catch (error) {
       console.error('Failed to fetch lookup options:', error);
       setLookupOptions(prev => ({ ...prev, [column.key]: [] }));
+      delete lookupFetchPromises[cacheKey]; // Allow retry on error
     } finally {
       setLookupLoading(prev => ({ ...prev, [column.key]: false }));
     }
-  }, [lookupOptions]);
+  }, []); // No dependencies needed - uses module-level cache
 
   // Inline editing handlers - supports single or multiple rows
   const startEditing = useCallback((row: TableRowType) => {
+    console.log('[startEditing] Starting edit for row:', row.id);
+    const startTime = performance.now();
     setEditingRowIds(new Set([row.id]));
     setEditingData({ [row.id]: { ...row } });
 
     // Pre-fetch lookup options for lookup columns (including multiple_lookups)
-    COLUMNS.forEach(col => {
-      if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
-        if (col.lookup_config?.target_table_id) {
-          fetchLookupOptions(col);
-        }
-      }
+    const lookupCols = COLUMNS.filter(col =>
+      (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
+      col.lookup_config?.target_table_id
+    );
+    console.log('[startEditing] Fetching lookup options for', lookupCols.length, 'columns');
+    lookupCols.forEach(col => {
+      fetchLookupOptions(col);
     });
+    console.log('[startEditing] Done in', (performance.now() - startTime).toFixed(0), 'ms');
   }, [COLUMNS, fetchLookupOptions]);
 
   // Start editing multiple rows at once
@@ -1747,14 +1789,17 @@ export default function TeeemTableView({
         }
       }
 
+      console.log('[saveEditing] Clearing editing state...');
       setEditingRowIds(new Set());
       setEditingData({});
       setValidationErrors({});
       console.log('[saveEditing] Total time:', (performance.now() - startTime).toFixed(0), 'ms');
+      console.log('[saveEditing] Showing toast...');
       toast({
         title: "Saved",
         description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
       });
+      console.log('[saveEditing] Done!');
     } catch (error) {
       console.error("Failed to save:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
