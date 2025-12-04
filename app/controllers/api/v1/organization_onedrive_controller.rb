@@ -1376,6 +1376,9 @@ module Api
           # Recursively list all files in the job folder
           files = list_all_job_files_recursive(client, credential, job_folder['id'])
 
+          # Load document types ONCE for efficiency (not per-file)
+          @cached_doc_types = DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
+
           # Add suggested document types for each file based on filename and folder
           files_with_suggestions = files.map do |file|
             suggested = suggest_document_type_for_file(file[:name], file[:folder_path])
@@ -1648,6 +1651,7 @@ module Api
 
       # Suggest document types for a file based on filename and folder path
       # Returns array of {id, name, abbreviation, confidence} hashes
+      # Uses @cached_doc_types if available (set by job_all_files action)
       def suggest_document_type_for_file(filename, folder_path)
         return [] if filename.blank?
 
@@ -1655,8 +1659,8 @@ module Api
         filename_lower = filename.downcase
         folder_lower = (folder_path || '').downcase
 
-        # Get all job-scoped document types
-        job_doc_types = DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil))
+        # Use cached doc types if available, otherwise query (fallback)
+        job_doc_types = @cached_doc_types || DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
 
         job_doc_types.each do |dt|
           confidence = 0
