@@ -22,6 +22,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { ChevronsUpDown, Check } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -162,12 +176,16 @@ const RELATIONSHIP_TYPES = [
   { value: "witness", label: "Witness", icon: User, color: "bg-yellow-500" },
   { value: "related_party", label: "Related Party", icon: Users, color: "bg-slate-500" },
   { value: "ato_officer", label: "ATO Officer", icon: Building2, color: "bg-red-500" },
+  { value: "afsa_officer", label: "AFSA Officer", icon: Building2, color: "bg-red-600" },
+  { value: "inspector_general", label: "Inspector-General", icon: Building2, color: "bg-red-700" },
+  { value: "trustee", label: "Trustee (Bankruptcy)", icon: Briefcase, color: "bg-amber-600" },
   { value: "director", label: "Director", icon: Briefcase, color: "bg-indigo-500" },
   { value: "shareholder", label: "Shareholder", icon: Users, color: "bg-pink-500" },
   { value: "bank_manager", label: "Bank Manager", icon: Building2, color: "bg-cyan-500" },
   { value: "insurer", label: "Insurer", icon: Building2, color: "bg-emerald-500" },
   { value: "broker", label: "Broker", icon: Users, color: "bg-violet-500" },
-  { value: "trustee", label: "Trustee", icon: Briefcase, color: "bg-amber-500" },
+  { value: "creditor", label: "Creditor", icon: Building2, color: "bg-orange-600" },
+  { value: "debtor", label: "Debtor", icon: User, color: "bg-rose-500" },
 ];
 
 const ALIGNMENTS = [
@@ -898,9 +916,11 @@ interface PartyEditorProps {
 }
 
 function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
+  const [relationshipOpen, setRelationshipOpen] = useState(false);
   const relType = RELATIONSHIP_TYPES.find(r => r.value === party.relationship_type);
   const alignmentType = ALIGNMENTS.find(a => a.value === party.alignment) || ALIGNMENTS[1]; // default neutral
   const AlignmentIcon = alignmentType.icon;
+  const RelIcon = relType?.icon || User;
 
   return (
     <Card className={party.skip_create ? "opacity-50" : ""}>
@@ -924,21 +944,51 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
               </div>
               <div className="grid gap-1">
                 <Label className="text-xs">Relationship</Label>
-                <Select
-                  value={party.relationship_type}
-                  onValueChange={(v) => onChange(index, { relationship_type: v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RELATIONSHIP_TYPES.map((type) => (
-                      <SelectItem key={type.value} value={type.value}>
-                        {type.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={relationshipOpen} onOpenChange={setRelationshipOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={relationshipOpen}
+                      className="justify-between font-normal"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <RelIcon className="w-3 h-3 shrink-0" />
+                        {relType?.label || "Select..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[220px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search relationship..." />
+                      <CommandList>
+                        <CommandEmpty>No relationship found.</CommandEmpty>
+                        <CommandGroup>
+                          {RELATIONSHIP_TYPES.map((type) => {
+                            const TypeIcon = type.icon;
+                            return (
+                              <CommandItem
+                                key={type.value}
+                                value={type.label}
+                                onSelect={() => {
+                                  onChange(index, { relationship_type: type.value });
+                                  setRelationshipOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${party.relationship_type === type.value ? "opacity-100" : "opacity-0"}`}
+                                />
+                                <TypeIcon className="mr-2 h-4 w-4" />
+                                {type.label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="grid gap-1">
                 <Label className="text-xs">Alignment</Label>
@@ -1014,6 +1064,13 @@ function PartyEditor({ party, index, onChange, onRemove }: PartyEditorProps) {
               ) : (
                 <Badge variant="outline" className="text-xs">
                   Will create new contact
+                </Badge>
+              )}
+
+              {party.company && !party.contact_exists && (
+                <Badge className="bg-blue-100 text-blue-800 text-xs">
+                  <Building2 className="w-3 h-3 mr-1" />
+                  + Company
                 </Badge>
               )}
 

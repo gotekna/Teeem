@@ -239,7 +239,7 @@ class EmailToCaseService
             "email": "ACTUAL email address from the email thread (look in From, To, CC, signatures, and body). NEVER use placeholder like email@example.com - leave blank if not found",
             "phone": "Phone number if mentioned in email signature or body",
             "company": "Company they work for/represent",
-            "relationship_type": "One of: client, accountant, lawyer, previous_accountant, advisor, opposing_party, witness, related_party, ato_officer, director, shareholder, bank_manager, insurer, broker, trustee",
+            "relationship_type": "One of: client, accountant, lawyer, previous_accountant, advisor, opposing_party, witness, related_party, ato_officer, afsa_officer, inspector_general, trustee, director, shareholder, bank_manager, insurer, broker, creditor, debtor",
             "alignment": "One of: friendly (on client's side), neutral (neither side), opposing (against client)",
             "is_primary": true/false (is this the main subject/client),
             "notes": "Any relevant notes about their role"
@@ -418,19 +418,33 @@ class EmailToCaseService
     all_parties.each do |party|
       contact = nil
 
+      # Skip placeholder emails
+      email = party['email']
+      email = nil if email.blank? || email == 'email@example.com' || email&.include?('example.com')
+
       if party['contact_id'].present?
         contact = Contact.find_by(id: party['contact_id'])
-      elsif party['email'].present?
-        contact = Contact.find_by(email: party['email'])
+      elsif email.present?
+        contact = Contact.find_by(email: email)
+      elsif party['name'].present?
+        # Try to find by exact name match
+        contact = Contact.find_by(full_name: party['name'])
       end
 
-      # Create contact if doesn't exist and has enough info
-      if contact.nil? && party['email'].present? && party['name'].present?
+      # Create contact if doesn't exist and has enough info (name is required, email optional)
+      if contact.nil? && party['name'].present?
+        # Find or create company if specified
+        company_contact = nil
+        if party['company'].present?
+          company_contact = find_or_create_company(party['company'])
+        end
+
         contact = Contact.create(
-          email: party['email'],
+          email: email,
           full_name: party['name'],
           mobile_phone: party['phone'],
           company_name_or_trust: party['company'],
+          primary_company_id: company_contact&.id,
           entity_type: 'person'
         )
       end
@@ -457,6 +471,32 @@ class EmailToCaseService
     end
   end
 
+  def find_or_create_company(company_name)
+    return nil if company_name.blank?
+
+    # Try to find existing company by name (case-insensitive)
+    company = Contact.where(entity_type: 'company')
+                     .where('LOWER(full_name) = LOWER(?)', company_name.strip)
+                     .first
+
+    # Also check trading_name and company_name_or_trust
+    company ||= Contact.where(entity_type: 'company')
+                       .where('LOWER(trading_name) = LOWER(?) OR LOWER(company_name_or_trust) = LOWER(?)',
+                              company_name.strip, company_name.strip)
+                       .first
+
+    # Create if not found
+    if company.nil?
+      company = Contact.create(
+        full_name: company_name.strip,
+        entity_type: 'company'
+      )
+      Rails.logger.info "[EmailToCase] Created new company contact: #{company.full_name} (ID: #{company.id})"
+    end
+
+    company
+  end
+
   def map_relationship_to_role(relationship_type)
     # Map granular relationship types to the broader case roles
     mapping = {
@@ -469,11 +509,16 @@ class EmailToCaseService
       'witness' => 'witness',
       'related_party' => 'related_party',
       'ato_officer' => 'opposing_party',
+      'afsa_officer' => 'opposing_party',
+      'inspector_general' => 'opposing_party',
+      'trustee' => 'opposing_party',
       'director' => 'subject',
       'shareholder' => 'related_party',
       'bank_manager' => 'related_party',
       'insurer' => 'related_party',
-      'broker' => 'related_party'
+      'broker' => 'related_party',
+      'creditor' => 'opposing_party',
+      'debtor' => 'subject'
     }
     mapping[relationship_type] || 'related_party'
   end
