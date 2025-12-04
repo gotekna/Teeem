@@ -1623,7 +1623,7 @@ Rails.application.routes.draw do
 
         # Export endpoints
         get 'export', to: 'warehouse_exports#index'
-        get 'export/:id', to: 'warehouse_exports#show', as: :export
+        get 'export/:id', to: 'warehouse_exports#show'
 
         # Status and health
         get 'status', to: 'warehouse_status#index'
