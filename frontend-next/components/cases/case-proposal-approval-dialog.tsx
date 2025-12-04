@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -241,6 +242,9 @@ export function CaseProposalApprovalDialog({
               {confidencePercent}% confidence
             </Badge>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Review AI-extracted case information and approve to create the case
+          </DialogDescription>
         </DialogHeader>
 
         <Tabs defaultValue="details" className="flex-1 overflow-hidden flex flex-col">

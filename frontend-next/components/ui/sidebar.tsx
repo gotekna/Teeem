@@ -101,6 +101,7 @@ export function Sidebar() {
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
+  const [deployedAt, setDeployedAt] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -115,10 +116,20 @@ export function Sidebar() {
   useEffect(() => {
     const loadVersion = async () => {
       try {
-        const response = await api.get<{ version: string; heroku_release?: string }>("/version");
+        const response = await api.get<{ version: string; heroku_release?: string; timestamp?: string }>("/version");
         setBackendVersion(response.version);
         if (response.heroku_release) {
           setHerokuRelease(response.heroku_release);
+        }
+        if (response.timestamp) {
+          const date = new Date(response.timestamp);
+          setDeployedAt(date.toLocaleString('en-AU', {
+            day: 'numeric',
+            month: 'short',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }));
         }
       } catch (error) {
         console.debug("Failed to load backend version:", error);
@@ -267,6 +278,7 @@ export function Sidebar() {
                 <span>Frontend: v{process.env.NEXT_PUBLIC_BUILD_NUMBER}</span>
               )}
               {herokuRelease && <span>Heroku: {herokuRelease}</span>}
+              {deployedAt && <span>Deployed: {deployedAt}</span>}
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
