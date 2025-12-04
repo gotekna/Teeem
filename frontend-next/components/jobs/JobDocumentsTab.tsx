@@ -35,6 +35,9 @@ import {
   Download,
   FolderInput,
   X,
+  Sparkles,
+  Check,
+  ArrowRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -117,13 +120,33 @@ interface DocumentTask {
 
 interface LegacyItem {
   id: string;
+  document_id?: number;
   name: string;
+  original_name?: string;
   size?: number;
   web_url?: string;
   modified?: string;
   type: "file" | "folder";
   child_count?: number;
   folder_path?: string; // Path to the file's parent folder (for recursive listing)
+  // AI analysis fields
+  ai_analyzed?: boolean;
+  ai_analyzed_at?: string;
+  ai_suggested_type_id?: number;
+  ai_suggested_type_name?: string;
+  ai_proposed_name?: string;
+  ai_confidence?: number;
+  ai_reasoning?: string;
+  rename_status?: string;
+}
+
+interface AIStats {
+  total: number;
+  analyzed: number;
+  unanalyzed: number;
+  pending_review: number;
+  approved: number;
+  rejected: number;
 }
 
 interface LegacyFolderPath {
@@ -169,6 +192,9 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [allFiles, setAllFiles] = useState<LegacyItem[]>([]);
   const [loadingAllFiles, setLoadingAllFiles] = useState(false);
   const [allFilesJobFolderUrl, setAllFilesJobFolderUrl] = useState<string | null>(null);
+  const [aiStats, setAiStats] = useState<AIStats | null>(null);
+  const [analyzingDocs, setAnalyzingDocs] = useState(false);
+  const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
 
 
   useEffect(() => {
@@ -557,6 +583,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
         items: LegacyItem[];
         count: number;
         job_folder_web_url?: string;
+        ai_stats?: AIStats;
         error?: string;
       }>(url);
 
@@ -566,10 +593,12 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
         console.log('[All Files] Found', response.items?.length || 0, 'files');
         setAllFiles(response.items || []);
         setAllFilesJobFolderUrl(response.job_folder_web_url || null);
+        setAiStats(response.ai_stats || null);
       } else {
         console.log('[All Files] No job folder or empty:', response?.error);
         setAllFiles([]);
         setAllFilesJobFolderUrl(null);
+        setAiStats(null);
       }
     } catch (err) {
       console.error("[All Files] Exception:", err);
@@ -577,6 +606,75 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       setAllFiles([]);
     } finally {
       setLoadingAllFiles(false);
+    }
+  };
+
+  // Trigger AI analysis for documents
+  const handleAnalyzeDocuments = async () => {
+    try {
+      setAnalyzingDocs(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        queued_count?: number;
+        total_unanalyzed?: number;
+      }>(`/api/v1/organization_onedrive/analyze_job_documents`, {
+        job_id: jobId,
+        limit: 25,
+      });
+
+      if (response?.success) {
+        setMessage({ type: "success", text: response.message });
+        // Refresh after a short delay to see updated data
+        setTimeout(loadAllFiles, 2000);
+      }
+    } catch (err) {
+      console.error("Failed to start AI analysis:", err);
+      setError("Failed to start AI analysis");
+    } finally {
+      setAnalyzingDocs(false);
+    }
+  };
+
+  // Approve or reject a document rename
+  const handleApproveRename = async (documentId: number, action: "approve" | "reject") => {
+    try {
+      setApprovingDoc(documentId);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        new_name?: string;
+      }>(`/api/v1/organization_onedrive/approve_document_rename`, {
+        document_id: documentId,
+        action,
+      });
+
+      if (response?.success) {
+        setMessage({ type: "success", text: response.message });
+        // Update the local state
+        setAllFiles(prev => prev.map(f =>
+          f.document_id === documentId
+            ? { ...f, rename_status: action === "approve" ? "completed" : "rejected", name: response.new_name || f.name }
+            : f
+        ));
+        // Update AI stats
+        if (aiStats) {
+          setAiStats({
+            ...aiStats,
+            pending_review: aiStats.pending_review - 1,
+            [action === "approve" ? "approved" : "rejected"]: (aiStats[action === "approve" ? "approved" : "rejected"] || 0) + 1,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to approve/reject rename:", err);
+      setError("Failed to process rename action");
+    } finally {
+      setApprovingDoc(null);
     }
   };
 
@@ -1033,6 +1131,11 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       );
     }
 
+    // Get files with pending AI suggestions
+    const filesWithSuggestions = allFiles.filter(
+      f => f.ai_analyzed && f.ai_proposed_name && f.rename_status === "pending"
+    );
+
     return (
       <div className="space-y-4">
         {/* Header with refresh and open in SharePoint */}
@@ -1044,6 +1147,19 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             </span>
           </div>
           <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAnalyzeDocuments}
+              disabled={analyzingDocs || loadingAllFiles}
+            >
+              {analyzingDocs ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-1" />
+              )}
+              Analyze with AI
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -1070,6 +1186,119 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           </div>
         </div>
 
+        {/* AI Stats */}
+        {aiStats && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <Card className="bg-muted/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold">{aiStats.total}</div>
+                <div className="text-xs text-muted-foreground">Total Files</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-green-50 dark:bg-green-950/30">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-green-600">{aiStats.analyzed}</div>
+                <div className="text-xs text-muted-foreground">Analyzed</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-yellow-50 dark:bg-yellow-950/30">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-yellow-600">{aiStats.pending_review}</div>
+                <div className="text-xs text-muted-foreground">Pending Review</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50 dark:bg-blue-950/30">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-blue-600">{aiStats.approved}</div>
+                <div className="text-xs text-muted-foreground">Approved</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-muted/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold">{aiStats.unanalyzed}</div>
+                <div className="text-xs text-muted-foreground">Unanalyzed</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Suggested Renames Section */}
+        {filesWithSuggestions.length > 0 && (
+          <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-yellow-600" />
+                AI Suggested Renames ({filesWithSuggestions.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {filesWithSuggestions.slice(0, 10).map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border"
+                  >
+                    <div className="flex-1 min-w-0 mr-4">
+                      <div className="flex items-center gap-2 text-sm">
+                        <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <span className="truncate text-muted-foreground">{item.name}</span>
+                        <ArrowRight className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                        <span className="truncate font-medium text-foreground">{item.ai_proposed_name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                        {item.ai_suggested_type_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            {item.ai_suggested_type_name}
+                          </Badge>
+                        )}
+                        {item.ai_confidence && (
+                          <span className={`${item.ai_confidence >= 80 ? "text-green-600" : item.ai_confidence >= 50 ? "text-yellow-600" : "text-red-600"}`}>
+                            {item.ai_confidence}% confidence
+                          </span>
+                        )}
+                        {item.folder_path && (
+                          <span className="text-blue-600">{item.folder_path}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                        onClick={() => item.document_id && handleApproveRename(item.document_id, "approve")}
+                        disabled={approvingDoc === item.document_id}
+                        title="Approve rename"
+                      >
+                        {approvingDoc === item.document_id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                        onClick={() => item.document_id && handleApproveRename(item.document_id, "reject")}
+                        disabled={approvingDoc === item.document_id}
+                        title="Reject rename"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {filesWithSuggestions.length > 10 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    And {filesWithSuggestions.length - 10} more suggestions...
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Files table */}
         <Card>
           <CardContent className="p-0">
@@ -1083,8 +1312,8 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                   <TableRow>
                     <TableHead>File Name</TableHead>
                     <TableHead>Folder</TableHead>
-                    <TableHead>Size</TableHead>
-                    <TableHead>Modified</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>AI Status</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1097,11 +1326,16 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                     </TableRow>
                   ) : (
                     allFiles.map((item) => (
-                      <TableRow key={item.id}>
+                      <TableRow key={item.id} className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
-                            <span className="text-sm truncate max-w-[300px]">{item.name}</span>
+                            <div className="min-w-0">
+                              <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
+                              {item.original_name && item.name !== item.original_name && (
+                                <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
+                              )}
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -1110,14 +1344,32 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm text-muted-foreground">
-                            {item.size ? formatFileSize(item.size) : "-"}
-                          </span>
+                          {item.ai_suggested_type_name ? (
+                            <Badge variant="secondary" className="text-xs">
+                              {item.ai_suggested_type_name}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm text-muted-foreground">
-                            {item.modified ? new Date(item.modified).toLocaleDateString() : "-"}
-                          </span>
+                          {item.rename_status === "completed" ? (
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Renamed
+                            </Badge>
+                          ) : item.rename_status === "rejected" ? (
+                            <Badge variant="secondary" className="text-muted-foreground">
+                              Skipped
+                            </Badge>
+                          ) : item.ai_analyzed ? (
+                            <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Pending
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {item.web_url && (

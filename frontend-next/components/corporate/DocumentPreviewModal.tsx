@@ -912,7 +912,8 @@ export default function DocumentPreviewModal({
     const amendedSuffix = getAmendedSuffix();
 
     // If we have a naming format from the database, use it as template
-    if (namingFormat && companyCode && baseAbbrev) {
+    // Only require companyCode - abbreviation is optional since some formats don't use it
+    if (namingFormat && companyCode) {
       let newName = namingFormat;
 
       // Replace placeholders in the exact order they appear in the format
