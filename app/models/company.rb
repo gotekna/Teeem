@@ -103,7 +103,9 @@ class Company < ApplicationRecord
   before_validation :normalize_code
   before_validation :generate_slug
   after_create :create_initial_activity
+  after_create :ensure_ssot_contact_and_membership
   after_update :create_update_activity
+  after_update :update_ssot_membership, if: :saved_change_to_company_group_id?
 
   # Instance methods
   def display_name
@@ -423,5 +425,43 @@ class Company < ApplicationRecord
       user: user,
       change_details: saved_changes.except('updated_at')
     )
+  end
+
+  # SSoT: Automatically create Contact and ContactCompanyGroupMembership for new companies
+  def ensure_ssot_contact_and_membership
+    # 1. Create Contact for this company (SSoT identity)
+    entity_type = trust_name.present? ? 'trust' : 'company'
+    ssot_contact = Contact.find_or_create_by!(entity_type: entity_type, full_name: name) do |c|
+      c.tax_number = abn
+      c.company_group_id = company_group_id
+      c.is_active = status == 'active'
+    end
+
+    # 2. Link Company to Contact
+    update_column(:contact_id, ssot_contact.id) if contact_id.nil?
+
+    # 3. Create membership if in a group
+    create_ssot_membership(ssot_contact) if company_group_id.present?
+  rescue StandardError => e
+    Rails.logger.error("Company##{id}: SSoT contact/membership creation failed - #{e.message}")
+  end
+
+  def update_ssot_membership
+    return unless contact_id.present?
+    create_ssot_membership(contact)
+  rescue StandardError => e
+    Rails.logger.error("Company##{id}: SSoT membership update failed - #{e.message}")
+  end
+
+  def create_ssot_membership(contact_record)
+    membership_type = trust_name.present? ? 'trust_entity' : 'company_entity'
+    ContactCompanyGroupMembership.find_or_create_by!(
+      contact_id: contact_record.id,
+      company_group_id: company_group_id,
+      membership_type: membership_type
+    ) do |m|
+      m.company_id = id
+      m.is_active = status == 'active'
+    end
   end
 end
