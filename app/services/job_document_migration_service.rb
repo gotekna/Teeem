@@ -118,7 +118,7 @@ class JobDocumentMigrationService
   end
 
   # Fast file listing - gets files with folder structure in fewer API calls
-  # Uses $expand to reduce API calls and limits depth
+  # Uses $select to reduce payload and limits depth
   def list_files_fast(folder_id, max_depth: 2)
     files = []
     folders_to_process = [[folder_id, 0]] # [folder_id, depth]
@@ -127,11 +127,9 @@ class JobDocumentMigrationService
       current_id, depth = folders_to_process.shift
 
       begin
-        # Get items with minimal fields for speed
-        result = @client.get(
-          "/drives/#{@credential.drive_id}/items/#{current_id}/children",
-          { '$select' => 'id,name,size,webUrl,lastModifiedDateTime,file,folder', '$top' => 200 }
-        )
+        # Get items with minimal fields for speed - include query params in URL
+        url = "/drives/#{@credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+        result = @client.get(url)
 
         result['value']&.each do |item|
           if item['file']
