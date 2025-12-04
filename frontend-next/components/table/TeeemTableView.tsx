@@ -1734,9 +1734,17 @@ export default function TeeemTableView({
     setBulkUpdateSaving(true);
     try {
       const ids = Array.from(selectedRows);
+      const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
+
+      // For multiple_lookups, convert comma-separated string to array of integers
+      let valueToSend: string | number[] = bulkUpdateValue;
+      if (selectedCol?.column_type === 'multiple_lookups' && bulkUpdateValue) {
+        valueToSend = bulkUpdateValue.split(',').filter(Boolean).map(id => parseInt(id, 10));
+      }
+
       if (onRowUpdate) {
         for (const id of ids) {
-          await onRowUpdate(id, bulkUpdateColumn, bulkUpdateValue);
+          await onRowUpdate(id, bulkUpdateColumn, valueToSend);
         }
       }
 
@@ -1750,7 +1758,7 @@ export default function TeeemTableView({
     } finally {
       setBulkUpdateSaving(false);
     }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, onRowUpdate, onRefresh]);
+  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, onRowUpdate, onRefresh, COLUMNS]);
 
   // Fetch lookup options when bulk update column changes to a lookup column
   useEffect(() => {
@@ -1759,7 +1767,7 @@ export default function TeeemTableView({
     const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
     if (!selectedCol) return;
 
-    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.lookup_config;
+    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || selectedCol.lookup_config;
     if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
       console.log('[BulkUpdate] Fetching lookup options for:', bulkUpdateColumn);
       fetchLookupOptions(selectedCol);
@@ -5437,11 +5445,48 @@ export default function TeeemTableView({
                   const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
                   const hasChoices = selectedCol?.choices && selectedCol.choices.length > 0;
                   const isLookup = selectedCol?.column_type === 'lookup' || selectedCol?.lookup_config;
+                  const isMultipleLookups = selectedCol?.column_type === 'multiple_lookups';
                   const isChoice = selectedCol?.column_type === 'choice' || selectedCol?.column_type === 'single_select';
 
-                  console.log('[BulkUpdate] Column:', bulkUpdateColumn, 'hasChoices:', hasChoices, 'isLookup:', isLookup, 'choices:', selectedCol?.choices, 'column_type:', selectedCol?.column_type, 'lookupOptions:', lookupOptions[bulkUpdateColumn]);
+                  console.log('[BulkUpdate] Column:', bulkUpdateColumn, 'hasChoices:', hasChoices, 'isLookup:', isLookup, 'isMultipleLookups:', isMultipleLookups, 'choices:', selectedCol?.choices, 'column_type:', selectedCol?.column_type, 'lookupOptions:', lookupOptions[bulkUpdateColumn]);
 
-                  // For lookup columns, use the lookupOptions if available
+                  // For multiple_lookups columns, show checkboxes for multi-select
+                  if (isMultipleLookups) {
+                    const options = lookupOptions[bulkUpdateColumn] || [];
+                    const isLoading = lookupLoading[bulkUpdateColumn];
+                    // bulkUpdateValue stores comma-separated IDs for multiple lookups
+                    const selectedIds = bulkUpdateValue ? bulkUpdateValue.split(',').filter(Boolean) : [];
+
+                    return (
+                      <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-2">
+                        {isLoading ? (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading options...
+                          </div>
+                        ) : options.length === 0 ? (
+                          <p className="text-muted-foreground text-sm">No options available</p>
+                        ) : (
+                          options.map((option) => (
+                            <label key={option.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
+                              <Checkbox
+                                checked={selectedIds.includes(String(option.id))}
+                                onCheckedChange={(checked) => {
+                                  const newIds = checked
+                                    ? [...selectedIds, String(option.id)]
+                                    : selectedIds.filter(id => id !== String(option.id));
+                                  setBulkUpdateValue(newIds.join(','));
+                                }}
+                              />
+                              <span className="text-sm">{option.display}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // For single lookup columns, use the lookupOptions if available
                   if (isLookup) {
                     const options = lookupOptions[bulkUpdateColumn] || [];
                     const isLoading = lookupLoading[bulkUpdateColumn];
