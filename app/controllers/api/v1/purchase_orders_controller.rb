@@ -414,7 +414,8 @@ module Api
       private
 
       def set_purchase_order
-        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find(params[:id])
+        @purchase_order = PurchaseOrder.includes(:line_items, :supplier, :job).find_by_slug(params[:id])
+        raise ActiveRecord::RecordNotFound unless @purchase_order
       end
 
       def purchase_order_params
