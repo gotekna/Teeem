@@ -555,6 +555,43 @@ module Api
               Rails.logger.error "Error loading lookup value for #{column.column_name}: #{e.message}"
               json[column.column_name] = { id: value, display: "[Error]" }
             end
+          # Handle multiple_lookups columns - return array of objects with id and display
+          elsif column.column_type == 'multiple_lookups' && value.present?
+            begin
+              # Parse the stored value - could be JSON string or array
+              parsed_values = if value.is_a?(String)
+                JSON.parse(value) rescue []
+              else
+                Array(value)
+              end
+
+              # For Contact model's contact_types, values are strings like ["corporate", "supplier"]
+              # Convert them to display format for the frontend
+              if parsed_values.any? && parsed_values.first.is_a?(String)
+                # Values are already strings (like contact_types) - display as-is
+                json[column.column_name] = parsed_values.map do |str_value|
+                  { id: str_value, display_value: str_value.to_s.titleize }
+                end
+              elsif parsed_values.any? && column.lookup_foundation.present?
+                # Values are IDs - look up display values from the lookup table
+                lookup_model = column.lookup_foundation.dynamic_model
+                display_col = column.lookup_display_column || 'name'
+                related_records = lookup_model.where(id: parsed_values).index_by(&:id)
+
+                json[column.column_name] = parsed_values.map do |lookup_id|
+                  related = related_records[lookup_id.to_i]
+                  {
+                    id: lookup_id,
+                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                  }
+                end
+              else
+                json[column.column_name] = []
+              end
+            rescue => e
+              Rails.logger.error "Error loading multiple_lookups value for #{column.column_name}: #{e.message}"
+              json[column.column_name] = []
+            end
           else
             json[column.column_name] = value
           end

@@ -186,4 +186,47 @@ class DocumentType < ApplicationRecord
 
     format.strip
   end
+
+  # Generate proposed filename for a specific job
+  # Uses actual job data instead of placeholder values
+  def generate_proposed_name(job:, file_extension: nil, description: nil, number: nil)
+    return nil if naming_format.blank?
+
+    # Australian date format (DD-MM-YYYY)
+    au_date = Date.current.strftime('%d-%m-%Y')
+
+    format = naming_format.dup
+
+    # Job placeholders with actual data
+    job_code = "J#{job.id.to_s.rjust(3, '0')}"
+    job_title = job.title.to_s.split(',').first.to_s.strip.gsub(/[^\w\s-]/, '').strip[0..30] # First part of address, sanitized
+
+    format.gsub!('{JobCode}', job_code)
+    format.gsub!('{JobTitle}', job_title)
+    format.gsub!('{CertType}', description.presence || 'Cert')
+    format.gsub!('{Consultant}', description.presence || 'Consultant')
+    format.gsub!('{Number}', number.to_s.rjust(2, '0'))
+
+    # Corporate placeholders (use abbreviation or defaults)
+    format.gsub!('{CompanyCode}', abbreviation.presence || 'DOC')
+    format.gsub!('{LoanID}', 'L001')
+    format.gsub!('{LenderCode}', 'NAB')
+    format.gsub!('{AssetCode}', 'PROP1')
+    format.gsub!('{FY}', Date.current.month >= 7 ? (Date.current.year + 1).to_s : Date.current.year.to_s)
+    format.gsub!('{YY}', Date.current.month >= 7 ? (Date.current.year + 1).to_s[-2..] : Date.current.year.to_s[-2..])
+    format.gsub!('{Period}', 'Q1')
+    format.gsub!('{PrintDate}', au_date)
+    format.gsub!('{Signed}', '')
+
+    # Common placeholders
+    format.gsub!('{Description}', description.presence || name.to_s.split(' - ').last.to_s)
+    format.gsub!('{Date}', au_date)
+
+    result = format.strip
+
+    # Add file extension if provided
+    result += ".#{file_extension}" if file_extension.present?
+
+    result
+  end
 end
