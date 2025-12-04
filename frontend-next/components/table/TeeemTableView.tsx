@@ -3718,7 +3718,7 @@ export default function TeeemTableView({
 
       // Handle boolean
       if (typeof value === "boolean" || column.column_type === "boolean") {
-        const boolValue = typeof value === "boolean" ? value : value === "true" || value === true || value === 1;
+        const boolValue = typeof value === "boolean" ? value : value === "true" || value === "t" || value === true || value === 1;
 
         // Special case: Link to CG column - show clickable button when linked
         if (column.key === "link_to_cg") {
@@ -3917,6 +3917,24 @@ export default function TeeemTableView({
       // Handle percentage
       if (column.column_type === "percentage" && typeof value === "number") {
         return `${value}%`;
+      }
+
+      // Handle ACN - format as XXX XXX XXX (9 digits)
+      if (column.column_type === "acn" && value) {
+        const acn = String(value).replace(/\s/g, '');
+        if (acn.length === 9 && /^\d+$/.test(acn)) {
+          return <span className="font-mono">{acn.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}</span>;
+        }
+        return <span className="font-mono">{String(value)}</span>;
+      }
+
+      // Handle ABN - format as XX XXX XXX XXX (11 digits)
+      if (column.column_type === "abn" && value) {
+        const abn = String(value).replace(/\s/g, '');
+        if (abn.length === 11 && /^\d+$/.test(abn)) {
+          return <span className="font-mono">{abn.replace(/(\d{2})(\d{3})(\d{3})(\d{3})/, '$1 $2 $3 $4')}</span>;
+        }
+        return <span className="font-mono">{String(value)}</span>;
       }
 
       // Handle date

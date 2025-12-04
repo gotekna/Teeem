@@ -47,6 +47,10 @@ class CompanyShareholding < ApplicationRecord
     ) do |m|
       m.is_active = true
     end
+
+    # Also set company_group_id and link_to_cg on the Contact (for person contacts)
+    shareholder_contact = Contact.find_by(id: shareholder_id)
+    shareholder_contact&.update_columns(company_group_id: company.company_group_id, link_to_cg: true) if shareholder_contact&.company_group_id.nil?
   rescue StandardError => e
     Rails.logger.error("CompanyShareholding##{id}: SSoT shareholder membership creation failed - #{e.message}")
   end

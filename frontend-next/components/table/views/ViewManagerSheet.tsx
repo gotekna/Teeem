@@ -69,6 +69,7 @@ import {
   User,
   Loader2,
   Check,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -162,6 +163,7 @@ export function ViewManagerSheet({
   const [sortExpanded, setSortExpanded] = React.useState(true);
   const [groupByExpanded, setGroupByExpanded] = React.useState(true);
   const [columnsExpanded, setColumnsExpanded] = React.useState(true);
+  const [columnSearch, setColumnSearch] = React.useState("");
 
   // Lookup options cache for filter dropdowns
   const [lookupOptionsCache, setLookupOptionsCache] = React.useState<Record<string, { id: number; display: string }[]>>({});
@@ -1333,7 +1335,7 @@ export function ViewManagerSheet({
 
                       {/* Right Side - Columns (Collapsible) */}
                       <Collapsible open={columnsExpanded} onOpenChange={setColumnsExpanded} className={cn("flex flex-col p-4 overflow-hidden border-l transition-all", columnsExpanded ? "flex-1 min-w-0" : "w-auto")}>
-                        <div className="flex items-center justify-between mb-3 -mx-2 px-2 py-1">
+                        <div className="flex items-center justify-between mb-3 -mx-2 px-2 py-1 shrink-0">
                           <CollapsibleTrigger showIcon={false} className="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded">
                             {columnsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             <Eye className="h-4 w-4" />
@@ -1363,8 +1365,18 @@ export function ViewManagerSheet({
                             </div>
                           )}
                         </div>
-                        <CollapsibleContent className="flex-1 overflow-hidden">
-                          <ScrollArea className="h-full -mx-4 px-4">
+                        {columnsExpanded && (
+                          <div className="relative mb-3 shrink-0">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                            <Input
+                              placeholder="Search columns..."
+                              value={columnSearch}
+                              onChange={(e) => setColumnSearch(e.target.value)}
+                              className="h-8 pl-8 text-sm"
+                            />
+                          </div>
+                        )}
+                        <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4">
                             <DndContext
                               sensors={sensors}
                               collisionDetection={closestCenter}
@@ -1391,21 +1403,31 @@ export function ViewManagerSheet({
                                   <div className="grid grid-cols-3 gap-1">
                                     {(() => {
                                       const visibleCols = getVisibleColumnsInOrder();
-                                      return visibleCols.map((col, index) => (
-                                        <SortableColumnItem
-                                          key={col.column_name}
-                                          id={col.column_name}
-                                          column={col}
-                                          isVisible={true}
-                                          onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
-                                          index={index + 1}
-                                          totalVisible={visibleCols.length}
-                                          onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
-                                          showWidthInput={!editAutoFitColumns}
-                                          width={editColumnWidths[col.column_name]}
-                                          onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
-                                        />
-                                      ));
+                                      const searchLower = columnSearch.toLowerCase();
+                                      const filteredVisible = columnSearch
+                                        ? visibleCols.filter(col =>
+                                            col.name.toLowerCase().includes(searchLower) ||
+                                            col.column_name.toLowerCase().includes(searchLower)
+                                          )
+                                        : visibleCols;
+                                      return filteredVisible.map((col) => {
+                                        const originalIndex = visibleCols.findIndex(c => c.column_name === col.column_name);
+                                        return (
+                                          <SortableColumnItem
+                                            key={col.column_name}
+                                            id={col.column_name}
+                                            column={col}
+                                            isVisible={true}
+                                            onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                            index={originalIndex + 1}
+                                            totalVisible={visibleCols.length}
+                                            onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
+                                            showWidthInput={!editAutoFitColumns}
+                                            width={editColumnWidths[col.column_name]}
+                                            onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
+                                          />
+                                        );
+                                      });
                                     })()}
                                   </div>
                                 </div>
@@ -1426,27 +1448,39 @@ export function ViewManagerSheet({
                                       </Button>
                                     )}
                                   </div>
-                                  {getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true).length > 0 ? (
-                                    <div className="grid grid-cols-3 gap-1">
-                                      {sortHiddenColumnsAlphabetically(
-                                        getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true)
-                                      ).map(col => (
-                                          <SortableColumnItem
-                                            key={col.column_name}
-                                            id={col.column_name}
-                                            column={col}
-                                            isVisible={false}
-                                            onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
-                                          />
-                                        ))}
-                                    </div>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground italic py-2">No hidden columns</p>
-                                  )}
+                                  {(() => {
+                                    const hiddenCols = getSortedColumns().filter(col => editVisibleColumns[col.column_name] !== true);
+                                    const searchLower = columnSearch.toLowerCase();
+                                    const filteredHidden = columnSearch
+                                      ? sortHiddenColumnsAlphabetically(hiddenCols).filter(col =>
+                                          col.name.toLowerCase().includes(searchLower) ||
+                                          col.column_name.toLowerCase().includes(searchLower)
+                                        )
+                                      : sortHiddenColumnsAlphabetically(hiddenCols);
+
+                                    return hiddenCols.length > 0 ? (
+                                      filteredHidden.length > 0 ? (
+                                        <div className="grid grid-cols-3 gap-1">
+                                          {filteredHidden.map(col => (
+                                            <SortableColumnItem
+                                              key={col.column_name}
+                                              id={col.column_name}
+                                              column={col}
+                                              isVisible={false}
+                                              onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                            />
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground italic py-2">No matching hidden columns</p>
+                                      )
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground italic py-2">No hidden columns</p>
+                                    );
+                                  })()}
                                 </div>
                               </SortableContext>
                             </DndContext>
-                          </ScrollArea>
                         </CollapsibleContent>
                       </Collapsible>
                     </div>

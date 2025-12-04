@@ -437,10 +437,13 @@ class Company < ApplicationRecord
       c.is_active = status == 'active'
     end
 
-    # 2. Link Company to Contact
+    # 2. Link Company to Contact (bidirectional)
     update_column(:contact_id, ssot_contact.id) if contact_id.nil?
 
-    # 3. Create membership if in a group
+    # 3. Link Contact back to Company (bidirectional) and set link_to_cg flag
+    ssot_contact.update_columns(linked_company_id: id, link_to_cg: true) if ssot_contact.linked_company_id.nil?
+
+    # 4. Create membership if in a group
     create_ssot_membership(ssot_contact) if company_group_id.present?
   rescue StandardError => e
     Rails.logger.error("Company##{id}: SSoT contact/membership creation failed - #{e.message}")
