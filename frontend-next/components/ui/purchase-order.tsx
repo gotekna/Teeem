@@ -182,10 +182,10 @@ function POLineItems({
             className="grid grid-cols-[1.5fr_15%_15%_15%] gap-4 items-center py-2 border-b border-border"
           >
             <span className="text-brand-sm truncate">{item.name}</span>
-            <span className="text-brand-sm text-right font-mono">
+            <span className="text-xs text-right font-mono">
               {formatCurrency(item.price, currency, locale, includeDecimals)}
             </span>
-            <span className="text-brand-sm text-right font-mono">
+            <span className="text-xs text-right font-mono">
               {item.quantity}
               {includeUnits && item.unit ? ` ${item.unit}` : ""}
             </span>
@@ -240,18 +240,18 @@ function POSummary({
   return (
     <div className="w-[320px] flex flex-col">
       <div className="flex justify-between py-2 border-b border-border">
-        <span className="text-brand-sm text-text-muted">{subtotalLabel}</span>
-        <span className="text-brand-sm font-mono">
+        <span className="text-base text-text-muted">{subtotalLabel}</span>
+        <span className="text-base font-mono">
           {formatCurrency(subtotal, currency, locale, includeDecimals)}
         </span>
       </div>
 
       {includeTax && (
         <div className="flex justify-between py-2 border-b border-border">
-          <span className="text-brand-sm text-text-muted">
+          <span className="text-base text-text-muted">
             {taxLabel} ({taxRate}%)
           </span>
-          <span className="text-brand-sm font-mono">
+          <span className="text-base font-mono">
             {formatCurrency(taxAmount, currency, locale, includeDecimals)}
           </span>
         </div>

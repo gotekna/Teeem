@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   FileText,
@@ -16,9 +16,6 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
-
-// Foundation ID for Estimates table
-const ESTIMATES_FOUNDATION_ID = 216;
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-AU", {
@@ -33,7 +30,7 @@ export default function EstimatesPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(ESTIMATES_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("estimates");
 
   // Handle row click - navigate to job with estimates tab
   const handleRowClick = useCallback((row: TableRow) => {
@@ -46,7 +43,7 @@ export default function EstimatesPage() {
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${ESTIMATES_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/estimates/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -89,7 +86,7 @@ export default function EstimatesPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Estimates</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Review and manage estimates from suppliers
-            <span className="ml-2 text-xs font-mono">Table #216</span>
+            
           </p>
         </div>
         <Button>
@@ -151,8 +148,8 @@ export default function EstimatesPage() {
       <TeeemTableView
         entries={records}
         columns={columns}
-        foundationId={String(ESTIMATES_FOUNDATION_ID)}
-        foundationIdNumeric={ESTIMATES_FOUNDATION_ID}
+        foundationId="estimates"
+        foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Estimates"}
         enableExport={true}
         onRefresh={refresh}

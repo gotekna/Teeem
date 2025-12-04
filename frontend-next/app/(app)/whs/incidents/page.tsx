@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Dialog,
   DialogContent,
@@ -36,18 +36,17 @@ import {
 import { api } from "@/lib/api";
 
 // Foundation ID for WHS Incidents table
-const WHS_INCIDENTS_FOUNDATION_ID = 210;
 
 export default function WHSIncidentsPage() {
   const [newIncidentOpen, setNewIncidentOpen] = useState(false);
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationById(WHS_INCIDENTS_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("whs_incidents");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${WHS_INCIDENTS_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/whs_incidents/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -166,7 +165,7 @@ export default function WHSIncidentsPage() {
             <h1 className="text-2xl font-bold tracking-tight font-serif">Incident Reports</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Track and manage workplace safety incidents
-              <span className="ml-2 text-xs font-mono">Table #210</span>
+              
             </p>
           </div>
         </div>
@@ -224,8 +223,8 @@ export default function WHSIncidentsPage() {
       <TeeemTableView
         entries={records}
         columns={columns}
-        foundationId={String(WHS_INCIDENTS_FOUNDATION_ID)}
-        foundationIdNumeric={WHS_INCIDENTS_FOUNDATION_ID}
+        foundationId="whs_incidents"
+        foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Incident Reports"}
         enableExport={true}
         onRefresh={refresh}

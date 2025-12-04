@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   Clock,
@@ -16,16 +16,15 @@ import {
 import { api } from "@/lib/api";
 
 // Foundation ID for Task Templates table
-const TASK_TEMPLATES_FOUNDATION_ID = 436;
 
 export default function TaskTemplatesPage() {
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(TASK_TEMPLATES_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("task_templates");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${TASK_TEMPLATES_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/task_templates/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -69,7 +68,7 @@ export default function TaskTemplatesPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Task Templates</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {stats.total} reusable task definitions for construction schedules
-            <span className="ml-2 text-xs font-mono">Table #436</span>
+            
           </p>
         </div>
         <Button>
@@ -122,8 +121,8 @@ export default function TaskTemplatesPage() {
       <TeeemTableView
         entries={records}
         columns={columns}
-        foundationId={String(TASK_TEMPLATES_FOUNDATION_ID)}
-        foundationIdNumeric={TASK_TEMPLATES_FOUNDATION_ID}
+        foundationId="task_templates"
+        foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Task Templates"}
         enableExport={true}
         onRefresh={refresh}

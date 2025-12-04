@@ -9,13 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader } from "@/components/ui/loader";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -42,7 +35,6 @@ import {
   Building2,
   Calendar,
   FileText,
-  Plus,
   Trash2,
   ChevronsUpDown,
   Check,
@@ -64,8 +56,22 @@ interface PricebookItem {
   id: number;
   item_code: string;
   item_name: string;
-  current_price: number;
+  active_price?: number;  // From PO line items (includes active_price method)
+  current_price?: number; // From pricebook search API
   unit_of_measure?: string;
+  gst_code?: string;
+}
+
+// GST codes and their tax rates
+const GST_CODES = [
+  { value: "GST", label: "GST", rate: 0.10 },
+  { value: "GST Free", label: "GST Free", rate: 0.00 },
+  { value: "Input Taxed", label: "Input Taxed", rate: 0.00 },
+] as const;
+
+function getGstRate(gstCode: string | undefined): number {
+  const code = GST_CODES.find((c) => c.value === gstCode);
+  return code?.rate ?? 0.10; // Default to 10% GST
 }
 
 interface LineItem {
@@ -75,6 +81,7 @@ interface LineItem {
   description: string;
   quantity: number;
   unit_price: number;
+  gst_code?: string;
   notes?: string;
   line_number?: number;
   _destroy?: boolean;
@@ -87,6 +94,12 @@ interface Job {
     id: number;
     full_name: string;
   } | null;
+}
+
+interface ScheduleTemplateRow {
+  id: number;
+  name: string;
+  sequence_order: number;
 }
 
 interface PurchaseOrder {
@@ -156,6 +169,11 @@ export default function PurchaseOrderDetailPage() {
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
 
+  // Schedule template rows for description lookup
+  const [scheduleTemplateRows, setScheduleTemplateRows] = useState<ScheduleTemplateRow[]>([]);
+  const [loadingTemplateRows, setLoadingTemplateRows] = useState(false);
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
+
   // Pricebook items for line item code selection
   const [pricebookItems, setPricebookItems] = useState<PricebookItem[]>([]);
   const [loadingPricebook, setLoadingPricebook] = useState(false);
@@ -172,12 +190,37 @@ export default function PurchaseOrderDetailPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
 
+  // Original state for change tracking
+  const [originalState, setOriginalState] = useState<{
+    description: string;
+    status: string;
+    budget: string;
+    requiredDate: string;
+    orderedDate: string;
+    notes: string;
+    selectedSupplier: Supplier | null;
+    lineItems: LineItem[];
+  } | null>(null);
+
   // Load purchase order
   useEffect(() => {
     loadPurchaseOrder();
   }, [recordId]);
 
-  // Debounced pricebook search
+  // Refetch data when window regains focus (e.g., switching back from pricebook tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('[PO Detail] Window focused - reloading data');
+      loadPurchaseOrder();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [recordId]);
+
+  // Debounced server-side search for pricebook items
   useEffect(() => {
     if (pricebookOpenFor === null) return;
 
@@ -195,14 +238,39 @@ export default function PurchaseOrderDetailPage() {
       setPurchaseOrder(response);
 
       // Initialize editable fields
-      setDescription(response.description || "");
-      setStatus(response.status || "draft");
-      setBudget(response.budget?.toString() || "");
-      setRequiredDate(response.required_date || "");
-      setOrderedDate(response.ordered_date || "");
-      setNotes(response.special_instructions || "");
-      setSelectedSupplier(response.supplier || null);
-      setLineItems(response.line_items || [{ description: "", quantity: 1, unit_price: 0 }]);
+      const desc = response.description || "";
+      const stat = response.status || "draft";
+      const budg = response.budget?.toString() || "";
+      const reqDate = response.required_date || "";
+      const ordDate = response.ordered_date || "";
+      const note = response.special_instructions || "";
+      const supp = response.supplier || null;
+
+      // Sort line items by price and ensure there's always one blank line at the end
+      const items = response.line_items || [];
+      const sortedItems = [...items].sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0));
+      const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
+
+      setDescription(desc);
+      setStatus(stat);
+      setBudget(budg);
+      setRequiredDate(reqDate);
+      setOrderedDate(ordDate);
+      setNotes(note);
+      setSelectedSupplier(supp);
+      setLineItems(itemsWithBlank);
+
+      // Store original state for change tracking (with sorted items)
+      setOriginalState({
+        description: desc,
+        status: stat,
+        budget: budg,
+        requiredDate: reqDate,
+        orderedDate: ordDate,
+        notes: note,
+        selectedSupplier: supp,
+        lineItems: itemsWithBlank,
+      });
     } catch (err) {
       console.error("Failed to load purchase order:", err);
       setError("Failed to load purchase order");
@@ -225,18 +293,33 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Load pricebook items with supplier filter and optional search
-  const loadPricebookItems = async (search?: string) => {
-    // Only load if we have a supplier selected
-    if (!selectedSupplier?.id) {
-      setPricebookItems([]);
-      return;
+  // Load schedule template rows for description lookup
+  const loadScheduleTemplateRows = async () => {
+    if (scheduleTemplateRows.length > 0) return;
+    try {
+      setLoadingTemplateRows(true);
+      const response = await api.get<{ rows: ScheduleTemplateRow[] }>("/api/v1/schedule_templates/default");
+      setScheduleTemplateRows(response?.rows || []);
+    } catch (err) {
+      console.error("Failed to load schedule template rows:", err);
+    } finally {
+      setLoadingTemplateRows(false);
     }
+  };
+
+  // Helper to check if a line item is blank (no meaningful data)
+  const isBlankLineItem = (item: LineItem) => {
+    return !item.id && !item.pricebook_item_id && !item.description && item.quantity <= 0 && item.unit_price <= 0;
+  };
+
+  // Load pricebook items with server-side search
+  const loadPricebookItems = async (search?: string) => {
+    // TODO: Re-enable supplier filter when pricebook items are properly linked to suppliers
     try {
       setLoadingPricebook(true);
       const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
       const response = await api.get<{ items: PricebookItem[] }>(
-        `/api/v1/pricebook?per_page=500&supplier_id=${selectedSupplier.id}${searchParam}`
+        `/api/v1/pricebook?per_page=100${searchParam}`
       );
       setPricebookItems(response?.items || []);
     } catch (err) {
@@ -263,21 +346,62 @@ export default function PurchaseOrderDetailPage() {
           ordered_date: orderedDate || null,
           special_instructions: notes || null,
           supplier_id: selectedSupplier?.id || null,
-          line_items_attributes: lineItems.map((item, index) => ({
-            id: item.id,
-            pricebook_item_id: item.pricebook_item_id || null,
-            description: item.description,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            notes: item.notes || null,
-            line_number: index + 1,
-            _destroy: item._destroy || false,
-          })),
+          line_items_attributes: lineItems
+            .filter((item) => !isBlankLineItem(item) || item.id) // Only include non-blank items or existing items (for deletion)
+            .map((item, index) => ({
+              id: item.id,
+              pricebook_item_id: item.pricebook_item_id || null,
+              description: item.description,
+              quantity: item.quantity,
+              unit_price: item.unit_price,
+              gst_code: item.gst_code || "GST",
+              notes: item.notes || null,
+              line_number: index + 1,
+              _destroy: item._destroy || false,
+            })),
         },
       };
 
       await api.patch(`/api/v1/purchase_orders/${recordId}`, updateData);
-      await loadPurchaseOrder();
+
+      // Reload the purchase order data
+      const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
+      setPurchaseOrder(response);
+
+      // Initialize editable fields
+      const desc = response.description || "";
+      const stat = response.status || "draft";
+      const budg = response.budget?.toString() || "";
+      const reqDate = response.required_date || "";
+      const ordDate = response.ordered_date || "";
+      const note = response.special_instructions || "";
+      const supp = response.supplier || null;
+
+      // Sort line items by price and ensure there's always one blank line at the end
+      const items = response.line_items || [];
+      const sortedItems = [...items].sort((a, b) => (b.unit_price || 0) - (a.unit_price || 0));
+      const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
+
+      setDescription(desc);
+      setStatus(stat);
+      setBudget(budg);
+      setRequiredDate(reqDate);
+      setOrderedDate(ordDate);
+      setNotes(note);
+      setSelectedSupplier(supp);
+      setLineItems(itemsWithBlank);
+
+      // Store original state for change tracking (with sorted items)
+      setOriginalState({
+        description: desc,
+        status: stat,
+        budget: budg,
+        requiredDate: reqDate,
+        orderedDate: ordDate,
+        notes: note,
+        selectedSupplier: supp,
+        lineItems: itemsWithBlank,
+      });
     } catch (err) {
       console.error("Failed to save purchase order:", err);
       setError("Failed to save changes");
@@ -286,14 +410,83 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Line item handlers
-  const addLineItem = () => {
-    setLineItems([...lineItems, { description: "", quantity: 1, unit_price: 0 }]);
+  // Check if changes have been made
+  const hasChanges = useCallback(() => {
+    if (!originalState) return false;
+
+    // Compare simple fields
+    if (
+      description !== originalState.description ||
+      status !== originalState.status ||
+      budget !== originalState.budget ||
+      requiredDate !== originalState.requiredDate ||
+      orderedDate !== originalState.orderedDate ||
+      notes !== originalState.notes ||
+      selectedSupplier?.id !== originalState.selectedSupplier?.id
+    ) {
+      return true;
+    }
+
+    // Compare line items (excluding the blank line at the end)
+    const currentItems = lineItems.filter((item) => !isBlankLineItem(item) || item.id);
+    const originalItems = originalState.lineItems.filter((item) => !isBlankLineItem(item) || item.id);
+
+    if (currentItems.length !== originalItems.length) return true;
+
+    for (let i = 0; i < currentItems.length; i++) {
+      const curr = currentItems[i];
+      const orig = originalItems[i];
+
+      if (
+        curr.description !== orig.description ||
+        curr.quantity !== orig.quantity ||
+        curr.unit_price !== orig.unit_price ||
+        curr.gst_code !== orig.gst_code ||
+        curr.notes !== orig.notes ||
+        curr.pricebook_item_id !== orig.pricebook_item_id ||
+        curr._destroy !== orig._destroy
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }, [
+    description,
+    status,
+    budget,
+    requiredDate,
+    orderedDate,
+    notes,
+    selectedSupplier,
+    lineItems,
+    originalState,
+  ]);
+
+  // Discard changes
+  const handleDiscard = () => {
+    if (!originalState) return;
+
+    setDescription(originalState.description);
+    setStatus(originalState.status);
+    setBudget(originalState.budget);
+    setRequiredDate(originalState.requiredDate);
+    setOrderedDate(originalState.orderedDate);
+    setNotes(originalState.notes);
+    setSelectedSupplier(originalState.selectedSupplier);
+    setLineItems([...originalState.lineItems]);
   };
 
+  // Line item handlers
   const updateLineItem = (index: number, field: keyof LineItem, value: unknown) => {
     const updated = [...lineItems];
     updated[index] = { ...updated[index], [field]: value };
+    // If we're editing the last item and it now has content, add a new blank line
+    const activeItems = updated.filter((item) => !item._destroy);
+    const isLastItem = activeItems[activeItems.length - 1] === updated[index];
+    if (isLastItem && !isBlankLineItem(updated[index])) {
+      updated.push({ description: "", quantity: 0, unit_price: 0 });
+    }
     setLineItems(updated);
   };
 
@@ -309,27 +502,42 @@ export default function PurchaseOrderDetailPage() {
 
   const selectPricebookItem = (index: number, item: PricebookItem) => {
     const updated = [...lineItems];
+    // Use active_price (from PO line items) or current_price (from pricebook search API)
+    const price = item.active_price ?? item.current_price ?? 0;
     updated[index] = {
       ...updated[index],
       pricebook_item_id: item.id,
       pricebook_item: item,
       description: item.item_name,
-      unit_price: item.current_price,
+      unit_price: price,
+      gst_code: item.gst_code || "GST", // Copy GST code from pricebook item
     };
+    // If selecting on the last item, add a new blank line
+    const activeItems = updated.filter((i) => !i._destroy);
+    const isLastItem = activeItems[activeItems.length - 1] === updated[index];
+    if (isLastItem) {
+      updated.push({ description: "", quantity: 0, unit_price: 0 });
+    }
     setLineItems(updated);
     setPricebookOpenFor(null);
   };
 
-  // Calculate totals
-  const calculateSubtotal = useCallback(() => {
-    return lineItems
-      .filter((item) => !item._destroy)
-      .reduce((sum, item) => sum + (item.quantity || 0) * (item.unit_price || 0), 0);
+  // Calculate totals with per-line GST rates
+  const calculateTotals = useCallback(() => {
+    const activeItems = lineItems.filter((item) => !item._destroy);
+    const subtotal = activeItems.reduce(
+      (sum, item) => sum + (item.quantity || 0) * (item.unit_price || 0),
+      0
+    );
+    const gst = activeItems.reduce(
+      (sum, item) =>
+        sum + (item.quantity || 0) * (item.unit_price || 0) * getGstRate(item.gst_code),
+      0
+    );
+    return { subtotal, gst, total: subtotal + gst };
   }, [lineItems]);
 
-  const subtotal = calculateSubtotal();
-  const gst = subtotal * 0.1;
-  const total = subtotal + gst;
+  const { subtotal, gst, total } = calculateTotals();
 
   if (loading) {
     return (
@@ -372,19 +580,60 @@ export default function PurchaseOrderDetailPage() {
               {purchaseOrder.purchase_order_number}
             </h1>
             <span className="text-muted-foreground">-</span>
-            <Select value={description} onValueChange={setDescription}>
-              <SelectTrigger className="w-auto min-w-[200px] border-none bg-transparent text-xl font-semibold">
-                <SelectValue placeholder="Select description..." />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CLAIM - DEPOSIT">CLAIM - DEPOSIT</SelectItem>
-                <SelectItem value="CLAIM - PROGRESS">CLAIM - PROGRESS</SelectItem>
-                <SelectItem value="CLAIM - FINAL">CLAIM - FINAL</SelectItem>
-                <SelectItem value="MATERIALS">MATERIALS</SelectItem>
-                <SelectItem value="LABOUR">LABOUR</SelectItem>
-                <SelectItem value="SUBCONTRACTOR">SUBCONTRACTOR</SelectItem>
-              </SelectContent>
-            </Select>
+            <Popover
+              open={descriptionOpen}
+              onOpenChange={(open) => {
+                setDescriptionOpen(open);
+                if (open) loadScheduleTemplateRows();
+              }}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  role="combobox"
+                  aria-expanded={descriptionOpen}
+                  className="text-xl font-semibold min-w-[200px] justify-between px-2"
+                  disabled={loadingTemplateRows}
+                >
+                  {loadingTemplateRows ? (
+                    <span className="text-muted-foreground">Loading...</span>
+                  ) : description ? (
+                    description
+                  ) : (
+                    <span className="text-muted-foreground">Select task...</span>
+                  )}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[350px] p-0">
+                <Command>
+                  <CommandInput placeholder="Search tasks..." />
+                  <CommandList>
+                    <CommandEmpty>No task found.</CommandEmpty>
+                    <CommandGroup>
+                      {scheduleTemplateRows.map((row) => (
+                        <CommandItem
+                          key={row.id}
+                          value={row.name}
+                          onSelect={() => {
+                            setDescription(row.name);
+                            setDescriptionOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              description === row.name ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {row.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {purchaseOrder.job && (
               <>
                 <span className="text-muted-foreground">-</span>
@@ -402,12 +651,53 @@ export default function PurchaseOrderDetailPage() {
           </div>
 
           <div className="flex items-center gap-3 mt-2">
-            <Badge
-              variant="outline"
-              className={cn("border", STATUS_BADGE_VARIANTS[status] || STATUS_BADGE_VARIANTS.draft)}
-            >
-              {STATUS_OPTIONS.find((s) => s.value === status)?.label || "Draft"}
-            </Badge>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-md">
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "border cursor-pointer hover:opacity-80 transition-opacity",
+                      STATUS_BADGE_VARIANTS[status] || STATUS_BADGE_VARIANTS.draft
+                    )}
+                  >
+                    {STATUS_OPTIONS.find((s) => s.value === status)?.label || "Draft"}
+                    <ChevronsUpDown className="ml-1 h-3 w-3 opacity-50" />
+                  </Badge>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandGroup>
+                      {STATUS_OPTIONS.map((option) => (
+                        <CommandItem
+                          key={option.value}
+                          value={option.value}
+                          onSelect={() => setStatus(option.value)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              status === option.value ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "border",
+                              STATUS_BADGE_VARIANTS[option.value]
+                            )}
+                          >
+                            {option.label}
+                          </Badge>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
             {purchaseOrder.job?.site_supervisor_info?.full_name && (
               <span className="text-sm text-muted-foreground">
                 Site Supervisor: {purchaseOrder.job.site_supervisor_info.full_name}
@@ -416,16 +706,25 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </div>
 
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? (
+        <div className="flex gap-2">
+          {hasChanges() && (
             <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
+              <Button onClick={handleDiscard} variant="outline" disabled={saving}>
+                Discard Changes
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
             </>
-          ) : (
-            "Save Changes"
           )}
-        </Button>
+        </div>
       </div>
 
       {error && (
@@ -571,27 +870,6 @@ export default function PurchaseOrderDetailPage() {
         </Card>
       </div>
 
-      {/* Status Select */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium">Status:</label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Line Items */}
       <Card>
         <CardContent className="pt-6">
@@ -600,45 +878,85 @@ export default function PurchaseOrderDetailPage() {
               <FileText className="h-5 w-5 text-muted-foreground" />
               <h3 className="text-lg font-semibold">Line Items</h3>
             </div>
-            <Button variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Item
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadPurchaseOrder}
+              disabled={loading}
+            >
+              {loading ? "Refreshing..." : "Refresh Prices"}
             </Button>
           </div>
 
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[180px]">CODE</TableHead>
-                <TableHead>DESCRIPTION</TableHead>
-                <TableHead className="w-[100px] text-right">QTY</TableHead>
-                <TableHead className="w-[120px] text-right">UNIT PRICE</TableHead>
-                <TableHead className="w-[120px] text-right">TOTAL</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[150px] py-2">CODE</TableHead>
+                  <TableHead className="py-2">DESCRIPTION</TableHead>
+                  <TableHead className="w-[70px] text-right py-2">QTY</TableHead>
+                  <TableHead className="w-[100px] text-right py-2">UNIT PRICE</TableHead>
+                  <TableHead className="w-[100px] py-2">GST TYPE</TableHead>
+                  <TableHead className="w-[100px] text-right py-2">SUBTOTAL</TableHead>
+                  <TableHead className="w-[80px] text-right py-2">GST</TableHead>
+                  <TableHead className="w-[100px] text-right py-2">TOTAL</TableHead>
+                  <TableHead className="w-[50px] py-2"></TableHead>
+                </TableRow>
+              </TableHeader>
             <TableBody>
               {lineItems
-                .filter((item) => !item._destroy)
-                .map((item, index) => (
-                  <TableRow key={item.id || `new-${index}`}>
-                    <TableCell>
+                .map((item, originalIndex) => ({ item, originalIndex }))
+                .filter(({ item }) => !item._destroy)
+                .map(({ item, originalIndex }, displayIndex) => {
+                  const activeItems = lineItems.filter((item) => !item._destroy);
+                  const isLastItem = displayIndex === activeItems.length - 1;
+                  const isBlank = isBlankLineItem(item);
+                  const shouldGreyOut = isLastItem && isBlank;
+
+                  // Check if price has changed from pricebook
+                  // Convert to numbers for comparison to handle both string and number types
+                  const hasPriceChanged = item.pricebook_item?.active_price != null &&
+                    Number(item.unit_price) !== Number(item.pricebook_item.active_price);
+
+                  // Debug logging
+                  if (item.pricebook_item && hasPriceChanged) {
+                    console.log('Price mismatch detected:', {
+                      item_code: item.pricebook_item.item_code,
+                      po_unit_price: item.unit_price,
+                      pricebook_active_price: item.pricebook_item.active_price,
+                      po_as_number: Number(item.unit_price),
+                      pricebook_as_number: Number(item.pricebook_item.active_price),
+                      are_equal: Number(item.unit_price) === Number(item.pricebook_item.active_price)
+                    });
+                  }
+
+                  // Determine background color (priority: grey out > price changed > normal)
+                  const rowBgColor = shouldGreyOut ? '#f1f5f9' : (hasPriceChanged ? '#fb923c' : undefined);
+
+                  return (
+                  <TableRow
+                    key={item.id || `new-${originalIndex}`}
+                    className="h-auto"
+                    style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
+                  >
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Popover
-                        open={pricebookOpenFor === index}
+                        open={pricebookOpenFor === originalIndex}
                         onOpenChange={(open) => {
-                          setPricebookOpenFor(open ? index : null);
-                          if (open) loadPricebookItems();
+                          setPricebookOpenFor(open ? originalIndex : null);
+                          if (!open) setPricebookSearch(""); // Clear search when closing
                         }}
                       >
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
                             role="combobox"
-                            className="w-full justify-between"
-                            disabled={!selectedSupplier}
-                            title={!selectedSupplier ? "Select a supplier first" : undefined}
+                            className="w-full justify-between border-0 rounded-none h-10 focus-visible:ring-0 focus-visible:ring-offset-0"
+                            style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                           >
-                            {item.pricebook_item?.item_code || (!selectedSupplier ? "Select supplier first" : "Select...")}
+                            {item.pricebook_item?.item_code || (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                           </Button>
                         </PopoverTrigger>
@@ -654,22 +972,12 @@ export default function PurchaseOrderDetailPage() {
                                 {loadingPricebook ? "Loading..." : "No items found."}
                               </CommandEmpty>
                               <CommandGroup>
-                                {pricebookItems
-                                  .filter((pbItem) => {
-                                    if (!pricebookSearch) return true;
-                                    const search = pricebookSearch.toLowerCase();
-                                    return (
-                                      pbItem.item_code?.toLowerCase().includes(search) ||
-                                      pbItem.item_name?.toLowerCase().includes(search)
-                                    );
-                                  })
-                                  .slice(0, 50)
-                                  .map((pbItem) => (
+                                {pricebookItems.slice(0, 50).map((pbItem) => (
                                   <CommandItem
                                     key={pbItem.id}
                                     value={`${pbItem.item_code} ${pbItem.item_name}`}
                                     onSelect={() => {
-                                      selectPricebookItem(index, pbItem);
+                                      selectPricebookItem(originalIndex, pbItem);
                                       setPricebookSearch("");
                                     }}
                                   >
@@ -695,60 +1003,140 @@ export default function PurchaseOrderDetailPage() {
                         </PopoverContent>
                       </Popover>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         value={item.description}
-                        onChange={(e) => updateLineItem(index, "description", e.target.value)}
+                        onChange={(e) => updateLineItem(originalIndex, "description", e.target.value)}
                         placeholder="Item description"
+                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
+                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         type="number"
                         value={item.quantity}
                         onChange={(e) =>
-                          updateLineItem(index, "quantity", parseFloat(e.target.value) || 0)
+                          updateLineItem(originalIndex, "quantity", parseFloat(e.target.value) || 0)
                         }
-                        className="text-right"
+                        className={cn(
+                          "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                          shouldGreyOut && "text-muted-foreground"
+                        )}
+                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                         min={0}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input
                         type="number"
                         value={item.unit_price}
                         onChange={(e) =>
-                          updateLineItem(index, "unit_price", parseFloat(e.target.value) || 0)
+                          updateLineItem(originalIndex, "unit_price", parseFloat(e.target.value) || 0)
                         }
-                        className="text-right"
+                        className={cn(
+                          "text-right text-sm h-10 border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+                          shouldGreyOut && "text-muted-foreground",
+                          hasPriceChanged && "text-orange-600 font-semibold"
+                        )}
+                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                         min={0}
                         step={0.01}
                       />
                     </TableCell>
-                    <TableCell className="text-right font-medium">
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                      {/* GST Type selector - disabled if pricebook item is selected */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className={cn(
+                              "w-full justify-between text-xs border-0 rounded-none h-10 focus-visible:ring-0 focus-visible:ring-offset-0",
+                              item.pricebook_item_id && "opacity-60",
+                              shouldGreyOut && "text-muted-foreground"
+                            )}
+                            style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
+                            disabled={!!item.pricebook_item_id}
+                          >
+                            {GST_CODES.find((c) => c.value === (item.gst_code || "GST"))?.label || "GST"}
+                            {!item.pricebook_item_id && (
+                              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        {!item.pricebook_item_id && (
+                          <PopoverContent className="w-[140px] p-0">
+                            <Command>
+                              <CommandList>
+                                <CommandGroup>
+                                  {GST_CODES.map((gstOption) => (
+                                    <CommandItem
+                                      key={gstOption.value}
+                                      value={gstOption.value}
+                                      onSelect={() => updateLineItem(originalIndex, "gst_code", gstOption.value)}
+                                    >
+                                      <Check
+                                        className={cn(
+                                          "mr-2 h-4 w-4",
+                                          (item.gst_code || "GST") === gstOption.value
+                                            ? "opacity-100"
+                                            : "opacity-0"
+                                        )}
+                                      />
+                                      {gstOption.label}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        )}
+                      </Popover>
+                    </TableCell>
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0))}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                      {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * getGstRate(item.gst_code))}
+                    </TableCell>
+                    <TableCell className={cn("text-right py-1 text-base border-b", shouldGreyOut ? "text-muted-foreground" : "font-medium")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                      {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * (1 + getGstRate(item.gst_code)))}
+                    </TableCell>
+                    <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => removeLineItem(index)}
+                        onClick={() => removeLineItem(originalIndex)}
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
-              {lineItems.filter((item) => !item._destroy).length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No line items yet. Click &quot;Add Item&quot; to add one.
-                  </TableCell>
-                </TableRow>
-              )}
+                  );
+                })}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
+
+          {/* Totals Summary */}
+          <div className="flex justify-end mt-6">
+            <div className="w-[350px] space-y-3">
+              <div className="flex justify-between text-lg">
+                <span className="text-muted-foreground">Subtotal (Ex GST)</span>
+                <span className="font-medium">{formatCurrency(subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-lg">
+                <span className="text-muted-foreground">GST</span>
+                <span className="font-medium">{formatCurrency(gst)}</span>
+              </div>
+              <div className="flex justify-between text-xl font-bold border-t pt-3">
+                <span>Total (Inc GST)</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -5,7 +5,7 @@ import { useEffect, useState, Suspense, useCallback } from "react";
 import { TeeemTableView, SchemaTab, ConnectionsTab, CreateRecordDialog } from "@/components/table";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
-import { TABLE_IDS, urls, stripUrlSuffix } from "@/lib/url-utils";
+import { TABLE_IDS, urls, stripUrlSuffix, slugifyPricebookCode } from "@/lib/url-utils";
 import { getTableUIConfig } from "@/lib/table-ui-config";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,7 +69,13 @@ function TablePageContent() {
     } else if (tableId === TABLE_IDS.CONTACTS) {
       router.push(`/contacts/${row.id}`);
     } else if (tableId === TABLE_IDS.PRICEBOOK) {
-      router.push(`/pricebook/${row.id}`);
+      // Use item_code instead of id for pricebook items
+      const itemCode = row.item_code as string;
+      if (itemCode) {
+        router.push(`/pricebook/${slugifyPricebookCode(itemCode)}`);
+      } else {
+        console.warn("[TablePage] Pricebook item missing item_code:", row);
+      }
     } else if (tableId === TABLE_IDS.COMPANIES) {
       router.push(`/companies/${row.id}`);
     } else {

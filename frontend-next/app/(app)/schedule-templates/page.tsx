@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import { useFoundationById } from "@/hooks/useFoundationById";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
   Calendar,
@@ -31,18 +31,17 @@ import {
 import { api } from "@/lib/api";
 
 // Foundation ID for Schedule Templates table
-const SCHEDULE_TEMPLATES_FOUNDATION_ID = 418;
 
 export default function ScheduleTemplatesPage() {
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationById(SCHEDULE_TEMPLATES_FOUNDATION_ID);
+  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("schedule_templates");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/${SCHEDULE_TEMPLATES_FOUNDATION_ID}/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/schedule_templates/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -85,7 +84,7 @@ export default function ScheduleTemplatesPage() {
           <h1 className="text-2xl font-bold tracking-tight font-serif">Schedule Templates</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Pre-built schedules to quickly set up new jobs
-            <span className="ml-2 text-xs font-mono">Table #418</span>
+            
           </p>
         </div>
         <Button>
@@ -161,8 +160,8 @@ export default function ScheduleTemplatesPage() {
         <TeeemTableView
           entries={records}
           columns={columns}
-          foundationId={String(SCHEDULE_TEMPLATES_FOUNDATION_ID)}
-          foundationIdNumeric={SCHEDULE_TEMPLATES_FOUNDATION_ID}
+          foundationId="schedule_templates"
+          foundationIdNumeric={foundation?.id}
           tableName={foundation?.name || "Schedule Templates"}
           enableExport={true}
           onRefresh={refresh}

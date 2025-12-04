@@ -12,6 +12,8 @@ export interface UseFoundationBySlugReturn {
   foundation: Foundation | null;
   columns: TableColumn[];
   records: TableRow[];
+  originalRecords: TableRow[]; // Unfiltered records for stats
+  totalCount: number | null; // Total count from server (for stats without loading all records)
   isLoading: boolean;
   error: Error | null;
   refresh: () => Promise<void>;
@@ -50,10 +52,11 @@ interface FoundationLookupResponse {
  */
 interface RecordsResponse {
   records: TableRow[];
-  meta?: {
+  pagination?: {
     total_count?: number;
     page?: number;
     per_page?: number;
+    total_pages?: number;
   };
 }
 
@@ -76,6 +79,7 @@ export function useFoundationBySlug(
   const [foundation, setFoundation] = useState<Foundation | null>(null);
   const [records, setRecords] = useState<TableRow[]>([]);
   const [originalRecords, setOriginalRecords] = useState<TableRow[]>([]); // Store original records for clearing search
+  const [totalCount, setTotalCount] = useState<number | null>(null); // Total count from server
   const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -107,6 +111,7 @@ export function useFoundationBySlug(
       const loadedRecords = recordsData.records || [];
       setRecords(loadedRecords);
       setOriginalRecords(loadedRecords); // Store for clearing search
+      setTotalCount(recordsData.pagination?.total_count ?? null); // Store total count from server
     } catch (err) {
       console.error('Failed to load foundation data by slug:', err);
       setError(err instanceof Error ? err : new Error('Failed to load data'));
@@ -203,6 +208,8 @@ export function useFoundationBySlug(
     foundation,
     columns,
     records,
+    originalRecords, // Expose original unfiltered records
+    totalCount, // Total count from server (for stats without loading all records)
     isLoading,
     error,
     refresh: loadData,
