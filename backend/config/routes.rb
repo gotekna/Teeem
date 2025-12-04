@@ -1614,6 +1614,24 @@ Rails.application.routes.draw do
         end
       end
 
+      # Data Warehouse API
+      namespace :warehouse do
+        # Metadata (data dictionary)
+        get '/', to: 'warehouse_metadata#index', as: :metadata_index
+        get 'metadata', to: 'warehouse_metadata#index'
+        get 'metadata/:id', to: 'warehouse_metadata#show'
+
+        # Export endpoints
+        get 'export', to: 'warehouse_exports#index'
+        get 'export/:id', to: 'warehouse_exports#show', as: :export
+
+        # Status and health
+        get 'status', to: 'warehouse_status#index'
+        get 'status/:id', to: 'warehouse_status#show'
+        get 'health', to: 'warehouse_status#health'
+        post 'refresh', to: 'warehouse_status#refresh'
+      end
+
       # External integrations (API endpoints for third-party systems)
       namespace :external do
         post 'unreal_estimates', to: 'unreal_estimates#create'

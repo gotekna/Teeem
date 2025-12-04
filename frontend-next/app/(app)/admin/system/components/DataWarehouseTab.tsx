@@ -21,10 +21,51 @@ import {
   FolderOpen,
   Mail,
   Box,
+  Activity,
+  Download,
+  Table2,
+  Play,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
+interface WarehouseViewStatus {
+  key: string;
+  name: string;
+  concurrent_refresh: boolean;
+  last_refresh: string | null;
+  last_failure: string | null;
+  row_count: number | null;
+  avg_duration_seconds: number | null;
+  success_rate_24h: number | null;
+}
+
+interface WarehouseHealthSummary {
+  total_views: number;
+  healthy: number;
+  stale: number;
+  warning: number;
+  error: number;
+  unknown: number;
+}
+
+interface WarehouseStatus {
+  success: boolean;
+  generated_at: string;
+  health: WarehouseHealthSummary;
+  views: WarehouseViewStatus[];
+  recent_activity: Array<{
+    id: number;
+    view_name: string;
+    status: string;
+    started_at: string;
+    completed_at: string | null;
+    duration_seconds: number | null;
+    row_count: number | null;
+    error_message: string | null;
+  }>;
+}
 
 interface OrgDataStats {
   organization: {
@@ -85,10 +126,13 @@ interface OrgDataStats {
 export function DataWarehouseTab() {
   const [loading, setLoading] = React.useState(true);
   const [stats, setStats] = React.useState<OrgDataStats | null>(null);
+  const [warehouseStatus, setWarehouseStatus] = React.useState<WarehouseStatus | null>(null);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [refreshingViews, setRefreshingViews] = React.useState(false);
 
   React.useEffect(() => {
     loadStats();
+    loadWarehouseStatus();
   }, []);
 
   const loadStats = async () => {
@@ -168,10 +212,40 @@ export function DataWarehouseTab() {
     }
   };
 
+  const loadWarehouseStatus = async () => {
+    try {
+      const response = await api.get<WarehouseStatus>("/api/v1/warehouse/status");
+      if (response.success) {
+        setWarehouseStatus(response);
+      }
+    } catch (error) {
+      console.error("Failed to load warehouse status:", error);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadStats();
+    await Promise.all([loadStats(), loadWarehouseStatus()]);
     setRefreshing(false);
+  };
+
+  const handleRefreshViews = async () => {
+    setRefreshingViews(true);
+    try {
+      await api.post("/api/v1/warehouse/refresh", { view_name: "all" });
+      // Wait a bit then reload status
+      setTimeout(() => {
+        loadWarehouseStatus();
+        setRefreshingViews(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to trigger view refresh:", error);
+      setRefreshingViews(false);
+    }
+  };
+
+  const handleExportView = (viewName: string, format: "csv" | "xlsx") => {
+    window.open(`/api/v1/warehouse/export/${viewName}.${format}`, "_blank");
   };
 
   const formatBytes = (bytes: number) => {
@@ -386,6 +460,137 @@ export function DataWarehouseTab() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Materialized Views Status */}
+      {warehouseStatus && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Materialized Views Status
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshViews}
+                  disabled={refreshingViews}
+                >
+                  <Play className={cn("h-4 w-4 mr-1", refreshingViews && "animate-pulse")} />
+                  {refreshingViews ? "Refreshing..." : "Refresh All"}
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Health Summary */}
+            <div className="grid grid-cols-5 gap-2">
+              <div className="text-center p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <p className="text-xl font-bold text-green-600">{warehouseStatus.health.healthy}</p>
+                <p className="text-xs text-muted-foreground">Healthy</p>
+              </div>
+              <div className="text-center p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                <p className="text-xl font-bold text-yellow-600">{warehouseStatus.health.stale}</p>
+                <p className="text-xs text-muted-foreground">Stale</p>
+              </div>
+              <div className="text-center p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <p className="text-xl font-bold text-orange-600">{warehouseStatus.health.warning}</p>
+                <p className="text-xs text-muted-foreground">Warning</p>
+              </div>
+              <div className="text-center p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
+                <p className="text-xl font-bold text-red-600">{warehouseStatus.health.error}</p>
+                <p className="text-xs text-muted-foreground">Error</p>
+              </div>
+              <div className="text-center p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                <p className="text-xl font-bold text-gray-600">{warehouseStatus.health.unknown}</p>
+                <p className="text-xs text-muted-foreground">Unknown</p>
+              </div>
+            </div>
+
+            {/* Views List */}
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {warehouseStatus.views.map((view) => (
+                <div
+                  key={view.key}
+                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Table2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{view.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {view.row_count?.toLocaleString() ?? "?"} rows
+                        {view.avg_duration_seconds && ` • ${view.avg_duration_seconds.toFixed(1)}s avg`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {view.last_refresh ? (
+                      <Badge variant="outline" className="text-xs">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {format(new Date(view.last_refresh), "MMM d, h:mm a")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs">Never refreshed</Badge>
+                    )}
+                    {view.last_failure && (
+                      <Badge variant="destructive" className="text-xs">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        Failed
+                      </Badge>
+                    )}
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => handleExportView(view.name, "csv")}
+                        title="Export CSV"
+                      >
+                        <Download className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Recent Activity */}
+            {warehouseStatus.recent_activity.length > 0 && (
+              <div className="pt-4 border-t">
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  Recent Activity
+                </h4>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {warehouseStatus.recent_activity.slice(0, 5).map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-center justify-between text-xs py-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        {activity.status === "success" ? (
+                          <CheckCircle className="h-3 w-3 text-green-500" />
+                        ) : activity.status === "failed" ? (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        ) : (
+                          <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
+                        )}
+                        <span className="font-mono">{activity.view_name}</span>
+                      </div>
+                      <span className="text-muted-foreground">
+                        {format(new Date(activity.started_at), "h:mm a")}
+                        {activity.duration_seconds && ` (${activity.duration_seconds.toFixed(1)}s)`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Email Warehouse Breakdown */}
       <Card>

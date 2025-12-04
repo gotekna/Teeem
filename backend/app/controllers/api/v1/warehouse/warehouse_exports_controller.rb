@@ -1,6 +1,7 @@
 module Api
   module V1
-    class WarehouseExportsController < ApplicationController
+    module Warehouse
+      class WarehouseExportsController < ApplicationController
       # Allowed views for export (security: prevent arbitrary SQL execution)
       ALLOWED_VIEWS = %w[
         mv_job_summary
@@ -133,6 +134,7 @@ module Api
                   filename: "#{view_name}_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xlsx",
                   type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                   disposition: 'attachment'
+      end
       end
     end
   end

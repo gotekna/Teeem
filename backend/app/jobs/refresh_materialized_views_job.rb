@@ -38,15 +38,26 @@ class RefreshMaterializedViewsJob < ApplicationJob
     views_to_refresh.each do |key, config|
       view = config[:name]
       use_concurrent = config[:concurrent]
-      start_time = Time.current
+
+      # Start logging the refresh
+      log = start_refresh_log(view)
+
       begin
         refresh_view(view, concurrently: use_concurrent)
+
+        # Complete the log entry
+        complete_refresh_log(log)
+
         results[view] = {
           success: true,
-          duration_ms: ((Time.current - start_time) * 1000).round
+          duration_ms: (log.duration_seconds * 1000).round,
+          row_count: log.row_count
         }
-        Rails.logger.info("[Warehouse] Refreshed #{view} in #{results[view][:duration_ms]}ms")
+        Rails.logger.info("[Warehouse] Refreshed #{view} in #{results[view][:duration_ms]}ms (#{log.row_count} rows)")
       rescue StandardError => e
+        # Log the failure
+        fail_refresh_log(log, e.message)
+
         results[view] = {
           success: false,
           error: e.message
@@ -54,6 +65,9 @@ class RefreshMaterializedViewsJob < ApplicationJob
         Rails.logger.error("[Warehouse] Failed to refresh #{view}: #{e.message}")
       end
     end
+
+    # Run data quality checks after refresh
+    run_quality_checks(views_to_refresh.values.map { |c| c[:name] })
 
     results
   end
@@ -68,5 +82,39 @@ class RefreshMaterializedViewsJob < ApplicationJob
           end
 
     ActiveRecord::Base.connection.execute(sql)
+  end
+
+  def start_refresh_log(view_name)
+    return nil unless defined?(MvRefreshLog)
+
+    MvRefreshLog.start_refresh(view_name, triggered_by: 'scheduled')
+  rescue StandardError => e
+    Rails.logger.warn("[Warehouse] Failed to start refresh log for #{view_name}: #{e.message}")
+    nil
+  end
+
+  def complete_refresh_log(log)
+    return unless log
+
+    log.complete!
+  rescue StandardError => e
+    Rails.logger.warn("[Warehouse] Failed to complete refresh log: #{e.message}")
+  end
+
+  def fail_refresh_log(log, error_message)
+    return unless log
+
+    log.fail!(error_message)
+  rescue StandardError => e
+    Rails.logger.warn("[Warehouse] Failed to record refresh failure: #{e.message}")
+  end
+
+  def run_quality_checks(view_names)
+    return unless defined?(DataQualityCheckJob)
+
+    # Queue quality checks asynchronously to not block refresh completion
+    DataQualityCheckJob.perform_later
+  rescue StandardError => e
+    Rails.logger.warn("[Warehouse] Failed to queue quality checks: #{e.message}")
   end
 end

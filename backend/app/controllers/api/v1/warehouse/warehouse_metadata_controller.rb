@@ -1,6 +1,7 @@
 module Api
   module V1
-    class WarehouseMetadataController < ApplicationController
+    module Warehouse
+      class WarehouseMetadataController < ApplicationController
       # GET /api/v1/warehouse/metadata
       # Returns data dictionary for all warehouse tables
       def index
@@ -223,6 +224,7 @@ module Api
       rescue StandardError => e
         Rails.logger.warn("Failed to get sample data for #{table_name}: #{e.message}")
         []
+      end
       end
     end
   end

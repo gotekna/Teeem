@@ -121,12 +121,6 @@ module Api
           ]
         )
       end
-
-      def current_user
-        # TODO: Implement actual authentication
-        # For now, return nil or first user for testing
-        User.first
-      end
     end
   end
 end
