@@ -49,17 +49,51 @@ module Api
           return render json: { error: 'No file provided' }, status: :bad_request
         end
 
-        # Attach the file using ActiveStorage
-        task.document.attach(params[:file])
+        uploaded_file = params[:file]
+        sharepoint_url = nil
+
+        # Try to upload to SharePoint first
+        begin
+          credential = OrganizationOneDriveCredential.active_credential
+          if credential&.valid_credential?
+            client = MicrosoftGraphClient.new(credential)
+
+            # Find the job folder
+            job_folder = client.find_job_folder(@job)
+            if job_folder
+              # Get the folder path from the documentation tab
+              tab = @job.job_documentation_tabs.find_by(id: params[:category])
+              folder_path = tab&.folder_path
+
+              if folder_path.present?
+                # Navigate to or create the target subfolder
+                target_folder = ensure_folder_path(client, job_folder['id'], folder_path)
+
+                if target_folder
+                  # Upload the file
+                  result = client.upload_file(uploaded_file, target_folder['id'], uploaded_file.original_filename)
+                  sharepoint_url = result['webUrl'] if result
+                end
+              end
+            end
+          end
+        rescue => e
+          Rails.logger.warn "SharePoint upload failed (will continue with local): #{e.message}"
+        end
+
+        # Also attach to ActiveStorage as backup
+        task.document.attach(uploaded_file)
         task.update(
           has_document: true,
           uploaded_at: Time.current,
-          uploaded_by: current_user&.email
+          uploaded_by: current_user&.email,
+          sharepoint_url: sharepoint_url
         )
 
         render json: {
           message: 'Document uploaded successfully',
-          document_url: url_for(task.document),
+          document_url: sharepoint_url || url_for(task.document),
+          sharepoint_url: sharepoint_url,
           uploaded_at: task.uploaded_at
         }
       rescue => e
@@ -95,6 +129,31 @@ module Api
         @job = Job.find(params[:job_id])
       end
 
+      # Navigate to or create nested folder path (e.g., "02 PreCon/Revit-DWG")
+      def ensure_folder_path(client, parent_folder_id, path)
+        current_folder_id = parent_folder_id
+        current_folder = nil
+
+        path.split('/').each do |folder_name|
+          next if folder_name.blank?
+
+          # Try to find the folder first
+          items = client.list_items(current_folder_id)
+          existing = items.find { |item| item['folder'] && item['name'] == folder_name }
+
+          if existing
+            current_folder = existing
+            current_folder_id = existing['id']
+          else
+            # Create the folder
+            current_folder = client.create_folder(current_folder_id, folder_name)
+            current_folder_id = current_folder['id']
+          end
+        end
+
+        current_folder
+      end
+
       def task_json(task)
         {
           id: task.id,
@@ -104,7 +163,8 @@ module Api
           category: task.category,
           has_document: task.has_document,
           is_validated: task.is_validated,
-          document_url: task.document.attached? ? url_for(task.document) : nil,
+          document_url: task.sharepoint_url || (task.document.attached? ? url_for(task.document) : nil),
+          sharepoint_url: task.sharepoint_url,
           uploaded_at: task.uploaded_at,
           validated_at: task.validated_at,
           validated_by: task.validated_by
