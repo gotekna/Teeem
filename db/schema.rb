@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_03_223533) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_04_003523) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1223,12 +1223,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_223533) do
     t.string "abbreviation"
     t.jsonb "aliases", default: []
     t.string "display_name"
+    t.string "scope", default: "company"
+    t.string "file_extensions", default: [], array: true
+    t.string "target_folder"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
+    t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name"], name: "index_document_types_on_name", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
+    t.index ["scope"], name: "index_document_types_on_scope"
   end
 
   create_table "document_verification_feedbacks", force: :cascade do |t|
@@ -1910,6 +1915,35 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_223533) do
     t.index ["job_id", "name"], name: "index_job_documentation_tabs_on_job_id_and_name", unique: true
     t.index ["job_id", "sequence_order"], name: "index_job_documentation_tabs_on_job_id_and_sequence_order"
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
+  end
+
+  create_table "job_documents", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "document_type_id"
+    t.string "onedrive_item_id", null: false
+    t.string "onedrive_drive_id"
+    t.string "file_name", null: false
+    t.string "file_extension"
+    t.string "file_type"
+    t.bigint "file_size"
+    t.string "folder_path"
+    t.string "web_url"
+    t.string "thumbnail_url"
+    t.string "version_id"
+    t.datetime "last_modified_at"
+    t.string "last_modified_by"
+    t.string "sync_status", default: "synced"
+    t.datetime "last_synced_at"
+    t.jsonb "cad_metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
+    t.index ["file_type"], name: "index_job_documents_on_file_type"
+    t.index ["job_id", "file_type"], name: "index_job_documents_on_job_id_and_file_type"
+    t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
+    t.index ["job_id"], name: "index_job_documents_on_job_id"
+    t.index ["onedrive_item_id"], name: "index_job_documents_on_onedrive_item_id", unique: true
+    t.index ["sync_status"], name: "index_job_documents_on_sync_status"
   end
 
   create_table "job_people", force: :cascade do |t|
@@ -4259,6 +4293,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_03_223533) do
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"
   add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_documents", "document_types"
+  add_foreign_key "job_documents", "jobs"
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
   add_foreign_key "job_status_stages", "job_stages"

@@ -1096,6 +1096,7 @@ Rails.application.routes.draw do
           get :shareholders
           get :investments
           get :trust_roles  # SSoT: Trustee, Beneficiaries, Appointor for Trust/Superfund entities
+          get :data_stats   # Data warehouse statistics for this company
         end
 
         # Bank Accounts (nested under companies)

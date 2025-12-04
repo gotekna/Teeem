@@ -1,6 +1,7 @@
 class DocumentType < ApplicationRecord
   # Associations
   has_many :company_documents, dependent: :nullify
+  has_many :job_documents, dependent: :nullify
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -10,6 +11,9 @@ class DocumentType < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :by_folder, ->(folder) { where(folder: folder) }
   scope :by_category, ->(category) { where(category: category) }
+  scope :by_scope, ->(scope_name) { where(scope: scope_name) }
+  scope :for_company, -> { where(scope: %w[company both]) }
+  scope :for_job, -> { where(scope: %w[job both]) }
   scope :requiring_filing, -> { where(requires_filing: true) }
 
   # Default aliases for common document types - maps alternative names to canonical names
@@ -145,5 +149,35 @@ class DocumentType < ApplicationRecord
   # Group document types by folder
   def self.grouped_by_folder
     active.order(:folder, :name).group_by(&:folder)
+  end
+
+  # Generate a preview title showing what the document will look like when named
+  # This helps users understand the naming format with example values
+  def title_preview
+    return nil if naming_format.blank?
+
+    format = naming_format.dup
+
+    # Corporate document placeholders
+    format.gsub!('{CompanyCode}', 'GTEKA')
+    format.gsub!('{LoanID}', 'L001')
+    format.gsub!('{LenderCode}', 'NAB')
+    format.gsub!('{AssetCode}', 'P001')
+    format.gsub!('{FY}', '2025')
+    format.gsub!('{YY}', '25')
+    format.gsub!('{Period}', 'Q1')
+
+    # Job document placeholders
+    format.gsub!('{JobCode}', '69')
+    format.gsub!('{JobTitle}', '83 West Ridge')
+    format.gsub!('{CertType}', 'Occupancy')
+    format.gsub!('{Consultant}', 'ABC Consulting')
+    format.gsub!('{Number}', '1')
+
+    # Common placeholders
+    format.gsub!('{Date}', Date.current.to_s)
+    format.gsub!('{Description}', 'Example Document')
+
+    format
   end
 end

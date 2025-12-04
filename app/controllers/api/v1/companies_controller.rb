@@ -4,7 +4,7 @@ module Api
       before_action :set_company, only: [:show, :update, :destroy, :directors, :add_director,
                                          :update_director, :remove_director, :compliance_items,
                                          :activities, :documents, :assets, :hierarchy, :shareholders,
-                                         :investments, :trust_roles]
+                                         :investments, :trust_roles, :data_stats]
 
       # GET /api/v1/companies
       def index
@@ -436,6 +436,92 @@ module Api
           success: true,
           summary: summary,
           companies: report
+        }
+      end
+
+      # GET /api/v1/companies/:id/data_stats
+      # Returns data warehouse statistics for a company
+      def data_stats
+        # Document statistics
+        documents = @company.company_documents
+        doc_stats = {
+          total_documents: documents.count,
+          by_source: documents.group(:source).count,
+          by_folder: documents.group(:folder).count,
+          by_document_type: documents.group(:document_type).count,
+          by_ai_status: documents.group(:ai_verification_status).count,
+          with_files: documents.where.not(cloudinary_public_id: [nil, '']).count,
+          verified: documents.where(ai_verification_status: 'verified').count,
+          needs_review: documents.where(ai_verification_status: %w[mismatch needs_review pending]).count,
+          latest_upload: documents.maximum(:created_at),
+          oldest_document: documents.minimum(:document_date),
+          newest_document: documents.maximum(:document_date),
+          financial_years: documents.pluck(:financial_years).flatten.compact.uniq.sort.reverse.first(5),
+          total_file_size: documents.sum(:file_size) || 0
+        }
+
+        # Document types breakdown
+        doc_type_stats = documents
+          .joins("LEFT JOIN document_types ON document_types.name = company_documents.document_type")
+          .select("company_documents.document_type, document_types.abbreviation, COUNT(*) as count")
+          .group("company_documents.document_type, document_types.abbreviation")
+          .map { |d| { type: d.document_type, abbreviation: d.abbreviation, count: d.count } }
+
+        # OneDrive sync status
+        onedrive_docs = documents.where(source: 'onedrive')
+        onedrive_stats = {
+          total: onedrive_docs.count,
+          last_synced: onedrive_docs.maximum(:synced_at),
+          by_folder: onedrive_docs.group(:folder).count
+        }
+
+        # Xero connection stats
+        xero_connection = @company.company_xero_connection
+        xero_stats = if xero_connection
+          {
+            connected: xero_connection.connection_status == 'connected',
+            tenant_name: xero_connection.xero_tenant_name,
+            last_sync: xero_connection.last_sync_at,
+            status: xero_connection.connection_status
+          }
+        else
+          { connected: false }
+        end
+
+        # SharePoint folder path
+        sharepoint_stats = {
+          folder_url: @company.sharepoint_folder_url,
+          has_folder: @company.sharepoint_folder_url.present?
+        }
+
+        # File types (CAD/BIM from job_documents if this company has associated jobs)
+        # For now, just company documents file breakdown
+        file_extensions = documents.where.not(cloudinary_public_id: nil)
+          .pluck(:title)
+          .map { |t| File.extname(t.to_s).downcase }
+          .compact
+          .reject(&:empty?)
+          .tally
+          .sort_by { |_, count| -count }
+          .first(10)
+          .to_h
+
+        render json: {
+          success: true,
+          data: {
+            company: {
+              id: @company.id,
+              name: @company.name,
+              code: @company.code
+            },
+            documents: doc_stats,
+            document_types: doc_type_stats,
+            onedrive: onedrive_stats,
+            xero: xero_stats,
+            sharepoint: sharepoint_stats,
+            file_extensions: file_extensions,
+            last_updated: Time.current
+          }
         }
       end
 
