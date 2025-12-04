@@ -11,6 +11,7 @@ unless credential
 end
 
 client = MicrosoftGraphClient.new(credential)
+puts "Using root folder ID: #{credential.root_folder_id}"
 
 # List all folders in OneDrive root
 result = client.list_folder_items(credential.root_folder_id)
@@ -19,10 +20,13 @@ puts "\nFound #{folders.count} folders in OneDrive root"
 
 # Match folders to jobs and mark them as completed
 jobs_found = []
+folder_map = {} # Map job_id to folder
+
 folders.each do |folder|
   puts "\nFolder: #{folder['name']}"
-  # Extract job code from folder name (e.g., "069 - 83 West Ridge Street")
-  if folder['name'] =~ /^(\d+)/
+  # Extract job code from folder name (e.g., "069 - XC 12-83 West Ridge Street")
+  # Pattern: First 3 digits at the start
+  if folder['name'] =~ /^(\d{3})\s*-/
     job_code = $1.to_i
     job = Job.find_by(id: job_code)
     if job
@@ -34,6 +38,7 @@ folders.each do |folder|
         puts "  -> Already completed"
       end
       jobs_found << job
+      folder_map[job.id] = folder
     else
       puts "  -> No job found with ID #{job_code}"
     end
@@ -49,14 +54,13 @@ puts "Jobs needing folders: #{Job.count - jobs_found.count}"
 
 # Now sync documents for all completed jobs
 puts "\n=== Syncing Documents ==="
-jobs_with_folders = Job.where(onedrive_folder_creation_status: 'completed')
-puts "Syncing #{jobs_with_folders.count} jobs..."
+puts "Syncing #{jobs_found.count} jobs..."
 
-jobs_with_folders.find_each do |job|
+jobs_found.each do |job|
   puts "\nSyncing Job #{job.id}: #{job.title}"
   begin
-    # Use the existing JobDocumentSyncJob logic inline
-    folder = client.find_job_folder(job)
+    # Use the folder we found, not find_job_folder which has different naming expectations
+    folder = folder_map[job.id]
     next unless folder
 
     # Recursive function to list all files

@@ -225,6 +225,26 @@ module Api
           return render json: { error: 'No valid columns to update' }, status: :unprocessable_entity
         end
 
+        # Special handling for Contact model's contact_types column
+        # Convert lookup IDs to string values (same as single record update)
+        if @foundation.model_class == 'Contact' && filtered_updates.key?('contact_types')
+          value = filtered_updates['contact_types']
+          if value.is_a?(Array) && value.first.is_a?(Integer)
+            contact_type_col = @foundation.columns.find_by(column_name: 'contact_types')
+            if contact_type_col&.lookup_foundation_id.present?
+              lookup_foundation = Foundation.find_by(id: contact_type_col.lookup_foundation_id)
+              if lookup_foundation
+                lookup_model = lookup_foundation.dynamic_model
+                display_col = contact_type_col.lookup_display_column || 'display_name'
+                string_values = lookup_model.where(id: value).pluck(display_col).map do |display|
+                  display.to_s.downcase.gsub(' ', '_')
+                end
+                filtered_updates['contact_types'] = string_values
+              end
+            end
+          end
+        end
+
         updated_count = 0
         errors = []
 
@@ -499,6 +519,45 @@ module Api
               rescue => e
                 Rails.logger.warn "Error expanding #{association_name}: #{e.message}"
               end
+            end
+          end
+
+          # Expand multiple_lookups columns for system tables (e.g., contact_types)
+          @foundation.columns.where(column_type: 'multiple_lookups').each do |column|
+            value = json[column.column_name]
+            next if value.blank?
+
+            begin
+              # Parse the stored value - could be JSON string or array
+              parsed_values = if value.is_a?(String)
+                JSON.parse(value) rescue []
+              else
+                Array(value)
+              end
+
+              # For Contact model's contact_types, values are strings like ["corporate", "supplier"]
+              if parsed_values.any? && parsed_values.first.is_a?(String)
+                json[column.column_name] = parsed_values.map do |str_value|
+                  { id: str_value, display_value: str_value.to_s.titleize }
+                end
+              elsif parsed_values.any? && column.lookup_foundation.present?
+                # Values are IDs - look up display values
+                lookup_model = column.lookup_foundation.dynamic_model
+                display_col = column.lookup_display_column || 'name'
+                related_records = lookup_model.where(id: parsed_values).index_by(&:id)
+
+                json[column.column_name] = parsed_values.map do |lookup_id|
+                  related = related_records[lookup_id.to_i]
+                  {
+                    id: lookup_id,
+                    display_value: related ? related.send(display_col).to_s : "[Deleted ##{lookup_id}]"
+                  }
+                end
+              else
+                json[column.column_name] = []
+              end
+            rescue => e
+              Rails.logger.error "Error expanding multiple_lookups #{column.column_name}: #{e.message}"
             end
           end
 
