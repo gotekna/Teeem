@@ -2756,13 +2756,26 @@ export default function TeeemTableView({
   const handleExportExcel = useCallback(async () => {
     const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
 
-    // Dynamic import xlsx to avoid SSR issues
-    const XLSX = await import('xlsx');
+    // Dynamic import exceljs to avoid SSR issues
+    const ExcelJS = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(tableName.slice(0, 31)); // Sheet name max 31 chars
 
-    // Build data array with headers
+    // Build headers
     const headers = columnsToExport.map((col) => col.label || col.key);
-    const data = filteredAndSortedEntries.map((entry) => {
-      return columnsToExport.map((col) => {
+
+    // Add header row with styling
+    const headerRow = worksheet.addRow(headers);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Add data rows
+    filteredAndSortedEntries.forEach((entry) => {
+      const rowData = columnsToExport.map((col) => {
         const value = entry[col.key];
         // Handle objects (like nested relations)
         if (typeof value === "object" && value !== null) {
@@ -2772,29 +2785,35 @@ export default function TeeemTableView({
         }
         return value;
       });
+      worksheet.addRow(rowData);
     });
-
-    // Create worksheet with headers
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
 
     // Auto-size columns
-    const colWidths = headers.map((h, i) => {
-      const maxLen = Math.max(
-        String(h).length,
-        ...data.map(row => String(row[i] || '').length)
-      );
-      return { wch: Math.min(maxLen + 2, 50) };
+    worksheet.columns.forEach((column, i) => {
+      let maxLen = String(headers[i] || '').length;
+      column.eachCell?.({ includeEmpty: true }, (cell) => {
+        const cellLen = String(cell.value || '').length;
+        if (cellLen > maxLen) maxLen = cellLen;
+      });
+      column.width = Math.min(maxLen + 2, 50);
     });
-    ws['!cols'] = colWidths;
-
-    // Create workbook
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, tableName.slice(0, 31)); // Sheet name max 31 chars
 
     // Generate and download
     const timestamp = new Date().toISOString().split("T")[0];
     const scopeLabel = exportScope === "visible" ? "visible" : "all";
-    XLSX.writeFile(wb, `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.xlsx`);
+    const fileName = `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.xlsx`;
+
+    // Write to buffer and trigger download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
     // Close modal and show toast
     setShowExportModal(false);
