@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,9 @@ import {
   Download,
   FolderInput,
   X,
+  Sparkles,
+  Check,
+  ArrowRight,
 } from "lucide-react";
 import {
   Dialog,
@@ -92,7 +95,14 @@ interface FolderPath {
 interface DocumentCategory {
   id: number;
   name: string;
-  document_count: number;
+  document_count?: number;
+  icon?: string;
+  color?: string;
+  description?: string;
+  sequence_order?: number;
+  is_active?: boolean;
+  folder_path?: string;
+  children?: DocumentCategory[];
 }
 
 interface DocumentTask {
@@ -108,12 +118,40 @@ interface DocumentTask {
   validated_by: string | null;
 }
 
-interface LegacyFile {
+interface LegacyItem {
   id: string;
+  document_id?: number;
   name: string;
+  original_name?: string;
   size?: number;
   web_url?: string;
   modified?: string;
+  type: "file" | "folder";
+  child_count?: number;
+  folder_path?: string; // Path to the file's parent folder (for recursive listing)
+  // AI analysis fields
+  ai_analyzed?: boolean;
+  ai_analyzed_at?: string;
+  ai_suggested_type_id?: number;
+  ai_suggested_type_name?: string;
+  ai_proposed_name?: string;
+  ai_confidence?: number;
+  ai_reasoning?: string;
+  rename_status?: string;
+}
+
+interface AIStats {
+  total: number;
+  analyzed: number;
+  unanalyzed: number;
+  pending_review: number;
+  approved: number;
+  rejected: number;
+}
+
+interface LegacyFolderPath {
+  id: string;
+  name: string;
 }
 
 interface JobDocumentsTabProps {
@@ -122,7 +160,7 @@ interface JobDocumentsTabProps {
 }
 
 export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
-  const [viewMode, setViewMode] = useState<"tasks" | "onedrive">("tasks");
+  const [viewMode, setViewMode] = useState<"tasks" | "onedrive" | "allfiles">("tasks");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<OneDriveFolder[]>([]);
@@ -131,6 +169,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
   const [documentCategories, setDocumentCategories] = useState<DocumentCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<DocumentCategory | null>(null);
   const [tasks, setTasks] = useState<DocumentTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [uploading, setUploading] = useState<number | null>(null);
@@ -143,10 +182,20 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
 
   // Legacy import state
   const [showImportModal, setShowImportModal] = useState(false);
-  const [legacyFiles, setLegacyFiles] = useState<LegacyFile[]>([]);
+  const [legacyItems, setLegacyItems] = useState<LegacyItem[]>([]);
   const [loadingLegacy, setLoadingLegacy] = useState(false);
   const [selectedLegacyFiles, setSelectedLegacyFiles] = useState<string[]>([]);
   const [importing, setImporting] = useState(false);
+  const [legacyFolderPath, setLegacyFolderPath] = useState<LegacyFolderPath[]>([]);
+
+  // All Files tab state
+  const [allFiles, setAllFiles] = useState<LegacyItem[]>([]);
+  const [loadingAllFiles, setLoadingAllFiles] = useState(false);
+  const [allFilesJobFolderUrl, setAllFilesJobFolderUrl] = useState<string | null>(null);
+  const [aiStats, setAiStats] = useState<AIStats | null>(null);
+  const [analyzingDocs, setAnalyzingDocs] = useState(false);
+  const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
+
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -154,10 +203,23 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   }, [jobId]);
 
   useEffect(() => {
+    // When a parent category is selected, auto-select the first child (or the parent itself if no children)
     if (selectedCategory) {
-      loadDocumentTasks(selectedCategory.id);
+      if (selectedCategory.children && selectedCategory.children.length > 0) {
+        setSelectedSubCategory(selectedCategory.children[0]);
+      } else {
+        setSelectedSubCategory(null);
+        loadDocumentTasks(selectedCategory.id);
+      }
     }
   }, [selectedCategory]);
+
+  useEffect(() => {
+    // Load tasks for the selected subcategory
+    if (selectedSubCategory) {
+      loadDocumentTasks(selectedSubCategory.id);
+    }
+  }, [selectedSubCategory]);
 
   const checkOrganizationStatus = async () => {
     try {
@@ -387,27 +449,59 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   };
 
   // Load legacy files from the old SharePoint folder
+  // Always loads recursively to get ALL files from all subfolders
   const loadLegacyFiles = async () => {
     try {
       setLoadingLegacy(true);
       setError(null);
+      // Always request recursive=true to get all files from all subfolders
+      const url = `/api/v1/organization_onedrive/legacy_files?job_id=${jobId}&recursive=true`;
+      console.log('[Legacy Import] Fetching:', url);
+
       const response = await api.get<{
         success: boolean;
-        files: LegacyFile[];
+        items: LegacyItem[];
         count: number;
         source_folder: string;
-      }>(`/api/v1/organization_onedrive/legacy_files?job_id=${jobId}`);
+        recursive: boolean;
+        error?: string;
+      }>(url);
+
+      console.log('[Legacy Import] Response:', response);
 
       if (response?.success) {
-        setLegacyFiles(response.files || []);
+        console.log('[Legacy Import] Found', response.items?.length || 0, 'files');
+        setLegacyItems(response.items || []);
         setSelectedLegacyFiles([]);
+        setLegacyFolderPath([]);
+      } else {
+        console.error('[Legacy Import] API returned error:', response?.error || 'Unknown error');
+        setError(response?.error || 'Failed to load legacy files');
+        setLegacyItems([]);
       }
     } catch (err) {
-      console.error("Failed to load legacy files:", err);
-      setLegacyFiles([]);
+      console.error("[Legacy Import] Exception:", err);
+      setError(err instanceof Error ? err.message : 'Failed to load legacy files');
+      setLegacyItems([]);
     } finally {
       setLoadingLegacy(false);
     }
+  };
+
+  // Legacy folder navigation removed - now loads all files recursively
+  // These functions kept for compatibility but are no longer used
+  const navigateLegacyFolder = async (_folder: LegacyItem) => {
+    // No-op: all files loaded recursively
+  };
+
+  const navigateLegacyBack = async () => {
+    // No-op: all files loaded recursively
+    setLegacyFolderPath([]);
+  };
+
+  const navigateLegacyToPath = async (_index: number) => {
+    // No-op: all files loaded recursively
+    setLegacyFolderPath([]);
   };
 
   // Import selected legacy files to the job folder
@@ -454,23 +548,142 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     await loadLegacyFiles();
   };
 
-  // Toggle file selection
-  const toggleFileSelection = (fileId: string) => {
-    setSelectedLegacyFiles((prev) =>
-      prev.includes(fileId)
+  // Toggle file selection (files only, not folders)
+  const toggleFileSelection = useCallback((fileId: string) => {
+    console.log('[Legacy Import] toggleFileSelection called with:', fileId);
+    setSelectedLegacyFiles((prev) => {
+      const newSelection = prev.includes(fileId)
         ? prev.filter((id) => id !== fileId)
-        : [...prev, fileId]
-    );
-  };
+        : [...prev, fileId];
+      console.log('[Legacy Import] Selection updated:', newSelection.length, 'files');
+      return newSelection;
+    });
+  }, []);
 
-  // Select all files
+  // Select all files (only files, not folders)
   const selectAllFiles = () => {
-    if (selectedLegacyFiles.length === legacyFiles.length) {
+    // All items are files now (recursive listing returns only files)
+    if (selectedLegacyFiles.length === legacyItems.length && legacyItems.length > 0) {
       setSelectedLegacyFiles([]);
     } else {
-      setSelectedLegacyFiles(legacyFiles.map((f) => f.id));
+      setSelectedLegacyFiles(legacyItems.map((f) => f.id));
     }
   };
+
+  // Load all files in the job folder (for All Files tab)
+  const loadAllFiles = async () => {
+    try {
+      setLoadingAllFiles(true);
+      setError(null);
+      const url = `/api/v1/organization_onedrive/job_all_files?job_id=${jobId}`;
+      console.log('[All Files] Fetching:', url);
+
+      const response = await api.get<{
+        success: boolean;
+        items: LegacyItem[];
+        count: number;
+        job_folder_web_url?: string;
+        ai_stats?: AIStats;
+        error?: string;
+      }>(url);
+
+      console.log('[All Files] Response:', response);
+
+      if (response?.success) {
+        console.log('[All Files] Found', response.items?.length || 0, 'files');
+        setAllFiles(response.items || []);
+        setAllFilesJobFolderUrl(response.job_folder_web_url || null);
+        setAiStats(response.ai_stats || null);
+      } else {
+        console.log('[All Files] No job folder or empty:', response?.error);
+        setAllFiles([]);
+        setAllFilesJobFolderUrl(null);
+        setAiStats(null);
+      }
+    } catch (err) {
+      console.error("[All Files] Exception:", err);
+      setError(err instanceof Error ? err.message : 'Failed to load files');
+      setAllFiles([]);
+    } finally {
+      setLoadingAllFiles(false);
+    }
+  };
+
+  // Trigger AI analysis for documents
+  const handleAnalyzeDocuments = async () => {
+    try {
+      setAnalyzingDocs(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        queued_count?: number;
+        total_unanalyzed?: number;
+      }>(`/api/v1/organization_onedrive/analyze_job_documents`, {
+        job_id: jobId,
+        limit: 25,
+      });
+
+      if (response?.success) {
+        setMessage({ type: "success", text: response.message });
+        // Refresh after a short delay to see updated data
+        setTimeout(loadAllFiles, 2000);
+      }
+    } catch (err) {
+      console.error("Failed to start AI analysis:", err);
+      setError("Failed to start AI analysis");
+    } finally {
+      setAnalyzingDocs(false);
+    }
+  };
+
+  // Approve or reject a document rename
+  const handleApproveRename = async (documentId: number, action: "approve" | "reject") => {
+    try {
+      setApprovingDoc(documentId);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        new_name?: string;
+      }>(`/api/v1/organization_onedrive/approve_document_rename`, {
+        document_id: documentId,
+        action,
+      });
+
+      if (response?.success) {
+        setMessage({ type: "success", text: response.message });
+        // Update the local state
+        setAllFiles(prev => prev.map(f =>
+          f.document_id === documentId
+            ? { ...f, rename_status: action === "approve" ? "completed" : "rejected", name: response.new_name || f.name }
+            : f
+        ));
+        // Update AI stats
+        if (aiStats) {
+          setAiStats({
+            ...aiStats,
+            pending_review: aiStats.pending_review - 1,
+            [action === "approve" ? "approved" : "rejected"]: (aiStats[action === "approve" ? "approved" : "rejected"] || 0) + 1,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to approve/reject rename:", err);
+      setError("Failed to process rename action");
+    } finally {
+      setApprovingDoc(null);
+    }
+  };
+
+  // Load all files when switching to the All Files tab
+  useEffect(() => {
+    if (viewMode === "allfiles" && orgStatus.connected) {
+      loadAllFiles();
+    }
+  }, [viewMode, orgStatus.connected]);
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -479,10 +692,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     if (task.has_document) {
       return <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"><Paperclip className="h-3 w-3 mr-1" />Attached</Badge>;
     }
-    if (task.required) {
-      return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Required</Badge>;
-    }
-    return <Badge variant="secondary">Optional</Badge>;
+    return <Badge variant="secondary">Pending</Badge>;
   };
 
   // Document Tasks View
@@ -499,8 +709,12 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       );
     }
 
+    // Get the current active category (either the subcategory or the parent if no children)
+    const activeCategory = selectedSubCategory || selectedCategory;
+
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
+        {/* Main Tabs (Parent Categories) */}
         <Tabs
           value={String(selectedCategory?.id)}
           onValueChange={(val) => {
@@ -508,133 +722,144 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             if (cat) setSelectedCategory(cat);
           }}
         >
-          <TabsList className="w-full justify-start overflow-x-auto">
+          <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1">
             {documentCategories.map((cat) => (
-              <TabsTrigger key={cat.id} value={String(cat.id)}>
-                {cat.name} ({cat.document_count || 0})
+              <TabsTrigger
+                key={cat.id}
+                value={String(cat.id)}
+                className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              >
+                {cat.name}
               </TabsTrigger>
             ))}
           </TabsList>
-
-          {documentCategories.map((cat) => (
-            <TabsContent key={cat.id} value={String(cat.id)}>
-              {loadingTasks ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">
-                          {tasks.filter((t) => t.has_document).length}/{tasks.length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Documents Attached</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-green-600">
-                          {tasks.filter((t) => t.is_validated).length}/{tasks.length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Validated</p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold text-red-600">
-                          {tasks.filter((t) => t.required && !t.has_document).length}
-                        </div>
-                        <p className="text-sm text-muted-foreground">Required Missing</p>
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  {/* Tasks Table */}
-                  <Card>
-                    <CardContent className="p-0">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Document</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Uploaded</TableHead>
-                            <TableHead className="text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {tasks.map((task) => (
-                            <TableRow key={task.id}>
-                              <TableCell>
-                                <div className="flex items-start gap-3">
-                                  <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-                                  <div>
-                                    <p className="font-medium">
-                                      {task.name}
-                                      {task.required && <span className="text-red-500 ml-1">*</span>}
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">{task.description}</p>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>{getStatusBadge(task)}</TableCell>
-                              <TableCell>
-                                {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  <label className="cursor-pointer">
-                                    <input
-                                      type="file"
-                                      className="hidden"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) handleTaskUpload(task.id, file);
-                                      }}
-                                      disabled={uploading === task.id}
-                                    />
-                                    <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
-                                      <span>
-                                        {uploading === task.id ? (
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        ) : (
-                                          <Upload className="h-4 w-4 mr-1" />
-                                        )}
-                                        {task.has_document ? "Replace" : "Upload"}
-                                      </span>
-                                    </Button>
-                                  </label>
-                                  {task.has_document && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => task.document_url && window.open(task.document_url, "_blank")}
-                                    >
-                                      <Eye className="h-4 w-4 mr-1" />
-                                      View
-                                    </Button>
-                                  )}
-                                  {task.has_document && !task.is_validated && (
-                                    <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
-                                      <ShieldCheck className="h-4 w-4 mr-1" />
-                                      Validate
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </TabsContent>
-          ))}
         </Tabs>
+
+        {/* Sub Tabs (Child Categories) - only show if selected parent has children */}
+        {selectedCategory?.children && selectedCategory.children.length > 0 && (
+          <Tabs
+            value={String(selectedSubCategory?.id)}
+            onValueChange={(val) => {
+              const subCat = selectedCategory.children?.find((c) => String(c.id) === val);
+              if (subCat) setSelectedSubCategory(subCat);
+            }}
+          >
+            <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap gap-1 bg-transparent p-0">
+              {selectedCategory.children.map((subCat) => (
+                <TabsTrigger
+                  key={subCat.id}
+                  value={String(subCat.id)}
+                  className="border border-border bg-muted text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
+                >
+                  {subCat.name}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+
+        {/* Content for the active category */}
+        {loadingTasks ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* Tasks Table */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Folder className="h-5 w-5 text-yellow-500" />
+                  {activeCategory?.name}
+                  {activeCategory?.folder_path && (
+                    <span className="text-xs text-muted-foreground font-normal">
+                      ({activeCategory.folder_path})
+                    </span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {tasks.length === 0 ? (
+                  <div className="py-12 text-center">
+                    <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground">No document tasks in this category.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Document</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Uploaded</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tasks.map((task) => (
+                        <TableRow key={task.id}>
+                          <TableCell>
+                            <div className="flex items-start gap-3">
+                              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
+                              <div>
+                                <p className="font-medium">{task.name}</p>
+                                <p className="text-sm text-muted-foreground">{task.description}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getStatusBadge(task)}</TableCell>
+                          <TableCell>
+                            {task.uploaded_at ? new Date(task.uploaded_at).toLocaleDateString() : "-"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <label className="cursor-pointer">
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleTaskUpload(task.id, file);
+                                  }}
+                                  disabled={uploading === task.id}
+                                />
+                                <Button variant="ghost" size="sm" asChild disabled={uploading === task.id}>
+                                  <span>
+                                    {uploading === task.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Upload className="h-4 w-4 mr-1" />
+                                    )}
+                                    {task.has_document ? "Replace" : "Upload"}
+                                  </span>
+                                </Button>
+                              </label>
+                              {task.has_document && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => task.document_url && window.open(task.document_url, "_blank")}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View
+                                </Button>
+                              )}
+                              {task.has_document && !task.is_validated && (
+                                <Button variant="ghost" size="sm" onClick={() => handleValidate(task.id)}>
+                                  <ShieldCheck className="h-4 w-4 mr-1" />
+                                  Validate
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     );
   };
@@ -876,6 +1101,300 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     );
   };
 
+  // All Files View - shows all files in the job folder recursively
+  const renderAllFilesView = () => {
+    if (orgStatus.loading) {
+      return (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
+    if (!orgStatus.connected) {
+      return (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Cloud className="h-16 w-16 text-muted-foreground mx-auto" />
+            <h3 className="mt-4 text-lg font-semibold">SharePoint Not Connected</h3>
+            <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+              Your organization hasn't connected SharePoint yet. An admin needs to connect Microsoft 365 in Settings first.
+            </p>
+            <Button asChild className="mt-6">
+              <Link href="/settings/integrations/microsoft">
+                <Settings className="h-4 w-4 mr-2" />
+                Go to Settings
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Get files with pending AI suggestions
+    const filesWithSuggestions = allFiles.filter(
+      f => f.ai_analyzed && f.ai_proposed_name && f.rename_status === "pending"
+    );
+
+    return (
+      <div className="space-y-4">
+        {/* Header with refresh and open in SharePoint */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold">All Files</h3>
+            <span className="text-sm text-muted-foreground">
+              {loadingAllFiles ? "Loading..." : `${allFiles.length} files`}
+            </span>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAnalyzeDocuments}
+              disabled={analyzingDocs || loadingAllFiles}
+            >
+              {analyzingDocs ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Sparkles className="h-4 w-4 mr-1" />
+              )}
+              Analyze with AI
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadAllFiles}
+              disabled={loadingAllFiles}
+            >
+              {loadingAllFiles ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-1" />
+              )}
+              Refresh
+            </Button>
+            {allFilesJobFolderUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(allFilesJobFolderUrl, "_blank")}
+              >
+                <ExternalLink className="h-4 w-4 mr-1" />
+                Open in SharePoint
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* AI Stats */}
+        {aiStats && (
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <Card className="bg-muted/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold">{aiStats.total}</div>
+                <div className="text-xs text-muted-foreground">Total Files</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-green-50 dark:bg-green-950/30">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-green-600">{aiStats.analyzed}</div>
+                <div className="text-xs text-muted-foreground">Analyzed</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-yellow-50 dark:bg-yellow-950/30">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-yellow-600">{aiStats.pending_review}</div>
+                <div className="text-xs text-muted-foreground">Pending Review</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-blue-50 dark:bg-blue-950/30">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold text-blue-600">{aiStats.approved}</div>
+                <div className="text-xs text-muted-foreground">Approved</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-muted/50">
+              <CardContent className="p-3 text-center">
+                <div className="text-2xl font-bold">{aiStats.unanalyzed}</div>
+                <div className="text-xs text-muted-foreground">Unanalyzed</div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Suggested Renames Section */}
+        {filesWithSuggestions.length > 0 && (
+          <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50/50 dark:bg-yellow-950/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-yellow-600" />
+                AI Suggested Renames ({filesWithSuggestions.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-2">
+                {filesWithSuggestions.slice(0, 10).map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-3 bg-background rounded-lg border"
+                  >
+                    <div className="flex-1 min-w-0 mr-4">
+                      <div className="flex items-center gap-2 text-sm">
+                        <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                        <span className="truncate text-muted-foreground">{item.name}</span>
+                        <ArrowRight className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+                        <span className="truncate font-medium text-foreground">{item.ai_proposed_name}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                        {item.ai_suggested_type_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            {item.ai_suggested_type_name}
+                          </Badge>
+                        )}
+                        {item.ai_confidence && (
+                          <span className={`${item.ai_confidence >= 80 ? "text-green-600" : item.ai_confidence >= 50 ? "text-yellow-600" : "text-red-600"}`}>
+                            {item.ai_confidence}% confidence
+                          </span>
+                        )}
+                        {item.folder_path && (
+                          <span className="text-blue-600">{item.folder_path}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                        onClick={() => item.document_id && handleApproveRename(item.document_id, "approve")}
+                        disabled={approvingDoc === item.document_id}
+                        title="Approve rename"
+                      >
+                        {approvingDoc === item.document_id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Check className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-100"
+                        onClick={() => item.document_id && handleApproveRename(item.document_id, "reject")}
+                        disabled={approvingDoc === item.document_id}
+                        title="Reject rename"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {filesWithSuggestions.length > 10 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    And {filesWithSuggestions.length - 10} more suggestions...
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Files table */}
+        <Card>
+          <CardContent className="p-0">
+            {loadingAllFiles ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>File Name</TableHead>
+                    <TableHead>Folder</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>AI Status</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allFiles.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No files found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    allFiles.map((item) => (
+                      <TableRow key={item.id} className={item.rename_status === "completed" ? "bg-green-50/50 dark:bg-green-950/20" : ""}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-sm truncate block max-w-[300px]">{item.name}</span>
+                              {item.original_name && item.name !== item.original_name && (
+                                <span className="text-xs text-muted-foreground line-through block">{item.original_name}</span>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {item.folder_path || "-"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {item.ai_suggested_type_name ? (
+                            <Badge variant="secondary" className="text-xs">
+                              {item.ai_suggested_type_name}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {item.rename_status === "completed" ? (
+                            <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Renamed
+                            </Badge>
+                          ) : item.rename_status === "rejected" ? (
+                            <Badge variant="secondary" className="text-muted-foreground">
+                              Skipped
+                            </Badge>
+                          ) : item.ai_analyzed ? (
+                            <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Pending
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {item.web_url && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => window.open(item.web_url, "_blank")}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Messages */}
@@ -914,9 +1433,19 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           <Cloud className="h-4 w-4 mr-2" />
           SharePoint Folders
         </Button>
+        <Button
+          variant={viewMode === "allfiles" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setViewMode("allfiles")}
+        >
+          <Folder className="h-4 w-4 mr-2" />
+          All Files
+        </Button>
       </div>
 
-      {viewMode === "tasks" ? renderTasksView() : renderOneDriveView()}
+      {viewMode === "tasks" && renderTasksView()}
+      {viewMode === "onedrive" && renderOneDriveView()}
+      {viewMode === "allfiles" && renderAllFilesView()}
 
       {/* Import Legacy Files Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
@@ -938,7 +1467,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 <span className="ml-3 text-muted-foreground">Searching for files...</span>
               </div>
-            ) : legacyFiles.length === 0 ? (
+            ) : legacyItems.length === 0 ? (
               <div className="py-12 text-center">
                 <Folder className="h-12 w-12 text-muted-foreground mx-auto" />
                 <p className="mt-2 text-muted-foreground">No legacy files found for this job.</p>
@@ -948,46 +1477,53 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
               </div>
             ) : (
               <div className="space-y-2">
-                {/* Select All */}
+                {/* Select All - all files from all subfolders */}
                 <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
                   <Checkbox
                     id="select-all"
-                    checked={selectedLegacyFiles.length === legacyFiles.length}
+                    checked={
+                      selectedLegacyFiles.length > 0 &&
+                      selectedLegacyFiles.length === legacyItems.length
+                    }
                     onCheckedChange={selectAllFiles}
                   />
                   <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-                    Select All ({legacyFiles.length} files)
+                    Select All ({legacyItems.length} files)
                   </label>
                 </div>
 
-                {/* File list */}
-                <div className="border rounded-lg divide-y">
-                  {legacyFiles.map((file) => (
+                {/* Files list - flat list with folder paths */}
+                <div className="border rounded-lg divide-y max-h-[400px] overflow-y-auto">
+                  {legacyItems.map((item) => (
                     <div
-                      key={file.id}
+                      key={item.id}
                       className="flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors cursor-pointer"
-                      onClick={() => toggleFileSelection(file.id)}
+                      onClick={() => toggleFileSelection(item.id)}
                     >
                       <Checkbox
-                        checked={selectedLegacyFiles.includes(file.id)}
-                        onCheckedChange={() => toggleFileSelection(file.id)}
+                        checked={selectedLegacyFiles.includes(item.id)}
+                        onCheckedChange={() => toggleFileSelection(item.id)}
+                        onClick={(e) => e.stopPropagation()}
                       />
                       <File className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{file.name}</p>
+                        <p className="text-sm font-medium truncate">{item.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {file.size && formatFileSize(file.size)}
-                          {file.modified && ` • Modified ${new Date(file.modified).toLocaleDateString()}`}
+                          {item.folder_path && (
+                            <span className="text-blue-600 dark:text-blue-400">{item.folder_path}/</span>
+                          )}
+                          {item.size ? formatFileSize(item.size) : ""}
+                          {item.modified && ` • Modified ${new Date(item.modified).toLocaleDateString()}`}
                         </p>
                       </div>
-                      {file.web_url && (
+                      {item.web_url && (
                         <Button
                           variant="ghost"
                           size="icon"
                           className="flex-shrink-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            window.open(file.web_url, "_blank");
+                            window.open(item.web_url, "_blank");
                           }}
                         >
                           <ExternalLink className="h-4 w-4" />

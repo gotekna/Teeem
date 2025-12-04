@@ -69,7 +69,10 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
   const selectedItem = incomingSelectedItem ?? internalSelectedItem;
 
-  const filteredItems = items.filter((item) =>
+  // Defensive: ensure items is always an array
+  const safeItems = Array.isArray(items) ? items : [];
+
+  const filteredItems = safeItems.filter((item) =>
     item.label.toLowerCase().includes(inputValue.toLowerCase()),
   );
 
@@ -114,7 +117,7 @@ export function ComboboxDropdown<T extends ComboboxItem>({
                 key={item.id}
                 value={item.id}
                 onSelect={(id) => {
-                  const foundItem = items.find((item) => item.id === id);
+                  const foundItem = safeItems.find((item) => item.id === id);
 
                   if (!foundItem) {
                     return;

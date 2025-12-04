@@ -79,7 +79,7 @@ class Contact < ApplicationRecord
   encrypts :tfn, deterministic: true
 
   # Constants
-  CONTACT_TYPES = %w[customer supplier sales land_agent].freeze
+  CONTACT_TYPES = %w[customer supplier sales land_agent corporate default_supplier].freeze
   ENTITY_TYPES = %w[person company trust].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
@@ -216,6 +216,10 @@ class Contact < ApplicationRecord
       .where(relationship_type: 'shareholder_of')
       .includes(:related_contact)
       .map(&:related_contact)
+  end
+
+  def company_group_memberships_count
+    company_group_memberships.count
   end
 
   def trustees_of
@@ -444,7 +448,11 @@ class Contact < ApplicationRecord
   def contact_types_must_be_valid
     return if contact_types.blank?
 
-    invalid_types = contact_types - CONTACT_TYPES
+    # Handle both array and JSON string formats
+    types = contact_types.is_a?(String) ? (JSON.parse(contact_types) rescue []) : contact_types
+    return if types.blank?
+
+    invalid_types = types - CONTACT_TYPES
     if invalid_types.any?
       errors.add(:contact_types, "contains invalid types: #{invalid_types.join(', ')}")
     end

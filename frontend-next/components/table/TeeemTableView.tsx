@@ -19,6 +19,22 @@
  * - Export/Import
  */
 
+// Module-level cache for lookup options (persists across component remounts)
+const lookupCache: Record<string, Array<{ id: number; display: string }>> = {};
+const lookupFetchPromises: { [key: string]: Promise<Array<{ id: number; display: string }>> | undefined } = {};
+
+// Module-level cache for saved views (persists across component remounts, keyed by foundationId)
+interface CachedViewsEntry {
+  views: SavedView[];
+  timestamp: number;
+}
+const viewsCache: Record<number, CachedViewsEntry> = {};
+const viewsFetchPromises: Record<number, Promise<SavedView[]> | undefined> = {};
+const VIEWS_CACHE_TTL = 60000; // 1 minute TTL for views cache
+
+// Import preloaded views cache from useFoundationBySlug (populated in parallel with records)
+import { preloadedViewsCache } from '@/hooks/useFoundationBySlug';
+
 import React, {
   useState,
   useMemo,
@@ -26,7 +42,6 @@ import React, {
   useRef,
   useCallback,
   memo,
-  startTransition,
 } from "react";
 import {
   DndContext,
@@ -180,11 +195,12 @@ import {
   SEVERITY_COLORS,
 } from "./types";
 import { getColumnTypeEmoji, getColumnTypeSqlType, getColumnTypeLabel, getColumnTypeValidationRules, COLUMN_TYPES } from "@/lib/column-types";
-import { DataHealthWidget } from "./DataHealthWidget";
+import { DataHealthWidget, HealthIndicatorButton } from "./DataHealthWidget";
 import { ColumnEditorModal } from "./ColumnEditorModal";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { MergeModal } from "./MergeModal";
-import { GlobalViewsManager } from "@/app/(app)/admin/system/components/GlobalViewsManager";
+import { ViewManagerSheet } from "./views";
+import { sortColumnsForModal } from "./column-utils";
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -1105,6 +1121,14 @@ export default function TeeemTableView({
   const [showFilters, setShowFilters] = useState(false);
   const [savedViews, setSavedViews] = useState<SavedView[]>([]);
   const [activeViewId, setActiveViewId] = useState<number | string | null>(null);
+  const viewsLoadingRef = useRef(false); // Prevent duplicate view fetches
+  const initialViewLoadedRef = useRef(false); // Prevent re-loading views after initial load
+
+  // Row rendering limit for performance (render 100 rows initially, load more on demand)
+  const INITIAL_ROW_LIMIT = 100;
+  const [rowLimit, setRowLimit] = useState(INITIAL_ROW_LIMIT);
+  const [showAllRows, setShowAllRows] = useState(false);
+
   const [groupByColumn, setGroupByColumn] = useState<string | null>(initialGroupByColumn);
   const [groupByColumns, setGroupByColumns] = useState<string[]>(
     initialGroupByColumn ? [initialGroupByColumn] : []
@@ -1113,6 +1137,7 @@ export default function TeeemTableView({
   const [groupViewMode, setGroupViewMode] = useState<"inline" | "panel">("inline"); // inline = groups as rows in table (default), panel = groups above header
   const [showTotals, setShowTotals] = useState(initialShowTotals); // Show column totals in footer
   const [autoFitColumns, setAutoFitColumns] = useState(false); // Auto-fit column widths to content
+  const [healthPanelOpen, setHealthPanelOpen] = useState(false); // Show health check panel
   const [editingRowIds, setEditingRowIds] = useState<Set<number | string>>(new Set()); // Multi-row editing
   const [editingData, setEditingData] = useState<Record<string | number, Record<string, unknown>>>({}); // keyed by row id
   const [validationErrors, setValidationErrors] = useState<Record<string, Record<string, string>>>({}); // {rowId: {columnKey: errorMessage}}
@@ -1206,15 +1231,11 @@ export default function TeeemTableView({
   }, [visibleColumns]);
 
   // Get columns sorted by current columnOrder for the modal
+  // Uses shared utility: visible columns by order first, then hidden columns alphabetically
   const getSortedColumnsForModal = useCallback(() => {
     const dataColumns = COLUMNS.filter(c => c.key !== "select" && c.key !== "actions");
-    const orderMap = new Map(columnOrder.map((key, idx) => [key, idx]));
-    return [...dataColumns].sort((a, b) => {
-      const aIdx = orderMap.get(a.key) ?? 999;
-      const bIdx = orderMap.get(b.key) ?? 999;
-      return aIdx - bIdx;
-    });
-  }, [COLUMNS, columnOrder]);
+    return sortColumnsForModal(dataColumns, visibleColumns, columnOrder);
+  }, [COLUMNS, columnOrder, visibleColumns]);
 
   // ============================================================================
   // DEVELOPER WARNINGS
@@ -1431,14 +1452,36 @@ export default function TeeemTableView({
     return keys;
   }, []);
 
-  // Fetch lookup options for a column
+  // Fetch lookup options for a column (uses module-level cache)
   const fetchLookupOptions = useCallback(async (column: TableColumn) => {
     const targetTableId = column.lookup_config?.target_table_id;
-    if (!targetTableId || lookupOptions[column.key]) return;
+    const cacheKey = `${column.key}_${targetTableId}`;
+
+    if (!targetTableId) return;
+
+    // Check module-level cache first (survives component remounts)
+    if (lookupCache[cacheKey]) {
+      setLookupOptions(prev => ({ ...prev, [column.key]: lookupCache[cacheKey] }));
+      return;
+    }
+
+    // If there's already a fetch in progress, wait for it
+    if (lookupFetchPromises[cacheKey]) {
+      try {
+        const options = await lookupFetchPromises[cacheKey];
+        setLookupOptions(prev => ({ ...prev, [column.key]: options }));
+      } catch {
+        // Error already logged by original fetch
+      }
+      return;
+    }
 
     setLookupLoading(prev => ({ ...prev, [column.key]: true }));
-    try {
+
+    // Create and store the fetch promise
+    lookupFetchPromises[cacheKey] = (async () => {
       const response = await api.get(`/api/v1/foundations/${targetTableId}/records`);
+
       // Handle various response structures
       let records: Record<string, unknown>[] = [];
       if (Array.isArray(response)) {
@@ -1457,37 +1500,35 @@ export default function TeeemTableView({
       }
 
       const displayColumn = column.lookup_config?.display_column || 'name';
-      console.log('[fetchLookupOptions] targetTableId:', targetTableId, 'records:', records.length, 'displayColumn:', displayColumn);
-
-      const options = records.map((record) => ({
+      return records.map((record) => ({
         id: record.id as number,
         display: String(record[displayColumn] || record.name || record.title || record.id),
       }));
+    })();
 
+    try {
+      const options = await lookupFetchPromises[cacheKey]!;
+      lookupCache[cacheKey] = options; // Store in module-level cache
       setLookupOptions(prev => ({ ...prev, [column.key]: options }));
     } catch (error) {
       console.error('Failed to fetch lookup options:', error);
       setLookupOptions(prev => ({ ...prev, [column.key]: [] }));
+      delete lookupFetchPromises[cacheKey]; // Allow retry on error
     } finally {
       setLookupLoading(prev => ({ ...prev, [column.key]: false }));
     }
-  }, [lookupOptions]);
+  }, []); // No dependencies needed - uses module-level cache
 
   // Inline editing handlers - supports single or multiple rows
   const startEditing = useCallback((row: TableRowType) => {
     setEditingRowIds(new Set([row.id]));
     setEditingData({ [row.id]: { ...row } });
 
-    // Pre-fetch lookup options for lookup columns
-    console.log('[startEditing] Checking columns for lookup options...');
+    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
-      if (col.column_type === 'lookup' || col.column_type === 'relation') {
-        console.log('[startEditing] Found lookup column:', col.key, 'lookup_config:', col.lookup_config);
-        if (col.lookup_config?.target_table_id) {
-          fetchLookupOptions(col);
-        } else {
-          console.warn('[startEditing] Lookup column missing lookup_config.target_table_id:', col.key);
-        }
+      if ((col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') &&
+          col.lookup_config?.target_table_id) {
+        fetchLookupOptions(col);
       }
     });
   }, [COLUMNS, fetchLookupOptions]);
@@ -1504,9 +1545,9 @@ export default function TeeemTableView({
     setEditingRowIds(new Set(rowIds));
     setEditingData(newEditingData);
 
-    // Pre-fetch lookup options for lookup columns
+    // Pre-fetch lookup options for lookup columns (including multiple_lookups)
     COLUMNS.forEach(col => {
-      if (col.column_type === 'lookup' || col.column_type === 'relation') {
+      if (col.column_type === 'lookup' || col.column_type === 'relation' || col.column_type === 'multiple_lookups') {
         if (col.lookup_config?.target_table_id) {
           fetchLookupOptions(col);
         }
@@ -1681,6 +1722,9 @@ export default function TeeemTableView({
   }, [validateCell]);
 
   const saveEditing = useCallback(async () => {
+    const startTime = performance.now();
+    console.log('[saveEditing] Starting save...');
+
     if (editingRowIds.size === 0 || !onRowUpdate) return;
 
     // Check for validation errors before saving
@@ -1698,26 +1742,70 @@ export default function TeeemTableView({
     }
 
     try {
-      // Save each edited row
+      // Collect all changes for batch update
+      const rowsToUpdate: Array<{ rowId: number | string; changes: Record<string, unknown> }> = [];
+
       for (const rowId of editingRowIds) {
         const originalRow = entries.find((e) => e.id === rowId);
         const rowData = editingData[rowId];
         if (!originalRow || !rowData) continue;
 
+        const changes: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(rowData)) {
-          if (originalRow[key] !== value) {
+          // Compare values - handle objects/arrays properly
+          const originalValue = originalRow[key];
+          const valuesMatch = JSON.stringify(originalValue) === JSON.stringify(value);
+          if (!valuesMatch) {
+            changes[key] = value;
+          }
+        }
+
+        if (Object.keys(changes).length > 0) {
+          rowsToUpdate.push({ rowId, changes });
+        }
+      }
+
+      console.log('[saveEditing] Rows to update:', rowsToUpdate.length, 'foundationIdNumeric:', foundationIdNumeric);
+
+      // Use bulk_update API if foundationIdNumeric is available (single API call)
+      if (foundationIdNumeric && rowsToUpdate.length > 0) {
+        // Group by changes to minimize API calls
+        // For now, update each row with all its changes in one call
+        const apiStartTime = performance.now();
+        for (const { rowId, changes } of rowsToUpdate) {
+          console.log('[saveEditing] PATCH row:', rowId, 'changes:', changes);
+          await api.patch(`/api/v1/foundations/${foundationIdNumeric}/records/${rowId}`, {
+            record: changes
+          });
+        }
+        console.log('[saveEditing] API calls done in', (performance.now() - apiStartTime).toFixed(0), 'ms');
+
+        // Only refresh once after all updates
+        const refreshStartTime = performance.now();
+        console.log('[saveEditing] Starting refresh...');
+        onRefresh?.();
+        console.log('[saveEditing] Refresh called (async) after', (performance.now() - refreshStartTime).toFixed(0), 'ms');
+      } else {
+        // Fallback: call onRowUpdate for each field (triggers refresh per field - slow)
+        console.log('[saveEditing] Using fallback onRowUpdate (slow path)');
+        for (const { rowId, changes } of rowsToUpdate) {
+          for (const [key, value] of Object.entries(changes)) {
             await onRowUpdate(rowId, key, value);
           }
         }
       }
 
+      console.log('[saveEditing] Clearing editing state...');
       setEditingRowIds(new Set());
       setEditingData({});
       setValidationErrors({});
+      console.log('[saveEditing] Total time:', (performance.now() - startTime).toFixed(0), 'ms');
+      console.log('[saveEditing] Showing toast...');
       toast({
         title: "Saved",
         description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
       });
+      console.log('[saveEditing] Done!');
     } catch (error) {
       console.error("Failed to save:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -1727,7 +1815,7 @@ export default function TeeemTableView({
         variant: "destructive",
       });
     }
-  }, [editingRowIds, editingData, entries, onRowUpdate, toast, validationErrors]);
+  }, [editingRowIds, editingData, entries, foundationIdNumeric, onRowUpdate, onRefresh, toast, validationErrors]);
 
   // Bulk update handler
   const handleBulkUpdate = useCallback(async () => {
@@ -1736,9 +1824,24 @@ export default function TeeemTableView({
     setBulkUpdateSaving(true);
     try {
       const ids = Array.from(selectedRows);
-      if (onRowUpdate) {
+      const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
+
+      // For multiple_lookups, convert comma-separated string to array of integers
+      let valueToSend: string | number[] = bulkUpdateValue;
+      if (selectedCol?.column_type === 'multiple_lookups' && bulkUpdateValue) {
+        valueToSend = bulkUpdateValue.split(',').filter(Boolean).map(id => parseInt(id, 10));
+      }
+
+      // Use bulk_update API endpoint if foundationIdNumeric is available (much faster)
+      if (foundationIdNumeric) {
+        await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_update`, {
+          record_ids: ids,
+          updates: { [bulkUpdateColumn]: valueToSend }
+        });
+      } else if (onRowUpdate) {
+        // Fallback to individual updates
         for (const id of ids) {
-          await onRowUpdate(id, bulkUpdateColumn, bulkUpdateValue);
+          await onRowUpdate(id, bulkUpdateColumn, valueToSend);
         }
       }
 
@@ -1752,7 +1855,7 @@ export default function TeeemTableView({
     } finally {
       setBulkUpdateSaving(false);
     }
-  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, onRowUpdate, onRefresh]);
+  }, [bulkUpdateColumn, bulkUpdateValue, selectedRows, foundationIdNumeric, onRowUpdate, onRefresh, COLUMNS]);
 
   // Fetch lookup options when bulk update column changes to a lookup column
   useEffect(() => {
@@ -1761,9 +1864,8 @@ export default function TeeemTableView({
     const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
     if (!selectedCol) return;
 
-    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.lookup_config;
+    const isLookup = selectedCol.column_type === 'lookup' || selectedCol.column_type === 'multiple_lookups' || selectedCol.lookup_config;
     if (isLookup && !lookupOptions[bulkUpdateColumn] && !lookupLoading[bulkUpdateColumn]) {
-      console.log('[BulkUpdate] Fetching lookup options for:', bulkUpdateColumn);
       fetchLookupOptions(selectedCol);
     }
   }, [bulkUpdateColumn, COLUMNS, lookupOptions, lookupLoading, fetchLookupOptions]);
@@ -1776,7 +1878,7 @@ export default function TeeemTableView({
   const isDropdownColumn = useCallback((column: TableColumn): boolean => {
     const colType = column.column_type || '';
     const hasChoices = column.choices && column.choices.length > 0;
-    const isLookup = colType === 'lookup' || colType === 'relation' || !!column.lookup_config;
+    const isLookup = colType === 'lookup' || colType === 'relation' || colType === 'multiple_lookups' || !!column.lookup_config;
     const isChoice = colType === 'choice' || colType === 'single_select' || colType === 'multi_select';
     const isBoolean = colType === 'boolean';
     return hasChoices || isLookup || isChoice || isBoolean;
@@ -1801,7 +1903,7 @@ export default function TeeemTableView({
     setEditingCellValue(row[column.key]);
 
     // Pre-fetch lookup options if needed
-    if (column.column_type === 'lookup' || column.column_type === 'relation') {
+    if (column.column_type === 'lookup' || column.column_type === 'relation' || column.column_type === 'multiple_lookups') {
       if (column.lookup_config?.target_table_id) {
         fetchLookupOptions(column);
       }
@@ -1839,6 +1941,9 @@ export default function TeeemTableView({
     // Don't interfere with row selection checkbox or actions
     if (column.key === 'select' || column.key === 'actions') return;
 
+    // Only allow cell editing if the row is in edit mode (pencil button clicked)
+    if (!editingRowIds.has(row.id)) return;
+
     // If already editing this cell, let the editor handle clicks
     if (editingCell?.rowId === row.id && editingCell?.columnKey === column.key) return;
 
@@ -1847,19 +1952,22 @@ export default function TeeemTableView({
       e.stopPropagation(); // Prevent row selection
       startCellEdit(row.id, column);
     }
-  }, [editingCell, isDropdownColumn, onRowUpdate, startCellEdit]);
+  }, [editingCell, editingRowIds, isDropdownColumn, onRowUpdate, startCellEdit]);
 
   // Handle cell double-click - for text columns
   const handleCellDoubleClick = useCallback((e: React.MouseEvent, row: TableRowType, column: TableColumn) => {
     // Don't interfere with row selection checkbox or actions
     if (column.key === 'select' || column.key === 'actions') return;
 
+    // Only allow cell editing if the row is in edit mode (pencil button clicked)
+    if (!editingRowIds.has(row.id)) return;
+
     // For non-dropdown columns, start editing on double click
     if (!isDropdownColumn(column) && onRowUpdate) {
       e.stopPropagation(); // Prevent row navigation
       startCellEdit(row.id, column);
     }
-  }, [isDropdownColumn, onRowUpdate, startCellEdit]);
+  }, [editingRowIds, isDropdownColumn, onRowUpdate, startCellEdit]);
 
   // ============================================================================
   // SCHEMA HANDLERS
@@ -1999,98 +2107,219 @@ export default function TeeemTableView({
     const loadSavedViews = async () => {
       if (!foundationIdNumeric) return;
 
+      // Prevent re-loading views after initial load (avoid loops from state changes)
+      if (initialViewLoadedRef.current) {
+        console.log('[loadSavedViews] Skipping - initial view already loaded');
+        return;
+      }
+
+      // Prevent duplicate concurrent fetches (React StrictMode double-mount)
+      if (viewsLoadingRef.current) {
+        console.log('[loadSavedViews] Skipping - already loading');
+        return;
+      }
+      viewsLoadingRef.current = true;
+
+      const startTime = performance.now();
+      console.log('[loadSavedViews] Starting for foundation:', foundationIdNumeric);
+
       try {
-        let data;
-        if (preloadedViews && preloadedViews.length > 0) {
-          const firstViewTableId = preloadedViews[0]?.foundation_id;
-          if (firstViewTableId === foundationIdNumeric) {
-            data = { success: true, views: preloadedViews };
+        // Check preloaded views cache first (populated by useFoundationBySlug in parallel)
+        const preloadedEntry = preloadedViewsCache[foundationIdNumeric];
+        const now = Date.now();
+        if (preloadedEntry && (now - preloadedEntry.timestamp) < VIEWS_CACHE_TTL && !viewsCache[foundationIdNumeric]) {
+          console.log('[loadSavedViews] Using preloaded views from useFoundationBySlug, age:', (now - preloadedEntry.timestamp), 'ms');
+
+          // Map the raw API views to frontend format (same mapping as below)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mappedViews = (preloadedEntry.views as any[]).map((v) => ({
+            ...v,
+            visibleColumns: v.columns?.visible || v.visibleColumns || {},
+            columnOrder: v.columns?.order || v.columnOrder || [],
+            columnWidths: v.columns?.widths || v.columnWidths || {},
+            autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
+            showTotals: v.columns?.showTotals !== false && v.showTotals !== false,
+            filters: v.filters?.cascadeFilters || v.filters || [],
+            filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
+            interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
+            sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
+            groupByColumns: v.group_by_columns || v.groupByColumns || [],
+          })) as SavedView[];
+
+          // Sort views by display_order
+          const sortedViews = mappedViews.sort((a, b) => {
+            if (a.is_global && !b.is_global) return -1;
+            if (!a.is_global && b.is_global) return 1;
+            return (a.display_order ?? 999) - (b.display_order ?? 999);
+          });
+
+          // Copy to local cache
+          viewsCache[foundationIdNumeric] = {
+            views: sortedViews,
+            timestamp: preloadedEntry.timestamp
+          };
+        }
+
+        // Check module-level cache (includes preloaded views now)
+        const cachedEntry = viewsCache[foundationIdNumeric];
+        if (cachedEntry && (now - cachedEntry.timestamp) < VIEWS_CACHE_TTL) {
+          console.log('[loadSavedViews] Using cached views, age:', (now - cachedEntry.timestamp), 'ms');
+          const filteredViews = cachedEntry.views;
+          setSavedViews(filteredViews);
+
+          // Auto-apply default view logic (duplicated from below)
+          const urlViewSlug = searchParams.get('view');
+          if (urlViewSlug) {
+            const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
+            if (urlView) {
+              // Skip URL update since we're loading from URL
+              loadViewState(urlView, true);
+              initialViewLoadedRef.current = true;
+              viewsLoadingRef.current = false;
+              return;
+            }
+          }
+          if (!activeViewId && filteredViews.length > 0) {
+            const defaultView =
+              filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
+              filteredViews.find((v: SavedView) => v.isDefault) ||
+              filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
+              filteredViews.find((v: SavedView) => v.display_order === 0) ||
+              filteredViews[0];
+            if (defaultView) {
+              // Skip URL update for initial default view load (URL will update on user interaction)
+              loadViewState(defaultView, true);
+              initialViewLoadedRef.current = true;
+            }
+          }
+          viewsLoadingRef.current = false;
+          return;
+        }
+
+        // Check if there's an in-flight request for this foundation
+        if (viewsFetchPromises[foundationIdNumeric]) {
+          console.log('[loadSavedViews] Waiting for in-flight request');
+          const views = await viewsFetchPromises[foundationIdNumeric];
+          setSavedViews(views || []);
+          initialViewLoadedRef.current = true;
+          viewsLoadingRef.current = false;
+          return;
+        }
+
+        // Create the fetch promise
+        const fetchPromise = (async () => {
+          let data;
+          if (preloadedViews && preloadedViews.length > 0) {
+            const firstViewTableId = preloadedViews[0]?.foundation_id;
+            if (firstViewTableId === foundationIdNumeric) {
+              data = { success: true, views: preloadedViews };
+            } else {
+              data = await api.get<{ success: boolean; views: SavedView[] }>(
+                `/api/v1/foundation_views`,
+                { params: { foundation_id: foundationIdNumeric } }
+              );
+            }
           } else {
             data = await api.get<{ success: boolean; views: SavedView[] }>(
               `/api/v1/foundation_views`,
               { params: { foundation_id: foundationIdNumeric } }
             );
           }
-        } else {
-          data = await api.get<{ success: boolean; views: SavedView[] }>(
-            `/api/v1/foundation_views`,
-            { params: { foundation_id: foundationIdNumeric } }
-          );
+
+          if (data.success && data.views) {
+            // Map API format to frontend format and filter/sort
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mappedViews = (data.views as any[]).map((v) => {
+              return {
+              ...v,
+              // Map columns.visible to visibleColumns (API format -> frontend format)
+              visibleColumns: v.columns?.visible || v.visibleColumns || {},
+              columnOrder: v.columns?.order || v.columnOrder || [],
+              columnWidths: v.columns?.widths || v.columnWidths || {},
+              autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
+              showTotals: v.columns?.showTotals !== false && v.showTotals !== false, // Default to true
+              // Map filters format
+              filters: v.filters?.cascadeFilters || v.filters || [],
+              filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
+              interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
+              // Map sort and group
+              sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
+              groupByColumns: v.group_by_columns || v.groupByColumns || [],
+            };
+            }) as SavedView[];
+
+            // Sort views by display_order
+            const filteredViews = mappedViews
+              .sort((a, b) => {
+                // Global views first
+                if (a.is_global && !b.is_global) return -1;
+                if (!a.is_global && b.is_global) return 1;
+                // Then by display_order
+                return (a.display_order ?? 999) - (b.display_order ?? 999);
+              });
+
+            return filteredViews;
+          }
+          return [];
+        })();
+
+        viewsFetchPromises[foundationIdNumeric] = fetchPromise;
+        const filteredViews = await fetchPromise;
+
+        // Cache the results
+        viewsCache[foundationIdNumeric] = {
+          views: filteredViews,
+          timestamp: Date.now()
+        };
+        delete viewsFetchPromises[foundationIdNumeric];
+
+        console.log('[loadSavedViews] Views loaded in', (performance.now() - startTime).toFixed(0), 'ms, count:', filteredViews.length);
+
+        setSavedViews(filteredViews);
+
+        // Auto-apply default view - prioritize global views, then display_order
+        // Check URL for view parameter first (matches by slugified name)
+        const urlViewSlug = searchParams.get('view');
+        if (urlViewSlug) {
+          const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
+          if (urlView) {
+            // Skip URL update since we're loading from URL
+            loadViewState(urlView, true);
+            initialViewLoadedRef.current = true;
+            return;
+          }
         }
 
-        if (data.success && data.views) {
-          // Map API format to frontend format and filter/sort
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mappedViews = (data.views as any[]).map((v) => {
-            console.log('[TeeemTableView] View raw data:', { id: v.id, name: v.name, columns: v.columns, visibleColumns: v.visibleColumns });
-            return {
-            ...v,
-            // Map columns.visible to visibleColumns (API format -> frontend format)
-            visibleColumns: v.columns?.visible || v.visibleColumns || {},
-            columnOrder: v.columns?.order || v.columnOrder || [],
-            columnWidths: v.columns?.widths || v.columnWidths || {},
-            autoFitColumns: v.columns?.autoFitColumns === true || v.autoFitColumns === true,
-            showTotals: v.columns?.showTotals !== false && v.showTotals !== false, // Default to true
-            // Map filters format
-            filters: v.filters?.cascadeFilters || v.filters || [],
-            filterGroups: v.filters?.filterGroups || v.filterGroups || [{ id: "default", logic: "AND" }],
-            interGroupLogic: v.filters?.interGroupLogic || v.interGroupLogic || "OR",
-            // Map sort and group
-            sortColumns: Array.isArray(v.sort_order) ? v.sort_order : (v.sortColumns || []),
-            groupByColumns: v.group_by_columns || v.groupByColumns || [],
-          };
-          }) as SavedView[];
+        if (!activeViewId && filteredViews.length > 0) {
+          // Find the best default: first check for explicit isDefault, then first global, then first by display_order
+          const defaultView =
+            filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
+            filteredViews.find((v: SavedView) => v.isDefault) ||
+            filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
+            filteredViews.find((v: SavedView) => v.display_order === 0) ||
+            filteredViews[0]; // Fallback to first view
 
-          console.log('[TeeemTableView] Mapped views with autoFitColumns:', mappedViews.map(v => ({ id: v.id, name: v.name, autoFitColumns: v.autoFitColumns, showTotals: v.showTotals })));
-
-          // Sort views by display_order
-          const filteredViews = mappedViews
-            .sort((a, b) => {
-              // Global views first
-              if (a.is_global && !b.is_global) return -1;
-              if (!a.is_global && b.is_global) return 1;
-              // Then by display_order
-              return (a.display_order ?? 999) - (b.display_order ?? 999);
-            });
-
-          setSavedViews(filteredViews);
-
-          // Auto-apply default view - prioritize global views, then display_order
-          // Check URL for view parameter first (matches by slugified name)
-          const urlViewSlug = searchParams.get('view');
-          if (urlViewSlug) {
-            const urlView = filteredViews.find((v) => slugifyViewName(v.name) === urlViewSlug);
-            if (urlView) {
-              loadViewState(urlView);
-              return;
-            }
-          }
-
-          if (!activeViewId && filteredViews.length > 0) {
-            // Find the best default: first check for explicit isDefault, then first global, then first by display_order
-            const defaultView =
-              filteredViews.find((v: SavedView) => v.isDefault && v.is_global) ||
-              filteredViews.find((v: SavedView) => v.isDefault) ||
-              filteredViews.find((v: SavedView) => v.is_global && v.display_order === 0) ||
-              filteredViews.find((v: SavedView) => v.display_order === 0) ||
-              filteredViews[0]; // Fallback to first view
-
-            if (defaultView) {
-              loadViewState(defaultView);
-            }
+          if (defaultView) {
+            // Skip URL update for initial default view load (URL will update on user interaction)
+            loadViewState(defaultView, true);
+            initialViewLoadedRef.current = true;
           }
         }
       } catch (error) {
         console.error("Error loading saved views:", error);
+      } finally {
+        // Reset loading flag to allow future loads (e.g., on foundation change)
+        viewsLoadingRef.current = false;
       }
     };
 
     loadSavedViews();
   }, [foundationIdNumeric, preloadedViews]);
 
-  // Load view state helper - uses startTransition for non-urgent updates to avoid blocking UI
+  // Load view state helper - applies saved view configuration to current state
+  // skipUrlUpdate: set to true when loading from URL to avoid redundant URL updates that can cause loops
   const loadViewState = useCallback(
-    (view: SavedView) => {
+    (view: SavedView, skipUrlUpdate = false) => {
       // Helper to ensure filters have unique ids
       const ensureFilterIds = (filters: CascadeFilter[]) =>
         filters.map((f, idx) => ({
@@ -2098,83 +2327,96 @@ export default function TeeemTableView({
           id: f.id || `filter_${Date.now()}_${idx}`,
         }));
 
-      // Wrap all state updates in startTransition to mark them as non-urgent
-      // This allows React to interrupt the update if user interacts again
-      startTransition(() => {
-        // Handle filters - may be array (legacy) or object with cascadeFilters (current)
-        if (view.filters) {
-          if (Array.isArray(view.filters)) {
-            setCascadeFilters(ensureFilterIds(view.filters));
-          } else if (typeof view.filters === 'object' && view.filters !== null) {
-            // New format: filters is an object containing cascadeFilters
-            const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
-            if (Array.isArray(filtersObj.cascadeFilters)) {
-              setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
-            }
-            if (Array.isArray(filtersObj.filterGroups)) {
-              setFilterGroups(filtersObj.filterGroups);
-            }
-            if (filtersObj.interGroupLogic) {
-              setInterGroupLogic(filtersObj.interGroupLogic);
-            }
+      console.log('[loadViewState] Loading view:', view.name, 'groupByColumns:', view.groupByColumns?.length || 0);
+
+      // Apply all view state updates (removed startTransition - was causing 800ms delay)
+      // Handle filters - may be array (legacy) or object with cascadeFilters (current)
+      if (view.filters) {
+        if (Array.isArray(view.filters)) {
+          setCascadeFilters(ensureFilterIds(view.filters));
+        } else if (typeof view.filters === 'object' && view.filters !== null) {
+          // New format: filters is an object containing cascadeFilters
+          const filtersObj = view.filters as { cascadeFilters?: CascadeFilter[]; filterGroups?: FilterGroup[]; interGroupLogic?: "AND" | "OR" };
+          if (Array.isArray(filtersObj.cascadeFilters)) {
+            setCascadeFilters(ensureFilterIds(filtersObj.cascadeFilters));
+          }
+          if (Array.isArray(filtersObj.filterGroups)) {
+            setFilterGroups(filtersObj.filterGroups);
+          }
+          if (filtersObj.interGroupLogic) {
+            setInterGroupLogic(filtersObj.interGroupLogic);
           }
         }
-        // Legacy support for separate filterGroups field
-        if (view.filterGroups) {
-          setFilterGroups(view.filterGroups);
-        }
-        if (view.interGroupLogic) {
-          setInterGroupLogic(view.interGroupLogic);
-        }
-        if (view.visibleColumns) {
-          setVisibleColumns(view.visibleColumns);
-        }
-        if (view.columnOrder) {
-          setColumnOrder(view.columnOrder);
-        }
-        // Only load saved column widths if auto-fit is NOT enabled
-        // Check both direct property and columns object (API format varies)
-        const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
-        const viewAutoFit = view.autoFitColumns === true ||
-          (viewAny.columns && viewAny.columns.autoFitColumns === true);
-        if (view.columnWidths && !viewAutoFit) {
-          setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
-        }
-        if (view.sortColumns) {
-          setSortColumns(view.sortColumns);
-        }
-        if (view.groupByColumns) {
-          setGroupByColumns(view.groupByColumns);
-          setGroupByColumn(view.groupByColumns[0] || null);
-        } else if (view.groupByColumn) {
-          setGroupByColumn(view.groupByColumn);
-          setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
-        }
-        // Handle showTotals - check both direct property and columns object
-        if (typeof view.showTotals === 'boolean') {
-          setShowTotals(view.showTotals);
-        } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
-          setShowTotals(viewAny.columns.showTotals);
-        }
-        // Handle autoFitColumns - check both direct property and columns object
-        if (typeof view.autoFitColumns === 'boolean') {
-          setAutoFitColumns(view.autoFitColumns);
-        } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
-          setAutoFitColumns(viewAny.columns.autoFitColumns);
-        }
-        // Hide filter editor when loading a saved view (user can click Filters button to show)
-        setShowFilters(false);
-        if (view.id) {
-          setActiveViewId(view.id);
-        }
-      });
-
+      }
+      // Legacy support for separate filterGroups field
+      if (view.filterGroups) {
+        setFilterGroups(view.filterGroups);
+      }
+      if (view.interGroupLogic) {
+        setInterGroupLogic(view.interGroupLogic);
+      }
+      if (view.visibleColumns) {
+        setVisibleColumns(view.visibleColumns);
+      }
+      if (view.columnOrder) {
+        setColumnOrder(view.columnOrder);
+      }
+      // Only load saved column widths if auto-fit is NOT enabled
+      // Check both direct property and columns object (API format varies)
+      const viewAny = view as SavedView & { columns?: { autoFitColumns?: boolean; showTotals?: boolean } };
+      const viewAutoFit = view.autoFitColumns === true ||
+        (viewAny.columns && viewAny.columns.autoFitColumns === true);
+      if (view.columnWidths && !viewAutoFit) {
+        setColumnWidths((prev) => ({ ...prev, ...view.columnWidths }));
+      }
+      if (view.sortColumns) {
+        setSortColumns(view.sortColumns);
+      }
+      if (view.groupByColumns && view.groupByColumns.length > 0) {
+        setGroupByColumns(view.groupByColumns);
+        setGroupByColumn(view.groupByColumns[0] || null);
+        // Collapse all groups by default for performance (user can expand as needed)
+        // This prevents rendering all rows when grouping is enabled
+        setCollapsedGroups(new Set(['__collapse_all_pending__'])); // Marker to collapse after groupedEntries is computed
+      } else if (view.groupByColumn) {
+        setGroupByColumn(view.groupByColumn);
+        setGroupByColumns(view.groupByColumn ? [view.groupByColumn] : []);
+        setCollapsedGroups(new Set(['__collapse_all_pending__']));
+      } else {
+        // Clear grouping
+        setGroupByColumns([]);
+        setGroupByColumn(null);
+        setCollapsedGroups(new Set());
+      }
+      // Handle showTotals - check both direct property and columns object
+      if (typeof view.showTotals === 'boolean') {
+        setShowTotals(view.showTotals);
+      } else if (viewAny.columns && typeof viewAny.columns.showTotals === 'boolean') {
+        setShowTotals(viewAny.columns.showTotals);
+      }
+      // Handle autoFitColumns - check both direct property and columns object
+      if (typeof view.autoFitColumns === 'boolean') {
+        setAutoFitColumns(view.autoFitColumns);
+      } else if (viewAny.columns && typeof viewAny.columns.autoFitColumns === 'boolean') {
+        setAutoFitColumns(viewAny.columns.autoFitColumns);
+      }
+      // Hide filter editor when loading a saved view (user can click Filters button to show)
+      setShowFilters(false);
+      if (view.id) {
+        setActiveViewId(view.id);
+      }
       // URL update is kept outside startTransition as it's a side effect
-      if (view.id && view.name) {
-        const currentParams = new URLSearchParams(searchParams.toString());
-        currentParams.set('view', slugifyViewName(view.name));
-        const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
-        router.replace(newUrl, { scroll: false });
+      // Skip URL update when loading from URL to avoid redundant updates/loops
+      if (view.id && view.name && !skipUrlUpdate) {
+        const currentUrlViewSlug = searchParams.get('view');
+        const newViewSlug = slugifyViewName(view.name);
+        // Only update URL if the slug is actually different
+        if (currentUrlViewSlug !== newViewSlug) {
+          const currentParams = new URLSearchParams(searchParams.toString());
+          currentParams.set('view', newViewSlug);
+          const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+          router.replace(newUrl, { scroll: false });
+        }
       }
 
       // Handle apiParams for server-side filtering
@@ -2231,6 +2473,10 @@ export default function TeeemTableView({
       }
 
       if (response?.success && response.view) {
+        // Invalidate the views cache so next load gets fresh data
+        if (foundationIdNumeric) {
+          delete viewsCache[foundationIdNumeric];
+        }
         // Insert global views at the beginning, personal views at the end
         if (saveAsGlobal) {
           setSavedViews((prev) => [response.view, ...prev]);
@@ -2324,6 +2570,7 @@ export default function TeeemTableView({
 
   // Filter and sort entries
   const filteredAndSortedEntries = useMemo(() => {
+    const startTime = performance.now();
     let result = [...entries];
 
     // Apply search filter (client-side if no server search)
@@ -2423,6 +2670,12 @@ export default function TeeemTableView({
       });
     }
 
+    const elapsed = performance.now() - startTime;
+    if (elapsed > 50) console.log('[filteredAndSortedEntries] took', elapsed.toFixed(0), 'ms for', entries.length, 'entries');
+    // Debug: log if filtering removed all entries
+    if (entries.length > 0 && result.length === 0) {
+      console.warn('[filteredAndSortedEntries] All entries filtered out! Had', entries.length, 'entries, now 0');
+    }
     return result;
   }, [
     entries,
@@ -2435,6 +2688,20 @@ export default function TeeemTableView({
     sortColumns,
     evaluateFilter,
   ]);
+
+  // Limit displayed rows for performance (initial render shows INITIAL_ROW_LIMIT rows)
+  const displayedRows = useMemo(() => {
+    if (showAllRows || filteredAndSortedEntries.length <= INITIAL_ROW_LIMIT) {
+      return filteredAndSortedEntries;
+    }
+    return filteredAndSortedEntries.slice(0, rowLimit);
+  }, [filteredAndSortedEntries, rowLimit, showAllRows, INITIAL_ROW_LIMIT]);
+
+  // Reset row limit when filters/sort change
+  useEffect(() => {
+    setRowLimit(INITIAL_ROW_LIMIT);
+    setShowAllRows(false);
+  }, [cascadeFilters, sortColumns, search, INITIAL_ROW_LIMIT]);
 
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
@@ -2457,6 +2724,8 @@ export default function TeeemTableView({
     if (groupByColumns.length === 0) {
       return null;
     }
+
+    const startTime = performance.now();
 
     const buildNestedGroups = (
       entries: TableRowType[],
@@ -2488,7 +2757,10 @@ export default function TeeemTableView({
       return groups;
     };
 
-    return buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
+    const result = buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
+    const elapsed = performance.now() - startTime;
+    if (elapsed > 50) console.log('[groupedEntries] took', elapsed.toFixed(0), 'ms for', filteredAndSortedEntries.length, 'entries');
+    return result;
   }, [filteredAndSortedEntries, groupByColumns, getDisplayValue]);
 
   // Expand/collapse all group handlers (must be after groupedEntries)
@@ -2511,8 +2783,17 @@ export default function TeeemTableView({
     }
   }, [search, groupedEntries]);
 
+  // Handle pending collapse-all when groupedEntries is ready
+  useEffect(() => {
+    if (groupedEntries && collapsedGroups.has('__collapse_all_pending__')) {
+      const allKeys = getAllGroupKeys(groupedEntries);
+      setCollapsedGroups(new Set(allKeys));
+    }
+  }, [groupedEntries, collapsedGroups, getAllGroupKeys]);
+
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
+    const startTime = performance.now();
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
       .filter((key) => visibleColumns[key] === true)
@@ -2533,6 +2814,13 @@ export default function TeeemTableView({
       orderedVisible.push(actionsCol);
     }
 
+    // Debug: log if no visible columns
+    if (orderedVisible.length === 0) {
+      console.warn('[visibleColumnsInOrder] No visible columns! columnOrder:', columnOrder.length, 'visibleColumns:', Object.keys(visibleColumns).length, 'COLUMNS:', COLUMNS.length);
+    }
+
+    const elapsed = performance.now() - startTime;
+    if (elapsed > 10) console.log('[visibleColumnsInOrder] took', elapsed.toFixed(0), 'ms');
     return orderedVisible;
   }, [columnOrder, visibleColumns, COLUMNS]);
 
@@ -2624,10 +2912,8 @@ export default function TeeemTableView({
 
   // Apply auto-fit widths when enabled
   useEffect(() => {
-    console.log('[TeeemTableView] Auto-fit effect running, autoFitColumns:', autoFitColumns, 'entries:', filteredAndSortedEntries.length);
     if (autoFitColumns && filteredAndSortedEntries.length > 0) {
       const autoWidths = calculateAutoFitWidths();
-      console.log('[TeeemTableView] Auto-fit widths calculated:', autoWidths);
       // Replace widths entirely when auto-fit is on (not merge)
       setColumnWidths(autoWidths);
     }
@@ -2750,13 +3036,26 @@ export default function TeeemTableView({
   const handleExportExcel = useCallback(async () => {
     const columnsToExport = exportScope === "visible" ? visibleDataColumns : allDataColumns;
 
-    // Dynamic import xlsx to avoid SSR issues
-    const XLSX = await import('xlsx');
+    // Dynamic import exceljs to avoid SSR issues
+    const ExcelJS = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(tableName.slice(0, 31)); // Sheet name max 31 chars
 
-    // Build data array with headers
+    // Build headers
     const headers = columnsToExport.map((col) => col.label || col.key);
-    const data = filteredAndSortedEntries.map((entry) => {
-      return columnsToExport.map((col) => {
+
+    // Add header row with styling
+    const headerRow = worksheet.addRow(headers);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE0E0E0' }
+    };
+
+    // Add data rows
+    filteredAndSortedEntries.forEach((entry) => {
+      const rowData = columnsToExport.map((col) => {
         const value = entry[col.key];
         // Handle objects (like nested relations)
         if (typeof value === "object" && value !== null) {
@@ -2766,29 +3065,35 @@ export default function TeeemTableView({
         }
         return value;
       });
+      worksheet.addRow(rowData);
     });
-
-    // Create worksheet with headers
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
 
     // Auto-size columns
-    const colWidths = headers.map((h, i) => {
-      const maxLen = Math.max(
-        String(h).length,
-        ...data.map(row => String(row[i] || '').length)
-      );
-      return { wch: Math.min(maxLen + 2, 50) };
+    worksheet.columns.forEach((column, i) => {
+      let maxLen = String(headers[i] || '').length;
+      column.eachCell?.({ includeEmpty: true }, (cell) => {
+        const cellLen = String(cell.value || '').length;
+        if (cellLen > maxLen) maxLen = cellLen;
+      });
+      column.width = Math.min(maxLen + 2, 50);
     });
-    ws['!cols'] = colWidths;
-
-    // Create workbook
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, tableName.slice(0, 31)); // Sheet name max 31 chars
 
     // Generate and download
     const timestamp = new Date().toISOString().split("T")[0];
     const scopeLabel = exportScope === "visible" ? "visible" : "all";
-    XLSX.writeFile(wb, `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.xlsx`);
+    const fileName = `${tableName.toLowerCase().replace(/\s+/g, "-")}-${scopeLabel}-${timestamp}.xlsx`;
+
+    // Write to buffer and trigger download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 
     // Close modal and show toast
     setShowExportModal(false);
@@ -2917,11 +3222,11 @@ export default function TeeemTableView({
         case "actions":
           if (isEditing) {
             return (
-              <div className="flex items-center gap-1">
-                <Button variant="ghost" size="sm" onClick={saveEditing}>
+              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); saveEditing(); }}>
                   <Check className="h-4 w-4 text-green-600" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={cancelEditing}>
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); cancelEditing(); }}>
                   <X className="h-4 w-4 text-red-600" />
                 </Button>
               </div>
@@ -3149,8 +3454,6 @@ export default function TeeemTableView({
         if (columnType === 'lookup' || columnType === 'relation') {
           const options = lookupOptions[column.key] || [];
           const isLoading = lookupLoading[column.key];
-          console.log('[Lookup Edit] column:', column.key, 'options:', options.length, 'lookup_config:', column.lookup_config, 'isLoading:', isLoading);
-
           // Get current value - could be an object with id or just an id
           const currentValue = rowEditingData[column.key];
           const currentId = typeof currentValue === 'object' && currentValue !== null
@@ -3248,64 +3551,96 @@ export default function TeeemTableView({
           );
         }
 
-        // Multiple lookups - multi-select (simplified tag input)
+        // Multiple lookups - multi-select with checkboxes
         if (columnType === 'multiple_lookups') {
-          const currentItems = Array.isArray(rowEditingData[column.key])
-            ? rowEditingData[column.key] as Array<{ id: number; display?: string }>
-            : [];
           const options = lookupOptions[column.key] || [];
+          const currentValue = rowEditingData[column.key];
+
+          // Build a set of selected option IDs
+          // Handle both string values (like "corporate") and numeric IDs
+          const getSelectedOptionIds = (): Set<number> => {
+            if (!Array.isArray(currentValue)) return new Set();
+
+            const selectedSet = new Set<number>();
+
+            for (const v of currentValue) {
+              if (typeof v === 'number') {
+                selectedSet.add(v);
+              } else if (typeof v === 'object' && v !== null && 'id' in v) {
+                const objId = (v as { id: number | string }).id;
+                if (typeof objId === 'number') {
+                  selectedSet.add(objId);
+                } else if (typeof objId === 'string') {
+                  const numId = parseInt(objId, 10);
+                  if (!isNaN(numId)) {
+                    selectedSet.add(numId);
+                  } else {
+                    // String name - find matching option by display name
+                    const normalizedValue = objId.toLowerCase().replace(/\s+/g, '_');
+                    const matchingOption = options.find(opt =>
+                      opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                    );
+                    if (matchingOption) {
+                      selectedSet.add(matchingOption.id);
+                    }
+                  }
+                }
+              } else if (typeof v === 'string') {
+                const numId = parseInt(v, 10);
+                if (!isNaN(numId)) {
+                  selectedSet.add(numId);
+                } else {
+                  // String name - find matching option by display name
+                  const normalizedValue = v.toLowerCase().replace(/\s+/g, '_');
+                  const matchingOption = options.find(opt =>
+                    opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                  );
+                  if (matchingOption) {
+                    selectedSet.add(matchingOption.id);
+                  }
+                }
+              }
+            }
+
+            return selectedSet;
+          };
+
+          const selectedOptionIds = getSelectedOptionIds();
 
           return (
-            <div className="flex flex-col gap-1">
-              <div className="flex flex-wrap gap-1 min-h-[28px] p-1 border rounded bg-background">
-                {currentItems.map((item, idx) => (
-                  <Badge key={idx} variant="secondary" className="text-xs flex items-center gap-1">
-                    {item.display || `#${item.id}`}
-                    <button
-                      type="button"
-                      className="hover:text-destructive"
-                      onClick={() => {
-                        const newItems = currentItems.filter((_, i) => i !== idx);
+            <div
+              className="space-y-1 max-h-[150px] overflow-y-auto p-1 border rounded bg-background"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {options.length === 0 ? (
+                <p className="text-muted-foreground text-xs p-1">No options available</p>
+              ) : (
+                options.map((option) => (
+                  <label
+                    key={option.id}
+                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Checkbox
+                      checked={selectedOptionIds.has(option.id)}
+                      onCheckedChange={(checked) => {
+                        const newIds = new Set(selectedOptionIds);
+                        if (checked) {
+                          newIds.add(option.id);
+                        } else {
+                          newIds.delete(option.id);
+                        }
+                        // Store as array of numeric IDs
                         setEditingData((prev) => ({
                           ...prev,
-                          [entry.id]: { ...prev[entry.id], [column.key]: newItems },
+                          [entry.id]: { ...prev[entry.id], [column.key]: Array.from(newIds) },
                         }));
                       }}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-              <Select
-                value=""
-                onValueChange={(val) => {
-                  if (!val) return;
-                  const option = options.find(o => String(o.id) === val);
-                  if (option && !currentItems.some(i => i.id === option.id)) {
-                    setEditingData((prev) => ({
-                      ...prev,
-                      [entry.id]: {
-                        ...prev[entry.id],
-                        [column.key]: [...currentItems, { id: option.id, display: option.display }]
-                      },
-                    }));
-                  }
-                }}
-              >
-                <SelectTrigger className="h-7 text-sm">
-                  <SelectValue placeholder="Add..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {options
-                    .filter(o => !currentItems.some(i => i.id === o.id))
-                    .map((option) => (
-                      <SelectItem key={option.id} value={String(option.id)}>
-                        {option.display}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                    />
+                    <span>{option.display}</span>
+                  </label>
+                ))
+              )}
             </div>
           );
         }
@@ -3614,6 +3949,148 @@ export default function TeeemTableView({
           );
         }
 
+        // Multiple Lookups - Multi-select checkboxes for selecting multiple related records
+        if (columnType === 'multiple_lookups') {
+          const options = lookupOptions[column.key] || [];
+          const isLoading = lookupLoading[column.key];
+
+          // Current value could be:
+          // 1. Array of objects with {id, display_value} from API
+          // 2. Array of numeric IDs (after editing)
+          // 3. Array of string values (legacy format like "corporate")
+          const currentValue = editingCellValue;
+
+          // Build a set of selected option IDs
+          // Handle both string values (like "corporate") and numeric IDs
+          const getSelectedOptionIds = (): Set<number> => {
+            if (!Array.isArray(currentValue)) return new Set();
+
+            const selectedSet = new Set<number>();
+
+            for (const v of currentValue) {
+              if (typeof v === 'number') {
+                // Already a numeric ID
+                selectedSet.add(v);
+              } else if (typeof v === 'object' && v !== null && 'id' in v) {
+                const objId = (v as { id: number | string }).id;
+                if (typeof objId === 'number') {
+                  selectedSet.add(objId);
+                } else if (typeof objId === 'string') {
+                  // String ID - could be numeric string or a name like "corporate"
+                  const numId = parseInt(objId, 10);
+                  if (!isNaN(numId)) {
+                    selectedSet.add(numId);
+                  } else {
+                    // It's a string name - find matching option by display name
+                    const normalizedValue = objId.toLowerCase().replace(/\s+/g, '_');
+                    const matchingOption = options.find(opt =>
+                      opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                    );
+                    if (matchingOption) {
+                      selectedSet.add(matchingOption.id);
+                    }
+                  }
+                }
+              } else if (typeof v === 'string') {
+                // String value - could be numeric string or a name like "corporate"
+                const numId = parseInt(v, 10);
+                if (!isNaN(numId)) {
+                  selectedSet.add(numId);
+                } else {
+                  // It's a string name - find matching option by display name
+                  const normalizedValue = v.toLowerCase().replace(/\s+/g, '_');
+                  const matchingOption = options.find(opt =>
+                    opt.display.toLowerCase().replace(/\s+/g, '_') === normalizedValue
+                  );
+                  if (matchingOption) {
+                    selectedSet.add(matchingOption.id);
+                  }
+                }
+              }
+            }
+
+            return selectedSet;
+          };
+
+          const selectedOptionIds = getSelectedOptionIds();
+
+          return (
+            <div
+              className="border rounded-md p-2 bg-background shadow-lg min-w-[200px] max-h-[250px] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground p-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading options...
+                </div>
+              ) : options.length === 0 ? (
+                <p className="text-muted-foreground text-sm p-2">No options available</p>
+              ) : (
+                <>
+                  {options.map((option) => (
+                    <label
+                      key={option.id}
+                      className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1.5 rounded text-sm"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        checked={selectedOptionIds.has(option.id)}
+                        onCheckedChange={(checked) => {
+                          const newIds = new Set(selectedOptionIds);
+                          if (checked) {
+                            newIds.add(option.id);
+                          } else {
+                            newIds.delete(option.id);
+                          }
+                          // Store as array of numeric IDs
+                          setEditingCellValue(Array.from(newIds));
+                        }}
+                      />
+                      <span>{option.display}</span>
+                    </label>
+                  ))}
+                  <div className="flex justify-end gap-1 mt-2 pt-2 border-t">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingCell(null);
+                        setEditingCellValue(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="h-6 text-xs"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        if (onRowUpdate) {
+                          // Send numeric IDs - backend will convert to string names if needed
+                          const idsToSave = Array.from(selectedOptionIds);
+                          try {
+                            await onRowUpdate(entry.id, column.key, idsToSave);
+                          } catch (err) {
+                            console.error('[MultipleLookups Save] failed:', err);
+                          }
+                        }
+                        setEditingCell(null);
+                        setEditingCellValue(null);
+                      }}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        }
+
         // Lookup - Searchable dropdown with options from related table (auto-saves on selection)
         if (columnType === 'lookup' || columnType === 'relation' || column.lookup_config) {
           const options = lookupOptions[column.key] || [];
@@ -3720,7 +4197,42 @@ export default function TeeemTableView({
 
       // Handle boolean
       if (typeof value === "boolean" || column.column_type === "boolean") {
-        const boolValue = typeof value === "boolean" ? value : value === "true" || value === true || value === 1;
+        const boolValue = typeof value === "boolean" ? value : value === "true" || value === "t" || value === true || value === 1;
+
+        // Special case: Link to CG column - show clickable button when linked
+        if (column.key === "link_to_cg") {
+          if (boolValue) {
+            // For company-type contacts, link to the Company page
+            if (entry.linked_company_id) {
+              return (
+                <a
+                  href={`/corporate/companies/${entry.linked_company_id}`}
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-700 rounded border border-green-200 hover:bg-green-100 hover:border-green-300 transition-colors text-xs font-medium"
+                  title="View linked Company"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View
+                </a>
+              );
+            }
+            // For person-type contacts, link to the SSoT page (cg-new)
+            return (
+              <a
+                href="/corporate/cg-new"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-700 rounded border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors text-xs font-medium"
+                title="View Company Group Memberships"
+              >
+                <ExternalLink className="h-3 w-3" />
+                View
+              </a>
+            );
+          }
+          // Not linked - show dash
+          return <span className="text-muted-foreground">-</span>;
+        }
+
         return boolValue ? (
           <Check className="h-4 w-4 text-green-600" />
         ) : (
@@ -3884,6 +4396,24 @@ export default function TeeemTableView({
       // Handle percentage
       if (column.column_type === "percentage" && typeof value === "number") {
         return `${value}%`;
+      }
+
+      // Handle ACN - format as XXX XXX XXX (9 digits)
+      if (column.column_type === "acn" && value) {
+        const acn = String(value).replace(/\s/g, '');
+        if (acn.length === 9 && /^\d+$/.test(acn)) {
+          return <span className="font-mono">{acn.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}</span>;
+        }
+        return <span className="font-mono">{String(value)}</span>;
+      }
+
+      // Handle ABN - format as XX XXX XXX XXX (11 digits)
+      if (column.column_type === "abn" && value) {
+        const abn = String(value).replace(/\s/g, '');
+        if (abn.length === 11 && /^\d+$/.test(abn)) {
+          return <span className="font-mono">{abn.replace(/(\d{2})(\d{3})(\d{3})(\d{3})/, '$1 $2 $3 $4')}</span>;
+        }
+        return <span className="font-mono">{String(value)}</span>;
       }
 
       // Handle date
@@ -4626,6 +5156,16 @@ export default function TeeemTableView({
   const renderGroupedTable = () => {
     if (!groupedEntries) return null;
 
+    // Don't render full table while waiting for collapse-all to complete
+    // This prevents rendering all rows expanded on first render
+    if (collapsedGroups.has('__collapse_all_pending__')) {
+      return (
+        <div className="flex items-center justify-center h-32 text-muted-foreground">
+          Loading grouped view...
+        </div>
+      );
+    }
+
     const allKeys = getAllGroupKeys(groupedEntries);
     const allCollapsed = allKeys.length > 0 && allKeys.every(k => collapsedGroups.has(k));
     const allExpanded = collapsedGroups.size === 0;
@@ -4746,7 +5286,6 @@ export default function TeeemTableView({
 
   // Render flat table
   const renderFlatTable = () => {
-    console.log('[TeeemTableView] renderFlatTable columnWidths:', columnWidths);
     return (
     <Table className="w-full" style={{ tableLayout: 'fixed', width: `${totalTableWidth}px` }}>
         <colgroup>
@@ -4769,67 +5308,93 @@ export default function TeeemTableView({
               </TableCell>
             </TableRow>
           ) : (
-            filteredAndSortedEntries.map((row, rowIndex) => (
-              <TableRow
-                key={`${row.id}-${rowIndex}`}
-                className={cn(
-                  selectedRows.has(row.id) && "bg-muted/50",
-                  editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
-                  "hover:bg-muted/30 cursor-pointer"
-                )}
-                onClick={(e) => {
-                  console.log('Row clicked', row.id, 'target:', e.target, 'onRowClick:', !!onRowClick);
-                  if (!editingRowIds.has(row.id) && onRowClick) {
-                    onRowClick(row);
+            <>
+              {displayedRows.map((row, rowIndex) => (
+                <TableRow
+                  key={`${row.id}-${rowIndex}`}
+                  className={cn(
+                    selectedRows.has(row.id) && "bg-muted/50",
+                    editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
+                    "hover:bg-muted/30 cursor-pointer"
+                  )}
+                  onClick={(e) => {
+                    if (!editingRowIds.has(row.id) && onRowClick) {
+                      onRowClick(row);
+                    }
+                  }}
+                  onDoubleClick={() =>
+                    !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
                   }
-                }}
-                onDoubleClick={() =>
-                  !editingRowIds.has(row.id) && onRowDoubleClick?.(row)
-                }
-              >
-                {visibleColumnsInOrder.map((column, colIndex) => {
-                  const isSystemGen = isSystemGeneratedColumn(column);
-                  return (
+                >
+                  {visibleColumnsInOrder.map((column, colIndex) => {
+                    const isSystemGen = isSystemGeneratedColumn(column);
+                    return (
+                    <TableCell
+                      key={`${column.key}-${colIndex}`}
+                      style={{
+                        width: columnWidths[column.key] || column.width,
+                        minWidth: columnWidths[column.key] || column.width,
+                        ...(column.key === "select" && {
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 10,
+                          background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
+                          boxShadow: '1px 0 0 #d4d4d4', // Right border
+                          textAlign: 'center',
+                          verticalAlign: 'middle'
+                        }),
+                        ...(column.key === "actions" && {
+                          position: 'sticky',
+                          right: 0,
+                          zIndex: 10,
+                          background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
+                          boxShadow: '-1px 0 0 #d4d4d4', // Left border
+                        }),
+                        ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
+                          backgroundColor: SYSTEM_COLUMN_BG,
+                        })
+                      }}
+                      className={cn(
+                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "actions" && "!border-l-0"
+                      )}
+                    >
+                      {renderCellValue(row, column)}
+                    </TableCell>
+                  );
+                  })}
+                </TableRow>
+              ))}
+              {/* Show "Load More" row if there are more rows to display */}
+              {!showAllRows && displayedRows.length < filteredAndSortedEntries.length && (
+                <TableRow>
                   <TableCell
-                    key={`${column.key}-${colIndex}`}
-                    style={{
-                      width: columnWidths[column.key] || column.width,
-                      minWidth: columnWidths[column.key] || column.width,
-                      ...(column.key === "select" && {
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 10,
-                        background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
-                        boxShadow: '1px 0 0 #d4d4d4', // Right border
-                        textAlign: 'center',
-                        verticalAlign: 'middle'
-                      }),
-                      ...(column.key === "actions" && {
-                        position: 'sticky',
-                        right: 0,
-                        zIndex: 10,
-                        background: 'hsl(40, 11%, 95%)', // Light tint - between white and muted
-                        boxShadow: '-1px 0 0 #d4d4d4', // Left border
-                      }),
-                      ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
-                        backgroundColor: SYSTEM_COLUMN_BG,
-                      })
-                    }}
-                    className={cn(
-                      column.key === "select" && "!border-r-0 !p-0 !h-full",
-                      column.key === "actions" && "!border-l-0"
-                    )}
+                    colSpan={visibleColumnsInOrder.length}
+                    className="h-12 text-center"
                   >
-                    {renderCellValue(row, column)}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRowLimit(prev => prev + INITIAL_ROW_LIMIT)}
+                    >
+                      Load more ({filteredAndSortedEntries.length - displayedRows.length} remaining)
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-2"
+                      onClick={() => setShowAllRows(true)}
+                    >
+                      Show all {filteredAndSortedEntries.length}
+                    </Button>
                   </TableCell>
-                );
-                })}
-              </TableRow>
-            ))
+                </TableRow>
+              )}
+            </>
           )}
         </TableBody>
       </Table>
-  );
+    );
   };
 
   // Get active view name
@@ -4839,13 +5404,15 @@ export default function TeeemTableView({
   // MAIN RENDER
   // ============================================================================
 
+
   return (
     <div className="flex flex-col h-full gap-4">
-      {/* Data Health Widget */}
-      {showDataHealth && foundationIdNumeric && (
+      {/* Data Health Widget - shown when button clicked or showDataHealth prop is true */}
+      {(healthPanelOpen || showDataHealth) && foundationIdNumeric && (
         <DataHealthWidget
           foundationId={foundationIdNumeric}
-          compact
+          compact={!healthPanelOpen}
+          forceShow={healthPanelOpen}
           onIssueClick={onDataHealthIssueClick}
           onDataChanged={onRefresh}
         />
@@ -4863,10 +5430,17 @@ export default function TeeemTableView({
               onClick={onAddRow}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add
+              Add Record
             </Button>
           )}
           {leftActions}
+          {/* Health Indicator Button - shows if table has health checks */}
+          {foundationIdNumeric && (
+            <HealthIndicatorButton
+              foundationId={foundationIdNumeric}
+              onClick={() => setHealthPanelOpen(!healthPanelOpen)}
+            />
+          )}
           <SearchInput
           onSearch={handleSearchFromInput}
           onSearchAllChange={handleSearchAllChange}
@@ -4876,38 +5450,127 @@ export default function TeeemTableView({
         />
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
-          {/* Saved Views - show as many as fit, rest in dropdown */}
+        {/* Actions - right side with saved views and buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Saved Views - responsive: hide on small screens, show progressively on larger */}
           {savedViews.length > 0 && (
-            <div className="flex items-center gap-1 flex-1 min-w-0">
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-                {savedViews.map((view) => (
-                  <TooltipProvider key={view.id}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant={activeViewId === view.id ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => loadViewState(view)}
-                          className={cn(
-                            "shrink-0 whitespace-nowrap",
-                            view.is_global && "border-blue-300 dark:border-blue-700"
-                          )}
-                        >
-                          {view.is_global && (
-                            <Globe className="h-3 w-3 mr-1 text-blue-500" />
-                          )}
-                          {view.name}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {view.is_global ? "Global view" : "Personal view"}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ))}
-              </div>
+            <div className="flex items-center gap-1">
+              {/* Show views responsively based on screen size */}
+              {savedViews.slice(0, 2).map((view) => (
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          "shrink-0 whitespace-nowrap hidden sm:inline-flex",
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                        )}
+                        {view.name}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? "Global view" : "Personal view"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+              {/* Show more on medium screens */}
+              {savedViews.slice(2, 4).map((view) => (
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          "shrink-0 whitespace-nowrap hidden md:inline-flex",
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                        )}
+                        {view.name}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? "Global view" : "Personal view"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+              {/* Show even more on large screens */}
+              {savedViews.slice(4, 6).map((view) => (
+                <TooltipProvider key={view.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={activeViewId === view.id ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => loadViewState(view)}
+                        className={cn(
+                          "shrink-0 whitespace-nowrap hidden lg:inline-flex",
+                          view.is_global && "border-blue-300 dark:border-blue-700"
+                        )}
+                      >
+                        {view.is_global && (
+                          <Globe className="h-3 w-3 mr-1 text-blue-500" />
+                        )}
+                        {view.name}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {view.is_global ? "Global view" : "Personal view"}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ))}
+              {/* Dropdown for remaining views - show count based on screen size */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className={cn(
+                    "shrink-0",
+                    // Hide on small screens if no views to show in dropdown
+                    savedViews.length === 0 && "hidden",
+                    // Hide on lg screens if 6 or fewer views
+                    savedViews.length <= 6 && "lg:hidden",
+                    // Hide on md screens if 4 or fewer views
+                    savedViews.length <= 4 && "md:hidden",
+                    // Hide on sm screens if 2 or fewer views
+                    savedViews.length <= 2 && "sm:hidden"
+                  )}>
+                    {/* Show different counts based on screen size */}
+                    <span className="sm:hidden">+{savedViews.length}</span>
+                    <span className="hidden sm:inline md:hidden">+{savedViews.length - 2}</span>
+                    <span className="hidden md:inline lg:hidden">+{savedViews.length - 4}</span>
+                    <span className="hidden lg:inline">+{savedViews.length - 6}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {savedViews.map((view) => (
+                    <DropdownMenuItem
+                      key={view.id}
+                      onClick={() => loadViewState(view)}
+                      className={cn(
+                        activeViewId === view.id && "bg-accent"
+                      )}
+                    >
+                      {view.is_global && (
+                        <Globe className="h-3 w-3 mr-2 text-blue-500" />
+                      )}
+                      {view.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           )}
 
@@ -5259,30 +5922,27 @@ export default function TeeemTableView({
           <div className="space-y-6 py-4">
             <div className="space-y-2">
               <Label>Column to update</Label>
-              <Select
-                value={bulkUpdateColumn}
-                onValueChange={(val) => {
-                  setBulkUpdateColumn(val);
+              <ComboboxDropdown
+                items={COLUMNS.filter(
+                  (c) =>
+                    c.key !== "select" &&
+                    c.key !== "actions" &&
+                    c.key !== "id" &&
+                    c.editable !== false
+                )
+                  .sort((a, b) => a.label.localeCompare(b.label))
+                  .map((col) => ({
+                    id: col.key,
+                    label: col.label,
+                  }))}
+                selectedItem={bulkUpdateColumn ? { id: bulkUpdateColumn, label: COLUMNS.find(c => c.key === bulkUpdateColumn)?.label || bulkUpdateColumn } : undefined}
+                onSelect={(item) => {
+                  setBulkUpdateColumn(item.id);
                   setBulkUpdateValue(""); // Reset value when column changes
                 }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select column..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {COLUMNS.filter(
-                    (c) =>
-                      c.key !== "select" &&
-                      c.key !== "actions" &&
-                      c.key !== "id" &&
-                      c.editable !== false
-                  ).map((col) => (
-                    <SelectItem key={col.key} value={col.key}>
-                      {col.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select column..."
+                searchPlaceholder="Search columns..."
+              />
             </div>
 
             {bulkUpdateColumn && (
@@ -5292,11 +5952,48 @@ export default function TeeemTableView({
                   const selectedCol = COLUMNS.find(c => c.key === bulkUpdateColumn);
                   const hasChoices = selectedCol?.choices && selectedCol.choices.length > 0;
                   const isLookup = selectedCol?.column_type === 'lookup' || selectedCol?.lookup_config;
+                  const isMultipleLookups = selectedCol?.column_type === 'multiple_lookups';
                   const isChoice = selectedCol?.column_type === 'choice' || selectedCol?.column_type === 'single_select';
 
-                  console.log('[BulkUpdate] Column:', bulkUpdateColumn, 'hasChoices:', hasChoices, 'isLookup:', isLookup, 'choices:', selectedCol?.choices, 'column_type:', selectedCol?.column_type, 'lookupOptions:', lookupOptions[bulkUpdateColumn]);
+                  // Debug logging removed to prevent console flooding
 
-                  // For lookup columns, use the lookupOptions if available
+                  // For multiple_lookups columns, show checkboxes for multi-select
+                  if (isMultipleLookups) {
+                    const options = lookupOptions[bulkUpdateColumn] || [];
+                    const isLoading = lookupLoading[bulkUpdateColumn];
+                    // bulkUpdateValue stores comma-separated IDs for multiple lookups
+                    const selectedIds = bulkUpdateValue ? bulkUpdateValue.split(',').filter(Boolean) : [];
+
+                    return (
+                      <div className="border rounded-md p-3 max-h-[200px] overflow-y-auto space-y-2">
+                        {isLoading ? (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Loading options...
+                          </div>
+                        ) : options.length === 0 ? (
+                          <p className="text-muted-foreground text-sm">No options available</p>
+                        ) : (
+                          options.map((option) => (
+                            <label key={option.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
+                              <Checkbox
+                                checked={selectedIds.includes(String(option.id))}
+                                onCheckedChange={(checked) => {
+                                  const newIds = checked
+                                    ? [...selectedIds, String(option.id)]
+                                    : selectedIds.filter(id => id !== String(option.id));
+                                  setBulkUpdateValue(newIds.join(','));
+                                }}
+                              />
+                              <span className="text-sm">{option.display}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // For single lookup columns, use the lookupOptions if available
                   if (isLookup) {
                     const options = lookupOptions[bulkUpdateColumn] || [];
                     const isLoading = lookupLoading[bulkUpdateColumn];
@@ -5332,7 +6029,7 @@ export default function TeeemTableView({
                   if (hasChoices || isChoice) {
                     // Dropdown for choice columns with predefined options
                     const options = selectedCol?.choices || [];
-                    console.log('[BulkUpdate] Rendering choice dropdown with options:', options);
+                    // Debug logging removed to prevent console flooding
                     return (
                       <Select
                         value={bulkUpdateValue}
@@ -6040,10 +6737,10 @@ export default function TeeemTableView({
         />
       )}
 
-      {/* Global Views Manager - auto-enabled when foundationIdNumeric is set */}
-      {/* Per GOLD_STANDARD_TABLE.md: Tables with foundationIdNumeric get Filters button + GlobalViewsManager */}
+      {/* View Manager Sheet - auto-enabled when foundationIdNumeric is set */}
+      {/* Per GOLD_STANDARD_TABLE.md: Tables with foundationIdNumeric get Filters button + ViewManagerSheet */}
       {foundationIdNumeric && (
-        <GlobalViewsManager
+        <ViewManagerSheet
           open={showGlobalViewsManager}
           onOpenChange={setShowGlobalViewsManager}
           foundationId={foundationIdNumeric}

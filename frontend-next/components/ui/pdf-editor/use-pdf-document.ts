@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { PDFDocument } from "pdf-lib";
-import * as pdfjs from "pdfjs-dist";
+import { pdfjs } from "react-pdf";
 import type { PDFPage } from "./types";
 
-// Set up PDF.js worker
+// Set up PDF.js worker - use the version from react-pdf
 if (typeof window !== "undefined") {
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js`;
+  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 }
 
 interface UsePDFDocumentReturn {
@@ -100,6 +100,7 @@ export function usePDFDocument(url: string): UsePDFDocumentReturn {
     await page.render({
       canvasContext: context,
       viewport: viewport,
+      canvas: canvas,
     }).promise;
 
     return {

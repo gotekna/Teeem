@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_05_100003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -293,9 +293,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.boolean "is_primary", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "relationship_type"
+    t.text "relationship_description"
+    t.jsonb "display_position", default: {}
+    t.string "alignment", default: "neutral"
+    t.index ["alignment"], name: "index_case_contacts_on_alignment"
     t.index ["case_id", "contact_id"], name: "index_case_contacts_on_case_id_and_contact_id", unique: true
     t.index ["case_id"], name: "index_case_contacts_on_case_id"
     t.index ["contact_id"], name: "index_case_contacts_on_contact_id"
+    t.index ["relationship_type"], name: "index_case_contacts_on_relationship_type"
     t.index ["role"], name: "index_case_contacts_on_role"
   end
 
@@ -398,6 +404,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "parent_case_id"
+    t.integer "hierarchy_level", default: 0
     t.index ["assigned_to_id"], name: "index_cases_on_assigned_to_id"
     t.index ["case_number"], name: "index_cases_on_case_number", unique: true
     t.index ["case_type"], name: "index_cases_on_case_type"
@@ -406,6 +414,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.index ["contact_id"], name: "index_cases_on_contact_id"
     t.index ["created_by_id"], name: "index_cases_on_created_by_id"
     t.index ["deadline"], name: "index_cases_on_deadline"
+    t.index ["parent_case_id", "status"], name: "index_cases_on_parent_and_status"
+    t.index ["parent_case_id"], name: "index_cases_on_parent_case_id"
     t.index ["priority"], name: "index_cases_on_priority"
     t.index ["status"], name: "index_cases_on_status"
   end
@@ -420,7 +430,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.integer "recipient_user_id"
     t.bigint "job_id"
     t.boolean "saved_to_job", default: false
+    t.bigint "contact_id"
+    t.bigint "case_id"
+    t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
+    t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
     t.index ["created_at"], name: "index_chat_messages_on_created_at"
     t.index ["job_id", "channel", "created_at"], name: "index_chat_messages_on_construction_channel_created"
     t.index ["job_id"], name: "index_chat_messages_on_job_id"
@@ -965,8 +979,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "contact_types", default: [], array: true
-    t.index ["contact_types"], name: "index_contact_roles_on_contact_types", using: :gin
+    t.text "contact_types", default: "{}"
     t.index ["name"], name: "index_contact_roles_on_name", unique: true
   end
 
@@ -1007,7 +1020,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.datetime "updated_at", null: false
     t.datetime "last_synced_at"
     t.text "xero_sync_error"
-    t.string "contact_types", default: [], array: true
+    t.text "contact_types", default: "{}"
     t.integer "rating", default: 0
     t.decimal "response_rate", precision: 5, scale: 2, default: "0.0"
     t.integer "avg_response_time"
@@ -1065,9 +1078,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.bigint "company_group_id"
     t.integer "xero_invoice_count", default: 0
     t.boolean "xero_disconnect", default: false
+    t.boolean "link_to_cg", default: false
+    t.integer "linked_company_id"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
-    t.index ["contact_types"], name: "index_contacts_on_contact_types", using: :gin
     t.index ["director_id"], name: "index_contacts_on_director_id", unique: true, where: "(director_id IS NOT NULL)"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
@@ -1079,6 +1093,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
     t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
     t.index ["xero_id", "last_synced_at"], name: "index_contacts_on_xero_id_and_last_synced_at"
+  end
+
+  create_table "data_quality_issues", force: :cascade do |t|
+    t.string "view_name", null: false
+    t.string "check_name", null: false
+    t.string "severity", default: "warning", null: false
+    t.string "status", default: "open", null: false
+    t.text "description", null: false
+    t.jsonb "details", default: {}
+    t.integer "affected_row_count"
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.string "resolved_by"
+    t.text "resolution_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["check_name"], name: "index_data_quality_issues_on_check_name"
+    t.index ["detected_at"], name: "index_data_quality_issues_on_detected_at"
+    t.index ["severity", "status"], name: "index_data_quality_issues_on_severity_and_status"
+    t.index ["severity"], name: "index_data_quality_issues_on_severity"
+    t.index ["status"], name: "index_data_quality_issues_on_status"
+    t.index ["view_name", "status"], name: "index_data_quality_issues_on_view_name_and_status"
+    t.index ["view_name"], name: "index_data_quality_issues_on_view_name"
   end
 
   create_table "designs", force: :cascade do |t|
@@ -1203,6 +1240,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.string "validated_by"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "sharepoint_url"
     t.index ["job_id"], name: "index_document_tasks_on_job_id"
   end
 
@@ -1223,12 +1261,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.string "abbreviation"
     t.jsonb "aliases", default: []
     t.string "display_name"
+    t.string "scope", default: "company"
+    t.string "file_extensions", default: [], array: true
+    t.string "target_folder"
     t.index ["active"], name: "index_document_types_on_active"
     t.index ["aliases"], name: "index_document_types_on_aliases", using: :gin
     t.index ["category"], name: "index_document_types_on_category"
+    t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
     t.index ["name"], name: "index_document_types_on_name", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
+    t.index ["scope"], name: "index_document_types_on_scope"
   end
 
   create_table "document_verification_feedbacks", force: :cascade do |t|
@@ -1268,6 +1311,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.datetime "updated_at", null: false
     t.string "folder_path"
     t.index ["name"], name: "index_documentation_categories_on_name", unique: true
+  end
+
+  create_table "email_case_proposals", force: :cascade do |t|
+    t.bigint "email_warehouse_id"
+    t.bigint "case_record_id"
+    t.bigint "created_by_id"
+    t.bigint "approved_by_id"
+    t.string "status", default: "pending", null: false
+    t.jsonb "extracted_data", default: {}
+    t.text "ai_prompt"
+    t.text "ai_response_raw"
+    t.integer "processing_time_ms"
+    t.string "ai_model_used"
+    t.decimal "confidence_score", precision: 3, scale: 2
+    t.text "rejection_reason"
+    t.text "error_message"
+    t.datetime "approved_at"
+    t.jsonb "folder_paths", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_email_case_proposals_on_approved_by_id"
+    t.index ["case_record_id"], name: "index_email_case_proposals_on_case_record_id"
+    t.index ["created_by_id"], name: "index_email_case_proposals_on_created_by_id"
+    t.index ["email_warehouse_id", "status"], name: "index_email_case_proposals_on_email_warehouse_id_and_status"
+    t.index ["email_warehouse_id"], name: "index_email_case_proposals_on_email_warehouse_id"
+    t.index ["status"], name: "index_email_case_proposals_on_status"
   end
 
   create_table "email_job_proposals", force: :cascade do |t|
@@ -1907,9 +1976,52 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "folder_path"
-    t.index ["job_id", "name"], name: "index_job_documentation_tabs_on_job_id_and_name", unique: true
+    t.bigint "parent_id"
+    t.index ["job_id", "name", "parent_id"], name: "index_job_doc_tabs_on_job_name_parent", unique: true
     t.index ["job_id", "sequence_order"], name: "index_job_documentation_tabs_on_job_id_and_sequence_order"
     t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
+    t.index ["parent_id"], name: "index_job_documentation_tabs_on_parent_id"
+  end
+
+  create_table "job_documents", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "document_type_id"
+    t.string "onedrive_item_id", null: false
+    t.string "onedrive_drive_id"
+    t.string "file_name", null: false
+    t.string "file_extension"
+    t.string "file_type"
+    t.bigint "file_size"
+    t.string "folder_path"
+    t.string "web_url"
+    t.string "thumbnail_url"
+    t.string "version_id"
+    t.datetime "last_modified_at"
+    t.string "last_modified_by"
+    t.string "sync_status", default: "synced"
+    t.datetime "last_synced_at"
+    t.jsonb "cad_metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "ai_suggested_type_id"
+    t.string "ai_proposed_name"
+    t.decimal "ai_confidence", precision: 5, scale: 2
+    t.text "ai_reasoning"
+    t.datetime "ai_analyzed_at"
+    t.string "rename_status", default: "pending"
+    t.datetime "rename_approved_at"
+    t.bigint "rename_approved_by_id"
+    t.string "original_file_name"
+    t.index ["ai_analyzed_at"], name: "index_job_documents_on_ai_analyzed_at"
+    t.index ["ai_suggested_type_id"], name: "index_job_documents_on_ai_suggested_type_id"
+    t.index ["document_type_id"], name: "index_job_documents_on_document_type_id"
+    t.index ["file_type"], name: "index_job_documents_on_file_type"
+    t.index ["job_id", "file_type"], name: "index_job_documents_on_job_id_and_file_type"
+    t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
+    t.index ["job_id"], name: "index_job_documents_on_job_id"
+    t.index ["onedrive_item_id"], name: "index_job_documents_on_onedrive_item_id", unique: true
+    t.index ["rename_status"], name: "index_job_documents_on_rename_status"
+    t.index ["sync_status"], name: "index_job_documents_on_sync_status"
   end
 
   create_table "job_people", force: :cascade do |t|
@@ -2209,6 +2321,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
     t.index ["active"], name: "index_minute_templates_on_active"
     t.index ["name"], name: "index_minute_templates_on_name", unique: true
     t.index ["template_type"], name: "index_minute_templates_on_template_type"
+  end
+
+  create_table "mv_refresh_logs", force: :cascade do |t|
+    t.string "view_name", null: false
+    t.datetime "started_at", null: false
+    t.datetime "completed_at"
+    t.integer "row_count"
+    t.integer "previous_row_count"
+    t.float "duration_seconds"
+    t.string "status", default: "in_progress", null: false
+    t.text "error_message"
+    t.string "triggered_by"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["started_at"], name: "index_mv_refresh_logs_on_started_at"
+    t.index ["status"], name: "index_mv_refresh_logs_on_status"
+    t.index ["view_name", "started_at"], name: "index_mv_refresh_logs_on_view_name_and_started_at"
+    t.index ["view_name", "status"], name: "index_mv_refresh_logs_on_view_name_and_status"
+    t.index ["view_name"], name: "index_mv_refresh_logs_on_view_name"
   end
 
   create_table "notifications", force: :cascade do |t|
@@ -4170,6 +4302,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
   add_foreign_key "case_timeline_events", "companies"
   add_foreign_key "case_timeline_events", "contacts"
   add_foreign_key "case_timeline_events", "jobs"
+  add_foreign_key "cases", "cases", column: "parent_case_id"
   add_foreign_key "cases", "companies"
   add_foreign_key "cases", "company_groups"
   add_foreign_key "cases", "contacts"
@@ -4226,6 +4359,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
   add_foreign_key "document_tasks", "jobs"
   add_foreign_key "document_verification_feedbacks", "company_documents"
   add_foreign_key "document_verification_feedbacks", "users"
+  add_foreign_key "email_case_proposals", "cases", column: "case_record_id"
+  add_foreign_key "email_case_proposals", "email_warehouse"
+  add_foreign_key "email_case_proposals", "users", column: "approved_by_id"
+  add_foreign_key "email_case_proposals", "users", column: "created_by_id"
   add_foreign_key "email_job_proposals", "email_warehouse"
   add_foreign_key "email_job_proposals", "jobs"
   add_foreign_key "email_job_proposals", "users", column: "approved_by_user_id"
@@ -4259,7 +4396,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_04_014132) do
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"
+  add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
   add_foreign_key "job_documentation_tabs", "jobs"
+  add_foreign_key "job_documents", "document_types"
+  add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
+  add_foreign_key "job_documents", "jobs"
+  add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
   add_foreign_key "job_status_stages", "job_stages"

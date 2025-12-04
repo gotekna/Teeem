@@ -47,11 +47,14 @@ import {
   Eye,
   AlertTriangle,
   BarChart3,
+  Database,
+  HardDrive,
+  RefreshCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
-import { RefreshCw, Link2, Unlink, Sparkles } from "lucide-react";
+import { RefreshCw, Link2, Unlink, Sparkles, Pencil, GitMerge } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
@@ -74,6 +77,7 @@ const DOCUMENT_TABS = [
   { id: "registry", name: "REGISTRY", icon: FileText },
   { id: "trust", name: "TRUST", icon: Users },
   { id: "documents", name: "Documents", icon: FileText },
+  { id: "data", name: "Data", icon: Database },
   { id: "activity", name: "Activity", icon: Clock },
 ];
 
@@ -140,6 +144,7 @@ interface Company {
   abn?: string;
   tfn?: string;
   entity_type?: string;
+  contact_id?: number; // SSoT: Link to Contact record
   status?: string;
   date_incorporated?: string;
   purpose?: string;
@@ -163,6 +168,11 @@ interface Company {
   company_group?: string | { name: string };
   company_group_id?: number;
   group_name?: string;
+  parent_company_id?: number;
+  parent_company?: { id: number; name: string };
+  // Consolidation
+  consolidation_parent_id?: number;
+  consolidation_parent?: { id: number; name: string };
   // Corporate details
   corporate_key?: string;
   asic_username?: string;
@@ -1526,10 +1536,20 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const [companyGroups, setCompanyGroups] = React.useState<CompanyGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = React.useState(String(company.company_group_id || ""));
   const [savingGroup, setSavingGroup] = React.useState(false);
+  // Parent company state - SSoT: Use consolidation_parent_id for hierarchy
+  const [parentCompanyOptions, setParentCompanyOptions] = React.useState<{ id: number; name: string }[]>([]);
+  const [selectedParentId, setSelectedParentId] = React.useState(String(company.consolidation_parent_id || ""));
+  const [savingParent, setSavingParent] = React.useState(false);
+  // Trustee state
+  const [availableTrusts, setAvailableTrusts] = React.useState<{ id: number; name: string; entity_type?: string }[]>([]);
+  const [selectedTrustName, setSelectedTrustName] = React.useState(company.trust_name || "");
+  const [savingTrustee, setSavingTrustee] = React.useState(false);
 
   React.useEffect(() => {
     loadConsolidatedCompanies();
     loadCompanyGroups();
+    loadParentCompanyOptions();
+    loadAvailableTrusts();
   }, [company.id]);
 
   const loadConsolidatedCompanies = async () => {
@@ -1568,6 +1588,74 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     }
   };
 
+  const loadParentCompanyOptions = async () => {
+    try {
+      const params: Record<string, string | number> = {};
+      if (company.company_group_id) {
+        params.company_group_id = company.company_group_id;
+      }
+      const response = await api.get<{ companies: { id: number; name: string }[] }>("/api/v1/companies", { params });
+      // Exclude current company from parent options
+      const filtered = (response.companies || []).filter((c) => c.id !== company.id);
+      setParentCompanyOptions(filtered);
+    } catch (error) {
+      console.error("Failed to load parent company options:", error);
+    }
+  };
+
+  const handleParentChange = async (newParentId: string) => {
+    if (newParentId === selectedParentId) return;
+    try {
+      setSavingParent(true);
+      // SSoT: Use consolidation_parent_id for hierarchy (single source of truth)
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: { consolidation_parent_id: newParentId || null },
+      });
+      setSelectedParentId(newParentId);
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to update parent company:", error);
+    } finally {
+      setSavingParent(false);
+    }
+  };
+
+  const loadAvailableTrusts = async () => {
+    try {
+      const params: Record<string, string | number> = {};
+      if (company.company_group_id) {
+        params.company_group_id = company.company_group_id;
+      }
+      const response = await api.get<{ companies: { id: number; name: string; entity_type?: string }[] }>("/api/v1/companies", { params });
+      // Filter to only trusts and superfunds
+      const trusts = (response.companies || []).filter((c) =>
+        ["Trust", "Superfund"].includes(c.entity_type || "")
+      );
+      setAvailableTrusts(trusts);
+    } catch (error) {
+      console.error("Failed to load available trusts:", error);
+    }
+  };
+
+  const handleTrusteeChange = async (trustName: string) => {
+    if (trustName === selectedTrustName) return;
+    try {
+      setSavingTrustee(true);
+      await api.put(`/api/v1/companies/${company.id}`, {
+        company: {
+          is_trustee: trustName ? true : false,
+          trust_name: trustName || null,
+        },
+      });
+      setSelectedTrustName(trustName);
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to update trustee:", error);
+    } finally {
+      setSavingTrustee(false);
+    }
+  };
+
   const handleGroupChange = async (newGroupId: string) => {
     if (newGroupId === selectedGroupId) return;
     try {
@@ -1593,8 +1681,12 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
     if (!selectedCompanyId) return;
     try {
       setSaving(true);
+      // SSoT: Only use consolidation_parent_id for hierarchy (single source of truth)
       await api.put(`/api/v1/companies/${selectedCompanyId}`, {
-        company: { consolidation_parent_id: company.id, company_group_id: company.company_group_id },
+        company: {
+          consolidation_parent_id: company.id,
+          company_group_id: company.company_group_id
+        },
       });
       setShowAddForm(false);
       setSelectedCompanyId("");
@@ -1610,6 +1702,7 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
   const handleRemoveConsolidation = async (companyId: number) => {
     if (!confirm("Remove this company from consolidation?")) return;
     try {
+      // SSoT: Only clear consolidation_parent_id (single source of truth)
       await api.put(`/api/v1/companies/${companyId}`, {
         company: { consolidation_parent_id: null },
       });
@@ -1630,11 +1723,11 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
 
   return (
     <div className="space-y-6">
-      {/* Company Group Selector */}
+      {/* Company Group & Parent Company Selectors */}
       <Card>
-        <CardContent className="p-4">
+        <CardContent className="p-4 space-y-4">
           <div className="flex items-center gap-4">
-            <Label className="whitespace-nowrap">Company Group:</Label>
+            <Label className="whitespace-nowrap w-32">Company Group:</Label>
             <select
               value={selectedGroupId}
               onChange={(e) => handleGroupChange(e.target.value)}
@@ -1650,8 +1743,72 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
             </select>
             {savingGroup && <span className="text-sm text-muted-foreground">Saving...</span>}
           </div>
+          <div className="flex items-center gap-4">
+            <Label className="whitespace-nowrap w-32">Parent Company:</Label>
+            <select
+              value={selectedParentId}
+              onChange={(e) => handleParentChange(e.target.value)}
+              disabled={savingParent}
+              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            >
+              <option value="">None (Top-level entity)</option>
+              {parentCompanyOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {savingParent && <span className="text-sm text-muted-foreground">Saving...</span>}
+          </div>
+          <div className="flex items-center gap-4">
+            <Label className="whitespace-nowrap w-32">Trustee For:</Label>
+            <select
+              value={selectedTrustName}
+              onChange={(e) => handleTrusteeChange(e.target.value)}
+              disabled={savingTrustee}
+              className="block w-full max-w-md rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+            >
+              <option value="">Not a trustee</option>
+              {availableTrusts.map((trust) => (
+                <option key={trust.id} value={trust.name}>
+                  {trust.name}
+                </option>
+              ))}
+            </select>
+            {savingTrustee && <span className="text-sm text-muted-foreground">Saving...</span>}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Set relationships: Parent Company for hierarchy, Trustee For if this company acts as trustee for a trust
+          </p>
         </CardContent>
       </Card>
+
+      {/* Consolidated Under Banner */}
+      {company.consolidation_parent && (
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                <GitMerge className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  This entity is consolidated under{" "}
+                  <button
+                    onClick={() => router.push(`/corporate/companies/${company.consolidation_parent!.id}`)}
+                    className="text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                  >
+                    {company.consolidation_parent.name}
+                  </button>
+                </p>
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  Financial results are reported through the consolidation parent
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -2353,6 +2510,387 @@ function ActivityTab() {
   );
 }
 
+// Data Warehouse Tab - Shows data stats, sync status, and storage information
+interface DataStats {
+  company: { id: number; name: string; code: string };
+  documents: {
+    total_documents: number;
+    by_source: Record<string, number>;
+    by_folder: Record<string, number>;
+    by_document_type: Record<string, number>;
+    by_ai_status: Record<string, number>;
+    with_files: number;
+    verified: number;
+    needs_review: number;
+    latest_upload: string | null;
+    oldest_document: string | null;
+    newest_document: string | null;
+    financial_years: number[];
+    total_file_size: number;
+  };
+  document_types: Array<{ type: string; abbreviation: string; count: number }>;
+  onedrive: {
+    total: number;
+    last_synced: string | null;
+    by_folder: Record<string, number>;
+  };
+  xero: {
+    connected: boolean;
+    tenant_name?: string;
+    last_sync?: string;
+    status?: string;
+  };
+  sharepoint: {
+    folder_url: string | null;
+    has_folder: boolean;
+  };
+  file_extensions: Record<string, number>;
+  last_updated: string;
+}
+
+function DataWarehouseTab({ companyId }: { companyId: string }) {
+  const [loading, setLoading] = React.useState(true);
+  const [stats, setStats] = React.useState<DataStats | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  React.useEffect(() => {
+    loadStats();
+  }, [companyId]);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; data: DataStats }>(
+        `/api/v1/companies/${companyId}/data_stats`
+      );
+      if (response.success) {
+        setStats(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load data stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadStats();
+    setRefreshing(false);
+  };
+
+  const formatBytes = (bytes: number) => {
+    if (!bytes) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "N/A";
+    return format(new Date(dateStr), "MMM d, yyyy h:mm a");
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!stats) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        Failed to load data statistics
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium">Data Warehouse</h3>
+          <p className="text-sm text-muted-foreground">
+            Document storage, sync status, and data statistics for {stats.company.name}
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+          <RefreshCcw className={cn("h-4 w-4 mr-2", refreshing && "animate-spin")} />
+          Refresh
+        </Button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents.total_documents}</p>
+                <p className="text-xs text-muted-foreground">Total Documents</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents.verified}</p>
+                <p className="text-xs text-muted-foreground">AI Verified</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
+                <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{stats.documents.needs_review}</p>
+                <p className="text-xs text-muted-foreground">Needs Review</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <HardDrive className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{formatBytes(stats.documents.total_file_size)}</p>
+                <p className="text-xs text-muted-foreground">Total Size</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Integrations Status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* SharePoint/OneDrive */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Cloud className="h-4 w-4" />
+              SharePoint / OneDrive
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Connected</span>
+              {stats.sharepoint.has_folder ? (
+                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Not Connected
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Synced Documents</span>
+              <span className="font-medium">{stats.onedrive.total}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Last Synced</span>
+              <span className="text-sm">{formatDate(stats.onedrive.last_synced)}</span>
+            </div>
+            {stats.sharepoint.folder_url && (
+              <Button variant="outline" size="sm" className="w-full" asChild>
+                <a href={stats.sharepoint.folder_url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open SharePoint Folder
+                </a>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Xero */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Xero Accounting
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Status</span>
+              {stats.xero.connected ? (
+                <Badge variant="default" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Connected
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Not Connected
+                </Badge>
+              )}
+            </div>
+            {stats.xero.tenant_name && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Organization</span>
+                <span className="font-medium">{stats.xero.tenant_name}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Last Sync</span>
+              <span className="text-sm">{formatDate(stats.xero.last_sync || null)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Document Breakdown */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* By Document Type */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Documents by Type</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.document_types.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No documents yet</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {stats.document_types.map((dt) => (
+                  <div key={dt.type || "unknown"} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {dt.abbreviation && (
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {dt.abbreviation}
+                        </Badge>
+                      )}
+                      <span className="text-sm truncate">{dt.type || "Unclassified"}</span>
+                    </div>
+                    <Badge variant="secondary">{dt.count}</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* By Folder */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Documents by Folder</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {Object.keys(stats.documents.by_folder).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No documents yet</p>
+            ) : (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {Object.entries(stats.documents.by_folder)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([folder, count]) => (
+                    <div key={folder || "unfiled"} className="flex items-center justify-between">
+                      <span className="text-sm truncate">{folder || "Unfiled"}</span>
+                      <Badge variant="secondary">{count}</Badge>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* AI Verification Status */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">AI Verification Status</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-3">
+            {Object.entries(stats.documents.by_ai_status).map(([status, count]) => {
+              const config = {
+                verified: { color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400", icon: CheckCircle },
+                mismatch: { color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400", icon: XCircle },
+                needs_review: { color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400", icon: Eye },
+                pending: { color: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300", icon: Clock },
+              }[status] || { color: "bg-gray-100 text-gray-600", icon: FileText };
+              const Icon = config.icon;
+              return (
+                <Badge key={status || "none"} variant="outline" className={cn("text-sm py-1 px-3", config.color)}>
+                  <Icon className="h-3 w-3 mr-1" />
+                  {status || "None"}: {count}
+                </Badge>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* File Extensions */}
+      {Object.keys(stats.file_extensions).length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">File Types</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(stats.file_extensions).map(([ext, count]) => (
+                <Badge key={ext} variant="secondary" className="font-mono">
+                  {ext}: {count}
+                </Badge>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Financial Years Coverage */}
+      {stats.documents.financial_years.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Financial Years Coverage</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {stats.documents.financial_years.map((year) => (
+                <Badge key={year} variant="outline" className="bg-blue-50 dark:bg-blue-900/20">
+                  FY{year}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Documents dated from {formatDate(stats.documents.oldest_document)} to {formatDate(stats.documents.newest_document)}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Last Updated */}
+      <div className="text-xs text-muted-foreground text-right">
+        Last updated: {formatDate(stats.last_updated)}
+      </div>
+    </div>
+  );
+}
+
 // Xero Connection Card for BANK tab
 interface XeroConnectionStatus {
   connected: boolean;
@@ -2363,6 +2901,92 @@ interface XeroConnectionStatus {
   last_sync_error?: string;
   token_expires_at?: string;
   days_since_sync?: number;
+}
+
+// SSoT: ATO Setup Card - Shows Contact data as source of truth
+function ATOSetupCard({ company }: { company: Company }) {
+  const router = useRouter();
+
+  if (!company.contact_id) {
+    return (
+      <Card className="mb-4 border-yellow-200 bg-yellow-50 dark:bg-yellow-900/10">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+            <AlertTriangle className="h-5 w-5" />
+            SSoT Not Connected
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-3">
+            This company is not linked to a Contact record. Link to a Contact for single source of truth management.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => router.push("/contacts")}>
+            Link to Contact
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mb-4 border-blue-200 dark:border-blue-800">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-600" />
+            ATO Registration (SSoT)
+          </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/contacts/${company.contact_id}?edit=true`)}
+            className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+          >
+            <Pencil className="h-4 w-4 mr-1" />
+            Edit
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Data sourced from Contact record (single source of truth)
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">ABN</p>
+            <p className="font-medium">{company.formatted_abn || company.abn || "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">TFN</p>
+            <p className="font-medium">{company.tfn ? "••• ••• •••" : "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">GST Status</p>
+            <Badge
+              variant="outline"
+              className={company.gst_registration_status === "registered"
+                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+              }
+            >
+              {company.gst_registration_status === "registered" ? "Registered" : "Not Registered"}
+            </Badge>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Source</p>
+            <Button
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-blue-600"
+              onClick={() => router.push(`/contacts/${company.contact_id}`)}
+            >
+              View Contact →
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function XeroConnectionCard({ companyId, onSyncComplete, onConnectionChange }: { companyId: string; onSyncComplete?: () => void; onConnectionChange?: (connected: boolean) => void }) {
@@ -2808,6 +3432,7 @@ export default function CompanyDetailPage() {
   const [activeTab, setActiveTab] = React.useState("overview");
   const [overviewSubTab, setOverviewSubTab] = React.useState("info");
   const [xeroConnected, setXeroConnected] = React.useState(false);
+  const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -2824,9 +3449,23 @@ export default function CompanyDetailPage() {
     }
   }, [companyId]);
 
+  // Load document counts for tabs
+  const loadDocumentCounts = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; counts: Record<string, number> }>(
+        `/api/v1/company_documents/counts`,
+        { params: { company_id: companyId } }
+      );
+      setDocumentCounts(response.counts || {});
+    } catch (error) {
+      console.error("Failed to load document counts:", error);
+    }
+  }, [companyId]);
+
   React.useEffect(() => {
     loadCompany();
-  }, [loadCompany]);
+    loadDocumentCounts();
+  }, [loadCompany, loadDocumentCounts]);
 
   // Handle tab from URL
   React.useEffect(() => {
@@ -2931,43 +3570,53 @@ export default function CompanyDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Main Tabs */}
+      {/* Main Tabs - flex wrap for two rows */}
       <div className="border-b mb-4">
-        <ScrollArea className="w-full whitespace-nowrap">
-          <div className="flex gap-1 pb-2">
-            <button
-              onClick={() => handleTabChange("overview")}
-              className={cn(
-                "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                activeTab === "overview"
-                  ? "border-primary text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-              )}
-            >
-              <Building2 className="h-4 w-4 mr-2" />
-              Overview
-            </button>
-            {DOCUMENT_TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={cn(
-                    "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-                    activeTab === tab.id
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                  )}
-                >
-                  <Icon className="h-4 w-4 mr-2" />
-                  {tab.name}
-                </button>
-              );
-            })}
-          </div>
-          <ScrollBar orientation="horizontal" />
-        </ScrollArea>
+        <div className="flex flex-wrap gap-1 pb-2">
+          <button
+            onClick={() => handleTabChange("overview")}
+            className={cn(
+              "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+              activeTab === "overview"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+            )}
+          >
+            <Building2 className="h-4 w-4 mr-2" />
+            Overview
+          </button>
+          {DOCUMENT_TABS.map((tab) => {
+            const Icon = tab.icon;
+            // Map tab id to count key (handle naming differences)
+            const countKey = tab.id === "assets-docs" ? "assets-docs" :
+                            tab.id === "dividends-docs" ? "dividends-docs" :
+                            tab.id === "loans-docs" ? "loans-docs" :
+                            tab.id === "minutes-docs" ? "minutes-docs" :
+                            tab.id;
+            const count = documentCounts[countKey] || 0;
+            const showCount = !["documents", "data", "activity"].includes(tab.id);
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={cn(
+                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                  activeTab === tab.id
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                <Icon className="h-4 w-4 mr-2" />
+                {tab.name}
+                {showCount && count > 0 && (
+                  <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded-full bg-muted text-muted-foreground">
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Tab Content */}
@@ -3070,8 +3719,12 @@ export default function CompanyDetailPage() {
           )}
 
           {/* Document Category Tabs */}
-          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && (
+          {DOCUMENT_TABS.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && (
             <>
+              {/* SSoT: Show ATO Setup Card on ATO tab */}
+              {activeTab === "ato" && (
+                <ATOSetupCard company={company} />
+              )}
               {/* Show Xero connection and transactions on BANK tab */}
               {activeTab === "bank" && (
                 <>
@@ -3096,6 +3749,7 @@ export default function CompanyDetailPage() {
           {activeTab === "documents" && (
             <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
           )}
+          {activeTab === "data" && <DataWarehouseTab companyId={companyId} />}
           {activeTab === "activity" && <ActivityTab />}
         </CardContent>
       </Card>

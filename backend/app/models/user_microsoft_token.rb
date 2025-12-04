@@ -27,6 +27,9 @@ class UserMicrosoftToken < ApplicationRecord
     token_expires_at.nil? || token_expires_at < 5.minutes.from_now
   end
 
+  # Alias for compatibility with MicrosoftGraphClient which expects token_expired?
+  alias_method :token_expired?, :needs_refresh?
+
   # Check if token is valid and connected
   def connected?
     status == 'connected' && access_token.present? && !needs_refresh?
@@ -100,5 +103,24 @@ class UserMicrosoftToken < ApplicationRecord
       return nil unless refresh_access_token!
     end
     access_token
+  end
+
+  # Compatibility with OrganizationOneDriveCredential interface
+  # These are used by MicrosoftGraphClient when user tokens are used as a fallback
+
+  def root_folder_id
+    nil # User tokens don't have organization-configured root folders
+  end
+
+  def drive_id
+    nil # Will use /me/drive by default
+  end
+
+  def valid_credential?
+    connected?
+  end
+
+  def metadata
+    {} # User tokens don't store metadata hash
   end
 end

@@ -7,6 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -41,14 +49,34 @@ import {
   Activity,
   Paperclip,
   User,
+  Network,
+  FolderTree,
+  ChevronRight,
+  MessageSquare,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import dynamic from "next/dynamic";
+
+// Lazy load the relationship chart since it uses XYFlow
+const CaseRelationshipChart = dynamic(
+  () => import("@/components/cases/CaseRelationshipChart"),
+  { ssr: false }
+);
+
+// Lazy load the EntityChat component
+const EntityChat = dynamic(
+  () => import("@/components/chat/EntityChat").then(mod => ({ default: mod.EntityChat })),
+  { ssr: false }
+);
 
 // Tabs for case detail
 const CASE_TABS = [
   { id: "overview", name: "Overview", icon: Briefcase },
+  { id: "subcases", name: "Sub-cases", icon: FolderTree },
+  { id: "relationships", name: "Relationships", icon: Network },
+  { id: "chat", name: "Chat", icon: MessageSquare },
   { id: "actions", name: "Actions", icon: Play },
   { id: "documents", name: "Documents", icon: FileText },
   { id: "emails", name: "Emails", icon: Mail },
@@ -56,6 +84,24 @@ const CASE_TABS = [
   { id: "entities", name: "Entities", icon: Users },
   { id: "warehouse", name: "Warehouse", icon: BarChart3 },
 ];
+
+interface ChildCase {
+  id: number;
+  case_number: string;
+  title: string;
+  case_type: string;
+  formatted_case_type: string;
+  status: string;
+  formatted_status: string;
+  priority: string;
+  formatted_priority: string;
+  deadline: string | null;
+  overdue: boolean;
+  assigned_to: string | null;
+  has_children: boolean;
+  child_cases_count: number;
+  created_at: string;
+}
 
 interface CaseDetail {
   id: number;
@@ -93,6 +139,21 @@ interface CaseDetail {
   risk_score: number | null;
   created_at: string;
   updated_at: string;
+  // Hierarchy fields
+  parent_case_id: number | null;
+  parent_case_number: string | null;
+  parent_case_title: string | null;
+  hierarchy_level: number;
+  is_child_case: boolean;
+  has_children: boolean;
+  child_cases_count: number;
+  child_cases_summary: {
+    total: number;
+    open: number;
+    closed: number;
+    overdue: number;
+  };
+  child_cases: ChildCase[];
 }
 
 interface CaseAction {
@@ -243,6 +304,9 @@ export default function CaseDetailPage() {
   const [warehouseSummary, setWarehouseSummary] = React.useState<WarehouseSummary | null>(null);
   const [loadingWarehouse, setLoadingWarehouse] = React.useState(false);
 
+  const [relationshipGraph, setRelationshipGraph] = React.useState<any>(null);
+  const [loadingRelationships, setLoadingRelationships] = React.useState(false);
+
   // Action types
   const [actionTypes, setActionTypes] = React.useState<Record<string, ActionType>>({});
 
@@ -251,6 +315,12 @@ export default function CaseDetailPage() {
   const [selectedActionType, setSelectedActionType] = React.useState<string>("");
   const [actionQuery, setActionQuery] = React.useState("");
   const [runningAction, setRunningAction] = React.useState(false);
+
+  // Create sub-case modal
+  const [showCreateSubCase, setShowCreateSubCase] = React.useState(false);
+  const [newSubCaseTitle, setNewSubCaseTitle] = React.useState("");
+  const [newSubCaseDescription, setNewSubCaseDescription] = React.useState("");
+  const [creatingSubCase, setCreatingSubCase] = React.useState(false);
 
   // Load case
   React.useEffect(() => {
@@ -277,6 +347,9 @@ export default function CaseDetailPage() {
     if (!caseData) return;
 
     switch (activeTab) {
+      case "relationships":
+        if (!relationshipGraph) loadRelationshipGraph();
+        break;
       case "actions":
         if (actions.length === 0) loadActions();
         break;
@@ -386,6 +459,30 @@ export default function CaseDetailPage() {
     }
   };
 
+  const loadRelationshipGraph = async () => {
+    try {
+      setLoadingRelationships(true);
+      const response = await api.get<{ success: boolean; data: any }>(
+        `/api/v1/cases/${caseId}/relationship_graph`
+      );
+      setRelationshipGraph(response.data);
+    } catch (error) {
+      console.error("Failed to load relationship graph:", error);
+    } finally {
+      setLoadingRelationships(false);
+    }
+  };
+
+  const handleSaveContactPosition = async (contactId: number, position: { x: number; y: number }) => {
+    try {
+      await api.patch(`/api/v1/cases/${caseId}/contacts/${contactId}/position`, {
+        display_position: position,
+      });
+    } catch (error) {
+      console.error("Failed to save contact position:", error);
+    }
+  };
+
   const buildTimeline = async () => {
     try {
       setLoadingTimeline(true);
@@ -397,6 +494,47 @@ export default function CaseDetailPage() {
       console.error("Failed to build timeline:", error);
     } finally {
       setLoadingTimeline(false);
+    }
+  };
+
+  const createSubCase = async () => {
+    if (!newSubCaseTitle.trim()) return;
+
+    try {
+      setCreatingSubCase(true);
+      const response = await api.post<{ success: boolean; data: CaseDetail; message: string }>(
+        `/api/v1/cases/${caseId}/create_child`,
+        {
+          case: {
+            title: newSubCaseTitle,
+            description: newSubCaseDescription,
+          },
+        }
+      );
+
+      if (!response?.data) {
+        throw new Error("Failed to create sub-case");
+      }
+
+      const newCaseId = response.data.id;
+
+      // Refresh case data to show new child case
+      const caseResponse = await api.get<{ success: boolean; data: CaseDetail }>(
+        `/api/v1/cases/${caseId}`
+      );
+      setCaseData(caseResponse.data);
+
+      // Reset form and close dialog
+      setNewSubCaseTitle("");
+      setNewSubCaseDescription("");
+      setShowCreateSubCase(false);
+
+      // Navigate to the new sub-case
+      router.push(`/cases/${newCaseId}`);
+    } catch (error) {
+      console.error("Failed to create sub-case:", error);
+    } finally {
+      setCreatingSubCase(false);
     }
   };
 
@@ -615,157 +753,521 @@ export default function CaseDetailPage() {
       {/* Tab Content */}
       <div>
         {activeTab === "overview" && (
-          <div className="grid grid-cols-3 gap-6">
-            {/* Main Info */}
-            <Card className="col-span-2">
-              <CardHeader>
-                <CardTitle>Case Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {caseData.description && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Description</label>
-                    <p className="mt-1">{caseData.description}</p>
-                  </div>
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">
-                      Investigation Period
-                    </label>
-                    <p className="mt-1">
-                      {caseData.investigation_start_date && caseData.investigation_end_date
-                        ? `${format(new Date(caseData.investigation_start_date), "d MMM yyyy")} - ${format(
-                            new Date(caseData.investigation_end_date),
-                            "d MMM yyyy"
-                          )}`
-                        : "Not specified"}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Created By</label>
-                    <p className="mt-1">{caseData.created_by || "Unknown"}</p>
-                  </div>
+          <div className="space-y-6">
+            {/* Parent Case Dashboard - shown when this is a parent/master case */}
+            {(caseData.has_children || !caseData.is_child_case) && caseData.child_cases_summary && (
+              <div className="space-y-6">
+                {/* Sub-case Status Summary Cards */}
+                <div className="grid grid-cols-4 gap-4">
+                  <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Matters</p>
+                          <p className="text-3xl font-bold text-blue-700 dark:text-blue-300">
+                            {caseData.child_cases_summary.total}
+                          </p>
+                        </div>
+                        <FolderTree className="h-8 w-8 text-blue-500 opacity-50" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-amber-600 dark:text-amber-400">Open</p>
+                          <p className="text-3xl font-bold text-amber-700 dark:text-amber-300">
+                            {caseData.child_cases_summary.open}
+                          </p>
+                        </div>
+                        <Activity className="h-8 w-8 text-amber-500 opacity-50" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-green-600 dark:text-green-400">Closed</p>
+                          <p className="text-3xl font-bold text-green-700 dark:text-green-300">
+                            {caseData.child_cases_summary.closed}
+                          </p>
+                        </div>
+                        <CheckCircle className="h-8 w-8 text-green-500 opacity-50" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className={cn(
+                    "border",
+                    caseData.child_cases_summary.overdue > 0
+                      ? "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200"
+                      : "bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-200"
+                  )}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className={cn(
+                            "text-sm font-medium",
+                            caseData.child_cases_summary.overdue > 0 ? "text-red-600 dark:text-red-400" : "text-slate-600 dark:text-slate-400"
+                          )}>Overdue</p>
+                          <p className={cn(
+                            "text-3xl font-bold",
+                            caseData.child_cases_summary.overdue > 0 ? "text-red-700 dark:text-red-300" : "text-slate-700 dark:text-slate-300"
+                          )}>
+                            {caseData.child_cases_summary.overdue}
+                          </p>
+                        </div>
+                        <AlertTriangle className={cn(
+                          "h-8 w-8 opacity-50",
+                          caseData.child_cases_summary.overdue > 0 ? "text-red-500" : "text-slate-400"
+                        )} />
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-                {caseData.key_findings && caseData.key_findings.length > 0 && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Key Findings</label>
-                    <ul className="mt-1 list-disc list-inside space-y-1">
-                      {caseData.key_findings.map((finding, idx) => (
-                        <li key={idx}>{String(finding)}</li>
-                      ))}
-                    </ul>
-                  </div>
+
+                {/* Active Sub-cases List */}
+                {caseData.child_cases && caseData.child_cases.length > 0 && (
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-lg">Active Matters</CardTitle>
+                      <Button size="sm" onClick={() => setShowCreateSubCase(true)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        New Matter
+                      </Button>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {caseData.child_cases
+                          .filter(c => c.status !== 'closed' && c.status !== 'archived')
+                          .slice(0, 5)
+                          .map((child) => (
+                          <div
+                            key={child.id}
+                            className={cn(
+                              "flex items-center justify-between p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                              child.overdue && "border-red-300 bg-red-50 dark:bg-red-950/20"
+                            )}
+                            onClick={() => router.push(`/cases/${child.id}`)}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-xs text-muted-foreground">
+                                    {child.case_number}
+                                  </span>
+                                  {child.overdue && (
+                                    <Badge className="bg-red-100 text-red-800 text-xs">
+                                      <AlertTriangle className="h-3 w-3 mr-1" />
+                                      Overdue
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="font-medium truncate">{child.title}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge className={getStatusColor(child.status)}>
+                                {child.formatted_status}
+                              </Badge>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            </div>
+                          </div>
+                        ))}
+                        {caseData.child_cases.filter(c => c.status !== 'closed' && c.status !== 'archived').length > 5 && (
+                          <Button
+                            variant="ghost"
+                            className="w-full"
+                            onClick={() => setActiveTab('subcases')}
+                          >
+                            View all {caseData.child_cases.filter(c => c.status !== 'closed' && c.status !== 'archived').length} active matters
+                          </Button>
+                        )}
+                        {caseData.child_cases.filter(c => c.status !== 'closed' && c.status !== 'archived').length === 0 && (
+                          <div className="text-center py-6 text-muted-foreground">
+                            <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p>All matters resolved</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="mt-2"
+                              onClick={() => setShowCreateSubCase(true)}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Create New Matter
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </CardContent>
-            </Card>
 
-            {/* Side Panel */}
-            <div className="space-y-4">
-              {/* Primary Entity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Primary Entity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {caseData.contact_name && (
-                    <div className="flex items-center justify-between">
-                      <span>{caseData.contact_name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.push(`/contacts/${caseData.contact_id}`)}
-                      >
-                        <ExternalLink className="h-4 w-4" />
+                {/* No sub-cases yet - prompt to create first one */}
+                {(!caseData.child_cases || caseData.child_cases.length === 0) && (
+                  <Card className="border-dashed">
+                    <CardContent className="py-12 text-center">
+                      <FolderTree className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                      <h3 className="text-lg font-medium mb-2">No Matters Yet</h3>
+                      <p className="text-muted-foreground mb-4">
+                        This is your client file. Create your first matter to start tracking specific issues.
+                      </p>
+                      <Button onClick={() => setShowCreateSubCase(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Create First Matter
                       </Button>
-                    </div>
-                  )}
-                  {caseData.company_name && (
-                    <div className="flex items-center justify-between">
-                      <span>{caseData.company_name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => router.push(`/corporate/companies/${caseData.company_id}`)}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                  {!caseData.contact_name && !caseData.company_name && (
-                    <p className="text-muted-foreground text-sm">No primary entity</p>
-                  )}
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            )}
 
-              {/* Stats */}
-              <Card>
+            {/* Standard Case Details Grid */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Main Info */}
+              <Card className="col-span-2">
                 <CardHeader>
-                  <CardTitle className="text-base">Case Statistics</CardTitle>
+                  <CardTitle>
+                    {caseData.has_children || !caseData.is_child_case ? "Client File Details" : "Case Details"}
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Actions Run</span>
-                      <span className="font-medium">{caseData.actions_count}</span>
+                <CardContent className="space-y-4">
+                  {caseData.description && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Description</label>
+                      <p className="mt-1">{caseData.description}</p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Documents</span>
-                      <span className="font-medium">{caseData.documents_count}</span>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">
+                        Investigation Period
+                      </label>
+                      <p className="mt-1">
+                        {caseData.investigation_start_date && caseData.investigation_end_date
+                          ? `${format(new Date(caseData.investigation_start_date), "d MMM yyyy")} - ${format(
+                              new Date(caseData.investigation_end_date),
+                              "d MMM yyyy"
+                            )}`
+                          : "Not specified"}
+                      </p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Emails</span>
-                      <span className="font-medium">{caseData.emails_count}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Timeline Events</span>
-                      <span className="font-medium">{caseData.timeline_events_count}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Related Contacts</span>
-                      <span className="font-medium">{caseData.contacts_count}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Related Companies</span>
-                      <span className="font-medium">{caseData.companies_count}</span>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Created By</label>
+                      <p className="mt-1">{caseData.created_by || "Unknown"}</p>
                     </div>
                   </div>
+                  {caseData.key_findings && caseData.key_findings.length > 0 && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Key Findings</label>
+                      <ul className="mt-1 list-disc list-inside space-y-1">
+                        {caseData.key_findings.map((finding, idx) => (
+                          <li key={idx}>{String(finding)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Risk Score */}
-              {caseData.risk_score !== null && (
+              {/* Side Panel */}
+              <div className="space-y-4">
+                {/* Primary Entity */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">Risk Assessment</CardTitle>
+                    <CardTitle className="text-base">Primary Entity</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-4">
-                      <div
-                        className={cn(
-                          "text-3xl font-bold",
-                          caseData.risk_score >= 70
-                            ? "text-red-600"
-                            : caseData.risk_score >= 40
-                            ? "text-amber-600"
-                            : "text-green-600"
-                        )}
-                      >
-                        {caseData.risk_score}
+                    {caseData.contact_name && (
+                      <div className="flex items-center justify-between">
+                        <span>{caseData.contact_name}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/contacts/${caseData.contact_id}`)}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        {caseData.risk_score >= 70
-                          ? "High Risk"
-                          : caseData.risk_score >= 40
-                          ? "Medium Risk"
-                          : "Low Risk"}
+                    )}
+                    {caseData.company_name && (
+                      <div className="flex items-center justify-between">
+                        <span>{caseData.company_name}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/corporate/companies/${caseData.company_id}`)}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
+                    {!caseData.contact_name && !caseData.company_name && (
+                      <p className="text-muted-foreground text-sm">No primary entity</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Stats */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      {caseData.has_children ? "File Statistics" : "Case Statistics"}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm">
+                      {caseData.has_children && (
+                        <div className="flex justify-between font-medium border-b pb-2 mb-2">
+                          <span className="text-muted-foreground">Sub-cases</span>
+                          <span>{caseData.child_cases_count}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Actions Run</span>
+                        <span className="font-medium">{caseData.actions_count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Documents</span>
+                        <span className="font-medium">{caseData.documents_count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Emails</span>
+                        <span className="font-medium">{caseData.emails_count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Timeline Events</span>
+                        <span className="font-medium">{caseData.timeline_events_count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Related Contacts</span>
+                        <span className="font-medium">{caseData.contacts_count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Related Companies</span>
+                        <span className="font-medium">{caseData.companies_count}</span>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
-              )}
+
+                {/* Risk Score */}
+                {caseData.risk_score !== null && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Risk Assessment</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            "text-3xl font-bold",
+                            caseData.risk_score >= 70
+                              ? "text-red-600"
+                              : caseData.risk_score >= 40
+                              ? "text-amber-600"
+                              : "text-green-600"
+                          )}
+                        >
+                          {caseData.risk_score}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {caseData.risk_score >= 70
+                            ? "High Risk"
+                            : caseData.risk_score >= 40
+                            ? "Medium Risk"
+                            : "Low Risk"}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
           </div>
+        )}
+
+        {activeTab === "subcases" && (
+          <div className="space-y-6">
+            {/* Parent Case Banner */}
+            {caseData.parent_case_id && (
+              <Card className="bg-blue-50 dark:bg-blue-950/30 border-blue-200">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <ChevronRight className="h-5 w-5 text-blue-500 rotate-180" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">This is a sub-case of:</p>
+                        <p className="font-medium">{caseData.parent_case_title}</p>
+                        <p className="text-sm text-muted-foreground">{caseData.parent_case_number}</p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => router.push(`/cases/${caseData.parent_case_id}`)}
+                    >
+                      View Parent Case
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Sub-cases Header */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FolderTree className="h-5 w-5" />
+                    Sub-cases
+                  </CardTitle>
+                  {caseData.child_cases_summary && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {caseData.child_cases_summary.open} open, {caseData.child_cases_summary.closed} closed
+                      {caseData.child_cases_summary.overdue > 0 && (
+                        <span className="text-red-600 ml-1">
+                          ({caseData.child_cases_summary.overdue} overdue)
+                        </span>
+                      )}
+                    </p>
+                  )}
+                </div>
+                <Button onClick={() => setShowCreateSubCase(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Sub-case
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {caseData.child_cases && caseData.child_cases.length > 0 ? (
+                  <div className="space-y-3">
+                    {caseData.child_cases.map((child) => (
+                      <div
+                        key={child.id}
+                        className={cn(
+                          "p-4 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
+                          child.overdue && "border-red-300 bg-red-50 dark:bg-red-950/20"
+                        )}
+                        onClick={() => router.push(`/cases/${child.id}`)}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-mono text-sm text-muted-foreground">
+                                {child.case_number}
+                              </span>
+                              <Badge className={getStatusColor(child.status)}>
+                                {child.formatted_status}
+                              </Badge>
+                              <Badge className={getPriorityColor(child.priority)}>
+                                {child.formatted_priority}
+                              </Badge>
+                              {child.overdue && (
+                                <Badge className="bg-red-100 text-red-800">
+                                  <AlertTriangle className="h-3 w-3 mr-1" />
+                                  Overdue
+                                </Badge>
+                              )}
+                            </div>
+                            <h4 className="font-medium truncate">{child.title}</h4>
+                            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                              {child.assigned_to && (
+                                <span className="flex items-center gap-1">
+                                  <User className="h-3 w-3" />
+                                  {child.assigned_to}
+                                </span>
+                              )}
+                              {child.deadline && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {format(new Date(child.deadline), "d MMM yyyy")}
+                                </span>
+                              )}
+                              {child.has_children && (
+                                <span className="flex items-center gap-1">
+                                  <FolderTree className="h-3 w-3" />
+                                  {child.child_cases_count} sub-case{child.child_cases_count !== 1 ? "s" : ""}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FolderTree className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No sub-cases yet</p>
+                    <p className="text-sm mt-1">Create a sub-case to track related issues</p>
+                    <Button className="mt-4" onClick={() => setShowCreateSubCase(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First Sub-case
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === "relationships" && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Network className="h-5 w-5" />
+                Case Relationships
+              </CardTitle>
+              <Button variant="outline" size="sm" onClick={() => loadRelationshipGraph()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {loadingRelationships ? (
+                <div className="flex items-center justify-center h-64">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <CaseRelationshipChart
+                  caseId={parseInt(caseId)}
+                  data={relationshipGraph}
+                  onContactClick={(contactId) => router.push(`/contacts/${contactId}`)}
+                  onCompanyClick={(companyId) => router.push(`/corporate/companies/${companyId}`)}
+                  onJobClick={(jobId) => router.push(`/jobs/${jobId}`)}
+                  onCaseClick={(relatedCaseId) => router.push(`/cases/${relatedCaseId}`)}
+                  onPositionChange={handleSaveContactPosition}
+                />
+              )}
+              <div className="mt-4 text-sm text-muted-foreground">
+                <p>
+                  Drag nodes to reposition. Click on a contact, company, or job to view details.
+                  Node positions are saved automatically.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {activeTab === "chat" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Internal Chat
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EntityChat
+                entityType="case"
+                entityId={parseInt(caseId)}
+                entityName={caseData?.title}
+                showOnlineUsers={true}
+                maxHeight="500px"
+              />
+            </CardContent>
+          </Card>
         )}
 
         {activeTab === "actions" && (
@@ -1545,6 +2047,59 @@ export default function CaseDetailPage() {
           </Card>
         </div>
       )}
+
+      {/* Create Sub-case Dialog */}
+      <Dialog open={showCreateSubCase} onOpenChange={setShowCreateSubCase}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderTree className="h-5 w-5" />
+              Create Sub-case
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Create a new sub-case under "{caseData?.title}". The sub-case will inherit
+              contacts, companies, and investigation settings from the parent case.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="subcase-title">Title *</Label>
+              <Input
+                id="subcase-title"
+                placeholder="e.g., FY2024 Tax Assessment Issue"
+                value={newSubCaseTitle}
+                onChange={(e) => setNewSubCaseTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subcase-description">Description</Label>
+              <Textarea
+                id="subcase-description"
+                placeholder="Describe the specific issue this sub-case addresses..."
+                value={newSubCaseDescription}
+                onChange={(e) => setNewSubCaseDescription(e.target.value)}
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateSubCase(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={createSubCase}
+              disabled={!newSubCaseTitle.trim() || creatingSubCase}
+            >
+              {creatingSubCase ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              Create Sub-case
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -15,6 +15,7 @@ class ContactCompanyGroupMembership < ApplicationRecord
     appointor
     family_member
     advisor
+    member
     company_entity
     trust_entity
   ].freeze
@@ -34,6 +35,7 @@ class ContactCompanyGroupMembership < ApplicationRecord
   scope :beneficiaries, -> { with_type('beneficiary') }
   scope :trustees, -> { with_type('trustee') }
   scope :appointors, -> { with_type('appointor') }
+  scope :members, -> { with_type('member') }
   scope :company_entities, -> { with_type('company_entity') }
   scope :trust_entities, -> { with_type('trust_entity') }
   scope :people, -> { joins(:contact).where(contact: { entity_type: 'person' }) }

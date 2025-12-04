@@ -10,16 +10,25 @@ module Api
                                           .order(is_system_default: :desc, created_at: :desc)
 
         render json: {
-          folder_templates: @folder_templates.as_json(
-            include: {
-              folder_template_items: {
-                only: [:id, :name, :level, :order, :parent_id, :description]
-              },
-              created_by: {
-                only: [:id, :name, :email]
-              }
+          folder_templates: @folder_templates.map do |template|
+            {
+              id: template.id,
+              name: template.name,
+              description: template.template_type,
+              template_type: template.is_system_default ? "system" : "user",
+              created_at: template.created_at,
+              items: template.folder_template_items.map do |item|
+                {
+                  id: item.id,
+                  name: item.name,
+                  item_type: "folder",
+                  parent_id: item.parent_id,
+                  order: item.order,
+                  description: item.description
+                }
+              end
             }
-          )
+          end
         }
       end
 
@@ -55,10 +64,38 @@ module Api
           return render json: { error: 'Unauthorized' }, status: :forbidden
         end
 
-        if @folder_template.update(folder_template_params)
-          render json: { folder_template: @folder_template }
-        else
-          render json: { errors: @folder_template.errors.full_messages }, status: :unprocessable_entity
+        begin
+          if @folder_template.update(folder_template_params)
+            # Return updated template with fresh item IDs
+            @folder_template.reload
+            render json: {
+              folder_template: {
+                id: @folder_template.id,
+                name: @folder_template.name,
+                description: @folder_template.template_type,
+                template_type: @folder_template.is_system_default ? "system" : "user",
+                created_at: @folder_template.created_at,
+                items: @folder_template.folder_template_items.map do |item|
+                  {
+                    id: item.id,
+                    name: item.name,
+                    item_type: "folder",
+                    parent_id: item.parent_id,
+                    order: item.order,
+                    description: item.description
+                  }
+                end
+              }
+            }
+          else
+            render json: { errors: @folder_template.errors.full_messages }, status: :unprocessable_entity
+          end
+        rescue ActiveRecord::RecordNotFound => e
+          # Nested attribute item not found - likely stale data
+          render json: {
+            error: 'Template items out of sync. Please refresh and try again.',
+            details: e.message
+          }, status: :conflict
         end
       end
 
@@ -111,12 +148,6 @@ module Api
             :_destroy
           ]
         )
-      end
-
-      def current_user
-        # TODO: Implement actual authentication
-        # For now, return nil or first user for testing
-        User.first
       end
     end
   end

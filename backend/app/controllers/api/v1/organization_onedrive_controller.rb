@@ -1346,9 +1346,189 @@ module Api
         end
       end
 
+      # GET /api/v1/organization_onedrive/job_all_files
+      # List ALL files from the job's OneDrive folder
+      # Uses Data Warehouse pattern: reads from JobDocument table for instant results
+      # Falls back to live API if no cached data, and triggers background sync
+      def job_all_files
+        job = Job.find(params[:job_id])
+
+        # Check if we have cached documents in the data warehouse
+        cached_docs = job.job_documents.includes(:document_type, :ai_suggested_type).synced
+
+        if cached_docs.any?
+          # Data Warehouse approach: instant results from database
+          files_with_suggestions = cached_docs.map do |doc|
+            {
+              id: doc.onedrive_item_id,
+              document_id: doc.id,
+              name: doc.file_name,
+              original_name: doc.original_file_name,
+              size: doc.file_size,
+              web_url: doc.web_url,
+              modified: doc.last_modified_at&.iso8601,
+              type: "file",
+              folder_path: doc.folder_path || "",
+              document_type_id: doc.document_type_id,
+              document_type_name: doc.document_type&.name,
+              document_type_abbreviation: doc.document_type&.abbreviation,
+              suggested_document_types: build_document_type_display(doc),
+              # AI analysis fields
+              ai_analyzed: doc.ai_analyzed_at.present?,
+              ai_analyzed_at: doc.ai_analyzed_at&.iso8601,
+              ai_suggested_type_id: doc.ai_suggested_type_id,
+              ai_suggested_type_name: doc.ai_suggested_type&.name,
+              ai_proposed_name: doc.ai_proposed_name,
+              ai_confidence: doc.ai_confidence&.to_f,
+              ai_reasoning: doc.ai_reasoning,
+              rename_status: doc.rename_status,
+              from_cache: true
+            }
+          end
+
+          # Sort by folder path then name
+          files_with_suggestions.sort_by! { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+
+          # Calculate AI stats
+          ai_stats = {
+            total: cached_docs.count,
+            analyzed: cached_docs.where.not(ai_analyzed_at: nil).count,
+            unanalyzed: cached_docs.where(ai_analyzed_at: nil).count,
+            pending_review: cached_docs.where(rename_status: 'pending').where.not(ai_analyzed_at: nil).count,
+            approved: cached_docs.where(rename_status: 'completed').count,
+            rejected: cached_docs.where(rename_status: 'rejected').count
+          }
+
+          return render json: {
+            success: true,
+            job_id: job.id,
+            job_title: job.title,
+            items: files_with_suggestions,
+            count: files_with_suggestions.length,
+            from_cache: true,
+            last_synced_at: cached_docs.maximum(:last_synced_at)&.iso8601,
+            ai_stats: ai_stats
+          }
+        end
+
+        # No cached data - fall back to live API and trigger sync
+        credential = get_onedrive_credential
+
+        unless credential
+          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+        end
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Find the job folder
+          job_folder = client.find_job_folder(job)
+
+          unless job_folder
+            return render json: {
+              success: false,
+              error: "Job folder not found. Please create the folder structure first.",
+              job_folder_exists: false,
+              items: []
+            }, status: :ok
+          end
+
+          # Recursively list all files in the job folder (live API)
+          files = list_all_job_files_recursive(client, credential, job_folder["id"])
+
+          # Load document types ONCE for efficiency (not per-file)
+          @cached_doc_types = DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
+
+          # Add suggested document types for each file based on filename and folder
+          files_with_suggestions = files.map do |file|
+            suggested = suggest_document_type_for_file(file[:name], file[:folder_path])
+            file.merge(suggested_document_types: suggested, from_cache: false)
+          end
+
+          # Trigger background sync to populate data warehouse for next time
+          JobDocumentSyncJob.perform_later(job.id) if defined?(JobDocumentSyncJob)
+
+          render json: {
+            success: true,
+            job_id: job.id,
+            job_title: job.title,
+            items: files_with_suggestions,
+            count: files_with_suggestions.length,
+            job_folder_id: job_folder["id"],
+            job_folder_web_url: job_folder["webUrl"],
+            from_cache: false,
+            sync_triggered: true
+          }
+
+        rescue MicrosoftGraphClient::AuthenticationError => e
+          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        rescue MicrosoftGraphClient::APIError => e
+          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "[Job All Files] Exception: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: { error: "Failed to list files: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # Helper to build document type display for cached documents
+      # Shows assigned type if present, otherwise shows suggestions
+      def build_document_type_display(doc)
+        if doc.document_type_id.present? && doc.document_type
+          # File has an assigned document type - show it as confirmed
+          [{
+            id: doc.document_type.id,
+            name: doc.document_type.name,
+            abbreviation: doc.document_type.abbreviation,
+            folder: doc.document_type.folder,
+            confidence: 100
+          }]
+        else
+          # No type assigned - show suggestions
+          suggest_cached_doc_type(doc)
+        end
+      end
+
+      # Helper to suggest document types for cached documents
+      def suggest_cached_doc_type(doc)
+        @cached_doc_types ||= DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
+        suggestions = suggest_document_type_for_file(doc.file_name, doc.folder_path)
+        suggestions || []
+      end
+
+      # POST /api/v1/organization_onedrive/sync_job_documents
+      # Manually trigger sync of job documents to data warehouse
+      # Can sync a single job or all jobs with OneDrive folders
+      def sync_job_documents
+        job_id = params[:job_id]
+
+        if job_id.present?
+          # Sync single job
+          job = Job.find(job_id)
+          JobDocumentSyncJob.perform_later(job.id)
+          render json: {
+            success: true,
+            message: "Sync triggered for job #{job.id}: #{job.title}",
+            job_id: job.id
+          }
+        else
+          # Sync all jobs with OneDrive folders
+          JobDocumentSyncJob.perform_later
+          jobs_count = Job.where(onedrive_folder_creation_status: "completed").count
+          render json: {
+            success: true,
+            message: "Sync triggered for #{jobs_count} jobs with OneDrive folders",
+            jobs_count: jobs_count
+          }
+        end
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { error: "Job not found" }, status: :not_found
+      end
+
       # GET /api/v1/organization_onedrive/legacy_files
       # List files from the legacy "Old House Data/00 Active" folder that match a job
       # Used for importing legacy job documents into the new job folder structure
+      # Supports folder navigation with optional folder_id parameter
       def legacy_files
         job = Job.find(params[:job_id])
 
@@ -1360,14 +1540,18 @@ module Api
 
         begin
           service = JobDocumentMigrationService.new
-          files = service.list_legacy_files_for_job(job)
+          # Pass folder_id for subfolder navigation, recursive for all files
+          recursive = params[:recursive] == 'true' || params[:recursive] == true
+          items = service.list_legacy_files_for_job(job, folder_id: params[:folder_id], recursive: recursive)
 
           render json: {
             success: true,
             job_id: job.id,
             job_title: job.title,
-            files: files,
-            count: files.length,
+            items: items,
+            count: items.length,
+            current_folder_id: params[:folder_id],
+            recursive: recursive,
             source_folder: JobDocumentMigrationService::SOURCE_FOLDER_PATH
           }
 
@@ -1398,31 +1582,250 @@ module Api
         end
 
         begin
-          service = JobDocumentMigrationService.new
-          result = service.import_files_to_job(job, file_ids)
+          # Queue the import as a background job to avoid HTTP timeouts
+          # Large imports can take several minutes
+          ImportLegacyFilesJob.perform_later(job.id, file_ids, current_user&.id)
 
-          if result[:success]
-            render json: {
-              success: true,
-              message: "Imported #{result[:imported].length} files to job folder",
-              job_id: job.id,
-              imported: result[:imported],
-              errors: result[:errors]
-            }
-          else
-            render json: {
-              success: false,
-              error: result[:error],
-              imported: result[:imported] || [],
-              errors: result[:errors] || []
-            }, status: :unprocessable_entity
-          end
+          render json: {
+            success: true,
+            message: "Import of #{file_ids.length} files has been queued. Files will appear in the job folder shortly.",
+            job_id: job.id,
+            queued: true,
+            file_count: file_ids.length
+          }
 
         rescue StandardError => e
           Rails.logger.error "[Import Legacy] Exception: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to import files: #{e.message}" }, status: :internal_server_error
+          render json: { error: "Failed to queue import: #{e.message}" }, status: :internal_server_error
         end
+      end
+
+      # POST /api/v1/organization_onedrive/analyze_job_documents
+      # Trigger AI analysis for a job's documents
+      # Analyzes unanalyzed documents and suggests document types and filenames
+      def analyze_job_documents
+        job_id = params[:job_id]
+        limit = params[:limit]&.to_i || 25
+
+        unless job_id.present?
+          return render json: { error: 'job_id is required' }, status: :bad_request
+        end
+
+        job = Job.find(job_id)
+
+        # Count documents needing analysis
+        unanalyzed_count = JobDocument.where(job_id: job.id, ai_analyzed_at: nil).count
+
+        if unanalyzed_count == 0
+          return render json: {
+            success: true,
+            message: 'All documents have already been analyzed',
+            job_id: job.id,
+            analyzed_count: 0,
+            total_unanalyzed: 0
+          }
+        end
+
+        # Queue the batch analysis job
+        BatchJobDocumentAnalysisJob.perform_later(job_id: job.id, limit: limit)
+
+        render json: {
+          success: true,
+          message: "AI analysis queued for #{[limit, unanalyzed_count].min} documents",
+          job_id: job.id,
+          queued_count: [limit, unanalyzed_count].min,
+          total_unanalyzed: unanalyzed_count
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: 'Job not found' }, status: :not_found
+      end
+
+      # GET /api/v1/organization_onedrive/documents_needing_review
+      # List documents with AI suggestions pending review
+      # Params:
+      #   - job_id: Optional - filter by job
+      #   - status: 'pending' (default), 'approved', 'rejected', 'all'
+      #   - min_confidence: Optional - only show docs above this confidence (0-100)
+      def documents_needing_review
+        scope = JobDocument.includes(:job, :document_type, :ai_suggested_type)
+                          .where.not(ai_analyzed_at: nil)
+
+        # Filter by job if specified
+        if params[:job_id].present?
+          scope = scope.where(job_id: params[:job_id])
+        end
+
+        # Filter by rename status
+        status = params[:status] || 'pending'
+        unless status == 'all'
+          scope = scope.where(rename_status: status)
+        end
+
+        # Filter by minimum confidence
+        if params[:min_confidence].present?
+          min_conf = params[:min_confidence].to_i
+          scope = scope.where('ai_confidence >= ?', min_conf)
+        end
+
+        # Order by confidence descending (highest confidence first)
+        documents = scope.order(ai_confidence: :desc, ai_analyzed_at: :desc).limit(100)
+
+        render json: {
+          success: true,
+          documents: documents.map { |doc| format_document_for_review(doc) },
+          count: documents.length,
+          filters: {
+            job_id: params[:job_id],
+            status: status,
+            min_confidence: params[:min_confidence]
+          }
+        }
+      end
+
+      # POST /api/v1/organization_onedrive/approve_document_rename
+      # Approve or reject AI rename suggestion for a document
+      # Params:
+      #   - document_id: The JobDocument ID
+      #   - action: 'approve' or 'reject'
+      #   - custom_name: Optional - use this name instead of AI suggestion
+      #   - custom_type_id: Optional - use this document type instead of AI suggestion
+      def approve_document_rename
+        document = JobDocument.find(params[:document_id])
+        action = params[:action]
+
+        unless %w[approve reject].include?(action)
+          return render json: { error: "action must be 'approve' or 'reject'" }, status: :bad_request
+        end
+
+        if action == 'reject'
+          document.update!(
+            rename_status: 'rejected',
+            rename_approved_at: Time.current,
+            rename_approved_by_id: current_user&.id
+          )
+
+          return render json: {
+            success: true,
+            message: 'Rename suggestion rejected',
+            document_id: document.id,
+            status: 'rejected'
+          }
+        end
+
+        # Action is 'approve' - perform the rename in OneDrive
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        # Determine the new name
+        new_name = params[:custom_name].presence || document.ai_proposed_name
+
+        unless new_name.present?
+          return render json: { error: 'No proposed name available' }, status: :bad_request
+        end
+
+        # Determine the document type
+        new_type_id = params[:custom_type_id].presence || document.ai_suggested_type_id
+
+        begin
+          client = MicrosoftGraphClient.new(credential)
+
+          # Rename the file in OneDrive
+          result = client.patch(
+            "/drives/#{credential.drive_id}/items/#{document.onedrive_item_id}",
+            { name: new_name }
+          )
+
+          # Update the document record
+          document.update!(
+            file_name: new_name,
+            document_type_id: new_type_id,
+            rename_status: 'completed',
+            rename_approved_at: Time.current,
+            rename_approved_by_id: current_user&.id,
+            web_url: result['webUrl']
+          )
+
+          render json: {
+            success: true,
+            message: 'Document renamed successfully',
+            document_id: document.id,
+            old_name: document.original_file_name,
+            new_name: new_name,
+            document_type_id: new_type_id,
+            web_url: result['webUrl']
+          }
+
+        rescue MicrosoftGraphClient::APIError => e
+          Rails.logger.error "[Approve Rename] OneDrive API error: #{e.message}"
+          render json: { error: "Failed to rename in OneDrive: #{e.message}" }, status: :bad_gateway
+        rescue StandardError => e
+          Rails.logger.error "[Approve Rename] Error: #{e.message}"
+          render json: { error: "Failed to rename: #{e.message}" }, status: :internal_server_error
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { error: 'Document not found' }, status: :not_found
+      end
+
+      # POST /api/v1/organization_onedrive/bulk_approve_renames
+      # Bulk approve multiple document renames
+      # Params:
+      #   - document_ids: Array of JobDocument IDs to approve
+      def bulk_approve_renames
+        document_ids = params[:document_ids] || []
+
+        if document_ids.empty?
+          return render json: { error: 'No document IDs provided' }, status: :bad_request
+        end
+
+        credential = OrganizationOneDriveCredential.active_credential
+
+        unless credential&.valid_credential?
+          return render json: { error: 'OneDrive not connected' }, status: :unauthorized
+        end
+
+        documents = JobDocument.where(id: document_ids, rename_status: 'pending')
+                              .where.not(ai_proposed_name: nil)
+
+        results = { approved: 0, failed: 0, errors: [] }
+
+        client = MicrosoftGraphClient.new(credential)
+
+        documents.each do |doc|
+          begin
+            # Rename in OneDrive
+            result = client.patch(
+              "/drives/#{credential.drive_id}/items/#{doc.onedrive_item_id}",
+              { name: doc.ai_proposed_name }
+            )
+
+            # Update document record
+            doc.update!(
+              file_name: doc.ai_proposed_name,
+              document_type_id: doc.ai_suggested_type_id,
+              rename_status: 'completed',
+              rename_approved_at: Time.current,
+              rename_approved_by_id: current_user&.id,
+              web_url: result['webUrl']
+            )
+
+            results[:approved] += 1
+
+          rescue StandardError => e
+            results[:failed] += 1
+            results[:errors] << { document_id: doc.id, error: e.message }
+            Rails.logger.error "[Bulk Approve] Failed for doc #{doc.id}: #{e.message}"
+          end
+        end
+
+        render json: {
+          success: true,
+          message: "Approved #{results[:approved]} renames, #{results[:failed]} failed",
+          results: results
+        }
       end
 
       # POST /api/v1/organization_onedrive/run_migration
@@ -1541,6 +1944,163 @@ module Api
         end
 
         attachments
+      end
+
+      # Recursively list all files in a job folder
+      # Similar to JobDocumentMigrationService but for the job's own folder
+      def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
+        files = []
+        folders_to_process = [[root_folder_id, 0, '']] # [folder_id, depth, path]
+        start_time = Time.now
+
+        while folders_to_process.any?
+          # Check if we've exceeded the time limit
+          if Time.now - start_time > max_time
+            Rails.logger.warn("[Job All Files] Recursive listing timed out after #{max_time}s with #{files.length} files found")
+            break
+          end
+
+          current_id, depth, current_path = folders_to_process.shift
+
+          begin
+            url = "/drives/#{credential.drive_id}/items/#{current_id}/children?$select=id,name,size,webUrl,lastModifiedDateTime,file,folder&$top=200"
+            result = client.get(url)
+
+            result['value']&.each do |item|
+              if item['file']
+                files << {
+                  id: item['id'],
+                  name: item['name'],
+                  size: item['size'],
+                  web_url: item['webUrl'],
+                  modified: item['lastModifiedDateTime'],
+                  type: 'file',
+                  folder_path: current_path,
+                  mime_type: item.dig('file', 'mimeType')
+                }
+              elsif item['folder'] && depth < max_depth
+                folder_name = item['name']
+                new_path = current_path.empty? ? folder_name : "#{current_path}/#{folder_name}"
+                folders_to_process << [item['id'], depth + 1, new_path]
+              end
+            end
+          rescue MicrosoftGraphClient::APIError => e
+            Rails.logger.warn("[Job All Files] Failed to list folder #{current_id}: #{e.message}")
+          end
+        end
+
+        Rails.logger.info("[Job All Files] Listing completed: #{files.length} files in #{(Time.now - start_time).round(2)}s")
+
+        # Sort by folder path then name
+        files.sort_by { |f| [f[:folder_path].to_s.downcase, f[:name].downcase] }
+      end
+
+      # Suggest document types for a file based on filename and folder path
+      # Returns array of {id, name, abbreviation, confidence} hashes
+      # Uses @cached_doc_types if available (set by job_all_files action)
+      def suggest_document_type_for_file(filename, folder_path)
+        return [] if filename.blank?
+
+        suggestions = []
+        filename_lower = filename.downcase
+        folder_lower = (folder_path || '').downcase
+
+        # Use cached doc types if available, otherwise query (fallback)
+        job_doc_types = @cached_doc_types || DocumentType.where(scope: %w[job both]).or(DocumentType.where(scope: nil)).to_a
+
+        job_doc_types.each do |dt|
+          confidence = 0
+
+          # Check filename patterns
+          dt_name_lower = dt.name.to_s.downcase
+          abbrev_lower = dt.abbreviation.to_s.downcase
+
+          # High confidence: abbreviation in filename
+          if abbrev_lower.present? && filename_lower.include?(abbrev_lower)
+            confidence += 50
+          end
+
+          # Medium confidence: doc type name keywords in filename
+          dt_keywords = dt_name_lower.split(/[\s\-\/]+/).reject { |w| w.length < 3 }
+          matching_keywords = dt_keywords.count { |kw| filename_lower.include?(kw) }
+          if matching_keywords > 0
+            confidence += (matching_keywords * 15)
+          end
+
+          # Medium confidence: folder path matches doc type folder
+          if dt.folder.present? && folder_lower.include?(dt.folder.downcase)
+            confidence += 25
+          end
+
+          # Check for common patterns
+          case
+          when filename_lower.match?(/photo|img_|dsc_|image/i) && dt_name_lower.include?('photo')
+            confidence += 40
+          when filename_lower.match?(/plan|drawing|cad|dwg/i) && dt_name_lower.include?('plan')
+            confidence += 40
+          when filename_lower.match?(/contract|agreement|variation/i) && dt_name_lower.match?(/contract|variation|agreement/)
+            confidence += 40
+          when filename_lower.match?(/certificate|cert/i) && dt_name_lower.include?('certificate')
+            confidence += 40
+          when filename_lower.match?(/invoice|po|purchase/i) && dt_name_lower.match?(/invoice|purchase|order/)
+            confidence += 40
+          when filename_lower.match?(/quote|proposal|estimate/i) && dt_name_lower.match?(/quote|proposal|estimate/)
+            confidence += 40
+          when filename_lower.match?(/engineer|structural/i) && dt_name_lower.match?(/engineer|structural/)
+            confidence += 40
+          when filename_lower.match?(/survey|soil|geotech/i) && dt_name_lower.match?(/survey|soil|geotech/)
+            confidence += 40
+          when filename_lower.match?(/insurance|coc|currency/i) && dt_name_lower.match?(/insurance|certificate of currency/)
+            confidence += 40
+          end
+
+          # Add to suggestions if confidence > threshold
+          if confidence >= 25
+            suggestions << {
+              id: dt.id,
+              name: dt.name,
+              abbreviation: dt.abbreviation,
+              folder: dt.folder,
+              confidence: confidence
+            }
+          end
+        end
+
+        # Sort by confidence descending and return top 3
+        suggestions.sort_by { |s| -s[:confidence] }.first(3)
+      end
+
+      # Format a document for the review UI
+      def format_document_for_review(doc)
+        {
+          id: doc.id,
+          job_id: doc.job_id,
+          job_title: doc.job&.title,
+          onedrive_item_id: doc.onedrive_item_id,
+          current_name: doc.file_name,
+          original_name: doc.original_file_name,
+          proposed_name: doc.ai_proposed_name,
+          folder_path: doc.folder_path,
+          file_extension: doc.file_extension,
+          file_type: doc.file_type,
+          file_size: doc.file_size,
+          web_url: doc.web_url,
+          current_type: doc.document_type ? {
+            id: doc.document_type.id,
+            name: doc.document_type.name,
+            abbreviation: doc.document_type.abbreviation
+          } : nil,
+          suggested_type: doc.ai_suggested_type ? {
+            id: doc.ai_suggested_type.id,
+            name: doc.ai_suggested_type.name,
+            abbreviation: doc.ai_suggested_type.abbreviation
+          } : nil,
+          ai_confidence: doc.ai_confidence&.to_f,
+          ai_reasoning: doc.ai_reasoning,
+          ai_analyzed_at: doc.ai_analyzed_at&.iso8601,
+          rename_status: doc.rename_status,
+          rename_approved_at: doc.rename_approved_at&.iso8601
+        }
       end
 
       # Dynamically determine the frontend URL from the request

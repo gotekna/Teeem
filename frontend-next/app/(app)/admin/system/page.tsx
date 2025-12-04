@@ -35,6 +35,9 @@ import {
   Loader2,
   ExternalLink,
   FileText,
+  Database,
+  Tag,
+  UserCog,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -61,6 +64,9 @@ import { ClaudeShortcutsTab } from "./components/ClaudeShortcutsTab";
 import { UserManualTab } from "./components/UserManualTab";
 import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
 import { PerformanceTab } from "./components/PerformanceTab";
+import { DataWarehouseTab } from "./components/DataWarehouseTab";
+import { DocumentTypesTab } from "./components/DocumentTypesTab";
+import { ContactTypesTab } from "./components/ContactTypesTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -79,6 +85,10 @@ const TIMEZONES = [
 
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
+  { id: "data-warehouse", label: "Data Warehouse", icon: Database },
+  { id: "document-types", label: "Document Types", icon: FileText },
+  { id: "contact-types", label: "Contact Types", icon: Tag },
+  { id: "contact-roles", label: "Contact Roles", icon: UserCog },
   { id: "gold-standard", label: "Gold Standard View", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
@@ -101,7 +111,6 @@ const COMPANY_TABS = [
   { id: "corporate", label: "Corporate" },
   { id: "holidays", label: "Holidays" },
   { id: "xero", label: "Xero" },
-  { id: "contact-roles", label: "Contact Roles" },
   { id: "workflows", label: "Workflows" },
   { id: "folders", label: "Folders" },
   { id: "job-setup", label: "Job Setup" },
@@ -388,9 +397,6 @@ function CompanySettingsTab() {
           <TabsContent value="xero">
             <XeroTab />
           </TabsContent>
-          <TabsContent value="contact-roles">
-            <ContactRolesTab />
-          </TabsContent>
           <TabsContent value="workflows">
             <WorkflowsTab />
           </TabsContent>
@@ -436,10 +442,17 @@ function SystemAdminPageContent() {
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start">
           {MAIN_TABS.map((tab) => {
             const Icon = tab.icon;
+            const isActive = currentTab === tab.id;
             return (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
+                ref={(el) => {
+                  // Auto-scroll active tab into view on mount
+                  if (isActive && el) {
+                    el.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+                  }
+                }}
                 className="text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 data-[state=active]:bg-background"
               >
                 <Icon className="h-4 w-4" />
@@ -452,6 +465,18 @@ function SystemAdminPageContent() {
         <div className="mt-6">
           <TabsContent value="company">
             <CompanySettingsTab />
+          </TabsContent>
+          <TabsContent value="data-warehouse">
+            <DataWarehouseTab />
+          </TabsContent>
+          <TabsContent value="document-types">
+            <DocumentTypesTab />
+          </TabsContent>
+          <TabsContent value="contact-types">
+            <ContactTypesTab />
+          </TabsContent>
+          <TabsContent value="contact-roles">
+            <ContactRolesTab />
           </TabsContent>
           <TabsContent value="schedule-master">
             <ScheduleMasterTab />

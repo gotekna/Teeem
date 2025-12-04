@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -71,13 +71,15 @@ interface DuplicateGroup {
 
 const entityTypeColors: Record<string, string> = {
   person: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
-  company: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
-  default_supplier: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
+  company: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
+  trust: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  default_supplier: "bg-purple-100 text-purple-700 dark:bg-purple-400/10 dark:text-purple-400",
 };
 
 const entityTypeLabels: Record<string, string> = {
   person: "Person",
   company: "Company",
+  trust: "Trust",
   default_supplier: "Supplier",
 };
 
@@ -132,11 +134,16 @@ export default function ContactsPage() {
     router.push(`/contacts/${slug}`);
   }, [router]);
 
-  // Handle row double-click - open drawer
+  // Handle row double-click - navigate to contact detail page
   const handleRowDoubleClick = useCallback((row: TTableRow) => {
-    setSelectedContactId(row.id as number);
-    setDrawerOpen(true);
-  }, []);
+    const contact = row as unknown as Contact;
+    const slug = slugifyContactName(
+      contact.first_name || undefined,
+      contact.last_name || undefined,
+      contact.full_name || contact.name
+    );
+    router.push(`/contacts/${slug}`);
+  }, [router]);
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -151,29 +158,32 @@ export default function ContactsPage() {
     }
   }, [refresh]);
 
-  // Calculate stats from records
-  const stats = {
+  // Calculate stats from records - memoized to prevent recalculating on every render
+  const stats = useMemo(() => ({
     total: records.length,
     active: records.filter((c) => c.is_active).length,
     persons: records.filter((c) => c.entity_type === "person").length,
     companies: records.filter((c) => c.entity_type === "company").length,
+    trusts: records.filter((c) => c.entity_type === "trust").length,
     suppliers: records.filter((c) => c.entity_type === "default_supplier").length,
     withXero: records.filter((c) => c.xero_id || c.xero_synced).length,
-  };
+  }), [records]);
 
-  // Filter records based on active tab
-  const getFilteredRecords = () => {
+  // Filter records based on active tab - memoized to prevent re-filtering on every render
+  const filteredRecords = useMemo(() => {
     switch (activeTab) {
       case "persons":
         return records.filter((c) => c.entity_type === "person");
       case "companies":
         return records.filter((c) => c.entity_type === "company");
+      case "trusts":
+        return records.filter((c) => c.entity_type === "trust");
       case "suppliers":
         return records.filter((c) => c.entity_type === "default_supplier");
       default:
         return records;
     }
-  };
+  }, [records, activeTab]);
 
   if (isLoading) {
     return (
@@ -287,6 +297,7 @@ export default function ContactsPage() {
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="persons">Persons</TabsTrigger>
           <TabsTrigger value="companies">Companies</TabsTrigger>
+          <TabsTrigger value="trusts">Trusts</TabsTrigger>
           <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
           <TabsTrigger value="duplicates" className="relative">
             Duplicates
@@ -399,17 +410,18 @@ export default function ContactsPage() {
           )}
         </TabsContent>
 
-        {/* All/Persons/Companies/Suppliers Tab Content - Use TeeemTableView */}
-        {["all", "persons", "companies", "suppliers"].map((tabValue) => (
-          <TabsContent key={tabValue} value={tabValue} className="mt-4">
+        {/* All/Persons/Companies/Suppliers Tab Content - Single TeeemTableView for performance */}
+        {activeTab !== "duplicates" && (
+          <TabsContent value={activeTab} className="mt-4" forceMount>
             <TeeemTableView
-              entries={getFilteredRecords()}
+              entries={filteredRecords}
               columns={columns}
               foundationId="contacts"
               foundationIdNumeric={foundation?.id}
               tableName={foundation?.name || "Contacts"}
               enableExport={true}
               enableImport={true}
+              showDataHealth={true}
               onRefresh={refresh}
               onRowClick={handleRowClick}
               onRowDoubleClick={handleRowDoubleClick}
@@ -417,7 +429,7 @@ export default function ContactsPage() {
               leftActions={leftActions}
             />
           </TabsContent>
-        ))}
+        )}
       </Tabs>
 
       {/* Merge Modal */}

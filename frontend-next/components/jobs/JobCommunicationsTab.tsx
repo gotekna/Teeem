@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import DOMPurify from "isomorphic-dompurify";
+import { EntityChat } from "@/components/chat/EntityChat";
 
 interface Message {
   id: number;
@@ -613,7 +614,13 @@ export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabPr
         </TabsList>
 
         <TabsContent value="messages" className="mt-6">
-          <InternalMessagesSection jobId={jobId} />
+          <EntityChat
+            entityType="job"
+            entityId={typeof jobId === "string" ? parseInt(jobId, 10) : jobId}
+            entityName={jobTitle}
+            showOnlineUsers={true}
+            maxHeight="500px"
+          />
         </TabsContent>
 
         <TabsContent value="emails" className="mt-6">

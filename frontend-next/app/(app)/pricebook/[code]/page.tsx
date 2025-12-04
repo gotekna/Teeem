@@ -70,6 +70,13 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // Types
+interface PriceHistorySupplier {
+  id: number;
+  name: string;
+  full_name?: string;
+  display_name?: string;
+}
+
 interface PriceHistory {
   id: number;
   old_price: number | null;
@@ -78,16 +85,14 @@ interface PriceHistory {
   created_at: string;
   change_reason?: string;
   lga?: string;
-  supplier?: {
-    id: number;
-    name: string;
-  };
+  supplier?: PriceHistorySupplier;
 }
 
 interface Supplier {
   id: number;
   full_name: string;
   display_name?: string;
+  name?: string;  // Some API responses use 'name' instead of 'full_name'
 }
 
 interface PriceBookItem {
@@ -409,7 +414,7 @@ export default function PriceBookItemDetailPage() {
       console.log('[handleAddNewPrice] Response received:', response);
 
       // Update item state directly from response to avoid reload
-      if (response.success && response.item) {
+      if (response?.success && response.item) {
         console.log('[handleAddNewPrice] Updating item state with price_histories count:', response.item.price_histories?.length);
         setItem(response.item);
       }
@@ -475,10 +480,15 @@ export default function PriceBookItemDetailPage() {
           h => h.supplier?.id === supplierId
         )?.supplier;
 
+        // Build a Supplier object from the price_history supplier data
+        const newDefaultSupplier: Supplier | null = supplierFromHistory
+          ? { id: supplierFromHistory.id, full_name: supplierFromHistory.name }
+          : prevItem.default_supplier;
+
         return {
           ...prevItem,
           default_supplier_id: supplierId,
-          default_supplier: supplierFromHistory || prevItem.default_supplier
+          default_supplier: newDefaultSupplier
         };
       });
     } catch (err: any) {
@@ -668,7 +678,7 @@ export default function PriceBookItemDetailPage() {
                       </div>
                       {item.default_supplier && (
                         <div className="mt-1 text-xs text-muted-foreground">
-                          from {item.default_supplier.name}
+                          from {item.default_supplier.display_name || item.default_supplier.full_name}
                         </div>
                       )}
                     </dd>
@@ -887,8 +897,8 @@ export default function PriceBookItemDetailPage() {
                                     role="combobox"
                                     className="w-full justify-between h-9 text-sm font-normal"
                                   >
-                                    {pendingEdit?.supplier?.display_name || pendingEdit?.supplier?.full_name ||
-                                     history.supplier?.display_name || history.supplier?.full_name ||
+                                    {pendingEdit?.supplier?.display_name || pendingEdit?.supplier?.full_name || pendingEdit?.supplier?.name ||
+                                     history.supplier?.display_name || history.supplier?.full_name || history.supplier?.name ||
                                      <span className="text-muted-foreground">Select supplier...</span>}
                                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                   </Button>

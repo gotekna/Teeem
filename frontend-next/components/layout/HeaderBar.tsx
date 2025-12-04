@@ -101,31 +101,37 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setXeroTooltip('Xero: Not Connected');
       }
 
-      // Skip OneDrive check on localhost (endpoint not available locally)
-      if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-        try {
-          const office365Response = await api.get<{ connected?: boolean; needs_refresh?: boolean; error?: string; message?: string }>("/api/v1/organization_onedrive/status");
+      // Check user's Microsoft 365 connection status
+      try {
+        const microsoftResponse = await api.get<{
+          connected?: boolean;
+          needs_reconnect?: boolean;
+          needs_refresh?: boolean;
+          email?: string;
+          status?: string;
+          error?: string;
+          message?: string
+        }>("/api/v1/microsoft/status");
 
-          if (office365Response?.connected === true) {
-            if (office365Response?.needs_refresh || office365Response?.error) {
-              setOffice365Status('error');
-              setOffice365Tooltip(`Office 365: ${office365Response.error || 'Needs Reconnection'}`);
-            } else {
-              setOffice365Status('connected');
-              setOffice365Tooltip('Office 365: Connected');
-            }
-          } else if (office365Response?.message?.toLowerCase().includes('expired') || office365Response?.message?.toLowerCase().includes('reconnect') || office365Response?.error) {
+        if (microsoftResponse?.connected === true) {
+          if (microsoftResponse?.needs_reconnect || microsoftResponse?.needs_refresh) {
             setOffice365Status('error');
-            setOffice365Tooltip(`Office 365: ${office365Response.message || office365Response.error || 'Connection Lost'}`);
+            setOffice365Tooltip(`Microsoft 365: Needs Reconnection`);
           } else {
-            setOffice365Status('disconnected');
-            setOffice365Tooltip('Office 365: Not Connected');
+            setOffice365Status('connected');
+            setOffice365Tooltip(`Microsoft 365: Connected (${microsoftResponse.email || 'Connected'})`);
           }
-        } catch (error) {
-          console.debug("Failed to fetch Office 365 status:", error);
+        } else if (microsoftResponse?.status === 'error' || microsoftResponse?.needs_reconnect) {
+          setOffice365Status('error');
+          setOffice365Tooltip(`Microsoft 365: ${microsoftResponse.message || 'Connection Lost'}`);
+        } else {
           setOffice365Status('disconnected');
-          setOffice365Tooltip('Office 365: Not Connected');
+          setOffice365Tooltip('Microsoft 365: Not Connected');
         }
+      } catch (error) {
+        console.debug("Failed to fetch Microsoft 365 status:", error);
+        setOffice365Status('disconnected');
+        setOffice365Tooltip('Microsoft 365: Not Connected');
       }
     };
 
